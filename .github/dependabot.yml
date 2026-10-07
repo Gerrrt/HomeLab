@@ -200,9 +200,11 @@ updates:
 
   # tofu/ (ADR-0076, #848): the bpg/proxmox provider in versions.tf and its
   # hashes in .terraform.lock.hcl. Dependabot's opentofu ecosystem resolves it
-  # against registry.opentofu.org, the registry the lock file names; CI's
-  # `tofu init -lockfile=readonly` fails a bump whose lock entries do not
-  # match. Monthly: phoenix applies it by hand, like ansible/ above.
+  # against registry.opentofu.org, the registry the lock file names. Its lock
+  # edit is incomplete: the first one (#961) left constraints on the old
+  # version and one zh: hash out, and scripts/lint.sh fails that. Expect each
+  # bump to be red until `tofu -chdir=tofu init -upgrade -backend=false` is
+  # committed onto it. Monthly: phoenix applies it by hand, like ansible/ above.
   - package-ecosystem: opentofu
     directory: /tofu
     schedule:

@@ -31,8 +31,8 @@
 
 modules:
   # An HTTPS endpoint whose certificate the lab's own CA issued — Grafana, and
-  # nothing else yet. The chain is verified against ca.pem, which compose.yaml
-  # mounts in, and the name is verified against whatever the target URL says:
+  # since #847 the wiki's Caddy on oracle. The chain is verified against
+  # ca.pem, which compose.yaml mounts in, and the name is verified against whatever the target URL says:
   # the FQDN for the `dns` probe, the address for the `address` one, which is
   # why gen-certs.sh puts an IP SAN on the leaf. This is the probe a browser
   # runs, minus the trust store: a leaf that expires, or is reissued without
@@ -40,8 +40,9 @@ modules:
   #
   # A verification failure surfaces as probe_success 0, so it fires
   # EndpointUnreachable rather than a TLS-specific alert. That is deliberate
-  # for now: with one lab-CA target, "Grafana is not reachable" is the right
-  # page, and the description says to check the certificate.
+  # for now: with two lab-CA services, "Grafana is not reachable" or "wiki is
+  # not reachable" is the right page, and the description says to check the
+  # certificate.
   http_2xx_lab_ca:
     prober: http
     timeout: 10s
@@ -101,8 +102,8 @@ modules:
       tls_config:
         insecure_skip_verify: true
 
-  # An endpoint served over plain HTTP. The wiki, the switch's web UI, and the
-  # ingest proxy's health paths on 9090 and 3100 — none of these offer TLS, and
+  # An endpoint served over plain HTTP. The switch's web UI and the ingest
+  # proxy's health paths on 9090 and 3100 — neither offers TLS, and
   # a probe that pretended otherwise would measure the wrong thing. Named
   # `plain` rather than `insecure` because nothing here is choosing to weaken
   # anything: the endpoint simply does not offer TLS. (The switch does not
@@ -125,6 +126,10 @@ modules:
   # allowlist. A 401 without the realm means something else is on the port.
   # IngestAuthNotEnforced reads it. EndpointUnreachable deliberately does not,
   # because "not reachable" is the wrong sentence for a door that opened.
+  #
+  # The proxy's leaf is issued by the lab CA (#764), so the refusal is asked
+  # over a verified chain, as http_2xx_lab_ca asks. tls_config is inert for an
+  # http:// target, which is what lets it land before the proxy serves https.
   http_401_ingest_refused:
     prober: http
     timeout: 10s
@@ -138,6 +143,8 @@ modules:
       fail_if_header_not_matches:
         - header: WWW-Authenticate
           regexp: 'realm="homelab-ingest"'
+      tls_config:
+        ca_file: /etc/blackbox_exporter/tls/ca.pem
 
   # Does anything hold the port open at all.
   #

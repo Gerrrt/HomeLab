@@ -361,7 +361,7 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 	fi
 
 .PHONY: gateway-state
-gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#353, #604)
+gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GUI certificate (#353, #604, #857)
 	@# Two measurements per family: what pfSense reports, and whether traffic of
 	@# that family actually leaves the building. They disagreed on 2026-09-07 —
 	@# WAN_DHCP6 reported 100% loss while v6 reached the internet through it in
@@ -372,6 +372,13 @@ gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#3
 	@# public resolver, to the WAN address (#604). Compared on the firewall:
 	@# the name and the address are both withheld, and only the verdict comes back.
 	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
+	@#
+	@# And when the GUI's certificate expires (#857, ADR-0084), read off the
+	@# handshake on the firewall itself: the GUI is blocked from this host on
+	@# purpose, and the ssh it already allows is enough. Rides on this target so
+	@# it needs no new timer; a failure fails the job like any other.
+	./scripts/collect-cert-expiry.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus \
+		--probe pfsense-ui=morpheus=127.0.0.1:443
 
 .PHONY: silence-state
 silence-state: ## Collect Alertmanager's silences as metrics (#575)
@@ -527,10 +534,17 @@ pin-digests: ## Re-resolve image digests in every stack's compose.yaml (--write 
 
 .PHONY: check-digests
 check-digests: ## Verify pinned digests still match the registry
-	@paths="$$(./scripts/stacks.sh --paths)"; for sd in $$paths; do \
+	@# Every stack is checked before this fails. Under .SHELLFLAGS' -e the loop
+	@# used to stop at the first stack that drifted, so one stale pin hid every
+	@# stack after it in stacks.sh order. This is also what digests.yml runs
+	@# weekly, so the CI check and the local one cannot cover different stacks.
+	@paths="$$(./scripts/stacks.sh --paths)"; failed=""; for sd in $$paths; do \
 		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
-		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh; \
-	done
+		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh || failed="$$failed $${sd#stacks/}"; \
+	done; \
+	if [[ -n "$$failed" ]]; then \
+		printf '\n\033[0;31mdigest drift or resolve failure in:\033[0m%s\n' "$$failed"; exit 1; \
+	fi
 
 .PHONY: scan-images
 scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports in .scan/)
@@ -807,7 +821,9 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 	@# STACK=sensitive is trinity's half, and what
 	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
 	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
-	@# which trinity never holds. Both scripts' --verify-only also has oracle
+	@# which trinity never holds. Not backups/paperless-documents/ either:
+	@# household-copy re-makes that set on every visit and nothing else reads
+	@# it (#942, carry-the-household-copy.md §4). Both scripts' --verify-only also has oracle
 	@# hash every archive it holds against the MANIFEST here, so oracle's
 	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \

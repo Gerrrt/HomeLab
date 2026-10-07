@@ -110,6 +110,35 @@ print("\n".join(svc.get("networks") or {}))
   done <<<"${networks}"
 } > "${OVERRIDE}"
 
+# Rendered files the service mounts, which a CI checkout does not have. Docker
+# makes a directory at a missing bind source, so Home Assistant booted with a
+# directory for REQUESTS_CA_BUNDLE and every SSL context failed (#764, #932's
+# first CI run). The trust bundles need no secret, so the real renderer writes
+# them into this run's scratch directory, and the override points the mount
+# there by target, which is how compose merges a service's volumes. A missing
+# rendered file with no secret-free producer stops the boot rather than letting
+# Docker substitute a directory.
+missing="$(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE}" config --format json \
+  | python3 -c '
+import json, os, sys
+svc = json.load(sys.stdin)["services"][sys.argv[1]]
+for v in svc.get("volumes") or []:
+    src = v.get("source") or ""
+    if v.get("type") == "bind" and "/.rendered/" in src and not os.path.exists(src):
+        print(os.path.basename(src) + " " + v["target"])
+' "${SERVICE}")" || die "could not read ${SERVICE}'s mounts"
+if [[ -n "${missing}" ]]; then
+  "${REPO_ROOT}/scripts/render-trust-bundles.sh" "${WORK}/rendered" --home-assistant-only >/dev/null \
+    || die "could not write the trust bundles for the boot"
+  printf 'services:\n  %s:\n    volumes:\n' "${SERVICE}" >> "${OVERRIDE}"
+  while read -r name target; do
+    [[ -f "${WORK}/rendered/${name}" ]] \
+      || die "${SERVICE} mounts rendered ${name}, which is missing here and has no secret-free producer for this check"
+    printf '      - type: bind\n        source: %s\n        target: %s\n        read_only: true\n' \
+      "${WORK}/rendered/${name}" "${target}" >> "${OVERRIDE}"
+  done <<<"${missing}"
+fi
+
 # The proof key. `--no-path-resolution` keeps the checkout's absolute path out
 # of it, so a runner and a laptop agree on the same inputs. `--no-interpolate`
 # is deliberately NOT used: the digest arrives through the image line either

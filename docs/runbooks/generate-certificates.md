@@ -9,13 +9,13 @@
 >
 > | | The estate's CA (this runbook) | The sensitive tier's CA |
 > | --- | --- | --- |
-> | Issues for | Grafana on `prometheus` and on the lab guest | Everything Caddy serves on `trinity` |
+> | Issues for | Grafana on `prometheus` and on the lab guest, and the wiki's Caddy on `oracle` | Everything Caddy serves on `trinity` |
 > | Minted by | `make certs ARGS=--ca` — `openssl` | `make tier-ca ARGS=--mint` — step-ca, in its pinned image |
 > | Leaves issued by | You, by hand, with `make certs` | step-ca over ACME; Caddy asks and renews on its own |
 > | Leaf lifetime | 825 days | 7 days |
 > | Root certificate | `certificates/ca.pem` | `certificates/tier-ca.pem` |
 > | Root key lives | `prometheus`, plus one proved offline copy ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | `prometheus`, and the same offline copy — never on `trinity` |
-> | Who trusts it | The operator's browsers; Prometheus and blackbox by `ca_file` | The household's devices, and the operator's |
+> | Who trusts it | The operator's browsers; Prometheus and blackbox by `ca_file`; the household devices that read the wiki ([ADR-0082](../adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)) | The household's devices, and the operator's |
 > | Runbook | This one | [`build-the-tier-ca.md`](build-the-tier-ca.md) |
 >
 > They are two on purpose and cannot be one: this root carries `pathlen:0`,
@@ -38,8 +38,11 @@ that rewrite as compromised, including the CA. What follows replaces it.
 > [`deploy-stack.md`](deploy-stack.md), not a someday step. `make render`
 > refuses to run until they exist, because before it did, `make up` bind-mounted
 > the absent files and Docker created directories in their place
-> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Grafana is the only
-> service that terminates TLS. Prometheus, Alertmanager and Loki publish plain
+> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Grafana and, on
+> `oracle`, the wiki's Caddy ([#847](https://github.com/Gerrrt/HomeLab/issues/847))
+> are the services that terminate TLS on a leaf from here; the wiki's leaf is
+> issued and carried by [`stacks/wiki/README.md`](../../stacks/wiki/README.md#tls).
+> Prometheus, Alertmanager and Loki publish plain
 > HTTP on the management VLAN, and that is an accepted residual with firewall
 > default-deny as the control — not work in progress; see
 > [`security.md`](../security.md).
@@ -86,11 +89,17 @@ trust store holding it, so that has to be deliberate (`--force`).
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"
 ```
 
 The second is speedtest-tracker's UI (#914). Its `--dns` names the compose
 service for symmetry with Grafana's; nothing verifies it today, because
 Prometheus scrapes the tracker over plain HTTP on port 80.
+
+The third is the ingest proxy's, for 9090 and 3100 on `10.0.99.20` (#764).
+Every client dials the address, so the IP SAN is the one that is verified;
+`prometheus.matrix.elysium` is its name because that is what the address is.
+The clients that trust it are in the table under §4.
 
 Include `--ip` for anything reached by address. `docs/roadmap.md` still lists
 internal DNS as unresolved, so in practice most services here are reached by IP,
@@ -141,6 +150,17 @@ sudo update-ca-certificates
 Firefox keeps its own store and will not read the system one; import it under
 **Settings → Privacy & Security → Certificates → View Certificates → Authorities**.
 
+On a phone — the household's, for the wiki since
+[ADR-0082](../adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)
+— send it `ca.pem` and install it as a certificate profile. On iOS, then
+enable full trust for it under **General → About → Certificate Trust
+Settings**; without that the profile sits installed and untrusted, and Safari
+still warns. On Android, **Settings → Security → Encryption & credentials →
+Install a certificate → CA certificate**. The tier's root is installed the same
+way ([`build-the-tier-ca.md`](build-the-tier-ca.md) §6); a household phone
+that reads both the wiki and the tier holds both, and they are two profiles,
+not one.
+
 **Then add a row here.** This table is the re-mint path's list: a new root
 (`--ca --force`, or the key lost) has to be re-trusted in every one of these
 places, and [ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
@@ -153,18 +173,23 @@ the certificate somewhere and not recording it is how it goes stale
 | --- | --- | --- |
 | Prometheus on `prometheus` | `ca_file` — bind-mounted read-only by [`compose.yaml`](../../stacks/observability/compose.yaml), verifies the `grafana` scrape | Nothing to import: `make up` restarts it on the new file |
 | blackbox-exporter on `prometheus` | `ca_file` in [`blackbox.yaml`](../../stacks/observability/blackbox/blackbox.yaml), same mount — the `http_2xx_lab_ca` probes | Same |
+| The Alloy agents on `oracle`, `trinity` and `Saruman` | `tls_config { ca_file }` in [`config.alloy`](../../stacks/observability/alloy/config.alloy), reading `INGEST_CA_FILE`. [`deploy-agent.sh`](../../scripts/deploy-agent.sh) ships the committed copy, [`ingest-ca.pem`](../../stacks/observability/alloy/ingest-ca.pem), to `/etc/alloy` (#764) | Copy the new `ca.pem` over `ingest-ca.pem` and commit it ([`check_ingest_ca.sh`](../../scripts/check_ingest_ca.sh) fails until you do), then rerun `deploy-agent.sh` for each host. Saruman's runs from the Mac |
+| Homepage on `trinity` | `NODE_EXTRA_CA_CERTS`, a bundle of the tier's root and `ingest-ca.pem` that `render-config.sh` writes to `stacks/sensitive/.rendered/` | `make up` on trinity once the commit above is pulled |
+| Home Assistant on `trinity` | `REQUESTS_CA_BUNDLE`, the host's public roots plus `ingest-ca.pem`, from the same render step | Same |
 | Prometheus on `alexander` (the lab guest) | `ca_file`, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5 | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed |
 | The operator's Mac — system keychain | **Not imported.** Confirmed on the device 2026-09-20: not present in Keychain Access, and an import attempt that day was refused with an "invalid key" error. ADR-0037's "the Mac's system store, at least" was wrong; Safari and Chrome do not trust the estate's CA | Nothing |
 | The operator's Mac — Firefox | **Not imported.** Confirmed on the device 2026-09-20: not under Authorities. So no browser on the Mac trusts the estate's CA, and Grafana over `https` there warns until one does — which is a choice, not a defect, and importing it is the row you add here | Nothing |
 | The monitoring host's own OS store | **Not imported.** Checked 2026-09-19: nothing under `/usr/local/share/ca-certificates/` and no match in the system bundle | Nothing |
 | The Grafana image renderer | **Does not trust it** and cannot — Chromium reads NSS, not `SSL_CERT_FILE`; it ignores certificate errors instead ([`compose.yaml`](../../stacks/observability/compose.yaml), the renderer's `BROWSER_FLAGS`) | Nothing |
-| Household devices, phones | **Never.** The estate's CA is the operator's; the household trusts the tier's root only ([`build-the-tier-ca.md`](build-the-tier-ca.md) §6) | Nothing |
+| Household devices, phones | **Only those that read the wiki, and none yet.** Until 2026-10-07 this row said *never*: the estate's CA was the operator's alone. [ADR-0082](../adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md) put the wiki behind a leaf from it, so a phone that reads the wiki trusts this root as well as the tier's. Add a row per device when it is installed; none had been on the day this was written | Re-install the profile on every phone listed, and on iOS re-enable full trust |
 
 ## Renewal
 
 Leaves expire in 825 days. There is no automation and deliberately no cron: a
 lab with one certificate is better served by a reminder than by a renewal
-daemon nobody maintains. The reminder is an alert, not a calendar entry.
+daemon nobody maintains. The reminder is an alert, not a calendar entry. The
+wiki's leaf is the second, and is renewed the same way; its carrying to
+`oracle` is in [`stacks/wiki/README.md`](../../stacks/wiki/README.md#tls).
 
 That sentence is about *this* CA. The tier's certificates renew themselves —
 Caddy re-issues each seven-day leaf from step-ca at a third of the way from
@@ -173,7 +198,7 @@ from step-ca too, with `step ca renew` on a timer, this section and this
 script retire together; that is ADR-0037's reopen condition, and it waits on
 publishing step-ca's port to its first off-host consumer
 ([ADR-0012](../adr/0012-publish-only-ports-with-an-off-host-consumer.md)).
-blackbox-exporter probes Grafana by name and by address, verifies the chain
+blackbox-exporter probes Grafana and the wiki by name and by address, verifies the chain
 against `ca.pem`, and reads the expiry off the handshake — so what is watched
 is the certificate actually being served, not a file on disk.
 `TlsCertificateExpiringSoon` fires at 30 days and `TlsCertificateExpiryImminent`
@@ -193,6 +218,33 @@ Let it lapse and the failure is loud rather than quiet: the lab-CA probe
 verifies, so an expired leaf fails it outright and `EndpointUnreachable` fires
 for Grafana — alongside `up{job="grafana"}` going to 0, since Prometheus
 verifies the same chain on its scrape.
+
+## Management console certificates
+
+Four consoles serve self-signed certificates that this CA never issued, and
+the blackbox probes above cannot reach any of them: each answers Hicks only.
+`scripts/collect-cert-expiry.sh` reads each one's expiry off a handshake made
+inside its own segment and writes `homelab_cert_expiry_timestamp_seconds`;
+`ManagementCertificateExpiringSoon` warns at 30 days and
+`ManagementCertificateExpiryImminent` pages at 7
+([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+[ADR-0084](../adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+
+| `endpoint` | Console | Read by | Reissue |
+| --- | --- | --- | --- |
+| `pfsense-ui` | pfSense GUI on `morpheus` | `make gateway-state` on the monitoring host, over its ssh, every 15 minutes | `pfSsh.php playback generateguicert` in the firewall's shell. That is how the 2026-09-28 regeneration was done, and it gives 398 days, so the 2027-04-16 expiry recurs |
+| `pve-ui` | Proxmox UI on `Saruman`, `:8006` | `homelab-cert-expiry.timer` on Saruman, daily | `pvecm updatecerts --force`, then `systemctl restart pveproxy`, at Saruman's console |
+| `ilo-ui` | iLO on `shiva`, `10.0.30.10` | the same timer on Saruman, which shares its segment | The iLO's own UI: **Administration → Security → SSL Certificate** |
+| `truenas-ui` | TrueNAS UI on `smaug` | a root cron job on smaug ([`build-the-nas.md`](build-the-nas.md) §6.10), daily | **Credentials → Certificates**, then select it under **System → General → GUI** |
+
+After reissuing, the alert clears at the next collection. For `pfsense-ui` that
+is within 15 minutes. For the others it is the next day, or sooner if the
+collector is run by hand: `systemctl start homelab-cert-expiry` on Saruman, or
+the cron job's **Run Now** on smaug.
+
+A console whose certificate cannot be read raises
+`ManagementCertificateUnchecked` after six hours rather than going silent. Run
+the collector with `--print` to see which probe failed.
 
 ## If something goes wrong
 

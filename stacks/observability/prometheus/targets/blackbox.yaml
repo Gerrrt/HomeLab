@@ -28,18 +28,25 @@
 # --- The wiki ----------------------------------------------------------------
 # Probed twice on purpose: once by the name on the printed card, once by its
 # address. See `via` above.
+#
+# Over https and verified against the lab CA since #847 (ADR-0082): Caddy on
+# oracle terminates TLS with a leaf from it, and port 80 only redirects. So
+# these also read the leaf's expiry, and the `address` probe is what checks
+# it carries its IP SAN, as Grafana's does below. `/healthz` because it is
+# Wiki.js's own and answers without a session, so a 200 means Caddy, the
+# proxy and Wiki.js all answered.
 
-- targets: ["http://lemmiwinks.matrix.elysium"]
+- targets: ["https://lemmiwinks.matrix.elysium/healthz"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: wiki
     role: documentation
     host: oracle
     via: dns
 
-- targets: ["http://10.0.99.30"]
+- targets: ["https://10.0.99.30/healthz"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: wiki
     role: documentation
     host: oracle
@@ -54,9 +61,10 @@
 # nothing. Probing 10.0.99.20 hairpins through Docker's published port and
 # fails in exactly that case.
 #
-# Grafana is the only service terminating TLS, and the only lab-CA target: the
-# chain is verified against certificates/ca.pem and the name against the URL,
-# so the `address` probe is also what checks that the leaf carries its IP SAN.
+# Grafana terminates TLS itself, on a lab-CA leaf, as the wiki's Caddy does:
+# the chain is verified against certificates/ca.pem and the name against the
+# URL, so the `address` probe is also what checks that the leaf carries its IP
+# SAN.
 # `/api/health` because it answers without a session — `/` is a redirect to
 # the login page, which also works, but says less.
 
@@ -394,6 +402,12 @@
 #            to the firewall's login page. Worth having — the
 #            default GUI certificate is 398 days and nothing else watches it —
 #            but not worth having by accident.
+#
+# Their CERTIFICATES are watched without either pass (#857, ADR-0084):
+# scripts/collect-cert-expiry.sh reads pfSense's on the firewall over the ssh
+# `make gateway-state` already makes, and the iLO's from Saruman, which shares
+# its segment. So the case for these probes is reachability alone now, not
+# expiry — weigh the pass on that.
 #
 # Once the rule exists, verify from the running exporter before uncommenting:
 #

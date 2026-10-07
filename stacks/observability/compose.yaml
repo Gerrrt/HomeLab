@@ -469,8 +469,9 @@ services:
   # the same pinned image as stacks/sensitive's, and Dependabot moves both.
   #
   # Non-root, unlike the sensitive tier's Caddy, because nothing here needs a
-  # certificate store. `auto_https off` and `admin off` mean nothing is
-  # written to /data or /config. They are tmpfs so the image's paths exist,
+  # certificate store: the leaf below is a file, issued by gen-certs.sh like
+  # Grafana's, not one Caddy obtains. `auto_https off` and `admin off` mean
+  # nothing is written to /data or /config. They are tmpfs so the image's paths exist,
   # and `docker diff` after a boot and a full request matrix showed nothing
   # written anywhere. NET_BIND_SERVICE stays in the bounding set for a
   # measured reason, not to bind a low port (9090, 3100 and 2020 are not
@@ -485,11 +486,21 @@ services:
   # The tokens are in the environment, so `docker inspect` can read them. That
   # is the same exposure class as GRAFANA_ADMIN_PASSWORD, and the Caddyfile's
   # `{$VAR}` form needs no rendered file.
+  #
+  # The leaf is prometheus.matrix.elysium, with 10.0.99.20 as an IP SAN because
+  # every client dials the address (#764). Its key is 0640 and owned by the
+  # operator who ran gen-certs.sh, so the proxy joins that group, the way
+  # grafana does for its own leaf. It is mounted ahead of the Caddyfile serving
+  # it: the first PR of #764 lands the mount and the clients' trust, and the
+  # second turns TLS on, so a key the proxy cannot read is found while every
+  # client still speaks http.
   caddy:
     <<: *service-defaults
     image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
     container_name: ingest-proxy
     user: "65534:65534"
+    group_add:
+      - "${RENDER_GID:?run make render}"
     mem_limit: 64m
     memswap_limit: 64m
     cap_drop: [ALL]
@@ -508,6 +519,8 @@ services:
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../certificates/prometheus.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/prometheus.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
     ports:
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${PROMETHEUS_PORT:-9090}:9090"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${LOKI_PORT:-3100}:3100"
@@ -1007,6 +1020,17 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # GET /version, which the allowlist above admits (#845). Not
+      # `wget --spider`: that sends HEAD, the GET-only rule refuses it, and a
+      # working proxy would read as unhealthy. The request goes through to the
+      # socket, so this says the proxy AND the daemon behind it answer. busybox
+      # wget from the haproxy Alpine base; --probe proves it.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   alloy:
     <<: *service-defaults
@@ -1206,7 +1230,31 @@ services:
       # neither sender has to move. Gerrrt/Lemmiwinks#161.
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_PORT:-1514}:1514/udp"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_STD_PORT:-514}:1514/udp"
+    healthcheck:
+      # /-/ready over bash's /dev/tcp (#845). The image is Ubuntu with neither
+      # curl nor wget, so bash is the client, and check_compose_health.py
+      # --probe proves bash is still in the image after a bump. /-/ready
+      # answers 503 until the config graph has loaded and 200 after, so this
+      # says the agent is running its config rather than that a process
+      # exists. It does not say the pushes land; the receiving end's alerts
+      # (InstanceDown, LokiIngestionStalled) still say that.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
+      # Healthy, now that it can say so (#845): without the proxy every
+      # docker.alloy component fails while the agent itself reports fine.
+      docker-socket-proxy:
+        condition: service_healthy
       # service_started for loki, for the same reason as grafana above: the
       # distroless image cannot report health. Alloy retries a failed push with
       # backoff and buffers in the meantime, so racing Loki's startup is safe.

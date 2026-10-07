@@ -61,8 +61,16 @@ jobs:
       # exit status alone. Acceptable here, because both are things a human
       # should look at; it would not be acceptable on a host timer, where a
       # registry outage would read as drift and alert.
+      #
+      # `make check-digests`, not pin-digests.sh directly. The script reads one
+      # compose file and defaults to stacks/observability, so until this called
+      # the Makefile loop over scripts/stacks.sh the weekly check covered that
+      # one stack, and drift in scratch, sensitive, soc and wiki went
+      # unreported.
+      # The target checks every stack before it fails and names the ones that
+      # drifted.
       - name: Check digests
-        run: ./scripts/pin-digests.sh
+        run: make check-digests
 
   # The pins Dependabot has no ecosystem for: the Packer plugin and the
   # ansible-galaxy collections (#848). Each stays an exact pin and a deliberate

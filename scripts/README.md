@@ -117,6 +117,7 @@ they describe. The rest are installed on the host they describe by
 | `collect-smart-state.sh`, `render-smart-baselines.sh` | SMART health for disks the iLO cannot see, and the known reallocated-sector baselines ([ADR-0046](../docs/adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)) |
 | `collect-zpool-state.sh`, `collect-truenas-version.sh` | `smaug`'s pool leaves and TrueNAS version |
 | `collect-gateway-state.sh` | The firewall's view of its uplinks and its DDNS record |
+| `collect-cert-expiry.sh` | When the management consoles' certificates expire, read off a handshake inside each console's segment ([ADR-0084](../docs/adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)) |
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
@@ -147,6 +148,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `export-dashboards.sh`, `export_dashboards.py` | `dashboards-export` | Folds UI edits in the running Grafana back over the committed JSON |
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
+| `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
 | `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |

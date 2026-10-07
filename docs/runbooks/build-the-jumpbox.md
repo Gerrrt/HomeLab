@@ -285,8 +285,8 @@ Prove the door and the token together, from `phoenix`:
 
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a
-curl -sk -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
-  "${PROXMOX_URL}/nodes/Saruman/qemu" | python3 -m json.tool | grep '"name"'
+printf 'header = "Authorization: PVEAPIToken=%s=%s"\n' "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" \
+  | curl -K - -sk "${PROXMOX_URL}/nodes/Saruman/qemu" | python3 -m json.tool | grep '"name"'
 ```
 
 `alexander` and `phoenix` at minimum. A connection timeout is the door — the

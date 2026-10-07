@@ -17,6 +17,10 @@ secrets/*
 # a guest that is destroyed after each investigation (ADR-0071, .sops.yaml).
 secrets/scratch.sops.yaml
 *.pem
+# The one committed certificate: the estate CA's public half, which every
+# client of the ingest ports verifies the proxy against (#764). Never a key —
+# scripts/check_ingest_ca.sh fails on anything but a single CA certificate here.
+!stacks/observability/alloy/ingest-ca.pem
 *.key
 *.p12
 *.pfx

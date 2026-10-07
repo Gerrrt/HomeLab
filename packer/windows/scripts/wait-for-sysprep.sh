@@ -41,10 +41,12 @@ CURL_TLS=()
 
 # Prints the VM's status, or fails with the reason on stderr. A status that is
 # not a word (an error page, an empty body) is a failed read, not a state.
+# The token is curl config on stdin, not -H, so it is never in this poll's argv
+# for ps on phoenix to show, 180 times a build (#846).
 status() {
   local body s
-  body="$(curl -fsS --connect-timeout 10 --max-time 30 "${CURL_TLS[@]}" \
-    -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
+  body="$(printf 'header = "Authorization: PVEAPIToken=%s=%s"\n' "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" \
+    | curl -K - -fsS --connect-timeout 10 --max-time 30 "${CURL_TLS[@]}" \
     "${PROXMOX_URL}/nodes/${NODE}/qemu/${VMID}/status/current" 2>&1)" \
     || { printf '%s' "${body}"; return 1; }
   s="$(jq -r '.data.status // empty' <<<"${body}" 2>/dev/null)" || true

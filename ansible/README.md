@@ -9,8 +9,9 @@ This directory configures the lab domain's six guests from `phoenix`
 ADR-0029. This page covers what is here and how to run it.
 
 ```bash
-cd ansible
 set -a; . ~/.config/proxmox/phoenix.env; set +a
+scripts/lab-known-hosts.sh                       # after any of the six is rebuilt
+cd ansible
 ansible-playbook lab-domain.yml --check --diff   # what would change (existing domain only)
 ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
@@ -87,6 +88,10 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
     in place of the deploy GPOs (#448).
   - `authgen`: the authentication generator's batch right and scheduled task,
     on the two endpoints.
+  - `weakness_kerberoast`, `weakness_asreproast`, `weakness_dcsync`,
+    `weakness_ucd`, `weakness_cd`, `weakness_rbcd`: #449's deliberate
+    weaknesses, on `bahamut`, each behind its own tag and off by default
+    ([ADR-0083]). Their fixed identifiers are in `group_vars/all.yaml`.
   - `sysmon`: Sysmon at the pinned version, running sysmon-modular's balanced
     config, with its channel sized to 256 MiB (#450, [ADR-0080]). The config
     in `files/` is vendored byte for byte by
@@ -115,12 +120,34 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `tiers` | The tier OUs, admins, `Tier 0 Admins`, member placement | §5 |
 | `shares` | `titan`'s `Public` and `Finance`, with the decoy | §5 |
 | `soc` | Wazuh and Velociraptor, in place of the deploy GPOs | §11 |
+| `kerberoast` | An SPN on a crackable account, `ramuh`'s target | §5a |
+| `asreproast` | Pre-auth disabled on a crackable account | §5a |
+| `dcsync` | Replication rights on a non-DA principal | §5a |
+| `ucd` | Unconstrained delegation on `ramuh` | §5a |
+| `cd` | Constrained delegation, `svc-web` to `titan` CIFS | §5a |
+| `rbcd` | Resource-based constrained delegation on `titan` | §5a |
 | `sysmon` | Sysmon and its config, on every guest | §7 |
 
 The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
-§11's agents. [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s SPN
-account, Tier 0 logon GPO and deliberate weaknesses are still to come, each as
-a further tag in this same playbook.
+§11's agents. The last six are
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s deliberate weaknesses
+([ADR-0083]), each off until asked for: `weakness_<name>_state` is `absent` by
+default, so a plain run leaves none of them present. Enable one, watch the SOC
+see it, disable it, confirm the signal goes:
+
+```bash
+ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
+ansible-playbook verify.yml      -e weakness_kerberoast_state=present   # it is on
+ansible-playbook lab-domain.yml --tags kerberoast                       # off again
+ansible-playbook verify.yml                                             # all six absent
+```
+
+A plain `ansible-playbook verify.yml` asserts every one of these six weakness
+primitives is absent — the per-primitive negative test. It does not walk the
+domain's authorization graph, so it does not by itself prove *no* path to
+Domain Admin exists; that graph-level check is a BloodHound collector run with
+the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)) — the "run
+the collector" half that #449 asks for.
 
 ## Capture on demand
 
@@ -158,13 +185,19 @@ guest.
   own timer (ADR-0021), and `phoenix` never pushes to them (ADR-0043).
 - **Secrets come from `phoenix.env`.** The variables are
   `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`, `LAB_POPULATION_SEED`,
-  `LAB_TIER_ADMIN_PASSWORD` and `LAB_WAZUH_REGISTRATION_PASSWORD`. Every
-  task that uses one is `no_log`. The exception is
+  `LAB_TIER_ADMIN_PASSWORD`, `LAB_WAZUH_REGISTRATION_PASSWORD` and
+  `LAB_WEAK_PASSWORD` (the deliberately crackable one the weakness accounts
+  share, ADR-0083). Every task that uses one is `no_log`. The exception is
   `population-credentials.yml`, which exists to print passwords and is run
   by hand.
 - **A second run changes nothing.** Every task compares before it acts. A
   task that reports `changed` on a guest already in the right state is a bug
   in that task.
+- **Host keys are checked, against `.known_hosts` only.**
+  `scripts/lab-known-hosts.sh` writes it from keys read inside each guest
+  through the Proxmox guest agent, never from what the network presents
+  ([ADR-0085]). A rebuilt guest is refused until it has run again. Do not
+  turn the check off to get past that; run the script.
 - **CI proves it parses, `phoenix` proves it configures.**
   `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check,
   under the `production` profile that `.ansible-lint` pins. CI has no route
@@ -172,5 +205,7 @@ guest.
 
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [ADR-0080]: ../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md
+[ADR-0083]: ../docs/adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md
+[ADR-0085]: ../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix

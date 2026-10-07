@@ -9,11 +9,12 @@
 # Deploy with:  NOT `make up STACK=wiki`. oracle has no age identity and must
 #              not get one — ADR-0015 put the estate's ciphertext there on the
 #              condition that no key which opens it sits beside it — so there
-#              is no secrets file to render. This is stacks/media's shape
-#              (#528): a change reaches oracle by fetching compose.yaml and
-#              .env.example from main into /opt/wiki and running
-#              `docker compose up -d` there, by hand. Nothing on oracle pulls
-#              from main on its own. README.md has the procedure.
+#              is no secrets file to render. A change reaches oracle from a
+#              checkout of this repository at /opt/wiki/HomeLab: fetch, verify
+#              the commit's signature against the same pinned fingerprint
+#              scripts/converge.sh uses, fast-forward, `docker compose up -d`,
+#              by hand (ADR-0082, #847). Nothing on oracle pulls from main on
+#              its own. README.md has the procedure.
 #
 # ---------------------------------------------------------------------------
 # What is state here, and what is not
@@ -119,10 +120,10 @@ services:
     volumes:
       - ${WIKI_DB_SECRET:?set in .env — see .env.example}:/etc/wiki/.db-secret:ro
       - wiki-data:/wiki/data
-    ports:
-      # The household reaches it as http://lemmiwinks.matrix.elysium; blackbox
-      # probes that name and the bare address (prometheus/targets/blackbox.yaml).
-      - "80:3000"
+    # Not published. Caddy below is the only way in, and it speaks TLS; a
+    # login that reached 3000 from the segment would cross it in clear, which
+    # is what #847 closed. Until then this was "80:3000" on every interface.
+    expose: ["3000"]
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
       interval: 30s
@@ -131,6 +132,81 @@ services:
       start_period: 60s
     depends_on:
       db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Caddy: TLS in front of Wiki.js (ADR-0082, #847)
+  # ---------------------------------------------------------------------------
+  # Serves 443 with a leaf from the estate's CA — `make certs` on prometheus,
+  # carried to oracle by hand, README.md § TLS — and answers 80 with nothing
+  # but a redirect to it, so the name on the printed card (ADR-0023) still
+  # works and no form is ever posted to Wiki.js in clear. No ACME, no issuer,
+  # no renewal daemon: the leaf lasts 825 days and blackbox's expiry alerts
+  # are the reminder, as for Grafana's.
+  #
+  # The image is the sensitive tier's, digest for digest, so one Dependabot
+  # bump reviews both.
+  #
+  # MEASURED 2026-10-07 on the pinned image:
+  #   1. /usr/bin/caddy carries cap_net_bind_service=ep as a file capability.
+  #      Run as a non-root uid with no-new-privileges, the exec is refused
+  #      outright ("operation not permitted") — the kernel will not grant the
+  #      file capability and will not run the binary without it. So this runs
+  #      as root with every capability dropped but NET_BIND_SERVICE, the
+  #      sensitive tier's shape, and listens on 80 and 443 itself.
+  #   2. Root here holds no CAP_DAC_OVERRIDE, so it reads the key through the
+  #      group bits like any other uid: the key is 0640 and owned 1000:1000,
+  #      and gid 1000 is added below. .env.example says the same.
+  #   3. busybox wget is present, for the healthcheck, and has no
+  #      --max-redirect, so it checks 443 rather than the redirect on 80.
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    container_name: wiki-caddy
+    # Its own name, on the stack's network, for the healthcheck below: the
+    # handshake is chosen by SNI, and busybox wget sends the URL's host as it.
+    networks:
+      wiki:
+        aliases:
+          - lemmiwinks.matrix.elysium
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    group_add:
+      - "1000"
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+      # Caddy's storage and autosave. Nothing is issued, so nothing here is
+      # worth keeping across a recreate.
+      - /data:size=16m
+      - /config:size=1m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # cert.pem and key.pem, and nothing else: never the CA's key.
+      - ${WIKI_TLS_DIR:?set in .env — see .env.example}:/etc/caddy/tls:ro
+    ports:
+      # The household reaches it as https://lemmiwinks.matrix.elysium; blackbox
+      # probes that name and the bare address over https and verifies the
+      # chain (prometheus/targets/blackbox.yaml). 80 only redirects.
+      - "80:80"
+      - "443:443"
+    healthcheck:
+      # Through the TLS listener and the proxy to Wiki.js's own /healthz, so a
+      # missing key, a refused handshake or a dead upstream all fail it. By
+      # name, through the alias above: dialled as 127.0.0.1 the SNI matches no
+      # policy and the handshake is refused. The chain is not checked here —
+      # the container trusts no estate CA — and blackbox is what checks it.
+      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://lemmiwinks.matrix.elysium/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    depends_on:
+      app:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
