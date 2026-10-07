@@ -637,13 +637,11 @@ def socket_mount_problems(services: dict) -> list[str]:
 # because `wazuh.manager` in soc and in scratch are two services. Like
 # ABSENT_BINARIES, it is checked in both directions by --cross-stack: an entry
 # for a service that is gone, or that has since gained the option, is stale.
-NNP_EXEMPT: dict[tuple[str, str], str] = {
-    ("observability", "renderer"): (
-        "Chromium's sandbox has never been run under no-new-privileges here, "
-        "and the service runs only under the `capture` profile for "
-        "`make screenshots`; measuring it is #954"
-    ),
-}
+#
+# Empty since #954, and meant to stay that way: its one entry, `renderer`, was
+# measured and now carries the option like everything else. An entry here is a
+# finding with a reason, never a way to make CI green.
+NNP_EXEMPT: dict[tuple[str, str], str] = {}
 LONG_RUNNING_RESTARTS = {"always", "unless-stopped", "on-failure"}
 
 
@@ -656,15 +654,20 @@ def has_no_new_privileges(svc: dict) -> bool:
     return False
 
 
-def privilege_problems(services: dict, stack: str) -> list[str]:
-    """A long-running service without no-new-privileges and no recorded reason."""
+def privilege_problems(services: dict, stack: str, exempt: dict[tuple[str, str], str] | None = None) -> list[str]:
+    """A long-running service without no-new-privileges and no recorded reason.
+
+    `exempt` is NNP_EXEMPT unless --self-test hands it a fixture, so the
+    fixtures do not depend on what the real allowlist happens to hold.
+    """
+    exempt = NNP_EXEMPT if exempt is None else exempt
     problems = []
     for name, svc in services.items():
         svc = svc or {}
         restart = str(svc.get("restart", "no")).split(":")[0]
         if restart not in LONG_RUNNING_RESTARTS:
             continue
-        if has_no_new_privileges(svc) or str(NNP_EXEMPT.get((stack, name), "")).strip():
+        if has_no_new_privileges(svc) or str(exempt.get((stack, name), "")).strip():
             continue
         problems.append(
             f"{name} is long-running (restart: {restart}) but does not set "
@@ -1061,6 +1064,7 @@ def self_test() -> int:
     # 23-28. The no-new-privileges guard (#845). Keyed on the restart policy,
     #        so a profile is no way past it and a one-shot tool is not caught.
     nnp = ["no-new-privileges:true"]
+    fixture_exempt = {("observability", "renderer"): "a fixture reason"}
     check(
         "a long-runner without no-new-privileges fails",
         1,
@@ -1079,12 +1083,12 @@ def self_test() -> int:
     check(
         "an NNP_EXEMPT entry is honoured for its own stack",
         0,
-        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "observability")),
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "observability", fixture_exempt)),
     )
     check(
         "an NNP_EXEMPT entry does not leak to another stack",
         1,
-        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "lab")),
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "lab", fixture_exempt)),
     )
     check(
         "both spellings of the option count",
