@@ -42,6 +42,14 @@
 // header at all. That was measured against a listener on the pinned image,
 // not read from the docs.
 //
+// INGEST_CA_FILE is the CA the writers verify an https endpoint against
+// (#764). deploy-agent.sh ships stacks/observability/alloy/ingest-ca.pem beside
+// this file and sets it to that path, for the estate's proxy only. Unset, as
+// it is for every agent inside a stack and for the lab's, tls_config is the
+// default and an http URL is untouched. Both measured on the pinned image: an
+// empty ca_file loads and pushes over http as before, and with the file set an
+// https push to a server under that CA succeeds where it failed without it.
+//
 // ALLOY_HOSTNAME is the name this agent labels everything with, and it is read
 // from the environment rather than taken from constants.hostname.
 //
@@ -400,6 +408,10 @@ loki.write "grafana_loki" {
 	endpoint {
 		url          = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
 		bearer_token = sys.env("INGEST_TOKEN")
+
+		tls_config {
+			ca_file = sys.env("INGEST_CA_FILE")
+		}
 	}
 	external_labels = {
 		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
@@ -410,6 +422,10 @@ prometheus.remote_write "metrics_service" {
 	endpoint {
 		url          = coalesce(sys.env("PROMETHEUS_REMOTE_WRITE_URL"), "http://prometheus:9090/api/v1/write")
 		bearer_token = sys.env("INGEST_TOKEN")
+
+		tls_config {
+			ca_file = sys.env("INGEST_CA_FILE")
+		}
 	}
 	external_labels = {
 		host = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),

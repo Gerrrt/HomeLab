@@ -128,7 +128,7 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 82 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 83 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 46
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -222,7 +222,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 82 ADRs — architecture decision records
+│   ├── adr/                  # 83 ADRs — architecture decision records
 │   └── runbooks/             # 46 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
@@ -255,13 +255,14 @@ make secrets-edit     # fill in real values
 make certs ARGS=--ca  # create the lab CA
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"    # Grafana's leaf
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"    # speedtest-tracker's
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"    # the ingest proxy's
 make validate         # everything CI runs
 make up               # render config and start the stack
 ```
 
-The two `certs` steps are not optional: Grafana serves https from that leaf and
-Prometheus verifies it with the CA, so `make up` renders nothing until they
-exist. Details in
+The `certs` steps are not optional: Grafana, speedtest-tracker and the ingest
+proxy each mount their leaf, and Prometheus verifies Grafana's with the CA, so
+`make up` renders nothing until they exist. Details in
 [`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
 Grafana on `:3000` over https, Prometheus on `:9090`. Alertmanager binds to

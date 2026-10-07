@@ -115,9 +115,11 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
   make certs ARGS=\"--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker\"
+  make certs ARGS=\"--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy\"
 
-The speedtest leaf serves speedtest-tracker's UI (#914); the CA already exists
-by then, so it is the one line to run.
+The speedtest leaf serves speedtest-tracker's UI (#914), and the prometheus
+leaf the ingest proxy on 9090 and 3100 (#764). Where the CA already exists,
+skip the first line: a second CA is one no client trusts.
 
 Full procedure in docs/runbooks/generate-certificates.md.
 
@@ -193,6 +195,21 @@ They are tracked by git, so a missing one means the checkout is incomplete —
 in their place, which is the failure this check exists to prevent."
 fi
 unset untracked src
+
+# ---------------------------------------------------------------------------
+# Trust bundles for the sensitive tier's clients of the estate's ingest proxy
+#
+# Homepage and Home Assistant verify the proxy's leaf against the estate CA
+# (#764), each through one bundle file. scripts/render-trust-bundles.sh has the
+# reasoning, and why a changed bundle gets a new inode where everything else
+# this script writes keeps its own. It decrypts nothing, which is why it is a
+# script of its own: check_hardened_boot.sh needs the same bundle in CI.
+# ---------------------------------------------------------------------------
+if [[ "${STACK}" == sensitive ]]; then
+  "${REPO_ROOT}/scripts/render-trust-bundles.sh" "${STACK_DIR}/.rendered" \
+    | sed 's/^/-- trust bundle: /' \
+    || die "could not write the trust bundles"
+fi
 
 # ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.
