@@ -26,8 +26,12 @@ docstring gives: it is a record, not a claim about now.
   installed whatever HashiCorp's apt repository held, while CI linted with
   `hashicorp/packer:1.16.1`. The requirement is now `~> 1.16.0`, and §1
   installs the 1.16.1 zip after checking it against `SHA256SUMS`. A host that
-  had packer from apt removes it along with the repository. phoenix has not
-  been moved yet, so `packer version` there is still unproved.
+  had packer from apt removes it along with the repository. phoenix was such a
+  host: it held `packer 1.16.1-1` from apt, the right version only because
+  nothing newer had shipped yet. §1 was run there the same day. The apt package
+  and the repository are gone, the zip's checksum matched, and as `locke`,
+  `command -v packer` prints `/usr/local/bin/packer`, `packer version` prints
+  `Packer v1.16.1`, and `packer init` accepts the new `~> 1.16.0`.
 - **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
   at least the template's own disk: 32 for Ubuntu, 64 for Kali and Windows.
   `memory_mib` must be at least 1024 for Linux and 2048 for Windows, and
