@@ -113,6 +113,7 @@ COLLECTORS=(
   "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/bin/apt-get"
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
+  "cert-expiry scripts/collect-cert-expiry.sh   cert-expiry-HOST.prom  /usr/bin/pveproxy"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"

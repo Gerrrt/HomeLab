@@ -1998,6 +1998,60 @@ Prometheus. Then stop one deliberately, for example
 within the scrape interval and firing ten minutes later. Start it again with
 `docker start media-navidrome`.
 
+### §6.10 — Turn certificate expiry collection on
+
+The TrueNAS UI's certificate expires on its own schedule, and nothing on the
+monitoring host can see it: 443 answers Hicks only, which §1 set up on purpose
+([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+[ADR-0084](../adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+`scripts/collect-cert-expiry.sh` makes the handshake from this host to its own
+UI and writes `homelab_cert_expiry_timestamp_seconds{endpoint="truenas-ui"}`
+into the directory §6.4 made. It runs as a root cron job, like the other
+collectors in this section. `ManagementCertificateExpiringSoon` warns at 30
+days, and `CertExpiryStateStale` fires if the job stops.
+
+**1. Fetch it and read one run**, in the TrueNAS shell:
+
+```bash
+cd /mnt/erebor/apps/stack \
+  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-cert-expiry.sh \
+  && chmod 0755 collect-cert-expiry.sh
+PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-cert-expiry.sh --print --host smaug --probe truenas-ui=smaug=127.0.0.1:443
+```
+
+`--print` writes no file. Expect a
+`homelab_cert_expiry_timestamp_seconds{endpoint="truenas-ui",host="smaug"}`
+line and `homelab_cert_checked … 1`. If `checked` is `0` and there is no
+expiry line, the UI is bound to its address rather than to every interface:
+run it again with `127.0.0.1:443` replaced by `10.0.40.30:443`, and use that
+in step 2.
+
+**2. The cron job.** **System → Advanced Settings → Cron Jobs → Add**:
+
+```text
+PATH=/usr/sbin:/usr/bin:/sbin:/bin TEXTFILE_DIR=/mnt/erebor/apps/textfile timeout 60 /bin/bash /mnt/erebor/apps/stack/collect-cert-expiry.sh --host smaug --probe truenas-ui=smaug=127.0.0.1:443
+```
+
+| Field | Value | Why |
+| --- | --- | --- |
+| Description | `homelab cert-expiry (#857)` | So the next person finds the decision from the job |
+| Command | the block above, exactly | `--host smaug` names the file `cert-expiry-smaug.prom`; `timeout 60` because a wedged UI would otherwise hang the job |
+| Run As User | `root` | Only because `/mnt/erebor/apps/textfile` is root-owned `0755` |
+| Schedule | daily, `08:50` | The warning is at 30 days; `CertExpiryStateStale` fires at two days, two missed runs |
+| Hide Standard Output | **on** | Success is one line and TrueNAS would mail it daily |
+| Hide Standard Error | **off** | A failure is the thing worth seeing |
+
+**3. Confirm**, from the monitoring host after the first scheduled run:
+
+```bash
+curl -s http://10.0.40.30:9100/metrics | grep -E '^homelab_cert_|^node_textfile_scrape_error'
+```
+
+The expiry line, `homelab_cert_checked` at `1`, and `node_textfile_scrape_error`
+at `0`. **When the UI's certificate is reissued** (System → Certificates), the
+next day's file carries the new date; see
+[`generate-certificates.md`](generate-certificates.md#management-console-certificates).
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the

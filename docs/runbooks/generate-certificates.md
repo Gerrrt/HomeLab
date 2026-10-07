@@ -194,6 +194,33 @@ verifies, so an expired leaf fails it outright and `EndpointUnreachable` fires
 for Grafana — alongside `up{job="grafana"}` going to 0, since Prometheus
 verifies the same chain on its scrape.
 
+## Management console certificates
+
+Four consoles serve self-signed certificates that this CA never issued, and
+the blackbox probes above cannot reach any of them: each answers Hicks only.
+`scripts/collect-cert-expiry.sh` reads each one's expiry off a handshake made
+inside its own segment and writes `homelab_cert_expiry_timestamp_seconds`;
+`ManagementCertificateExpiringSoon` warns at 30 days and
+`ManagementCertificateExpiryImminent` pages at 7
+([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+[ADR-0084](../adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+
+| `endpoint` | Console | Read by | Reissue |
+| --- | --- | --- | --- |
+| `pfsense-ui` | pfSense GUI on `morpheus` | `make gateway-state` on the monitoring host, over its ssh, every 15 minutes | `pfSsh.php playback generateguicert` in the firewall's shell. That is how the 2026-09-28 regeneration was done, and it gives 398 days, so the 2027-04-16 expiry recurs |
+| `pve-ui` | Proxmox UI on `Saruman`, `:8006` | `homelab-cert-expiry.timer` on Saruman, daily | `pvecm updatecerts --force`, then `systemctl restart pveproxy`, at Saruman's console |
+| `ilo-ui` | iLO on `shiva`, `10.0.30.10` | the same timer on Saruman, which shares its segment | The iLO's own UI: **Administration → Security → SSL Certificate** |
+| `truenas-ui` | TrueNAS UI on `smaug` | a root cron job on smaug ([`build-the-nas.md`](build-the-nas.md) §6.10), daily | **Credentials → Certificates**, then select it under **System → General → GUI** |
+
+After reissuing, the alert clears at the next collection. For `pfsense-ui` that
+is within 15 minutes. For the others it is the next day, or sooner if the
+collector is run by hand: `systemctl start homelab-cert-expiry` on Saruman, or
+the cron job's **Run Now** on smaug.
+
+A console whose certificate cannot be read raises
+`ManagementCertificateUnchecked` after six hours rather than going silent. Run
+the collector with `--print` to see which probe failed.
+
 ## If something goes wrong
 
 | Symptom | Cause | Fix |

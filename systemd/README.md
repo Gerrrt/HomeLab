@@ -56,7 +56,7 @@ editing units, not installing them.
 | `homelab-pkg-state` | daily 09:00 | `morpheus`'s package state, over SSH |
 | `homelab-recipient-state` | daily 09:15 | Which age recipients can open the secrets, and when each was proved |
 | `homelab-ca-key-state` | daily 09:30 | The CA key's fingerprint, and when its offline copy was last proved |
-| `homelab-gateway-state` | every 15 min | The firewall's view of its uplinks and its DDNS record |
+| `homelab-gateway-state` | every 15 min | The firewall's view of its uplinks, its DDNS record and its GUI certificate's expiry |
 | `homelab-silence-state` | every 15 min, at :05 | Alertmanager's silences, as metrics |
 | `homelab-snmp-verify` | Wednesday 06:30 | Every SNMP device answers to its current credential |
 | `homelab-check-versions` | Wednesday 06:45 | The documented OS versions against what the hosts report |
@@ -93,6 +93,7 @@ for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 | `homelab-prune-images` | Monday 04:00 | hosts that run Docker | Removes unused images |
 | `homelab-drift-check` | daily 06:30 | `oracle` | The wiki's drift check |
 | `homelab-pve-version` | daily 08:15 | `Saruman` | The Proxmox VE version |
+| `homelab-cert-expiry` | daily 08:30 | `Saruman` | When its own `:8006` certificate and the iLO's expire ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
 | `homelab-pve-firewall-state` | every 5 min | `Saruman` | Whether the Proxmox firewall is on |
 | `homelab-guest-state` | every 10 min | `Saruman` | Which guests are running |
 | `homelab-guest-disk-state` | every 10 min | `Saruman` | How full the guests' filesystems are |

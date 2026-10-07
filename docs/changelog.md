@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The four management consoles' certificates have expiry gauges**
+  ([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+  [ADR-0084](adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+  These are the pfSense GUI, the iLO, `Saruman`'s `:8006` and the TrueNAS UI.
+  Each answers Hicks only, so no blackbox probe could read them.
+  `scripts/collect-cert-expiry.sh` makes the handshake inside each console's
+  own segment and writes `homelab_cert_expiry_timestamp_seconds`, and no
+  firewall pass was added.
+  - **Where each is read.** pfSense's is read on the firewall over the ssh
+    `make gateway-state` already makes. Saruman's and the iLO's are read from
+    Saruman by a new agent timer, since Saruman shares the iLO's segment.
+    smaug's is read by a root cron job.
+  - **New rules.** `ManagementCertificateExpiringSoon` warns at 30 days and
+    `ManagementCertificateExpiryImminent` pages at 7.
+    `ManagementCertificateUnchecked` covers a console that will not answer, and
+    `CertExpiryStateStale` covers a collector that stopped.
+  - **Measured from the monitoring host on 2026-10-07.** morpheus serves its
+    GUI certificate on `127.0.0.1:443`, `notAfter` 2027-04-16 16:37:44 UTC.
+    That matches the 2026-09-28 regeneration.
+  - **Not yet live: the Saruman and smaug halves.** Each needs someone at a
+    console: `make install-agent-collectors` from the Mac for Saruman, and
+    [`build-the-nas.md`](runbooks/build-the-nas.md) §6.10 for smaug. #857
+    stays open until all four `endpoint` series exist.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
@@ -39,6 +63,7 @@ docstring gives: it is a record, not a claim about now.
     entry. It took about three minutes.
   - **The fixture.** `backup-library.sh --self-test` now flips one byte in a
     set and truncates another, and `--verify-only --all` fails on both.
+||||||| parent of 4ab91f2 (wip #857)
 
 - **Syslog stores only the senders it names.**
   [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host

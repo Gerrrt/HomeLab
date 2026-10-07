@@ -1851,3 +1851,111 @@ groups:
             to outlast. If this is prometheus, that is the monitoring host:
             shut it down cleanly rather than letting the cell decide.
             HostOnBattery says why the mains is out.
+
+      # Management console certificates (#857, ADR-0084): the pfSense GUI, the
+      # iLO, Saruman's :8006 and the TrueNAS UI. TlsCertificateExpiringSoon
+      # cannot see them — each answers Hicks only, so the blackbox exporter on
+      # the monitoring host never completes a handshake — and so these read
+      # scripts/collect-cert-expiry.sh's gauge instead, written by a handshake
+      # made inside each console's own segment.
+      #
+      # The same two tiers and thresholds as the blackbox pair, for the same
+      # reasons: 30 days is enough to reissue by hand, 7 is a reminder that was
+      # missed. The critical one inhibits the warning in alertmanager.yaml.
+      # `min by (endpoint, host)` so the alert carries only the console's name
+      # and the machine it belongs to — the iLO's series is collected on
+      # Saruman (instance="Saruman") and is about shiva (host="shiva").
+      - alert: ManagementCertificateExpiringSoon
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds - time())
+          / 86400 < 30
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: >-
+            {{ $labels.endpoint }} on {{ $labels.host }} has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            Read from the handshake with the console itself, so this is the
+            certificate actually being served. Each of these is self-signed and
+            reissued from its own UI or shell —
+            docs/runbooks/generate-certificates.md#management-console-certificates
+            says how for each one. The alert resolves on the next collection
+            after the new certificate is served: within 15 minutes for
+            pfsense-ui, the next day for the others.
+
+      - alert: ManagementCertificateExpiryImminent
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds - time())
+          / 86400 < 7
+        for: 10m
+        labels:
+          component: host
+          severity: critical
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#management-console-certificates"
+          summary: >-
+            {{ $labels.endpoint }} on {{ $labels.host }} has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            Under a week, or already expired if the number is negative. The
+            console keeps answering, but browsers start refusing it, and this
+            is the console someone reaches for when something else is already
+            wrong. Reissue it now from the runbook.
+
+      # The reader could not complete a handshake. Kept apart from the expiry
+      # rules on purpose (the homelab_ddns_record_checked pattern): an unread
+      # certificate has no expiry sample, so without this a console that
+      # stopped answering — or an iLO that OpenSSL refuses to talk to — would
+      # make the expiry alerts quietly impossible. Six hours, because a console
+      # restarting or a host rebooting is not worth a word.
+      - alert: ManagementCertificateUnchecked
+        expr: homelab_cert_checked == 0
+        for: 6h
+        labels:
+          component: host
+          severity: warning
+          category: config
+        annotations:
+          summary: "{{ $labels.endpoint }} on {{ $labels.host }}: its certificate could not be read"
+          description: >-
+            The collector on {{ $labels.instance }} ran but got no certificate
+            from {{ $labels.endpoint }}, so its expiry is not being watched. Run
+            the collector by hand with --print to see the probe: for
+            pfsense-ui that is `make gateway-state` on the monitoring host, on
+            Saruman `systemctl start homelab-cert-expiry` and its journal, on
+            smaug the cron job's command. A console that is down says so
+            elsewhere; one that is up and refusing the handshake is a TLS
+            setting changed on the device.
+
+      - alert: CertExpiryStateStale
+        # The collector has stopped rewriting its file, on any host. The
+        # SmartStateStale shape and reasons: the .prom persists and is
+        # re-served on every scrape, so the expiry samples stay present and a
+        # year away while nobody is reading them. On the monitoring host the
+        # writer is `make gateway-state`, which ScheduledJobStale watches too;
+        # on Saruman and smaug it is a timer and a TrueNAS cron job that
+        # nothing else knows about. Two days against a daily schedule.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*cert-expiry-.*\\.prom"} > 2 * 86400
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten {{ $labels.file }} in two days"
+          description: >-
+            The certificate expiry textfile is {{ $value | humanizeDuration }}
+            old, so ManagementCertificateExpiringSoon is reading dates that
+            nobody has checked since. On Saruman the writer is
+            homelab-cert-expiry.timer; on smaug a cron job in TrueNAS's UI
+            (System → Advanced Settings → Cron Jobs; build-the-nas.md §6.10);
+            on the monitoring host `make gateway-state`. Check the job still
+            exists and that its last run wrote the file.

@@ -177,6 +177,13 @@ inhibit_rules:
     target_matchers: [alertname = "TlsAcmeRenewalLate"]
     equal: ["name"]
 
+  # And for the management consoles nothing can probe, whose expiry comes from
+  # a collector rather than the handshake blackbox makes (#857). `endpoint` is
+  # that collector's name for the console, unique across the estate.
+  - source_matchers: [alertname = "ManagementCertificateExpiryImminent"]
+    target_matchers: [alertname = "ManagementCertificateExpiringSoon"]
+    equal: ["endpoint"]
+
 receivers:
   - name: "null"
 

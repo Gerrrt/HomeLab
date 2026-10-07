@@ -237,6 +237,12 @@
 #            default GUI certificate is 398 days and nothing else watches it —
 #            but not worth having by accident.
 #
+# Their CERTIFICATES are watched without either pass (#857, ADR-0084):
+# scripts/collect-cert-expiry.sh reads pfSense's on the firewall over the ssh
+# `make gateway-state` already makes, and the iLO's from Saruman, which shares
+# its segment. So the case for these probes is reachability alone now, not
+# expiry — weigh the pass on that.
+#
 # Once the rule exists, verify from the running exporter before uncommenting:
 #
 #   docker exec blackbox-exporter wget -qO- \
