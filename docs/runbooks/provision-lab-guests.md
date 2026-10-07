@@ -112,6 +112,7 @@ never at `/`:
 ```bash
 pveum role modify PhoenixBuilder --append 1 --privs "Pool.Allocate,Pool.Audit"
 pveum acl modify /pool/proof --users phoenix@pve --roles PhoenixBuilder
+pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixBuilder
 pveum acl list | grep phoenix
 ```
 
@@ -129,6 +130,7 @@ Each later pool gets its own `acl modify` line here and a row below:
 | Path | Role | For |
 | --- | --- | --- |
 | `/pool/proof` | `PhoenixBuilder` | §4's proof guest. It exists only while the proof runs, and §4's teardown deletes this grant with it. Re-run it before any later `-var proof=true` |
+| `/pool/lab-domain` | `PhoenixBuilder` | ADR-0029's six. A rebuild destroys with `-target=module.guest`, so the pool and this grant outlive the guests. An untargeted `tofu destroy` takes both, and this line must be run again before the next apply |
 
 If an apply fails with `Permission check failed (/…, Some.Privilege)`, add that
 privilege to the role and record it here. This is ADR-0043's rule again.
@@ -244,7 +246,9 @@ A Windows guest takes no `initialization` block, because its first-boot answers
 come from the template's sysprep answer file (ADR-0074 §3).
 
 A plan that says `must be replaced` for a guest that exists is a stop, not a
-step. Read why before applying. A changed template VMID or clone setting
+step. The one exception is the plan right after an import, as in
+[`build-the-lab-domain.md`'s rebuild](build-the-lab-domain.md#rebuild-from-the-pipeline):
+a guest built by hand has no `clone` to read back. Read why before applying. A changed template VMID or clone setting
 replaces the guest, and replacing it re-clones it from scratch.
 
 ## 6. As run

@@ -23,8 +23,9 @@
 # not localhost, so that --limit cannot leave it out: `--limit titan --tags
 # base` would select no localhost, and skip it. assert runs on the controller
 # and connects to nothing, so evaluating it per host costs nothing, and
-# any_errors_fatal stops every host on a failure. The population seed and the Wazuh password are
-# asserted by the roles that use them.
+# any_errors_fatal stops every host on a failure. The population seed, the
+# Wazuh password and the endpoint admin's are asserted by the roles that use
+# them.
 - name: The secrets are present before anything uses them
   hosts: lab_domain
   gather_facts: false
@@ -82,6 +83,13 @@
   roles:
     - role: member
       tags: [join]
+
+- name: The endpoints' own local administrator
+  hosts: endpoints
+  gather_facts: false
+  roles:
+    - role: endpoint_admin
+      tags: [endpoint_admin]
 
 - name: The tiers ADR-0029 names, and where the members sit in them
   hosts: dc_primary
