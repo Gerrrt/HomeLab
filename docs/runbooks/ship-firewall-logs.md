@@ -363,9 +363,10 @@ volume and little of the signal.
 UDP has no handshake, so any host on VLAN 99 can send a line with a forged
 source of `10.0.99.1` and have it stored as `host="morpheus"`, filterlog and
 Suricata lines included. #844's sender allowlist cannot tell the difference.
-The receiver therefore also listens on **6514/tcp with TLS, and requires a
-client certificate** the estate CA issued for client use. The sender allowlist
-still applies on top. `stacks/observability/alloy/syslog.alloy` says why each
+The receiver therefore also listens on **6514/tcp with TLS, and requires
+morpheus's own client certificate**, pinned: no other certificate passes, even
+another client leaf from the same CA. The sender allowlist still applies on
+top. `stacks/observability/alloy/syslog.alloy` says why each
 part is needed.
 
 pfSense's own syslog daemon sends UDP only, so morpheus sends TLS through the
@@ -380,9 +381,28 @@ firewall logs cannot be replayed.
 > volume. Keep the overlap to the minutes §7.5 needs, and remove the UDP
 > server in §7.6 the same sitting.
 
-### 7.1 Deploy the receiver and check it refuses strangers
+### 7.1 Issue both certificates, before the change is deployed
 
-On the monitoring host, after the change that adds the listener is on `main`:
+The listener mounts two files that do not exist until this step: its own
+server leaf and morpheus's client certificate. compose refuses to start Alloy
+without them, and that Alloy is the one collecting **everything** on this
+host. So run this on the monitoring host, which holds the estate CA, **before**
+the change that adds the listener reaches `main`, since converge deploys it
+within the hour:
+
+```bash
+scripts/gen-certs.sh --host syslog.matrix.elysium --ip 10.0.99.20
+scripts/gen-certs.sh --host morpheus.matrix.elysium --ip 10.0.99.1 --client
+```
+
+The first is the listener's own leaf. Its key is mounted into nothing else,
+so it is not the ingest proxy's. The second reports `EKU clientAuth`, and
+`syslog.alloy` pins that exact certificate. Re-issuing it later means
+restarting Alloy, which reads the pin at start.
+
+### 7.2 Deploy the receiver and check it refuses strangers
+
+On the monitoring host, once the change is on `main`:
 
 ```bash
 make up
@@ -396,17 +416,6 @@ end in `alert certificate required`:
 ```bash
 openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null 2>&1 | tail -3
 ```
-
-### 7.2 Issue morpheus's client certificate
-
-On the monitoring host, which holds the estate CA:
-
-```bash
-scripts/gen-certs.sh --host morpheus.matrix.elysium --ip 10.0.99.1 --client
-```
-
-It reports `EKU clientAuth`. Every other leaf is `serverAuth`, and that is the
-point: the listener accepts this certificate and refuses any of theirs.
 
 ### 7.3 Install and configure syslog-ng on morpheus
 

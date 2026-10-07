@@ -41,7 +41,9 @@
 #                   mean something: Go's crypto/tls requires clientAuth of a
 #                   client certificate, so a key lifted from Grafana or the
 #                   ingest proxy cannot pass as a client. The first is
-#                   morpheus's, for TLS syslog to Alloy (#1049).
+#                   morpheus's, for TLS syslog to Alloy (#1049), whose
+#                   listener pins that exact certificate rather than
+#                   trusting every client leaf this CA signs.
 #   --days <n>      leaf lifetime, default 825
 #   --force         overwrite an existing CA or leaf
 #

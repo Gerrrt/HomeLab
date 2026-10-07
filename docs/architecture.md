@@ -221,7 +221,7 @@ re-shard of everything. Reasoning in
 | Alertmanager | 9093 | `127.0.0.1` | Nothing off-host uses it; silences are reached through Grafana |
 | Alloy | 12345 | `127.0.0.1` | Debug UI, deliberately not exposed |
 | Alloy syslog | 1514/udp | `${INGEST_BIND_ADDR}` | Network syslog receiver — pfSense pushes here, and host port 514 maps to it too; lines from any address `syslog.alloy` does not name are dropped (#844). Forgeable from VLAN 99, so it goes once morpheus sends over TLS (#1049) |
-| Alloy syslog (TLS) | 6514/tcp | `${INGEST_BIND_ADDR}` | Network syslog over TLS. A client certificate the estate CA issued for client use is required, and the address allowlist still applies (#1049) |
+| Alloy syslog (TLS) | 6514/tcp | `${INGEST_BIND_ADDR}` | Network syslog over TLS. morpheus's own client certificate is required and pinned, so no other certificate passes, and the address allowlist still applies (#1049) |
 | snmp-exporter | 9116 | *compose network only* | Never published to a host interface |
 | blackbox-exporter | 9115 | *compose network only* | Never published — an open prober is an SSRF primitive |
 | docker-socket-proxy | 2375 | *compose network only* | Never published — it holds the Docker socket, and an open one is root on this host |

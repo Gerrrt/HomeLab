@@ -38,27 +38,30 @@
 //     allowlist's address means what it says.
 //   - TLS with ca_file set, which is what makes the pinned Alloy (v1.20.1,
 //     syslogtarget/transport.go) set ClientAuth = RequireAndVerifyClientCert.
-//     A sender with no certificate, or one this CA did not sign, is refused
-//     during the handshake, before a byte of syslog is read.
-//   - A CLIENT certificate in particular. Go requires extendedKeyUsage
-//     clientAuth of one, and every other leaf the estate CA has issued is
-//     serverAuth only, so a server key lifted from Grafana or the ingest
-//     proxy cannot pass. morpheus's is the one client leaf
-//     (scripts/gen-certs.sh --client).
+//     A sender with no certificate, or one that does not chain to ca_file, is
+//     refused during the handshake, before a byte of syslog is read.
+//   - ca_file is MORPHEUS'S OWN CERTIFICATE, not the estate CA. Go accepts a
+//     certificate found in its trust pool as a chain of one, so this pins the
+//     exact leaf: no other certificate passes, including another client leaf
+//     the same CA signs later. Trusting the estate CA instead would accept
+//     any of them, and a holder of one who took over 10.0.99.1 would pass
+//     both checks. The leaf must still carry extendedKeyUsage clientAuth,
+//     which scripts/gen-certs.sh --client gives it.
 //
 // The allowlist still applies to TLS lines too, so taking over 10.0.99.1 on
 // the segment is not enough without morpheus's key, and holding the key is
 // not enough from another address.
 //
 // pfSense's own syslogd sends UDP only, so morpheus sends TLS through the
-// syslog-ng package (docs/runbooks/ship-firewall-logs.md, §TLS). syslog-ng's
+// syslog-ng package (docs/runbooks/ship-firewall-logs.md §7). syslog-ng's
 // syslog() driver speaks RFC 5424 with octet-counted framing, hence that
 // format here; Alloy's TCP reader takes either framing.
 //
 // The UDP listener stays until TLS lines are proven arriving as
 // host="morpheus" with transport="tls", because a gap in firewall logs cannot
 // be replayed. Removing it, and its two published ports, is what finally
-// closes the forgeable path; until then it is still open.//
+// closes the forgeable path; until then it is still open.
+//
 // use_incoming_timestamp is DELIBERATELY false. RFC3164 carries neither a year
 // nor a timezone, and trusting a timestamp with neither is how the first
 // deployment of this listener failed. Measured on the wire:
@@ -111,15 +114,16 @@ loki.source.syslog "network" {
 			transport = "tls",
 		}
 
-		// The estate CA's prometheus.matrix.elysium leaf, which the ingest
-		// proxy already serves with 10.0.99.20 as an IP SAN (#764), and the
-		// CA it is checked against both ways. ca_file is what turns client
+		// The listener's own leaf, syslog.matrix.elysium with 10.0.99.20 as an
+		// IP SAN, and a key no other service holds. ca_file is morpheus's
+		// certificate, pinned (above), and it is also what turns client
 		// certificates from optional to required: leaving it out would give
-		// an encrypted stream from anyone.
+		// an encrypted stream from anyone. Re-issuing morpheus's leaf means
+		// restarting Alloy, which reads this file at start.
 		tls_config {
 			cert_file = "/etc/syslog-tls/cert.pem"
 			key_file  = "/etc/syslog-tls/key.pem"
-			ca_file   = "/etc/syslog-tls/ca.pem"
+			ca_file   = "/etc/syslog-tls/morpheus.pem"
 		}
 	}
 

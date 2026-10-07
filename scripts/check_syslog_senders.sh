@@ -17,22 +17,25 @@
 #   3. from the allowed address, claiming hostname `evil`
 #      -> stored, host="morpheus": the message hostname is not trusted
 #
-# and six over TLS to the 6514 listener (#1049), with certificates made for
-# this run by a throwaway CA standing in for the estate's:
+# and seven over TLS to the 6514 listener (#1049), which pins morpheus's own
+# certificate, with certificates made for this run by a throwaway CA standing
+# in for the estate's:
 #
 #   4. from the allowed address with morpheus's client certificate
 #      -> stored, host="morpheus", transport="tls"
 #   5. the same, claiming hostname `evil` -> stored, host="morpheus"
 #   6. no client certificate                  -> refused in the handshake
-#   7. a serverAuth leaf, as Grafana's is     -> refused: wrong key usage
-#   8. a client certificate from another CA   -> refused: unknown authority
-#   9. morpheus's certificate from another address
+#   7. ANOTHER clientAuth leaf from the same CA -> refused: not the pinned one
+#   8. a serverAuth leaf, as Grafana's is     -> refused
+#   9. a client certificate from another CA   -> refused
+#  10. morpheus's certificate from another address
 #      -> the handshake completes, the allowlist drops it, and it is counted
 #
-# Each refusal (2, 6-9) is checked for absence only after the accepted lines,
+# Each refusal (2, 6-10) is checked for absence only after the accepted lines,
 # which were sent after it, have arrived. "Absent" therefore means refused,
-# not slow. The counter shows 2 and 9 reached Alloy at all, and Alloy's own
-# log names the reason for each of 6, 7 and 8.
+# not slow. The counter shows 2 and 10 reached Alloy at all, and Alloy's own
+# log names the reason for 6 and for each of 7, 8 and 9. Case 7 is the one
+# that fails if the listener trusts the CA rather than pinning the leaf.
 #
 # The one change made to syslog.alloy: the scratch network cannot be
 # 10.0.99.0/24 without taking the monitoring host's real route to VLAN 99, so
@@ -107,9 +110,9 @@ mkdir -p "${WORK}/data" "${WORK}/rules/fake" "${WORK}/alloy" "${WORK}/tls"
 
 # Certificates for the TLS cases, from a throwaway CA shaped as
 # scripts/gen-certs.sh issues: the listener's own serverAuth leaf with the
-# scratch Alloy's address as an IP SAN, morpheus's clientAuth leaf, a
-# serverAuth leaf standing in for a server key lifted from Grafana, and a
-# clientAuth leaf from a second CA the listener does not trust.
+# scratch Alloy's address as an IP SAN, morpheus's clientAuth leaf, a second
+# clientAuth leaf from the same CA, a serverAuth leaf standing in for a server
+# key lifted from Grafana, and a clientAuth leaf from a second CA.
 command -v openssl >/dev/null 2>&1 || die "openssl is required for the TLS cases"
 mkca() { # dir
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=syslogcheck-$1" \
@@ -129,9 +132,12 @@ mkca estate
 mkca other
 mkleaf cert     estate serverAuth "IP:${ALLOY_IP}"
 mkleaf morpheus estate clientAuth "DNS:morpheus.matrix.elysium"
+mkleaf sibling  estate clientAuth "DNS:sibling.matrix.elysium"
 mkleaf grafana  estate serverAuth "DNS:grafana.matrix.elysium"
 mkleaf rogue    other  clientAuth "DNS:morpheus.matrix.elysium"
-# The names syslog.alloy reads, under the path compose mounts them at.
+# The names syslog.alloy reads, under the path compose mounts them at:
+# cert.pem and key.pem are the listener's own, morpheus.pem is the pin.
+# ca.pem is for the senders, which check the listener against it.
 cp "${WORK}/tls/estate-ca.pem" "${WORK}/tls/ca.pem"
 mv "${WORK}/tls/cert-key.pem" "${WORK}/tls/key.pem"
 python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \
@@ -240,6 +246,7 @@ TOK_EVIL="evilname-${RUN_ID}"
 TOK_TLS="tls-allowed-${RUN_ID}"
 TOK_TLS_EVIL="tls-evilname-${RUN_ID}"
 TOK_TLS_NOCERT="tls-nocert-${RUN_ID}"
+TOK_TLS_SIBLING="tls-sibling-${RUN_ID}"
 TOK_TLS_SERVER="tls-serverleaf-${RUN_ID}"
 TOK_TLS_OTHERCA="tls-otherca-${RUN_ID}"
 TOK_TLS_STRANGER="tls-stranger-${RUN_ID}"
@@ -253,6 +260,7 @@ send "${ALLOWED_IP}"  "<134>${STAMP} evil filterlog[4242]: ${TOK_EVIL},,,1000000
 
 # The TLS refusals first, for the same reason.
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_NOCERT}")"   ""
+send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_SIBLING}")"  sibling
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_SERVER}")"   grafana
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_OTHERCA}")"  rogue
 send_tls "${STRANGER_IP}" "$(rfc5424 - "${TOK_TLS_STRANGER}")" morpheus
@@ -286,7 +294,7 @@ wait_streams() { # token seconds -> prints streams once present
 }
 
 FAILED=0
-info "sent three lines over UDP and six over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
+info "sent three lines over UDP and seven over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
 
 # host_is <streams> — every stream carries host="morpheus" and nothing else
 # says `evil`.
@@ -368,22 +376,26 @@ absent() { # token description
   fi
 }
 absent "${TOK_TLS_NOCERT}"   "a TLS line with no client certificate"
+absent "${TOK_TLS_SIBLING}"  "a TLS line with another client certificate from the same CA"
 absent "${TOK_TLS_SERVER}"   "a TLS line authenticated with a serverAuth leaf"
 absent "${TOK_TLS_OTHERCA}"  "a TLS line with another CA's client certificate"
 absent "${TOK_TLS_STRANGER}" "a TLS line with morpheus's certificate from ${STRANGER_IP}"
 
-# The three handshake refusals, by Alloy's own reason, so a refusal for some
-# other cause (a broken leaf, a wrong path) cannot pass as the intended one.
+# The handshake refusals, by Alloy's own reason, so a refusal for some other
+# cause (a broken leaf, a wrong path) cannot pass as the intended one. Cases 7,
+# 8 and 9 all fail the pin the same way: none of them is morpheus.pem.
 ALLOY_LOG="$(docker logs "${TAG}-alloy" 2>&1)"
-for reason in "client didn't provide a certificate" \
-              "certificate specifies an incompatible key usage" \
-              "certificate signed by unknown authority"; do
-  if grep -qF "${reason}" <<< "${ALLOY_LOG}"; then
-    pass "Alloy refused a handshake: ${reason}"
-  else
-    fail "Alloy never logged \"${reason}\""
-  fi
-done
+if grep -qF "client didn't provide a certificate" <<< "${ALLOY_LOG}"; then
+  pass "Alloy refused a handshake with no client certificate"
+else
+  fail "Alloy never logged \"client didn't provide a certificate\""
+fi
+unknown="$(grep -cF "certificate signed by unknown authority" <<< "${ALLOY_LOG}" || true)"
+if ((unknown == 3)); then
+  pass "Alloy refused the three certificates that are not the pinned one"
+else
+  fail "Alloy logged \"unknown authority\" ${unknown} times, expected 3"
+fi
 
 dropped_after="$(dropped)"
 if ((dropped_after - dropped_before == 2)); then
