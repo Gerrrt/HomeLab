@@ -19,8 +19,10 @@ Two conventions hold across all of them:
   that names its image anywhere else fails `check_image_pins.py`, so a script
   can only run an image that Dependabot can see and that has a pinned digest.
 - **Python's one third-party module is PyYAML, and it is pinned.** Every
-  script takes it from `_deps.py`: the host's `python3-yaml`, or on a CI runner
-  the hash-pinned `requirements.txt`. Nothing runs `pip install` on a host.
+  script that needs it takes it from `_deps.py`: the host's `python3-yaml`, or
+  on a CI runner the hash-pinned `requirements.txt`. A host never installs it
+  from PyPI. `compose-guards.sh` is the one exception, and installs nothing:
+  it uses PyYAML only if it is already importable, and approximates without it.
 - **A check that cannot run says SKIP, not PASS.** `validate.sh` counts the
   skips and prints them at the end, because a skipped check proves nothing.
 
