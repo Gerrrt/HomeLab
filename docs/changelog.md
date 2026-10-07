@@ -28,9 +28,12 @@ docstring gives: it is a record, not a claim about now.
   it so. `scripts/deploy-lock.sh` is now a per-stack `flock` inside the
   checkout's `.git`. `make up` runs under it and waits up to 900s, naming the
   holder. `converge.sh` holds it for its whole run and leaves a held stack for
-  the next hour, while its own `make up` passes through. Fixtures: twelve in
-  `deploy-lock.sh --self-test`, including two concurrent holders and the nested
-  case, and a converge case that fails if the lock is removed.
+  the next hour, while its own `make up` passes through. The wrapper passes
+  TERM, INT and HUP on to its command and waits for it, so killing the wrapper
+  alone cannot free the lock under a running deploy. Fixtures: seventeen in
+  `deploy-lock.sh --self-test`, including two concurrent holders, the nested
+  case and a TERM to the wrapper, and a converge case that fails if the lock
+  is removed.
 
 - **Converge deploys the newest commit that passed CI, not only the tip**
   ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`

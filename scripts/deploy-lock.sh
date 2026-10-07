@@ -165,7 +165,36 @@ deploy_lock_main() {
     wait "$first"
     check "an unrelated deploy cannot take a lock held by the sourced form" "$rc" "75"
 
-    # A holder that died leaves stale text and a free lock.
+    # The wrapper is the lock's only owner, so it must outlive its command
+  # (#1041's review). A TERM aimed at the wrapper alone is passed on to the
+  # command, and the lock stays held until the command really exits. The child
+  # ignores TERM for its two seconds, so "still held" cannot pass by accident.
+  "$here" observability -- sh -c 'trap "" TERM; sleep 2; exit 7' &
+  first=$!
+  sleep 0.5
+  kill -TERM "$first"
+  sleep 0.3
+  rc=0
+  "$here" --wait 0 observability -- true 2>/dev/null || rc=$?
+  check "a TERM to the wrapper does not free the lock while its command runs" "$rc" "75"
+  rc=0
+  wait "$first" || rc=$?
+  check "the wrapper waits for the command and returns its status" "$rc" "7"
+  check "and the lock is free once it has exited" "$("$here" --wait 0 observability -- echo free)" "free"
+  # And an ordinary command is stopped by the TERM, not left running.
+  "$here" observability -- sh -c 'sleep 5; echo too-late > late' &
+  first=$!
+  sleep 0.5
+  kill -TERM "$first"
+  wait "$first" || true
+  sleep 0.2
+  check "a TERM to the wrapper reaches its command" "$([[ -e late ]] && echo ran || echo stopped)" "stopped"
+
+  # A command can still read the terminal's stdin, though it now runs in the
+  # background of this process.
+  check "the command still gets stdin" "$(echo piped | "$here" observability -- cat)" "piped"
+
+  # A holder that died leaves stale text and a free lock.
     printf 'pid=1 user=ghost since=then cmd=dead\n' > "$(git rev-parse --path-format=absolute --git-path homelab-deploy-observability.lock)"
     check "stale text from a dead holder does not block" "$("$here" --wait 0 observability -- echo free)" "free"
     check "and is not reported as a holder" "$("$here" --holder observability)" ""
@@ -193,11 +222,32 @@ deploy_lock_main() {
   # The command runs as a child, so this process keeps the lock for exactly as
   # long as it runs. Its own copy of the descriptor is closed: a daemon it leaves
   # behind must not hold the lock after the deploy has finished.
+  #
+  # Which makes this process the lock's only owner, so it must not die before
+  # the command does. A SIGTERM aimed at it alone (a `kill` of the wrong pid, a
+  # unit stopped with KillMode=process) would otherwise free the lock while the
+  # deploy carried on, and the next deploy would run on top of it: #1041's
+  # review reproduced that. So the command runs in the background, TERM, INT
+  # and HUP are passed on to it, and this waits until it has really exited. A
+  # trapped signal interrupts `wait` early, hence the loop. Stdin is passed
+  # explicitly because bash gives a background job /dev/null otherwise, and a
+  # deploy can prompt (sops, a seed script). SIGKILL cannot be caught. A
+  # `kill -9` of this process still frees the lock early, and that is the one
+  # gap left.
+  local child sig
   if [[ -n "${DEPLOY_LOCK_FD:-}" ]]; then
-    "$@" {DEPLOY_LOCK_FD}>&- || rc=$?
+    "$@" {DEPLOY_LOCK_FD}>&- 0<&0 &
   else
-    "$@" || rc=$?
+    "$@" 0<&0 &
   fi
+  child=$!
+  for sig in TERM INT HUP; do
+    # shellcheck disable=SC2064  # the pid and signal are fixed now, on purpose
+    trap "kill -${sig} ${child} 2>/dev/null || true" "${sig}"
+  done
+  while kill -0 "${child}" 2>/dev/null; do
+    if wait "${child}"; then rc=0; else rc=$?; fi
+  done
   exit "$rc"
 }
 
