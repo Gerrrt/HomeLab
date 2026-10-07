@@ -117,6 +117,7 @@ they describe. The rest are installed on the host they describe by
 | `collect-smart-state.sh`, `render-smart-baselines.sh` | SMART health for disks the iLO cannot see, and the known reallocated-sector baselines ([ADR-0046](../docs/adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)) |
 | `collect-zpool-state.sh`, `collect-truenas-version.sh` | `smaug`'s pool leaves and TrueNAS version |
 | `collect-gateway-state.sh` | The firewall's view of its uplinks and its DDNS record |
+| `collect-cert-expiry.sh` | When the management consoles' certificates expire, read off a handshake inside each console's segment ([ADR-0084](../docs/adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)) |
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |

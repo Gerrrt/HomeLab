@@ -1,0 +1,46 @@
+# When Saruman's console certificates expire, written where the Alloy agent will
+# find it (#857, ADR-0084).
+#
+# TWO ENDPOINTS, BOTH READ FROM HERE. Proxmox's own UI on :8006, and the iLO of
+# the machine Saruman runs on (shiva, 10.0.30.10). The monitoring host cannot
+# reach either: VLAN 99 passes SNMP to the iLO and nothing else (ADR-0033), and
+# Saruman's UI answers Hicks and phoenix only. Saruman shares the iLO's segment,
+# so its handshake with 10.0.30.10 crosses no pf rule at all — which is the
+# whole reason the iLO is read from here rather than given a firewall pass.
+#
+# THE NETWORK IS NEEDED, unlike the other agent collectors here, so there is no
+# PrivateNetwork=true. It is limited to IP sockets instead.
+#
+# ROOT ONLY FOR THE DIRECTORY, as with pve-version: a handshake needs no
+# privilege, and the textfile directory is root-owned.
+[Unit]
+Description=HomeLab: record when Saruman's and the iLO's console certificates expire
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/generate-certificates.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/bin/pveproxy
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-cert-expiry --probe pve-ui=-=127.0.0.1:8006 --probe ilo-ui=shiva=10.0.30.10:443
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-cert-expiry

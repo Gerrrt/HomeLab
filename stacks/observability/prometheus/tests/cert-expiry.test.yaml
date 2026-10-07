@@ -1,0 +1,206 @@
+---
+# Unit tests for the management console certificate rules in host.rules.yaml
+# (#857, ADR-0084). In their own file because host.test.yaml evaluates every
+# 5 minutes and these want a minute's resolution for the `for` cases.
+#
+# The arithmetic is blackbox.test.yaml's: an expiry of D days at eval time T
+# is D × 86400 + T in seconds, so the summary's day count is exact. Every
+# firing case has a quiet partner — a test that only expects silence would
+# pass against a rule that can never fire.
+#
+# The labels are the real shapes. Saruman's Alloy sets instance="Saruman" and
+# the collector's own host label is the console's machine, so the iLO's series
+# is instance="Saruman", host="shiva". smaug's comes through the media
+# node_exporter scrape with job="node".
+
+rule_files:
+  - ../rules/host.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- Expiry: 20 days out, beside one a year away -------------------------
+  # 1735200 = 20 × 86400 + 7200, so at 2h the division is exactly 20.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_cert_expiry_timestamp_seconds{endpoint="pve-ui", host="Saruman",
+                 instance="Saruman", job="Saruman-metrics"}'
+        values: "1735200+0x180"
+      - series: 'homelab_cert_expiry_timestamp_seconds{endpoint="pfsense-ui", host="morpheus",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "34567200+0x180"
+    alert_rule_test:
+      # Under 30 days from t=0, but `for: 1h`.
+      - eval_time: 30m
+        alertname: ManagementCertificateExpiringSoon
+        exp_alerts: []
+
+      # `instance` and `job` are gone: `min by (endpoint, host)` keeps only
+      # what names the console.
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: ManagementCertificateExpiringSoon
+              endpoint: pve-ui
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "pve-ui on Saruman has a certificate with 20 days left"
+              description: >-
+                Read from the handshake with the console itself, so this is the
+                certificate actually being served. Each of these is self-signed and
+                reissued from its own UI or shell —
+                docs/runbooks/generate-certificates.md#management-console-certificates
+                says how for each one. The alert resolves on the next collection
+                after the new certificate is served: within 15 minutes for
+                pfsense-ui, the next day for the others.
+
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiryImminent
+        exp_alerts: []
+
+  # --- Expiry: 3 days out, the iLO as read from Saruman ----------------------
+  # 262800 = 3 × 86400 + 3600; at 2h that is 2.96 days, printed as 3. Both
+  # tiers fire at Prometheus; alertmanager.yaml's inhibit keeps the warning off
+  # the phone, which promtool cannot see.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_cert_expiry_timestamp_seconds{endpoint="ilo-ui", host="shiva",
+                 instance="Saruman", job="Saruman-metrics"}'
+        values: "262800+0x180"
+    alert_rule_test:
+      # `for: 10m` on the critical tier.
+      - eval_time: 5m
+        alertname: ManagementCertificateExpiryImminent
+        exp_alerts: []
+
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiryImminent
+        exp_alerts:
+          - exp_labels:
+              alertname: ManagementCertificateExpiryImminent
+              endpoint: ilo-ui
+              host: shiva
+              component: host
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#management-console-certificates"
+              summary: "ilo-ui on shiva has a certificate with 3 days left"
+              description: >-
+                Under a week, or already expired if the number is negative. The
+                console keeps answering, but browsers start refusing it, and this
+                is the console someone reaches for when something else is already
+                wrong. Reissue it now from the runbook.
+
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: ManagementCertificateExpiringSoon
+              endpoint: ilo-ui
+              host: shiva
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "ilo-ui on shiva has a certificate with 3 days left"
+              description: >-
+                Read from the handshake with the console itself, so this is the
+                certificate actually being served. Each of these is self-signed and
+                reissued from its own UI or shell —
+                docs/runbooks/generate-certificates.md#management-console-certificates
+                says how for each one. The alert resolves on the next collection
+                after the new certificate is served: within 15 minutes for
+                pfsense-ui, the next day for the others.
+
+  # --- Unchecked: a console that stopped answering --------------------------
+  # No expiry sample exists for truenas-ui — the collector leaves it out — so
+  # the expiry rules cannot fire for it, and this is the only thing that says
+  # so. pve-ui read fine and must stay quiet.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_cert_checked{endpoint="truenas-ui", host="smaug", instance="smaug", job="node"}'
+        values: "0x480"
+      - series: 'homelab_cert_checked{endpoint="pve-ui", host="Saruman", instance="Saruman", job="Saruman-metrics"}'
+        values: "1x480"
+    alert_rule_test:
+      # A console restarting is not worth a word: `for: 6h`.
+      - eval_time: 5h
+        alertname: ManagementCertificateUnchecked
+        exp_alerts: []
+
+      - eval_time: 7h
+        alertname: ManagementCertificateUnchecked
+        exp_alerts:
+          - exp_labels:
+              alertname: ManagementCertificateUnchecked
+              endpoint: truenas-ui
+              host: smaug
+              instance: smaug
+              job: node
+              component: host
+              severity: warning
+              category: config
+            exp_annotations:
+              summary: "truenas-ui on smaug: its certificate could not be read"
+              description: >-
+                The collector on smaug ran but got no certificate from
+                truenas-ui, so its expiry is not being watched. Run the collector
+                by hand with --print to see the probe: for pfsense-ui that is
+                `make gateway-state` on the monitoring host, on Saruman
+                `systemctl start homelab-cert-expiry` and its journal, on smaug
+                the cron job's command. A console that is down says so
+                elsewhere; one that is up and refusing the handshake is a TLS
+                setting changed on the device.
+
+  # --- Stale: smaug's cron job stopped -------------------------------------
+  # Written at t=0 and never again: 49 hours old at 49h, past the two-day line
+  # for longer than `for`. A different textfile at the same age must not match.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="smaug", job="node", file="/textfile/cert-expiry-smaug.prom"}'
+        values: "0x700"
+      - series: 'node_textfile_mtime_seconds{instance="smaug", job="node", file="/textfile/truenas-version.prom"}'
+        values: "0x700"
+    alert_rule_test:
+      - eval_time: 47h
+        alertname: CertExpiryStateStale
+        exp_alerts: []
+
+      - eval_time: 49h
+        alertname: CertExpiryStateStale
+        exp_alerts:
+          - exp_labels:
+              alertname: CertExpiryStateStale
+              instance: smaug
+              job: node
+              file: /textfile/cert-expiry-smaug.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "smaug has not rewritten /textfile/cert-expiry-smaug.prom in two days"
+              description: >-
+                The certificate expiry textfile is 2d 1h 0m 0s old, so
+                ManagementCertificateExpiringSoon is reading dates that nobody has
+                checked since. On Saruman the writer is homelab-cert-expiry.timer;
+                on smaug a cron job in TrueNAS's UI (System → Advanced Settings →
+                Cron Jobs; build-the-nas.md §6.10); on the monitoring host `make
+                gateway-state`. Check the job still exists and that its last run
+                wrote the file.
+
+  # --- Stale: quiet while a daily job keeps rewriting it -------------------
+  # Saruman's file, rewritten every day: never more than a day old.
+  - interval: 1h
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman", job="Saruman-metrics",
+                 file="/var/lib/node_exporter/textfile_collector/cert-expiry-Saruman.prom"}'
+        values: "0x23 86400x23 172800x23"
+    alert_rule_test:
+      - eval_time: 71h
+        alertname: CertExpiryStateStale
+        exp_alerts: []
