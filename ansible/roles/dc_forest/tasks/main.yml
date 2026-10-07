@@ -66,9 +66,10 @@
   until: ansible_check_mode or lab_gateway in dc_forest_source.stdout
   retries: 18
   delay: 10
-  # Out of retries is not this task's failure to report: the assert below
-  # says what is wrong and where the runbook's fallback is.
-  failed_when: false
+  # A wrong source after the retries is the assert's to report, with its
+  # pointer to the runbook's fallback. w32tm itself failing is not a clock
+  # problem, and fails here with its own error.
+  failed_when: dc_forest_source.rc != 0
 
 - name: Refuse to go on if the PDC emulator is on its own clock
   ansible.builtin.assert:
