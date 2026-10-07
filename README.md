@@ -125,8 +125,8 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 81 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 45
+- **Documented decisions and runbooks.** 82 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 46
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -181,6 +181,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
 | Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
+| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; not built yet, and off between sessions |
 | Lab provisioning | [Packer](packer), [OpenTofu](tofu), [Ansible](ansible) | `phoenix` | VM templates, guests cloned from them, and the `ad.matrix.elysium` domain's configuration |
 | Secrets | [SOPS + age](secrets) | in the repo | Encrypted in-repo, decrypted at deploy time |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | GitHub | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
@@ -206,6 +207,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   │                         #   never remote-writes to VLAN 99 (ADR-0020)
 │   ├── soc/                  # Wazuh and Velociraptor on odin (ADR-0030)
 │   ├── sensor/               # Zeek on fenrir, on a mirror of the lab bridge (ADR-0068)
+│   ├── bloodhound/           # BloodHound CE on eden, off between sessions (ADR-0081)
 │   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
 ├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
@@ -217,8 +219,8 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 81 ADRs — architecture decision records
-│   └── runbooks/             # 45 runbooks; successor-handover.md is the front door
+│   ├── adr/                  # 82 ADRs — architecture decision records
+│   └── runbooks/             # 46 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 

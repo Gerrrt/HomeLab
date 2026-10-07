@@ -6,12 +6,13 @@ updates:
   # sustainable — without it, pinned tags simply rot.
   #
   # grafana/alloy is the exception to "one PR per directory is fine". lab,
-  # sensor and soc all mount this stack's alloy/config.alloy, so their Alloy has
-  # to be this one, digest for digest, and check_image_pins.py fails a pull
-  # request that moves one without the others (#848). Those four entries cannot
-  # be merged the way soc and scratch were, because here and in lab Alloy rides
-  # in the grafana-stack group. So when an Alloy bump arrives, push the same
-  # bump to the other three stacks onto that PR and close the rest.
+  # sensor, soc and bloodhound all mount this stack's alloy/config.alloy, so
+  # their Alloy has to be this one, digest for digest, and check_image_pins.py
+  # fails a pull request that moves one without the others (#848). Those five
+  # entries cannot be merged the way soc and scratch were, because here and in
+  # lab Alloy rides in the grafana-stack group. So when an Alloy bump arrives,
+  # push the same bump to the other four stacks onto that PR and close the
+  # rest.
   - package-ecosystem: docker-compose
     directory: /stacks/observability
     schedule:
@@ -148,6 +149,23 @@ updates:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+
+  # stacks/bloodhound (#451, ADR-0081): BloodHound CE and the one Postgres
+  # that holds its state and its graph, on eden. Postgres majors are held, by
+  # wiki's rule: a major is a dump and a restore. An entry from the first
+  # commit, which is the lesson sensor's comment above records.
+  - package-ecosystem: docker-compose
+    directory: /stacks/bloodhound
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]

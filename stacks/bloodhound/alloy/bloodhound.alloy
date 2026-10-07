@@ -1,0 +1,50 @@
+// =============================================================================
+// BloodHound's own metrics into the lab's Prometheus on alexander (#451).
+//
+// The bloodhound service has no healthcheck: its image is distroless and holds
+// nothing to probe with (stacks/bloodhound/compose.yaml). This scrape is what
+// answers "is it up" instead, as `up{job="bloodhound"}`, and it is the same
+// answer the lab's Grafana gives for everything else on the segment.
+//
+// What crosses is the process's own counters: Go runtime, HTTP requests by
+// path and status, ingest task timings. Not the graph, and not query results.
+// The guest is on-demand (ADR-0079), so a series that stops between sessions
+// is the guest being off, not BloodHound failing; read it with
+// homelab_guest_running from the hypervisor beside it.
+//
+// This file lives in stacks/bloodhound/alloy/ and NOT beside config.alloy in
+// stacks/observability/alloy/, for the reason stacks/soc/alloy/opensearch.alloy
+// gives: the estate's Alloy mounts that whole directory.
+// =============================================================================
+
+discovery.relabel "bloodhound" {
+	targets = [{"__address__" = "bloodhound:2112"}]
+
+	// A fixed job name, for opensearch.alloy's reason: a rule or panel that
+	// keys on a hostname breaks when the guest is rebuilt under another.
+	rule {
+		target_label = "job"
+		replacement  = "bloodhound"
+	}
+
+	rule {
+		target_label = "instance"
+		replacement  = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname)
+	}
+}
+
+// HTTPS, not HTTP: with TLS enabled BloodHound serves this port on its UI's
+// leaf too. Verified against the estate's CA, which compose.yaml mounts, by
+// the leaf's `bloodhound` DNS SAN. insecure_skip_verify is deliberately absent,
+// the standard opensearch.alloy holds its scrape to.
+prometheus.scrape "bloodhound" {
+	scrape_interval = "60s"
+	scheme          = "https"
+	targets         = discovery.relabel.bloodhound.output
+	forward_to      = [prometheus.remote_write.metrics_service.receiver]
+
+	tls_config {
+		ca_file     = "/etc/alloy/tls/ca.pem"
+		server_name = "bloodhound"
+	}
+}
