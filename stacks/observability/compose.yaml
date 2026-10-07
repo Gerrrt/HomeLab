@@ -469,8 +469,9 @@ services:
   # the same pinned image as stacks/sensitive's, and Dependabot moves both.
   #
   # Non-root, unlike the sensitive tier's Caddy, because nothing here needs a
-  # certificate store. `auto_https off` and `admin off` mean nothing is
-  # written to /data or /config. They are tmpfs so the image's paths exist,
+  # certificate store: the leaf below is a file, issued by gen-certs.sh like
+  # Grafana's, not one Caddy obtains. `auto_https off` and `admin off` mean
+  # nothing is written to /data or /config. They are tmpfs so the image's paths exist,
   # and `docker diff` after a boot and a full request matrix showed nothing
   # written anywhere. NET_BIND_SERVICE stays in the bounding set for a
   # measured reason, not to bind a low port (9090, 3100 and 2020 are not
@@ -485,11 +486,21 @@ services:
   # The tokens are in the environment, so `docker inspect` can read them. That
   # is the same exposure class as GRAFANA_ADMIN_PASSWORD, and the Caddyfile's
   # `{$VAR}` form needs no rendered file.
+  #
+  # The leaf is prometheus.matrix.elysium, with 10.0.99.20 as an IP SAN because
+  # every client dials the address (#764). Its key is 0640 and owned by the
+  # operator who ran gen-certs.sh, so the proxy joins that group, the way
+  # grafana does for its own leaf. It is mounted ahead of the Caddyfile serving
+  # it: the first PR of #764 lands the mount and the clients' trust, and the
+  # second turns TLS on, so a key the proxy cannot read is found while every
+  # client still speaks http.
   caddy:
     <<: *service-defaults
     image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
     container_name: ingest-proxy
     user: "65534:65534"
+    group_add:
+      - "${RENDER_GID:?run make render}"
     mem_limit: 64m
     memswap_limit: 64m
     cap_drop: [ALL]
@@ -508,6 +519,8 @@ services:
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../certificates/prometheus.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/prometheus.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
     ports:
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${PROMETHEUS_PORT:-9090}:9090"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${LOKI_PORT:-3100}:3100"
