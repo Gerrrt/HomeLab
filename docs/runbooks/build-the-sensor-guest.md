@@ -274,10 +274,11 @@ Prometheus, where `ScheduledJobFailed`, `ScheduledJobStale` and
 `ScheduledJobNeverRan` read it (#850).
 
 That file needs the textfile directory, which nothing else creates on this
-guest. On `fenrir`:
+guest, and the installer needs the archive directory, which Zeek creates only at
+its first hourly rotation. Create both now, on `fenrir`:
 
 ```bash
-sudo install -d -m 0755 -o root -g root /var/lib/node_exporter/textfile_collector
+sudo install -d -m 0755 -o root -g root /var/lib/node_exporter/textfile_collector /srv/sensor-data/zeek/archive
 ```
 
 Then install the timer from the checkout on Hicks, as §5 does for `Saruman`.
