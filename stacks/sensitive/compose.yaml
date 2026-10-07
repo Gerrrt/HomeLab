@@ -1388,7 +1388,16 @@ services:
       # Appended after the image's own JVM flags, and HotSpot takes the last of
       # a repeated flag: no heap dump, and 40 % where the entrypoint would say
       # 70. Both were read back from the running JVM's environment.
-      JAVA_CUSTOM_OPTS: -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+      #
+      # jpdfium.native.cacheDir (3.0.2, #952): Stirling's PDF engine now unpacks
+      # libpdfium.so into ~/.cache and loads it from there. The home tmpfs
+      # above is noexec, Docker's default, so the load failed with "failed to
+      # map segment from shared object" and the app never started. /tmp is the
+      # one tmpfs that is exec on purpose (DIFFERENCE 13), so the library goes
+      # there and the home directory stays non-executable.
+      JAVA_CUSTOM_OPTS: >-
+        -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+        -Djpdfium.native.cacheDir=/tmp/jpdfium
     volumes:
       - stirling-pdf-configs:/configs
       # The entrypoint symlinks this script into /usr/local/bin under
