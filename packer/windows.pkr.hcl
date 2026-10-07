@@ -19,6 +19,12 @@ locals {
   # API key; it is public by design, hence the inline allow.
   win11_generic_key = "VK7JG-NPHTM-C97JM-9MPGT-3V66T" # gitleaks:allow
 
+  # The first-logon script: guest tools, then WinRM for Packer, which only
+  # phoenix may reach (#846). A template only for the address.
+  bootstrap = templatefile("${abspath(path.root)}/windows/scripts/bootstrap.ps1", {
+    phoenix_address = var.phoenix_address
+  })
+
   windows_answer_disc = {
     win11 = {
       "Autounattend.xml" = templatefile("${abspath(path.root)}/windows/autounattend.xml.pkrtpl", {
@@ -28,7 +34,7 @@ locals {
         computer_name  = "TPL-WIN11"
         build_password = var.build_password
       })
-      "bootstrap.ps1" = file("${abspath(path.root)}/windows/scripts/bootstrap.ps1")
+      "bootstrap.ps1" = local.bootstrap
     }
     ws2025 = {
       "Autounattend.xml" = templatefile("${abspath(path.root)}/windows/autounattend.xml.pkrtpl", {
@@ -39,9 +45,19 @@ locals {
         computer_name  = "TPL-WS2025"
         build_password = var.build_password
       })
-      "bootstrap.ps1" = file("${abspath(path.root)}/windows/scripts/bootstrap.ps1")
+      "bootstrap.ps1" = local.bootstrap
     }
   }
+
+  # "Press any key to boot from CD or DVD" lasts about five seconds, and when
+  # it starts depends on how long OVMF spends on the empty system disk first,
+  # which moves with the host's load. Three presses between seconds 3 and 5
+  # missed it on 2026-10-07: 912 sat at "No bootable option or device was
+  # found" with no disk written, and Packer waited out winrm_timeout. So press
+  # once a second for thirty seconds instead, a window the prompt cannot fall
+  # outside. A press after the CD has started is harmless: Windows Boot Manager
+  # shows no menu for one entry, and Setup's pages are unattended.
+  windows_boot_command = [join("", [for i in range(30) : "<spacebar><wait1s>"])]
 
   # phoenix's key, installed as the clones' only administrators' key by
   # openssh.ps1 (ADR-0077). Public; read at build time, never copied in here.
@@ -136,17 +152,21 @@ source "proxmox-iso" "win11-pro" {
   # OVMF shows "Press any key to boot from CD or DVD" for a few seconds.
   # The system disk, then the installer: the VirtIO and answer discs are not
   # bootable, and OVMF trying them first is what made the Ubuntu build miss
-  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
-  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  # its boot prompt (packer/ubuntu.pkr.hcl). See local.windows_boot_command
+  # for how the prompt is caught.
   boot         = "order=scsi0;ide2"
-  boot_wait    = "3s"
-  boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
+  boot_wait    = "1s"
+  boot_command = local.windows_boot_command
 
+  # HTTPS on 5986, admitting phoenix alone (bootstrap.ps1). The certificate
+  # is one bootstrap.ps1 made a minute earlier, so there is nothing to verify
+  # it against: winrm_insecure. TLS keeps the build password from a passive
+  # listener on VLAN 30; it does not stop one in the middle (#846).
   communicator   = "winrm"
   winrm_username = "Administrator"
   winrm_password = var.build_password
+  winrm_use_ssl  = true
   winrm_insecure = true
-  winrm_use_ssl  = false
   winrm_timeout  = "2h"
 }
 
@@ -225,19 +245,18 @@ source "proxmox-iso" "ws2025-eval" {
     unmount          = true
   }
 
-  # The system disk, then the installer: the VirtIO and answer discs are not
-  # bootable, and OVMF trying them first is what made the Ubuntu build miss
-  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
-  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  # The system disk, then the installer, and the prompt caught the same way
+  # as win11-pro above.
   boot         = "order=scsi0;ide2"
-  boot_wait    = "3s"
-  boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
+  boot_wait    = "1s"
+  boot_command = local.windows_boot_command
 
+  # HTTPS, as win11-pro above.
   communicator   = "winrm"
   winrm_username = "Administrator"
   winrm_password = var.build_password
+  winrm_use_ssl  = true
   winrm_insecure = true
-  winrm_use_ssl  = false
   winrm_timeout  = "2h"
 }
 

@@ -9,6 +9,17 @@ ansible_connection: ssh
 ansible_shell_type: powershell
 ansible_user: Administrator
 ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+# Host keys are checked against ansible/.known_hosts and nothing else, not
+# ~/.ssh/known_hosts and not whatever the network presents first.
+# scripts/lab-known-hosts.sh writes that file from each guest's own key, read
+# through the Proxmox guest agent; run it after any of the six is rebuilt
+# (ADR-0082, which amends ADR-0077 decision 2). inventory_dir is
+# ansible/inventory, so this holds for ad-hoc `ansible` as well as for every
+# playbook.
+ansible_ssh_common_args: >-
+  -o UserKnownHostsFile={{ inventory_dir }}/../.known_hosts
+  -o GlobalKnownHostsFile=/dev/null
+  -o StrictHostKeyChecking=yes
 
 # --- ADR-0029, encoded, not re-decided --------------------------------------
 lab_domain: ad.matrix.elysium

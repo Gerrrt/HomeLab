@@ -38,14 +38,18 @@ scripts/packer-smoke.sh 912
   after sysprep.
 - `windows/scripts/bootstrap.ps1`: runs at the build's one autologon. It
   installs the guest tools first, because Packer finds the address through
-  the agent, and opens WinRM second.
+  the agent, and opens WinRM second: HTTPS on 5986 with a self-signed
+  certificate, admitting `phoenix` alone. The HTTP listener and Windows' own
+  5985 rules that `Enable-PSRemoting` adds are removed
+  ([#846](https://github.com/Gerrrt/HomeLab/issues/846)). Read through
+  `templatefile()` for `phoenix`'s address, so it may not contain `${` or `%{`.
 - `windows/scripts/openssh.ps1`: installs the OpenSSH server, disabled and
   key-only, with `phoenix`'s key and a firewall rule admitting `phoenix`
   alone. It is how [`ansible/`](../ansible/README.md) reaches a clone
   ([ADR-0077]).
 - `windows/scripts/SetupComplete.cmd`: runs once on each clone, closes
-  that WinRM again, and starts `sshd`, which generates the clone's own host
-  keys.
+  that WinRM again (listener, certificate, rule and service), and starts
+  `sshd`, which generates the clone's own host keys.
 - `windows/scripts/sysprep.ps1`: starts sysprep `/generalize /oobe
   /shutdown` as a one-off scheduled task as SYSTEM, and returns once it is
   running. Not over WinRM: generalising removes the network adapter, and

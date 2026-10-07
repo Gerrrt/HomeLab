@@ -51,6 +51,7 @@ Environment:
   GITHUB_REPOSITORY     owner/name, default Gerrrt/HomeLab
   GITHUB_SERVER_URL, GITHUB_RUN_ID   link each issue to the run that wrote it
 """
+
 from __future__ import annotations
 
 import argparse
@@ -210,8 +211,10 @@ def summary(images: list[Image]) -> str:
     out = [
         "## Fixable HIGH and CRITICAL CVEs in pinned images",
         "",
-        (f"{len(images)} image(s) scanned: {len(fixable)} with fixable findings, "
-         f"{len(errors)} scan error(s), {len(images) - len(fixable) - len(errors)} clean."),
+        (
+            f"{len(images)} image(s) scanned: {len(fixable)} with fixable findings, "
+            f"{len(errors)} scan error(s), {len(images) - len(fixable) - len(errors)} clean."
+        ),
         "",
         "| Image | Stacks | Critical | High | Status |",
         "|---|---|---:|---:|---|",
@@ -225,8 +228,12 @@ def summary(images: list[Image]) -> str:
     for i in errors:
         out += ["", f"### ❌ `{i.name}`", "", "```", i.error, "```"]
     for i in fixable:
-        out += ["", "<details>", (f"<summary><code>{i.name}</code>: {i.count('CRITICAL')} critical, "
-                                  f"{i.count('HIGH')} high</summary>"), ""]
+        out += [
+            "",
+            "<details>",
+            (f"<summary><code>{i.name}</code>: {i.count('CRITICAL')} critical, {i.count('HIGH')} high</summary>"),
+            "",
+        ]
         out += findings_table(i.findings or [], SUMMARY_ROWS_PER_IMAGE)
         out += ["", "</details>"]
     return "\n".join(out) + "\n"
@@ -270,21 +277,26 @@ def issue_body(repo: str, images: list[Image], url: str) -> str:
     head = [
         f"<!-- cve-scan: {repo} -->",
         encode_ids(ids),
-        ("The weekly CVE scan found fixable HIGH or CRITICAL vulnerabilities in "
-         f"`{repo}`. This body is rewritten by every scan, and the issue closes "
-         "itself when a scan finds the pinned digest clean."),
+        (
+            "The weekly CVE scan found fixable HIGH or CRITICAL vulnerabilities in "
+            f"`{repo}`. This body is rewritten by every scan, and the issue closes "
+            "itself when a scan finds the pinned digest clean."
+        ),
         "",
-        ("The fix is normally the Dependabot bump for this image. If upstream has "
-         "not released one, the fixed versions below say what to wait for."),
+        (
+            "The fix is normally the Dependabot bump for this image. If upstream has "
+            "not released one, the fixed versions below say what to wait for."
+        ),
     ]
     foot = ["", "---", "Written by `.github/workflows/cve-scan.yml`" + (f" in [this run]({url})." if url else ".")]
     sections = []
     for i in sorted(images, key=lambda i: i.name):
         if not i.findings:
             continue
-        sections.append(["", f"### `{i.name}`", "",
-                         f"Stacks: {', '.join(i.stacks)}. Digest: `{i.digest}`.", ""]
-                        + findings_table(i.findings))
+        sections.append(
+            ["", f"### `{i.name}`", "", f"Stacks: {', '.join(i.stacks)}. Digest: `{i.digest}`.", ""]
+            + findings_table(i.findings)
+        )
     body = "\n".join(head + [line for s in sections for line in s] + foot)
     if len(body) <= BODY_LIMIT:
         return body
@@ -292,16 +304,21 @@ def issue_body(repo: str, images: list[Image], url: str) -> str:
     limit = 200
     while limit > 5:
         limit //= 2
-        sections = [["", f"### `{i.name}`", "", f"Stacks: {', '.join(i.stacks)}. Digest: `{i.digest}`.", ""]
-                    + findings_table(i.findings, limit) for i in images if i.findings]
+        sections = [
+            ["", f"### `{i.name}`", "", f"Stacks: {', '.join(i.stacks)}. Digest: `{i.digest}`.", ""]
+            + findings_table(i.findings, limit)
+            for i in images
+            if i.findings
+        ]
         body = "\n".join(head + [line for s in sections for line in s] + foot)
         if len(body) <= BODY_LIMIT:
             break
     return body
 
 
-def plan(images: list[Image], existing: list[dict], known_labels: set[str],
-         stack_names: set[str] | None = None) -> tuple[list[Action], list[str]]:
+def plan(
+    images: list[Image], existing: list[dict], known_labels: set[str], stack_names: set[str] | None = None
+) -> tuple[list[Action], list[str]]:
     """What to do to the issues, and the warnings to print. Pure, so the
     self-test can hold it to the table in the module docstring.
 
@@ -331,9 +348,15 @@ def plan(images: list[Image], existing: list[dict], known_labels: set[str],
         if not any(i.findings for i in imgs):
             if issue:
                 clean = ", ".join(f"`{i.ref}`" for i in imgs)
-                actions.append(Action("close", repo, issue["number"],
-                                      comment=f"Clean at {clean}: no fixable HIGH or CRITICAL findings."
-                                      + (f" ([scan]({url}))" if url else "")))
+                actions.append(
+                    Action(
+                        "close",
+                        repo,
+                        issue["number"],
+                        comment=f"Clean at {clean}: no fixable HIGH or CRITICAL findings."
+                        + (f" ([scan]({url}))" if url else ""),
+                    )
+                )
             continue
         labels = ["security"]
         for stack in sorted({s for i in imgs for s in i.stacks}):
@@ -357,8 +380,11 @@ def plan(images: list[Image], existing: list[dict], known_labels: set[str],
         actions.append(Action("edit", repo, issue["number"], title, body, tuple(labels), comment, stale))
     for repo, issue in sorted(open_issues.items()):
         if repo not in by_repo:
-            actions.append(Action("close", repo, issue["number"],
-                                  comment=f"`{repo}` is no longer pinned in any stack's compose.yaml."))
+            actions.append(
+                Action(
+                    "close", repo, issue["number"], comment=f"`{repo}` is no longer pinned in any stack's compose.yaml."
+                )
+            )
     return actions, warnings
 
 
@@ -374,19 +400,36 @@ def sync(images: list[Image], dry_run: bool) -> int:
     # Every open `security` issue, matched on the marker here rather than by
     # GitHub search: the marker is an HTML comment, and whether search indexes
     # one is not something to depend on.
-    existing = json.loads(gh("issue", "list", "-R", repo, "--state", "open", "--label", "security",
-                             "--limit", "1000", "--json", "number,title,body,labels"))
-    known = {label["name"] for label in json.loads(gh("label", "list", "-R", repo, "--limit", "500",
-                                                      "--json", "name"))}
-    stacks = subprocess.run([str(pathlib.Path(__file__).with_name("stacks.sh"))],
-                            capture_output=True, text=True, check=True).stdout.split()
+    existing = json.loads(
+        gh(
+            "issue",
+            "list",
+            "-R",
+            repo,
+            "--state",
+            "open",
+            "--label",
+            "security",
+            "--limit",
+            "1000",
+            "--json",
+            "number,title,body,labels",
+        )
+    )
+    known = {label["name"] for label in json.loads(gh("label", "list", "-R", repo, "--limit", "500", "--json", "name"))}
+    stacks = subprocess.run(
+        [str(pathlib.Path(__file__).with_name("stacks.sh"))], capture_output=True, text=True, check=True
+    ).stdout.split()
     actions, warnings = plan(images, existing, known, set(stacks))
     for w in warnings:
         print(f"{YELLOW}warning:{OFF} {w}", file=sys.stderr)
     for a in actions:
         where = f"#{a.number}" if a.number else "new"
-        print(f"{a.kind:6} {where:6} {a.repo}" + (f"  [{', '.join(a.labels)}]" if a.labels else "")
-              + (f"  -[{', '.join(a.remove_labels)}]" if a.remove_labels else ""))
+        print(
+            f"{a.kind:6} {where:6} {a.repo}"
+            + (f"  [{', '.join(a.labels)}]" if a.labels else "")
+            + (f"  -[{', '.join(a.remove_labels)}]" if a.remove_labels else "")
+        )
         if dry_run:
             continue
         # The first run opens dozens at once, and GitHub's secondary rate limit
@@ -397,8 +440,21 @@ def sync(images: list[Image], dry_run: bool) -> int:
             gh("issue", "create", "-R", repo, "--title", a.title, "--body-file", "-", *label_args, stdin=a.body)
         elif a.kind == "edit":
             remove = ["--remove-label", ",".join(a.remove_labels)] if a.remove_labels else []
-            gh("issue", "edit", str(a.number), "-R", repo, "--title", a.title, "--body-file", "-",
-               "--add-label", ",".join(a.labels), *remove, stdin=a.body)
+            gh(
+                "issue",
+                "edit",
+                str(a.number),
+                "-R",
+                repo,
+                "--title",
+                a.title,
+                "--body-file",
+                "-",
+                "--add-label",
+                ",".join(a.labels),
+                *remove,
+                stdin=a.body,
+            )
             if a.comment:
                 gh("issue", "comment", str(a.number), "-R", repo, "--body-file", "-", stdin=a.comment)
         elif a.kind == "close":
@@ -425,26 +481,60 @@ def self_test() -> int:
     ]:
         check(f"repo_of({ref})", repo_of(ref) == want)
 
-    doc = {"Results": [
-        {"Vulnerabilities": [
-            {"VulnerabilityID": "CVE-2026-0001", "Severity": "CRITICAL", "PkgName": "openssl",
-             "InstalledVersion": "3.0.1", "FixedVersion": "3.0.2"},
-            {"VulnerabilityID": "CVE-2026-0002", "Severity": "HIGH", "PkgName": "zlib",
-             "InstalledVersion": "1.2", "FixedVersion": "1.3"},
-            {"VulnerabilityID": "CVE-2026-0003", "Severity": "HIGH", "PkgName": "glibc",
-             "InstalledVersion": "2.3", "FixedVersion": ""},
-            {"VulnerabilityID": "CVE-2026-0004", "Severity": "MEDIUM", "PkgName": "bash",
-             "InstalledVersion": "5", "FixedVersion": "5.1"},
-        ]},
-        # The same finding in a second target is one finding.
-        {"Vulnerabilities": [
-            {"VulnerabilityID": "CVE-2026-0001", "Severity": "CRITICAL", "PkgName": "openssl",
-             "InstalledVersion": "3.0.1", "FixedVersion": "3.0.2"},
-        ]},
-        {"Vulnerabilities": None},
-    ]}
+    doc = {
+        "Results": [
+            {
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-0001",
+                        "Severity": "CRITICAL",
+                        "PkgName": "openssl",
+                        "InstalledVersion": "3.0.1",
+                        "FixedVersion": "3.0.2",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2026-0002",
+                        "Severity": "HIGH",
+                        "PkgName": "zlib",
+                        "InstalledVersion": "1.2",
+                        "FixedVersion": "1.3",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2026-0003",
+                        "Severity": "HIGH",
+                        "PkgName": "glibc",
+                        "InstalledVersion": "2.3",
+                        "FixedVersion": "",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2026-0004",
+                        "Severity": "MEDIUM",
+                        "PkgName": "bash",
+                        "InstalledVersion": "5",
+                        "FixedVersion": "5.1",
+                    },
+                ]
+            },
+            # The same finding in a second target is one finding.
+            {
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2026-0001",
+                        "Severity": "CRITICAL",
+                        "PkgName": "openssl",
+                        "InstalledVersion": "3.0.1",
+                        "FixedVersion": "3.0.2",
+                    },
+                ]
+            },
+            {"Vulnerabilities": None},
+        ]
+    }
     parsed = parse_trivy(doc)
-    check("parse: unfixed and MEDIUM dropped, duplicates merged", [f.id for f in parsed] == ["CVE-2026-0001", "CVE-2026-0002"])
+    check(
+        "parse: unfixed and MEDIUM dropped, duplicates merged",
+        [f.id for f in parsed] == ["CVE-2026-0001", "CVE-2026-0002"],
+    )
     check("parse: CRITICAL sorts first", parsed[0].severity == "CRITICAL")
 
     vuln = parse_trivy(doc)
@@ -466,17 +556,27 @@ def self_test() -> int:
     actions, warnings = plan(images, existing, labels)
     by = {a.repo: a for a in actions}
     check("postgres: one issue for two tags, edited", by["postgres"].kind == "edit" and by["postgres"].number == 10)
-    check("postgres: comment names only the new finding", by["postgres"].comment == "New since the last scan: CVE-2026-0002.")
-    check("postgres: labelled by the stack with findings and the clean one",
-          by["postgres"].labels == ("security", "sensitive", "wiki"))
+    check(
+        "postgres: comment names only the new finding",
+        by["postgres"].comment == "New since the last scan: CVE-2026-0002.",
+    )
+    check(
+        "postgres: labelled by the stack with findings and the clean one",
+        by["postgres"].labels == ("security", "sensitive", "wiki"),
+    )
     check("postgres: body carries the marker", "<!-- cve-scan: postgres -->" in by["postgres"].body)
-    check("postgres: only the fixable tag gets a section",
-          "postgres:18.6" in by["postgres"].body and "postgres:17.11" not in by["postgres"].body)
+    check(
+        "postgres: only the fixable tag gets a section",
+        "postgres:18.6" in by["postgres"].body and "postgres:17.11" not in by["postgres"].body,
+    )
     check("caddy: clean closes", by["caddy"].kind == "close" and by["caddy"].number == 11)
     check("vaultwarden: scan error leaves the issue alone", "vaultwarden/server" not in by)
     check("vaultwarden: and says so", any("vaultwarden/server" in w for w in warnings))
     check("gone/image: no longer pinned closes", by["gone/image"].kind == "close" and by["gone/image"].number == 13)
-    check("python: --extra creates, labelled ci", by["python"].kind == "create" and by["python"].labels == ("security", "ci"))
+    check(
+        "python: --extra creates, labelled ci",
+        by["python"].kind == "create" and by["python"].labels == ("security", "ci"),
+    )
     check("unrelated issue untouched", all(a.number != 14 for a in actions))
     check("title counts", by["python"].title == "Fixable CVEs in python (1 critical, 1 high)")
 
@@ -484,34 +584,49 @@ def self_test() -> int:
     check("missing label is dropped, not fatal", actions[0].labels == ("security",))
     check("missing label is warned", any("`sensor`" in w for w in warnings))
 
-    actions, _ = plan([Image("postgres:18.6@sha256:aa", ["sensitive"], vuln)],
-                      [{"number": 10, "body": "<!-- cve-scan: postgres -->\nCVE-2026-0001 CVE-2026-0002"}], labels)
+    actions, _ = plan(
+        [Image("postgres:18.6@sha256:aa", ["sensitive"], vuln)],
+        [{"number": 10, "body": "<!-- cve-scan: postgres -->\nCVE-2026-0001 CVE-2026-0002"}],
+        labels,
+    )
     check("no new finding, no comment", actions[0].comment == "")
 
-    many = [Finding(f"CVE-2026-{n:05}", "HIGH", "pkg" * 30, "1" * 40, "2" * 40, "", "https://x/" + "y" * 60)
-            for n in range(2000)]
+    many = [
+        Finding(f"CVE-2026-{n:05}", "HIGH", "pkg" * 30, "1" * 40, "2" * 40, "", "https://x/" + "y" * 60)
+        for n in range(2000)
+    ]
     body = issue_body("big", [Image("big:1@sha256:aa", ["lab"], many)], "")
     check("an oversized body is cut under the issue limit", len(body) <= BODY_LIMIT and "more." in body)
     check("the cut body still records every finding ID", previous_ids(body) == {f.id for f in many})
-    actions, _ = plan([Image("big:1@sha256:aa", ["lab"], many)],
-                      [{"number": 20, "body": body}], labels | {"lab"})
+    actions, _ = plan([Image("big:1@sha256:aa", ["lab"], many)], [{"number": 20, "body": body}], labels | {"lab"})
     check("an unchanged oversized report announces nothing new", actions[0].comment == "")
 
-    go = [Finding("GO-2026-1234", "HIGH", "stdlib", "1.22.0", "1.22.5", "", ""),
-          Finding("ALAS2023-2026-999", "HIGH", "curl", "8.1", "8.2", "", "")]
+    go = [
+        Finding("GO-2026-1234", "HIGH", "stdlib", "1.22.0", "1.22.5", "", ""),
+        Finding("ALAS2023-2026-999", "HIGH", "curl", "8.1", "8.2", "", ""),
+    ]
     gobody = issue_body("go", [Image("go:1@sha256:aa", ["lab"], go)], "")
     actions, _ = plan([Image("go:1@sha256:aa", ["lab"], go)], [{"number": 21, "body": gobody}], labels | {"lab"})
     check("non-CVE IDs round-trip: unchanged report, no comment", actions[0].comment == "")
-    actions, _ = plan([Image("go:1@sha256:aa", ["lab"], [*go, Finding("GO-2026-9999", "HIGH", "x", "1", "2", "", "")])],
-                      [{"number": 21, "body": gobody}], labels | {"lab"})
+    actions, _ = plan(
+        [Image("go:1@sha256:aa", ["lab"], [*go, Finding("GO-2026-9999", "HIGH", "x", "1", "2", "", "")])],
+        [{"number": 21, "body": gobody}],
+        labels | {"lab"},
+    )
     check("a new non-CVE ID is announced", actions[0].comment == "New since the last scan: GO-2026-9999.")
-    check("a corrupt ID marker falls back to the visible IDs",
-          previous_ids("<!-- cve-scan-ids: !!! --> CVE-2026-0001") == {"CVE-2026-0001"})
+    check(
+        "a corrupt ID marker falls back to the visible IDs",
+        previous_ids("<!-- cve-scan-ids: !!! --> CVE-2026-0001") == {"CVE-2026-0001"},
+    )
 
-    moved = {"number": 22, "body": "<!-- cve-scan: postgres -->",
-             "labels": [{"name": "security"}, {"name": "sensitive"}, {"name": "priority/critical"}]}
-    actions, _ = plan([Image("postgres:17.11@sha256:bb", ["wiki"], vuln)], [moved], labels,
-                      {"sensitive", "wiki", "lab"})
+    moved = {
+        "number": 22,
+        "body": "<!-- cve-scan: postgres -->",
+        "labels": [{"name": "security"}, {"name": "sensitive"}, {"name": "priority/critical"}],
+    }
+    actions, _ = plan(
+        [Image("postgres:17.11@sha256:bb", ["wiki"], vuln)], [moved], labels, {"sensitive", "wiki", "lab"}
+    )
     check("a stack the image left loses its label", actions[0].remove_labels == ("sensitive",))
     check("and the image's current stack is added", actions[0].labels == ("security", "wiki"))
     check("labels the scanner does not own are kept", "priority/critical" not in actions[0].remove_labels)
