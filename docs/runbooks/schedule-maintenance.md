@@ -592,7 +592,14 @@ off-host, which nothing else in this list is. `make scan-images` is not here
 either, for the same reason: the weekly CVE scan of those digests runs in
 [`cve-scan.yml`](../../.github/workflows/cve-scan.yml), and its findings
 arrive as issues labelled `security`
-([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+([#852](https://github.com/Gerrrt/HomeLab/issues/852)). The household
+wiki's engine is watched the same way:
+[`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
+`requarks/wiki`'s own advisories and releases every Monday against the
+pinned version. It keeps one issue, labelled `security` and `wiki`, open while
+an advisory affects the pin or an ADR-0089 trigger has fired. That is what
+starts the 30-day clock for an advisory nobody fixes. Run it locally with
+`python3 scripts/wiki_watch.py`.
 
 ---
 
