@@ -201,6 +201,18 @@ vf_newest_set() {
     | sort -r | head -1 | xargs -r basename
 }
 
+# vf_new_second: wait until no set is named for the current second.
+#
+# A set is named for the second it starts in, `mkdir` refuses a name that
+# exists, and a failed backup leaves its incomplete set behind on purpose. So
+# two backups in one second make the second one fail on "already exists" and
+# never reach the guard it was written to test. Nothing names a set for a
+# second still to come, so once the current second is free, any later one the
+# backup reads from the clock is free too.
+vf_new_second() {
+  while [[ -e "${VF_REPO}/backups/volumes/$(date -u +%Y%m%dT%H%M%SZ)" ]]; do sleep 0.2; done
+}
+
 # vf_flip <file>: change one byte in the middle, always to a different value.
 vf_flip() {
   local f="$1" off byte

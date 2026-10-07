@@ -211,11 +211,13 @@ if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
   rm -rf "${VF_REPO}/backups/volumes/20000101T000000Z"
 
   vf_volume "${VF_P}u" unmarked
+  vf_new_second
   vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}u" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
   expect "refuses an archive without the volume's sentinel" 1 "grafana.db is not in the archive"
   check "  and writes no MANIFEST for it" "$(vf_newest_set)" "${STAMP}"
 
   vf_volume "${VF_P}f" foreign
+  vf_new_second
   vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}f" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
   expect "refuses an archive carrying another volume's sentinel" 1 "carries the sentinel of"
 
