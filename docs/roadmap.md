@@ -489,7 +489,11 @@ them name the condition that would change the answer.
   [#103](https://github.com/Gerrrt/HomeLab/issues/103) closed on. An identity
   provider is also the only route to a second factor for Grafana, Immich and
   AdGuard Home, none of which can carry one themselves — so this decline has a
-  known end, unlike the others here.
+  known end, unlike the others here. **Pocket ID**, the lighter passkey-only
+  provider, was weighed on 2026-10-07 and changes nothing until a reopen
+  condition fires. It is the first candidate when one does
+  ([#860](https://github.com/Gerrrt/HomeLab/issues/860), the note on
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)).
 
 ## Done
 
