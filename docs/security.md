@@ -486,9 +486,13 @@ route. The blackbox probes in `targets/blackbox.yaml` ask the published
 address for a query and a delete with no token, and `IngestAuthNotEnforced`
 pages if either is ever answered by anything but the proxy's 401.
 
-What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
-HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
-is unauthenticated, for a local user who already holds the SOPS key.
+Since [#764](https://github.com/Gerrrt/HomeLab/issues/764) both ports serve TLS
+under the estate CA
+([ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)),
+and every client verifies the chain, so no token crosses VLAN 99, or Saruman's
+pass from VLAN 30, in cleartext. What remains is deliberate, and `SECURITY.md`
+records it: loopback is unauthenticated, for a local user who already holds
+the SOPS key.
 
 **The lab's stores got the same treatment second, and needed it more**
 ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). `alexander` published
@@ -514,8 +518,8 @@ Two residuals are recorded rather than fixed:
 
 - **The tokens are plain HTTP on a segment built for ARP spoofing,** so they can
   be stolen by anyone in a position to spoof. A stolen token can still only
-  push, or read; it cannot quit or delete. TLS is #764's question, asked here
-  too.
+  push, or read; it cannot quit or delete. The estate's proxy answered this
+  with TLS (#764, ADR-0086); the lab's has not been asked yet.
 - **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
   and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
   a step in the rollout check, not a rule. Making the lab's failures reach the

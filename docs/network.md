@@ -279,8 +279,10 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   only rule between them; *Block access to Winterfell* now drops them. They are
   also authenticated since [#182](https://github.com/Gerrrt/HomeLab/issues/182):
   an ingest proxy holds both, and serves a push only to an agent token and a
-  query only to the reader token. So the firewall is no longer the only thing
-  between a Hicks workstation and the metric and log stores.
+  query only to the reader token, over TLS since
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764). So the firewall is no
+  longer the only thing between a Hicks workstation and the metric and log
+  stores.
   `10.0.30.110` keeps its explicit pass for `Saruman`'s Alloy agent, which now
   presents `Saruman`'s own token.
 - **ImaginationLAN is reached entire**, on every protocol and port, by
@@ -572,7 +574,9 @@ Where things get broken on purpose.
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
   only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
   the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
-  host try and the token is what gets it served.
+  host try and the token is what gets it served. The push is TLS under the
+  estate CA (#764), so the token is not readable at the firewall that forwards
+  it.
 - **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
   other static in the estate lives below `.100`; this one is at `.110`, and the
   ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no

@@ -144,7 +144,7 @@ tests:
       - series: 'probe_success{job="blackbox", instance="http://alertmanager:9093/-/healthy",
                  name="alertmanager", role="alerting", host="prometheus", via="compose"}'
         values: "0+0x15"
-      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:9090/-/healthy",
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.20:9090/-/healthy",
                  name="prometheus", role="metrics", host="prometheus", via="address"}'
         values: "1+0x15"
     alert_rule_test:
@@ -641,10 +641,10 @@ tests:
   # ("not reachable") would be wrong about a door that opened.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:9090/api/v1/query?query=up",
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.20:9090/api/v1/query?query=up",
                  name="prometheus", role="metrics", host="prometheus", via="refusal"}'
         values: "0+0x10"
-      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:9090/api/v1/query?query=up",
+      - series: 'probe_http_status_code{job="blackbox", instance="https://10.0.99.20:9090/api/v1/query?query=up",
                  name="prometheus", role="metrics", host="prometheus", via="refusal"}'
         values: "200+0x10"
     alert_rule_test:
@@ -657,7 +657,7 @@ tests:
           - exp_labels:
               alertname: IngestAuthNotEnforced
               job: blackbox
-              instance: "http://10.0.99.20:9090/api/v1/query?query=up"
+              instance: "https://10.0.99.20:9090/api/v1/query?query=up"
               name: prometheus
               role: metrics
               host: prometheus
@@ -668,7 +668,7 @@ tests:
             exp_annotations:
               runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#ingestauthnotenforced"
               summary: >-
-                prometheus at http://10.0.99.20:9090/api/v1/query?query=up did
+                prometheus at https://10.0.99.20:9090/api/v1/query?query=up did
                 not refuse a request with no token
               description: >-
                 The ingest proxy should answer this with 401 and its
@@ -687,10 +687,10 @@ tests:
   # authentication, so IngestAuthNotEnforced stays quiet.
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.20:3100/loki/api/v1/delete",
                  name="loki", role="logs", host="prometheus", via="refusal"}'
         values: "0+0x10"
-      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+      - series: 'probe_http_status_code{job="blackbox", instance="https://10.0.99.20:3100/loki/api/v1/delete",
                  name="loki", role="logs", host="prometheus", via="refusal"}'
         values: "0+0x10"
     alert_rule_test:
@@ -704,10 +704,10 @@ tests:
   # --- Refused, as it should be -----------------------------------------------
   - interval: 1m
     input_series:
-      - series: 'probe_success{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+      - series: 'probe_success{job="blackbox", instance="https://10.0.99.20:3100/loki/api/v1/delete",
                  name="loki", role="logs", host="prometheus", via="refusal"}'
         values: "1+0x10"
-      - series: 'probe_http_status_code{job="blackbox", instance="http://10.0.99.20:3100/loki/api/v1/delete",
+      - series: 'probe_http_status_code{job="blackbox", instance="https://10.0.99.20:3100/loki/api/v1/delete",
                  name="loki", role="logs", host="prometheus", via="refusal"}'
         values: "401+0x10"
     alert_rule_test:

@@ -38,13 +38,13 @@ that rewrite as compromised, including the CA. What follows replaces it.
 > [`deploy-stack.md`](deploy-stack.md), not a someday step. `make render`
 > refuses to run until they exist, because before it did, `make up` bind-mounted
 > the absent files and Docker created directories in their place
-> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Grafana and, on
-> `oracle`, the wiki's Caddy ([#847](https://github.com/Gerrrt/HomeLab/issues/847))
-> are the services that terminate TLS on a leaf from here; the wiki's leaf is
-> issued and carried by [`stacks/wiki/README.md`](../../stacks/wiki/README.md#tls).
-> Prometheus, Alertmanager and Loki publish plain
-> HTTP on the management VLAN, and that is an accepted residual with firewall
-> default-deny as the control — not work in progress; see
+> ([#69](https://github.com/Gerrrt/HomeLab/issues/69)). Grafana,
+> speedtest-tracker and the ingest proxy on 9090 and 3100 on `prometheus`, and
+> the wiki's Caddy on `oracle` ([#847](https://github.com/Gerrrt/HomeLab/issues/847)),
+> terminate TLS with leaves from this CA; the wiki's leaf is issued and carried
+> by [`stacks/wiki/README.md`](../../stacks/wiki/README.md#tls). Prometheus,
+> Loki and Alertmanager themselves publish only on loopback, so nothing
+> off-host reaches them except through that proxy; see
 > [`security.md`](../security.md).
 
 ## Where things live
@@ -176,6 +176,7 @@ the certificate somewhere and not recording it is how it goes stale
 | The Alloy agents on `oracle`, `trinity` and `Saruman` | `tls_config { ca_file }` in [`config.alloy`](../../stacks/observability/alloy/config.alloy), reading `INGEST_CA_FILE`. [`deploy-agent.sh`](../../scripts/deploy-agent.sh) ships the committed copy, [`ingest-ca.pem`](../../stacks/observability/alloy/ingest-ca.pem), to `/etc/alloy` (#764) | Copy the new `ca.pem` over `ingest-ca.pem` and commit it ([`check_ingest_ca.sh`](../../scripts/check_ingest_ca.sh) fails until you do), then rerun `deploy-agent.sh` for each host. Saruman's runs from the Mac |
 | Homepage on `trinity` | `NODE_EXTRA_CA_CERTS`, a bundle of the tier's root and `ingest-ca.pem` that `render-config.sh` writes to `stacks/sensitive/.rendered/` | `make up` on trinity once the commit above is pulled |
 | Home Assistant on `trinity` | `REQUESTS_CA_BUNDLE`, the host's public roots plus `ingest-ca.pem`, from the same render step | Same |
+| [`deploy-agent.sh`](../../scripts/deploy-agent.sh)'s arrival check, wherever it runs | `curl --cacert` on the committed `ingest-ca.pem` | The commit above |
 | Prometheus on `alexander` (the lab guest) | `ca_file`, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5 | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed |
 | The operator's Mac — system keychain | **Not imported.** Confirmed on the device 2026-09-20: not present in Keychain Access, and an import attempt that day was refused with an "invalid key" error. ADR-0037's "the Mac's system store, at least" was wrong; Safari and Chrome do not trust the estate's CA | Nothing |
 | The operator's Mac — Firefox | **Not imported.** Confirmed on the device 2026-09-20: not under Authorities. So no browser on the Mac trusts the estate's CA, and Grafana over `https` there warns until one does — which is a choice, not a defect, and importing it is the row you add here | Nothing |

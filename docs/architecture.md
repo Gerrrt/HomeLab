@@ -214,8 +214,8 @@ re-shard of everything. Reasoning in
 | --- | --- | --- | --- |
 | Grafana | 3000 | `${BIND_ADDR}` | The main UI meant to be opened by a human — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
 | speedtest-tracker | 443 | `${BIND_ADDR}` | Published on the host as `SPEEDTEST_PORT`, 8443 by default. The speed-test history UI (#914), `https://` on its own lab-CA leaf, behind the app's login. `/prometheus` and `/api/healthcheck` answer without it — see [security.md](security.md#hardening-applied-to-the-stack). Prometheus scrapes port 80 on the compose network instead |
-| Caddy (ingest proxy) | 9090 | `${INGEST_BIND_ADDR}` | Where the agents on `oracle`, `trinity` and `Saruman` remote-write, and where Homepage and Home Assistant query. A bearer token per client, and a path allowlist per role; see [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md) |
-| Caddy (ingest proxy) | 3100 | `${INGEST_BIND_ADDR}` | Where the same agents push logs. Loki's delete API is refused to every token |
+| Caddy (ingest proxy) | 9090 | `${INGEST_BIND_ADDR}` | Where the agents on `oracle`, `trinity` and `Saruman` remote-write, and where Homepage and Home Assistant query. `https://` on a lab-CA leaf every client verifies ([ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)), a bearer token per client, and a path allowlist per role; see [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md) |
+| Caddy (ingest proxy) | 3100 | `${INGEST_BIND_ADDR}` | Where the same agents push logs, `https://` on the same leaf. Loki's delete API is refused to every token |
 | Prometheus | 9090 | `127.0.0.1` | Unauthenticated, so loopback only; off-host clients come through the ingest proxy |
 | Loki | 3100 | `127.0.0.1` | Unauthenticated, so loopback only; off-host clients come through the ingest proxy |
 | Alertmanager | 9093 | `127.0.0.1` | Nothing off-host uses it; silences are reached through Grafana |
