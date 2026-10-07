@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The Paperless export set on `trinity` is left out of the nightly
+  verification, on purpose** ([#942](https://github.com/Gerrrt/HomeLab/issues/942)).
+  #856 left `backups/paperless-documents/` as the one kind of set on `trinity`
+  that is never re-read. It stays that way, and
+  [`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md) §4
+  says why. Each household visit exports Paperless again and prunes the old
+  set. A restore reads the drive, not `trinity`. The documents themselves are
+  in the volume sets that `verify-backups-sensitive` re-reads nightly.
+  - **What #856 found:** this set is not copied to `oracle` either. That is
+    intended: the drive is its off-host copy.
+
 - **The wiki is served over https and deployed from a verified checkout,
   in the repository** ([#847](https://github.com/Gerrrt/HomeLab/issues/847);
   [ADR-0082](adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)).
