@@ -69,6 +69,7 @@ than a fault.
 Usage: scripts/check_container_health.py [STACK]      (default: observability)
        scripts/check_container_health.py --no-wait    (snapshot, do not poll)
 """
+
 from __future__ import annotations
 
 import argparse
@@ -108,8 +109,13 @@ POLL_SECONDS = 2.0
 
 _DURATION = re.compile(r"(\d+(?:\.\d+)?)(ns|us|µs|ms|s|m|h)")
 _UNITS = {
-    "ns": 1e-9, "us": 1e-6, "µs": 1e-6, "ms": 1e-3,
-    "s": 1.0, "m": 60.0, "h": 3600.0,
+    "ns": 1e-9,
+    "us": 1e-6,
+    "µs": 1e-6,
+    "ms": 1e-3,
+    "s": 1.0,
+    "m": 60.0,
+    "h": 3600.0,
 }
 
 
@@ -166,13 +172,11 @@ def compose_healthchecks(
         if not health or health.get("disable") or health.get("test") == ["NONE"]:
             unchecked.append(name)
             continue
-        deadlines[name] = (
-            parse_duration(health.get("start_period"), DEFAULT_START_PERIOD)
-            + int(health.get("retries", DEFAULT_RETRIES))
-            * (
-                parse_duration(health.get("interval"), DEFAULT_INTERVAL)
-                + parse_duration(health.get("timeout"), DEFAULT_TIMEOUT)
-            )
+        deadlines[name] = parse_duration(health.get("start_period"), DEFAULT_START_PERIOD) + int(
+            health.get("retries", DEFAULT_RETRIES)
+        ) * (
+            parse_duration(health.get("interval"), DEFAULT_INTERVAL)
+            + parse_duration(health.get("timeout"), DEFAULT_TIMEOUT)
         )
     return project, deadlines, unchecked, profiled
 
@@ -185,14 +189,18 @@ def inspect(project: str) -> dict[str, dict]:
     stopped setting it would otherwise silently inspect nothing and pass.
     """
     ids = subprocess.run(
-        ["docker", "ps", "--all", "--quiet",
-         "--filter", f"label=com.docker.compose.project={project}"],
-        capture_output=True, text=True, check=True,
+        ["docker", "ps", "--all", "--quiet", "--filter", f"label=com.docker.compose.project={project}"],
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout.split()
     if not ids:
         return {}
     raw = subprocess.run(
-        ["docker", "inspect", *ids], capture_output=True, text=True, check=True,
+        ["docker", "inspect", *ids],
+        capture_output=True,
+        text=True,
+        check=True,
     ).stdout
     found: dict[str, dict] = {}
     for container in json.loads(raw):
@@ -210,7 +218,7 @@ def status_of(container: dict) -> tuple[str, str]:
 
 
 def last_probe_output(container: dict) -> str:
-    log = ((container["State"].get("Health") or {}).get("Log") or [])
+    log = (container["State"].get("Health") or {}).get("Log") or []
     if not log:
         return ""
     entry = log[-1]
@@ -223,9 +231,10 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("stack", nargs="?", default="observability")
     ap.add_argument(
-        "--no-wait", action="store_true",
+        "--no-wait",
+        action="store_true",
         help="report the current status without polling; for asking about a "
-             "stack that has been up for a while rather than one just deployed",
+        "stack that has been up for a while rather than one just deployed",
     )
     args = ap.parse_args()
 
@@ -237,9 +246,7 @@ def main() -> int:
     try:
         containers = inspect(project)
     except FileNotFoundError:
-        sys.exit(
-            "docker is not on PATH — this is a deploy-time check and needs a daemon"
-        )
+        sys.exit("docker is not on PATH — this is a deploy-time check and needs a daemon")
     except subprocess.CalledProcessError as exc:
         sys.exit(f"docker inspect failed: {(exc.stderr or '').strip()}")
 
@@ -273,15 +280,15 @@ def main() -> int:
                 # probe output is where a 404, a refused connection or a TLS
                 # failure actually says which it was.
                 detail = last_probe_output(container)
-                results[service] = (
-                    False, f"unhealthy — {detail}" if detail else "unhealthy"
-                )
+                results[service] = (False, f"unhealthy — {detail}" if detail else "unhealthy")
             elif health == "none":
                 results[service] = (
                     False,
-                    ("running with no health status, but compose declares a "
-                    "healthcheck — this container predates it and has not been "
-                    "recreated since"),
+                    (
+                        "running with no health status, but compose declares a "
+                        "healthcheck — this container predates it and has not been "
+                        "recreated since"
+                    ),
                 )
             elif elapsed >= deadlines[service]:
                 # In practice the `unhealthy` branch above is the one that
@@ -293,9 +300,11 @@ def main() -> int:
                 # this script waiting forever rather than to diagnose a 404.
                 results[service] = (
                     False,
-                    (f"still starting after {deadlines[service]:.0f}s "
-                    f"(start_period + retries x (interval + timeout)) — Docker "
-                    f"has not reached a verdict, so the probe is not returning"),
+                    (
+                        f"still starting after {deadlines[service]:.0f}s "
+                        f"(start_period + retries x (interval + timeout)) — Docker "
+                        f"has not reached a verdict, so the probe is not returning"
+                    ),
                 )
             else:
                 continue  # still legitimately starting
@@ -322,10 +331,7 @@ def main() -> int:
     if unchecked:
         # Named rather than counted silently. A stack that lost a healthcheck
         # would otherwise show up as a cleaner run instead of a thinner one.
-        print(
-            f"{YELLOW}  NOTE{RESET} not covered — declares no healthcheck: "
-            f"{', '.join(sorted(unchecked))}"
-        )
+        print(f"{YELLOW}  NOTE{RESET} not covered — declares no healthcheck: {', '.join(sorted(unchecked))}")
 
     if failures:
         sys.stdout.flush()

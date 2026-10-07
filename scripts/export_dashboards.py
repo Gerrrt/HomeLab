@@ -42,6 +42,7 @@ change the default time range or the default variable selection for everyone.
 They are read back out of the committed file instead. To change one, edit the
 file — that is the one thing the UI round trip deliberately cannot do.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -178,9 +179,7 @@ def preserve_session_state(new: dict, old: dict) -> None:
             new.pop(key, None)
 
     committed = {
-        variable.get("name"): variable
-        for variable in old.get("templating", {}).get("list", [])
-        if variable.get("name")
+        variable.get("name"): variable for variable in old.get("templating", {}).get("list", []) if variable.get("name")
     }
     for variable in new.get("templating", {}).get("list", []):
         was = committed.get(variable.get("name"))
@@ -225,12 +224,9 @@ def load_fetched(path: pathlib.Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fetched", required=True, type=pathlib.Path,
-                        help="directory of <uid>.json API responses")
-    parser.add_argument("--check", action="store_true",
-                        help="report differences and write nothing")
-    parser.add_argument("--dashboards", type=pathlib.Path, default=DASHBOARDS,
-                        help="the committed dashboard directory")
+    parser.add_argument("--fetched", required=True, type=pathlib.Path, help="directory of <uid>.json API responses")
+    parser.add_argument("--check", action="store_true", help="report differences and write nothing")
+    parser.add_argument("--dashboards", type=pathlib.Path, default=DASHBOARDS, help="the committed dashboard directory")
     args = parser.parse_args()
 
     if not args.fetched.is_dir():
@@ -279,7 +275,8 @@ def main() -> int:
             diff = difflib.unified_diff(
                 current.splitlines(keepends=True),
                 wanted.splitlines(keepends=True),
-                fromfile=f"a/{path.name}", tofile=f"b/{path.name}",
+                fromfile=f"a/{path.name}",
+                tofile=f"b/{path.name}",
             )
             sys.stdout.writelines(diff)
         else:
@@ -289,9 +286,7 @@ def main() -> int:
     # A dashboard created in the UI has no file to be written over, and it is
     # exactly the thing an operator would expect this command to have captured.
     # Reported by uid because that is all that is known about it here.
-    orphans = sorted(
-        p.stem for p in args.fetched.glob("*.json") if p.stem not in by_uid
-    )
+    orphans = sorted(p.stem for p in args.fetched.glob("*.json") if p.stem not in by_uid)
     for uid in orphans:
         print(
             f"\033[0;33mwarning:\033[0m Grafana has a dashboard with uid '{uid}' "
@@ -304,8 +299,7 @@ def main() -> int:
     if args.check:
         if changed:
             print(
-                f"\n{len(changed)} dashboard(s) differ from what Grafana holds: "
-                f"{', '.join(changed)}",
+                f"\n{len(changed)} dashboard(s) differ from what Grafana holds: {', '.join(changed)}",
                 file=sys.stderr,
             )
             print("Run 'make dashboards-export' to fold them in.", file=sys.stderr)

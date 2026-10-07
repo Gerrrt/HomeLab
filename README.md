@@ -95,7 +95,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  164 alert rules — 145 metric-based in Prometheus, 19 log-based in Loki — sharing
+  165 alert rules — 146 metric-based in Prometheus, 19 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -192,7 +192,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 145 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 146 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 19 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host

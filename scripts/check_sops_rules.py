@@ -71,6 +71,7 @@ fourth copy of something and would rot the same way.
 
 Usage: scripts/check_sops_rules.py
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -96,21 +97,19 @@ POLICY = REPO / ".sops.yaml"
 # to them: losing odin's or alexander's key costs an evening, not a vault. The
 # lab's second key is #671's question, on its own terms.
 SECOND_RECIPIENT_REQUIRED = {
-    "secrets/observability.sops.yaml":
-        "the estate's key also encrypts its volume backups (backup-volumes.sh)",
-    "secrets/sensitive.sops.yaml":
-        "trinity's key also encrypts the tier's volume backups, Vaultwarden's "
-        "among them (backup-volumes.sh STACK=sensitive)",
-    "secrets/tofu.sops.yaml":
-        "the state passphrase: without it the encrypted OpenTofu state is "
-        "unreadable (ADR-0076)",
+    "secrets/observability.sops.yaml": "the estate's key also encrypts its volume backups (backup-volumes.sh)",
+    "secrets/sensitive.sops.yaml": "trinity's key also encrypts the tier's volume backups, Vaultwarden's "
+    "among them (backup-volumes.sh STACK=sensitive)",
+    "secrets/tofu.sops.yaml": "the state passphrase: without it the encrypted OpenTofu state is unreadable (ADR-0076)",
 }
 
 
 def stacks() -> list[str]:
     listed = subprocess.run(
         [str(REPO / "scripts/stacks.sh")],
-        capture_output=True, text=True, check=True,
+        capture_output=True,
+        text=True,
+        check=True,
     )
     return listed.stdout.split()
 
@@ -147,14 +146,12 @@ def check_recipients(
     problems: list[str] = []
     for path, have in sorted(files.items()):
         siblings = sorted(
-            p for p in files if p != path and rule_of.get(p) is not None
-            and rule_of.get(p) == rule_of.get(path)
+            p for p in files if p != path and rule_of.get(p) is not None and rule_of.get(p) == rule_of.get(path)
         )
         sharing = [path, *siblings]
         rekey = " ".join(f"`sops updatekeys {p}`" for p in sharing)
         want = rule_for.get(path)
-        if want is not None and not any(k.startswith("REPLACE_WITH_") for k in want) \
-                and have != want:
+        if want is not None and not any(k.startswith("REPLACE_WITH_") for k in want) and have != want:
             missing = ", ".join(sorted(want - have)) or "none"
             extra = ", ".join(sorted(have - want)) or "none"
             # Not `make secrets-add-recipient`: that ADDS a key to the rule. Here
@@ -184,8 +181,7 @@ def check_recipients(
                     f"PUBKEY=age1...` on the host that holds the current key"
                 )
             problems.append(
-                f"{path} opens with {len(have)} key — {reason}, so losing that "
-                f"key loses data (ADR-0024). {how}"
+                f"{path} opens with {len(have)} key — {reason}, so losing that key loses data (ADR-0024). {how}"
             )
     return problems
 
@@ -193,24 +189,42 @@ def check_recipients(
 def self_test() -> int:
     one, two, three = "age1one", "age1two", "age1three"
     cases = [
-        ("one recipient on a data-guarding file fails",
-         {"secrets/sensitive.sops.yaml": {one}},
-         {"secrets/sensitive.sops.yaml": {one}}, 1),
-        ("two recipients, matching the rule, passes",
-         {"secrets/sensitive.sops.yaml": {one, two}},
-         {"secrets/sensitive.sops.yaml": {one, two}}, 0),
-        ("one recipient on a regenerable-credentials file passes",
-         {"secrets/soc.sops.yaml": {one}},
-         {"secrets/soc.sops.yaml": {one}}, 0),
-        ("a rule edited without updatekeys fails, even with two in the file",
-         {"secrets/sensitive.sops.yaml": {one, two}},
-         {"secrets/sensitive.sops.yaml": {one, two, three}}, 1),
-        ("a file re-keyed to a recipient the rule lacks fails",
-         {"secrets/soc.sops.yaml": {one, two}},
-         {"secrets/soc.sops.yaml": {one}}, 1),
-        ("a rule still holding its placeholder is not compared",
-         {"secrets/sensor.sops.yaml": {one}},
-         {"secrets/sensor.sops.yaml": {"REPLACE_WITH_SENSOR_AGE_PUBLIC_KEY"}}, 0),
+        (
+            "one recipient on a data-guarding file fails",
+            {"secrets/sensitive.sops.yaml": {one}},
+            {"secrets/sensitive.sops.yaml": {one}},
+            1,
+        ),
+        (
+            "two recipients, matching the rule, passes",
+            {"secrets/sensitive.sops.yaml": {one, two}},
+            {"secrets/sensitive.sops.yaml": {one, two}},
+            0,
+        ),
+        (
+            "one recipient on a regenerable-credentials file passes",
+            {"secrets/soc.sops.yaml": {one}},
+            {"secrets/soc.sops.yaml": {one}},
+            0,
+        ),
+        (
+            "a rule edited without updatekeys fails, even with two in the file",
+            {"secrets/sensitive.sops.yaml": {one, two}},
+            {"secrets/sensitive.sops.yaml": {one, two, three}},
+            1,
+        ),
+        (
+            "a file re-keyed to a recipient the rule lacks fails",
+            {"secrets/soc.sops.yaml": {one, two}},
+            {"secrets/soc.sops.yaml": {one}},
+            1,
+        ),
+        (
+            "a rule still holding its placeholder is not compared",
+            {"secrets/sensor.sops.yaml": {one}},
+            {"secrets/sensor.sops.yaml": {"REPLACE_WITH_SENSOR_AGE_PUBLIC_KEY"}},
+            0,
+        ),
     ]
     failed = 0
     for name, files, rules, want in cases:
@@ -229,7 +243,8 @@ def self_test() -> int:
         {"secrets/observability.sops.yaml": catch_all, "secrets/wiki.sops.yaml": catch_all},
     )
     alone = check_recipients(
-        {"secrets/sensitive.sops.yaml": {one}}, {"secrets/sensitive.sops.yaml": {one}},
+        {"secrets/sensitive.sops.yaml": {one}},
+        {"secrets/sensitive.sops.yaml": {one}},
         {"secrets/sensitive.sops.yaml": "secrets/sensitive"},
     )
     drift = check_recipients(
@@ -237,16 +252,26 @@ def self_test() -> int:
         {"secrets/sensitive.sops.yaml": {one, two, three}},
     )
     advice = [
-        ("a shared rule's file is told to re-key its sibling too",
-         len(shared) == 1 and "sops updatekeys secrets/wiki.sops.yaml" in shared[0]),
-        ("a shared rule's file is not pointed at secrets-add-recipient",
-         len(shared) == 1 and "Not `make secrets-add-recipient`" in shared[0]
-         and "`make secrets-add-recipient STACK" not in shared[0]),
-        ("a file on its own rule may use secrets-add-recipient",
-         len(alone) == 1 and "make secrets-add-recipient STACK=sensitive" in alone[0]),
-        ("rule/file drift is repaired by updatekeys, not secrets-add-recipient",
-         len(drift) == 1 and "sops updatekeys secrets/sensitive.sops.yaml" in drift[0]
-         and "secrets-add-recipient" not in drift[0]),
+        (
+            "a shared rule's file is told to re-key its sibling too",
+            len(shared) == 1 and "sops updatekeys secrets/wiki.sops.yaml" in shared[0],
+        ),
+        (
+            "a shared rule's file is not pointed at secrets-add-recipient",
+            len(shared) == 1
+            and "Not `make secrets-add-recipient`" in shared[0]
+            and "`make secrets-add-recipient STACK" not in shared[0],
+        ),
+        (
+            "a file on its own rule may use secrets-add-recipient",
+            len(alone) == 1 and "make secrets-add-recipient STACK=sensitive" in alone[0],
+        ),
+        (
+            "rule/file drift is repaired by updatekeys, not secrets-add-recipient",
+            len(drift) == 1
+            and "sops updatekeys secrets/sensitive.sops.yaml" in drift[0]
+            and "secrets-add-recipient" not in drift[0],
+        ),
     ]
     for name, ok in advice:
         failed += not ok
@@ -258,16 +283,16 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
     """ADR-0073: household keys in no rule; the technical second in the catch-all."""
     listed = subprocess.run(
         [str(REPO / "scripts/household-recipients.sh"), "--roles"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if listed.returncode != 0:
         return [f"stacks/sensitive/household.recipients: {listed.stderr.strip()}"]
 
     problems: list[str] = []
     catch_all = matched_by.get("secrets/observability.sops.yaml")
-    catch_all_keys = next(
-        (rule_keys(r) for r in rules if r.get("path_regex") == catch_all), set()
-    )
+    catch_all_keys = next((rule_keys(r) for r in rules if r.get("path_regex") == catch_all), set())
     for line in listed.stdout.splitlines():
         role, key = line.split(" ", 1)
         if role == "household":  # the combined role is the technical second, below
@@ -279,8 +304,7 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
                         f"secrets, which is what ADR-0073 keeps it out of. Take it "
                         f"out of {POLICY.name} and run `sops updatekeys`"
                     )
-        elif role in ("technical-second", "household-and-technical-second") \
-                and key not in catch_all_keys:
+        elif role in ("technical-second", "household-and-technical-second") and key not in catch_all_keys:
             problems.append(
                 f"{role} key {key} in stacks/sensitive/household.recipients "
                 f"is not a recipient of the catch-all rule — ADR-0024's proof covers "
@@ -323,10 +347,7 @@ def main() -> int:
     for path in paths:
         hit = next((raw for raw, pat in patterns if pat.search(path)), None)
         if hit is None:
-            problems.append(
-                f"{path} matches no creation_rule in {POLICY.name} — sops will "
-                f"refuse to encrypt it"
-            )
+            problems.append(f"{path} matches no creation_rule in {POLICY.name} — sops will refuse to encrypt it")
             continue
         matched_by[path] = hit
         used.add(hit)
