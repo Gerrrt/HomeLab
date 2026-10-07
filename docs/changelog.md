@@ -38,6 +38,19 @@ docstring gives: it is a record, not a claim about now.
   the change, every stream on this path was `host="morpheus"`, so nothing that
   was arriving is now refused.
 
+- **The weekly digest-drift check covers every stack, not just one.**
+  `digests.yml` ran `scripts/pin-digests.sh` with no `COMPOSE_FILE`, so it
+  checked only `stacks/observability`, one stack of eight. It now runs
+  `make check-digests`, which loops over `scripts/stacks.sh`. That target also
+  stopped at the first stack that drifted, because of `-e` in `.SHELLFLAGS`;
+  it now checks every stack and then fails, naming the ones that drifted. The
+  first full run on 2026-10-07 found drift that had gone unreported in five
+  stacks: observability (`debian:13-slim`), scratch and soc (the three
+  `wazuh/*` 4.14.8 images), sensitive (`postgres:18.6`, pinned by two
+  services), and wiki (`postgres:17.11`). The tags
+  have not moved, but upstream rebuilt them. Re-pinning them is left to its
+  own change, because a merge to sensitive is a deploy.
+
 ## 2026-10-06
 
 - **Sysmon and Pktmon are on the lab domain**
