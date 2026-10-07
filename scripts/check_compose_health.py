@@ -664,7 +664,7 @@ def privilege_problems(services: dict, stack: str) -> list[str]:
         restart = str(svc.get("restart", "no")).split(":")[0]
         if restart not in LONG_RUNNING_RESTARTS:
             continue
-        if has_no_new_privileges(svc) or (stack, name) in NNP_EXEMPT:
+        if has_no_new_privileges(svc) or str(NNP_EXEMPT.get((stack, name), "")).strip():
             continue
         problems.append(
             f"{name} is long-running (restart: {restart}) but does not set "
@@ -672,6 +672,36 @@ def privilege_problems(services: dict, stack: str) -> list[str]:
             f"stops a setuid binary from ever raising privilege; add it, or "
             f"record why not in NNP_EXEMPT in {pathlib.Path(__file__).name} (#845)"
         )
+    return problems
+
+
+def nnp_exempt_problems(exempt: dict[tuple[str, str], str], by_stack: dict[tuple[str, str], dict]) -> list[str]:
+    """NNP_EXEMPT entries that no longer hold, given every stack's services.
+
+    Three ways an entry goes wrong, and each one leaves a service without
+    no-new-privileges while the guard stays green: it records no reason, its
+    service has gone, or its service now sets the option and the entry
+    excuses nothing. Split out of cross_stack_problems() so --self-test can
+    drive it without the real stacks.
+    """
+    problems = []
+    for (stack, name), reason in exempt.items():
+        svc = by_stack.get((stack, name))
+        if not str(reason or "").strip():
+            problems.append(
+                f"NNP_EXEMPT excuses {name} in stacks/{stack} with no reason — "
+                f"an exemption is the reason, so a blank one is no exemption"
+            )
+        if svc is None:
+            problems.append(
+                f"NNP_EXEMPT names {name} in stacks/{stack}, which does not "
+                f"exist — the reason it records has gone with the service"
+            )
+        elif has_no_new_privileges(svc):
+            problems.append(
+                f"NNP_EXEMPT still excuses {name} in stacks/{stack}, which now "
+                f"sets no-new-privileges — delete the entry"
+            )
     return problems
 
 
@@ -709,19 +739,7 @@ def cross_stack_problems() -> list[str]:
         for name, svc in services.items():
             by_stack[(compose_path.parent.name, name)] = svc or {}
 
-    problems: list[str] = []
-    for stack, name in NNP_EXEMPT:
-        svc = by_stack.get((stack, name))
-        if svc is None:
-            problems.append(
-                f"NNP_EXEMPT names {name} in stacks/{stack}, which does not "
-                f"exist — the reason it records has gone with the service"
-            )
-        elif has_no_new_privileges(svc):
-            problems.append(
-                f"NNP_EXEMPT still excuses {name} in stacks/{stack}, which now "
-                f"sets no-new-privileges — delete the entry"
-            )
+    problems: list[str] = nnp_exempt_problems(NNP_EXEMPT, by_stack)
     entries, problems_from_parse = reload_entries()
     problems += problems_from_parse
     for name, _port in entries:
@@ -1083,6 +1101,22 @@ def self_test() -> int:
         ),
     )
 
+    # 29-33. NNP_EXEMPT itself (#845 review). Each stale shape leaves a
+    #        service without the option while the guard stays green.
+    long_runner = {"restart": "unless-stopped"}
+    check(
+        "a reasoned exemption for a service that exists is fine",
+        0,
+        len(nnp_exempt_problems({("s", "a"): "measured: it needs X"}, {("s", "a"): long_runner})),
+    )
+    check("a blank reason is rejected", 1, len(nnp_exempt_problems({("s", "a"): "  "}, {("s", "a"): long_runner})))
+    check("an exemption for a service that is gone is stale", 1, len(nnp_exempt_problems({("s", "gone"): "why"}, {})))
+    check(
+        "an exemption for a service that now sets the option is stale",
+        1,
+        len(nnp_exempt_problems({("s", "a"): "why"}, {("s", "a"): {**long_runner, "security_opt": nnp}})),
+    )
+    check("the real NNP_EXEMPT has a reason for every entry", True, all(str(r).strip() for r in NNP_EXEMPT.values()))
     return failed
 
 
