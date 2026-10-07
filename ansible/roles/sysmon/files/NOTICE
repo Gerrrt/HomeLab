@@ -6,5 +6,6 @@ This repository's MIT licence does NOT extend to them. sysmonconfig.xml is
 sysmon-modular's, under its own MIT licence, reproduced in LICENSE.
 
 Sysmon itself is not vendored. roles/sysmon downloads it from Microsoft at the
-version and sha256 pinned in its defaults, under the Sysinternals licence that
+version and sha256 pinned in ansible/inventory/group_vars/all.yaml
+(sysmon_version, sysmon_zip_sha256), under the Sysinternals licence that
 its -accepteula flag accepts on each guest.

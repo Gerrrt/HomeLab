@@ -26,13 +26,17 @@
     # rather than filling the disk. Raise it for a long capture of a busy host.
     pktmon_file_mb: 512
   tasks:
-    - name: Say which guest to capture on
+    # One guest, not merely some --limit: `--limit lab_domain` or a group would
+    # pass a bare `ansible_limit is defined` and start several captures.
+    - name: Say which one guest to capture on
       ansible.builtin.assert:
-        that: ansible_limit is defined
+        that:
+          - ansible_limit is defined
+          - ansible_play_hosts_all | length == 1
         fail_msg: >-
-          Name the guest with --limit (e.g. --limit titan). A capture on all six
-          at once is never what an investigation wants, and its six stops are
-          six fetches.
+          Name one guest with --limit (e.g. --limit titan); this matched
+          {{ ansible_play_hosts_all | length }}. A capture on several guests at
+          once is never what an investigation wants, and each needs its own stop.
         quiet: true
 
     # --comp nics: Pktmon's default is every component in the stack, which logs

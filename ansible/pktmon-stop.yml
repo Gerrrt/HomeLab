@@ -15,10 +15,14 @@
     pktmon_dir: C:\ProgramData\lab\pktmon
     pktmon_captures: "{{ lookup('ansible.builtin.env', 'HOME') }}/captures"
   tasks:
-    - name: Say which guest to stop
+    - name: Say which one guest to stop
       ansible.builtin.assert:
-        that: ansible_limit is defined
-        fail_msg: Name the guest with --limit, as pktmon-start.yml was given.
+        that:
+          - ansible_limit is defined
+          - ansible_play_hosts_all | length == 1
+        fail_msg: >-
+          Name one guest with --limit, as pktmon-start.yml was given; this
+          matched {{ ansible_play_hosts_all | length }}.
         quiet: true
 
     # A capture already stopped but not fetched (a stop that failed after
@@ -36,11 +40,13 @@
           if ((pktmon status | Out-String) -notmatch 'not running') {
             $out = pktmon stop 2>&1
             if ($LASTEXITCODE -ne 0) { throw "pktmon stop exited $LASTEXITCODE`: $out" }
-            $null = pktmon filter remove
             Remove-Item -LiteralPath $pcap -Force -ErrorAction SilentlyContinue
           } elseif (-not (Test-Path -LiteralPath $etl) -and -not (Test-Path -LiteralPath $pcap)) {
             throw "Pktmon is not running on $env:COMPUTERNAME and no capture is waiting: nothing to stop."
           }
+          # On both paths: a recovered capture may have been stopped by hand or
+          # by a reboot, which leaves pktmon-start's filter configured.
+          $null = pktmon filter remove
           if (-not (Test-Path -LiteralPath $pcap)) {
             if (-not (Test-Path -LiteralPath $etl)) { throw "Pktmon stopped but $etl is not there." }
             $out = pktmon etl2pcap $etl --out $pcap 2>&1

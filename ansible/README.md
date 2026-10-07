@@ -136,7 +136,7 @@ The stop converts the capture to pcapng, fetches it to
 `~/captures/<guest>-<UTC time>.pcapng` on `phoenix`, and deletes it from the
 guest.
 
-- **Both playbooks refuse to run without `--limit`.**
+- **Both playbooks refuse to run on anything but one guest** (`--limit`).
 - **Filters:** `pktmon_port` and `pktmon_ip` are optional. Given together, a
   packet must match both.
 - **The capture includes your own SSH session.** Pktmon's filters only
