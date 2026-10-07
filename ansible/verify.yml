@@ -313,6 +313,10 @@
               [bool]($t -and $authgenSid -and ((& $sid $t.Principal.UserId) -eq $authgenSid))
             $r['its last run succeeded'] =
               [bool]($t -and (Get-ScheduledTaskInfo -TaskName Lab-AuthGenerator).LastTaskResult -eq 0)
+            # roles/endpoint_admin. By SID again, against Administrators' own.
+            $la = Get-LocalUser -Name labadmin -ErrorAction SilentlyContinue
+            $r['labadmin is an enabled local administrator'] = [bool]($la -and $la.Enabled -and
+              (Get-LocalGroupMember -SID 'S-1-5-32-544' | Where-Object { $_.SID -eq $la.SID }))
           }
           $r
       register: verify_answer

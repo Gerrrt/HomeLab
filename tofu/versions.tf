@@ -4,6 +4,8 @@
 # Both pins are exact or patch-level on purpose: a bump is a deliberate edit
 # here, not a side effect of whatever was newest on the day of an apply. That is
 # ADR-0074's rule for the Packer plugin, applied to the next tool along.
+# Dependabot's opentofu entry proposes the provider bumps (#848); merging one is
+# still that deliberate edit.
 terraform {
   required_version = "~> 1.13.0"
 

@@ -52,7 +52,7 @@ warn() { printf '\033[0;33m!!\033[0m %s\n' "$*"; }
 # this single check covers both installation styles.
 if ! git filter-repo --help >/dev/null 2>&1; then
   die "git-filter-repo not found. Install it:
-  pipx install git-filter-repo    (or: pip install git-filter-repo)
+  pipx install git-filter-repo    (or: apt install git-filter-repo)
   https://github.com/newren/git-filter-repo"
 fi
 
