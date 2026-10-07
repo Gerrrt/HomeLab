@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
+  ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  - **The gap.** A set on `trinity` was verified the night it was written and
+    never again. `make verify-backups` ran only on `prometheus`.
+  - **What closes it.** `make verify-backups STACK=sensitive` walks the
+    tier's volume sets and Immich's library sets instead of the NAS and wiki
+    sets, which `trinity` never holds. `homelab-verify-backups-sensitive` runs
+    it at 06:30 through `run-scheduled.sh`, under the `backups` lock, as
+    `verify-backups-sensitive` with a two-day threshold.
+  - **`oracle`'s copies.** These were already checkable from `trinity`:
+    `--verify-only` on both scripts has `oracle` sha256 every archive it holds
+    and compares each hash with the MANIFEST here. Nothing had scheduled it.
+    ADR-0064 records the answer: verified from `trinity`, with nothing
+    decrypted on `oracle`.
+  - **First run, by hand, 2026-10-07.** 7 volume sets and 2 library sets
+    decrypted on `trinity`, and every copy on `oracle` hashed to its MANIFEST
+    entry. It took about three minutes.
+  - **The fixture.** `backup-library.sh --self-test` now flips one byte in a
+    set and truncates another, and `--verify-only --all` fails on both.
+
 - **Syslog stores only the senders it names.**
   [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
   able to reach 1514/udp or 514/udp could write lines labelled
