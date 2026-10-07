@@ -99,6 +99,22 @@ docstring gives: it is a record, not a claim about now.
     - §6, bringing the stack up;
     - §7, the first collection.
 
+- **`AlloyDown`: one alert that says the agent is down.** At 05:34 UTC the
+  production `alloy` on the monitoring host was stopped (exit 137, not OOM).
+  `unless-stopped` left it down for 47 minutes, until it was found during
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
+  `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
+  of them said the container was exited or how to start it. `ContainerGone`
+  names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.
+  `AlloyDown` keys on each host's `<host>-alloy` self-scrape. It fires at 10m,
+  and Alertmanager inhibits that host's `RemoteWriteJobStale` while it holds.
+  Three promtool cases cover it, and mutations to `for`, `unless` and per-job
+  aggregation are each killed. Widening the selector is equivalent under
+  `by (instance)`, and the test file says so.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
@@ -138,6 +154,23 @@ docstring gives: it is a record, not a claim about now.
   stage removed and with the hostname rule restored. In the seven days before
   the change, every stream on this path was `host="morpheus"`, so nothing that
   was arriving is now refused.
+
+- **Every pinned image is scanned for CVEs weekly.** Before this, every image
+  was pinned by digest and `digests.yml` watched those digests for drift, but
+  nothing checked them for known vulnerabilities
+  ([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+  [`cve-scan.yml`](../.github/workflows/cve-scan.yml) runs on Mondays, an
+  hour after `digests.yml`. It runs `trivy`, pinned in the observability
+  compose file behind the `scan` profile beside `gitleaks`, against every
+  digest that any stack pins, using `--severity HIGH,CRITICAL
+  --ignore-unfixed`. The job summary lists every image, including the clean
+  ones. Each image repository with fixable findings has one issue, labelled
+  `security` and with its stacks' labels. The issue is keyed on the
+  repository rather than the tag, so a Dependabot bump updates it instead of
+  opening a twin. It closes when a scan finds the digest clean. A finding does
+  not fail the run, and no pull request is gated on one, not even a fixable
+  CRITICAL on the sensitive tier: the bump is the fix. An image that could
+  not be scanned does fail the run. Run it locally with `make scan-images`.
 
 ## 2026-10-06
 
