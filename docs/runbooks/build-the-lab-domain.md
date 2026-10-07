@@ -291,8 +291,8 @@ bought Windows 11 Pro activation is tied to, so a clone with the same UUID
 should reactivate by itself.
 
 **Before the first destroy, the six exist and the state does not know them.**
-They were built by hand, so `tofu destroy` alone would remove nothing. Steps
-4–5 import them once, so that the destroy is OpenTofu's. Every later rebuild
+They were built by hand, so `tofu destroy` alone would remove nothing. Step 4
+imports them once, so that the destroy is OpenTofu's. Every later rebuild
 skips step 4.
 
 1. **What the rebuild needs**, as for any run above, plus:
@@ -307,10 +307,7 @@ skips step 4.
 3. **A copy to go back to.** Back up 150–155 to `golem`'s PBS, and check that
    all six are listed there before going on. Anything the playbook does not
    make is on those disks and nowhere else.
-4. **The old Wazuh registrations go.** On `odin`, remove the six agents by
-   name, so that the rebuilt guests' enrolment under the same names is not
-   refused as a duplicate.
-5. **Once only: import the hand-built six.**
+4. **Once only: import the hand-built six.**
 
    ```bash
    cd ~/code/Gerrrt/HomeLab
@@ -321,18 +318,23 @@ skips step 4.
    tofu -chdir=tofu plan
    ```
 
-   The plan should say each of the six **must be replaced**, and change
+   The plan should **replace** each of the six and **create** the
+   `lab-domain` pool (an import brings in guests, not their pool), and do
    nothing else. That is the one plan where a replace is expected:
-   `clone` cannot be read back from a running guest. Anything outside the six
-   is a stop.
-6. **Destroy.** Only the guests, so the pool and its grant survive:
+   `clone` cannot be read back from a running guest. Anything else is a stop.
+5. **Destroy.** Only the guests. On a later rebuild, that leaves the pool
+   and its grant in place:
 
    ```bash
    tofu -chdir=tofu destroy -target=module.guest
    ```
 
    Check on `Saruman` that `qm list` has no 150–155.
-7. **Apply.**
+6. **The old Wazuh registrations go.** On `odin`, remove the six agents by
+   name, so that the rebuilt guests' enrolment under the same names is not
+   refused as a duplicate. This comes after the destroy, so a run that stops
+   before it leaves the old guests still reporting.
+7. **Apply.** This also creates the pool, the first time.
 
    ```bash
    tofu -chdir=tofu plan -out=next.tfplan
@@ -353,6 +355,7 @@ skips step 4.
    done
    ansible-playbook lab-domain.yml        # again: must report changed=0
    ```
+
 9. **Verify.** All of this has to hold:
    - `ansible-playbook verify.yml` passes on all six;
    - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
