@@ -3,8 +3,8 @@
 # Generate the ESTATE'S internal CA and the leaf certificates it signs.
 #
 # The estate's, and only the estate's: Grafana on the monitoring host and on
-# the lab guest serve leaves from this CA, and Prometheus and blackbox verify
-# them against it. The sensitive tier on trinity has a certificate authority of
+# the lab guest, and the wiki's Caddy on oracle (#847), serve leaves from this
+# CA, and Prometheus and blackbox verify them against it. The sensitive tier on trinity has a certificate authority of
 # its own — step-ca, with a root minted by scripts/tier-ca.sh — and every
 # certificate Caddy serves there is issued over ACME and renewed without a
 # runbook step. Nothing this script issues is for that host, and nothing that

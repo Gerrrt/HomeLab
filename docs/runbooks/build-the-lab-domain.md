@@ -181,6 +181,44 @@ hand-built pair keep theirs. Generate one:
 (f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_ENDPOINT_ADMIN_PASSWORD=/d' "$f"; printf "LAB_ENDPOINT_ADMIN_PASSWORD='%s'\n" "$(openssl rand -base64 18)Aa1!" >> "$f")
 ```
 
+`lab-domain.yml` refuses to start if `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`
+or `LAB_TIER_ADMIN_PASSWORD` is missing or shorter than 14 characters. That
+check runs first on every tag
+([#846](https://github.com/Gerrrt/HomeLab/issues/846)).
+
+**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0082,
+which amends ADR-0077 decision 2). `scripts/lab-known-hosts.sh` writes that file.
+It reads each guest's `ssh_host_ed25519_key.pub` from inside the guest,
+through the Proxmox guest agent, so the key is not learned from whatever
+answers on VLAN 30. Run it once now, and again after any of the six is
+rebuilt; until then, `ansible/` refuses that guest with `REMOTE HOST
+IDENTIFICATION HAS CHANGED`. Its token needs `VM.GuestAgent.FileRead` on the
+six, and nowhere else. On `/vms`, where `PhoenixBuilder` is granted, that would
+let `phoenix` read any file on any guest, the SOC's included. On the six it
+adds nothing: `phoenix` already holds their Administrator password. So it is a
+role of its own, granted on the `lab-domain` pool, whose grant outlives a
+rebuild of its guests (`provision-lab-guests.md` §2). As root on `Saruman`:
+
+```bash
+pveum role add PhoenixHostKeys --privs "VM.GuestAgent.FileRead"
+pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixHostKeys
+```
+
+Until the six are in that pool (tofu, #448), grant it on their VMIDs
+instead. Proxmox deletes a `/vms/<id>` grant along with the guest, so these
+lines would have to be re-run after a rebuild:
+
+```bash
+for id in 150 151 152 153 154 155; do pveum acl modify /vms/$id --users phoenix@pve --roles PhoenixHostKeys; done
+```
+
+Then, on `phoenix`:
+
+```bash
+set -a; . ~/.config/proxmox/phoenix.env; set +a
+scripts/lab-known-hosts.sh       # PASS and a SHA256 fingerprint per guest
+```
+
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
 run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
 passed on all six (`changelog.md`, 2026-10-03).
