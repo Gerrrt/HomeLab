@@ -2,9 +2,10 @@
 #
 # The flags mirror the as-run `qm create` in build-the-lab-domain.md §1 and
 # build-the-jumpbox.md §1: host CPU, no balloon, virtio-scsi-single, the disk on
-# large_data with discard, iothread and ssd, vmbr0 untagged, the agent on. A
-# guest built here and a guest built by hand should be indistinguishable in
-# `qm config`, apart from the pool.
+# large_data with discard, iothread and ssd, vmbr0 untagged, the agent on, q35
+# and OVMF with an EFI disk, and for Windows a TPM. A guest built here and a
+# guest built by hand should be indistinguishable in `qm config`, apart from
+# the pool.
 terraform {
   required_providers {
     proxmox = {
@@ -35,6 +36,48 @@ resource "proxmox_virtual_environment_vm" "this" {
     type = var.linux ? "l26" : "win11"
   }
 
+  # Every template packer/ builds is q35 and OVMF with an EFI disk, and the
+  # provider's own default is SeaBIOS: left unset, a clone could come up with
+  # no bootable disk. Windows 11 also refuses to boot without TPM 2.0 and
+  # Secure Boot (build-the-lab-domain.md §1). Saying so here keeps the provider
+  # from "correcting" what the template already has.
+  bios    = "ovmf"
+  machine = "q35"
+
+  efi_disk {
+    datastore_id      = var.datastore
+    file_format       = "raw"
+    type              = "4m"
+    pre_enrolled_keys = true
+  }
+
+  dynamic "tpm_state" {
+    for_each = var.linux ? [] : [1]
+    content {
+      datastore_id = var.datastore
+      version      = "v2.0"
+    }
+  }
+
+  # Pinned for the bought Windows 11 Pro endpoints: the digital entitlement is
+  # keyed to the hardware ID, and the SMBIOS UUID is most of what a VM has.
+  dynamic "smbios" {
+    for_each = var.smbios_uuid == null ? [] : [1]
+    content {
+      uuid = var.smbios_uuid
+    }
+  }
+
+  # The DCs before the members after a host reboot, as `--startup` in
+  # build-the-lab-domain.md §1 has it. The endpoints are on demand and get none.
+  dynamic "startup" {
+    for_each = var.startup_order == null ? [] : [1]
+    content {
+      order    = var.startup_order
+      up_delay = 120
+    }
+  }
+
   cpu {
     type    = "host"
     cores   = var.cores
@@ -61,6 +104,9 @@ resource "proxmox_virtual_environment_vm" "this" {
     bridge   = var.bridge
     model    = "virtio"
     firewall = false
+    # Pinned, because morpheus's reservations are keyed by MAC and the
+    # inventory's addresses are only true while they hold (ADR-0077 decision 6).
+    mac_address = var.mac_address
     # No vlan_id: VLAN 30 is untagged on vmbr0, and a tag here breaks
     # networking (packer/variables.pkr.hcl says the same).
   }

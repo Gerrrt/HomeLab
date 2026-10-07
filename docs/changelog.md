@@ -17,6 +17,24 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-06
+
+- **The six domain guests are declared in `tofu/`, ready for #448's rebuild
+  proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
+  were read from the hand-built guests' `qm config` and written into
+  `tofu/guests.tf`. The guest module gained a MAC (ADR-0077 decision 6), the
+  UUID and the startup order. It now also states q35, OVMF and the EFI disk on
+  every guest, and the TPM on Windows. Every template is UEFI, and the
+  provider's default is SeaBIOS.
+- **`labadmin` is now in code.** Both endpoints had it, in Administrators,
+  and nothing in `ansible/` made it. Windows 11's setup creates it, and a
+  clone of 911 would not have had it. `roles/endpoint_admin` creates it when
+  it is missing, from `LAB_ENDPOINT_ADMIN_PASSWORD`, and `verify.yml` checks
+  it on both endpoints.
+- **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
+  "Rebuild from the pipeline" is the procedure: import, destroy, apply,
+  configure, verify.
+
 ## 2026-10-04
 
 - **`deploy-agent.sh` proves the log path with a line it writes itself.**

@@ -42,6 +42,28 @@ variable "bridge" {
   default = "vmbr0"
 }
 
+variable "mac_address" {
+  type        = string
+  description = "Pinned, so the guest keeps its reservation on morpheus across a rebuild (ADR-0077 decision 6)."
+
+  validation {
+    condition     = can(regex("^BC:24:11(:[0-9A-F]{2}){3}$", var.mac_address))
+    error_message = "mac_address must be upper-case and in Proxmox's BC:24:11 prefix, as `qm config` prints it."
+  }
+}
+
+variable "smbios_uuid" {
+  type        = string
+  default     = null
+  description = "The guest's smbios1 uuid. Pinned where an activation is keyed to it."
+}
+
+variable "startup_order" {
+  type        = number
+  default     = null
+  description = "Boot order after a host reboot. Null for a guest that is on demand."
+}
+
 variable "cores" {
   type = number
 }
