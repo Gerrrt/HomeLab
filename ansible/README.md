@@ -143,8 +143,9 @@ guest.
   include, so an unfiltered capture has `phoenix`'s session on 22 in it.
 - **Size:** it captures at the NIC, whole packets, circular at 512 MB
   (`-e pktmon_file_mb=...`).
-- **A reboot ends a capture.** `pktmon-stop.yml` then says there is nothing
-  to stop.
+- **A reboot ends a capture.** `pktmon-stop.yml` still fetches what was
+  written before it. So does a rerun after a stop that failed partway.
+  `pktmon-start.yml` refuses while an unfetched capture is waiting.
 
 ## Rules this tree keeps
 

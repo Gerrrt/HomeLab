@@ -15,7 +15,7 @@
 # Filters are include-only, so an unfiltered capture includes this playbook's
 # own SSH session on 22, and pktmon_port and pktmon_ip, when both are given,
 # must both match (one Pktmon filter, all its conditions). A reboot ends the
-# capture; pktmon-stop.yml then fails, saying there is nothing running.
+# capture; pktmon-stop.yml still fetches what it wrote before the reboot.
 
 - name: Start a Pktmon capture
   hosts: lab_domain
@@ -50,9 +50,10 @@
           if ((pktmon status | Out-String) -notmatch 'not running') {
             throw "Pktmon is already running on $env:COMPUTERNAME. Run pktmon-stop.yml first."
           }
+          if (Test-Path -LiteralPath (Join-Path $Dir capture.etl)) {
+            throw "An earlier capture on $env:COMPUTERNAME was never fetched. Run pktmon-stop.yml first."
+          }
           New-Item -ItemType Directory -Force -Path $Dir | Out-Null
-          Remove-Item -LiteralPath (Join-Path $Dir capture.etl), (Join-Path $Dir capture.pcapng) `
-            -Force -ErrorAction SilentlyContinue
           $null = pktmon filter remove
           $f = @()
           if ($Port) { $f += @('-p', $Port) }
