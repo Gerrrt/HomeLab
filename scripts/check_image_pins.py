@@ -72,6 +72,16 @@ compose files; this asks it of the shell, where deploy-agent.sh started
 oracle's Alloy with the socket for months after #193 and #836 had taken it off
 every compose-managed collector, because nothing that read shell looked.
 
+The shared-config rule
+----------------------
+An image that mounts another stack's config must carry that stack's exact
+pin: scratch's wazuh/* against soc's, and every grafana/alloy against
+observability's, because all of them mount ../observability/alloy/. CI's
+`alloy fmt` resolves only observability's pin, so a half-merged pair of
+Dependabot bumps would have validated the config on one release and run it on
+another, green (#848). The pairs are read off the mounts; see
+shared_config_pairs().
+
 There is deliberately no ignore mechanism. If a case needs one, the rule is
 wrong — see the .gitleaksignore argument in the docstring of check_docs.py.
 
@@ -86,19 +96,11 @@ import sys
 from collections.abc import Iterator
 from typing import NamedTuple
 
-# PyYAML is not guaranteed on a clean runner, and this script gates CI. Same
-# install-rather-than-fail as check_docs.py and check_compose_health.py.
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -699,11 +701,96 @@ def arch_tag_problems() -> list[str]:
     return problems
 
 
+def _repository(image: str) -> str:
+    """An image reference minus its tag and digest: `repo[:tag][@digest]` → `repo`."""
+    ref = image.partition("@")[0]
+    head, _, last = ref.rpartition("/")
+    return f"{head}/{last.partition(':')[0]}" if head else last.partition(":")[0]
+
+
+def _bind_sources(svc: dict) -> Iterator[str]:
+    for vol in (svc or {}).get("volumes") or []:
+        if isinstance(vol, str):
+            src = vol.split(":", 1)[0]
+            if src.startswith((".", "/", "~")):
+                yield src
+        elif isinstance(vol, dict) and vol.get("type") == "bind" and vol.get("source"):
+            yield str(vol["source"])
+
+
+def shared_config_pairs(stacks: dict[str, dict], root: pathlib.Path) -> tuple[list[str], int]:
+    """Images that mount another stack's config must match that stack's pin.
+
+    stacks/scratch mounts ../soc/wazuh/…, and lab, sensor and soc all mount
+    ../observability/alloy/config.alloy. Config written for one release and run
+    under another answers a different question, and until #848 only discipline
+    kept the pairs together: Dependabot opens one PR per directory, and merging
+    one of a pair left main green.
+
+    So: for every bind mount whose source lies inside ANOTHER stack's directory,
+    every service in that stack with the same image repository must carry the
+    identical reference, tag and digest. The pairs come from the mounts rather
+    than a list of names, so a new cross-stack mount is covered the day it is
+    written. Lab's Prometheus and Grafana mount nothing of observability's, and
+    stay free to move on their own (dependabot.yml says why).
+
+    `stacks` maps a stack name to its parsed compose file; `root` is the
+    directory those names live under. Returns (problems, pairs compared).
+    """
+    problems: list[str] = []
+    pairs = 0
+    root = root.resolve()
+    for name, doc in sorted(stacks.items()):
+        for svc_name, svc in ((doc or {}).get("services") or {}).items():
+            image = str((svc or {}).get("image") or "")
+            if not image:
+                continue
+            owners: set[str] = set()
+            for src in _bind_sources(svc):
+                path = (root / name / src).resolve()
+                try:
+                    rel = path.relative_to(root)
+                except ValueError:
+                    continue
+                if rel.parts and rel.parts[0] != name and rel.parts[0] in stacks:
+                    owners.add(rel.parts[0])
+            for owner in sorted(owners):
+                for twin_name, twin in ((stacks[owner] or {}).get("services") or {}).items():
+                    twin_image = str((twin or {}).get("image") or "")
+                    if _repository(twin_image) != _repository(image):
+                        continue
+                    pairs += 1
+                    if twin_image != image:
+                        problems.append(
+                            f"stacks/{name}: {svc_name} runs {image} but mounts "
+                            f"config from stacks/{owner}, whose {twin_name} runs "
+                            f"{twin_image} — the two share that config, so bump "
+                            f"both in one PR"
+                        )
+    return problems, pairs
+
+
+def shared_config_problems() -> tuple[list[str], int]:
+    stacks = {
+        cf.parent.name: yaml.safe_load(cf.read_text(encoding="utf-8")) or {}
+        for cf in REPO.glob("stacks/*/compose.yaml")
+    }
+    problems, pairs = shared_config_pairs(stacks, REPO / "stacks")
+    if not pairs:
+        # Alloy alone is mounted across four stacks today. Zero means the
+        # parser stopped seeing mounts, not that the estate stopped sharing.
+        problems.append("no cross-stack shared-config image pairs found — "
+                        "this check has stopped checking")
+    return problems, pairs
+
+
 def main() -> int:
     problems, sites, files = [], 0, 0
     problems.extend(pattern_problems())
     problems.extend(digest_problems())
     problems.extend(arch_tag_problems())
+    shared, pairs = shared_config_problems()
+    problems.extend(shared)
     for rel, lines in sources():
         found, seen = check_file(rel, lines)
         problems.extend(found)
@@ -716,7 +803,8 @@ def main() -> int:
         print(
             f"\n{len(problems)} image pin problem(s): a docker command running an "
             f"image from outside compose.yaml or holding the Docker socket, or "
-            f"a compose image without a digest or on a single-architecture tag",
+            f"a compose image without a digest, on a single-architecture tag, "
+            f"or apart from the stack whose config it mounts",
             file=sys.stderr,
         )
         return 1
@@ -726,7 +814,7 @@ def main() -> int:
     print(
         f"image pins OK — {sites} docker run/pull/create invocation(s) across "
         f"{files} file(s), every image resolved from compose.yaml via "
-        f"scripts/image-for.sh"
+        f"scripts/image-for.sh; {pairs} shared-config pin pair(s) identical"
     )
     return 0
 
@@ -774,6 +862,44 @@ def self_test() -> int:
     failed = 0
     for name, want, text in cases:
         got = problems(*text)
+        ok = got == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))
+
+    # The shared-config rule, on parsed compose dicts rather than files. The
+    # root is never read, only resolved against, so any path will do.
+    a = "grafana/alloy:v1@sha256:" + "a" * 64
+    b = "grafana/alloy:v1@sha256:" + "b" * 64
+    prom_a = "prom/prometheus:v3@sha256:" + "a" * 64
+    prom_b = "prom/prometheus:v3@sha256:" + "b" * 64
+
+    def stacks(sensor_image: str, mount: str = "../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro",
+               lab_prom: str = prom_a) -> dict:
+        return {
+            "observability": {"services": {
+                "alloy": {"image": a, "volumes": ["./alloy/config.alloy:/etc/alloy/config.alloy:ro"]},
+                "prometheus": {"image": prom_a},
+            }},
+            "sensor": {"services": {"alloy": {"image": sensor_image, "volumes": [mount]}}},
+            "lab": {"services": {"prometheus": {
+                "image": lab_prom, "volumes": ["../../certificates/ca.pem:/etc/ca.pem:ro"]}}},
+        }
+
+    shared_cases = [
+        ("matching Alloy pins across a shared config pass", (0, 1), stacks(a)),
+        ("a mismatched Alloy digest fails", (1, 1), stacks(b)),
+        ("the long bind syntax is read the same way", (1, 1),
+         stacks(b, {"type": "bind", "source": "../observability/alloy/config.alloy",
+                    "target": "/etc/alloy/config.alloy"})),
+        ("an Alloy mounting nothing of another stack's is free", (0, 0),
+         stacks(b, "./alloy/config.alloy:/etc/alloy/config.alloy:ro")),
+        ("lab and observability Prometheus may differ; they share no config", (0, 1),
+         stacks(a, lab_prom=prom_b)),
+    ]
+    root = pathlib.Path("/nonexistent/stacks")
+    for name, want, fixture in shared_cases:
+        found, pairs = shared_config_pairs(fixture, root)
+        got = (len(found), pairs)
         ok = got == want
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))

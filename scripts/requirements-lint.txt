@@ -1,4 +1,11 @@
-# What scripts/lint.sh runs over the Python in this tree, when ruff is not
-# already on PATH: `pipx run --spec` reads the pin from here, and Dependabot's
-# pip entry for /scripts bumps it. The rules are in ruff.toml at the root.
+# What scripts/lint.sh runs from `pipx run --spec`, which reads each pin from
+# here; Dependabot's pip entry for /scripts bumps them.
+#
+# yamllint (#848) publishes no upstream image, so it cannot sit in compose.yaml
+# beside the other linters; this is the ansible-lint arrangement instead
+# (ansible/requirements-lint.txt).
+#
+# ruff (#853) lints the Python in this tree, when it is not already on PATH.
+# The rules are in ruff.toml at the root.
 ruff==0.16.10
+yamllint==1.38.0
