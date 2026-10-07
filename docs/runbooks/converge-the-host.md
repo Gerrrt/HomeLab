@@ -286,6 +286,31 @@ journalctl -u 'homelab-converge*' -n 20 --no-pager | grep homelab-deploy
 `ScheduledJobFailed` and `ScheduledJobNeverRan` cover it exactly as they cover
 the backups.
 
+## When another deploy is running
+
+`make up` and `make converge` take the same per-stack lock, a file inside the
+checkout's `.git` (`scripts/deploy-lock.sh`). On 2026-10-07 two sessions
+deployed the observability stack eighteen seconds apart. Both recreated
+alertmanager and blackbox-exporter at once, and one failed halfway on a
+container-name conflict. Since then:
+
+- **A hand `make up`** that finds the lock held prints who holds it and waits
+  up to `HOMELAB_DEPLOY_LOCK_WAIT` seconds (900). If it is still held then,
+  it exits 75 and changes nothing.
+- **Convergence** waits up to `HOMELAB_CONVERGE_LOCK_WAIT` seconds (600). If
+  it is still held then, it logs "still held the deploy lock", exits 0 and
+  records nothing. The next hourly run asks again. Its own `make up` runs
+  straight through the lock it already holds.
+
+To see who holds it:
+
+```bash
+./scripts/deploy-lock.sh --holder observability
+```
+
+Empty output means it is free. The lock is the `flock`, not the file's text,
+so a holder that died releases it, and stale text from one is not reported.
+
 ## When a service is stopped
 
 Every run, on every path, including the refusals below, convergence looks for

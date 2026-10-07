@@ -63,6 +63,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `secrets-env.sh` | — | Sourced, not run: a stack's SOPS file as shell variables |
 | `converge.sh` | `converge` | Fetches `main`, refuses it unless GitHub signed it and CI passed, fast-forwards and runs `make up` ([ADR-0021](../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `record-applied.sh` | via `up` | Records the revision `make up` applied, so converge can tell a hand edit from a deploy |
+| `deploy-lock.sh` | via `up`, `converge` | One deploy of a stack at a time per checkout: `make up` waits for the holder, and converge leaves a held stack for its next run |
 | `reload-config.sh` | `reload` | Hot-reloads Prometheus, Alertmanager and snmp-exporter |
 | `check_mounted_config.py`, `check_container_health.py`, `check_alert_channels.py` | via `up` | After a deploy: each container runs the repo's config, its healthcheck passes, and Alertmanager can read every receiver URL |
 | `seed-ha-http.sh`, `seed-actual-password.sh` | via `up` | First-start state for Home Assistant and Actual, written before anything can reach them |
