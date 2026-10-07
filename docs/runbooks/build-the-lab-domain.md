@@ -399,8 +399,8 @@ skips step 4.
    Then, **as root on `Saruman`**, give the four servers their boot order.
    `tofu` cannot: Proxmox wants `Sys.Modify` on `/` to set `startup`, which
    `phoenix` is not given (ADR-0043). The first #448 apply was refused with a
-   403 on exactly this. `tofu -chdir=tofu output startup_orders` prints the
-   same four lines:
+   403 on exactly this. `tofu -chdir=tofu output startup_orders` lists the
+   same commands by guest name; run them as written here:
 
    ```bash
    qm set 150 --startup order=1,up=120
