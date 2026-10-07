@@ -8,7 +8,7 @@ consequence of
 
 > [!NOTE]
 > "Host keys are not pinned" (decision 2, below) is amended by
-> [ADR-0082](0082-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md),
+> [ADR-0084](0084-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md),
 > 2026-10. Host keys are checked, against keys `scripts/lab-known-hosts.sh`
 > reads from each guest through the Proxmox guest agent after each rebuild.
 > The Windows build's WinRM, which "WinRM is rejected" calls HTTP Basic, is
