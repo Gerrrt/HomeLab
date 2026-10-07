@@ -814,7 +814,9 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 	@# STACK=sensitive is trinity's half, and what
 	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
 	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
-	@# which trinity never holds. Both scripts' --verify-only also has oracle
+	@# which trinity never holds. Not backups/paperless-documents/ either:
+	@# household-copy re-makes that set on every visit and nothing else reads
+	@# it (#942, carry-the-household-copy.md §4). Both scripts' --verify-only also has oracle
 	@# hash every archive it holds against the MANIFEST here, so oracle's
 	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \
