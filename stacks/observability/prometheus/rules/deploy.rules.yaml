@@ -74,12 +74,20 @@ groups:
         # The host knows about commits it has not applied.
         #
         # In steady state this is unfireable: converge.sh sets the gauge to 0
-        # immediately after a successful fast-forward, so a run that applies
+        # immediately after a fast-forward to the tip, so a run that applies
         # cleanly never leaves a positive value behind. It fires when
-        # convergence is refusing (an unverified tip, a rewritten history), or
-        # when HOMELAB_CONVERGE_APPLY=0 has deliberately put the timer in
-        # report-only mode — in which case this alert IS the report and is
-        # expected to fire.
+        # convergence is refusing (an unverified tip, a rewritten history), when
+        # nothing newer than what the host runs has passed CI, or when
+        # HOMELAB_CONVERGE_APPLY=0 has deliberately put the timer in report-only
+        # mode — in which case this alert IS the report and is expected to fire.
+        #
+        # The `unless` is #1026. On a busy main the tip is usually still in CI,
+        # so converge deploys the newest commit below it that passed and records
+        # homelab_deploy_ci_fallback 1, leaving the host a few commits behind
+        # while it moves every hour. That is not stuck, and this must not page
+        # for it. A run that could not move records 0 and the `for` starts
+        # again, so 3h of no progress still fires. A host whose converge.sh
+        # predates the gauge has no series on the right, and `unless` keeps it.
         #
         # Which of those two it is used to be unanswerable without shell access
         # to read /etc/default/homelab-timers. DeployApplyDisabled below now
@@ -95,7 +103,7 @@ groups:
         # declares for the job, so a convergence that queued behind the weekly
         # backup and then missed its next slot does not alert twice for one
         # cause.
-        expr: homelab_deploy_behind_commits > 0
+        expr: homelab_deploy_behind_commits > 0 unless on(instance) homelab_deploy_ci_fallback == 1
         for: 3h
         labels:
           component: deploy
@@ -107,9 +115,10 @@ groups:
             Convergence has run and has not applied what it fetched. Either it
             is refusing — check `journalctl -u 'homelab-converge*' -n 50` on
             {{ $labels.instance }} for a dirty tree, a signature that did not verify, or a
-            non-fast-forward. If DeployApplyDisabled is firing too, it is
-            neither: the host is in report-only mode and this alert is that
-            mode's report. docs/runbooks/converge-the-host.md.
+            non-fast-forward — or nothing newer than what it runs has passed CI
+            in that time. If DeployApplyDisabled is firing too, it is neither:
+            the host is in report-only mode and this alert is that mode's
+            report. docs/runbooks/converge-the-host.md.
 
       - alert: DeployUnverified
         # The deployed revision does not carry a good signature from the pinned

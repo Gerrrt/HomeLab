@@ -151,6 +151,12 @@ are pinned the same way:
   activation is tied to the hardware ID;
 - the servers' startup order.
 
+*2026-10-07:* the startup order is not pinned by `tofu/` after all. Proxmox
+wants `Sys.Modify` on `/` to set it, and `phoenix` holds nothing at `/`
+(ADR-0043). The first rebuild's apply was refused with a 403 on it. The order
+is recorded in `tofu/guests.tf` and set by root on `Saruman` after an apply;
+the module ignores it.
+
 The module also states q35, OVMF, the EFI disk and, on Windows, the TPM,
 rather than leaving them to the provider's SeaBIOS default.
 

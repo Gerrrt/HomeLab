@@ -31,8 +31,9 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   guests (150–155), in the `lab-domain` pool, and the proof guest, 998, only
   under `-var proof=true`.
 - `modules/guest/` makes one full clone, with the flags the hand-built guests
-  have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC, SMBIOS UUID
-  and startup order each guest is given.
+  have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC and SMBIOS UUID
+  each guest is given. It leaves `startup` alone: setting it takes
+  `Sys.Modify` on `/`, so root on `Saruman` sets it after an apply.
 
 ## Rules this tree keeps
 

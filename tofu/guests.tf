@@ -48,7 +48,9 @@ locals {
   #     activation is tied to. The servers keep theirs only for symmetry: an
   #     evaluation licence has nothing to carry;
   #   - the startup order: DCs before members, and none for the endpoints,
-  #     which are on demand (ADR-0029's duty cycle).
+  #     which are on demand (ADR-0029's duty cycle). It is recorded here but
+  #     set by root on Saruman, not by this tree: Proxmox wants Sys.Modify on
+  #     `/` for it (modules/guest/main.tf). See `startup_orders` below.
   #
   # No password here. A Windows clone's comes from the template's build
   # password, which `base` rotates to LAB_ADMIN_PASSWORD on its first run.
@@ -109,9 +111,16 @@ module "guest" {
   password   = each.value.password
   ssh_keys   = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
-  mac_address   = each.value.mac_address
-  smbios_uuid   = each.value.smbios_uuid
-  startup_order = each.value.startup
+  mac_address = each.value.mac_address
+  smbios_uuid = each.value.smbios_uuid
+}
+
+output "startup_orders" {
+  description = "What root on Saruman sets after an apply, one `qm set` per guest that boots with the host."
+  value = {
+    for name, g in local.guests : name => "qm set ${g.vm_id} --startup order=${g.startup},up=120"
+    if g.startup != null
+  }
 }
 
 output "proof_password" {
