@@ -28,8 +28,17 @@
 >   monitoring host's login depend on the sensitive tier.
 > - **Recovery is the operator's.** A lost passkey is recovered with a
 >   one-time login code from the admin page, or with `pocket-id
->   one-time-access-token <user>` on `trinity`. There is no self-service
->   path. Each person should enrol a passkey on two devices. The provider
+>   one-time-access-token <user>` on `trinity`. Pocket ID can offer
+>   self-service recovery, an emailed login code requested from the sign-in
+>   page (`EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED`, off by default).
+>   The shape weighed here leaves it off, for two reasons:
+>   - it needs an SMTP credential, and the tier holds none on purpose (see
+>     Vaultwarden's block in `compose.yaml`);
+>   - it makes reading a mailbox enough to sign in, which is the
+>     password-reset path a passkey exists to remove.
+>
+>   So recovery stays with the operator, and each person should enrol a
+>   passkey on two devices. The provider
 >   would sit in ADR-0023's *Never on the path* class: the photographs'
 >   recovery route is the off-estate copy, not Immich's login.
 > - **The footprint fits the tier's rules.** The distroless `nonroot` image,
