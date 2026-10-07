@@ -35,6 +35,12 @@
 >
 > So the gate is two facts, the signature and green CI, and neither lives only
 > in a settings page.
+>
+> "Hourly, and the no-op path is free" (Decision) is amended by
+> [ADR-0087](0087-start-a-stopped-stack-service-from-the-converge-timer.md),
+> 2026-10. Every run now also starts a stack service that should be running
+> and has been stopped for more than half an hour, with `docker start` and
+> the config it already had. That includes the no-op path and the refusals.
 
 ## Context
 
