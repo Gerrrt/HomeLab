@@ -361,7 +361,10 @@ errors.
 - `ContainerOomKilled`: a Docker container at its `mem_limit`, read from cAdvisor.
 - `UnitOomKilled`: a systemd unit. It reads systemd's own verdict,
   `<unit>: Failed with result 'oom-kill'.`, from the journal, and names the
-  unit from the line, because PID 1 writes it as `init.scope`.
+  unit from the line, because PID 1 writes it as `init.scope`. Only a systemd
+  manager's own stream counts: PID 1 or a `user@<uid>.service`, over the
+  journal's native transport. So `logger` or a service's stdout cannot raise
+  it, and the alert keeps `unit` to say which manager reported it.
 
 `UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
 by `systemd-oomd`. Only a unit's own cap is latent: no unit is given

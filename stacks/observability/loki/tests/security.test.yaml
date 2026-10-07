@@ -541,22 +541,48 @@ tests:
   - alert: UnitOomKilled
     name: a unit that failed with result 'oom-kill' fires, named from the line
     streams:
-      - labels: {log_type: journal, host: prometheus, unit: init.scope}
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
         entries:
           - before: 10m
             line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
-      - labels: {log_type: journal, host: trinity, unit: user@1000.service}
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: journal}
         entries:
           - before: 5m
             line: "run-p3241787-i3245756.service: Failed with result 'oom-kill'."
     expect:
-      - {host: prometheus, oom_unit: homelab-backup-volumes.service}
-      - {host: trinity, oom_unit: run-p3241787-i3245756.service}
+      - {host: prometheus, unit: init.scope, oom_unit: homelab-backup-volumes.service}
+      - {host: trinity, unit: user@1000.service, oom_unit: run-p3241787-i3245756.service}
+
+  - alert: UnitOomKilled
+    name: the same sentence from anything but a systemd manager does not
+    streams:
+      # `logger "x.service: Failed with result 'oom-kill'."` from a login shell.
+      - labels: {log_type: journal, host: trinity, unit: session-4.scope, transport: syslog}
+        entries:
+          - before: 5m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      # `logger` from a program in a user's own systemd session, which logs as
+      # the user's manager unit. Only the transport stops this one.
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: syslog}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'oom-kill'."
+      # A service printing it to stdout.
+      - labels: {log_type: journal, host: oracle, unit: someapp.service, transport: stdout}
+        entries:
+          - before: 4m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      # The native API from a unit that is not a manager.
+      - labels: {log_type: journal, host: oracle, unit: someapp.service, transport: journal}
+        entries:
+          - before: 3m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+    expect: []
 
   - alert: UnitOomKilled
     name: any other result, and a container's cgroup OOM, do not
     streams:
-      - labels: {log_type: journal, host: trinity, unit: init.scope}
+      - labels: {log_type: journal, host: trinity, unit: init.scope, transport: journal}
         entries:
           - before: 5m
             line: "run-p3241787-i3245756.service: Failed with result 'exit-code'."

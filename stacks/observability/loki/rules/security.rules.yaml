@@ -298,10 +298,23 @@ groups:
         #
         # A machine-wide kill of a unit's process fires this AND KernelOomKill.
         # That is two facts, which unit and that the whole host ran out.
+        #
+        # ONLY SYSTEMD'S OWN LINES. Any program can print this sentence, and
+        # `logger` would page with it. So the stream must be a systemd manager's,
+        # read on trinity's journal: PID 1 (init.scope) or a user's manager
+        # (user@<uid>.service), over the journal's native transport. That shuts
+        # out `logger` (transport syslog), a service's stdout (transport stdout)
+        # and every other unit. What is left: a process inside a user's own
+        # session is also user@<uid>.service, and can still forge the line
+        # through the native journal API. It can make this warn falsely and
+        # nothing more.
+        #
+        # `unit` is kept, so the alert says which manager reported the kill:
+        # init.scope for a system unit, user@<uid>.service for a user's.
         expr: |
-          sum by (host, oom_unit) (
+          sum by (host, unit, oom_unit) (
             count_over_time(
-              {log_type="journal"}
+              {log_type="journal", transport="journal", unit=~"init\\.scope|user@[0-9]+\\.service"}
               |= "Failed with result 'oom-kill'"
               | regexp "^(?P<oom_unit>[^ :]+): Failed with result 'oom-kill'"
               [15m]
@@ -314,8 +327,9 @@ groups:
         annotations:
           summary: "{{ $labels.host }}: {{ $labels.oom_unit }} was OOM-killed"
           description: >-
-            systemd reports that {{ $labels.oom_unit }} failed with result
-            'oom-kill'. `systemctl status {{ $labels.oom_unit }}` and its
+            systemd ({{ $labels.unit }}) reports that {{ $labels.oom_unit }}
+            failed with result 'oom-kill'. A user@ manager means a user's own
+            unit: add `--user`, or `-M <user>@` as root. `systemctl status {{ $labels.oom_unit }}` and its
             journal say which process, and the unit file's MemoryMax= is the
             first thing to read. If KernelOomKill also fired on this host,
             the whole machine ran out, not just the unit.
