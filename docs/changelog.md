@@ -67,6 +67,22 @@ docstring gives: it is a record, not a claim about now.
     - §6, bringing the stack up;
     - §7, the first collection.
 
+- **`AlloyDown`: one alert that says the agent is down.** At 05:34 UTC the
+  production `alloy` on the monitoring host was stopped (exit 137, not OOM).
+  `unless-stopped` left it down for 47 minutes, until it was found during
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
+  `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
+  of them said the container was exited or how to start it. `ContainerGone`
+  names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.
+  `AlloyDown` keys on each host's `<host>-alloy` self-scrape. It fires at 10m,
+  and Alertmanager inhibits that host's `RemoteWriteJobStale` while it holds.
+  Three promtool cases cover it, and mutations to `for`, `unless` and per-job
+  aggregation are each killed. Widening the selector is equivalent under
+  `by (instance)`, and the test file says so.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
