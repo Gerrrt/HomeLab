@@ -363,11 +363,12 @@ services:
   # second credential ever arrives, the secrets.yaml plan becomes worth its
   # mount.
   #
-  # REQUESTS_CA_BUNDLE is how that sensor will verify the proxy once it serves
-  # https (#764). Home Assistant builds every client SSL context from it when
-  # set, certifi otherwise, and it replaces certifi rather than adding to it,
-  # so the bundle render-config.sh writes is the host's public roots plus the
-  # estate CA. Its header has the reasoning.
+  # REQUESTS_CA_BUNDLE is how that sensor verifies the proxy, which serves
+  # https under the estate CA (#764, ADR-0086). Home Assistant builds every
+  # client SSL context from it when set, certifi otherwise, and it replaces
+  # certifi rather than adding to it, so the bundle is the host's public roots
+  # plus the estate CA. scripts/render-trust-bundles.sh writes it and has the
+  # reasoning.
   home-assistant:
     <<: *service-defaults
     image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
@@ -727,7 +728,7 @@ services:
   # 128m: 14 MiB and ten tasks on that boot. Ten times, to bound a leak.
   ntfy:
     <<: *service-defaults
-    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    image: binwiederhier/ntfy:v2.29.0@sha256:4c599cf0818965782f93f652bd843e92714992e84d6b88ad17713dc0951cda1f
     container_name: sensitive-ntfy
     command: ["serve"]
     mem_limit: 128m
@@ -1472,7 +1473,8 @@ services:
   # placeholder tokens Immich and Paperless each answered 401 through Caddy —
   # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
   # the /24 this host shares with it. Since #182 that port is the estate's
-  # ingest proxy, and the Prometheus widgets send the reader token.
+  # ingest proxy, and the Prometheus widgets send the reader token; since #764
+  # they ask it over https, verified by the bundle below.
   #
   # HOMEPAGE_ALLOWED_HOSTS is the Host check on Homepage's API; any other Host
   # gets a 400. Loopback on 3000 is always admitted, which is what the

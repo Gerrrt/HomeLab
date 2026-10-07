@@ -24,7 +24,7 @@ make up        # from the repository root
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `alertmanager` | `prom/alertmanager` | 9093 (localhost) | Alert routing, grouping, inhibition |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9090, 3100 (`INGEST_BIND_ADDR`) | The ingest proxy: a bearer token per agent to push, a reader token to query, the admin and delete APIs to nobody (#182) |
+| `caddy` | `caddy` | 9090, 3100 (`INGEST_BIND_ADDR`, https) | The ingest proxy: TLS on a lab-CA leaf (#764), a bearer token per agent to push, a reader token to query, the admin and delete APIs to nobody (#182) |
 | `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the main published UI |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
 | `blackbox-exporter` | `prom/blackbox-exporter` | *internal* | Probes from outside a service: is it reachable, and what did the resolver answer |
@@ -36,8 +36,8 @@ make up        # from the repository root
 itself and over the compose network, and from no VLAN at all. A port is
 published only when something off-host uses it, and nothing off-host uses
 Alertmanager (#70). Prometheus and Loki are used off-host, but only through
-`caddy`, which holds the host's address on the same two ports and wants a
-token first (ADR-0067). Grafana and the Alloy syslog receiver on 1514/udp bind
+`caddy`, which holds the host's address on the same two ports, serves them
+over TLS (ADR-0086) and wants a token first (ADR-0067). Grafana and the Alloy syslog receiver on 1514/udp bind
 to `BIND_ADDR`. Reasoning in
 [`docs/architecture.md`](../../docs/architecture.md#ports).
 

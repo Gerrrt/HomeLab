@@ -47,7 +47,7 @@ it is not closed by anything in this document.
 | Container logs | Alloy → Docker socket | stream | stdout/stderr per container |
 | systemd journal | Alloy | stream | unit, boot ID, transport, priority. Delivery is watched by `JournalSourceStopped` |
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
-| syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
+| syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else. The `*.log` source skips `auth.log` and the facility files rsyslog also writes to `syslog` (`kern`, `user`, `mail`, `cron`, `daemon`), so a line is not stored once per copy ([#909](https://github.com/Gerrrt/HomeLab/issues/909)) |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
 | pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
@@ -981,8 +981,9 @@ See [`runbooks/add-monitored-device.md`](runbooks/add-monitored-device.md). In
 short:
 
 - **A Linux host:** run Alloy with `LOKI_URL` and
-  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. Nothing on the
-  monitoring host changes.
+  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `https://10.0.99.20`, and
+  `INGEST_CA_FILE` at the estate CA; `deploy-agent.sh` sets all three. The
+  monitoring host needs the host's token added (the runbook).
 - **A Linux host that may not push:** a firewall pass first, then
   `node_exporter` in that host's own compose stack, then a target in
   `prometheus/targets/node.yaml` with `instance` set to the hostname. The

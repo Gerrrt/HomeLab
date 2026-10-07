@@ -552,7 +552,7 @@ EOF
     mkdir "${T}/ci"
     git init -q "${T}/work"
     mkdir "${T}/work/scripts"
-    cp "${here}/converge.sh" "${here}/record-applied.sh" "${T}/work/scripts/"
+    cp "${here}/converge.sh" "${here}/record-applied.sh" "${here}/deploy-lock.sh" "${T}/work/scripts/"
     printf 'fixture\n' > "${T}/work/README"
     # As the repository's own .gitignore has it: the backup lock lives there.
     printf 'backups/\n' > "${T}/work/.gitignore"
@@ -642,6 +642,17 @@ EOF
 
   fresh; advance pinned; converge --stack lab
   expect "refuses a stack nothing pulls" 1 "nothing converges stack 'lab'" 0
+
+  # Another deploy holds the lock: a hand `make up` mid-run, the 2026-10-07 shape.
+  # Left alone, not refused: exit 0, said so, and never reached make.
+  fresh; advance pinned
+  (cd "${T}/deploy" && env -u HOMELAB_DEPLOY_LOCK_HELD bash -c \
+     'source scripts/deploy-lock.sh; deploy_lock_acquire observability 1; sleep 4') &
+  lock_holder=$!
+  sleep 0.5
+  HOMELAB_CONVERGE_LOCK_WAIT=1 converge
+  wait "${lock_holder}"
+  expect "leaves alone a stack another deploy holds the lock for" 0 "still held the deploy lock" 0
 
   if ((EUID != 0)); then
     fresh; advance pinned; chmod 0555 "${T}/prom"; converge; chmod 0755 "${T}/prom"
@@ -1056,12 +1067,41 @@ cd "${DEPLOY_ROOT}"
 
 command -v git >/dev/null 2>&1 || die "git is not installed"
 
+# ---------------------------------------------------------------------------
+# One deploy at a time
+# ---------------------------------------------------------------------------
+#
+# Held from here to exit, so a hand `make up` cannot recreate containers under
+# this run, and this run cannot fast-forward the checkout under a hand deploy.
+# On 2026-10-07 the two met eighteen seconds apart and one failed halfway on a
+# container-name conflict (scripts/deploy-lock.sh has the incident). The
+# `make up` below runs straight through, because this process exported that it
+# holds the lock.
+#
+# A deploy still holding it after HOMELAB_CONVERGE_LOCK_WAIT seconds is left
+# alone: exit 0, a line in the journal, and the next hourly run asks again. Not
+# a failure, because a deploy in progress is not a fault. Not a long wait
+# either, because a timer blocked for most of its hour helps nobody.
+CONVERGE_LOCK_WAIT="${HOMELAB_CONVERGE_LOCK_WAIT:-600}"
+[[ "${CONVERGE_LOCK_WAIT}" =~ ^[0-9]+$ ]] \
+  || die "HOMELAB_CONVERGE_LOCK_WAIT must be seconds, not '${CONVERGE_LOCK_WAIT}'"
+# shellcheck source=deploy-lock.sh
+source ./scripts/deploy-lock.sh
+DEPLOY_LOCK_CMD="converge.sh --stack ${DEPLOY_STACK}"
+lock_rc=0
+deploy_lock_acquire "${DEPLOY_STACK}" "${CONVERGE_LOCK_WAIT}" || lock_rc=$?
+if ((lock_rc == 75)); then
+  warn "another deploy of ${DEPLOY_STACK} still held the deploy lock after ${CONVERGE_LOCK_WAIT}s — not converging over it; the next run asks again"
+  exit 0
+fi
+((lock_rc == 0)) || die "could not take the deploy lock (exit ${lock_rc})"
+
 # Read before any check about the STATE of this checkout — the branch it is on,
 # whether it is clean, what it can fetch — so that every one of those refusals
 # still records what the host is running. A refusal that leaves yesterday's
 # metric in place is a refusal that reads as a healthy deployment.
 #
-# Three guards do run earlier and can exit before this line, and all three are
+# Four guards do run earlier and can exit before this line, and all four are
 # cases where recording nothing is the correct outcome rather than a gap:
 #
 #   - an unwritable TEXTFILE_DIR, where recording is impossible by definition
@@ -1069,7 +1109,11 @@ command -v git >/dev/null 2>&1 || die "git is not installed"
 #   - REPO_ROOT != DEPLOY_ROOT, where HEAD belongs to some other checkout, and
 #     writing its revision as "what is deployed" would be an actively false
 #     statement about the host rather than a missing one;
-#   - git absent, where there is no revision to read.
+#   - git absent, where there is no revision to read;
+#   - the deploy lock still held by another deploy, which may be moving HEAD
+#     or recreating containers at that moment, so anything read here would
+#     describe a deploy in progress. If that deploy is converge, it records for
+#     itself; if it is a hand `make up`, the next run here records.
 #
 # So the claim is narrower than "before anything that can fail", and stating it
 # loosely was wrong: a maintainer reading the loose version would think the

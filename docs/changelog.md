@@ -42,6 +42,22 @@ docstring gives: it is a record, not a claim about now.
   - **odin.** Its agent "hanging under load", recorded in the alert's comment
     and in odin's notes, is probably the same failure.
 
+- **One deploy of a stack at a time.** At 15:41:49 and 15:42:07 UTC two
+  sessions deployed the observability stack from the deployment checkout, one
+  with `make up` and one with `make converge`. Both recreated alertmanager and
+  blackbox-exporter, and the second failed halfway on a container-name conflict
+  (`/ee680d332de7_alertmanager is already in use`), before it recorded the
+  applied revision. The first finished, so the host was fine, but nothing made
+  it so. `scripts/deploy-lock.sh` is now a per-stack `flock` inside the
+  checkout's `.git`. `make up` runs under it and waits up to 900s, naming the
+  holder. `converge.sh` holds it for its whole run and leaves a held stack for
+  the next hour, while its own `make up` passes through. The wrapper passes
+  TERM, INT and HUP on to its command and waits for it, so killing the wrapper
+  alone cannot free the lock under a running deploy. Fixtures: seventeen in
+  `deploy-lock.sh --self-test`, including two concurrent holders, the nested
+  case and a TERM to the wrapper, and a converge case that fails if the lock
+  is removed.
+
 - **Converge deploys the newest commit that passed CI, not only the tip**
   ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`
   asked CI about `main`'s tip alone and waited while it ran. On a busy `main`
@@ -151,6 +167,27 @@ docstring gives: it is a record, not a claim about now.
   in the volume sets that `verify-backups-sensitive` re-reads nightly.
   - **What #856 found:** this set is not copied to `oracle` either. That is
     intended: the drive is its off-host copy.
+
+- **The ingest ports serve TLS**
+  ([#764](https://github.com/Gerrrt/HomeLab/issues/764), second of two;
+  [ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)).
+  The Caddyfile loads the `prometheus.matrix.elysium` leaf on 9090 and 3100,
+  and every client moved to `https://` in the same change: the agents through
+  `deploy-agent.sh`, the arrival check with `--cacert`, Homepage's five
+  widgets, Home Assistant's rack-power sensor, and the four blackbox probes.
+  The health probes moved to `http_2xx_lab_ca`, so `TlsCertificateExpiringSoon`
+  now covers the leaf.
+  - Measured on the pinned Caddy image, as `ingest-proxy` runs it, with the
+    real leaf:
+    - health answers 200, verified through the `10.0.99.20` IP SAN;
+    - a query with no token, and Loki's delete, get 401 with the realm;
+    - the reader token is served;
+    - plain http gets 400;
+    - a client without the CA, or asking for another name, is refused.
+  - `check_caddyfile.sh` mounts a throwaway certificate and key, because
+    `tls cert key` is loaded at validation. Without them it fails, which was
+    checked.
+  - The lab's proxy is unchanged, and so is `deploy-agent.sh` against it.
 
 - **Every client of the ingest ports can verify the estate CA, and none uses
   it yet** ([#764](https://github.com/Gerrrt/HomeLab/issues/764), first of
