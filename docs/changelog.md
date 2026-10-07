@@ -29,8 +29,10 @@ docstring gives: it is a record, not a claim about now.
     - a Caddy in `stacks/wiki` that terminates 443 on a lab-CA leaf and
       answers 80 with a `308` only;
     - Wiki.js unpublished;
-    - the README's deploy as fetch, then `verify-commit`, then a `%GF`
-      comparison against `converge.sh`'s pin, then `--ff-only`, then `up`;
+    - the README's deploy, against one fetched SHA: fetch from the
+      canonical URL, read its CI, require a clean `main`, `verify-commit`,
+      compare `%GF` with `converge.sh`'s pin, `--ff-only`, require `HEAD` to
+      be that SHA, then `up`;
     - both blackbox targets on `http_2xx_lab_ca`;
     - `check_caddyfile.sh` offering a throwaway `cert.pem` and `key.pem`, so a
       Caddyfile that loads its leaf from files validates in CI.

@@ -15,8 +15,10 @@
 - Help:
     - House wiki:
         - icon: mdi-book-open-variant
-          # oracle serves it over plain HTTP only; it is also the name on the
-          # printed card (docs/runbooks/add-a-host-override.md).
+          # https from #847's cutover: Caddy on oracle, a leaf from the estate's
+          # CA, and 80 only redirecting (ADR-0082). Until that runs, this link
+          # fails and the http one works. The same name is on the printed card
+          # (docs/runbooks/add-a-host-override.md), in its http form.
           href: https://lemmiwinks.matrix.elysium
           description: How things work here
 

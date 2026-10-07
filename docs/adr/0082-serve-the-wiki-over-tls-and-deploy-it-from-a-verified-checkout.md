@@ -99,11 +99,23 @@ This is a real widening, and it is stated rather than played down:
 ### Deploy from a checkout, verified the way convergence verifies
 
 `/opt/wiki/HomeLab` becomes a clone of this repository, and `.env` stays
-beside it in `/opt/wiki`. A deploy is one line in `stacks/wiki/README.md`:
-fetch `main`, `git verify-commit`, then compare `%GF` to the fingerprint
-`converge.sh` pins, then `merge --ff-only`, then `docker compose up -d`.
-Each step refuses on its own. The comparison is the same one ADR-0021 makes.
-A key id is claimed by the signature, and a verified fingerprint is not.
+beside it in `/opt/wiki`. A deploy is three steps in `stacks/wiki/README.md`:
+
+1. Fetch `main` from the canonical URL, not `origin`, and name the commit
+   by its SHA.
+2. Read that commit's CI from the API.
+3. Then, against that SHA:
+   - require a clean tree with `main` checked out;
+   - run `git verify-commit` and compare `%GF` to the fingerprint
+     `converge.sh` pins;
+   - `merge --ff-only` to it;
+   - require `HEAD` to equal it;
+   - `docker compose up -d`.
+
+Each check refuses on its own. The comparison is the same one ADR-0021 makes:
+a key id is claimed by the signature, and a verified fingerprint is not. The
+last test catches what `--ff-only` lets through, a checkout already ahead of
+the verified commit.
 
 ### `oracle` does not join `homelab-converge`
 

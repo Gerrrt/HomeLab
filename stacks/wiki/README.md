@@ -31,29 +31,62 @@ pulls on `prometheus` and `trinity` only, each its own stack, and ends in
 
 A change reaches `oracle` from a checkout of this repository, and only once
 its commit is proved signed by the same key, by the same comparison, that
-`scripts/converge.sh` demands on `prometheus`. Nothing on `oracle` pulls from
+`scripts/converge.sh` demands on its hosts. Nothing on `oracle` pulls from
 `main` on its own, so a Dependabot bump merged here is deployed by this, or
-not at all:
+not at all. It is three steps, because the second needs the commit the first
+fetched.
+
+**1. Fetch, from the canonical URL, and name the commit.** Not `origin`,
+which is whatever the checkout's config says; `converge.sh` fetches the
+canonical URL for the same reason. `FETCH_HEAD` is that commit, and the full
+SHA printed is what the next two steps are about:
 
 ```bash
-cd /opt/wiki/HomeLab && git fetch origin main && git verify-commit origin/main && test "$(git log -1 --format=%GF origin/main)" = 968479A1AFF927E37D1A566BB5690EEEBB952194 && git merge --ff-only origin/main && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d
+cd /opt/wiki/HomeLab && git fetch https://github.com/Gerrrt/HomeLab.git main && git rev-parse FETCH_HEAD
 ```
 
-Before it, look at the commit's checks on GitHub
-(`https://github.com/Gerrrt/HomeLab/commit/<sha>`, the tip `git fetch`
-printed). `Lint`, `Validate configs`, `Boot hardened services` and `Secret
-scan` must have passed: the ruleset already demands it before a merge, and
-`converge.sh` asks again on its hosts rather than trust one setting ([#833]).
-Here a human asks.
+**2. Check that commit's CI.** `Lint`, `Validate configs`, `Boot hardened
+services` and `Secret scan` must each read `completed success`. The ruleset
+already demands it before a merge, and `converge.sh` asks again on its hosts
+rather than trust one setting ([#833]); here a human reads the answer. The
+query is anonymous, as `converge.sh`'s is:
 
-Each `&&` is a refusal. `verify-commit` fails on a missing or bad signature.
-The fingerprint test is the one that matters: a signature names its own key
-id, and `%GF` is empty unless gpg verified it, so comparing it to the pin
-asserts both "verified" and "by GitHub's web-flow key". `--ff-only` refuses a
-history that is not a descendant of the one deployed. Until 2026-10-07 this
-was a `curl` of `compose.yaml` from `raw.githubusercontent.com`, which pinned
-the images by digest and pinned nothing about the file that named them
-([#847]).
+```bash
+curl -fsS -H 'Accept: application/vnd.github+json' "https://api.github.com/repos/Gerrrt/HomeLab/commits/$(git -C /opt/wiki/HomeLab rev-parse FETCH_HEAD)/check-runs?per_page=100&filter=latest" | python3 -c 'import json, sys; [print(r["name"], r["status"], r["conclusion"]) for r in json.load(sys.stdin)["check_runs"] if (r.get("app") or {}).get("slug") == "github-actions"]'
+```
+
+Anything else (a failure, a check still running, one missing) is not a
+deploy. Wait, or find out why.
+
+**3. Verify it, move to exactly it, and deploy it.** Set `SHA` to what step 1
+printed:
+
+```bash
+cd /opt/wiki/HomeLab && SHA=<the SHA from step 1> && test -z "$(git status --porcelain)" && test "$(git symbolic-ref --short HEAD)" = main && git verify-commit "$SHA" && test "$(git log -1 --format=%GF "$SHA")" = 968479A1AFF927E37D1A566BB5690EEEBB952194 && git merge --ff-only "$SHA" && test "$(git rev-parse HEAD)" = "$SHA" && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d
+```
+
+Each `&&` is a refusal, and each closes a different way to deploy something
+that was not verified:
+
+- **`git status --porcelain` empty.** An edit or an untracked file in the
+  checkout would otherwise ride along with a verified commit. A dirty tree
+  is a hard stop for `converge.sh` too.
+- **`main` checked out.** The fast-forward moves the branch that is checked
+  out, and only `main` is meant to be deployed from.
+- **`verify-commit`** fails on a missing or bad signature.
+- **The fingerprint test** is the one that matters. A signature names its own
+  key id, and `%GF` is empty unless gpg verified it, so comparing it to the
+  pin asserts both "verified" and "by GitHub's web-flow key".
+- **`--ff-only`** refuses a history that is not a descendant of the one
+  deployed.
+- **`HEAD` equal to the verified SHA** catches the case `--ff-only` lets
+  through: a checkout already *ahead* of it, with a local commit nobody
+  signed. The merge says "Already up to date" and succeeds, and only this
+  test notices that what compose would run is not what was verified.
+
+Until 2026-10-07 this was a `curl` of `compose.yaml` from
+`raw.githubusercontent.com`, which pinned the images by digest and pinned
+nothing about the file that named them ([#847]).
 
 `/opt/wiki/.env` is a copy of [`.env.example`](.env.example), made once and
 kept outside the checkout, so `git status` there stays clean. It holds paths
@@ -131,7 +164,14 @@ before it answers:
    `https://lemmiwinks.matrix.elysium`. Wiki.js builds absolute links and
    its login redirects from it.
 4. From `prometheus`, probe both targets through the live exporter before
-   the targets file is trusted, the way its header asks:
+   the targets file is trusted, the way its header asks. Both, because they
+   fail differently: the name tests the resolver, the SNI and the leaf's DNS
+   SAN; the address tests `default_sni` and the IP SAN. Each must print
+   `probe_success 1`:
+
+   ```bash
+   curl -s 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://lemmiwinks.matrix.elysium/healthz' | grep -E '^probe_(success|ssl_earliest_cert_expiry)'
+   ```
 
    ```bash
    curl -s 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://10.0.99.30/healthz' | grep -E '^probe_(success|ssl_earliest_cert_expiry)'
