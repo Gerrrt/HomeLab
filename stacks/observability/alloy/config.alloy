@@ -310,13 +310,36 @@ loki.process "authlogs" {
 // ============================================================================
 // VAR LOG COLLECTION
 // ============================================================================
+//
+// What /var/log holds that no other source here ships: dpkg.log,
+// alternatives.log, cloud-init.log and the like, which rsyslog never sees.
+//
+// NOT rsyslog's per-facility files (#909). Debian's and Ubuntu's rsyslog
+// write every facility but auth to /var/log/syslog, which the next section
+// ships, and ALSO to kern.log, user.log, mail.log, cron.log (and daemon.log
+// and lpr.log on older releases). Tailing those as well stored each kernel
+// or user line three times: journal, syslog, and its facility file. auth.log
+// has its own source above. Excluding them loses nothing on a host that
+// writes /var/log/syslog, and the kernel rules (KernelOomKill,
+// FilesystemRemountedReadOnly, DiskIoErrors) read `syslog|varlog`, so they
+// see the same lines through syslog.
+//
+// `messages` stays. Current Debian and Ubuntu do not write it, and on a
+// RHEL-family host it IS the system log, with no /var/log/syslog to stand in.
+// A host that writes both, as Debian 11 and earlier did, duplicates its
+// info-to-warning lines: accepted rather than guessed at.
+//
+// The exclude is a doublestar glob, like __path__, so alternation is {a,b}.
+// It was written `(syslog|auth.log)` until #909, a regex shape that glob
+// syntax reads literally: it matched nothing, so auth.log was shipped as
+// varlog too, and every auth event was stored three times.
 
 local.file_match "varlogs" {
 	path_targets = [
 		{
 			__address__      = "localhost",
 			__path__         = "/var/log/{messages,*.log}",
-			__path_exclude__ = "/var/log/(syslog|auth.log)",
+			__path_exclude__ = "/var/log/{syslog,auth.log,kern.log,user.log,mail.log,cron.log,daemon.log,lpr.log}",
 			instance         = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 			job              = "/var/log/*.log",
 		},

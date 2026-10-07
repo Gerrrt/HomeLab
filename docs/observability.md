@@ -47,7 +47,7 @@ it is not closed by anything in this document.
 | Container logs | Alloy → Docker socket | stream | stdout/stderr per container |
 | systemd journal | Alloy | stream | unit, boot ID, transport, priority. Delivery is watched by `JournalSourceStopped` |
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
-| syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
+| `/var/log/syslog`, and the `/var/log/*.log` files rsyslog does not also route there | Alloy | 60s poll | Everything else. `kern.log`, `user.log` and the other facility files repeat `syslog`, so they are not shipped ([#909](https://github.com/Gerrrt/HomeLab/issues/909)) |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
 | pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |

@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The agents stop shipping rsyslog's facility files, and `auth.log` a third
+  time** ([#909](https://github.com/Gerrrt/HomeLab/issues/909)). Not yet
+  deployed to any host.
+  - **What the lab's Loki showed.** `/var/log/auth.log` arrived as
+    `log_type="varlog"` from all seven hosts, and `kern.log` from all seven.
+    golem added `cron.log`, `mail.log` and `user.log`. So every auth event was
+    stored three times (journal, `authlog`, `varlog`), and every kernel line
+    three times (journal, `syslog`, `kern.log`). #909 had counted two for
+    auth: it read the exclude as working.
+  - **Why the exclude did nothing.** `__path_exclude__` is a doublestar glob,
+    and it was written `/var/log/(syslog|auth.log)`, a regex. Run against
+    Alloy v1.20.1's own library (doublestar v4.10.0), that pattern excludes
+    no file at all.
+  - **The new exclude** is `{syslog,auth.log,kern.log,user.log,mail.log,cron.log,daemon.log,lpr.log}`.
+    The same check keeps `dpkg.log`, `alternatives.log`, `cloud-init.log` and
+    the other files rsyslog never sees.
+  - **`messages` stays,** which #909 had suggested dropping. Current Debian
+    and Ubuntu do not write it, and on a RHEL-family host it is the only
+    system log.
+  - **No rule changes.** The kernel rules read `syslog|varlog`.
+    `KernelOomKill` gains a case where the line arrives through `syslog`
+    alone; the other two kernel rules already had one. All 43 Loki behaviour
+    tests pass on the pinned Loki 3.7.8.
+  - **Live from each host's next `deploy-agent.sh`.** #909 closes on golem: a
+    single `logger` line should come back as two streams, `journal` and
+    `syslog`.
+
 - **A guest agent that stops answering is resynchronised, not restarted.**
   At 16:34:58 and 16:35:05 UTC, `qm guest exec` timed out on `fenrir` and on
   `alexander`. After that, `qm agent` said both agents were "not running".
