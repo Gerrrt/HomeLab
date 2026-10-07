@@ -201,10 +201,22 @@ for ((i = 0; i < 120; i++)); do
 done
 # A listener whose tls_config was lost would still listen, in plain TCP, and
 # every refusal below would then fail for the wrong reason. Alloy says which
-# it started.
-if ((alloy_up)) && ! docker logs "${TAG}-alloy" 2>&1 | grep -q 'address=0.0.0.0:6514 protocol=tcp tls=true'; then
-  docker logs --tail 20 "${TAG}-alloy" 2>&1 | sed 's/^/        /'
-  die "the 6514 listener did not start with TLS"
+# it started. Matched on the port, not the address: Alloy logs 0.0.0.0 as
+# `[::]` inside the container. And waited for, not read once: the UDP
+# listener's metric can appear before this line is written.
+tls_up=0
+if ((alloy_up)); then
+  for ((i = 0; i < 30; i++)); do
+    if docker logs "${TAG}-alloy" 2>&1 | grep -qE 'address=[^ ]*:6514 protocol=tcp tls=true'; then
+      tls_up=1
+      break
+    fi
+    sleep 1
+  done
+  if ((!tls_up)); then
+    docker logs --tail 20 "${TAG}-alloy" 2>&1 | sed 's/^/        /'
+    die "the 6514 listener did not start with TLS"
+  fi
 fi
 if ((!alloy_up)); then
   docker logs --tail 20 "${TAG}-alloy" 2>&1 | sed 's/^/        /'
