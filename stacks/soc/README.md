@@ -93,6 +93,7 @@ wazuh/
   indexer/template-wazuh-alerts.json   1 shard, 0 replicas, 30s refresh, on wazuh-alerts-*
   indexer/ism-wazuh-alerts.json        delete wazuh-alerts-* at 30 days — Wazuh ships no policy
   manager/ossec.conf             upstream's file with ONE change: enrolment needs a password
+  manager/shared/default/agent.conf  the `default` group's shared agent config: the Sysmon channel (#1035)
   manager/.rendered/authd.pass   that password, rendered from SOPS
   dashboard/opensearch_dashboards.yml  upstream's file, verbatim
 velociraptor/

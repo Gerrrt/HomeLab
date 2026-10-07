@@ -1023,7 +1023,9 @@ config is sysmon-modular's balanced profile, vendored at one release.
   [`group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml)
   together, then apply.
 
-Wazuh does not read this channel yet; that is #266's.
+Wazuh reads this channel through the `default` group's shared `agent.conf` on
+`odin` ([#1035](https://github.com/Gerrrt/HomeLab/issues/1035),
+[`build-the-soc-guest.md`](build-the-soc-guest.md) §11).
 
 **For a packet capture from inside one guest,** use the two Pktmon playbooks
 in [`ansible/README.md`](../../ansible/README.md#capture-on-demand). It takes
