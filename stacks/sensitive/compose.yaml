@@ -960,8 +960,19 @@ services:
     # November 2026, upstream states >= 14 and < 20 all work, and a library
     # born on a major that needs a dump-and-restore within months would be
     # choosing the migration on purpose. The tag carries the extension
-    # version, so Dependabot bumps both halves together.
-    image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:79b95b795f0911e95ffa4d092a2162c4d81a984d5629bc8f786afe0bc0657671
+    # version, so the two move together.
+    #
+    # Dependabot does NOT move them (#980). It read 17-vectorchord0.4.3 and
+    # 17-vectorchord1.1.1 as unrelated tags, and offered nothing while the
+    # 0.4.3 build aged to 20 critical CVEs on Debian 12.11. 1.1.1, built
+    # 2026-10-06 on Debian 12.14, carried 13 (perl, and gosu's Go runtime,
+    # with no fixed build yet). So this pin is moved by hand when the weekly
+    # CVE scan's issue says so. Immich accepts VectorChord >=0.3 <2
+    # (server/src/constants.ts), and at start it runs ALTER EXTENSION vchord
+    # UPDATE TO the image's version, then reindexes the CLIP and face indexes.
+    # That path was run on a throwaway copy of this block's hardening on
+    # 2026-10-07: 0.4.3 to 1.1.1, REINDEX, and an index scan answered.
+    image: ghcr.io/immich-app/postgres:17-vectorchord1.1.1@sha256:7f0b786ed5a7a9d26522dacbf46114a76e043a515ce5e020690fc6702e987b72
     container_name: sensitive-immich-db
     # 2 GiB: upstream's stated floor for a Postgres under a container limit.
     mem_limit: 2048m
