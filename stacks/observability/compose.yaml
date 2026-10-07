@@ -409,12 +409,23 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    # No tmpfs needed, and this one was designed for it: loki-config.yaml puts
-    # `rule_path: /loki/rules-temp` inside the data volume on purpose, with a
-    # comment saying why. Verified rather than trusted — a read-only copy was
-    # watched evaluating the real rule files and writing its temporary rule
-    # state into the volume.
+    # loki-config.yaml puts `rule_path: /loki/rules-temp` inside the data
+    # volume on purpose, and #186 verified that a read-only copy evaluates the
+    # real rule files and writes its rule state there.
+    #
+    # What that test could not see is retention (#845's day-run, 2026-10-07).
+    # The compactor opens each deletion-marker file in os.TempDir, which is
+    # /tmp, before it applies retention. On a read-only root that fails with
+    # "failed to create marker writer: open /tmp/<n>: read-only file system",
+    # every pass, so retention_period was never enforced and nothing past it
+    # was deleted. That path only runs once there is data older than the
+    # period to mark, which no short boot test reaches. The lab's Loki showed
+    # it within hours of being made read-only. /tmp is a tmpfs for that reason
+    # alone. 64m, because markers are chunk IDs, a few KB per table per pass;
+    # it is charged to the mem_limit above.
     read_only: true
+    tmpfs:
+      - /tmp:size=64m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
