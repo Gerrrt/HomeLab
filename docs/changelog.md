@@ -81,7 +81,6 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
-||||||| parent of f9fc558 (fix(observability): store syslog only from named senders, and stop trusting the message hostname (#844))
 
 ## 2026-10-05
 

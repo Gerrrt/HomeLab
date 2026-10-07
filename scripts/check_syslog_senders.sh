@@ -238,8 +238,11 @@ else
   fail "allowed sender's line with a hostname never reached Loki"
 fi
 
-s2="$(streams_with "${TOK_SPOOF}" || true)"
-if [[ -z "${s2}" ]]; then
+# Absence is only evidence when the query itself succeeded. A timeout or an
+# HTTP error prints nothing too, and must not read as "not stored".
+if ! s2="$(streams_with "${TOK_SPOOF}")"; then
+  fail "the Loki query for the spoofed line failed, so its absence is unproven"
+elif [[ -z "${s2}" ]]; then
   pass "a line from ${STRANGER_IP} claiming hostname \"morpheus\" is not in Loki"
 else
   fail "a line from an unlisted sender was stored: ${s2}"

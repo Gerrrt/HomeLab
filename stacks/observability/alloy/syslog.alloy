@@ -104,10 +104,12 @@ loki.relabel "network_syslog" {
 	// here are ones some other sender chose.
 	//
 	// What this does not close: UDP has no handshake, so a host on VLAN 99 can
-	// forge 10.0.99.1 as its source address and be let in. A pfSense rule cannot
-	// stop it, because VLAN 99 reaches this host on the switched segment
-	// without crossing the firewall. A host firewall here, or an authenticated
-	// transport, would.
+	// forge 10.0.99.1 as its source address and be let in. No filter on the
+	// source address can stop that, wherever it runs: not a pfSense rule (VLAN
+	// 99 reaches this host on the switched segment without crossing the
+	// firewall), and not a host firewall here either, because it would see
+	// the same forged address. Only an authenticated transport closes it, such
+	// as syslog over TLS with a client certificate morpheus holds.
 	rule {
 		source_labels = ["__syslog_connection_ip_address"]
 		regex         = "10\\.0\\.99\\.1"
