@@ -236,8 +236,11 @@ Closes on BloodHound running where nothing attacks it.
   weaknesses (the population and the authentication generator are written as
   `--tags population,authgen`,
   [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
-  and not yet applied; the weaknesses are not written) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
-  and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
+  and not yet applied; the weaknesses are not written) and
+  [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
+  (written as `--tags sysmon` and two capture playbooks,
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md),
+  and not yet applied) → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).

@@ -1,0 +1,7 @@
+---
+# The Sysmon/Operational channel's size. Sysmon's install leaves it at 64 MiB,
+# and sysmon-modular's balanced profile fills that on a DC in hours. Until #266's
+# Wazuh ships the events off the guest, the channel is the only copy, so it is
+# sized to hold days rather than hours. It wraps when full. 256 MiB is nothing
+# beside the ~40 GiB each guest's C: had free when read on 2026-10-06.
+sysmon_log_max_bytes: 268435456

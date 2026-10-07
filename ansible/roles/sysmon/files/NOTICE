@@ -1,0 +1,10 @@
+sysmonconfig.xml and LICENSE in this directory are third-party, vendored
+unmodified from https://github.com/olafhartong/sysmon-modular at the release
+named in VENDORED, by scripts/vendor-sysmon-config.sh (ADR-0080, #450).
+
+This repository's MIT licence does NOT extend to them. sysmonconfig.xml is
+sysmon-modular's, under its own MIT licence, reproduced in LICENSE.
+
+Sysmon itself is not vendored. roles/sysmon downloads it from Microsoft at the
+version and sha256 pinned in its defaults, under the Sysinternals licence that
+its -accepteula flag accepts on each guest.

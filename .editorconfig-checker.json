@@ -5,12 +5,12 @@
     "deliberate and both wanted: a continuation line aligned under the pipeline",
     "it belongs to (scripts/seed-validation-env.sh:47, scripts/validate.sh:166),",
     "and the three-space continuation of a numbered list item in Markdown",
-    "(docs/adr/*.md). The second is not a matter of taste — markdownlint",
+    "(docs/adr/*.md). The second is not a matter of taste \u2014 markdownlint",
     "requires those three spaces, so .editorconfig's indent_size of 2 and",
     "markdownlint-cli2 cannot both be satisfied, and markdownlint is the one",
     "that is right about Markdown. 77 findings, no defects among them.",
     "",
-    "Nothing else is disabled, and one directory is excluded (below).",
+    "Nothing else is disabled, and two vendored paths are excluded (below).",
     "Trailing whitespace, final newline, charset, line",
     "endings and indent_style (tabs in the Makefile and *.alloy, spaces",
     "elsewhere) are all still enforced, which is the part that catches real",
@@ -18,20 +18,26 @@
     "",
     "This file is new because the checker had never actually run. CI's",
     "EditorConfig step was editorconfig-checker/action-editorconfig-checker@v2,",
-    "which downloads the binary and adds it to PATH and never invokes it — a",
+    "which downloads the binary and adds it to PATH and never invokes it \u2014 a",
     "green step that checked nothing, for as long as it has been there. See #68.",
     "",
-    "stacks/sensor/zeek/ja4/ is EXCLUDED, and that is the one exclusion. It is",
+    "stacks/sensor/zeek/ja4/ is EXCLUDED. It is",
     "FoxIO's ja4-zeek-scripts vendored byte-for-byte (ADR-0069): upstream has",
     "trailing spaces and missing final newlines, and editing them would make",
     "every re-vendor's diff partly ours and break scripts/vendor-ja4.sh --check,",
     "which compares the directory to upstream exactly. Our own files in it",
-    "(NOTICE, VENDORED) are plain text the checker would pass anyway."
+    "(NOTICE, VENDORED) are plain text the checker would pass anyway.",
+    "",
+    "ansible/roles/sysmon/files/sysmonconfig.xml is EXCLUDED for the same reason:",
+    "sysmon-modular's config vendored byte-for-byte (ADR-0080), with CRs, tabs and",
+    "trailing spaces upstream. ansible/verify.yml compares each guest's Sysmon",
+    "ConfigHash with its sha256, so a whitespace fix would fail every guest."
   ],
   "Disable": {
     "IndentSize": true
   },
   "Exclude": [
-    "^stacks/sensor/zeek/ja4/"
+    "^stacks/sensor/zeek/ja4/",
+    "^ansible/roles/sysmon/files/sysmonconfig\\.xml$"
   ]
 }

@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **Sysmon and Pktmon for the lab domain are written**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
