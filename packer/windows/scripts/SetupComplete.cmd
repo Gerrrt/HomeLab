@@ -1,11 +1,12 @@
 @echo off
 rem Runs once on a CLONE, at the end of its first Setup, as SYSTEM.
 rem
-rem Closes what bootstrap.ps1 opened for the build: the HTTPS WinRM listener,
-rem the certificate it made for it, its firewall rule, and the service. Then
-rem starts the one way in a clone keeps: OpenSSH, key-only, admitting phoenix
-rem alone, which openssh.ps1 installed disabled in the template (ADR-0077).
-rem Its first start here is what generates this clone's own host keys.
+rem Makes sure what bootstrap.ps1 opened for the build is gone (the sysprep
+rem task removed most of it first): the HTTPS WinRM listener, its rule and
+rem certificate, Basic auth, and the service. Then starts the one way in a
+rem clone keeps: OpenSSH, key-only, admitting phoenix alone, which openssh.ps1
+rem installed disabled in the template (ADR-0077). Its first start here is
+rem what generates this clone's own host keys.
 rem
 rem `call winrm`, NEVER BARE `winrm`. winrm is itself a batch file
 rem (System32\winrm.cmd, around cscript winrm.vbs), and in cmd one batch file
@@ -42,16 +43,18 @@ echo %TIME% WinRM: start, so it can be reconfigured>> "%LOG%"
 net start WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-echo %TIME% winrm: delete the build's HTTPS listener>> "%LOG%"
-call winrm delete winrm/config/Listener?Address=*+Transport=HTTPS>> "%LOG%" 2>&1
->> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
-
-rem The certificate's private key is in the template, so every clone holds
-rem the same one until this runs. Nothing trusts it, but it goes: -DeleteKey,
-rem because without it the certificate provider removes the certificate and
-rem leaves its private key in the machine key store.
-echo %TIME% powershell: firewall rule, the packer-winrm certificate, Basic auth, unencrypted>> "%LOG%"
-powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | Remove-Item -DeleteKey -Force; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
+rem A BACKSTOP. The sysprep task (sysprep.ps1) removed the build's HTTPS
+rem listener, its rule, and the certificate with its private key before
+rem generalising, and logged it to packer-close-winrm.log. This removes
+rem whichever of them is still here, and exits 1 only if one is left after
+rem that, so rc=0 means none of the three is on this clone. A certificate is
+rem removed by its path: Windows PowerShell 5.1 has no -DeleteKey on a piped
+rem one, which is how this step failed on every clone before (#846). Basic
+rem auth goes back off; AllowUnencrypted is not touched, because the build
+rem never turns it on and setting it fails on the Public network a clone
+rem starts on.
+echo %TIME% powershell: the build's HTTPS listener, its rule and certificate, Basic auth>> "%LOG%"
+powershell -NoProfile -NonInteractive -Command "Get-ChildItem WSMan:\localhost\Listener | Where-Object { $_.Keys -contains 'Transport=HTTPS' } | Remove-Item -Recurse -Force; Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | ForEach-Object { Remove-Item -Path ('Cert:\LocalMachine\My\' + $_.Thumbprint) -Force }; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; $left = @(Get-ChildItem WSMan:\localhost\Listener | Where-Object { $_.Keys -contains 'Transport=HTTPS' }).Count + @(Get-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue).Count + @(Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' }).Count; Write-Output ('left: ' + $left); if ($left) { exit 1 }">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 echo %TIME% WinRM: disable and stop>> "%LOG%"
@@ -63,10 +66,12 @@ del /q "%WINDIR%\Panther\unattend-oobe.xml">> "%LOG%" 2>&1
 
 rem What sysprep.ps1 left to run sysprep outside the build's WinRM session.
 rem The task has no trigger and cannot run again, but it has no business in
-rem a guest.
-echo %TIME% packer-sysprep: delete the task and its .cmd>> "%LOG%"
+rem a guest. packer-close-winrm.log stays: it is what the sysprep task did to
+rem the build's WinRM, and holds nothing secret.
+echo %TIME% packer-sysprep: delete the task, its .cmd and its .ps1>> "%LOG%"
 schtasks.exe /delete /tn packer-sysprep /f>> "%LOG%" 2>&1
 del /q "%WINDIR%\Temp\packer-sysprep.cmd">> "%LOG%" 2>&1
+del /q "%WINDIR%\Temp\packer-close-winrm.ps1">> "%LOG%" 2>&1
 
 rem The account phoenix's key logs in as must be enabled. Client Windows
 rem disables the built-in Administrator by default, and generalising puts
