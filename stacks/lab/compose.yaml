@@ -195,8 +195,6 @@ services:
     # every path under /loki, the data volume, which is what lets it be
     # read-only with no tmpfs.
     cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
     read_only: true
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
