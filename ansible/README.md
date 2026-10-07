@@ -109,7 +109,8 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 
 | Tag | Stage | Runbook |
 | --- | --- | --- |
-| `base` | Name, address, resolver, password | §2 |
+| `base` | Name, address, resolver, password, and the build's WinRM certificate removed | §2 |
+| `packer_cert` | Only that certificate, from a guest cloned from a template built before #1031 | §2 |
 | `forest` | `bahamut`: forest, forwarder, clock | §3 |
 | `replica` | `leviathan`, then both DCs' resolvers | §4 |
 | `join` | The four members join | §5, first sentence |
