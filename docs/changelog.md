@@ -61,6 +61,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **Packer is pinned the way tofu is**
+  ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
+  `packer/versions.pkr.hcl` required `>= 1.11.0`, and
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §1
+  installed whatever HashiCorp's apt repository held, while CI linted with
+  `hashicorp/packer:1.16.1`. The requirement is now `~> 1.16.0`, and §1
+  installs the 1.16.1 zip after checking it against `SHA256SUMS`. A host that
+  had packer from apt removes it along with the repository. phoenix was such a
+  host: it held `packer 1.16.1-1` from apt, the right version only because
+  nothing newer had shipped yet. §1 was run there the same day. The apt package
+  and the repository are gone, the zip's checksum matched, and as `locke`,
+  `command -v packer` prints `/usr/local/bin/packer`, `packer version` prints
+  `Packer v1.16.1`, and `packer init` accepts the new `~> 1.16.0`.
+- **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
+  at least the template's own disk: 32 for Ubuntu, 64 for Kali and Windows.
+  `memory_mib` must be at least 1024 for Linux and 2048 for Windows, and
+  `cores` at least 1. All three are checked at plan, where before a disk that
+  was too small failed only at apply.
+- **9182 is named once.** The new `windows_exporter_port` in
+  `group_vars/all.yaml` feeds the MSI's `LISTEN_PORT`, the firewall rule and
+  `verify.yml`'s two checks.
 - **Sysmon and Pktmon are on the lab domain**
   ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
   [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
