@@ -58,8 +58,8 @@ import argparse
 import pathlib
 import re
 import subprocess
-import urllib.parse
 import sys
+import urllib.parse
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -77,7 +77,7 @@ URL_FILE = re.compile(r"(?:url|credentials)_file:\s*(/etc/alertmanager/secrets/(
 
 # The pairs render-config.sh writes, read out of that script rather than
 # duplicated here. Two copies of this list is exactly the drift the check is for.
-AM_CHANNEL = re.compile(r'^\s*"([A-Z_]+):([a-z_]+)"\s*$', re.M)
+AM_CHANNEL = re.compile(r'^\s*"([A-Z_]+):([a-z_]+)"\s*$', re.MULTILINE)
 
 
 def failures() -> list[str]:
@@ -177,7 +177,7 @@ def check_heartbeat_destination(container: str, name: str) -> None:
     result = subprocess.run(
         ["docker", "exec", container, "cat",
          f"/etc/alertmanager/secrets/{name}"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         warn(f"could not read {name} to classify its destination")
@@ -247,7 +247,7 @@ def main() -> int:
     compose = REPO / "stacks" / args.stack / "compose.yaml"
     if not compose.is_file():
         sys.exit(f"no compose.yaml for stack {args.stack!r} at {compose}")
-    if not re.search(r"^  alertmanager:\s*$", compose.read_text(encoding="utf-8"), re.M):
+    if not re.search(r"^  alertmanager:\s*$", compose.read_text(encoding="utf-8"), re.MULTILINE):
         print(
             f"  NOTE stack {args.stack!r} declares no alertmanager service — "
             f"no notification path to check"
@@ -297,7 +297,7 @@ def main() -> int:
         container = "alertmanager"
         probe = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Status}}", container],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if probe.returncode != 0:
             skip(f"no {container} container here — the container's view is unchecked")
@@ -312,7 +312,7 @@ def main() -> int:
                 result = subprocess.run(
                     ["docker", "exec", container, "wc", "-c",
                      f"/etc/alertmanager/secrets/{name}"],
-                    capture_output=True, text=True,
+                    capture_output=True, text=True, check=False,
                 )
                 if result.returncode != 0:
                     detail = (result.stderr or result.stdout).strip().splitlines()

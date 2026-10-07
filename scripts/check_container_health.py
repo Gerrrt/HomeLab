@@ -285,9 +285,9 @@ def main() -> int:
             elif health == "none":
                 results[service] = (
                     False,
-                    "running with no health status, but compose declares a "
+                    ("running with no health status, but compose declares a "
                     "healthcheck — this container predates it and has not been "
-                    "recreated since",
+                    "recreated since"),
                 )
             elif elapsed >= deadlines[service]:
                 # In practice the `unhealthy` branch above is the one that
@@ -299,9 +299,9 @@ def main() -> int:
                 # this script waiting forever rather than to diagnose a 404.
                 results[service] = (
                     False,
-                    f"still starting after {deadlines[service]:.0f}s "
+                    (f"still starting after {deadlines[service]:.0f}s "
                     f"(start_period + retries x (interval + timeout)) — Docker "
-                    f"has not reached a verdict, so the probe is not returning",
+                    f"has not reached a verdict, so the probe is not returning"),
                 )
             else:
                 continue  # still legitimately starting

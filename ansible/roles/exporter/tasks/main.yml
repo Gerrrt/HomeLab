@@ -45,7 +45,7 @@
     product_id: "{{ windows_exporter_product_id }}"
     arguments: >-
       ENABLED_COLLECTORS={{ windows_exporter_collectors }}
-      LISTEN_PORT=9182
+      LISTEN_PORT={{ windows_exporter_port }}
       TEXTFILE_DIRS="{{ windows_exporter_textfile_dir }}"
       REMOVE=FirewallException
     state: present
@@ -66,12 +66,12 @@
 # have to go looking for" (§7). Domain profile only, which is why this role
 # runs after the join. The name is the one the hand-built six were given, so
 # the module adopts their rule rather than adding a second.
-- name: Admit alexander, and only alexander, to 9182
+- name: Admit alexander, and only alexander, to {{ windows_exporter_port }}
   community.windows.win_firewall_rule:
     name: windows_exporter from alexander
     direction: in
     protocol: tcp
-    localport: "9182"
+    localport: "{{ windows_exporter_port }}"
     remoteip: "{{ windows_exporter_scraper }}"
     action: allow
     profiles: [domain]

@@ -27,15 +27,18 @@
           PrimaryDc: "{{ groups['dc_primary'][0] }}"
           Gateway: "{{ lab_gateway }}"
           Scraper: "{{ windows_exporter_scraper }}"
+          Port: "{{ windows_exporter_port }}"
           PeopleOu: "OU={{ population_ou }},{{ lab_domain_dn }}"
           Sams: "{{ population_users | map(attribute='sam') | list }}"
           Groups: "{{ population_groups | map(attribute='name') | list }}"
           Netbios: "{{ lab_netbios }}"
+          SysmonVersion: "{{ sysmon_version }}"
+          SysmonConfig: "{{ sysmon_config_sha256 }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
-                [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
+                [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$Port, [string]$LabRole,
                 [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups,
-                [string]$Netbios)
+                [string]$Netbios, [string]$SysmonVersion, [string]$SysmonConfig)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -63,15 +66,29 @@
           $r['Wazuh agent running'] = ((Get-Service WazuhSvc -ErrorAction SilentlyContinue).Status -eq 'Running')
           $velo = Get-Service Velociraptor -ErrorAction SilentlyContinue
           $r['Velociraptor client running'] = ($velo.Status -eq 'Running')
-          $r['9182 listening'] = [bool](Get-NetTCPConnection -LocalPort 9182 -State Listen `
+          # --- #450: Sysmon, recording with the vendored config ----------------
+          # The driver as well as the service: Sysmon64 running over an unloaded
+          # SysmonDrv records nothing. ConfigHash is what the driver last loaded,
+          # so this fails on a config changed by hand as well as on a stale one.
+          $r['Sysmon running'] = ((Get-Service Sysmon64 -ErrorAction SilentlyContinue).Status -eq 'Running')
+          $r['Sysmon driver loaded'] = ((Get-Service SysmonDrv -ErrorAction SilentlyContinue).Status -eq 'Running')
+          $sx = (Get-Item C:\Windows\Sysmon64.exe -ErrorAction SilentlyContinue).VersionInfo
+          $r["Sysmon is $SysmonVersion"] =
+            ($sx -and ('{0}.{1}' -f $sx.FileMajorPart, $sx.FileMinorPart) -eq $SysmonVersion)
+          $sp = Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters `
+            -ErrorAction SilentlyContinue
+          $r['Sysmon runs the vendored config'] = (([string]$sp.ConfigHash -replace '^SHA256=', '') -eq $SysmonConfig)
+          $r['Sysmon has recorded something'] = [bool](Get-WinEvent -LogName Microsoft-Windows-Sysmon/Operational `
+            -MaxEvents 1 -ErrorAction SilentlyContinue)
+          $r["$Port listening"] = [bool](Get-NetTCPConnection -LocalPort $Port -State Listen `
             -ErrorAction SilentlyContinue)
           $open = Get-NetFirewallPortFilter -Protocol TCP |
-            Where-Object LocalPort -eq '9182' | Get-NetFirewallRule |
+            Where-Object LocalPort -eq $Port | Get-NetFirewallRule |
             Where-Object { $_.Enabled -eq 'True' -and $_.Direction -eq 'Inbound' -and $_.Action -eq 'Allow' } |
             Get-NetFirewallAddressFilter
           # A rule made through the COM API reads back as 10.0.30.40/255.255.255.255.
           $sources = @($open | ForEach-Object { $_.RemoteAddress }) -replace '/(255\.255\.255\.255|32)$', ''
-          $r["9182 admits $Scraper and nothing else"] = ($sources.Count -gt 0 -and -not ($sources -ne $Scraper))
+          $r["$Port admits $Scraper and nothing else"] = ($sources.Count -gt 0 -and -not ($sources -ne $Scraper))
 
           # --- §0: the shipped weaknesses are still shipped -------------------
           $llmnr = (Get-ItemProperty 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\DNSClient' `

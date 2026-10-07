@@ -168,22 +168,22 @@ def render(host, jobs, stores):
 
     metric("homelab_pbs_job_last_run_ok",
            "1 when the job's last run ended OK; absent if it has never run.", "gauge",
-           [(dict(store=s, kind=k, pbs_job=j), ok) for s, k, j, ok, _ in jobs if ok is not None])
+           [({"store": s, "kind": k, "pbs_job": j}, ok) for s, k, j, ok, _ in jobs if ok is not None])
     metric("homelab_pbs_job_last_run_end_timestamp_seconds",
            "When the job's last run ended; 0 if it never has.", "gauge",
-           [(dict(store=s, kind=k, pbs_job=j), end) for s, k, j, _, end in jobs])
+           [({"store": s, "kind": k, "pbs_job": j}, end) for s, k, j, _, end in jobs])
     metric("homelab_pbs_snapshots",
            "Snapshots in the datastore, by verify state (none is never verified).", "gauge",
-           [(dict(store=st, verify=v), c[v]) for st, (c, _, _) in sorted(stores.items()) for v in VERIFY_STATES])
+           [({"store": st, "verify": v}, c[v]) for st, (c, _, _) in sorted(stores.items()) for v in VERIFY_STATES])
     metric("homelab_pbs_snapshots_unencrypted",
            "Snapshots with a data archive whose crypt mode is not encrypt.", "gauge",
-           [(dict(store=st), u) for st, (_, u, _) in sorted(stores.items())])
+           [({"store": st}, u) for st, (_, u, _) in sorted(stores.items())])
     metric("homelab_pbs_jobs",
            "Jobs of each kind configured for the datastore.", "gauge",
-           [(dict(store=st, kind=k), n) for (st, k), n in sorted(job_counts(jobs, stores).items())])
+           [({"store": st, "kind": k}, n) for (st, k), n in sorted(job_counts(jobs, stores).items())])
     metric("homelab_pbs_snapshot_newest_timestamp_seconds",
            "The newest snapshot's backup time; 0 for an empty datastore.", "gauge",
-           [(dict(store=st), n) for st, (_, _, n) in sorted(stores.items())])
+           [({"store": st}, n) for st, (_, _, n) in sorted(stores.items())])
     return "\n".join(out) + "\n"
 
 
@@ -293,12 +293,12 @@ def self_test():
     check("a never-run gc has an end time and no ok series",
           (True, False),
           ('homelab_pbs_job_last_run_end_timestamp_seconds{host="golem",store="erebor",kind="gc",pbs_job="erebor"} 0' in text,
-           'kind="gc"' in "".join(l for l in text.splitlines() if l.startswith("homelab_pbs_job_last_run_ok"))))
+           'kind="gc"' in "".join(line for line in text.splitlines() if line.startswith("homelab_pbs_job_last_run_ok"))))
     check("all three verify states are written",
           ['homelab_pbs_snapshots{host="golem",store="erebor",verify="ok"} 1',
            'homelab_pbs_snapshots{host="golem",store="erebor",verify="failed"} 0',
            'homelab_pbs_snapshots{host="golem",store="erebor",verify="none"} 1'],
-          [l for l in text.splitlines() if l.startswith("homelab_pbs_snapshots{")])
+          [line for line in text.splitlines() if line.startswith("homelab_pbs_snapshots{")])
     check("a datastore with no verify job reads 0, not absent",
           {("erebor", "verify"): 0, ("erebor", "prune"): 1, ("erebor", "gc"): 1},
           job_counts(job_rows("prune", prune) + job_rows("gc", gc_never), {"erebor": None}))

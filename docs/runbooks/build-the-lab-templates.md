@@ -49,25 +49,37 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 
 ## 1. Packer, on `phoenix`
 
+The release CI lints with, and nothing newer: `packer/versions.pkr.hcl` requires
+`~> 1.16.0`, and HashiCorp's apt repository would install whatever is newest on
+the day (ADR-0074). Take the `linux_amd64` zip and check it against the
+`SHA256SUMS` published beside it, as `provision-lab-guests.md` §1 does for tofu:
+
 ```bash
-sudo apt-get install -y gnupg curl jq xorriso
-curl -fsSL https://apt.releases.hashicorp.com/gpg \
-  | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
-echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" \
-  | sudo tee /etc/apt/sources.list.d/hashicorp.list
-sudo apt-get update && sudo apt-get install -y packer
-packer version
+sudo apt-get install -y curl jq unzip xorriso
+V=1.16.1   # the tag compose.yaml pins for packer
+cd /tmp \
+  && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_linux_amd64.zip" \
+  && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_SHA256SUMS" \
+  && grep " packer_${V}_linux_amd64.zip$" "packer_${V}_SHA256SUMS" | sha256sum -c - \
+  && unzip -o "packer_${V}_linux_amd64.zip" packer \
+  && sudo install -m 755 packer /usr/local/bin/packer \
+  && packer version
 ```
+
+One chain, so a failed download or a checksum that does not match stops it
+before anything is unpacked or installed.
 
 - **`xorriso`** builds the answer discs. Without it Packer fails with "could
   not find a supported CD ISO creation command" after it has already created
   the VM.
 - **`jq`** is for `scripts/packer-smoke.sh` in §6.
-- **If HashiCorp's repository has no suite yet** for this Ubuntu release, the
-  `apt-get update` says so. Take the `linux_amd64` zip for the version
-  `stacks/observability/compose.yaml` pins for `packer` from
-  `releases.hashicorp.com`, check it against the `SHA256SUMS` file published
-  beside it, and put the binary in `/usr/local/bin`.
+- **If `packer` came from apt before**, remove it and its repository, or the
+  next `apt upgrade` puts a second, unpinned binary on `PATH`:
+  `sudo apt-get remove -y packer && sudo rm -f /etc/apt/sources.list.d/hashicorp.list /usr/share/keyrings/hashicorp.gpg`.
+  Then `command -v packer` should print `/usr/local/bin/packer`.
+- **A bump** starts with Dependabot moving the `packer` image in
+  `stacks/observability/compose.yaml`. `required_version` and `V=` above move
+  in the same PR; a new minor release fails `packer init` until they do.
 
 Then fetch the plugin `packer/versions.pkr.hcl` pins:
 

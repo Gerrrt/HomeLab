@@ -111,7 +111,7 @@ def fetch_rules() -> list[str]:
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
          f"{user}@{host}", "pfctl -a '*' -sr"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
