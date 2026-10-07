@@ -23,8 +23,9 @@ docstring gives: it is a record, not a claim about now.
   production `alloy` on the monitoring host was stopped (exit 137, not OOM).
   `unless-stopped` left it down for 47 minutes, until it was found during
   [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
-  What stopped it is not known: Docker's event history had rotated, and
-  eighteen sessions share that daemon. What paged was `InstanceDown` for
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
   `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
   of them said the container was exited or how to start it. `ContainerGone`
   names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.

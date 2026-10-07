@@ -155,10 +155,12 @@ inhibit_rules:
     target_matchers: [severity =~ "warning|critical"]
     equal: ["instance"]
 
-  # One dead agent is one notification. AlloyDown fires at 10m, before any
-  # RemoteWriteJobStale at 15m, and names the fix. The per-job alerts for
-  # the same host add nothing while it holds, and they come back on their
-  # own if a single job stops while Alloy keeps reporting.
+  # A dead agent's three RemoteWriteJobStale fold into AlloyDown, which
+  # fires at 10m, before any of them at 15m, and names the fix. They come back
+  # on their own if a single job stops while Alloy keeps reporting. On an agent
+  # host that makes one notification. On the monitoring host InstanceDown
+  # (alloy:12345) still pages first, on purpose. The comment on AlloyDown in
+  # stack.rules.yaml says why.
   - source_matchers: [alertname = "AlloyDown"]
     target_matchers: [alertname = "RemoteWriteJobStale"]
     equal: ["instance"]

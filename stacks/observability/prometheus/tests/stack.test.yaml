@@ -243,15 +243,17 @@ tests:
             exp_annotations:
               summary: "Alloy on trinity has stopped reporting"
               description: >-
-                Everything trinity sends is being lost, not queued: its
+                Nothing from trinity has arrived for over ten minutes: its
                 metrics, its container and journal logs, and on the
                 monitoring host the network syslog too. On trinity, run
                 `docker ps -a --filter name=alloy`. Exited, with no restart,
-                means something stopped it. Check `docker inspect alloy` for
+                means something stopped it, and nothing is being collected
+                while it stays down. Check `docker inspect alloy` for
                 FinishedAt and OOMKilled, then `docker start alloy` and confirm
-                `/-/ready` on :12345. If it is running, the host cannot reach
-                the ingest proxy on the monitoring host. If the host is off,
-                nothing is wrong with Alloy.
+                `/-/ready` on :12345. If it is running, it cannot reach the
+                ingest proxy on the monitoring host. Its metrics wait in its
+                write-ahead log and are sent when it can, for a bounded time.
+                If the host is off, nothing is wrong with Alloy.
 
   # --- AlloyDown: quiet while the agent is pushing --------------------------
   - interval: 1m

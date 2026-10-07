@@ -316,8 +316,14 @@ groups:
         #
         # 10m, against RemoteWriteJobStale's 15m, so this is already firing
         # when those would start. Alertmanager's inhibit_rules then hold back
-        # the host's per-job RemoteWriteJobStale, so one dead agent is one
-        # notification that names the fix. A job that stops while Alloy keeps
+        # the host's per-job RemoteWriteJobStale. On an agent host, one dead
+        # agent is therefore one notification that names the fix. NOT on the
+        # monitoring host: Prometheus scrapes alloy:12345 there directly, so
+        # InstanceDown pages critical at 5m, before this can fire, and the Loki
+        # rules that read its logs (FirewallLogsStopped) follow. That is left as
+        # it is on purpose. InstanceDown is the fastest signal this host has,
+        # and holding it back for this one would page later. Here this alert
+        # adds the fix and replaces the three RemoteWriteJobStale. A job that stops while Alloy keeps
         # reporting (a broken cAdvisor, a node exporter collector) is still
         # RemoteWriteJobStale's, and this stays quiet for it.
         #
@@ -340,15 +346,17 @@ groups:
         annotations:
           summary: "Alloy on {{ $labels.instance }} has stopped reporting"
           description: >-
-            Everything {{ $labels.instance }} sends is being lost, not queued:
-            its metrics, its container and journal logs, and on the
+            Nothing from {{ $labels.instance }} has arrived for over ten
+            minutes: its metrics, its container and journal logs, and on the
             monitoring host the network syslog too. On {{ $labels.instance }},
-            run `docker ps -a --filter name=alloy`. Exited, with no restart, means
-            something stopped it. Check `docker inspect alloy` for FinishedAt and
+            run `docker ps -a --filter name=alloy`. Exited, with no restart,
+            means something stopped it, and nothing is being collected while it
+            stays down. Check `docker inspect alloy` for FinishedAt and
             OOMKilled, then `docker start alloy` and confirm `/-/ready` on
-            :12345. If it is running, the host cannot reach the ingest proxy
-            on the monitoring host. If the host is off, nothing is wrong with
-            Alloy.
+            :12345. If it is running, it cannot reach the ingest proxy on the
+            monitoring host. Its metrics wait in its write-ahead log and are
+            sent when it can, for a bounded time. If the host is off, nothing is
+            wrong with Alloy.
 
       - alert: ScrapeTargetDisappeared
         # THE MIRROR OF RemoteWriteJobStale, for the one host that is pulled.
