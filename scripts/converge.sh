@@ -280,6 +280,71 @@ ci_verdict() {
   fi
 }
 
+# The newest commit behind a tip that is still in CI that CAN be deployed
+# (#1026). Prints its full sha and returns 0, or returns 1 having found none.
+#
+# Why this exists. The gate above asks about the tip and only the tip. On a busy
+# main, a new tip usually lands before the previous one's CI finishes, so every
+# hourly run found an unfinished tip and stayed put: on 2026-10-07 trinity sat
+# on one revision from 12:29 to past 15:00, 23 commits behind, while e4cf127 —
+# a newer commit than the deployed one — had already passed. "Wait" was the
+# right answer about the tip and the wrong answer about the host.
+#
+# What it walks. main's first-parent history from just below the tip down to
+# HEAD, newest first. Each first-parent commit is a merge, and its own push run
+# is the run #833 asks about — the same question, asked one commit further back.
+# A candidate must, in this order:
+#   - be a fast-forward from HEAD (on a linear main every one is);
+#   - carry a good signature from the pinned key (verify_commit), because it is
+#     the commit being deployed. --allow-unsigned does not reach this far: it is
+#     a decision about one commit a human looked at, not a policy for a walk;
+#   - be green by ci_verdict. A red one is skipped, not fatal: a newer green
+#     commit contains its changes, and its own run is what says whether the
+#     result passed. Only a red TIP is fatal, as before. A wait one is skipped.
+#
+# HEAD is a candidate too, last, when it is unapplied ($3 is 1): the fallback
+# that moved the checkout and whose make up failed is re-applied, as a failed
+# deploy of the tip always was.
+#
+# What stops it. WALK_CAP candidates (HOMELAB_CONVERGE_WALK, default 10), because
+# ci_fetch is anonymous: 60 requests an hour per address, and both converging
+# hosts leave through the same WAN address. And an API failure: the likeliest
+# cause is that limit, and asking again only spends more of it — so it stops and
+# the host stays where it is, exactly as a failed ask about the tip does.
+ci_newest_green() {
+  local tip="$1" cap="$2" with_head="$3" cand short summary ok verdict looked=0
+  while read -r cand; do
+    [[ -n "${cand}" ]] || continue
+    # Every commit looked at counts, skipped or asked about, so the cap bounds
+    # how far back the walk goes and not only how often it asks.
+    if ((looked >= cap)); then
+      warn "looked at ${cap} commit(s) below the tip without finding one that passed — HOMELAB_CONVERGE_WALK caps the walk"
+      return 1
+    fi
+    looked=$((looked + 1))
+    short="$(git rev-parse --short=12 "${cand}")"
+    git merge-base --is-ancestor HEAD "${cand}" || { warn "  ${short}: not a fast-forward from HEAD — skipped"; continue; }
+    verify_commit "${cand}" || { warn "  ${short}: did not verify against the pinned key — skipped"; continue; }
+    if summary="$(ci_fetch "${cand}" | ci_summarise 2>/dev/null)" && [[ -n "${summary}" ]]; then
+      ok=1
+    else
+      warn "  ${short}: could not ask CI — stopping the walk, rather than spending more of the API limit"
+      return 1
+    fi
+    verdict="$(printf '%s' "${summary}" | ci_verdict 0 "${ok}")"
+    case "${verdict}" in
+      green) printf '%s\n' "${cand}"; return 0 ;;
+      red)   warn "  ${short}: CI did not pass — skipped; a newer commit that passes carries its changes" ;;
+      *)     warn "  ${short}: CI has not finished either — skipped" ;;
+    esac
+  done < <(git rev-list --first-parent "HEAD..${tip}" | tail -n +2
+           # HEAD itself, last, when make up has not applied it: a fallback whose
+           # make up failed. Without this the walk starts above HEAD, finds
+           # nothing newer green, and the failed deploy is never retried.
+           ((with_head)) && git rev-parse HEAD)
+  return 1
+}
+
 # Fixtures for the three functions above: the parse against check-runs shaped
 # like GitHub's, and the verdict against each state a tip can be in. Then the
 # whole script, end to end, by self_test_converge below (#854).
@@ -408,12 +473,23 @@ self_test_converge() {
 # recording what it applied (Makefile, scripts/record-applied.sh).
 set -euo pipefail
 printf '%s\n' "\$*" >> '${T}/make.log'
+# A deploy that fails, for the case that has to retry one.
+[[ -e '${T}/make-fails' ]] && { echo 'make stub: up failed' >&2; exit 1; }
 for a in "\$@"; do [[ "\${a}" == STACK=* ]] && ./scripts/record-applied.sh "\${a#STACK=}"; done
 exit 0
 EOF
+  # check-runs for the commit asked about: ci/<sha>.json when a case wrote one,
+  # ci.json otherwise; ci/<sha>.fail makes that commit's ask fail as curl -f
+  # does. Every ask is logged, so a case can count them.
   cat > "${T}/bin/curl" <<EOF
 #!/bin/sh
-cat '${T}/ci.json'
+sha=""
+for a in "\$@"; do
+  case "\$a" in */commits/*/check-runs*) sha="\${a#*/commits/}"; sha="\${sha%%/*}" ;; esac
+done
+printf '%s\n' "\$sha" >> '${T}/curl.log'
+[ -n "\$sha" ] && [ -e '${T}/ci/'"\$sha"'.fail' ] && exit 22
+if [ -n "\$sha" ] && [ -f '${T}/ci/'"\$sha"'.json' ]; then cat '${T}/ci/'"\$sha"'.json'; else cat '${T}/ci.json'; fi
 EOF
   # Containers as `id|name|status|policy|finished|service|working_dir|oneoff`.
   # `ps` answers only for the working directory it was asked about, so a
@@ -472,7 +548,8 @@ EOF
   fresh() {
     rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"* \
            "${T}/containers" "${T}/docker.log" "${T}/docker-down" "${T}/services" \
-           "${T}/compose-fails" "${T}/ps-fails" "${T}/inspect-fails"
+           "${T}/compose-fails" "${T}/ps-fails" "${T}/inspect-fails" "${T}/ci" "${T}/curl.log" "${T}/make-fails"
+    mkdir "${T}/ci"
     git init -q "${T}/work"
     mkdir "${T}/work/scripts"
     cp "${here}/converge.sh" "${here}/record-applied.sh" "${T}/work/scripts/"
@@ -602,6 +679,95 @@ EOF
   green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/' > "${T}/ci.json"
   converge
   expect "waits, exit 0, while CI is still running" 0 "CI has not finished" 0
+
+  # --- a tip still in CI, and the commits below it (#1026) ---------------
+  # main~N as GitHub has it, and that commit's CI answer.
+  at() { git -C "${T}/origin.git" rev-parse "main~$1"; }
+  running_ci() { green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/'; }
+  red_ci() { green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"failure"/'; }
+  asks() { grep -c . "${T}/curl.log" 2>/dev/null || echo 0; }
+
+  # The 2026-10-07 shape, one commit deep: the tip running, the merge below it green.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge
+  expect "deploys the newest commit below a running tip that passed" 0 "below a tip still in CI" 1
+  check "  at that commit, not the tip" "$(head_of "${T}/deploy")" "$(at 1)"
+  check "  recorded one behind, moving, tip unknown" "$(prom behind_commits) $(prom ci_fallback) $(prom tip_ci)" "1 1 -1"
+  check "  and applied" "$(prom unapplied) $(prom verified)" "0 1"
+
+  # Straight on: the tip is still running and nothing newer than HEAD has passed.
+  converge
+  expect "then stays, with nothing newer that passed" 0 "nothing between" 0
+  check "  and records it not moving, so DeployBehind can count" "$(prom ci_fallback) $(prom behind_commits)" "0 1"
+
+  # A red commit in the middle is skipped: the green one below it is deployed.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  red_ci > "${T}/ci/$(at 1).json"
+  converge
+  expect "skips a red commit below the tip and deploys the green one under it" 0 "CI did not pass — skipped" 1
+  check "  at main~2" "$(head_of "${T}/deploy")" "$(at 2)"
+
+  # A green commit that does not verify is never deployed, whatever its CI says.
+  fresh; advance unsigned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge
+  expect "skips a commit below the tip that does not verify" 0 "did not verify against the pinned key — skipped" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(at 2)"
+
+  # The cap: one ask below the tip, and that one is still running.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci.json"
+  green_tip > "${T}/ci/$(at 2).json"
+  HOMELAB_CONVERGE_WALK=1 converge
+  expect "stops at HOMELAB_CONVERGE_WALK, short of the green commit" 0 "caps the walk" 0
+  check "  having asked about the tip and one more" "$(asks)" 2
+
+  # An ask that fails stops the walk: the likeliest cause is the API limit.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  : > "${T}/ci/$(at 1).fail"
+  converge
+  expect "stops the walk when an ask fails, and stays" 0 "could not ask CI" 0
+  check "  without asking about the commit below it" "$(asks)" 2
+
+  # A tip whose own ask failed is not walked below: the likeliest cause is the
+  # API limit, and every ask in a walk spends more of it.
+  fresh; advance pinned; advance pinned
+  : > "${T}/ci/$(at 0).fail"
+  converge
+  expect "does not walk when the ask about the tip failed" 0 "not walking below it" 0
+  check "  having asked once" "$(asks)" 1
+
+  # The cap counts every commit looked at, not only those asked about: with a
+  # cap of one, an unsigned commit uses it up and the green one below is not
+  # reached.
+  fresh; advance pinned; advance unsigned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  HOMELAB_CONVERGE_WALK=1 converge
+  expect "counts a skipped commit against HOMELAB_CONVERGE_WALK" 0 "caps the walk" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(at 3)"
+
+  # A fallback whose make up failed is applied again on the next run, though
+  # nothing newer has passed: the walk offers HEAD itself when it is unapplied.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  : > "${T}/make-fails"
+  converge
+  expect "a fallback whose make up fails exits non-zero" 1 "applying" 1
+  check "  moved, and recorded unapplied" "$(head_of "${T}/deploy") $(prom unapplied) $(prom ci_fallback)" "$(at 1) 1 0"
+  rm -f "${T}/make-fails"
+  converge
+  expect "then re-applies that commit on the next run" 0 "now deployed" 1
+  check "  and records it applied, moving, one behind" "$(prom unapplied) $(prom ci_fallback) $(prom behind_commits)" "0 1 1"
+
+  # A dry run says what it would deploy, and records no fallback: nothing moved.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge --dry-run
+  expect "a dry run reports the fallback and applies nothing" 0 "dry run" 0
+  check "  and records it not moving" "$(head_of "${T}/deploy") $(prom ci_fallback)" "$(at 2) 0"
 
   fresh; advance pinned; HOMELAB_CONVERGE_APPLY=0 converge
   expect "HOMELAB_CONVERGE_APPLY=0 reports and applies nothing" 0 "dry run" 0
@@ -811,6 +977,13 @@ UNAPPLIED=0
 # What CI said about the fetched tip. -1 until asked, and stays -1 on a run with
 # nothing to deploy, because nothing was asked.
 CI_TIP=-1
+# 1 when this run deployed a commit below a tip still in CI, because that commit
+# had passed and the tip had not finished (#1026). 0 on every other path,
+# including a dry run that would have: only an applied fallback counts.
+CI_FALLBACK=0
+# How many commits below the tip the walk may ask CI about. See ci_newest_green.
+WALK_CAP="${HOMELAB_CONVERGE_WALK:-10}"
+[[ "${WALK_CAP}" =~ ^[0-9]+$ ]] || die "HOMELAB_CONVERGE_WALK must be a count, not '${WALK_CAP}'"
 # Stack services started again, and left stopped ("Stopped services" below).
 # -1 until measured, and stays -1 when docker cannot be asked.
 REVIVED=-1
@@ -850,6 +1023,9 @@ homelab_deploy_unapplied ${UNAPPLIED}
 # HELP homelab_deploy_tip_ci What CI said about the fetched tip: 1 passed, 0 did not, -1 not asked (nothing to deploy) or not finished.
 # TYPE homelab_deploy_tip_ci gauge
 homelab_deploy_tip_ci ${CI_TIP}
+# HELP homelab_deploy_ci_fallback 1 when this run deployed the newest commit below a tip still in CI that had passed (#1026), so the host moved although it is still behind.
+# TYPE homelab_deploy_ci_fallback gauge
+homelab_deploy_ci_fallback ${CI_FALLBACK}
 # HELP homelab_deploy_services_revived Stack services this run found stopped and started again. -1 when docker could not be asked.
 # TYPE homelab_deploy_services_revived gauge
 homelab_deploy_services_revived ${REVIVED}
@@ -862,8 +1038,8 @@ EOF
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s revived=%s stopped=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}" "${REVIVED}" "${STOPPED}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s ci_fallback=%s revived=%s stopped=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}" "${CI_FALLBACK}" "${REVIVED}" "${STOPPED}"
 }
 trap record EXIT
 
@@ -1123,6 +1299,10 @@ ${BRANCH} says. If this persists, DeployBehind will not fire — nothing was
 learned about how far behind the host is — but ScheduledJobFailed will."
 
 TARGET="$(git rev-parse FETCH_HEAD)"
+# The tip as fetched. TARGET becomes an older commit if the tip is still in CI
+# and a newer one below it has passed (#1026); TIP stays what main says.
+TIP="${TARGET}"
+fell_back=0
 BEHIND="$(git rev-list --count "HEAD..${TARGET}")"
 
 # ---------------------------------------------------------------------------
@@ -1183,8 +1363,26 @@ if [[ "${TARGET}" != "$(git rev-parse HEAD)" ]] || ((UNAPPLIED)); then
       info "CI passed on $(git rev-parse --short=12 "${TARGET}")" ;;
     wait)
       CI_TIP=-1
-      warn "CI has not finished with $(git rev-parse --short=12 "${TARGET}") — staying on ${REVISION}; the next run asks again"
-      exit 0 ;;
+      if ((ci_api_ok == 0)); then
+        # Not "not finished": GitHub did not answer. The likeliest cause is the
+        # anonymous limit, and walking would only spend more of it.
+        warn "could not ask CI about $(git rev-parse --short=12 "${TARGET}") — staying on ${REVISION}, and not walking below it; the next run asks again"
+        exit 0
+      fi
+      warn "CI has not finished with $(git rev-parse --short=12 "${TARGET}") — looking below it for the newest commit that passed (#1026)"
+      if fallback="$(ci_newest_green "${TARGET}" "${WALK_CAP}" "${UNAPPLIED}")"; then
+        # Deploy that one instead. It verified inside the walk, and everything
+        # below — the fast-forward check, the dry run, make up — now applies to
+        # it exactly as it would have to the tip. TIP keeps the tip, so BEHIND
+        # can say how far the host still is from it afterwards.
+        TARGET="${fallback}"
+        target_verified=1
+        fell_back=1
+        info "CI passed on $(git rev-parse --short=12 "${TARGET}"), $(git rev-list --count "${TARGET}..${TIP}") commit(s) below the tip — deploying that"
+      else
+        warn "nothing between ${REVISION} and the tip has passed CI yet — staying on ${REVISION}; the next run asks again"
+        exit 0
+      fi ;;
     red)
       CI_TIP=0
       if ((ALLOW_RED)); then
@@ -1206,7 +1404,8 @@ fi
 # Converge
 # ---------------------------------------------------------------------------
 if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
-  BEHIND=0
+  # 0 at the tip. Below it, this is the walk choosing HEAD to re-apply.
+  BEHIND="$(git rev-list --count "HEAD..${TIP}")"
   if ((UNAPPLIED == 0)); then
     green "converged — ${REVISION} is ${BRANCH}"
     # Nothing rendered and no running container touched. This is the path an
@@ -1224,7 +1423,12 @@ if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
   info "applying ${REVISION}"
   make up STACK="${DEPLOY_STACK}"
   UNAPPLIED=0
-  green "converged — ${REVISION} is ${BRANCH}, and now deployed"
+  CI_FALLBACK="${fell_back}"
+  if ((CI_FALLBACK)); then
+    green "converged — ${REVISION}, ${BEHIND} commit(s) below a tip still in CI, is now deployed"
+  else
+    green "converged — ${REVISION} is ${BRANCH}, and now deployed"
+  fi
   exit 0
 fi
 
@@ -1239,7 +1443,7 @@ onto a revision someone deliberately replaced.
   git -C ${DEPLOY_ROOT} log --oneline ${REVISION}..${TARGET}
   git -C ${DEPLOY_ROOT} log --oneline ${TARGET}..${REVISION}"
 
-info "${BEHIND} commit(s) behind — ${REVISION} to $(git rev-parse --short=12 "${TARGET}")"
+info "$(git rev-list --count "HEAD..${TARGET}") commit(s) to apply — ${REVISION} to $(git rev-parse --short=12 "${TARGET}")"
 git --no-pager log --oneline --no-decorate "HEAD..${TARGET}" | sed 's/^/     /' >&2
 
 if ((DRY_RUN)); then
@@ -1253,7 +1457,10 @@ fi
 git merge --ff-only --quiet "${TARGET}"
 REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
-BEHIND=0
+# 0 at the tip. After a fallback, the commits still above what was deployed,
+# which DeployBehind leaves alone while homelab_deploy_ci_fallback says the
+# host is moving.
+BEHIND="$(git rev-list --count "HEAD..${TIP}")"
 VERIFIED="${target_verified}"
 # Moved and not yet deployed. If `make up` fails below, set -e exits with this
 # still 1, and the record says the checkout is ahead of what is running.
@@ -1267,5 +1474,12 @@ UNAPPLIED=1
 info "applying ${REVISION}"
 make up STACK="${DEPLOY_STACK}"
 UNAPPLIED=0
+# Only now, after make up applied it. A dry run, report-only mode or a failed
+# make up deployed nothing, and must leave DeployBehind free to say so.
+CI_FALLBACK="${fell_back}"
 
-green "converged to ${REVISION}"
+if ((CI_FALLBACK)); then
+  green "converged to ${REVISION}, ${BEHIND} commit(s) below a tip still in CI; the next run moves on from here"
+else
+  green "converged to ${REVISION}"
+fi

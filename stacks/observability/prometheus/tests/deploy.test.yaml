@@ -97,8 +97,85 @@ tests:
               description: >-
                 Convergence has run and has not applied what it fetched. Either
                 it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
-                on prometheus for a dirty tree, a signature that did not verify,
-                or a non-fast-forward. If DeployApplyDisabled is firing too, it
+                on prometheus for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+  # --- DeployBehind and the CI fallback (#1026) ----------------------------
+  #
+  # `trinity` is behind all day on a busy main, but every run deploys the
+  # newest commit below the tip that passed: ci_fallback 1, silent. `oracle`
+  # moved for its first hour, then stopped moving: 3h after that, it fires.
+  # `saruman` predates the gauge: no right-hand series, and it still fires.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_behind_commits{instance="trinity"}'
+        values: "2+0x300"
+      - series: 'homelab_deploy_ci_fallback{instance="trinity"}'
+        values: "1+0x300"
+      - series: 'homelab_deploy_behind_commits{instance="oracle"}'
+        values: "2+0x300"
+      - series: 'homelab_deploy_ci_fallback{instance="oracle"}'
+        values: "1x60 0x240"
+      - series: 'homelab_deploy_behind_commits{instance="saruman"}'
+        values: "2+0x300"
+    alert_rule_test:
+      - eval_time: 3h55m
+        alertname: DeployBehind
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployBehind
+              instance: saruman
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on saruman for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+      - eval_time: 4h5m
+        alertname: DeployBehind
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployBehind
+              instance: oracle
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on oracle for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+          - exp_labels:
+              alertname: DeployBehind
+              instance: saruman
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on saruman for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
                 is neither: the host is in report-only mode and this alert is
                 that mode's report. docs/runbooks/converge-the-host.md.
 

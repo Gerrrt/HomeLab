@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **Converge deploys the newest commit that passed CI, not only the tip**
+  ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`
+  asked CI about `main`'s tip alone and waited while it ran. On a busy `main`
+  a new tip usually lands before the last one's CI finishes, so trinity sat on
+  `f7afe9c` from 12:29 to past 15:00 today, 23 commits behind, while
+  `e4cf127` had already passed. A tip still in CI now starts a walk down the
+  first-parent history. It deploys the newest commit that is a fast-forward,
+  verifies against the pinned key, and passed CI, skipping red commits along
+  the way. A red tip still refuses, as before. The walk looks at most
+  `HOMELAB_CONVERGE_WALK` commits (default 10), skipped ones included, because
+  the API calls are anonymous. It stops at the first ask that fails, and it
+  does not start if the ask about the tip failed. A fallback whose `make up`
+  failed is re-applied on the next run. A new gauge,
+  `homelab_deploy_ci_fallback`, is `1` on a run that deployed such a commit.
+  `DeployBehind` ignores those runs, so it fires on three hours without
+  progress rather than on three hours of a busy `main`.
+
 - **A Wazuh re-pin took odin's root to 99%, and deploys now remove what they
   supersede** ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)).
   - **What happened.** `make up STACK=soc` pulled #966's re-pinned Wazuh images
