@@ -64,6 +64,25 @@ jobs:
       - name: Check digests
         run: ./scripts/pin-digests.sh
 
+  # The pins Dependabot has no ecosystem for: the Packer plugin and the
+  # ansible-galaxy collections (#848). Each stays an exact pin and a deliberate
+  # edit; this only says when upstream has a newer release, which until now
+  # nothing did. Same contract as the digests job: the failing run is the
+  # notification. The token only lifts the GitHub API's anonymous rate limit.
+  tools:
+    name: Pinned tool versions are current
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Check the Packer plugin and Galaxy collection pins
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/check_tool_versions.py
+
   # The ruleset on main is the gate converge.sh relies on, and it lives in a
   # settings page that no diff shows (#833). Weekly, and here rather than on
   # pull requests: a PR that changes .github/rulesets/main.json is ahead of the

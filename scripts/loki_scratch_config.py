@@ -29,12 +29,14 @@ the past, and must stay queryable from the ingester for the length of a run:
 Usage: loki_scratch_config.py <loki-config.yaml> <work-dir> [--for-tests]
 """
 
+import pathlib
 import sys
 
-try:
-    import yaml
-except ImportError:  # check_loki_rules.sh installs it; say so if run bare
-    sys.exit("PyYAML is required: python3 -m pip install pyyaml")
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 
 def scratch(cfg: dict, work: str, for_tests: bool = False) -> dict:

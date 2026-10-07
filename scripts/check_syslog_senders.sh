@@ -84,11 +84,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-if ! python3 -c 'import yaml' 2>/dev/null; then
-  info "installing PyYAML"
-  python3 -m pip install --quiet --disable-pip-version-check pyyaml >/dev/null 2>&1 \
-    || die "PyYAML is required and could not be installed"
-fi
+# The one PyYAML bootstrap (#848), as in check_loki_rules.sh: the host's
+# python3-yaml, or on a runner the hash-pinned scripts/requirements.txt.
+pydeps="$(python3 "${REPO_ROOT}/scripts/_deps.py" --pythonpath)" \
+  || die "PyYAML is required: sudo apt install python3-yaml"
+[[ -n "${pydeps}" ]] && export PYTHONPATH="${pydeps}${PYTHONPATH:+:${PYTHONPATH}}"
 
 mkdir -p "${WORK}/data" "${WORK}/rules/fake" "${WORK}/alloy"
 python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \

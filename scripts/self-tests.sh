@@ -57,6 +57,18 @@
 #   check_close_keywords.py   the phrases that closed issues by accident are
 #                             history; a live PR shows only the one in front of
 #                             it, so each phrase is kept as a fixture (#672)
+#   converge.sh               every refusal that keeps a bad `main` off a host:
+#                             an unsigned tip, a wrong or revoked key, a dirty
+#                             tree, a non-fast-forward, red CI. None can be
+#                             staged on a deployment host, and each was tested
+#                             only by never having fired (#854)
+#   backup-volumes.sh         a real backup of a throwaway volume with real age:
+#                             the set opens with either recipient's key and not
+#                             a third's (#835), and the refusals refuse (#854)
+#   restore-volumes.sh        the path taken on the worst day: restored into a
+#                             second volume and compared byte for byte, the
+#                             safety net rolled back (#854). These two need
+#                             docker and age, so they SKIP where either is absent
 #
 # The list above is prose. What runs is DISCOVERED, because a hand-kept list is a
 # second copy of one fact and this repository has already paid for that: when

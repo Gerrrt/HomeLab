@@ -133,6 +133,17 @@ first boots on DHCP, and `base` then makes the same address static. That keeps
 the inventory's addresses true from the first connection, without a discovery
 step.
 
+*2026-10-06:* implemented. The guest module takes `mac_address`, and
+`tofu/guests.tf` pins the six to the MACs the hand-built ones had. Two more
+are pinned the same way:
+
+- each guest's SMBIOS UUID, because the endpoints' bought Windows 11 Pro
+  activation is tied to the hardware ID;
+- the servers' startup order.
+
+The module also states q35, OVMF, the EFI disk and, on Windows, the TPM,
+rather than leaving them to the provider's SeaBIOS default.
+
 ## Consequences
 
 - **The runbook becomes the explanation, and the playbook becomes the

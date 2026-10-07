@@ -84,7 +84,7 @@ LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-f
 # Whether this run can happen at all is decided FIRST, before anything with a
 # side effect or a failure mode of its own.
 #
-# Everything below needs a scratch directory, may pip install PyYAML, and
+# Everything below needs a scratch directory, may install the pinned PyYAML, and
 # shells out to check_dashboards.py to emit the panel queries. Doing any of
 # that before knowing there is a Loki to run it against turned an intended SKIP
 # into a hard failure on a host with no python3 — and recorded no skip while
@@ -151,12 +151,13 @@ fi
 chmod -R a+rwX "${WORK}"
 
 # PyYAML is not guaranteed on a clean runner, and the failure mode without this
-# guard is an opaque ModuleNotFoundError inside a heredoc.
-if ! python3 -c 'import yaml' 2>/dev/null; then
-  info "installing PyYAML"
-  python3 -m pip install --quiet --disable-pip-version-check pyyaml >/dev/null 2>&1 \
-    || die "PyYAML is required and could not be installed"
-fi
+# guard is an opaque ModuleNotFoundError inside a heredoc. scripts/_deps.py is
+# the one bootstrap (#848): the host's python3-yaml, or on a runner the pinned
+# and hashed scripts/requirements.txt. It prints the directory it installed
+# into, which the heredocs below only see through PYTHONPATH.
+pydeps="$(python3 "${REPO_ROOT}/scripts/_deps.py" --pythonpath)" \
+  || die "PyYAML is required: sudo apt install python3-yaml"
+[[ -n "${pydeps}" ]] && export PYTHONPATH="${pydeps}${PYTHONPATH:+:${PYTHONPATH}}"
 
 # Rewrite every path in the real config to point inside the scratch dir, so the
 # rules are checked against the same settings production uses. Shared with
