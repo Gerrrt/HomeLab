@@ -68,15 +68,6 @@ Closes when it is empty.
   the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
-  Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
-  accident. Authored 2026-09-30:
-  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)'s
-  ingest proxy, a token per agent and a reader token. Not yet deployed. The
-  order is the tokens into both SOPS files, the three agents and `trinity`
-  redeployed carrying them, then `make up` on the monitoring host. The issue
-  stays open until `deploy-agent.sh` has shown fresh data from all three agents
-  and the refusal probes are green.
 
 The rest of the milestone has no order between its issues.
 
