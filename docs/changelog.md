@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The drifted digests are re-pinned, and `make pin-digests` survives a
+  duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
+  stacks pinned digests the registry no longer serves under their tag:
+  - `postgres:18.6` in sensitive (two services) and in bloodhound
+  - `postgres:17.11` in wiki
+  - the three `wazuh/*` 4.14.8 images in scratch and in soc
+
+  Re-pinning them exposed a bug in `scripts/pin-digests.sh`. When one file
+  pins the same drifted image twice, the first replace rewrote both lines.
+  The second then died with "expected to find", and under
+  `make pin-digests` that stopped the loop before soc and wiki. The script
+  now dedupes the references before resolving them. Merging this is a deploy
+  of sensitive's two Postgres services: the same 18.6, on a rebuilt image.
+
 - **`eden` exists, with its key and its ingest token; the stack is not up
   yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
@@ -95,16 +109,34 @@ docstring gives: it is a record, not a claim about now.
 
 - **The weekly digest-drift check covers every stack, not just one.**
   `digests.yml` ran `scripts/pin-digests.sh` with no `COMPOSE_FILE`, so it
-  checked only `stacks/observability`, one stack of eight. It now runs
+  checked only `stacks/observability`. It now runs
   `make check-digests`, which loops over `scripts/stacks.sh`. That target also
   stopped at the first stack that drifted, because of `-e` in `.SHELLFLAGS`;
   it now checks every stack and then fails, naming the ones that drifted. The
   first full run on 2026-10-07 found drift that had gone unreported in five
   stacks: observability (`debian:13-slim`), scratch and soc (the three
   `wazuh/*` 4.14.8 images), sensitive (`postgres:18.6`, pinned by two
-  services), and wiki (`postgres:17.11`). The tags
-  have not moved, but upstream rebuilt them. Re-pinning them is left to its
-  own change, because a merge to sensitive is a deploy.
+  services), and wiki (`postgres:17.11`). The tags have not moved, but
+  upstream rebuilt them. They were re-pinned the same day in their own change
+  ([#966](https://github.com/Gerrrt/HomeLab/pull/966)), because a merge to
+  sensitive is a deploy.
+
+- **Every pinned image is scanned for CVEs weekly.** Before this, every image
+  was pinned by digest and `digests.yml` watched those digests for drift, but
+  nothing checked them for known vulnerabilities
+  ([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+  [`cve-scan.yml`](../.github/workflows/cve-scan.yml) runs on Mondays, an
+  hour after `digests.yml`. It runs `trivy`, pinned in the observability
+  compose file behind the `scan` profile beside `gitleaks`, against every
+  digest that any stack pins, using `--severity HIGH,CRITICAL
+  --ignore-unfixed`. The job summary lists every image, including the clean
+  ones. Each image repository with fixable findings has one issue, labelled
+  `security` and with its stacks' labels. The issue is keyed on the
+  repository rather than the tag, so a Dependabot bump updates it instead of
+  opening a twin. It closes when a scan finds the digest clean. A finding does
+  not fail the run, and no pull request is gated on one, not even a fixable
+  CRITICAL on the sensitive tier: the bump is the fix. An image that could
+  not be scanned does fail the run. Run it locally with `make scan-images`.
 
 ## 2026-10-06
 
