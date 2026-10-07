@@ -289,8 +289,11 @@ the backups.
 
 Every run, on every path, including the refusals below, convergence looks for
 a container of its stack that should be running and is not. That means the
-compose working directory is this checkout's `stacks/<stack>`, the restart
-policy is `unless-stopped` or `always`, and the state is exited or dead. It
+compose working directory is this checkout's `stacks/<stack>`, the service is
+active under the stack's own `COMPOSE_PROFILES` (so a profile-only helper like
+the `capture` renderer never counts), the restart policy is `unless-stopped` or
+`always`, and the state is exited or dead. If Docker or compose cannot answer,
+both gauges read `-1` and nothing is started. It
 starts each one with `docker start`, which uses the config it already had, so
 this deploys nothing
 ([ADR-0087](../adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).
@@ -312,7 +315,7 @@ It leaves a service alone in three cases.
 | --- | --- | --- |
 | Stopped under 30 minutes ago | A runbook's deliberate stop, such as `docker stop alertmanager` in [`verify-the-alert-path.md`](verify-the-alert-path.md) | The first run after half an hour. `HOMELAB_CONVERGE_REVIVE_GRACE` (seconds) in `/etc/default/homelab-timers` changes it |
 | Named in the hold file | A longer deliberate stop, such as a restore | The line is removed |
-| `backups/volumes/.lock` is held | A hand-run `make backup` stops the services whose volumes it copies, and starting one mid-copy archives a live store. Timer-run backups share converge's `backups` lock and cannot overlap at all | The backup finishes |
+| `backups/volumes/.lock` is held | A hand-run `make backup` stops the services whose volumes it copies, and starting one mid-copy archives a live store. Convergence takes this lock itself, without waiting, and holds it until its starts finish, so a backup cannot begin in between. Timer-run backups share converge's `backups` lock and cannot overlap at all | The backup finishes |
 
 **The hold file** is `.git/homelab-hold-<stack>` in the deployment checkout:
 one compose **service** name per line (as in `compose.yaml`, so `caddy` for the

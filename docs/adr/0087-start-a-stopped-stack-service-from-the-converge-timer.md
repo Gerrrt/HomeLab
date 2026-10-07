@@ -42,6 +42,9 @@ path: the no-op, the CI wait, and the refusals.
     `stacks/<stack>`, so no worktree's or scratch project's container
     qualifies;
   - it is not a one-off `compose run`;
+  - compose counts its service as active under the stack's own
+    `COMPOSE_PROFILES`, so a profile-only helper such as the `capture`
+    renderer never counts, while trinity's `ml` does;
   - its restart policy is `unless-stopped` or `always`, which marks it as
     meant to run, so a one-shot that finished is not stopped;
   - it is exited or dead.
@@ -59,13 +62,16 @@ path: the no-op, the CI wait, and the refusals.
     stop. It lists compose service names, or `*` for all.
   - **Anything while `backups/volumes/.lock` is held.** A hand-run backup stops
     the services whose volumes it copies. Starting one mid-copy would make the
-    archive a copy of a live store. Timer-run backups already share this
-    unit's `backups` lock.
+    archive a copy of a live store. Convergence takes the same lock without
+    waiting and holds it until every start returns, so a backup cannot slip in
+    between a check and a start. Timer-run backups already share this unit's
+    `backups` lock.
   - **Anything on a dry run or a report-only host.** These say what they would
     start.
 - **It is recorded.** `homelab_deploy_services_revived` and
   `homelab_deploy_services_stopped` are written beside the deploy gauges, with
-  `-1` when Docker could not be asked.
+  `-1` when Docker or compose could not answer. A failed measurement is never
+  recorded as zero, and starts nothing.
   - `DeployServiceRevived` (info) fires when a service was started. Something
     stopped it, and that cause is still out there.
   - `DeployServicesStopped` (warning) fires after two hours of a service left

@@ -423,17 +423,30 @@ EOF
 F="${DOCKER_FIXTURE_DIR:?}"
 case "$1" in
   info)    [[ -e "${F}/docker-down" ]] && exit 1; exit 0 ;;
-  ps)      wd=""
+  # The services compose counts as active: the case's own list, or every
+  # service it put in the containers file.
+  compose) [[ -e "${F}/compose-fails" ]] && exit 1
+           if [[ -f "${F}/services" ]]; then cat "${F}/services"
+           elif [[ -f "${F}/containers" ]]; then cut -d'|' -f6 "${F}/containers"; fi ;;
+  ps)      [[ -e "${F}/ps-fails" ]] && exit 1
+           wd=""
            for a in "$@"; do
              [[ "${a}" == label=com.docker.compose.project.working_dir=* ]] && wd="${a#*working_dir=}"
            done
            [[ -f "${F}/containers" ]] || exit 0
            awk -F'|' -v wd="${wd}" '$7 == wd && $8 == "False" { print $1 }' "${F}/containers" ;;
-  inspect) shift 3
+  inspect) [[ -e "${F}/inspect-fails" ]] && exit 1
+           shift 3
            for id in "$@"; do
              awk -F'|' -v id="${id}" '$1 == id { print "/" $2 "|" $3 "|" $4 "|" $5 "|" $6 }' "${F}/containers"
            done ;;
-  start)   printf '%s\n' "$2" >> "${F}/docker.log" ;;
+  # Logs the name, and whether the backup lock was held while it started.
+  start)   lock="${F}/deploy/backups/volumes/.lock"
+           if [[ -f "${lock}" ]] && ! flock -n "${lock}" true; then
+             printf '%s\n' "$2" >> "${F}/docker.log"
+           else
+             printf '%s(unlocked)\n' "$2" >> "${F}/docker.log"
+           fi ;;
   *)       printf 'docker stub: unexpected %s\n' "$*" >&2; exit 2 ;;
 esac
 EOF
@@ -458,11 +471,14 @@ EOF
   # checkout cloned from it and deployed (its applied record is HEAD), CI green.
   fresh() {
     rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"* \
-           "${T}/containers" "${T}/docker.log" "${T}/docker-down"
+           "${T}/containers" "${T}/docker.log" "${T}/docker-down" "${T}/services" \
+           "${T}/compose-fails" "${T}/ps-fails" "${T}/inspect-fails"
     git init -q "${T}/work"
     mkdir "${T}/work/scripts"
     cp "${here}/converge.sh" "${here}/record-applied.sh" "${T}/work/scripts/"
     printf 'fixture\n' > "${T}/work/README"
+    # As the repository's own .gitignore has it: the backup lock lives there.
+    printf 'backups/\n' > "${T}/work/.gitignore"
     git -C "${T}/work" add -A
     commit "${T}/work" pinned "root"
     git clone -q --bare "${T}/work" "${T}/origin.git"
@@ -637,8 +653,6 @@ EOF
   if command -v flock >/dev/null 2>&1; then
     fresh; container grafana exited unless-stopped 120
     mkdir -p "${T}/deploy/backups/volumes"
-    # Ignored, as the repository's .gitignore has it, or the tree reads dirty.
-    printf 'backups/\n' >> "${T}/deploy/.git/info/exclude"
     flock "${T}/deploy/backups/volumes/.lock" sleep 30 & holder=$!
     sleep 0.3
     converge
@@ -661,6 +675,20 @@ EOF
   fresh; container alloy exited unless-stopped 120; advance pinned; : > "${T}/deploy/stray"; converge
   expect "starts it even when it refuses a dirty tree" 1 "uncommitted changes" 0
   check "  started" "$(started)" "alloy"
+
+  # A profile compose does not count as active — the `capture` renderer — is
+  # neither started nor counted, however long it has been stopped.
+  fresh; container alloy running unless-stopped 0; container renderer exited unless-stopped 120
+  printf 'alloy\n' > "${T}/services"
+  converge
+  check "a profile-gated service that is not active is left alone" "$(started) $(prom services_stopped)" " 0"
+
+  for broken in compose-fails ps-fails inspect-fails; do
+    fresh; container alloy exited unless-stopped 120; : > "${T}/${broken}"; converge
+    expect "carries on when docker ${broken%-fails} fails" 0 "not checking for stopped services" 0
+    check "  starts nothing and records unmeasured, not zero" \
+      "$(started) $(prom services_revived) $(prom services_stopped)" " -1 -1"
+  done
 
   fresh; container alloy exited unless-stopped 120; : > "${T}/docker-down"; converge
   expect "carries on when docker cannot be asked" 0 "docker cannot be asked" 0
@@ -899,9 +927,15 @@ APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || t
 #
 # WHAT COUNTS. Containers of THIS checkout's stack (the compose working
 # directory under DEPLOY_ROOT, so no worktree's or scratch project's), not
-# one-off `compose run`s, whose restart policy says they are meant to run
-# (unless-stopped or always — a one-shot that finished is not stopped), and
-# that are exited or dead.
+# one-off `compose run`s, whose service compose counts as active — so a
+# profile-gated helper such as the `capture` renderer is never started, while
+# trinity's `ml`, switched on by COMPOSE_PROFILES in its .env, is — whose
+# restart policy says they are meant to run (unless-stopped or always: a
+# one-shot that finished is not stopped), and that are exited or dead.
+#
+# A MEASUREMENT THAT FAILED IS NOT ZERO. If compose, `docker ps` or `docker
+# inspect` fails, both gauges stay -1 and nothing is started, rather than
+# recording "nothing stopped" from an answer that never came.
 #
 # WHAT IS LEFT ALONE, because a person or a job stopped it on purpose:
 #   - one stopped under REVIVE_GRACE ago. The runbooks' deliberate stops — the
@@ -913,8 +947,12 @@ APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || t
 #     that was forgotten fires DeployServicesStopped rather than hiding.
 #   - all of them while backup-volumes.sh holds its lock: a hand-run backup
 #     stops the services that own the volumes it is copying, and one started
-#     mid-copy turns the archive into a copy of a live store. Timer-run backups
-#     already share this unit's `backups` lock and cannot overlap at all.
+#     mid-copy turns the archive into a copy of a live store. So the starts
+#     happen UNDER that lock, taken without waiting and held until the last
+#     one returns — a probe-and-release would leave a backup free to begin in
+#     between. A hand backup that tries in those seconds is refused by its own
+#     `flock -n` and can be run again. Timer-run backups already share this
+#     unit's `backups` lock and cannot overlap at all. No flock, no starts.
 REVIVE_GRACE="${HOMELAB_CONVERGE_REVIVE_GRACE:-1800}"
 [[ "${REVIVE_GRACE}" =~ ^[0-9]+$ ]] || die "HOMELAB_CONVERGE_REVIVE_GRACE must be seconds, not '${REVIVE_GRACE}'"
 HOLD_FILE="$(git rev-parse --path-format=absolute --git-path "homelab-hold-${DEPLOY_STACK}")"
@@ -925,50 +963,67 @@ held() {
   sed 's/#.*//; s/[[:space:]]//g' "${HOLD_FILE}" | grep -qxF -e '*' -e "$1"
 }
 
-backup_running() {
-  [[ -f "${BACKUP_LOCK}" ]] || return 1
-  command -v flock >/dev/null 2>&1 || return 1
-  ! flock -n "${BACKUP_LOCK}" true
-}
-
 revive_stopped() {
-  local name status policy finished service age now
+  local name status policy finished service age now active ps_out inspect_out lock_fd
+  local stopped=0
   local -a ids=() start=()
   if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
     warn "docker cannot be asked from here — not checking for stopped services"
     return 0
   fi
-  REVIVED=0
-  STOPPED=0
-  mapfile -t ids < <(docker ps -aq \
-    --filter "label=com.docker.compose.project.working_dir=${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}" \
-    --filter "label=com.docker.compose.oneoff=False")
-  ((${#ids[@]})) || return 0
-  now="$(date +%s)"
-  while IFS='|' read -r name status policy finished service; do
-    name="${name#/}"
-    case "${status}" in exited|dead) ;; *) continue ;; esac
-    case "${policy}" in unless-stopped|always) ;; *) continue ;; esac
-    STOPPED=$((STOPPED + 1))
-    age=$(( now - $(date -d "${finished}" +%s 2>/dev/null || echo "${now}") ))
-    if held "${service}"; then
-      warn "${name} is stopped and held by ${HOLD_FILE} — leaving it"
-    elif ((age < REVIVE_GRACE)); then
-      warn "${name} stopped $((age / 60))m ago — leaving it until it has been down $((REVIVE_GRACE / 60))m"
-    else
-      start+=("${name}")
-    fi
-  done < <(docker inspect --format \
-    '{{.Name}}|{{.State.Status}}|{{.HostConfig.RestartPolicy.Name}}|{{.State.FinishedAt}}|{{index .Config.Labels "com.docker.compose.service"}}' \
-    "${ids[@]}")
-
-  ((${#start[@]})) || return 0
-  if backup_running; then
-    warn "a backup holds ${BACKUP_LOCK} — not starting ${start[*]} under it; the next run asks again"
+  if ! active="$(docker compose -f "${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}/compose.yaml" config --services 2>/dev/null)"; then
+    warn "docker compose could not read stacks/${DEPLOY_STACK}/compose.yaml — not checking for stopped services"
     return 0
   fi
+  if ! ps_out="$(docker ps -aq \
+      --filter "label=com.docker.compose.project.working_dir=${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}" \
+      --filter "label=com.docker.compose.oneoff=False")"; then
+    warn "docker ps failed — not checking for stopped services"
+    return 0
+  fi
+  if [[ -n "${ps_out}" ]]; then
+    mapfile -t ids <<<"${ps_out}"
+    if ! inspect_out="$(docker inspect --format \
+        '{{.Name}}|{{.State.Status}}|{{.HostConfig.RestartPolicy.Name}}|{{.State.FinishedAt}}|{{index .Config.Labels "com.docker.compose.service"}}' \
+        "${ids[@]}")"; then
+      warn "docker inspect failed — not checking for stopped services"
+      return 0
+    fi
+    now="$(date +%s)"
+    while IFS='|' read -r name status policy finished service; do
+      name="${name#/}"
+      case "${status}" in exited|dead) ;; *) continue ;; esac
+      case "${policy}" in unless-stopped|always) ;; *) continue ;; esac
+      grep -qxF -- "${service}" <<<"${active}" || continue
+      stopped=$((stopped + 1))
+      age=$(( now - $(date -d "${finished}" +%s 2>/dev/null || echo "${now}") ))
+      if held "${service}"; then
+        warn "${name} is stopped and held by ${HOLD_FILE} — leaving it"
+      elif ((age < REVIVE_GRACE)); then
+        warn "${name} stopped $((age / 60))m ago — leaving it until it has been down $((REVIVE_GRACE / 60))m"
+      else
+        start+=("${name}")
+      fi
+    done <<<"${inspect_out}"
+  fi
+  # Measured: from here the gauges are real numbers.
+  REVIVED=0
+  STOPPED="${stopped}"
+
+  ((${#start[@]})) || return 0
   if ((DRY_RUN)); then
     warn "dry run — would start ${start[*]}"
+    return 0
+  fi
+  if ! command -v flock >/dev/null 2>&1; then
+    warn "no flock here, so a backup cannot be ruled out — not starting ${start[*]}"
+    return 0
+  fi
+  mkdir -p "${BACKUP_LOCK%/*}"
+  exec {lock_fd}>>"${BACKUP_LOCK}"
+  if ! flock -n "${lock_fd}"; then
+    exec {lock_fd}>&-
+    warn "a backup holds ${BACKUP_LOCK} — not starting ${start[*]} under it; the next run asks again"
     return 0
   fi
   for name in "${start[@]}"; do
@@ -980,6 +1035,7 @@ revive_stopped() {
       warn "could not start ${name} — docker logs ${name}"
     fi
   done
+  exec {lock_fd}>&-
 }
 
 revive_stopped
