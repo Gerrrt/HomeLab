@@ -1,0 +1,16 @@
+# Daily at 03:17, the slot the cron line it replaces used (#850). Persistent, so
+# a fenrir that was off at 03:17 prunes at its next boot. ScheduledJobStale in
+# the lab allows three days, so one missed night is not a finding.
+[Unit]
+Description=HomeLab: daily Zeek archive prune
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+
+[Timer]
+Unit=homelab-zeek-archive-prune.service
+OnCalendar=*-*-* 03:17:00
+RandomizedDelaySec=300
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

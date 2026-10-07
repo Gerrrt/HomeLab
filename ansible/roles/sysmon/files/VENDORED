@@ -1,0 +1,7 @@
+# Vendored by scripts/vendor-sysmon-config.sh. Do not edit sysmonconfig.xml or
+# LICENSE by hand: re-vendor instead, so the diff is upstream's (ADR-0080).
+upstream: https://github.com/olafhartong/sysmon-modular
+release: configs-082cba578667
+target: 15.21
+sha256: f115aac5770dae468e5cfb48c58a8b6e37588208a31f1b746812c534577a244b
+vendored: 2026-10-07

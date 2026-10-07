@@ -55,11 +55,15 @@
 #   - markdownlint-cli2 globs `**/*.md`, which DOES match dot directories, so
 #     its exclusions live in .markdownlint-cli2.yaml
 #   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
+#   - ruff walks `.` but honours .gitignore, which already names every one of
+#     those trees. Verified with --show-files: the tracked .py files and
+#     nothing else, with worktrees present
 #   - packer is handed packer/ — one directory, cannot wander
 #   - tofu is handed tofu/, the same way
 #   - ansible-lint is handed ansible/ and told it is the project directory, so
 #     it reads ansible/requirements.yml and installs the collections into
-#     ansible/.ansible/ (gitignored, and excluded from yamllint above)
+#     ansible/.ansible/ (gitignored, and excluded from yamllint above). Its
+#     rule set is ansible/.ansible-lint's profile, not the version's default
 #   - actionlint reads only <repo root>/.github/workflows. Verified with
 #     -verbose: it lints 2 files with a worktree present, not 4
 #   - editorconfig-checker is handed a `git ls-files` list built below, so it
@@ -141,6 +145,13 @@ runner_for() {
                 --spec "$(grep -E '^ansible-lint==' ansible/requirements-lint.txt)" ansible-lint)
         return 0
       fi ;;
+    ruff)
+      # Same route as ansible-lint, and the pin file is again the only place
+      # the version appears (#853).
+      if have pipx; then
+        RUNNER=(pipx run --spec "$(grep -E '^ruff==' scripts/requirements-lint.txt)" ruff)
+        return 0
+      fi ;;
     actionlint)
       # No --user: this image's entrypoint IS actionlint and it already drops to
       # USER guest. It locates .github/workflows by walking up to the .git
@@ -210,6 +221,7 @@ hint_for() {
     markdownlint-cli2) printf 'npm i -g markdownlint-cli2, or install npx' ;;
     shellcheck)        printf 'apt install shellcheck' ;;
     ansible-lint)      printf 'pip install -r ansible/requirements-lint.txt, or install pipx' ;;
+    ruff)              printf 'pip install -r scripts/requirements-lint.txt, or install pipx' ;;
     *)                 printf 'needs a docker daemon, or the binary on PATH' ;;
   esac
 }
@@ -247,6 +259,9 @@ run_linter yamllint --strict .
 # No arguments: the globs live in .markdownlint-cli2.yaml.
 run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
+# The rules are in ruff.toml (#853). Formatting is not checked: that would be a
+# reformat of every script for no finding.
+run_linter ruff check .
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
 run_linter zizmor --offline .github/workflows

@@ -17,6 +17,112 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-07
+
+- **Syslog stores only the senders it names.**
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
+  able to reach 1514/udp or 514/udp could write lines labelled
+  `host="morpheus"`, because the message's own hostname overrode the label.
+  Those lines include the filterlog and Suricata lines the Loki security rules
+  read. The issue proposed a leading `keep` relabel rule. On the pinned Alloy
+  v1.20.1 that rule does not drop: `loki.source.syslog` ignores the result of
+  its relabel rules, and a spoofed line was stored as
+  `{log_type="syslog", source="network"}` without being counted. Now `host`
+  comes from the connection address only. A line with no `host` is dropped in
+  `loki.process` and counted under
+  `reason="syslog_sender_not_allowed"`, and the ports bind to
+  `INGEST_BIND_ADDR` instead of `0.0.0.0`.
+  `scripts/check_syslog_senders.sh` sends a real line, a spoofed one and a
+  forged hostname through a scratch Alloy and Loki. It fails with the drop
+  stage removed and with the hostname rule restored. In the seven days before
+  the change, every stream on this path was `host="morpheus"`, so nothing that
+  was arriving is now refused.
+
+## 2026-10-06
+
+- **Sysmon and Pktmon are on the lab domain**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
+
+- **JA4+ is live on `fenrir`, and #776 closes**
+  ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
+  This corrects the 2026-10-01 entry "JA4+ is vendored into `stacks/sensor`,
+  and not yet deployed". The stack deployed from `main`.
+  - **Live since 2026-10-04.** The first archived `ssl.log` with a `ja4`
+    field is `ssl.2026-10-04-13-33-43.log`. `sensor-zeek` mounts
+    `/zeek/site/ja4` read-only, and `ja4ssh.log` and `ja4d.log` are written
+    beside the stock logs.
+  - **A guest's outbound TLS carries a JA4.** All six domain guests
+    (`10.0.30.50`–`.55`) do, for example `10.0.30.54` to `login.live.com` with
+    `ja4` `t13d2013h2_2b729b4bf6f3_e24568c0d440`. The other Windows guests'
+    calls to `settings-win.data.microsoft.com` share
+    `t12d1809h2_4b22cbed5bed_7af1ed941c26`. One client stack gives one
+    fingerprint, which is the reason for choosing JA4 over JA3.
+  - **The lab's Loki returns them.** `{job="zeek"} | json | ja4 != ""` on
+    `alexander` returned lines. Counted over the 24 hours to 2026-10-07 05:30
+    UTC, `ssl` lines with a JA4 came from 12 sources:
+    - 3,664 from the domain guests;
+    - 17,655 from `Saruman`;
+    - and the rest from `alexander`, `odin`, `10.0.30.70`, and two hosts on
+      `10.0.50.0/24`.
+  - **ADR-0069's capture-loss comparison is pending.** The windows are split
+    by `capture_loss.log`'s and `stats.log`'s own timestamps, not by archive
+    file names:
+    - The "before" window is the corrected baseline: from 2026-10-01 05:25
+      UTC to deployment. 05:25 is the first 15-minute interval after the GRO
+      fix (#782). Intervals before it read 6–10% `percent_lost`, which was the
+      reordering artefact, and they are left out.
+    - The cut at deployment, 2026-10-04 13:33, is that of the first archived
+      `ssl.log` with a JA4. It is approximate to the hour's rotation.
+
+    | Window | gaps / acks | Worst 15-minute `percent_lost` | `pkts_dropped` | Packets |
+    | --- | --- | --- | --- | --- |
+    | 10-01 05:25 to 10-04 13:33, before | 0.027% | 0.23% | 0 | 444 M |
+    | 10-04 13:33 to 10-07 05:27, after | 0.009% | 0.05% | 0 | 111 M |
+
+    Neither window shows a rise. They are not yet comparable: the "after"
+    window carries a quarter of the packets, so this is no finding either
+    way. The full week after deployment ends around 2026-10-11, and the
+    comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
+
 ## 2026-10-05
 
 - **The CRS326 is on RouterOS 7, and reset.** Phase 1 of

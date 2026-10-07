@@ -1,4 +1,10 @@
 SHELL := /bin/bash
+# Every recipe runs strict, rather than each one opting in by hand (#849). The
+# by-hand version missed the case it most needed: `for sd in $(cmd)` carries on
+# when cmd fails, because a failing substitution in a `for` list is ignored even
+# under set -e. Under these flags a failing `x="$(cmd)"` does exit, so a recipe
+# that loops over a command's output captures it first.
+.SHELLFLAGS := -eu -o pipefail -c
 .DEFAULT_GOAL := help
 
 STACK       ?= observability
@@ -113,7 +119,7 @@ up: render ## Render config and start the stack
 	@# rather than a list of stack names, so a stack that gains or drops a
 	@# Grafana is right without this recipe changing.
 	@if grep -qE '^  grafana:' $(STACK_DIR)/compose.yaml; then \
-		port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2-)"; \
+		port="$$(grep -E '^GRAFANA_PORT=' $(STACK_DIR)/.env 2>/dev/null | tail -1 | cut -d= -f2- || true)"; \
 		printf '\n\033[0;32mup\033[0m — Grafana: https://localhost:%s\n' "$${port:-3000}"; \
 		printf '   (self-signed by the lab CA — trust certificates/ca.pem, see docs/runbooks/generate-certificates.md)\n'; \
 	else \
@@ -296,6 +302,10 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 check-loki-rules: ## Validate Loki (LogQL) rules and panel queries, and behaviour-test the rules
 	./scripts/check_loki_rules.sh
 	python3 scripts/test_loki_rules.py
+
+.PHONY: check-syslog-senders
+check-syslog-senders: ## Send spoofed and real syslog through a scratch Alloy and Loki; only named senders are stored
+	./scripts/check_syslog_senders.sh
 
 .PHONY: patch-state
 patch-state: ## Collect this host's package patch state into the textfile dir
@@ -510,14 +520,14 @@ pin-digests: ## Re-resolve image digests in every stack's compose.yaml (--write 
 	@# `stacks/lab`'s digests would be re-resolved by nothing and verified by
 	@# nothing, which is the #263 defect in the one place it costs a supply-chain
 	@# guarantee rather than a test.
-	@set -e; for sd in $$(./scripts/stacks.sh --paths); do \
+	@paths="$$(./scripts/stacks.sh --paths)"; for sd in $$paths; do \
 		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
 		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh --write; \
 	done
 
 .PHONY: check-digests
 check-digests: ## Verify pinned digests still match the registry
-	@set -e; for sd in $$(./scripts/stacks.sh --paths); do \
+	@paths="$$(./scripts/stacks.sh --paths)"; for sd in $$paths; do \
 		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
 		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh; \
 	done
@@ -537,75 +547,7 @@ snmp-mibs: ## Download the vendor MIBs snmp-generate needs (gitignored)
 
 .PHONY: snmp-generate
 snmp-generate: ## Regenerate snmp.yaml from generator.yaml (needs make snmp-mibs)
-	@# The generator is released in lockstep with snmp-exporter but is not a
-	@# compose service, so its version is derived from the exporter's pin rather
-	@# than duplicated — see scripts/image-for.sh.
-	@# --tag-only: the exporter's digest does not belong to the generator.
-	@#
-	@# Each -e sets a credential variable — a community, or a v3 device's two
-	@# passphrases — to its own literal ${PLACEHOLDER} text, so the generator
-	@# writes the placeholder back into snmp.yaml rather than baking in a real
-	@# value.
-	@#
-	@# The flags are derived from the device inventory rather than listed here,
-	@# because this list used to be a fifth copy of the device list and the only
-	@# one that failed OPEN. A device missing its -e flag leaves the variable
-	@# unset in the container, the generator expands it to empty, and snmp.yaml
-	@# gets `community:` with nothing after it — which render-config.sh's guard
-	@# cannot catch, because that guard looks for surviving placeholders and an
-	@# empty expansion leaves none. The result is an exporter polling with no
-	@# community at all. Hence: derive the list, then assert every placeholder
-	@# actually survived.
-	@#
-	@# The metric count is compared before and after for the same reason. A
-	@# regeneration that loses metrics is nearly always a missing or changed MIB
-	@# rather than an intended edit, and the shrunken result is still a
-	@# perfectly valid snmp.yaml. Walking the bare CPQ enterprise root rather
-	@# than its subtrees silently cost ~1580 of them.
-	@set -euo pipefail; \
-	mibs="$(STACK_DIR)/snmp-exporter/mibs"; \
-	if [[ ! -d "$$mibs" ]] || [[ -z "$$(ls -A "$$mibs" 2>/dev/null)" ]]; then \
-		printf '\033[0;31merror:\033[0m no MIBs in %s\n' "$$mibs" >&2; \
-		printf 'The generator resolves OIDs through net-snmp and the image ships almost no MIBs.\n' >&2; \
-		printf 'Run: make snmp-mibs\n' >&2; \
-		exit 1; \
-	fi; \
-	before="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" 2>/dev/null || echo 0)"; \
-	gen="$$(./scripts/image-for.sh --tag-only snmp-exporter | sed 's|snmp-exporter|snmp-generator|')"; \
-	printf 'using %s\n' "$$gen"; \
-	vars=(); flags=(); \
-	while IFS=$$'\t' read -r _ip _auth _device _version keys; do \
-		[[ -n "$$keys" ]] || continue; \
-		IFS=, read -ra key_list <<< "$$keys"; \
-		for var in "$${key_list[@]}"; do \
-			vars+=("$$var"); \
-			flags+=(-e "$$var=\$${$$var}"); \
-		done; \
-	done < <(./scripts/snmp-targets.sh); \
-	(($${#vars[@]} > 0)) || { printf '\033[0;31merror:\033[0m no SNMP devices in the inventory\n' >&2; exit 1; }; \
-	printf 'placeholders: %s\n' "$${vars[*]}"; \
-	docker run --rm \
-		-v "$(PWD)/$(STACK_DIR)/snmp-exporter:/opt/" \
-		"$${flags[@]}" \
-		"$$gen" generate \
-		-m /opt/mibs -g /opt/generator.yaml -o /opt/snmp.yaml; \
-	after="$$(grep -c '^    - name: ' "$(STACK_DIR)/snmp-exporter/snmp.yaml" || echo 0)"; \
-	printf 'metrics: %s -> %s\n' "$$before" "$$after"; \
-	if (($$after < $$before)); then \
-		printf '\033[0;31mwarning:\033[0m regeneration LOST %s metric(s)\n' "$$((before - after))" >&2; \
-		printf 'Inspect the diff before committing. To discard:\n  git checkout -- %s/snmp-exporter/snmp.yaml\n' "$(STACK_DIR)" >&2; \
-	fi; \
-	missing=(); \
-	for v in "$${vars[@]}"; do \
-		grep -qF "\$${$$v}" "$(STACK_DIR)/snmp-exporter/snmp.yaml" || missing+=("$$v"); \
-	done; \
-	if (($${#missing[@]} > 0)); then \
-		printf '\033[0;31merror:\033[0m placeholders missing from the generated snmp.yaml: %s\n' "$${missing[*]}" >&2; \
-		printf 'the generator expanded them to empty, so snmp-exporter would poll with no community.\n' >&2; \
-		printf 'snmp.yaml has NOT been restored — inspect it, then `git checkout -- %s/snmp-exporter/snmp.yaml`\n' "$(STACK_DIR)" >&2; \
-		exit 1; \
-	fi; \
-	printf '\033[0;32mok\033[0m — %s placeholder(s) survived generation\n' "$${#vars[@]}"
+	STACK=$(STACK) ./scripts/snmp-generate.sh
 
 .PHONY: check-versions
 check-versions: ## Check the documented OS versions against what the hosts report

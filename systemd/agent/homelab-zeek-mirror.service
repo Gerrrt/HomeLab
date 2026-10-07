@@ -11,9 +11,14 @@
 # the gauge is not decorative.
 #
 # HARDENING. Root, because it writes qdiscs and filters on host interfaces —
-# CAP_NET_ADMIN and nothing else, bounded here. No mount namespace, for the same
-# reason as the other agent units: nothing in this estate's hypervisor units
-# builds one.
+# CAP_NET_ADMIN and nothing else, bounded here. It DOES take a mount namespace
+# (#849), unlike homelab-guest-state.service and its cousins: their reason is
+# that a private namespace can hide pmxcfs or an NFS mount, and this unit reads
+# neither. scripts/zeek-mirror.sh reads /sys/class/net and talks to the kernel
+# over netlink through `tc`; it touches no file under /etc/pve, calls no `qm`,
+# and writes nothing to disk. If a run under these directives ever reports
+# targets=0, the namespace is the first suspect, and the state gauge
+# (homelab-zeek-mirror-state, which takes no namespace) is what would say so.
 [Unit]
 Description=HomeLab: mirror the lab bridge to the Zeek sensor
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
@@ -32,6 +37,9 @@ NoNewPrivileges=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=homelab-zeek-mirror

@@ -64,7 +64,7 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Callable
+from collections.abc import Callable
 
 # PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
 # it rather than failing a green compose file on a missing library — the same
@@ -122,7 +122,7 @@ PROBE_TIMEOUT = int(os.environ.get("PROBE_TIMEOUT", "60"))
 #   exec: "/bin/sh": stat /bin/sh: no such file or directory
 NOT_FOUND = re.compile(
     r"executable file not found|no such file or directory|exec format error",
-    re.I,
+    re.IGNORECASE,
 )
 PROBE_COUNTER = itertools.count()
 NUMERIC_USER = re.compile(r"\d+(:\d+)?")
@@ -140,7 +140,7 @@ NUMERIC_USER = re.compile(r"\d+(:\d+)?")
 # (#73). It catches a port changing here and not there, a service being added to
 # the reload list without a healthcheck to probe, and /-/healthy moving.
 RELOAD_SCRIPT = REPO / "scripts/reload-config.sh"
-RELOAD_SERVICES = re.compile(r"^SERVICES=\((.*?)^\)", re.M | re.S)
+RELOAD_SERVICES = re.compile(r"^SERVICES=\((.*?)^\)", re.MULTILINE | re.DOTALL)
 RELOAD_ENTRY = re.compile(r"^\s*([A-Za-z0-9_.-]+):(\d+)\s*$")
 RELOAD_PROBE_PATH = "/-/healthy"
 
@@ -206,8 +206,8 @@ def reload_entries() -> tuple[list[tuple[str, str]], list[str]]:
     block = RELOAD_SERVICES.search(source)
     if not block:
         return [], [
-            f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
-            f"it was reshaped, and this check has been reading nothing ever since"
+            (f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
+            f"it was reshaped, and this check has been reading nothing ever since")
         ]
 
     problems: list[str] = []
@@ -355,7 +355,7 @@ def load_proofs(path: pathlib.Path | None) -> set[tuple[str, str, str]]:
         return set()
     if not lines or lines[0].strip() != PROOF_CACHE_HEADER:
         return set()
-    logic = next((l for l in lines if l.startswith(PROOF_CACHE_LOGIC)), "")
+    logic = next((line for line in lines if line.startswith(PROOF_CACHE_LOGIC)), "")
     if logic[len(PROOF_CACHE_LOGIC):].strip() != prober_sha256():
         note("proof cache was written by a different prober — proving again")
         return set()
@@ -475,7 +475,7 @@ def probe_binary(
     try:
         proc = subprocess.run(
             command, capture_output=True, text=True,
-            stdin=subprocess.DEVNULL, timeout=PROBE_TIMEOUT,
+            stdin=subprocess.DEVNULL, timeout=PROBE_TIMEOUT, check=False,
         )
     except subprocess.TimeoutExpired:
         subprocess.run(["docker", "rm", "-f", name],

@@ -1,0 +1,4 @@
+# What scripts/lint.sh runs over the Python in this tree, when ruff is not
+# already on PATH: `pipx run --spec` reads the pin from here, and Dependabot's
+# pip entry for /scripts bumps it. The rules are in ruff.toml at the root.
+ruff==0.16.10

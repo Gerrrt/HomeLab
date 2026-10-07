@@ -73,7 +73,7 @@ AUTHGEN = {
     "groups": ["IT"],
 }
 
-HEADER_RE = re.compile(r"^# Regenerate: scripts/gen_population\.py --count (\d+) --seed (-?\d+)$", re.M)
+HEADER_RE = re.compile(r"^# Regenerate: scripts/gen_population\.py --count (\d+) --seed (-?\d+)$", re.MULTILINE)
 
 
 def read_names(path: Path) -> list[str]:
@@ -124,7 +124,7 @@ def draw(count: int, seed: int, given: list[str], surnames: list[str]) -> list[d
     if len(given) * len(surnames) < count:
         raise ValueError("the name lists are too short for that count")
     users = []
-    for (dept, _, titles), quota in zip(DEPARTMENTS, quotas):
+    for (dept, _, titles), quota in zip(DEPARTMENTS, quotas, strict=True):
         for _ in range(quota):
             while True:
                 pair = (rng.choice(given), rng.choice(surnames))
