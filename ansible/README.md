@@ -131,8 +131,9 @@ a further tag in this same playbook.
   task that reports `changed` on a guest already in the right state is a bug
   in that task.
 - **CI proves it parses, `phoenix` proves it configures.**
-  `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check. CI
-  has no route to VLAN 30.
+  `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check,
+  under the `production` profile that `.ansible-lint` pins. CI has no route
+  to VLAN 30.
 
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
