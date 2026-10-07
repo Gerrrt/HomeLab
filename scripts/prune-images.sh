@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 #
 # Remove Docker images no container uses, on an agent host (odin, alexander,
-# oracle, trinity). Installed as /usr/local/bin/homelab-prune-images by
-# scripts/install-agent-collectors.sh and run weekly by
+# oracle, trinity, and fenrir since 2026-10-07, #1027). Installed as
+# /usr/local/bin/homelab-prune-images by scripts/install-agent-collectors.sh
+# and run weekly by
 # systemd/agent/homelab-prune-images.timer.
 #
 # WHY. Nothing removed superseded images on the agent hosts. Every Dependabot
