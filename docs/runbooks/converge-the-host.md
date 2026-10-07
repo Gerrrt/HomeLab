@@ -256,6 +256,7 @@ move still reports what the host is on.
 | `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
 | `homelab_deploy_unapplied` | Whether the checkout has moved past what `make up` last applied |
 | `homelab_deploy_tip_ci` | What CI said about the fetched tip: `1` passed, `0` did not, `-1` not asked (nothing to deploy) or not finished |
+| `homelab_deploy_ci_fallback` | `1` when this run deployed the newest commit below a tip still in CI, because that commit passed ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). The host moved, and `behind_commits` is how far it still is from the tip. `0` on every other run, including a dry run that would have |
 | `homelab_deploy_services_revived` | How many stopped stack services this run started again; `-1` means docker could not be asked |
 | `homelab_deploy_services_stopped` | How many stack services meant to run this run left stopped, and why is in the journal; `-1` as above |
 
@@ -419,17 +420,38 @@ genuinely what should run, deploy it deliberately and by hand:
 
 `DeployTipRed` fires after two runs see the same red tip.
 
-Only a check that **finished and failed** is a refusal. In these cases the run
-waits instead: it says so, exits 0, stays where it is, and the next hourly run
-asks again.
+Only a check that **finished and failed** is a refusal. In these cases the tip
+is a wait instead:
 
 - A check is still queued or running.
 - A check has no run at all.
 - A check was `cancelled`.
 - GitHub did not answer.
 
+A wait on the tip does not mean staying put
+([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). On a busy `main` a new
+tip usually lands before the last one's CI finishes, and on 2026-10-07 that held
+trinity on one revision for hours while newer commits had passed. So the run
+walks `main`'s first-parent history down from the tip, newest first, and deploys
+the first commit that:
+
+- is a fast-forward from what the host runs,
+- carries a good signature from the pinned key, and
+- passed CI.
+
+A red commit on the way is skipped, because a newer green commit carries its
+changes. A commit that does not verify is skipped whatever its CI says, and
+`--allow-unsigned` does not reach it. The journal names each commit it skipped
+and why, and `homelab_deploy_ci_fallback` is `1` on a run that deployed one.
+
+The walk asks about at most `HOMELAB_CONVERGE_WALK` commits (default 10). The
+API calls are anonymous, 60 an hour per address, and `prometheus` and `trinity`
+share one. An ask that fails stops the walk. Either way, with nothing found, the
+run says so, exits 0, stays where it is, and the next hourly run asks again.
+
 CI on `main` takes about four minutes, so a wait is normally one hour's delay at
-most. Any wait that lasts fires `DeployBehind` at three hours. When it does, the
+most. `DeployBehind` fires once three hours pass with no run able to move the
+host: a run that deployed a commit below the tip resets it. When it does, the
 lines above the warning in the journal say which check is holding it:
 
 | What the journal shows | Usual cause | What to do |

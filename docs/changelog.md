@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **Converge deploys the newest commit that passed CI, not only the tip**
+  ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`
+  asked CI about `main`'s tip alone and waited while it ran. On a busy `main`
+  a new tip usually lands before the last one's CI finishes, so trinity sat on
+  `f7afe9c` from 12:29 to past 15:00 today, 23 commits behind, while
+  `e4cf127` had already passed. A tip still in CI now starts a walk down the
+  first-parent history. It deploys the newest commit that is a fast-forward,
+  verifies against the pinned key, and passed CI, skipping red commits along
+  the way. A red tip still refuses, as before. The walk asks about at most
+  `HOMELAB_CONVERGE_WALK` commits (default 10), because the API calls are
+  anonymous, and it stops at the first ask that fails. A new gauge,
+  `homelab_deploy_ci_fallback`, is `1` on a run that deployed such a commit.
+  `DeployBehind` ignores those runs, so it fires on three hours without
+  progress rather than on three hours of a busy `main`.
+
 - **Production `alloy` was killed by another session's test, and converge now
   starts a stopped stack service**
   ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).
