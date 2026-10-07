@@ -67,3 +67,18 @@ lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSW
 # The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
 # as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
 lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"
+
+# --- Sysmon (#450, ADR-0080) -------------------------------------------------
+# Microsoft publishes Sysmon at one unversioned URL, so this pin goes stale the
+# day a new release ships. roles/sysmon then fails at the checksum, before
+# anything is installed; the fix is to read the new zip's version and sha256 and
+# move both here. A domain that already runs the pinned version never downloads,
+# so a stale pin only stops a rebuild or a new guest.
+sysmon_version: "15.22"
+sysmon_zip_sha256: 00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54
+# The vendored config's sha256, read from VENDORED rather than written twice.
+# Sysmon records the hash of the file it was configured from as ConfigHash, so
+# roles/sysmon reapplies on a mismatch and verify.yml fails on one.
+sysmon_config_sha256: >-
+  {{ lookup('ansible.builtin.file', playbook_dir ~ '/roles/sysmon/files/VENDORED')
+     | regex_search('sha256: ([0-9a-f]{64})', '\1') | first }}

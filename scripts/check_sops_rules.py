@@ -80,7 +80,7 @@ import sys
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from _deps import require_yaml  # noqa: E402
+from _deps import require_yaml
 
 yaml = require_yaml()
 
@@ -258,7 +258,7 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
     """ADR-0073: household keys in no rule; the technical second in the catch-all."""
     listed = subprocess.run(
         [str(REPO / "scripts/household-recipients.sh"), "--roles"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if listed.returncode != 0:
         return [f"stacks/sensitive/household.recipients: {listed.stderr.strip()}"]

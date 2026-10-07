@@ -33,7 +33,7 @@ import sys
 import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from _deps import require_yaml  # noqa: E402
+from _deps import require_yaml
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PACKER = REPO / "packer" / "versions.pkr.hcl"

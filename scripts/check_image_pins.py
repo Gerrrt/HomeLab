@@ -93,11 +93,12 @@ import pathlib
 import re
 import subprocess
 import sys
-from typing import Iterator, NamedTuple
+from collections.abc import Iterator
+from typing import NamedTuple
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from _deps import require_yaml  # noqa: E402
+from _deps import require_yaml
 
 yaml = require_yaml()
 
@@ -851,10 +852,10 @@ def self_test() -> int:
         ("nor inside an -e assignment", 1,
          (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
         ("the real proxy run, flag for flag as deploy-agent.sh writes it, passes", 0,
-         (proxy, 'docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
+         (proxy, ('docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
                  '--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m '
                  '--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 '
-                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
+                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'))),
         ("a mask at the wrong path does not count", 1,
          (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
     ]

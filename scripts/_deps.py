@@ -24,7 +24,7 @@ The order is now:
 Usage, from Python:
 
     sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-    from _deps import require_yaml  # noqa: E402
+    from _deps import require_yaml
     yaml = require_yaml()
 
 From shell, where the import happens in a child python3:

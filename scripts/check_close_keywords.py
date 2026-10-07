@@ -385,7 +385,7 @@ def self_test() -> int:
     except OSError:
         workflow = ""
     check(f"{WORKFLOW} runs this check with --pr", True,
-          bool(re.search(r"^\s*run:\s*python3 scripts/check_close_keywords\.py --pr ", workflow, re.M)))
+          bool(re.search(r"^\s*run:\s*python3 scripts/check_close_keywords\.py --pr ", workflow, re.MULTILINE)))
     return failed
 
 
@@ -399,7 +399,11 @@ def main() -> int:
     if args.self_test:
         return self_test()
     if args.text is not None:
-        text = sys.stdin.read() if args.text == "-" else open(args.text, encoding="utf-8").read()
+        if args.text == "-":
+            text = sys.stdin.read()
+        else:
+            with open(args.text, encoding="utf-8") as f:
+                text = f.read()
         return report(lint(text, args.text), None)
     return report(*check_pr(fetch(args.pr)))
 

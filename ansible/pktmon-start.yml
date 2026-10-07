@@ -1,0 +1,78 @@
+---
+# Start a packet capture on one lab guest, with Windows' own Pktmon (#450,
+# ADR-0080). No agent, no licence, nothing left running after pktmon-stop.yml.
+#
+#   ansible-playbook pktmon-start.yml --limit titan
+#   ansible-playbook pktmon-start.yml --limit titan -e pktmon_port=445
+#   ansible-playbook pktmon-start.yml --limit carbuncle -e pktmon_ip=10.0.30.50
+#   ... reproduce the thing ...
+#   ansible-playbook pktmon-stop.yml --limit titan     the pcapng lands on phoenix
+#
+# This is the per-host view, mid-investigation. fenrir's Zeek (#437) watches the
+# lab bridge all the time and keeps logs of what it saw, not the packets. Pktmon
+# keeps the packets, from inside one guest, for as long as you ask.
+#
+# Filters are include-only, so an unfiltered capture includes this playbook's
+# own SSH session on 22, and pktmon_port and pktmon_ip, when both are given,
+# must both match (one Pktmon filter, all its conditions). A reboot ends the
+# capture; pktmon-stop.yml still fetches what it wrote before the reboot.
+
+- name: Start a Pktmon capture
+  hosts: lab_domain
+  gather_facts: false
+  vars:
+    pktmon_dir: C:\ProgramData\lab\pktmon
+    # Circular, so a capture left running overwrites its own oldest packets
+    # rather than filling the disk. Raise it for a long capture of a busy host.
+    pktmon_file_mb: 512
+  tasks:
+    # One guest, not merely some --limit: `--limit lab_domain` or a group would
+    # pass a bare `ansible_limit is defined` and start several captures.
+    - name: Say which one guest to capture on
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined
+          - ansible_play_hosts_all | length == 1
+        fail_msg: >-
+          Name one guest with --limit (e.g. --limit titan); this matched
+          {{ ansible_play_hosts_all | length }}. A capture on several guests at
+          once is never what an investigation wants, and each needs its own stop.
+        quiet: true
+
+    # --comp nics: Pktmon's default is every component in the stack, which logs
+    # each packet once per layer it crosses, so the pcapng shows it several
+    # times over. At the NIC each packet appears once, as it was on the wire.
+    - name: Start capturing
+      ansible.windows.win_powershell:
+        parameters:
+          Dir: "{{ pktmon_dir }}"
+          SizeMb: "{{ pktmon_file_mb }}"
+          Port: "{{ pktmon_port | default('') }}"
+          Ip: "{{ pktmon_ip | default('') }}"
+        script: |
+          param([string]$Dir, [int]$SizeMb, [string]$Port, [string]$Ip)
+          if ((pktmon status | Out-String) -notmatch 'not running') {
+            throw "Pktmon is already running on $env:COMPUTERNAME. Run pktmon-stop.yml first."
+          }
+          if (Test-Path -LiteralPath (Join-Path $Dir capture.etl)) {
+            throw "An earlier capture on $env:COMPUTERNAME was never fetched. Run pktmon-stop.yml first."
+          }
+          New-Item -ItemType Directory -Force -Path $Dir | Out-Null
+          $null = pktmon filter remove
+          $f = @()
+          if ($Port) { $f += @('-p', $Port) }
+          if ($Ip) { $f += @('-i', $Ip) }
+          if ($f) {
+            $out = pktmon filter add lab @f 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "pktmon filter add exited $LASTEXITCODE`: $out" }
+          }
+          $out = pktmon start --capture --comp nics --pkt-size 0 `
+            --file-name (Join-Path $Dir capture.etl) --file-size $SizeMb 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "pktmon start exited $LASTEXITCODE`: $out" }
+          "capturing on $env:COMPUTERNAME" + $(if ($f) { " ($($f -join ' '))" } else { ' (unfiltered)' })
+      register: pktmon_started
+      when: not ansible_check_mode
+
+    - name: Say so
+      ansible.builtin.debug:
+        msg: "{{ pktmon_started.output | default(['check mode: nothing started']) | first }}"

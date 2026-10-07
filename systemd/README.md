@@ -75,10 +75,15 @@ instead.
 
 ## On agent hosts
 
-An agent host has no checkout and no `run-scheduled.sh`, so these units emit
-no `homelab_job_*` metrics. Each collector's own output is watched instead: an
-alert fires when a host that *was* reporting stops. `install-agent-collectors.sh`
-installs only the collectors a host can run, and reports the rest as skipped.
+An agent host has no checkout, so these units emit no `homelab_job_*` metrics.
+Each collector's own output is watched instead: an alert fires when a host that
+*was* reporting stops. `install-agent-collectors.sh` installs only the
+collectors a host can run, and reports the rest as skipped.
+
+The one exception is `homelab-zeek-archive-prune` on `fenrir` (#850). The
+installer ships `run-scheduled.sh` with it as `/usr/local/bin/homelab-run-scheduled`,
+and its outcome goes to the lab's Prometheus, which has `ScheduledJob*` rules
+for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 
 | Unit | When | Where it runs | Reports |
 | --- | --- | --- | --- |
@@ -94,6 +99,7 @@ installs only the collectors a host can run, and reports the rest as skipped.
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
+| `homelab-zeek-archive-prune` | daily 03:17 | `fenrir` | Deletes Zeek archive files past their retention; `homelab_job_*` to the lab |
 | `homelab-pbs-task-state` | hourly at :17 | `golem` | What PBS last did: each verify, prune and garbage-collection job's outcome, and the snapshots by verify state ([#485](https://github.com/Gerrrt/HomeLab/issues/485)) |
 
 ## Adding a timer

@@ -33,7 +33,7 @@ import sys
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from _deps import require_yaml  # noqa: E402
+from _deps import require_yaml
 
 yaml = require_yaml()
 

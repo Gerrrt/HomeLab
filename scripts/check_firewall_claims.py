@@ -65,7 +65,7 @@ import sys
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from _deps import require_yaml  # noqa: E402
+from _deps import require_yaml
 
 yaml = require_yaml()
 
@@ -105,7 +105,7 @@ def fetch_rules() -> list[str]:
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
          f"{user}@{host}", "pfctl -a '*' -sr"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()

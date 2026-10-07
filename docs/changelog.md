@@ -40,6 +40,37 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **Sysmon and Pktmon are on the lab domain**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
+
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -81,6 +112,16 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
 
 ## 2026-10-05
 

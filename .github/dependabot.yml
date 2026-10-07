@@ -166,11 +166,12 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "lab"]
 
-  # scripts/ (#848): PyYAML, with its hashes, in requirements.txt, which
-  # scripts/_deps.py installs on a CI runner and nowhere else, and yamllint in
-  # requirements-lint.txt, which scripts/lint.sh runs through `pipx run --spec`.
-  # Monthly, like ansible/: neither is a deploy, and a host takes PyYAML from
-  # apt, not from here.
+  # scripts/: three pins, all monthly — neither is a deploy, and a new linter
+  # release can bring new findings, so one PR a month to fix them is enough.
+  #   - PyYAML, with its hashes, in requirements.txt, which scripts/_deps.py
+  #     installs on a CI runner and nowhere else; a host takes it from apt (#848).
+  #   - yamllint in requirements-lint.txt, for scripts/lint.sh (#848).
+  #   - ruff in requirements-lint.txt, for scripts/lint.sh (#853).
   - package-ecosystem: pip
     directory: /scripts
     schedule:
