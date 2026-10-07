@@ -42,7 +42,7 @@ Second, identifying "the image operand" positionally requires a table of which
 `docker run` flags consume a value (-v, --entrypoint, -w, --user, --network,
 --security-opt, --mount, ...), maintained against Docker's CLI forever, where an
 unknown value-taking flag silently becomes a false positive. It is already
-broken here: the first positional in the snmp-generate recipe is `$${flags[@]}`,
+broken here: the first positional in scripts/snmp-generate.sh is `"${flags[@]}"`,
 a bash array. Requiring a traced token *somewhere* in the command needs no such
 table.
 
