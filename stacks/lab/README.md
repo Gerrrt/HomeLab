@@ -24,7 +24,7 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix, fenrir and golem push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
+| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix, fenrir, golem and eden push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
 | `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards, the one service a human opens |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
@@ -84,7 +84,7 @@ thing entirely on this segment.
 ## The ingest proxy, and the order it goes in
 
 Since [#834], `caddy` holds `10.0.30.40:9090` and `:3100`, and Prometheus and
-Loki are on loopback. odin, phoenix, fenrir and golem push with a token each, and
+Loki are on loopback. odin, phoenix, fenrir, golem and eden push with a token each, and
 everything else on the segment gets a 401, except the two health paths
 (`/-/healthy` and `/-/ready` on 9090, `/ready` on 3100), which answer without a
 token. The 401s include `/-/quit`, Loki's
@@ -95,9 +95,9 @@ delete API, and any query without the reader token.
 token early loses nothing. A proxy that goes up before its clients refuses
 their pushes until each one catches up.
 
-1. **On `alexander`**, generate five tokens with `openssl rand -hex 32` and add
+1. **On `alexander`**, generate six tokens with `openssl rand -hex 32` and add
    them with `make secrets-edit STACK=lab`. The keys are `INGEST_TOKEN_ODIN`,
-   `_PHOENIX`, `_FENRIR`, `_GOLEM` and `_READER`, and
+   `_PHOENIX`, `_FENRIR`, `_GOLEM`, `_EDEN` and `_READER`, and
    [`secrets/lab.example.yaml`](../../secrets/lab.example.yaml) says where each
    one goes. Do not `make up` yet.
 2. **On `odin`**, set `INGEST_TOKEN` to `INGEST_TOKEN_ODIN` with `make

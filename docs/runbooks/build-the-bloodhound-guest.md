@@ -3,11 +3,12 @@
 **Target:** `eden`, a guest on `Saruman` on ImaginationLAN (VLAN 30), running
 [`stacks/bloodhound`](../../stacks/bloodhound).
 
-**Time:** about an evening. Most of it is §1–§3, which are `odin`'s with other
-numbers.
+**Time:** about an evening. §1–§3 take under an hour, because the OS comes
+from a template rather than an installer.
 
-**You will need:** a shell on `Saruman`, an Ubuntu Server ISO, the Mac on
-Hicks for §4's certificate copy, and shells on `alexander` and `prometheus`.
+**You will need:** root on `Saruman`, the Ubuntu template `901`
+([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)),
+the Mac on Hicks for §4's certificate copy, and `alexander`.
 
 **Before this:** the domain ([#414](https://github.com/Gerrrt/HomeLab/issues/414),
 built 2026-09-25) and its population
@@ -40,27 +41,14 @@ same, this runbook points there and does not keep a second copy that drifts.
 | Backup | **None** | The graph is one collection run from rebuilt, and the guest is rebuilt from this repository. It stays out of `golem`'s job |
 | Firewall | `firewall=0`, and no rule on `morpheus` | The upload, the browser and the Alloy push are all intra-segment or already allowed (ADR-0081) |
 
-## 1. Create the VM
+## 1. Create the VM, from the template
 
-On `Saruman`. Every flag is as `alexander`'s §1 explains; only the numbers,
-the disks' storages and the tags differ:
-
-```bash
-qm create 141 \
-  --name eden \
-  --ostype l26 \
-  --cpu host --cores 4 --sockets 1 \
-  --memory 8192 --balloon 0 \
-  --scsihw virtio-scsi-single \
-  --scsi0 local-lvm:32,discard=on,iothread=1 \
-  --scsi1 large_data:32,discard=on,iothread=1,ssd=1 \
-  --net0 virtio,bridge=vmbr0,firewall=0 \
-  --agent enabled=1 \
-  --onboot 0 \
-  --tags on-demand \
-  --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
-  --boot order='scsi0;ide2'
-```
+On `Saruman`. The guest is a **full clone of template `901`**, Packer's Ubuntu
+26.04 ([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)),
+not an ISO install. A clone needs no console, and it starts from an image that
+has already passed `scripts/packer-smoke.sh`. It also inherits the template's
+shape, which differs from `alexander`'s and `odin`'s: q35 and OVMF, with an EFI
+disk, and the guest agent already installed.
 
 Check the room first, against both numbers ADR-0081 states. `pvesm status`
 gives what is written, and the `lvs` sum gives what is allocated:
@@ -75,21 +63,69 @@ On 2026-10-06 that was 28.7% written and 920 GiB allocated of 876. This guest
 adds 32 to the allocation. If the written figure is past half, stop and ask
 why before adding anything.
 
-## 2. Install Ubuntu Server, and the data disk
+Clone onto `local-lvm`. That puts the OS disk, the EFI disk and the cloud-init
+drive on the HDD mirror, as ADR-0081 decides:
 
-Follow `odin`'s §2 with these values:
+```bash
+qm clone 901 141 --name eden --full 1 --storage local-lvm
+```
 
-- **hostname `eden`**: every log line this guest ships is labelled with it;
-- address `10.0.30.41/24`, gateway and DNS `10.0.30.1`;
-- install onto the 32 GB `local-lvm` disk only.
+Then size it, add the data disk on the SSDs, and give cloud-init the user, the
+key and the address. The key is the one already in `garnet`'s
+`authorized_keys` on `alexander`:
 
-Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 141 -- uptime`
-from `Saruman` is the check.
+```bash
+qm guest exec 140 -- cat /home/garnet/.ssh/authorized_keys \
+  | python3 -c 'import json,sys;print(json.load(sys.stdin)["out-data"],end="")' \
+  | grep ssh-ed25519 > /root/eden.pub
+```
+
+```bash
+qm set 141 \
+  --cores 4 --memory 8192 --balloon 0 --onboot 0 --tags on-demand \
+  --net0 virtio,bridge=vmbr0,firewall=0 \
+  --scsi0 local-lvm:vm-141-disk-1,cache=none,discard=on,iothread=1,replicate=0 \
+  --scsi1 large_data:32,discard=on,iothread=1,ssd=1 \
+  --ciuser garnet --sshkeys /root/eden.pub \
+  --ipconfig0 ip=10.0.30.41/24,gw=10.0.30.1 --nameserver 10.0.30.1
+```
+
+- **`--net0` is restated** to get `firewall=0`, as on every guest here, and a
+  fresh `bc:24:11` MAC.
+- **`--scsi0` is restated** to drop the template's `ssd=1`. That disk is on the
+  HDD mirror now, and the flag would tell the guest otherwise.
+- **The search domain** is not set, so Proxmox fills it from the host,
+  `Isengard.Lab`. It is harmless, but it was not chosen. Add
+  `--searchdomain` if that matters.
+
+`qm set` warns that the sum of thin volumes exceeds the pool. That is the
+allocation ADR-0081 accepts, and the warning is expected.
+
+## 2. First boot, and the data disk
+
+```bash
+qm start 141
+```
+
+**Cloud-init's first boot leaves the guest on DHCP. Reboot once.** Its netplan
+renames the NIC to `eth0` by MAC, and on the first boot the rename fails with
+`[busy]` because the interface is already up. The guest then keeps a DHCP
+lease (`10.0.30.103` on the first build) with the right config written but not
+applied. `cloud-init status --long` shows the rename error. Once
+`cloud-init status` says `done`:
+
+```bash
+qm reboot 141
+qm guest exec 141 -- ip -br addr show eth0    # 10.0.30.41/24
+```
+
+The hostname comes from the VM's name, so it is `eden`. Every log line this
+guest ships is labelled with it.
 
 **The data disk** is `odin`'s § *The data disk*, with `bloodhound-data` for
-`soc-data`, on the other 32G disk. That includes the `chattr +i` guard on the
-empty mountpoint. Then create the two directories, owned by the uids the
-services run as:
+`soc-data`, on the 32G `sdb`. That includes the `chattr +i` guard on the empty
+mountpoint. Then create the two directories, owned by the uids the services
+run as:
 
 ```bash
 sudo install -d -m 0700 -o 999   -g 999   /srv/bloodhound-data/postgres
@@ -102,8 +138,24 @@ df -h /srv/bloodhound-data
 
 ## 3. Docker, the repository, and its own key
 
-Install Docker, `sops`, `age` and `make`, and clone the repository, as
-`alexander`'s §3 describes. Then, **on `eden`**:
+Install Docker, `age`, `git` and `make` as `alexander`'s §3 describes, and add
+`garnet` to the `docker` group.
+
+**`sops` is the release binary, not the `.deb`.** Match the version to
+`alexander`'s (`sops --version` there; 3.9.4 on 2026-10-06). The release's
+`checksums.txt` covers the bare binaries and not the `.deb`, so the binary is
+the one that can be verified:
+
+```bash
+V=3.9.4
+curl -fsSLO https://github.com/getsops/sops/releases/download/v$V/sops-v$V.linux.amd64
+curl -fsSL https://github.com/getsops/sops/releases/download/v$V/sops-v$V.checksums.txt \
+  | grep " sops-v$V.linux.amd64$" | sha256sum -c -
+sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops
+```
+
+Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. Then, **on
+`eden`**:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
@@ -117,6 +169,10 @@ rule and not to the catch-all:
 ```bash
 scripts/check_sops_rules.py | grep bloodhound
 ```
+
+`secrets-init` also says to back the key up off the machine. **Do not.**
+ADR-0081 gives this key no backup on purpose: everything it opens is
+re-issuable.
 
 Fill the three values that are made here.
 [`secrets/bloodhound.example.yaml`](../../secrets/bloodhound.example.yaml)
