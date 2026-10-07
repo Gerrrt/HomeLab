@@ -749,6 +749,18 @@ else
   fail "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
 fi
 
+# The one .pem .gitignore lets through (#764): it must be the estate CA's
+# certificate and nothing else, and on the monitoring host the same one as
+# certificates/ca.pem. The self-test first, because a check that has never
+# been seen to fail proves nothing — the tracked-artefact check's lesson.
+if ./scripts/check_ingest_ca.sh --self-test >/dev/null && ./scripts/check_ingest_ca.sh >/dev/null; then
+  pass "the committed ingest CA is one CA certificate, the estate's"
+else
+  ./scripts/check_ingest_ca.sh --self-test | grep FAIL || true
+  ./scripts/check_ingest_ca.sh || true
+  fail "the committed ingest CA is one CA certificate, the estate's"
+fi
+
 printf '\n'
 if ((FAILED)); then
   printf '\033[0;31mvalidation failed\033[0m\n'; exit 1

@@ -362,6 +362,12 @@ services:
   # mount, and `!env_var` is Home Assistant's own YAML tag for it. If a
   # second credential ever arrives, the secrets.yaml plan becomes worth its
   # mount.
+  #
+  # REQUESTS_CA_BUNDLE is how that sensor will verify the proxy once it serves
+  # https (#764). Home Assistant builds every client SSL context from it when
+  # set, certifi otherwise, and it replaces certifi rather than adding to it,
+  # so the bundle render-config.sh writes is the host's public roots plus the
+  # estate CA. Its header has the reasoning.
   home-assistant:
     <<: *service-defaults
     image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
@@ -385,6 +391,7 @@ services:
       - /run:size=16m,exec
     environment:
       S6_READ_ONLY_ROOT: "1"
+      REQUESTS_CA_BUNDLE: /etc/home-assistant/ca-bundle.pem
       HA_PROMETHEUS_AUTHORIZATION: ${HA_PROMETHEUS_AUTHORIZATION:?set in secrets/sensitive.sops.yaml}
     volumes:
       - home-assistant-config:/config
@@ -394,6 +401,7 @@ services:
       # here, so `make up` runs check_mounted_config.py --fix for it (#355).
       - ./home-assistant/configuration.yaml:/config/configuration.yaml:ro
       - ./home-assistant/packages:/config/packages:ro
+      - ./.rendered/home-assistant-ca.pem:/etc/home-assistant/ca-bundle.pem:ro
     expose:
       - "8123"
     # The recorder flushes on shutdown; cut it off at compose's default 10s
@@ -1458,7 +1466,9 @@ services:
   # (secrets/sensitive.example.yaml has the steps). The widgets call the
   # tier's public names, which resolve to Caddy on this network through its
   # aliases; NODE_EXTRA_CA_CERTS is the tier's root, the same file Caddy
-  # mounts, so Node trusts step-ca's leaves. Measured the same day: with
+  # mounts, so Node trusts step-ca's leaves. Since #764 it is a bundle of that
+  # root and the estate CA, which the ingest proxy's leaf chains to, because
+  # Node reads one file; render-config.sh writes it. Measured the same day: with
   # placeholder tokens Immich and Paperless each answered 401 through Caddy —
   # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
   # the /24 this host shares with it. Since #182 that port is the estate's
@@ -1488,7 +1498,7 @@ services:
     environment:
       HOMEPAGE_ALLOWED_HOSTS: home.matrix.elysium
       LOG_TARGETS: stdout
-      NODE_EXTRA_CA_CERTS: /etc/homepage/tier-ca.pem
+      NODE_EXTRA_CA_CERTS: /etc/homepage/ca-bundle.pem
       HOMEPAGE_VAR_IMMICH_API_KEY: ${HOMEPAGE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
       HOMEPAGE_VAR_PAPERLESS_TOKEN: ${HOMEPAGE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
       # The estate's Prometheus reader token (#182). services.yaml sends it
@@ -1500,7 +1510,7 @@ services:
       - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
       - ./homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
       - ./homepage/custom.css:/app/config/custom.css:ro
-      - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
+      - ./.rendered/homepage-ca.pem:/etc/homepage/ca-bundle.pem:ro
     expose:
       - "3000"
     healthcheck:

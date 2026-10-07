@@ -640,5 +640,11 @@ jobs:
       - name: Assert no decrypted artefact is tracked
         run: ./scripts/check-tracked-artefacts.sh
 
+      # The one .pem the repository tracks (#764) must stay a CA certificate.
+      # CI has no certificates/ca.pem, so the host-copy comparison is the
+      # monitoring host's validate.sh; this run proves the shape.
+      - name: Assert the committed ingest CA is a CA certificate only
+        run: ./scripts/check_ingest_ca.sh --self-test && ./scripts/check_ingest_ca.sh
+
       - name: Assert SOPS files are actually encrypted
         run: ./scripts/check-sops-encrypted.sh

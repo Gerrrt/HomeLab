@@ -115,9 +115,11 @@ the stack cannot start without them. Generate them with:
   make certs ARGS=--ca
   make certs ARGS=\"--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana\"
   make certs ARGS=\"--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker\"
+  make certs ARGS=\"--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy\"
 
-The speedtest leaf serves speedtest-tracker's UI (#914); the CA already exists
-by then, so it is the one line to run.
+The speedtest leaf serves speedtest-tracker's UI (#914), and the prometheus
+leaf the ingest proxy on 9090 and 3100 (#764). Where the CA already exists,
+skip the first line: a second CA is one no client trusts.
 
 Full procedure in docs/runbooks/generate-certificates.md.
 
@@ -193,6 +195,49 @@ They are tracked by git, so a missing one means the checkout is incomplete —
 in their place, which is the failure this check exists to prevent."
 fi
 unset untracked src
+
+# ---------------------------------------------------------------------------
+# Trust bundles for the sensitive tier's clients of the estate's ingest proxy
+#
+# Homepage and Home Assistant on trinity query Prometheus through the proxy on
+# 10.0.99.20:9090, whose leaf is issued by the estate CA (#764). Each takes its
+# trust from ONE file, so the estate CA has to be appended to what they
+# already trust rather than handed over on its own:
+#
+#   homepage-ca.pem        tier-ca.pem + the estate CA. NODE_EXTRA_CA_CERTS
+#                          adds to Node's built-in roots, so the tier's root
+#                          (step-ca's leaves, ADR-0037) and the estate's are
+#                          the whole of what it needs.
+#   home-assistant-ca.pem  the host's public roots + the estate CA. Home
+#                          Assistant builds every client SSL context from
+#                          REQUESTS_CA_BUNDLE when it is set and certifi
+#                          otherwise (homeassistant/util/ssl.py, read on the
+#                          pinned 2026.9.4 image), and the bundle REPLACES
+#                          certifi, so it must still hold the public roots its
+#                          cloud integrations need. The host's are Ubuntu's
+#                          ca-certificates, which unattended-upgrades keeps
+#                          current — fresher than a copy of the image's.
+#
+# The estate CA is the committed stacks/observability/alloy/ingest-ca.pem,
+# because trinity's checkout has no certificates/ca.pem and should not need a
+# copy step to forget (scripts/check_ingest_ca.sh keeps the two the same).
+# Written with `>`, which keeps the inode, so the single-file mounts see a new
+# bundle without a recreate. Certificates only, nothing secret, so 0644.
+# ---------------------------------------------------------------------------
+if [[ "${STACK}" == sensitive ]]; then
+  ingest_ca="${REPO_ROOT}/stacks/observability/alloy/ingest-ca.pem"
+  tier_ca="${REPO_ROOT}/certificates/tier-ca.pem"
+  system_roots="/etc/ssl/certs/ca-certificates.crt"
+  for f in "${ingest_ca}" "${tier_ca}" "${system_roots}"; do
+    [[ -s "${f}" ]] || die "cannot build the trust bundles: ${f} is missing or empty"
+  done
+  mkdir -p "${STACK_DIR}/.rendered"
+  cat "${tier_ca}" "${ingest_ca}" > "${STACK_DIR}/.rendered/homepage-ca.pem"
+  cat "${system_roots}" "${ingest_ca}" > "${STACK_DIR}/.rendered/home-assistant-ca.pem"
+  chmod 644 "${STACK_DIR}/.rendered/homepage-ca.pem" "${STACK_DIR}/.rendered/home-assistant-ca.pem"
+  info "wrote the trust bundles in sensitive/.rendered (estate CA for the ingest proxy, #764)"
+  unset ingest_ca tier_ca system_roots f
+fi
 
 # ---------------------------------------------------------------------------
 # Decrypt. Keep the plaintext in a variable, never in a file.

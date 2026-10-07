@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-07
+
+- **Every client of the ingest ports can verify the estate CA, and none uses
+  it yet** ([#764](https://github.com/Gerrrt/HomeLab/issues/764), first of
+  two). TLS cannot be phased in by client the way #182's tokens were, because
+  an https client gets nothing from an http listener. So this step lands the
+  trust, and the next one turns TLS on and moves every URL together.
+  - The estate CA's certificate is committed, as
+    `stacks/observability/alloy/ingest-ca.pem`. It is the one `.pem` that
+    `.gitignore` lets through. `check_ingest_ca.sh` fails on anything but a
+    single CA certificate there, and on the monitoring host it also fails on
+    one that is not `certificates/ca.pem`.
+  - `deploy-agent.sh` ships it to the estate's agents and sets
+    `INGEST_CA_FILE`, and both writers in `config.alloy` read it as
+    `tls_config { ca_file }`. Measured on the pinned Alloy image:
+    - an empty `ca_file` loads, and pushes over http as before;
+    - with the file set, an https push succeeds where it failed without it;
+    - a `.pem` in `/etc/alloy` is not loaded as config.
+  - Homepage's `NODE_EXTRA_CA_CERTS` and Home Assistant's
+    `REQUESTS_CA_BUNDLE` are bundles that `render-config.sh` writes on
+    trinity. Home Assistant reads the second, and only that, for every client
+    context (`homeassistant/util/ssl.py` on 2026.9.4). So its bundle carries
+    the host's public roots too, not the estate CA alone.
+  - The proxy's leaf, `prometheus.matrix.elysium` with IP SAN `10.0.99.20`,
+    was minted on `prometheus` and is mounted into `ingest-proxy`, which joins
+    the operator's group to read the 0640 key. The refusal probe's module
+    verifies against the lab CA, which does nothing while its targets are
+    http.
+
 ## 2026-10-06
 
 - **JA4+ is live on `fenrir`, and #776 closes**
