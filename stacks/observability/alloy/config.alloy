@@ -22,8 +22,8 @@
 // The remote endpoints are read from the environment so a host outside the
 // compose network can point at the monitoring host explicitly:
 //
-//   LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push
-//   PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write
+//   LOKI_URL=https://10.0.99.20:3100/loki/api/v1/push
+//   PROMETHEUS_REMOTE_WRITE_URL=https://10.0.99.20:9090/api/v1/write
 //   INGEST_TOKEN=<this host's agent token>
 //   ALLOY_ROOTFS=/   (native package only; the container layout is the default)
 //

@@ -31,17 +31,20 @@
 
 modules:
   # An HTTPS endpoint whose certificate the lab's own CA issued — Grafana, and
-  # since #847 the wiki's Caddy on oracle. The chain is verified against
-  # ca.pem, which compose.yaml mounts in, and the name is verified against whatever the target URL says:
+  # since #847 the wiki's Caddy on oracle, and since #764 the ingest proxy's
+  # health paths on 9090 and 3100. The chain is verified against ca.pem, which
+  # compose.yaml mounts in, and the name is verified against whatever the
+  # target URL says:
   # the FQDN for the `dns` probe, the address for the `address` one, which is
   # why gen-certs.sh puts an IP SAN on the leaf. This is the probe a browser
   # runs, minus the trust store: a leaf that expires, or is reissued without
   # its IP SAN, fails here the way it will fail in the browser.
   #
   # A verification failure surfaces as probe_success 0, so it fires
-  # EndpointUnreachable rather than a TLS-specific alert. That is deliberate
-  # for now: with two lab-CA services, "Grafana is not reachable" or "wiki is
-  # not reachable" is the right page, and the description says to check the
+  # EndpointUnreachable rather than a TLS-specific alert. That is deliberate:
+  # "Grafana is not reachable", "wiki is not reachable" or "Prometheus is not
+  # reachable" is the right page, every client of each verifies the same chain
+  # and would fail the same way, and the description says to check the
   # certificate.
   http_2xx_lab_ca:
     prober: http
@@ -102,12 +105,12 @@ modules:
       tls_config:
         insecure_skip_verify: true
 
-  # An endpoint served over plain HTTP. The switch's web UI and the ingest
-  # proxy's health paths on 9090 and 3100 — neither offers TLS, and
-  # a probe that pretended otherwise would measure the wrong thing. Named
-  # `plain` rather than `insecure` because nothing here is choosing to weaken
-  # anything: the endpoint simply does not offer TLS. (The switch does not
-  # even answer on 443 — checked from 10.0.99.20, the connection is dropped.)
+  # An endpoint served over plain HTTP: the switch's web UI, which does not
+  # offer TLS, and a probe that pretended otherwise would measure the wrong
+  # thing. Named `plain` rather than `insecure` because nothing here is
+  # choosing to weaken anything: the endpoint simply does not offer TLS. (The
+  # switch does not even answer on 443 — checked from 10.0.99.20, the
+  # connection is dropped.)
   http_2xx_plain:
     prober: http
     timeout: 10s
@@ -128,8 +131,7 @@ modules:
   # because "not reachable" is the wrong sentence for a door that opened.
   #
   # The proxy's leaf is issued by the lab CA (#764), so the refusal is asked
-  # over a verified chain, as http_2xx_lab_ca asks. tls_config is inert for an
-  # http:// target, which is what lets it land before the proxy serves https.
+  # over a verified chain, as http_2xx_lab_ca asks.
   http_401_ingest_refused:
     prober: http
     timeout: 10s

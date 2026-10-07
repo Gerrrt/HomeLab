@@ -147,9 +147,19 @@ tag="$("${REPO_ROOT}/scripts/image-for.sh" --tag-only alloy)"
 VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
 
-LOKI_URL="http://${MON}:3100/loki/api/v1/push"
-PROMETHEUS_REMOTE_WRITE_URL="http://${MON}:9090/api/v1/write"
+# The estate's proxy serves https under the estate CA (#764); the lab's still
+# serves http. CURL_CA is what every curl below adds to reach the same proxy
+# the agent will: the committed CA, so the Mac verifies exactly what the agent
+# does, with no certificates/ directory on it.
 ESTATE_MON="10.0.99.20"
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  SCHEME="https"; CURL_CA=(--cacert "${ALLOY_DIR}/ingest-ca.pem")
+else
+  SCHEME="http"; CURL_CA=()
+fi
+MON_URL="${SCHEME}://${MON}"
+LOKI_URL="${MON_URL}:3100/loki/api/v1/push"
+PROMETHEUS_REMOTE_WRITE_URL="${MON_URL}:9090/api/v1/write"
 
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET")
 
@@ -575,16 +585,16 @@ expected=2
 # on a command line.
 mon_curl() {
   printf 'header = "Authorization: Bearer %s"\n' "${INGEST_TOKEN_READER}" \
-    | curl -K - -fsS --max-time 10 "$@"
+    | curl -K - -fsS --max-time 10 ${CURL_CA[@]+"${CURL_CA[@]}"} "$@"
 }
 
 arrival_failed=0
 if ((VERIFY)); then
   if [[ -z "${INGEST_TOKEN_READER:-}" ]]; then
     warn "no reader token (INGEST_TOKEN_READER) — skipping the arrival check; run it by hand with the queries below"
-  elif ! curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
-    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
-  elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
+  elif ! curl -fsS --max-time 5 ${CURL_CA[@]+"${CURL_CA[@]}"} "${MON_URL}:9090/-/ready" >/dev/null 2>&1; then
+    warn "${MON_URL}:9090 is not reachable from here, or its certificate does not verify against ${CURL_CA[1]:-nothing}; skipping the arrival check"
+  elif ! mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
     warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
   else
     # The marker. logger(1) is util-linux, present on every target this ships
@@ -606,10 +616,10 @@ if ((VERIFY)); then
       # matches nothing and exits 1, pipefail makes that the pipeline's
       # status, and set -e ended the whole script here with no word said
       # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
-      jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
+      jobs="$(mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
       jobs="${jobs:-0}"
-      if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
+      if mon_curl -G "${MON_URL}:3100/loki/api/v1/query_range" \
            --data-urlencode "query=${loki_query}" --data-urlencode "start=${loki_since}000000000" \
            --data-urlencode "end=${loki_until}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
@@ -635,7 +645,7 @@ if ((VERIFY)); then
       fi
       arrival_failed=1
     fi
-    dropped="$(mon_curl "http://${MON}:9090/api/v1/query" \
+    dropped="$(mon_curl "${MON_URL}:9090/api/v1/query" \
                  --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
                | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
     if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then

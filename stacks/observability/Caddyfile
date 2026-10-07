@@ -28,6 +28,18 @@
 # compose.yaml (docs/runbooks/add-monitored-device.md). Revoking one host is
 # deleting its line.
 #
+# TLS on both published ports (#764, ADR-0086). The leaf is
+# prometheus.matrix.elysium, IP SAN 10.0.99.20, issued by the estate CA in
+# certificates/ and mounted by compose.yaml; gen-certs.sh issues it and
+# TlsCertificateExpiringSoon says when to again. Every client verifies it
+# against that CA: the agents and the arrival check with the committed
+# stacks/observability/alloy/ingest-ca.pem, trinity's two with bundles
+# render-config.sh builds from it, the blackbox probes with ca.pem.
+# `auto_https off` stays: it turns off certificate MANAGEMENT and the http->https
+# redirect, not TLS, and there is no ACME here to manage anything. Plain http
+# to either port gets Caddy's 400, not a redirect, so a client left on http://
+# fails loudly. :2020 stays plain; it is never published.
+#
 # LOGGING. Served requests are not logged: that would be a line per push,
 # from every agent, into the Loki those pushes are written to. A refused
 # request is logged, with the role its token mapped to, if any. That is the
@@ -37,6 +49,10 @@
 {
 	admin off
 	auto_https off
+}
+
+(ingest_tls) {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
 }
 
 (ingest_auth) {
@@ -65,6 +81,7 @@
 # Prometheus. The blackbox exporter probes /-/healthy at the host's address on
 # purpose, to prove this publish, so health needs no token.
 :9090 {
+	import ingest_tls
 	import ingest_auth
 
 	@health path /-/healthy /-/ready
@@ -105,6 +122,7 @@
 # here: auth_enabled is false upstream, so a request that reached Loki's delete
 # endpoint would be obeyed.
 :3100 {
+	import ingest_tls
 	import ingest_auth
 
 	@health path /ready

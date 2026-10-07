@@ -152,6 +152,27 @@ docstring gives: it is a record, not a claim about now.
   - **What #856 found:** this set is not copied to `oracle` either. That is
     intended: the drive is its off-host copy.
 
+- **The ingest ports serve TLS**
+  ([#764](https://github.com/Gerrrt/HomeLab/issues/764), second of two;
+  [ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)).
+  The Caddyfile loads the `prometheus.matrix.elysium` leaf on 9090 and 3100,
+  and every client moved to `https://` in the same change: the agents through
+  `deploy-agent.sh`, the arrival check with `--cacert`, Homepage's five
+  widgets, Home Assistant's rack-power sensor, and the four blackbox probes.
+  The health probes moved to `http_2xx_lab_ca`, so `TlsCertificateExpiringSoon`
+  now covers the leaf.
+  - Measured on the pinned Caddy image, as `ingest-proxy` runs it, with the
+    real leaf:
+    - health answers 200, verified through the `10.0.99.20` IP SAN;
+    - a query with no token, and Loki's delete, get 401 with the realm;
+    - the reader token is served;
+    - plain http gets 400;
+    - a client without the CA, or asking for another name, is refused.
+  - `check_caddyfile.sh` mounts a throwaway certificate and key, because
+    `tls cert key` is loaded at validation. Without them it fails, which was
+    checked.
+  - The lab's proxy is unchanged, and so is `deploy-agent.sh` against it.
+
 - **Every client of the ingest ports can verify the estate CA, and none uses
   it yet** ([#764](https://github.com/Gerrrt/HomeLab/issues/764), first of
   two). TLS cannot be phased in by client the way #182's tokens were, because

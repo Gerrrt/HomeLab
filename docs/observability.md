@@ -981,8 +981,9 @@ See [`runbooks/add-monitored-device.md`](runbooks/add-monitored-device.md). In
 short:
 
 - **A Linux host:** run Alloy with `LOKI_URL` and
-  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. Nothing on the
-  monitoring host changes.
+  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `https://10.0.99.20`, and
+  `INGEST_CA_FILE` at the estate CA; `deploy-agent.sh` sets all three. The
+  monitoring host needs the host's token added (the runbook).
 - **A Linux host that may not push:** a firewall pass first, then
   `node_exporter` in that host's own compose stack, then a target in
   `prometheus/targets/node.yaml` with `instance` set to the hostname. The

@@ -14,6 +14,11 @@
 > lab has no blackbox exporter and no Alertmanager (ADR-0020), so the refusal
 > check is a step in `stacks/lab/README.md` rather than a rule. The text below
 > is left as written, per ADR-0001.
+>
+> The estate's ports serve TLS under the estate CA since
+> [ADR-0086](0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)
+> ([#764](https://github.com/Gerrrt/HomeLab/issues/764), 2026-10), which closes
+> the "Plain HTTP, for now" paragraph below. The lab's proxy is unchanged.
 
 ## Context
 
