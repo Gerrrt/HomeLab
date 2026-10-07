@@ -222,8 +222,9 @@
     renewal: acme
     tier: household
 
-# No unauthenticated health path (`/api/` is 401), so the login page `/`
-# redirects to — asked for directly, so the 200 is Django rendering a page.
+# No unauthenticated health path (`/api/` is 401), so the login page itself:
+# `/` redirects here, and asking for it directly makes the 200 Django
+# rendering a page rather than a redirect followed.
 - targets: ["https://paperless.matrix.elysium/accounts/login/"]
   labels:
     module: http_2xx_tier_ca

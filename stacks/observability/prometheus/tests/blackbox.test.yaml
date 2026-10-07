@@ -844,22 +844,24 @@ tests:
                 exactly like this too.
 
   # --- SiteDown: a `make up` restart is not an outage -----------------------
-  # Down for seven minutes — longer than EndpointUnreachable's five, which is
-  # the case the longer `for` exists for — then back. SiteDown must never
-  # fire.
+  # Down from t=1m through t=9m — `0x8` is nine values, not eight — so at
+  # 9m the probe has failed for eight minutes: past EndpointUnreachable's
+  # five, which is the case the longer `for` exists for, and still under
+  # SiteDown's ten. Back at t=10m. SiteDown must not fire while it is down,
+  # nor after.
   - interval: 1m
     input_series:
       - series: 'probe_success{job="blackbox", instance="https://immich.matrix.elysium/api/server/ping",
                  name="immich", role="photos", host="trinity", via="dns", renewal="acme", tier="household"}'
-        values: "1 0x6 1x12"
+        values: "1 0x8 1x10"
     alert_rule_test:
-      - eval_time: 7m
+      - eval_time: 9m
         alertname: SiteDown
         exp_alerts: []
-      - eval_time: 12m
+      - eval_time: 15m
         alertname: SiteDown
         exp_alerts: []
-      - eval_time: 7m
+      - eval_time: 9m
         alertname: EndpointUnreachable
         exp_alerts: []
 
