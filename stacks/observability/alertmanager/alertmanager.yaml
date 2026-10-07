@@ -155,6 +155,14 @@ inhibit_rules:
     target_matchers: [severity =~ "warning|critical"]
     equal: ["instance"]
 
+  # One dead agent is one notification. AlloyDown fires at 10m, before any
+  # RemoteWriteJobStale at 15m, and names the fix. The per-job alerts for
+  # the same host add nothing while it holds, and they come back on their
+  # own if a single job stops while Alloy keeps reporting.
+  - source_matchers: [alertname = "AlloyDown"]
+    target_matchers: [alertname = "RemoteWriteJobStale"]
+    equal: ["instance"]
+
   # A dead SNMP exporter makes every device look dead.
   - source_matchers: [alertname = "SnmpExporterDown"]
     target_matchers: [alertname = "SnmpTargetUnreachable"]

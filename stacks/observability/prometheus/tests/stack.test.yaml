@@ -212,6 +212,76 @@ tests:
         alertname: RemoteWriteJobStale
         exp_alerts: []
 
+  # --- AlloyDown: fires when a host's agent stops pushing -------------------
+  # The 2026-10-07 shape: all three of the host's jobs stop together. The
+  # series end at 30m and age out of the instant selector at 35m, after which
+  # the alert is pending until 45m. The 40m assertion pins `for: 10m`: without
+  # it a `for: 0m` mutation survives, the trap ScrapeTargetDisappeared's
+  # header records. Only the self-scrape job is in the result, one alert per
+  # host, however many jobs the host was pushing.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x30"
+      - series: 'up{job="trinity-metrics",instance="trinity"}'
+        values: "1x30"
+      - series: 'up{job="integrations/cadvisor",instance="trinity"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: AlloyDown
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: AlloyDown
+        exp_alerts:
+          - exp_labels:
+              alertname: AlloyDown
+              instance: trinity
+              component: stack
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Alloy on trinity has stopped reporting"
+              description: >-
+                Everything trinity sends is being lost, not queued: its
+                metrics, its container and journal logs, and on the
+                monitoring host the network syslog too. On trinity, run
+                `docker ps -a --filter name=alloy`. Exited, with no restart,
+                means something stopped it. Check `docker inspect alloy` for
+                FinishedAt and OOMKilled, then `docker start alloy` and confirm
+                `/-/ready` on :12345. If it is running, the host cannot reach
+                the ingest proxy on the monitoring host. If the host is off,
+                nothing is wrong with Alloy.
+
+  # --- AlloyDown: quiet while the agent is pushing --------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: AlloyDown
+        exp_alerts: []
+
+  # --- AlloyDown: quiet when one collected job stops and Alloy does not ------
+  # A broken cAdvisor or node exporter collector while the agent keeps pushing
+  # its own self-scrape is RemoteWriteJobStale's alone. This case is what stops
+  # the rule being aggregated per job, which would fire for the cAdvisor job
+  # here and duplicate RemoteWriteJobStale. Widening the selector to every
+  # pushed job is NOT caught, and need not be: aggregated by instance, any job
+  # still reporting keeps the host present, so it is equivalent unless the
+  # self-scrape alone stops, which Alloy has no way to do.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x70"
+      - series: 'up{job="integrations/cadvisor",instance="trinity"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: AlloyDown
+        exp_alerts: []
+
   # --- ScrapeTargetDisappeared: fires when the target stops being a target --
   # The mirror of the RemoteWriteJobStale case above, and the same fixture
   # shape for the same reason: the series arrives every minute and then stops.
