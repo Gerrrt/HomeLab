@@ -22,8 +22,8 @@
 # so a one-stage run (--tags exporter) is guarded too. It targets lab_domain,
 # not localhost, so that --limit cannot leave it out: `--limit titan --tags
 # base` would select no localhost, and skip it. assert runs on the controller
-# and connects to nothing; run_once evaluates it once, and any_errors_fatal
-# stops every host on a failure. The population seed and the Wazuh password are
+# and connects to nothing, so evaluating it per host costs nothing, and
+# any_errors_fatal stops every host on a failure. The population seed and the Wazuh password are
 # asserted by the roles that use them.
 - name: The secrets are present before anything uses them
   hosts: lab_domain
@@ -32,7 +32,6 @@
   tags: [always]
   tasks:
     - name: Refuse to run without the passwords from phoenix.env
-      run_once: true
       ansible.builtin.assert:
         that:
           - lab_admin_password | length >= 14
