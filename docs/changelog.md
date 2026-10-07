@@ -46,6 +46,40 @@ docstring gives: it is a record, not a claim about now.
     verifies against the lab CA, which does nothing while its targets are
     http.
 
+- **`eden` exists, with its key and its ingest token; the stack is not up
+  yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **Built from the template, not the ISO.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, with a 32G data disk on `large_data`: 4 vCPU,
+    8 GiB, `onboot 0`, tag `on-demand`, `10.0.30.41`. The SSD pool's
+    allocation went from 920 to 952 GiB, as ADR-0081 said it would.
+    [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)
+    §1–§3 now describe the clone, not an installer.
+  - **Two things the clone did that the runbook did not say.**
+    - Cloud-init's first boot left the guest on a DHCP address. Its netplan
+      renames the NIC to `eth0`, and the rename failed with `[busy]` on an
+      interface already up. One reboot applied the static address.
+    - The sops release's checksums do not cover its `.deb`, so `sops` 3.9.4,
+      `alexander`'s version, is the verified release binary in
+      `/usr/local/bin`.
+  - **The secrets.**
+    - `make secrets-init STACK=bloodhound` on `eden` replaced the rule's
+      placeholder with `eden`'s own key.
+    - Its database, admin and session-signing values were set on the guest
+      with `sops set`, so no value was ever displayed.
+    - `INGEST_TOKEN_EDEN` was made once and set on both guests from stdin: in
+      `secrets/lab.sops.yaml` on `alexander`, and as `INGEST_TOKEN` on `eden`.
+      Their hashes match.
+    - It goes into the Caddy map, the lab compose, `render-config.sh`, the
+      validation env and `lab.example.yaml` in the same pull request as its
+      value. `alexander`'s checkout is left at `HEAD` until that merges.
+  - **Still to do:**
+    - §4, the certificate, which has to come from `prometheus` by way of the
+      Mac;
+    - `make up STACK=lab` on `alexander`;
+    - §6, bringing the stack up;
+    - §7, the first collection.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
@@ -88,6 +122,52 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
+  between sessions, and not yet built**
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **What is written:**
+    - `stacks/bloodhound`: BloodHound 9.7.1 over one Postgres 18 that holds
+      both its state and its graph (`bhe_graph_driver: pg`), not upstream's
+      default Neo4j, so that Saruman's disks carry one database, not two;
+    - its secrets template, and a `.sops.yaml` rule with a placeholder for
+      the guest's key;
+    - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).
+  - **It moves BloodHound off `ifrit`.**
+    [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+    had sized `ifrit` around it. ADR-0017 carries a note pointing to ADR-0081.
+  - **Sized against `Saruman` as it was read today:**
+    - **RAM:** 75 GiB of 125 free.
+    - **`large_data`:** 28.7% written, but its thin volumes are already
+      allocated to 920 GiB of an 876 GiB pool.
+    - **The disks that follow from that:** the OS disk goes on `local-lvm`, as
+      `phoenix`'s did, and only the 32 GiB data disk goes on the SSDs.
+  - **The image is distroless and runs as root.** The `bloodhound` service
+    therefore has no health check, and it joins `loki` in
+    `check_compose_health.py`'s `ABSENT_BINARIES`. It is run as `nobody`, and
+    `up{job="bloodhound"}` on `alexander` answers whether it is alive.
+  - **Not done here, by design:**
+    - **`INGEST_TOKEN_EDEN` on the lab side.** `stacks/lab/compose.yaml`
+      requires every token it names, so adding the name before its value is
+      in `secrets/lab.sops.yaml` would fail `alexander`'s next render. It goes
+      in with the guest's key, in the pull request that writes the guest down
+      as built (the runbook's §5).
+
+- **The six domain guests are declared in `tofu/`, ready for #448's rebuild
+  proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
+  were read from the hand-built guests' `qm config` and written into
+  `tofu/guests.tf`. The guest module gained a MAC (ADR-0077 decision 6), the
+  UUID and the startup order. It now also states q35, OVMF and the EFI disk on
+  every guest, and the TPM on Windows. Every template is UEFI, and the
+  provider's default is SeaBIOS.
+- **`labadmin` is now in code.** Both endpoints had it, in Administrators,
+  and nothing in `ansible/` made it. Windows 11's setup creates it, and a
+  clone of 911 would not have had it. `roles/endpoint_admin` creates it when
+  it is missing, from `LAB_ENDPOINT_ADMIN_PASSWORD`, and `verify.yml` checks
+  it on both endpoints.
+- **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
+  "Rebuild from the pipeline" is the procedure: import, destroy, apply,
+  configure, verify.
 - **Packer is pinned the way tofu is**
   ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
   `packer/versions.pkr.hcl` required `>= 1.11.0`, and
@@ -139,7 +219,6 @@ docstring gives: it is a record, not a claim about now.
       A `delegate_to: localhost` task had inherited the group's PowerShell
       shell type. The task was removed, and a rerun of the stop now picks up
       a capture left that way. That rerun is the one that fetched the file.
-
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -191,6 +270,39 @@ docstring gives: it is a record, not a claim about now.
   `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
   its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
   installed on `fenrir`.
+
+- **Recorded late: #449's population went onto the domain on 2026-10-03**
+  ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+  It was recorded on the issue that day and not here. This is written on
+  2026-10-06, when the roadmap was found still saying "not yet applied".
+  - **What was applied from `phoenix`, merged as
+    [#832](https://github.com/Gerrrt/HomeLab/pull/832):**
+    - **`--tags population`:** 41 accounts from the committed
+      `ansible/population/population.yaml`. Forty were drawn by
+      `scripts/gen_population.py --count 40 --seed 449`, and `authgen` is the
+      forty-first. They sit in six department OUs under `OU=People`, with a
+      global group per department and three cross-cutting groups under
+      `OU=Groups`.
+    - **`--tags authgen`:** runbook §6's generator on `carbuncle` and
+      `siren`. `authgen` moved from `CN=Users` into `OU=IT`.
+    - **Passwords:** none in git. Each is derived on `phoenix` from
+      `LAB_POPULATION_SEED` and the account name.
+  - **Proved on `main`'s code.** The rerun was at `00e23e4`, identical under
+    `ansible/` to `b136208`. Its first apply made two changes per endpoint:
+    the stored password and the first credential fingerprint. The second
+    apply was `changed=0` on all six. The generator returned `0` on both
+    endpoints, and `verify.yml` passed on all six. `verify.yml` now also
+    checks four things:
+    - `OU=People` holds exactly the file;
+    - every population group exists;
+    - the generator runs as `AD\authgen`, compared by SID;
+    - its last run succeeded.
+  - **Still open on #449:**
+    - the rest of
+      [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5: the
+      tiers, the SPN account, the Tier 0 GPO and the shares;
+    - the deliberate weaknesses, each its own tag on top of the population.
 
 ## 2026-10-05
 

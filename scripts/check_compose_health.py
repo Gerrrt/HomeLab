@@ -66,20 +66,11 @@ import tempfile
 import time
 from collections.abc import Callable
 
-# PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
-# it rather than failing a green compose file on a missing library — the same
-# thing scripts/check_loki_rules.sh does, for the same reason.
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT = REPO / "stacks/observability/compose.yaml"
@@ -108,7 +99,7 @@ DISTROLESS_MARKERS = ("distroless", "/static", "scratch")
 # loki, deliberately"). Probing it is what stops the prose going stale. If one
 # of these ever turns up present, the fix is to delete the entry and give the
 # service the healthcheck it can now support.
-ABSENT_BINARIES = {"loki": (SHELL, "wget")}
+ABSENT_BINARIES = {"loki": (SHELL, "wget"), "bloodhound": (SHELL, "wget")}
 
 # Bounds a probe that blocks rather than exits. --network none already makes a
 # network binary fail instantly; this covers everything else. Same env-override

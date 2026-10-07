@@ -173,6 +173,14 @@ rather than generating it. Both replace any earlier entry:
 (f=~/.config/proxmox/phoenix.env; umask 077; printf 'authd.pass: '; stty -echo; read -r W; stty echo; echo; [ -n "$W" ] && { sed -i '/^LAB_WAZUH_REGISTRATION_PASSWORD=/d' "$f"; printf "LAB_WAZUH_REGISTRATION_PASSWORD='%s'\n" "$(printf '%s' "$W" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset W)
 ```
 
+`LAB_ENDPOINT_ADMIN_PASSWORD` is `labadmin`'s on the two endpoints. Like the
+tier admins', it is only used when the account is **created**, so the
+hand-built pair keep theirs. Generate one:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_ENDPOINT_ADMIN_PASSWORD=/d' "$f"; printf "LAB_ENDPOINT_ADMIN_PASSWORD='%s'\n" "$(openssl rand -base64 18)Aa1!" >> "$f")
+```
+
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
 run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
 passed on all six (`changelog.md`, 2026-10-03).
@@ -199,6 +207,7 @@ build, preview one stage at a time and apply it before previewing the next:
 | `forest` | §3 | `bahamut`'s forest, the forwarder, the root hints removed, and the clock from `10.0.30.1`. It stops if the clock reads anything else |
 | `replica` | §4 | `leviathan` promoted and left on NT5DS, then each DC's resolver set to its partner and loopback |
 | `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
+| `endpoint_admin` | §2 | `labadmin`, the local administrator Windows 11's setup made on each endpoint, created from `LAB_ENDPOINT_ADMIN_PASSWORD` when it is missing |
 | `exporter` | §7 | `windows_exporter` at the pinned version, and the 9182 rule admitting `alexander` |
 | `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
@@ -223,10 +232,9 @@ The run needs these three in place first:
   above.
 - **A reservation on `morpheus` for all six, by MAC.** That includes the two
   DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
-  makes the same address static. The reservations only survive a rebuild if
-  each guest's MAC is pinned when the six are declared in
-  [`tofu/`](../../tofu/README.md). They are not there yet; see ADR-0077
-  decision 6.
+  makes the same address static. The reservations survive a rebuild because
+  [`tofu/guests.tf`](../../tofu/guests.tf) pins each guest's MAC to the one
+  the hand-built six had (ADR-0077 decision 6).
 - **A way in.** Every clone of the templates has `sshd`, key-only, admitting
   `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
   The six built by hand on 2026-09-24/25 had none. **Each was given the same
@@ -267,7 +275,103 @@ The run needs these three in place first:
   `licence-clock` task does. Delete the hand-made one after the first run, so
   that only one thing owns the file.
 
+## Rebuild from the pipeline
+
+[#448](https://github.com/Gerrrt/HomeLab/issues/448)'s proof, and what every
+later rebuild repeats: the six are destroyed and made again from
+`tpl-ws2025-eval` (912) and `tpl-win11-pro` (911) by
+[`tofu/`](../../tofu/README.md), then configured by the playbook above. That
+replaces §1 and the install half of §2. The rest of this page is still the
+*why*.
+
+`tofu/guests.tf` declares the six with the values the hand-built ones had:
+VMID, template, memory, disk, startup order, MAC and SMBIOS UUID. The MAC
+keeps `morpheus`'s reservations true. The SMBIOS UUID is what the endpoints'
+bought Windows 11 Pro activation is tied to, so a clone with the same UUID
+should reactivate by itself.
+
+**Before the first destroy, the six exist and the state does not know them.**
+They were built by hand, so `tofu destroy` alone would remove nothing. Step 4
+imports them once, so that the destroy is OpenTofu's. Every later rebuild
+skips step 4.
+
+1. **What the rebuild needs**, as for any run above, plus:
+   - the `/pool/lab-domain` grant on `Saruman`
+     ([`provision-lab-guests.md` §2](provision-lab-guests.md#2-what-the-token-is-missing-on-saruman));
+   - `LAB_ENDPOINT_ADMIN_PASSWORD` in `phoenix.env`;
+   - new `LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD`, generated as above. A
+     fresh forest takes whatever they say.
+2. **The templates pass their smoke test.**
+   `scripts/packer-smoke.sh 912` and `911`
+   ([`build-the-lab-templates.md`](build-the-lab-templates.md)).
+3. **A copy to go back to.** Back up 150–155 to `golem`'s PBS, and check that
+   all six are listed there before going on. Anything the playbook does not
+   make is on those disks and nowhere else.
+4. **Once only: import the hand-built six.**
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab
+   umask 077; set -a; . ~/.config/proxmox/phoenix.env; set +a
+   for g in bahamut:150 leviathan:151 titan:152 ramuh:153 carbuncle:154 siren:155; do
+     tofu -chdir=tofu import "module.guest[\"${g%%:*}\"].proxmox_virtual_environment_vm.this" "Saruman/${g##*:}"
+   done
+   tofu -chdir=tofu plan
+   ```
+
+   The plan should **replace** each of the six and **create** the
+   `lab-domain` pool (an import brings in guests, not their pool), and do
+   nothing else. That is the one plan where a replace is expected:
+   `clone` cannot be read back from a running guest. Anything else is a stop.
+5. **Destroy.** Only the guests. On a later rebuild, that leaves the pool
+   and its grant in place:
+
+   ```bash
+   tofu -chdir=tofu destroy -target=module.guest
+   ```
+
+   Check on `Saruman` that `qm list` has no 150–155.
+6. **The old Wazuh registrations go.** On `odin`, remove the six agents by
+   name, so that the rebuilt guests' enrolment under the same names is not
+   refused as a duplicate. This comes after the destroy, so a run that stops
+   before it leaves the old guests still reporting.
+7. **Apply.** This also creates the pool, the first time.
+
+   ```bash
+   tofu -chdir=tofu plan -out=next.tfplan
+   tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
+   ```
+
+   On `Saruman`, check `qm config` for each one: the MAC, the `smbios1` UUID,
+   `startup` on the four servers, and the pool. Start `carbuncle` and `siren`,
+   which are on demand.
+8. **Configure, one stage at a time.** On a fresh domain `--check` cannot see
+   past the forest, so apply each tag before previewing the next. Run the long
+   ones detached with a log:
+
+   ```bash
+   cd ansible
+   for t in base forest replica join endpoint_admin tiers gpos shares soc exporter sysmon licence population authgen; do
+     ansible-playbook lab-domain.yml --tags "$t" || break
+   done
+   ansible-playbook lab-domain.yml        # again: must report changed=0
+   ```
+
+9. **Verify.** All of this has to hold:
+   - `ansible-playbook verify.yml` passes on all six;
+   - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
+     labels;
+   - Wazuh and Velociraptor list all six;
+   - each endpoint reads *activated* (enter its key at the console if the
+     UUID did not carry it);
+   - `slmgr /dlv` on the four servers gives a new expiry. Record it in §11 and
+     in the changelog, as before.
+
 ## 1. Create the six VMs
+
+> [!NOTE]
+> **This section is the hand build of 2026-09-24/25, kept as the record.** A
+> rebuild does not run it: it uses
+> [Rebuild from the pipeline](#rebuild-from-the-pipeline) above.
 
 VMIDs `150`–`155`, so the last octet is legible from `qm list` — the same
 reasoning that gave `alexander` VMID `140`.
