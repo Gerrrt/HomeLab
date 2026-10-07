@@ -606,6 +606,15 @@ snmp-verify: ## Check each SNMP device answers to its community (ARGS=--old)
 	@# it into `make validate`.
 	./scripts/snmp-verify.sh $(ARGS)
 
+.PHONY: qga-resync
+qga-resync: ## Resync a guest agent that stopped answering, on Saruman as root (VMID="140 190")
+	@# Maintenance: it talks to QEMU's sockets on the hypervisor, so it is run
+	@# there by hand when GuestAgentSilent fires or `qm agent <id> ping` says the
+	@# agent is not running. It resets qemu-ga's parser and proves the channel
+	@# with a ping; it restarts nothing. The header says why that is enough.
+	@test -n "$(VMID)" || { echo 'usage: make qga-resync VMID="<vmid> ..."' >&2; exit 2; }
+	./scripts/qga-resync.py $(VMID)
+
 .PHONY: snmp-walk
 snmp-walk: ## Walk one OID subtree on one SNMP device, exporter-shaped (ARGS="--device neo <oid>")
 	@# Maintenance for the same reason as snmp-verify: needs the age key and
