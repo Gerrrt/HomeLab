@@ -25,6 +25,7 @@ where a typo renders an empty panel instead of raising an error, and "no data"
 is indistinguishable from "this is broken" — which is the whole argument for
 the PromQL check and applies unchanged to LogQL.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -139,10 +140,7 @@ def datasource_uid(node) -> str | None:
 
 def overlaps(a: dict, b: dict) -> bool:
     return not (
-        a["x"] + a["w"] <= b["x"]
-        or b["x"] + b["w"] <= a["x"]
-        or a["y"] + a["h"] <= b["y"]
-        or b["y"] + b["h"] <= a["y"]
+        a["x"] + a["w"] <= b["x"] or b["x"] + b["w"] <= a["x"] or a["y"] + a["h"] <= b["y"] or b["y"] + b["h"] <= a["y"]
     )
 
 
@@ -169,7 +167,7 @@ RULE_FIELD = re.compile(r'^\s*(\w+)\s*=\s*"(.*)"\s*$')
 # `source_labels = ["__journal_priority_keyword"]` — a list rather than a bare
 # string, and the one field worth reading out of one, so that a rule reported
 # below can be named rather than described as "an unknown source".
-RULE_LIST_FIELD = re.compile(r'^\s*(\w+)\s*=\s*\[(.*)\]\s*$')
+RULE_LIST_FIELD = re.compile(r"^\s*(\w+)\s*=\s*\[(.*)\]\s*$")
 # `$1`, `${1}`, `$name` — a replacement that interpolates the regex match
 # rather than naming a fixed value.
 CAPTURE_GROUP = re.compile(r"\$\{?\w")
@@ -208,7 +206,7 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
         if not RULE_START.match(line):
             continue
         fields: dict[str, str] = {}
-        for body in lines[i + 1:]:
+        for body in lines[i + 1 :]:
             if body.strip() == "}":
                 break
             field = RULE_FIELD.match(body)
@@ -217,9 +215,7 @@ def alloy_level_values() -> tuple[set[str], list[str]]:
                 continue
             field = RULE_LIST_FIELD.match(body)
             if field:
-                fields[field.group(1)] = ", ".join(
-                    item.strip().strip('"') for item in field.group(2).split(",")
-                )
+                fields[field.group(1)] = ", ".join(item.strip().strip('"') for item in field.group(2).split(","))
         if fields.get("target_label") != "level":
             continue
         source = fields.get("source_labels", "an unknown source")
@@ -277,12 +273,13 @@ def check_level_vocabulary(dashboards: dict[str, dict]) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser()
     emit = parser.add_mutually_exclusive_group()
-    emit.add_argument("--emit-promql", action="store_true",
-                      help="print dashboard PromQL as a rules file for promtool")
-    emit.add_argument("--emit-logql", action="store_true",
-                      help="print dashboard LogQL as a rules file for Loki's ruler")
-    parser.add_argument("--stack", default="observability",
-                        help="stack under stacks/ to check (default: observability)")
+    emit.add_argument("--emit-promql", action="store_true", help="print dashboard PromQL as a rules file for promtool")
+    emit.add_argument(
+        "--emit-logql", action="store_true", help="print dashboard LogQL as a rules file for Loki's ruler"
+    )
+    parser.add_argument(
+        "--stack", default="observability", help="stack under stacks/ to check (default: observability)"
+    )
     args = parser.parse_args()
 
     global DASHBOARDS, DATASOURCES
@@ -359,8 +356,7 @@ def main() -> int:
         walk_datasource_uids(dash, found)
         for unknown in sorted(found - known):
             problems.append(
-                f"{name}: datasource uid '{unknown}' is not provisioned — "
-                f"panels using it will render empty"
+                f"{name}: datasource uid '{unknown}' is not provisioned — panels using it will render empty"
             )
 
         for prefix, panels in panel_groups(dash.get("panels")):
@@ -372,26 +368,19 @@ def main() -> int:
                     problems.append(f"{name}: panel '{title}' has no gridPos")
                     continue
                 if not {"x", "y", "w", "h"} <= set(grid):
-                    problems.append(
-                        f"{name}: panel '{title}' has an incomplete gridPos "
-                        f"({', '.join(sorted(grid))})"
-                    )
+                    problems.append(f"{name}: panel '{title}' has an incomplete gridPos ({', '.join(sorted(grid))})")
                     continue
                 if grid["x"] + grid["w"] > 24:
                     problems.append(
-                        f"{name}: panel '{title}' overflows the 24-column grid "
-                        f"(x={grid['x']} w={grid['w']})"
+                        f"{name}: panel '{title}' overflows the 24-column grid (x={grid['x']} w={grid['w']})"
                     )
                 if panel.get("type") not in TARGETLESS_PANEL_TYPES and not panel.get("targets"):
                     problems.append(f"{name}: panel '{title}' has no targets")
 
-                for other in panels[i + 1:]:
+                for other in panels[i + 1 :]:
                     og = other.get("gridPos")
                     if og and {"x", "y", "w", "h"} <= set(og) and overlaps(grid, og):
-                        problems.append(
-                            f"{name}: panels '{title}' and "
-                            f"'{prefix}{other.get('title')}' overlap"
-                        )
+                        problems.append(f"{name}: panels '{title}' and '{prefix}{other.get('title')}' overlap")
 
                 # Which query language an expression is written in is decided by
                 # the datasource it runs against, and a target that names none
@@ -441,8 +430,7 @@ def main() -> int:
         # with no metrics in it. Saying so here keeps promtool from being handed
         # an empty rules file and reporting success over it.
         if not promql:
-            print("no PromQL expressions found — refusing to emit an empty "
-                  "rules file", file=sys.stderr)
+            print("no PromQL expressions found — refusing to emit an empty rules file", file=sys.stderr)
             return 1
         print("groups:")
         print("  - name: dashboard-expressions")
@@ -459,8 +447,7 @@ def main() -> int:
         # Same reasoning as the PromQL guard above: an empty rules file is a
         # broken classifier, not a folder with no log panels in it.
         if not logql:
-            print("no LogQL expressions found — refusing to emit an empty "
-                  "rules file", file=sys.stderr)
+            print("no LogQL expressions found — refusing to emit an empty rules file", file=sys.stderr)
             return 1
         print("groups:")
         print("  - name: dashboard-expressions")
@@ -477,11 +464,7 @@ def main() -> int:
                 print(f"          {line}")
         return 0
 
-    print(
-        f"{len(files)} dashboards OK "
-        f"({panel_count} panels, {len(promql)} PromQL "
-        f"and {len(logql)} LogQL expressions)"
-    )
+    print(f"{len(files)} dashboards OK ({panel_count} panels, {len(promql)} PromQL and {len(logql)} LogQL expressions)")
     return 0
 
 

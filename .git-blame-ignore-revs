@@ -1,0 +1,13 @@
+# Commits that only change layout, which `git blame` should look past to
+# the commit that last changed what a line does. GitHub's blame view reads
+# this file by itself. A local git needs telling, once per clone:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+#
+# One full SHA per line, as it landed on main, so a squash merge's entry
+# can only be written after that merge. Each entry names its PR above it.
+
+# #953: `ruff format` over every script under scripts/ (#938). It also carried
+# a few real lines in scripts/self-tests.sh, scripts/lint.sh and ruff.toml,
+# which this hides too. `git blame --ignore-revs-file= <file>` shows them.
+766bbb2a3d206c32225de753735a1021b3d7d13f

@@ -90,7 +90,10 @@ def api_get(path):
     try:
         out = subprocess.run(
             [DEBUG, "api", "get", path, "--output-format", "json"],
-            capture_output=True, text=True, timeout=300, check=False,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
         )
     except (OSError, subprocess.TimeoutExpired) as e:
         raise ReadError(f"{path}: {e}") from e
@@ -166,24 +169,42 @@ def render(host, jobs, stores):
         out.append(f"# TYPE {name} {type_}")
         out.extend(f"{name}{labels(host=host, **lab)} {val}" for lab, val in samples)
 
-    metric("homelab_pbs_job_last_run_ok",
-           "1 when the job's last run ended OK; absent if it has never run.", "gauge",
-           [({"store": s, "kind": k, "pbs_job": j}, ok) for s, k, j, ok, _ in jobs if ok is not None])
-    metric("homelab_pbs_job_last_run_end_timestamp_seconds",
-           "When the job's last run ended; 0 if it never has.", "gauge",
-           [({"store": s, "kind": k, "pbs_job": j}, end) for s, k, j, _, end in jobs])
-    metric("homelab_pbs_snapshots",
-           "Snapshots in the datastore, by verify state (none is never verified).", "gauge",
-           [({"store": st, "verify": v}, c[v]) for st, (c, _, _) in sorted(stores.items()) for v in VERIFY_STATES])
-    metric("homelab_pbs_snapshots_unencrypted",
-           "Snapshots with a data archive whose crypt mode is not encrypt.", "gauge",
-           [({"store": st}, u) for st, (_, u, _) in sorted(stores.items())])
-    metric("homelab_pbs_jobs",
-           "Jobs of each kind configured for the datastore.", "gauge",
-           [({"store": st, "kind": k}, n) for (st, k), n in sorted(job_counts(jobs, stores).items())])
-    metric("homelab_pbs_snapshot_newest_timestamp_seconds",
-           "The newest snapshot's backup time; 0 for an empty datastore.", "gauge",
-           [({"store": st}, n) for st, (_, _, n) in sorted(stores.items())])
+    metric(
+        "homelab_pbs_job_last_run_ok",
+        "1 when the job's last run ended OK; absent if it has never run.",
+        "gauge",
+        [({"store": s, "kind": k, "pbs_job": j}, ok) for s, k, j, ok, _ in jobs if ok is not None],
+    )
+    metric(
+        "homelab_pbs_job_last_run_end_timestamp_seconds",
+        "When the job's last run ended; 0 if it never has.",
+        "gauge",
+        [({"store": s, "kind": k, "pbs_job": j}, end) for s, k, j, _, end in jobs],
+    )
+    metric(
+        "homelab_pbs_snapshots",
+        "Snapshots in the datastore, by verify state (none is never verified).",
+        "gauge",
+        [({"store": st, "verify": v}, c[v]) for st, (c, _, _) in sorted(stores.items()) for v in VERIFY_STATES],
+    )
+    metric(
+        "homelab_pbs_snapshots_unencrypted",
+        "Snapshots with a data archive whose crypt mode is not encrypt.",
+        "gauge",
+        [({"store": st}, u) for st, (_, u, _) in sorted(stores.items())],
+    )
+    metric(
+        "homelab_pbs_jobs",
+        "Jobs of each kind configured for the datastore.",
+        "gauge",
+        [({"store": st, "kind": k}, n) for (st, k), n in sorted(job_counts(jobs, stores).items())],
+    )
+    metric(
+        "homelab_pbs_snapshot_newest_timestamp_seconds",
+        "The newest snapshot's backup time; 0 for an empty datastore.",
+        "gauge",
+        [({"store": st}, n) for st, (_, _, n) in sorted(stores.items())],
+    )
     return "\n".join(out) + "\n"
 
 
@@ -219,16 +240,19 @@ def self_test():
     verify = json.loads(
         '[{"id":"weekly","ignore-verified":true,"last-run-endtime":1791110495,"last-run-state":"OK",'
         '"last-run-upid":"UPID:golem:000030B1:000082AF:0000000F:6AC223A0:verificationjob:erebor\\\\x3aweekly:root@pam:",'
-        '"next-run":1791712800,"outdated-after":30,"schedule":"sun 03:00","store":"erebor"}]')
+        '"next-run":1791712800,"outdated-after":30,"schedule":"sun 03:00","store":"erebor"}]'
+    )
     prune = json.loads(
         '[{"id":"daily","keep-daily":7,"keep-monthly":3,"keep-weekly":4,"last-run-endtime":1791097200,'
         '"last-run-state":"OK","last-run-upid":"UPID:golem:000030B1:000082AF:0000000D:6AC1F970:prunejob:erebor:root@pam:",'
-        '"next-run":1791183600,"schedule":"daily","store":"erebor"}]')
+        '"next-run":1791183600,"schedule":"daily","store":"erebor"}]'
+    )
     # A garbage collection that has never run: no last-run fields, upid null.
     gc_never = json.loads(
         '[{"disk-bytes":0,"disk-chunks":0,"index-data-bytes":0,"index-file-count":0,"next-run":1791626400,'
         '"pending-bytes":0,"pending-chunks":0,"removed-bad":0,"removed-bytes":0,"removed-chunks":0,'
-        '"schedule":"sat 03:00","still-bad":0,"store":"erebor","upid":null}]')
+        '"schedule":"sat 03:00","still-bad":0,"store":"erebor","upid":null}]'
+    )
     # golem's first garbage collection, run by hand that morning so this
     # fixture is a real answer: it removed nothing, as a first run must not.
     gc_ran = json.loads(
@@ -236,7 +260,8 @@ def self_test():
         '"duration":684,"index-data-bytes":575554027520,"index-file-count":20,"last-run-endtime":1791118715,'
         '"last-run-state":"OK","next-run":1791626400,"pending-bytes":4732488637,"pending-chunks":3180,'
         '"removed-bad":0,"removed-bytes":0,"removed-chunks":0,"schedule":"sat 03:00","still-bad":0,'
-        '"store":"erebor","upid":"UPID:golem:000030B1:000082AF:00000010:6AC24ACF:garbage_collection:erebor:root@pam:"}]')
+        '"store":"erebor","upid":"UPID:golem:000030B1:000082AF:00000010:6AC24ACF:garbage_collection:erebor:root@pam:"}]'
+    )
     snap_ok = json.loads(
         '{"backup-id":"152","backup-time":1791087763,"backup-type":"vm","comment":"titan",'
         '"fingerprint":"8d:80:00:ab:90:fc:ea:9a:d6:1a:52:5b:eb:71:d0:e9:d5:dd:d1:85:0e:41:85:51:27:a7:3f:a0:61:b1:a9:50",'
@@ -245,21 +270,31 @@ def self_test():
         '{"crypt-mode":"sign-only","filename":"index.json.blob","size":662},'
         '{"filename":"client.log.blob","size":3216}],'
         '"owner":"pve@pbs!saruman","protected":false,"size":85904082241,'
-        '"verification":{"state":"ok","upid":"UPID:golem:000030B1:000082AF:0000000F:6AC223A0:verificationjob:erebor\\\\x3aweekly:root@pam:"}}')
+        '"verification":{"state":"ok","upid":"UPID:golem:000030B1:000082AF:0000000F:6AC223A0:verificationjob:erebor\\\\x3aweekly:root@pam:"}}'
+    )
     # The same snapshot before Sunday's verify: PBS omits the key entirely.
     snap_new = {k: v for k, v in snap_ok.items() if k != "verification"} | {"backup-time": 1791093000}
     snap_bad = snap_ok | {"verification": {"state": "failed", "upid": "UPID:x"}}
+
     def with_modes(mode):
-        return snap_ok | {"files": [f | ({"crypt-mode": mode} if "crypt-mode" in f and f["filename"] != "index.json.blob"
-                                        else {}) for f in snap_ok["files"]]}
+        return snap_ok | {
+            "files": [
+                f | ({"crypt-mode": mode} if "crypt-mode" in f and f["filename"] != "index.json.blob" else {})
+                for f in snap_ok["files"]
+            ]
+        }
+
     snap_plain = {k: v for k, v in with_modes("none").items() if k != "fingerprint"}
     # Signed with the key, so it HAS a fingerprint, and its data is in the clear.
     snap_signed = with_modes("sign-only")
 
     check("verify job that ran OK", [("erebor", "verify", "weekly", 1, 1791110495)], job_rows("verify", verify))
     check("prune job that ran OK", [("erebor", "prune", "daily", 1, 1791097200)], job_rows("prune", prune))
-    check("gc never run: no verdict, end 0, job is the store",
-          [("erebor", "gc", "erebor", None, 0)], job_rows("gc", gc_never))
+    check(
+        "gc never run: no verdict, end 0, job is the store",
+        [("erebor", "gc", "erebor", None, 0)],
+        job_rows("gc", gc_never),
+    )
     check("gc that ran OK", [("erebor", "gc", "erebor", 1, 1791118715)], job_rows("gc", gc_ran))
     failed_verify = [verify[0] | {"last-run-state": "verification failed - please check the log for details"}]
     check("verify job that failed", 0, job_rows("verify", failed_verify)[0][3])
@@ -271,37 +306,66 @@ def self_test():
     except ReadError:
         check("an answer that is not a list is refused", "ReadError", "ReadError")
 
-    check("verified, encrypted",
-          ({"ok": 1, "failed": 0, "none": 0}, 0, 1791087763), snapshot_summary([snap_ok]))
-    check("one of each verify state, newest wins",
-          ({"ok": 1, "failed": 1, "none": 1}, 0, 1791093000), snapshot_summary([snap_ok, snap_bad, snap_new]))
-    check("a snapshot with no fingerprint is unencrypted",
-          ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763), snapshot_summary([snap_plain]))
-    check("sign-only has a fingerprint and is still unencrypted",
-          ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763), snapshot_summary([snap_signed]))
-    check("the sign-only manifest and mode-less log do not make a backup unencrypted",
-          0, snapshot_summary([snap_ok])[1])
-    check("a snapshot with no data archive counts as unencrypted",
-          1, snapshot_summary([snap_ok | {"files": [{"crypt-mode": "sign-only", "filename": "index.json.blob"}]}])[1])
-    check("an unknown verify state counts as not ok",
-          ({"ok": 0, "failed": 1, "none": 0}, 0, 1791087763),
-          snapshot_summary([snap_ok | {"verification": {"state": "something-new"}}]))
+    check("verified, encrypted", ({"ok": 1, "failed": 0, "none": 0}, 0, 1791087763), snapshot_summary([snap_ok]))
+    check(
+        "one of each verify state, newest wins",
+        ({"ok": 1, "failed": 1, "none": 1}, 0, 1791093000),
+        snapshot_summary([snap_ok, snap_bad, snap_new]),
+    )
+    check(
+        "a snapshot with no fingerprint is unencrypted",
+        ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763),
+        snapshot_summary([snap_plain]),
+    )
+    check(
+        "sign-only has a fingerprint and is still unencrypted",
+        ({"ok": 1, "failed": 0, "none": 0}, 1, 1791087763),
+        snapshot_summary([snap_signed]),
+    )
+    check(
+        "the sign-only manifest and mode-less log do not make a backup unencrypted", 0, snapshot_summary([snap_ok])[1]
+    )
+    check(
+        "a snapshot with no data archive counts as unencrypted",
+        1,
+        snapshot_summary([snap_ok | {"files": [{"crypt-mode": "sign-only", "filename": "index.json.blob"}]}])[1],
+    )
+    check(
+        "an unknown verify state counts as not ok",
+        ({"ok": 0, "failed": 1, "none": 0}, 0, 1791087763),
+        snapshot_summary([snap_ok | {"verification": {"state": "something-new"}}]),
+    )
     check("an empty datastore", ({"ok": 0, "failed": 0, "none": 0}, 0, 0), snapshot_summary([]))
 
-    text = render("golem", job_rows("verify", verify) + job_rows("gc", gc_never),
-                  {"erebor": snapshot_summary([snap_ok, snap_new])})
-    check("a never-run gc has an end time and no ok series",
-          (True, False),
-          ('homelab_pbs_job_last_run_end_timestamp_seconds{host="golem",store="erebor",kind="gc",pbs_job="erebor"} 0' in text,
-           'kind="gc"' in "".join(line for line in text.splitlines() if line.startswith("homelab_pbs_job_last_run_ok"))))
-    check("all three verify states are written",
-          ['homelab_pbs_snapshots{host="golem",store="erebor",verify="ok"} 1',
-           'homelab_pbs_snapshots{host="golem",store="erebor",verify="failed"} 0',
-           'homelab_pbs_snapshots{host="golem",store="erebor",verify="none"} 1'],
-          [line for line in text.splitlines() if line.startswith("homelab_pbs_snapshots{")])
-    check("a datastore with no verify job reads 0, not absent",
-          {("erebor", "verify"): 0, ("erebor", "prune"): 1, ("erebor", "gc"): 1},
-          job_counts(job_rows("prune", prune) + job_rows("gc", gc_never), {"erebor": None}))
+    text = render(
+        "golem",
+        job_rows("verify", verify) + job_rows("gc", gc_never),
+        {"erebor": snapshot_summary([snap_ok, snap_new])},
+    )
+    check(
+        "a never-run gc has an end time and no ok series",
+        (True, False),
+        (
+            'homelab_pbs_job_last_run_end_timestamp_seconds{host="golem",store="erebor",kind="gc",pbs_job="erebor"} 0'
+            in text,
+            'kind="gc"'
+            in "".join(line for line in text.splitlines() if line.startswith("homelab_pbs_job_last_run_ok")),
+        ),
+    )
+    check(
+        "all three verify states are written",
+        [
+            'homelab_pbs_snapshots{host="golem",store="erebor",verify="ok"} 1',
+            'homelab_pbs_snapshots{host="golem",store="erebor",verify="failed"} 0',
+            'homelab_pbs_snapshots{host="golem",store="erebor",verify="none"} 1',
+        ],
+        [line for line in text.splitlines() if line.startswith("homelab_pbs_snapshots{")],
+    )
+    check(
+        "a datastore with no verify job reads 0, not absent",
+        {("erebor", "verify"): 0, ("erebor", "prune"): 1, ("erebor", "gc"): 1},
+        job_counts(job_rows("prune", prune) + job_rows("gc", gc_never), {"erebor": None}),
+    )
     check("a label value is escaped", '{host="a\\"b"}', labels(host='a"b'))
     return failed
 
@@ -332,8 +396,10 @@ def main():
     os.replace(tmp, PROM)
 
     summary = " ".join(f"{k}:{j}={'never' if ok is None else ('ok' if ok else 'FAILED')}" for _, k, j, ok, _ in jobs)
-    snaps = " ".join(f"{st}=ok:{c['ok']}/failed:{c['failed']}/none:{c['none']}/unencrypted:{u}"
-                     for st, (c, u, _) in sorted(stores.items()))
+    snaps = " ".join(
+        f"{st}=ok:{c['ok']}/failed:{c['failed']}/none:{c['none']}/unencrypted:{u}"
+        for st, (c, u, _) in sorted(stores.items())
+    )
     print(f"pbs-task-state host={host} {summary} {snaps}")
 
 

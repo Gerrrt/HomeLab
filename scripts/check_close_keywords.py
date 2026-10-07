@@ -62,6 +62,7 @@ Environment:
   GITHUB_STEP_SUMMARY   where the summary goes; stdout when unset
   GITHUB_ACTIONS        when "true", failures are also ::error:: annotations
 """
+
 from __future__ import annotations
 
 import argparse
@@ -142,13 +143,17 @@ def boundaries(text: str) -> list[int]:
     offset = 0
     prev = ""
     for line in text.splitlines(keepends=True):
-        if offset and (not prev.strip() or BLOCK_START.match(line) or BLOCK_WHOLE.match(prev)
-                       or (QUOTE.match(line) and not QUOTE.match(prev))):
+        if offset and (
+            not prev.strip()
+            or BLOCK_START.match(line)
+            or BLOCK_WHOLE.match(prev)
+            or (QUOTE.match(line) and not QUOTE.match(prev))
+        ):
             starts.add(offset)
         prev = line
         offset += len(line)
     for m in SENTENCE_END.finditer(text):
-        before = text[:m.start()].rsplit(None, 1)[-1].lower() if text[:m.start()].strip() else ""
+        before = text[: m.start()].rsplit(None, 1)[-1].lower() if text[: m.start()].strip() else ""
         if text[m.start()] == "." and before.endswith(ABBREVIATIONS):
             continue
         starts.add(m.end())
@@ -163,8 +168,7 @@ def closes_of(text: str) -> set[str]:
     return {ref_of(m) for m in KEYWORD.finditer(text)}
 
 
-def lint(text: str, where: str, closing: set[str] | None = None,
-         refs: set[str] | None = None) -> list[str]:
+def lint(text: str, where: str, closing: set[str] | None = None, refs: set[str] | None = None) -> list[str]:
     """Every finding in one text. `closing` defaults to the text's own keyword
     matches; `refs` is extra Refs from elsewhere (a commit is held to its PR body)."""
     findings = []
@@ -173,7 +177,7 @@ def lint(text: str, where: str, closing: set[str] | None = None,
         s = max(b for b in starts if b <= m.start())
         e = next((b for b in starts if b > m.start()), len(text))
         sentence = " ".join(text[s:e].split())
-        lead = LEAD_NOISE.sub("", KEYWORD.sub("", text[s:m.start()]))
+        lead = LEAD_NOISE.sub("", KEYWORD.sub("", text[s : m.start()]))
         phrase = " ".join(m.group(0).split())
         if lead:
             findings.append(f'{where}: "{phrase}" is not the first word of its sentence: "{sentence}"')
@@ -210,9 +214,23 @@ query($owner: String!, $name: String!, $number: Int!) {
 def fetch(number: int) -> dict:
     owner, name = repo_name().split("/", 1)
     out = subprocess.run(
-        ["gh", "api", "graphql", "-f", f"query={QUERY}", "-F", f"owner={owner}",
-         "-F", f"name={name}", "-F", f"number={number}"],
-        check=True, capture_output=True, text=True).stdout
+        [
+            "gh",
+            "api",
+            "graphql",
+            "-f",
+            f"query={QUERY}",
+            "-F",
+            f"owner={owner}",
+            "-F",
+            f"name={name}",
+            "-F",
+            f"number={number}",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
     pr = json.loads(out)["data"]["repository"]["pullRequest"]
     # The loud direction: a commit or a closing issue this did not read is one
     # it cannot vouch for.
@@ -248,8 +266,10 @@ def check_pr(pr: dict) -> tuple[list[str], list[str]]:
     return findings, summary
 
 
-HINT = ("An intended close is a sentence of its own that begins with the keyword: "
-        "`Closes #N.` Anything else names the issue without a keyword, or with `Refs`.")
+HINT = (
+    "An intended close is a sentence of its own that begins with the keyword: "
+    "`Closes #N.` Anything else names the issue without a keyword, or with `Refs`."
+)
 
 
 def report(findings: list[str], summary: list[str] | None) -> int:
@@ -282,6 +302,7 @@ def report(findings: list[str], summary: list[str] | None) -> int:
 
 # ---------------------------------------------------------------------------
 
+
 def _issue(number: int, title: str, repo: str | None = None) -> dict:
     """A closingIssuesReferences node as GraphQL returns it."""
     return {"number": number, "title": title, "repository": {"nameWithOwner": repo or repo_name()}}
@@ -308,72 +329,96 @@ def self_test() -> int:
         "#382": "Partly closes #359 — it makes the defect self-reporting.",
         "#521": "`Refs #418`, `Refs #148` — no close keywords. The measurement is what closes #418.",
         "#545": "No rule changes. What closes #531 is still the fit, and the silence deleted.",
-        "#652": "Closes nothing yet. Refs #571, whose \"done when\" is met once the swap happens "
-                "(§6 now closes #571 with #558).",
+        "#652": 'Closes nothing yet. Refs #571, whose "done when" is met once the swap happens '
+        "(§6 now closes #571 with #558).",
         "#664": "Refs #92, #599. Neither issue closes: #92 closes when the rehearsal runs.",
         "#780": "Refs #776. This is the decision only. The vendoring follows in the PR that closes #776.",
     }
     for pr, text in accidents.items():
         check(f"{pr}'s phrase fails", True, fails(text))
     # 9. Refs and a close of the same issue: the #780 shape, named as such.
-    check("Refs plus a close of the same issue is a Refs conflict", True,
-          any("named with Refs" in f for f in lint(accidents["#780"], "t")))
+    check(
+        "Refs plus a close of the same issue is a Refs conflict",
+        True,
+        any("named with Refs" in f for f in lint(accidents["#780"], "t")),
+    )
     # 10. A Refs conflict against GitHub's own list, with no keyword in sight:
     #     the issue was linked by hand and also cited with Refs.
-    check("a hand-linked issue also named with Refs fails", True,
-          bool(lint("Refs #5.", "t", closing={"#5"})))
+    check("a hand-linked issue also named with Refs fails", True, bool(lint("Refs #5.", "t", closing={"#5"})))
     # 11. The intended close that would have had to be rewritten (#758).
-    check("\"That closes #251.\" fails", True, fails("Left: the volume. That closes #251."))
+    check('"That closes #251." fails', True, fails("Left: the volume. That closes #251."))
     # 12. A soft line break is not a sentence boundary — a wrapped commit body.
-    check("a keyword after a soft line break is mid-sentence", True,
-          fails("The vendoring follows in the PR that\ncloses #776."))
+    check(
+        "a keyword after a soft line break is mid-sentence",
+        True,
+        fails("The vendoring follows in the PR that\ncloses #776."),
+    )
     # 13. The negation rule on its own, for a keyword that does open its sentence.
-    check("a sentence-initial close that says not fails", True,
-          fails("Closes #5 only once deployed, not before."))
+    check("a sentence-initial close that says not fails", True, fails("Closes #5 only once deployed, not before."))
     check("stays open fails", True, fails("Fixes #5 but the issue stays open."))
     # 14. The other reference shapes GitHub honours.
-    check("an issue URL is matched", True,
-          fails("This resolves https://github.com/Gerrrt/HomeLab/issues/9 eventually."))
-    check("owner/repo#N is matched", {"other/repo#3"},
-          closes_of("Fixes other/repo#3."))
+    check(
+        "an issue URL is matched", True, fails("This resolves https://github.com/Gerrrt/HomeLab/issues/9 eventually.")
+    )
+    check("owner/repo#N is matched", {"other/repo#3"}, closes_of("Fixes other/repo#3."))
     check("this repository's own owner/name#N is #N", {"#3"}, closes_of("Fixes Gerrrt/HomeLab#3."))
     check("#12abc is not a reference", set(), closes_of("closes #12abc"))
     # 15-21. What must pass: the convention, as merged PRs here write it.
-    check("Closes #N. then prose passes", False,
-          fails("Closes #148. The issue's 2026-09-19 correction asked for the weaker case."))
+    check(
+        "Closes #N. then prose passes",
+        False,
+        fails("Closes #148. The issue's 2026-09-19 correction asked for the weaker case."),
+    )
     check("two close sentences pass", False, fails("Closes #558. Closes #571."))
     check("Closes then Refs passes", False, fails("Closes #531. Refs #519."))
     check("a bullet that is a close passes", False, fails("## Why\n\n- Closes #5\n- Refs #6"))
     check("a close right under a heading passes", False, fails("## Why\nCloses #5."))
     check("a negation in the NEXT sentence passes", False, fails("Closes #5. Not deployed yet."))
     check("a chained close passes", False, fails("Closes #1, closes #2 and fixes #3."))
-    check("a close after a trailer-style blank line passes", False,
-          fails("feat: a thing\n\nCloses #7.\n\nCo-Authored-By: someone"))
-    check("a wrapped blockquote is one sentence", True,
-          fails("> This is not done and\n> closes #5."))
+    check(
+        "a close after a trailer-style blank line passes",
+        False,
+        fails("feat: a thing\n\nCloses #7.\n\nCo-Authored-By: someone"),
+    )
+    check("a wrapped blockquote is one sentence", True, fails("> This is not done and\n> closes #5."))
     check("a blockquote that is a close passes", False, fails("Intro.\n\n> Closes #5."))
     check("a semicolon does not end a sentence", True, fails("This is not done; closes #5 later."))
     check("e.g. is not a sentence end", True, fails("A keyword, e.g. closes #5, in prose."))
     check("no keyword at all passes", False, fails("Refs #92. This PR resolves none of them."))
     # 22. A commit that closes what the PR body only Refs: merge or rebase lands it.
-    pr = {"title": "docs: x", "body": "Refs #5.", "closingIssuesReferences": {"nodes": []},
-          "commits": {"nodes": [{"commit": {"oid": "a" * 40, "message": "docs: x\n\nCloses #5."}}]}}
-    check("a commit closing what the body Refs fails", True,
-          any("named with Refs" in f for f in check_pr(pr)[0]))
+    pr = {
+        "title": "docs: x",
+        "body": "Refs #5.",
+        "closingIssuesReferences": {"nodes": []},
+        "commits": {"nodes": [{"commit": {"oid": "a" * 40, "message": "docs: x\n\nCloses #5."}}]},
+    }
+    check("a commit closing what the body Refs fails", True, any("named with Refs" in f for f in check_pr(pr)[0]))
     check("the summary lists the commit's close", ["| #5 |  | commit aaaaaaa |"], check_pr(pr)[1])
-    pr = {"title": "feat: x (#9)", "body": "Closes #9.",
-          "closingIssuesReferences": {"nodes": [_issue(9, "A thing"), _issue(4, "B")]},
-          "commits": {"nodes": []}}
-    check("a clean PR has no findings, and a hand link is reported", ([], [
-        "| #4 | B | linked by hand, no keyword in the body |", "| #9 | A thing | PR body |"]), check_pr(pr))
+    pr = {
+        "title": "feat: x (#9)",
+        "body": "Closes #9.",
+        "closingIssuesReferences": {"nodes": [_issue(9, "A thing"), _issue(4, "B")]},
+        "commits": {"nodes": []},
+    }
+    check(
+        "a clean PR has no findings, and a hand link is reported",
+        ([], ["| #4 | B | linked by hand, no keyword in the body |", "| #9 | A thing | PR body |"]),
+        check_pr(pr),
+    )
 
     # A cross-repository close keeps its repository: it neither shows as this
     # repository's #3 nor conflicts with a local Refs #3.
-    pr = {"title": "x", "body": "Fixes other/repo#3.\n\nRefs #3.",
-          "closingIssuesReferences": {"nodes": [_issue(3, "Theirs", "other/repo")]},
-          "commits": {"nodes": []}}
-    check("a cross-repository close is not this repository's issue", ([], [
-        "| other/repo#3 | Theirs | PR body |"]), check_pr(pr))
+    pr = {
+        "title": "x",
+        "body": "Fixes other/repo#3.\n\nRefs #3.",
+        "closingIssuesReferences": {"nodes": [_issue(3, "Theirs", "other/repo")]},
+        "commits": {"nodes": []},
+    }
+    check(
+        "a cross-repository close is not this repository's issue",
+        ([], ["| other/repo#3 | Theirs | PR body |"]),
+        check_pr(pr),
+    )
 
     # That the caller calls this — the shape scripts/self-tests.sh asserts of
     # ci.yml. Deleting the workflow, or its --pr step, fails here rather than
@@ -384,8 +429,11 @@ def self_test() -> int:
             workflow = fh.read()
     except OSError:
         workflow = ""
-    check(f"{WORKFLOW} runs this check with --pr", True,
-          bool(re.search(r"^\s*run:\s*python3 scripts/check_close_keywords\.py --pr ", workflow, re.MULTILINE)))
+    check(
+        f"{WORKFLOW} runs this check with --pr",
+        True,
+        bool(re.search(r"^\s*run:\s*python3 scripts/check_close_keywords\.py --pr ", workflow, re.MULTILINE)),
+    )
     return failed
 
 

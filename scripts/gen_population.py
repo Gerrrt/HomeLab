@@ -24,6 +24,7 @@ WHAT IT DOES NOT DO. No account here is given a weakness. The deliberate
 weaknesses are #449's tags, applied on top of this population, each one
 separately.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -132,14 +133,16 @@ def draw(count: int, seed: int, given: list[str], surnames: list[str]) -> list[d
                     seen_names.add(pair)
                     break
             groups = [dept] + [g for g, p, _ in CROSS_GROUPS if rng.random() < p]
-            users.append({
-                "sam": sam_for(pair[0], pair[1], taken),
-                "given": pair[0],
-                "surname": pair[1],
-                "department": dept,
-                "title": rng.choice(titles),
-                "groups": groups,
-            })
+            users.append(
+                {
+                    "sam": sam_for(pair[0], pair[1], taken),
+                    "given": pair[0],
+                    "surname": pair[1],
+                    "department": dept,
+                    "title": rng.choice(titles),
+                    "groups": groups,
+                }
+            )
     users.sort(key=lambda u: u["sam"])
     return [dict(AUTHGEN)] + users
 
@@ -201,25 +204,30 @@ def self_test() -> int:
     b = draw(40, 449, given, surnames)
     check("the same seed and count draw the same population", a == b)
     check("a different seed draws a different one", draw(40, 450, given, surnames) != a)
-    check("authgen is first, and is the one fixed account", a[0] == AUTHGEN and
-          sum(u["sam"] == "authgen" for u in a) == 1)
+    check(
+        "authgen is first, and is the one fixed account", a[0] == AUTHGEN and sum(u["sam"] == "authgen" for u in a) == 1
+    )
     check("count ordinary users, plus authgen", len(a) == 41)
     sams = [u["sam"] for u in a]
     check("every sAMAccountName is unique", len(set(sams)) == len(sams))
     check("every sAMAccountName fits in 20 characters", all(len(s) <= 20 for s in sams))
-    check("every department has someone in it",
-          {u["department"] for u in a[1:]} == {d for d, _, _ in DEPARTMENTS})
+    check("every department has someone in it", {u["department"] for u in a[1:]} == {d for d, _, _ in DEPARTMENTS})
     known = {d for d, _, _ in DEPARTMENTS} | {g for g, _, _ in CROSS_GROUPS}
-    check("everyone is in their own department's group, and only known groups",
-          all(u["groups"][0] == u["department"] and set(u["groups"]) <= known for u in a))
+    check(
+        "everyone is in their own department's group, and only known groups",
+        all(u["groups"][0] == u["department"] and set(u["groups"]) <= known for u in a),
+    )
     small = draw(6, 1, given, surnames)
-    check("a population of six still has all six departments",
-          {u["department"] for u in small[1:]} == {d for d, _, _ in DEPARTMENTS})
+    check(
+        "a population of six still has all six departments",
+        {u["department"] for u in small[1:]} == {d for d, _, _ in DEPARTMENTS},
+    )
     taken: set[str] = set()
-    check("a clashing sAMAccountName takes a suffix",
-          [sam_for("John", "Smith", taken), sam_for("Jane", "Smith", taken)] == ["jsmith", "jsmith2"])
-    check("a long surname is cut so a suffix still fits",
-          len(sam_for("A", "Wolfeschlegelsteinhausen", set())) == 18)
+    check(
+        "a clashing sAMAccountName takes a suffix",
+        [sam_for("John", "Smith", taken), sam_for("Jane", "Smith", taken)] == ["jsmith", "jsmith2"],
+    )
+    check("a long surname is cut so a suffix still fits", len(sam_for("A", "Wolfeschlegelsteinhausen", set())) == 18)
     check("rendering is stable", render(40, 449, a) == render(40, 449, b))
     neg = render(3, -1, draw(3, -1, given, surnames))
     m = HEADER_RE.search(neg)
@@ -229,8 +237,9 @@ def self_test() -> int:
     m = HEADER_RE.search(committed)
     check("the committed file has a Regenerate header", bool(m))
     if m:
-        check("the committed file is what its header regenerates",
-              generate(int(m.group(1)), int(m.group(2))) == committed)
+        check(
+            "the committed file is what its header regenerates", generate(int(m.group(1)), int(m.group(2))) == committed
+        )
 
     print(f"{len(failures)} failure(s)")
     return 1 if failures else 0
@@ -240,10 +249,12 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--count", type=int, default=DEFAULT_COUNT)
     ap.add_argument("--seed", type=int, default=DEFAULT_SEED)
-    ap.add_argument("--check", action="store_true",
-                    help="exit non-zero if the committed file differs, and change nothing")
-    ap.add_argument("--self-test", action="store_true",
-                    help="run the embedded fixtures and exit non-zero on any failure")
+    ap.add_argument(
+        "--check", action="store_true", help="exit non-zero if the committed file differs, and change nothing"
+    )
+    ap.add_argument(
+        "--self-test", action="store_true", help="run the embedded fixtures and exit non-zero on any failure"
+    )
     args = ap.parse_args()
     if args.self_test:
         return self_test()
@@ -252,8 +263,10 @@ def main() -> int:
     text = generate(args.count, args.seed)
     if args.check:
         if not OUT.exists() or OUT.read_text() != text:
-            print(f"{OUT.relative_to(ROOT)} is not what --count {args.count} --seed {args.seed} generates",
-                  file=sys.stderr)
+            print(
+                f"{OUT.relative_to(ROOT)} is not what --count {args.count} --seed {args.seed} generates",
+                file=sys.stderr,
+            )
             return 1
         return 0
     OUT.write_text(text)
