@@ -169,7 +169,7 @@ nightly, unlike every other set on `trinity`
 after the visit that made it. The next visit exports Paperless again, step 3
 verifies the new set, and the old one is pruned. A restore copies the set back
 from the drive, not from `trinity`. The documents themselves are in the
-nightly volume sets (`paperless-media` and `paperless-db`), and
+nightly volume sets (`paperless-media` and `paperless-db-data`), and
 `verify-backups-sensitive` re-reads those every night, here and on `oracle`.
 The copy on the drive is checked at every visit, by step 1 and
 `ARGS=--verify-only`.
