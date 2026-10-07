@@ -19,6 +19,36 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
+  between sessions, and not yet built**
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0080](adr/0080-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **What is written:**
+    - `stacks/bloodhound`: BloodHound 9.7.1, Postgres 18 and Neo4j 4.4,
+      upstream's shape, hardened;
+    - its secrets template, and a `.sops.yaml` rule with a placeholder for
+      the guest's key;
+    - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).
+  - **It moves BloodHound off `ifrit`.**
+    [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+    had sized `ifrit` around it. ADR-0017 carries a note pointing to ADR-0080.
+  - **Sized against `Saruman` as it was read today:**
+    - **RAM:** 75 GiB of 125 free.
+    - **`large_data`:** 28.7% written, but its thin volumes are already
+      allocated to 920 GiB of an 876 GiB pool.
+    - **The disks that follow from that:** the OS disk goes on `local-lvm`, as
+      `phoenix`'s did, and only the 32 GiB data disk goes on the SSDs.
+  - **The image is distroless and runs as root.** The `bloodhound` service
+    therefore has no health check, and it joins `loki` in
+    `check_compose_health.py`'s `ABSENT_BINARIES`. It is run as `nobody`, and
+    `up{job="bloodhound"}` on `alexander` answers whether it is alive.
+  - **Not done here, by design:**
+    - **`INGEST_TOKEN_EDEN` on the lab side.** `stacks/lab/compose.yaml`
+      requires every token it names, so adding the name before its value is
+      in `secrets/lab.sops.yaml` would fail `alexander`'s next render. It goes
+      in with the guest's key, in the pull request that writes the guest down
+      as built (the runbook's §5).
+
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -60,6 +90,39 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
+
+- **Recorded late: #449's population went onto the domain on 2026-10-03**
+  ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+  It was recorded on the issue that day and not here. This is written on
+  2026-10-06, when the roadmap was found still saying "not yet applied".
+  - **What was applied from `phoenix`, merged as
+    [#832](https://github.com/Gerrrt/HomeLab/pull/832):**
+    - **`--tags population`:** 41 accounts from the committed
+      `ansible/population/population.yaml`. Forty were drawn by
+      `scripts/gen_population.py --count 40 --seed 449`, and `authgen` is the
+      forty-first. They sit in six department OUs under `OU=People`, with a
+      global group per department and three cross-cutting groups under
+      `OU=Groups`.
+    - **`--tags authgen`:** runbook §6's generator on `carbuncle` and
+      `siren`. `authgen` moved from `CN=Users` into `OU=IT`.
+    - **Passwords:** none in git. Each is derived on `phoenix` from
+      `LAB_POPULATION_SEED` and the account name.
+  - **Proved on `main`'s code.** The rerun was at `00e23e4`, identical under
+    `ansible/` to `b136208`. Its first apply made two changes per endpoint:
+    the stored password and the first credential fingerprint. The second
+    apply was `changed=0` on all six. The generator returned `0` on both
+    endpoints, and `verify.yml` passed on all six. `verify.yml` now also
+    checks four things:
+    - `OU=People` holds exactly the file;
+    - every population group exists;
+    - the generator runs as `AD\authgen`, compared by SID;
+    - its last run succeeded.
+  - **Still open on #449:**
+    - the rest of
+      [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5: the
+      tiers, the SPN account, the Tier 0 GPO and the shares;
+    - the deliberate weaknesses, each its own tag on top of the population.
 
 ## 2026-10-05
 

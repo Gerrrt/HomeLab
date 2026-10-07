@@ -1,0 +1,387 @@
+---
+# The attack-path stack: BloodHound Community Edition, the two databases under
+# it, and the Alloy that reports on the guest it runs on (#451).
+#
+# Deployed on: eden (10.0.30.41, VLAN 30 / ImaginationLAN) — a guest on
+#              `Saruman`, VMID 141, tagged `on-demand`. NOT BUILT YET.
+#              Authored ahead of the guest the way stacks/soc was ahead of
+#              odin and stacks/sensor ahead of fenrir. The build is
+#              docs/runbooks/build-the-bloodhound-guest.md.
+# Decided by:  docs/adr/0080-run-bloodhound-ce-on-a-saruman-guest.md — why
+#              Saruman and not ifrit, Winterfell or the domain itself, why the
+#              guest is off between sessions, and why nothing here is backed up.
+# Deploy with: `make up STACK=bloodhound`, from the repository root on eden.
+#              It renders .env from secrets/bloodhound.sops.yaml, which is
+#              created ON eden (secrets/bloodhound.example.yaml says how).
+#
+# WHAT THIS HOLDS. A graph of the lab domain's users, groups, sessions, ACLs and
+# trusts, and the paths through them. That is a map of the lab's weaknesses,
+# which is why it lives on the lab segment and nowhere else (ADR-0008), and why
+# nothing in it crosses to VLAN 99 (ADR-0007). What crosses to alexander is this
+# guest's own telemetry, the same as every other lab guest.
+#
+# WHAT IT DOES NOT HOLD. The collector. SharpHound runs on a domain host, or
+# bloodhound-python from wherever the operator is working, and the zip it
+# produces is uploaded through the UI. The image carries the SharpHound and
+# AzureHound release it was built with, downloadable from the UI, so the
+# collector and the ingest schema match by construction.
+#
+# ---------------------------------------------------------------------------
+# On the comments in this file
+# ---------------------------------------------------------------------------
+# The settings shared with stacks/observability, stacks/soc and stacks/sensor —
+# `init: true`, `pids_limit`, the logging driver, the socket proxy — are argued
+# in those files and not here. What is written out is where this stack differs.
+#
+# EVERY mem_limit HERE IS A BOUND, NOT A MEASUREMENT. Re-derive them from
+# container_memory_rss in the lab's Prometheus after the first real ingest, as
+# stacks/soc says of its own. 12 GiB of guest is the sum below plus about 3 GiB
+# for the kernel, Docker and page cache.
+
+name: bloodhound
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres — BloodHound's application database: users, saved queries, file
+  # upload jobs, audit log. Not the graph.
+  #
+  # Upstream's compose pins postgres:18 and this follows it. Hardened as
+  # stacks/sensitive's paperless-db is, and for its reasons: run as the image's
+  # own 999 from the start so `cap_drop: [ALL]` takes nothing the entrypoint
+  # needed, read-only root, the socket directory and sort scratch on tmpfs.
+  # The data directory is the PARENT, /var/lib/postgresql, which is the 18+
+  # layout; that file's comment has why.
+  # ---------------------------------------------------------------------------
+  app-db:
+    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    container_name: bloodhound-app-db
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 256
+    networks: [bloodhound]
+    user: "999:999"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
+      - /tmp:size=64m
+    mem_limit: 1024m
+    memswap_limit: 1024m
+    environment:
+      POSTGRES_DB: bloodhound
+      POSTGRES_USER: bloodhound
+      POSTGRES_PASSWORD: ${BLOODHOUND_DB_PASSWORD:?set in secrets/bloodhound.sops.yaml}
+    volumes:
+      - app-db-data:/var/lib/postgresql
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "bloodhound", "-d", "bloodhound"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Neo4j — the graph itself.
+  #
+  # DIFFERENCE: held to 4.4. BloodHound CE speaks Bolt to a 4.4 server and
+  # upstream's compose pins 4.4.x; 5.x is a different store format and a
+  # different Cypher dialect in places. .github/dependabot.yml ignores Neo4j
+  # majors for that reason, so a 5.x arrives as a decision and not as a bump.
+  #
+  # Runs as the image's own neo4j user, 7474, rather than starting as root and
+  # dropping with gosu. Neo4j's image supports that directly: the entrypoint
+  # writes NEO4J_* settings into conf/ under /var/lib/neo4j, which the image
+  # already gives to 7474, and refuses to start if /data is not writable by the
+  # running user, which build-the-bloodhound-guest.md arranges. NOT read_only
+  # for that same conf/ write at every start.
+  #
+  # The heap and page cache are set rather than left to Neo4j's heuristics,
+  # which size from the HOST's memory and not the container's limit: on a
+  # 12 GiB guest they would reach for most of it and be OOM-killed against the
+  # limit below. 2 GiB of heap answers BloodHound's pathfinding queries on a
+  # domain of tens of objects with room to spare; 1 GiB of page cache holds
+  # the whole store several times over. Re-derive when the domain grows.
+  #
+  # The browser on 7474 and Bolt on 7687 are NOT published. Upstream binds both
+  # to the host's loopback; nothing on this guest uses them except over the
+  # compose network, so here they are not bound at all (ADR-0012).
+  # ---------------------------------------------------------------------------
+  graph-db:
+    image: neo4j:4.4.48@sha256:6a5b0f7dbba88b4b6ab912772f5599d37282cfd5df99a590d96ab2da2b103ce4
+    container_name: bloodhound-graph-db
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 512
+    networks: [bloodhound]
+    user: "7474:7474"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 4096m
+    memswap_limit: 4096m
+    environment:
+      NEO4J_AUTH: neo4j/${BLOODHOUND_NEO4J_PASSWORD:?set in secrets/bloodhound.sops.yaml}
+      NEO4J_dbms_memory_heap_initial__size: 2g
+      NEO4J_dbms_memory_heap_max__size: 2g
+      NEO4J_dbms_memory_pagecache_size: 1g
+      # An upload of a collection made by a newer SharpHound than the store
+      # was created under is upstream's reason for this; kept as they ship it.
+      NEO4J_dbms_allow__upgrade: "true"
+    volumes:
+      - graph-db-data:/data
+    expose:
+      - "7687"
+      - "7474"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7474"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # BloodHound CE — the API, the ingest workers and the UI, one Go binary.
+  #
+  # No healthcheck, deliberately, and for loki's reason in
+  # stacks/observability/compose.yaml: the image is distroless static and
+  # holds /bloodhound and its config, and no shell, wget or curl to probe
+  # with. scripts/check_compose_health.py's ABSENT_BINARIES carries the claim
+  # and --probe proves it against the pinned image. Whether it is up is
+  # answered instead by its own metrics port, scraped by alloy/bloodhound.alloy
+  # into the lab's Prometheus: `up{job="bloodhound"}`.
+  #
+  # TLS is terminated here, by BloodHound itself, on a leaf from the estate's
+  # CA, the way alexander's Grafana does it: one CA, another leaf
+  # (docs/runbooks/generate-certificates.md). Issue it on prometheus with
+  #   make certs ARGS="--host bloodhound.matrix.elysium --ip 10.0.30.41 --dns bloodhound"
+  # TLS covers the metrics port too: with a certificate set, BloodHound serves
+  # its tools API on 2112 with ListenAndServeTLS as well (toolapi/api.go at the
+  # pinned tag). The `bloodhound` DNS SAN is what lets alloy/bloodhound.alloy
+  # verify that scrape against the compose service name, as the lab's
+  # Prometheus does for its `grafana` SAN.
+  # and copy the leaf and its key to eden by name, as build-the-lab-guest.md
+  # §5 does for alexander. Over plain HTTP the login form's password, and the
+  # session token after it, would cross a segment built for ARP spoofing.
+  #
+  # DIFFERENCE: runs as nobody, not as the image's root. (The three services
+  # of this stack proper run unprivileged. alloy and docker-socket-proxy run as
+  # root with no capabilities, exactly as in stacks/sensor: the socket and the
+  # host's logs are what they are for, and that file argues it.) The binary binds an
+  # unprivileged port and writes only to work_dir, which is a volume here.
+  # The key is 0640 to the operator and readable through RENDER_GID, as
+  # Grafana's is. If an upgrade ever needs root, that is a finding about the
+  # image, and the fix is not to take this line out quietly.
+  #
+  # The graph and the uploads are not backed up (ADR-0080): a lost graph is
+  # one collection run away. The application database's saved queries are the
+  # one thing that is not, and build-the-bloodhound-guest.md §8 says how to
+  # export them if they ever matter.
+  # ---------------------------------------------------------------------------
+  bloodhound:
+    image: specterops/bloodhound:9.7.1@sha256:33ec454115f304952236a5a9716e78a734a6a13f9e8ec2bacc823a423f586331
+    container_name: bloodhound-app
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 512
+    networks: [bloodhound]
+    user: "65534:65534"
+    group_add:
+      - "${RENDER_GID:?run make render STACK=bloodhound}"
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=256m
+    mem_limit: 3072m
+    memswap_limit: 3072m
+    environment:
+      # Unguarded here: app-db and graph-db carry the ${VAR:?} guard for the
+      # same two passwords, so compose refuses to start before these are read.
+      bhe_database_connection: "user=bloodhound password=${BLOODHOUND_DB_PASSWORD} dbname=bloodhound host=app-db"
+      bhe_neo4j_connection: "neo4j://neo4j:${BLOODHOUND_NEO4J_PASSWORD}@graph-db:7687/"
+      bhe_graph_driver: neo4j
+      bhe_root_url: https://${BLOODHOUND_HOSTNAME:-bloodhound.matrix.elysium}:${BLOODHOUND_PORT:-8443}/
+      bhe_tls_cert_file: /etc/bloodhound/tls/cert.pem
+      bhe_tls_key_file: /etc/bloodhound/tls/key.pem
+      # Signs session tokens. Set here so that a restart does not sign every
+      # open session out, which is what a key generated at start would do.
+      bhe_crypto_jwt_signing_key: ${BLOODHOUND_JWT_SIGNING_KEY:?set in secrets/bloodhound.sops.yaml}
+      # The first admin, created on the first start only. Without these the
+      # image generates a password and prints it to the container log, which
+      # Alloy then ships to alexander's Loki: a credential in a log store.
+      bhe_default_admin_principal_name: admin
+      bhe_default_admin_password: ${BLOODHOUND_ADMIN_PASSWORD:?set in secrets/bloodhound.sops.yaml}
+      bhe_default_admin_email_address: admin@bloodhound.matrix.elysium
+      bhe_default_admin_first_name: Lab
+      bhe_default_admin_last_name: Admin
+      bhe_recreate_default_admin: "false"
+      # Upstream's defaults, written out so that turning either on is a diff.
+      # Mutations would let a query in the UI rewrite the graph it is reading.
+      bhe_enable_cypher_mutations: "false"
+      bhe_disable_cypher_complexity_limit: "false"
+    volumes:
+      - bloodhound-work:/opt/bloodhound/work
+      - ../../certificates/bloodhound.matrix.elysium.pem:/etc/bloodhound/tls/cert.pem:ro
+      - ../../certificates/bloodhound.matrix.elysium-key.pem:/etc/bloodhound/tls/key.pem:ro
+    expose:
+      # Prometheus metrics, for alloy/bloodhound.alloy. Not published.
+      - "2112"
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${BLOODHOUND_PORT:-8443}:8080"
+    depends_on:
+      app-db:
+        condition: service_healthy
+      graph-db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Docker socket proxy (#836), exactly as stacks/sensor has it; that file and
+  # stacks/observability/compose.yaml have the reasoning and the allowlist's
+  # history.
+  # ---------------------------------------------------------------------------
+  docker-socket-proxy:
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    networks: [bloodhound]
+    image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
+    container_name: bloodhound-docker-socket-proxy
+    environment:
+      CONTAINERS: 1
+      IMAGES: 1
+      INFO: 1
+      VERSION: 1
+      EVENTS: 1
+      NETWORKS: 1
+      POST: 0
+      BUILD: 0
+      COMMIT: 0
+      CONFIGS: 0
+      DISTRIBUTION: 0
+      EXEC: 0
+      NODES: 0
+      PLUGINS: 0
+      SECRETS: 0
+      SERVICES: 0
+      SESSION: 0
+      SWARM: 0
+      SYSTEM: 0
+      TASKS: 0
+      VOLUMES: 0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    expose:
+      - "2375"
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # ---------------------------------------------------------------------------
+  # Alloy — this guest's collector, pushing to alexander and never to VLAN 99.
+  #
+  # config.alloy and docker.alloy are mounted from stacks/observability/alloy/
+  # unchanged, as stacks/soc and stacks/sensor do. bloodhound.alloy is this
+  # stack's own and lives HERE, for zeek.alloy's reason: the estate's Alloy
+  # mounts that whole directory, and a copy there would scrape a bloodhound
+  # that does not exist on VLAN 99.
+  #
+  # What reaches alexander is host and container telemetry, container logs and
+  # BloodHound's own metrics. Not the graph: nothing here reads Neo4j or
+  # Postgres. The container logs carry BloodHound's request log, which names
+  # the API paths queried, not the query results.
+  # ---------------------------------------------------------------------------
+  alloy:
+    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    container_name: bloodhound-alloy
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 1024
+    networks: [bloodhound]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    group_add:
+      - "${LOG_READ_GID:-4}"
+      - "473"
+    cgroup: host
+    environment:
+      LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
+      ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-eden}
+      DOCKER_API: tcp://docker-socket-proxy:2375
+      # eden's token for the lab's ingest proxy (#834). Its other copy is
+      # INGEST_TOKEN_EDEN in secrets/lab.sops.yaml, which the build adds on
+      # alexander (build-the-bloodhound-guest.md §5).
+      INGEST_TOKEN: ${INGEST_TOKEN:?set in secrets/bloodhound.sops.yaml}
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - --storage.path=/var/lib/alloy/data
+      - /etc/alloy
+    volumes:
+      - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
+      - ./alloy/bloodhound.alloy:/etc/alloy/bloodhound.alloy:ro
+      # The estate's CA, for bloodhound.alloy to verify the metrics port's
+      # leaf against. The certificate only; ca-key.pem never leaves prometheus.
+      - ../../certificates/ca.pem:/etc/alloy/tls/ca.pem:ro
+      - alloy-data:/var/lib/alloy/data
+      - /var/log:/var/log:ro
+      - /:/rootfs:ro
+    # /rootfs/run masked: stacks/lab/compose.yaml's alloy has the reason.
+    tmpfs:
+      - /rootfs/run:size=64k,mode=0755
+    depends_on:
+      docker-socket-proxy:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+
+networks:
+  bloodhound:
+    driver: bridge
+
+volumes:
+  # The three stores live on eden's second disk, not the OS volume, the way
+  # fenrir's Zeek logs and odin's indexer do: a graph store grows with every
+  # collection ingested, and a separate filesystem is somewhere for that
+  # arithmetic to be wrong safely. build-the-bloodhound-guest.md makes the
+  # empty mountpoint immutable, so with the disk unmounted `up` fails instead
+  # of filling the OS disk, and creates each directory with the owner the
+  # service above runs as.
+  app-db-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BLOODHOUND_DATA_DIR:-/srv/bloodhound-data}/postgres
+  graph-db-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BLOODHOUND_DATA_DIR:-/srv/bloodhound-data}/neo4j
+  bloodhound-work:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${BLOODHOUND_DATA_DIR:-/srv/bloodhound-data}/work
+  alloy-data:

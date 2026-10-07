@@ -13,6 +13,16 @@
 > domain for a range whose operation is snapshot-and-revert, and it stands;
 > what no longer stands is that the DL360 cannot offer IOPS. The text here is
 > left as written, per ADR-0001.
+>
+> [!NOTE]
+> The sizing below counts "a Kali VM with BloodHound and its Neo4j" against
+> `ifrit`'s 32 GB. BloodHound does not run there:
+> [ADR-0080](0080-run-bloodhound-ce-on-a-saruman-guest.md) placed it on
+> `eden`, a guest on `Saruman`, because analysis on the attacker's host shares
+> the attacker's fault domain and its revert
+> ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). The collector still
+> runs from the range when there is one. The text here is left as written, per
+> ADR-0001.
 
 ## Context
 

@@ -108,7 +108,7 @@ DISTROLESS_MARKERS = ("distroless", "/static", "scratch")
 # loki, deliberately"). Probing it is what stops the prose going stale. If one
 # of these ever turns up present, the fix is to delete the entry and give the
 # service the healthcheck it can now support.
-ABSENT_BINARIES = {"loki": (SHELL, "wget")}
+ABSENT_BINARIES = {"loki": (SHELL, "wget"), "bloodhound": (SHELL, "wget")}
 
 # Bounds a probe that blocks rather than exits. --network none already makes a
 # network binary fail instantly; this covers everything else. Same env-override
