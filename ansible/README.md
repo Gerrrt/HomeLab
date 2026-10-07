@@ -169,7 +169,7 @@ guest.
 - **Host keys are checked, against `.known_hosts` only.**
   `scripts/lab-known-hosts.sh` writes it from keys read inside each guest
   through the Proxmox guest agent, never from what the network presents
-  ([ADR-0082]). A rebuilt guest is refused until it has run again. Do not
+  ([ADR-0085]). A rebuilt guest is refused until it has run again. Do not
   turn the check off to get past that; run the script.
 - **CI proves it parses, `phoenix` proves it configures.**
   `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check,
@@ -178,6 +178,6 @@ guest.
 
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [ADR-0080]: ../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md
-[ADR-0082]: ../docs/adr/0082-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
+[ADR-0085]: ../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix
