@@ -4,6 +4,14 @@
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (a role
 and two playbooks in `ansible/`)
 
+> [!NOTE]
+> **Wazuh reading the Sysmon channel is
+> [#1035](https://github.com/Gerrrt/HomeLab/issues/1035), not #266, 2026-10-07.**
+> The text below says it belongs to #266's manager-side work. #266 was running
+> Wazuh, and it was already closed. #1035 adds the channel through the
+> `default` group's shared `agent.conf` in `stacks/soc`. The text below is left
+> as written, per ADR-0001.
+
 ## Context
 
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

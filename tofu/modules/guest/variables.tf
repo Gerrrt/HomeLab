@@ -102,8 +102,16 @@ variable "on_boot" {
 }
 
 variable "tags" {
-  type    = list(string)
-  default = []
+  type        = list(string)
+  description = "At least one. The clone otherwise keeps its template's `template;<os>` tags."
+
+  # The provider sends nothing for an empty list, so a clone given no tags
+  # keeps the template's. The #448 rebuild's four servers came up tagged
+  # `template;windows` that way.
+  validation {
+    condition     = length(var.tags) > 0
+    error_message = "tags must name at least one tag; with none, the clone keeps its template's `template;<os>` tags."
+  }
 }
 
 variable "username" {

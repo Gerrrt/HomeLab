@@ -49,12 +49,66 @@ if (Get-Command -Name Get-BitLockerVolume -ErrorAction SilentlyContinue) {
   }
 }
 
+# CLOSE THE BUILD'S WINRM BEFORE GENERALISING, so the template never holds it.
+# bootstrap.ps1 made an HTTPS listener on a self-signed certificate. Removing
+# them on each clone (SetupComplete.cmd) left the certificate's private key in
+# the template, the same on every clone, and the removal itself failed there:
+# Windows PowerShell 5.1 has no -DeleteKey on a certificate piped to
+# Remove-Item (#846, a 911 clone on 2026-10-07). By the time the task below
+# runs, Packer is finished with WinRM: wait-for-sysprep.sh watches the power
+# state through the Proxmox API. So the task runs this first, while the key
+# still exists, and deletes the key through the key storage provider that holds
+# it. It logs what it did to packer-close-winrm.log, which SetupComplete.cmd
+# keeps, so a smoke clone can show it. Its exit code is not checked here: it
+# never stops sysprep from running. SetupComplete.cmd runs the same script
+# again on each clone, so there is one way to remove these, not two.
+$close = Join-Path $env:WINDIR 'Temp\packer-close-winrm.ps1'
+Set-Content -Path $close -Encoding ascii -Value @'
+# Written by sysprep.ps1. Run twice: by the sysprep task before generalising,
+# and by SetupComplete.cmd on each clone as the backstop, which then deletes
+# it. Exits 1 if any of the three is left, so either caller can tell.
+$ErrorActionPreference = 'Continue'
+$log = Join-Path $env:WINDIR 'Temp\packer-close-winrm.log'
+function Log($m) { Add-Content -Path $log -Value ('{0:HH:mm:ss} {1}' -f (Get-Date), $m) }
+function Listeners { @(Get-ChildItem -Path WSMan:\localhost\Listener -ErrorAction SilentlyContinue | Where-Object { $_.Keys -contains 'Transport=HTTPS' }) }
+function Certs { @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' }) }
+Log 'start'
+try { Listeners | Remove-Item -Recurse -Force -ErrorAction Stop } catch { Log "HTTPS listener: $_" }
+Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue
+# The key first, and the certificate only once its key is gone: the
+# certificate is the only thing that names the key, so removing it while the
+# key stays would orphan the key where nothing here could find it again. A key
+# that cannot be deleted keeps its certificate, and the backstop retries.
+foreach ($c in Certs) {
+  $keyGone = $false
+  try {
+    $k = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($c)
+    if ($k -is [System.Security.Cryptography.RSACng]) {
+      $n = $k.Key.UniqueName; $k.Key.Delete(); $keyGone = $true; Log "CNG key $n deleted"
+    } elseif ($k -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
+      $n = $k.CspKeyContainerInfo.UniqueKeyContainerName; $k.PersistKeyInCsp = $false; $k.Clear(); $keyGone = $true; Log "CAPI key $n deleted"
+    } elseif (-not $c.HasPrivateKey) {
+      $keyGone = $true; Log "certificate $($c.Thumbprint) has no private key"
+    } else { Log "private key of $($c.Thumbprint) is in an unsupported provider; certificate kept" }
+  } catch { Log "private key of $($c.Thumbprint): $_; certificate kept" }
+  if ($keyGone) {
+    Remove-Item -Path ('Cert:\LocalMachine\My\' + $c.Thumbprint) -Force
+    Log "certificate $($c.Thumbprint) removed"
+  }
+}
+$left = (Listeners).Count + @(Get-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue).Count + (Certs).Count
+Log "left: $left"
+if ($left) { exit 1 }
+'@
+
 # The 30-second wait is ping, not timeout.exe, which fails without a console.
-# SetupComplete.cmd deletes this file and the task on every clone.
+# SetupComplete.cmd deletes this file and the task on every clone, and the
+# script above once it has run it.
 $cmd = Join-Path $env:WINDIR 'Temp\packer-sysprep.cmd'
 Set-Content -Path $cmd -Encoding ascii -Value @(
   '@echo off'
   'ping -n 31 127.0.0.1 >nul'
+  ('powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $close + '"')
   ('"%WINDIR%\System32\Sysprep\sysprep.exe" /generalize /oobe /shutdown /quiet /unattend:' + $answer)
 )
 

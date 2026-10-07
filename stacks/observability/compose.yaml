@@ -1332,6 +1332,28 @@ services:
     # rather than inherited so that the shared default cannot quietly break a
     # `make screenshots` run, and it is high enough that it should not bind.
     pids_limit: 4096
+    # The estate's capability drop and no-new-privileges, the last long-running
+    # service to get them (#954). The image runs as nonroot (uid 65532) with
+    # CapEff 0, so the drop clears the bounding set only — prometheus's
+    # "belt and braces" case. no-new-privileges is the half that matters: the
+    # image ships thirteen setuid binaries (su, mount, passwd, chrome-sandbox
+    # among them), and this makes every one of them inert.
+    #
+    # Chromium's own sandbox is not what this trades away. The renderer starts
+    # it with --no-sandbox unless BROWSER_SANDBOX is set, so the setuid
+    # chrome-sandbox helper is never used either way, and its namespaced mode
+    # (which would want SYS_ADMIN) is off too.
+    #
+    # Measured 2026-10-07 on alexander, with the pinned digest on the lab's
+    # bridge rendering the lab Grafana: a control run and this hardened run
+    # returned byte-identical outputs (a 559,214-byte PNG and a 53,256-byte
+    # PDF), and the hardened one rendered 1600x4600 three times over in
+    # 1 GiB of /dev/shm, with no error in its log — homelab-stack, the tallest
+    # dashboard captured, is 4582px. The end-to-end proof is `make screenshots` on this
+    # host, which cannot be reached from VLAN 30.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   # ---------------------------------------------------------------------------
   # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:

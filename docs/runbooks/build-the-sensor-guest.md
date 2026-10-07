@@ -273,9 +273,11 @@ outcome is a `.prom` file that this guest's Alloy ships to the lab's
 Prometheus, where `ScheduledJobFailed`, `ScheduledJobStale` and
 `ScheduledJobNeverRan` read it (#850).
 
-That file needs the textfile directory, which nothing else creates on this
-guest, and the installer needs the archive directory, which Zeek creates only at
-its first hourly rotation. Create both now, on `fenrir`:
+That file needs the textfile directory, which `make up STACK=sensor` creates
+(`scripts/ensure-textfile-dir.sh`). The installer also needs the archive
+directory, which Zeek creates only at its first hourly rotation. Create both
+now, on `fenrir`. The first already exists if the stack is up, and
+`install -d` leaves it as it is:
 
 ```bash
 sudo install -d -m 0755 -o root -g root /var/lib/node_exporter/textfile_collector /srv/sensor-data/zeek/archive

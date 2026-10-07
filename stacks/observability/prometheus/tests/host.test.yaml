@@ -2148,7 +2148,10 @@ tests:
                 The guest is running, and `qm guest cmd 160 get-fsinfo` on
                 Saruman has failed or timed out for an hour, so this guest's
                 disks cannot page. `systemctl status qemu-guest-agent` inside
-                the guest; if it has hung, restarting it is safe.
+                the guest. If it is running but has stopped answering, run
+                `make qga-resync VMID=160` on Saruman as root first: it
+                resets the agent's parser without touching the guest. If
+                that gets no answer, restarting the agent is safe.
 
   # --- GuestAgentSilent: quiet for a guest with no agent, and for a blip --
   # A Windows domain machine has never answered; that is not news, and must
