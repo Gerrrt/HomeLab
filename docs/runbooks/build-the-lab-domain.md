@@ -339,7 +339,8 @@ replaces §1 and the install half of §2. The rest of this page is still the
 *why*.
 
 `tofu/guests.tf` declares the six with the values the hand-built ones had:
-VMID, template, memory, disk, startup order, MAC and SMBIOS UUID. The MAC
+VMID, template, memory, disk, MAC and SMBIOS UUID, and records the startup
+order that root on `Saruman` sets after the apply (step 7). The MAC
 keeps `morpheus`'s reservations true. The SMBIOS UUID is what the endpoints'
 bought Windows 11 Pro activation is tied to, so a clone with the same UUID
 should reactivate by itself.
@@ -395,9 +396,22 @@ skips step 4.
    tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
    ```
 
-   On `Saruman`, check `qm config` for each one: the MAC, the `smbios1` UUID,
-   `startup` on the four servers, and the pool. Start `carbuncle` and `siren`,
-   which are on demand.
+   Then, **as root on `Saruman`**, give the four servers their boot order.
+   `tofu` cannot: Proxmox wants `Sys.Modify` on `/` to set `startup`, which
+   `phoenix` is not given (ADR-0043). The first #448 apply was refused with a
+   403 on exactly this. `tofu -chdir=tofu output startup_orders` lists the
+   same commands by guest name; run them as written here:
+
+   ```bash
+   qm set 150 --startup order=1,up=120
+   qm set 151 --startup order=2,up=120
+   qm set 152 --startup order=3,up=120
+   qm set 153 --startup order=4,up=120
+   ```
+
+   Check `qm config` for each one: the MAC, the `smbios1` UUID, `startup` on
+   the four servers, and the pool. Start `carbuncle` and `siren` if they are
+   not running.
 8. **Configure, one stage at a time.** On a fresh domain `--check` cannot see
    past the forest, so apply each tag before previewing the next. Run the long
    ones detached with a log:
