@@ -1260,7 +1260,10 @@ groups:
         # The collector stopped rewriting its file. A timestamp rather than
         # presence, for GuestDiskStateStale's reason: the .prom persists and is
         # re-served, so every service would stay healthy after the timer died.
-        # Thirty minutes is six runs of a five-minute timer.
+        # Thirty minutes is six missed runs of a five-minute timer. The
+        # `for` is GuestDiskStateStale's too, and keeps the stale rules alike,
+        # so this fires about 45 minutes after the last rewrite. Nothing it
+        # guards pages, so a quarter of an hour is not worth a second shape.
         expr: >-
           time() - node_textfile_mtime_seconds{file=~".*guest-service-state\\.prom"} > 1800
         for: 15m
