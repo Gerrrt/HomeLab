@@ -59,40 +59,51 @@ if (Get-Command -Name Get-BitLockerVolume -ErrorAction SilentlyContinue) {
 # state through the Proxmox API. So the task runs this first, while the key
 # still exists, and deletes the key through the key storage provider that holds
 # it. It logs what it did to packer-close-winrm.log, which SetupComplete.cmd
-# keeps, so a smoke clone can show it. It never stops sysprep from running.
+# keeps, so a smoke clone can show it. Its exit code is not checked here: it
+# never stops sysprep from running. SetupComplete.cmd runs the same script
+# again on each clone, so there is one way to remove these, not two.
 $close = Join-Path $env:WINDIR 'Temp\packer-close-winrm.ps1'
 Set-Content -Path $close -Encoding ascii -Value @'
+# Written by sysprep.ps1. Run twice: by the sysprep task before generalising,
+# and by SetupComplete.cmd on each clone as the backstop, which then deletes
+# it. Exits 1 if any of the three is left, so either caller can tell.
 $ErrorActionPreference = 'Continue'
 $log = Join-Path $env:WINDIR 'Temp\packer-close-winrm.log'
 function Log($m) { Add-Content -Path $log -Value ('{0:HH:mm:ss} {1}' -f (Get-Date), $m) }
+function Listeners { @(Get-ChildItem -Path WSMan:\localhost\Listener -ErrorAction SilentlyContinue | Where-Object { $_.Keys -contains 'Transport=HTTPS' }) }
+function Certs { @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' }) }
 Log 'start'
-try {
-  Get-ChildItem -Path WSMan:\localhost\Listener |
-    Where-Object { $_.Keys -contains 'Transport=HTTPS' } |
-    Remove-Item -Recurse -Force -ErrorAction Stop
-  Log 'HTTPS listener removed'
-} catch { Log "HTTPS listener: $_" }
+try { Listeners | Remove-Item -Recurse -Force -ErrorAction Stop } catch { Log "HTTPS listener: $_" }
 Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue
-Log ('packer-winrm-https rules left: ' + @(Get-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue).Count)
-foreach ($c in @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' })) {
+# The key first, and the certificate only once its key is gone: the
+# certificate is the only thing that names the key, so removing it while the
+# key stays would orphan the key where nothing here could find it again. A key
+# that cannot be deleted keeps its certificate, and the backstop retries.
+foreach ($c in Certs) {
+  $keyGone = $false
   try {
     $k = [System.Security.Cryptography.X509Certificates.RSACertificateExtensions]::GetRSAPrivateKey($c)
     if ($k -is [System.Security.Cryptography.RSACng]) {
-      $n = $k.Key.UniqueName; $k.Key.Delete(); Log "CNG key $n deleted"
+      $n = $k.Key.UniqueName; $k.Key.Delete(); $keyGone = $true; Log "CNG key $n deleted"
     } elseif ($k -is [System.Security.Cryptography.RSACryptoServiceProvider]) {
-      $n = $k.CspKeyContainerInfo.UniqueKeyContainerName; $k.PersistKeyInCsp = $false; $k.Clear(); Log "CAPI key $n deleted"
-    } else { Log "no private key found for $($c.Thumbprint)" }
-  } catch { Log "private key of $($c.Thumbprint): $_" }
-  Remove-Item -Path ('Cert:\LocalMachine\My\' + $c.Thumbprint) -Force
-  Log "certificate $($c.Thumbprint) removed"
+      $n = $k.CspKeyContainerInfo.UniqueKeyContainerName; $k.PersistKeyInCsp = $false; $k.Clear(); $keyGone = $true; Log "CAPI key $n deleted"
+    } elseif (-not $c.HasPrivateKey) {
+      $keyGone = $true; Log "certificate $($c.Thumbprint) has no private key"
+    } else { Log "private key of $($c.Thumbprint) is in an unsupported provider; certificate kept" }
+  } catch { Log "private key of $($c.Thumbprint): $_; certificate kept" }
+  if ($keyGone) {
+    Remove-Item -Path ('Cert:\LocalMachine\My\' + $c.Thumbprint) -Force
+    Log "certificate $($c.Thumbprint) removed"
+  }
 }
-Log ('packer-winrm certificates left: ' + @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' }).Count)
-Log 'done'
+$left = (Listeners).Count + @(Get-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue).Count + (Certs).Count
+Log "left: $left"
+if ($left) { exit 1 }
 '@
 
 # The 30-second wait is ping, not timeout.exe, which fails without a console.
-# SetupComplete.cmd deletes this file, the script above and the task on every
-# clone.
+# SetupComplete.cmd deletes this file and the task on every clone, and the
+# script above once it has run it.
 $cmd = Join-Path $env:WINDIR 'Temp\packer-sysprep.cmd'
 Set-Content -Path $cmd -Encoding ascii -Value @(
   '@echo off'

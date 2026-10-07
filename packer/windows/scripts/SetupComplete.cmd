@@ -43,18 +43,21 @@ echo %TIME% WinRM: start, so it can be reconfigured>> "%LOG%"
 net start WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-rem A BACKSTOP. The sysprep task (sysprep.ps1) removed the build's HTTPS
-rem listener, its rule, and the certificate with its private key before
-rem generalising, and logged it to packer-close-winrm.log. This removes
-rem whichever of them is still here, and exits 1 only if one is left after
-rem that, so rc=0 means none of the three is on this clone. A certificate is
-rem removed by its path: Windows PowerShell 5.1 has no -DeleteKey on a piped
-rem one, which is how this step failed on every clone before (#846). Basic
-rem auth goes back off; AllowUnencrypted is not touched, because the build
-rem never turns it on and setting it fails on the Public network a clone
-rem starts on.
-echo %TIME% powershell: the build's HTTPS listener, its rule and certificate, Basic auth>> "%LOG%"
-powershell -NoProfile -NonInteractive -Command "Get-ChildItem WSMan:\localhost\Listener | Where-Object { $_.Keys -contains 'Transport=HTTPS' } | Remove-Item -Recurse -Force; Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | ForEach-Object { Remove-Item -Path ('Cert:\LocalMachine\My\' + $_.Thumbprint) -Force }; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; $left = @(Get-ChildItem WSMan:\localhost\Listener | Where-Object { $_.Keys -contains 'Transport=HTTPS' }).Count + @(Get-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue).Count + @(Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' }).Count; Write-Output ('left: ' + $left); if ($left) { exit 1 }">> "%LOG%" 2>&1
+rem A BACKSTOP. The sysprep task ran packer-close-winrm.ps1 (sysprep.ps1)
+rem before generalising: the build's HTTPS listener and rule, and the
+rem certificate, its private key deleted first. This runs the same script
+rem again, so whatever is still here goes the same way, and it appends to the
+rem same packer-close-winrm.log. It exits 1 if any of the three is left,
+rem including a certificate it kept because its key could not be deleted, so
+rem rc=0 means none is on this clone (#846).
+echo %TIME% packer-close-winrm.ps1: the build's HTTPS listener, its rule and certificate>> "%LOG%"
+powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%WINDIR%\Temp\packer-close-winrm.ps1">> "%LOG%" 2>&1
+>> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
+
+rem AllowUnencrypted is not touched: the build never turns it on, and setting
+rem it fails on the Public network a clone starts on.
+echo %TIME% powershell: Basic auth off>> "%LOG%"
+powershell -NoProfile -NonInteractive -Command "Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 echo %TIME% WinRM: disable and stop>> "%LOG%"
