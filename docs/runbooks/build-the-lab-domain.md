@@ -215,12 +215,21 @@ pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixHostKeys
 ```
 
 Until the six are in that pool (tofu, #448), grant it on their VMIDs
-instead. Proxmox deletes a `/vms/<id>` grant along with the guest, so these
-lines would have to be re-run after a rebuild:
+instead, **with `PhoenixBuilder` beside it**. A grant on a more specific path
+replaces what the user inherits from `/vms`; it does not add to it. With
+`PhoenixHostKeys` alone on `/vms/150`, `phoenix` could read files there and
+nothing else: it could not even list the guest, so `lab-known-hosts.sh`
+found none of the six (2026-10-07), and tofu could not have imported them.
+Proxmox deletes a `/vms/<id>` grant along with the guest, so these lines
+would have to be re-run after a rebuild:
 
 ```bash
-for id in 150 151 152 153 154 155; do pveum acl modify /vms/$id --users phoenix@pve --roles PhoenixHostKeys; done
+for id in 150 151 152 153 154 155; do pveum acl modify /vms/$id --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys; done
+pveum user permissions phoenix@pve --path /vms/150 | grep -c -E 'VM\.Audit|VM\.GuestAgent\.FileRead'   # 2
 ```
+
+A pool grant is not affected the same way: `/pool/lab-domain` and `/vms`
+are different paths, and Proxmox adds what each grants.
 
 Then, on `phoenix`:
 
