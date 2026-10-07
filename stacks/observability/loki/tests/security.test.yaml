@@ -504,6 +504,22 @@ tests:
     expect:
       - {host: prometheus}
 
+  # Since #909, varlog no longer ships kern.log on a host that writes syslog,
+  # so a kernel line reaches Loki through syslog alone. It must still fire.
+  - alert: KernelOomKill
+    name: the OOM killer fires from syslog alone, with no kern.log copy
+    streams:
+      - labels: {log_type: syslog, host: golem}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-07T16:02:44.318211+00:00 golem kernel: Out of memory:
+              Killed process 2210 (alloy) total-vm:1830412kB,
+              anon-rss:912340kB, file-rss:0kB, shmem-rss:0kB, UID:0
+              pgtables:2210kB oom_score_adj:0
+    expect:
+      - {host: golem}
+
   - alert: KernelOomKill
     name: a cgroup OOM is ContainerOomKilled's, not this rule's
     streams:
