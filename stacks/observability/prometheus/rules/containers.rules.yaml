@@ -245,7 +245,10 @@ groups:
         #     ADR-0071) and not media (smaug has no cAdvisor; that is
         #     ContainerNotRunning's). A new stack is added here.
         #   - and `alloy`, which deploy-agent.sh runs with `docker run`, outside
-        #     any project, on every agent host.
+        #     any project, on every agent host. This clause cannot see Alloy
+        #     itself stop: cAdvisor runs inside Alloy, so the host's container
+        #     series stop with it and the last line below reads that as a dead
+        #     host. AlloyDown in stack.rules.yaml is the alert for that.
         # homelab.logs=off still excludes, for a throwaway started with
         # `docker compose run` inside a deployed project.
         #

@@ -301,6 +301,69 @@ groups:
             in its write-ahead log and are sent when it can, for a bounded
             time.
 
+      - alert: AlloyDown
+        # ONE ALERT THAT SAYS "THE AGENT IS DOWN", per host, by name.
+        #
+        # On 2026-10-07 the production alloy on this host was stopped (exit
+        # 137, not OOM, and `unless-stopped` did not bring it back) and stayed
+        # down for 47 minutes. What fired said nothing of the kind:
+        # InstanceDown for `alloy:12345`, three RemoteWriteJobStale, one per
+        # pushed job, and FirewallLogsStopped. ContainerGone, which lists
+        # `alloy` by name, cannot fire for it at all: cAdvisor runs inside
+        # Alloy, so the host's container series stop with it, and that rule's
+        # last line reads a host with no container series as a dead host.
+        #
+        # `<host>-alloy` is Alloy's own self-scrape, pushed like everything
+        # else, and every agent host has exactly one (config.alloy builds the
+        # name). It goes when Alloy goes, so it stands for the agent where the
+        # other two jobs stand for what the agent collects. This is
+        # RemoteWriteJobStale's shape, for the same reason: `up == 0` cannot see
+        # a pusher stop, and the range sees through staleness.
+        #
+        # 10m, against RemoteWriteJobStale's 15m, so this is already firing
+        # when those would start. Alertmanager's inhibit_rules then hold back
+        # the host's per-job RemoteWriteJobStale. On an agent host, one dead
+        # agent is therefore one notification that names the fix. NOT on the
+        # monitoring host: Prometheus scrapes alloy:12345 there directly, so
+        # InstanceDown pages critical at 5m, before this can fire, and the Loki
+        # rules that read its logs (FirewallLogsStopped) follow. That is left as
+        # it is on purpose. InstanceDown is the fastest signal this host has,
+        # and holding it back for this one would page later. Here this alert
+        # adds the fix and replaces the three RemoteWriteJobStale. A job that stops while Alloy keeps
+        # reporting (a broken cAdvisor, a node exporter collector) is still
+        # RemoteWriteJobStale's, and this stays quiet for it.
+        #
+        # It needs no silences for throwaway containers: it never looks at
+        # containers, only at the one job each real agent pushes. What it
+        # cannot tell apart is an agent that stopped from a host that is off
+        # or cut off. Both stop the push, so the description says to look
+        # before starting anything. The 24h window is RemoteWriteJobStale's,
+        # with the same known cost: a host that stays away longer resolves
+        # this falsely at 24h.
+        expr: |
+          count by (instance) (count_over_time(up{job=~".+-alloy"}[24h]))
+          unless
+          count by (instance) (up{job=~".+-alloy"})
+        for: 10m
+        labels:
+          component: stack
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Alloy on {{ $labels.instance }} has stopped reporting"
+          description: >-
+            Nothing from {{ $labels.instance }} has arrived for over ten
+            minutes: its metrics, its container and journal logs, and on the
+            monitoring host the network syslog too. On {{ $labels.instance }},
+            run `docker ps -a --filter name=alloy`. Exited, with no restart,
+            means something stopped it, and nothing is being collected while it
+            stays down. Check `docker inspect alloy` for FinishedAt and
+            OOMKilled, then `docker start alloy` and confirm `/-/ready` on
+            :12345. If it is running, it cannot reach the ingest proxy on the
+            monitoring host. Its metrics wait in its write-ahead log and are
+            sent when it can, for a bounded time. If the host is off, nothing is
+            wrong with Alloy.
+
       - alert: ScrapeTargetDisappeared
         # THE MIRROR OF RemoteWriteJobStale, for the one host that is pulled.
         #
