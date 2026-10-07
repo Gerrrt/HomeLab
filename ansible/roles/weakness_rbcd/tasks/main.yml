@@ -1,0 +1,92 @@
+---
+# #449: resource-based constrained delegation. The resource — titan — names a
+# principal it will let act on behalf of others, in its own
+# msDS-AllowedToActOnBehalfOfOtherIdentity. svc-rbcd is that principal: a user
+# with an SPN (so it is usable for S4U) and the shared weak password. Control
+# svc-rbcd and you can get a ticket to titan as any user. Unlike classic CD,
+# the trust is written on the resource, not on the account.
+#
+# svc-rbcd is dedicated, so disabling clears titan's attribute and deletes the
+# account; titan itself is never created or deleted. Order mirrors dcsync: on
+# enable, create then write titan's attribute; on disable, clear it while
+# svc-rbcd still exists, then delete it. Runs on the PDC emulator.
+
+- name: Refuse to enable rbcd without the weak password
+  ansible.builtin.assert:
+    that: lab_weak_password | length >= 1
+    fail_msg: >-
+      LAB_WEAK_PASSWORD is missing from phoenix.env. svc-rbcd needs a password
+      the RBCD exercise can authenticate with.
+    quiet: true
+  when: weakness_rbcd_state == 'present'
+
+- name: The principal titan will be told to trust
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_rbcd_account }}"
+    name: "{{ lab_weakness_rbcd_account }}"
+    sam_account_name: "{{ lab_weakness_rbcd_account }}"
+    upn: "{{ lab_weakness_rbcd_account }}@{{ lab_domain }}"
+    description: "#449 rbcd: principal titan trusts to act on its behalf (ADR-0080)"
+    path: "{{ lab_weakness_ou }}"
+    password: "{{ lab_weak_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    spn:
+      set: ["{{ lab_weakness_rbcd_spn }}"]
+    state: present
+  no_log: true
+  when: weakness_rbcd_state == 'present'
+
+# Both directions, always run: on disable this clears titan's attribute while
+# svc-rbcd still exists (so its DN resolves), before the delete below.
+# PrincipalsAllowedToDelegateToAccount is the AD-module view of titan's
+# msDS-AllowedToActOnBehalfOfOtherIdentity. Compares first.
+- name: Set or clear the trust on the resource
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Resource, [string]$Principal, [string]$Want)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $wantOn = ($Want -eq 'present')
+      $res = Get-ADComputer -Identity $Resource `
+        -Properties PrincipalsAllowedToDelegateToAccount -ErrorAction Stop
+      $curDns = @($res.PrincipalsAllowedToDelegateToAccount |
+        ForEach-Object { $_.DistinguishedName })
+      if ($wantOn) {
+        $p = Get-ADUser -Identity $Principal -ErrorAction SilentlyContinue
+        if ($null -eq $p) {
+          # Not there yet (check mode before the create above); enabling sets it.
+          $Ansible.Changed = $true
+          return
+        }
+        if ($curDns.Count -ne 1 -or $curDns[0] -ne $p.DistinguishedName) {
+          if (-not $Ansible.CheckMode) {
+            Set-ADComputer -Identity $Resource `
+              -PrincipalsAllowedToDelegateToAccount $p.DistinguishedName
+          }
+          $Ansible.Changed = $true
+        }
+      } else {
+        if ($curDns.Count -gt 0) {
+          if (-not $Ansible.CheckMode) {
+            Set-ADComputer -Identity $Resource `
+              -PrincipalsAllowedToDelegateToAccount $null
+          }
+          $Ansible.Changed = $true
+        }
+      }
+    parameters:
+      Resource: "{{ lab_weakness_rbcd_resource }}"
+      Principal: "{{ lab_weakness_rbcd_account }}"
+      Want: "{{ weakness_rbcd_state }}"
+
+- name: Remove the principal when the weakness is off
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_rbcd_account }}"
+    name: "{{ lab_weakness_rbcd_account }}"
+    sam_account_name: "{{ lab_weakness_rbcd_account }}"
+    state: absent
+  no_log: true
+  when: weakness_rbcd_state != 'present'

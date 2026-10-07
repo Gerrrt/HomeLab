@@ -1,0 +1,36 @@
+---
+# #449 / ADR-0029: Kerberoasting needs an account with an SPN and a crackable
+# password. This makes (or removes) svc-sql, whose SPN names a SQL service on
+# ramuh — so a TGS for it is encrypted with the account's key and can be
+# cracked offline. The password is LAB_WEAK_PASSWORD on purpose; that is the
+# exercise. Nothing in the ordinary population is touched, so disabling this
+# leaves the population as it was (ADR-0078).
+#
+# Runs on the PDC emulator. One declarative task does both directions:
+# present creates the account with the SPN, absent deletes it.
+
+- name: Refuse to enable kerberoast without the weak password
+  ansible.builtin.assert:
+    that: lab_weak_password | length >= 1
+    fail_msg: >-
+      LAB_WEAK_PASSWORD is missing from phoenix.env. The kerberoast target's
+      password is meant to be crackable, but it still has to be set.
+    quiet: true
+  when: weakness_kerberoast_state == 'present'
+
+- name: The SPN service account, the Kerberoasting target
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_kerberoast_account }}"
+    name: "{{ lab_weakness_kerberoast_account }}"
+    sam_account_name: "{{ lab_weakness_kerberoast_account }}"
+    upn: "{{ lab_weakness_kerberoast_account }}@{{ lab_domain }}"
+    description: "#449 kerberoast: SPN on a crackable account (ADR-0080)"
+    path: "{{ lab_weakness_ou }}"
+    password: "{{ lab_weak_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    spn:
+      set: ["{{ lab_weakness_kerberoast_spn }}"]
+    state: "{{ weakness_kerberoast_state }}"
+  no_log: true

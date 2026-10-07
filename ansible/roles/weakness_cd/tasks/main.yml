@@ -1,0 +1,64 @@
+---
+# #449: constrained delegation, Kerberos only. svc-web is allowed to delegate
+# to titan's CIFS service (msDS-AllowedToDelegateTo). It carries its own SPN so
+# it can be used for S4U2Proxy, and the shared weak password so the exercise
+# can authenticate as it. Protocol transition (TRUSTED_TO_AUTH_FOR_DELEGATION)
+# is deliberately NOT set — that is the rougher variant, a one-line change and
+# an ADR note away if it is wanted.
+#
+# A dedicated account: disabling deletes svc-web and the delegation it carries;
+# titan, the target, is never touched. Runs on the PDC emulator.
+
+- name: Refuse to enable cd without the weak password
+  ansible.builtin.assert:
+    that: lab_weak_password | length >= 1
+    fail_msg: >-
+      LAB_WEAK_PASSWORD is missing from phoenix.env. svc-web needs a password
+      the constrained-delegation exercise can authenticate with.
+    quiet: true
+  when: weakness_cd_state == 'present'
+
+- name: The constrained-delegation account, with its own SPN
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_cd_account }}"
+    name: "{{ lab_weakness_cd_account }}"
+    sam_account_name: "{{ lab_weakness_cd_account }}"
+    upn: "{{ lab_weakness_cd_account }}@{{ lab_domain }}"
+    description: "#449 cd: constrained delegation to titan CIFS (ADR-0080)"
+    path: "{{ lab_weakness_ou }}"
+    password: "{{ lab_weak_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    spn:
+      set: ["{{ lab_weakness_cd_spn }}"]
+    state: "{{ weakness_cd_state }}"
+  no_log: true
+
+# msDS-AllowedToDelegateTo has no dedicated module option, so Set-ADUser writes
+# it, compare-first. Only when enabling: absent deletes the account above and
+# the attribute with it.
+- name: Allow svc-web to delegate to titan's CIFS
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Sam, [string]$Target)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $u = Get-ADUser -Identity $Sam -Properties 'msDS-AllowedToDelegateTo' -ErrorAction SilentlyContinue
+      if ($null -eq $u) {
+        # Not there yet (check mode before the create above); enabling sets it.
+        $Ansible.Changed = $true
+      } else {
+        $cur = @($u.'msDS-AllowedToDelegateTo')
+        if ($cur.Count -ne 1 -or $cur[0] -ne $Target) {
+          if (-not $Ansible.CheckMode) {
+            Set-ADUser -Identity $Sam -Replace @{ 'msDS-AllowedToDelegateTo' = $Target }
+          }
+          $Ansible.Changed = $true
+        }
+      }
+    parameters:
+      Sam: "{{ lab_weakness_cd_account }}"
+      Target: "{{ lab_weakness_cd_target_spn }}"
+  when: weakness_cd_state == 'present'

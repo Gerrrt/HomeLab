@@ -31,11 +31,30 @@
           Sams: "{{ population_users | map(attribute='sam') | list }}"
           Groups: "{{ population_groups | map(attribute='name') | list }}"
           Netbios: "{{ lab_netbios }}"
+          # #449's weaknesses (ADR-0080): each toggle, defaulting to absent so a
+          # plain run is the negative test, and the identifiers from group_vars
+          # so this proof reads the same facts the roles write.
+          Weak:
+            kerberoast_state: "{{ weakness_kerberoast_state | default('absent') }}"
+            kerberoast_account: "{{ lab_weakness_kerberoast_account }}"
+            kerberoast_spn: "{{ lab_weakness_kerberoast_spn }}"
+            asreproast_state: "{{ weakness_asreproast_state | default('absent') }}"
+            asreproast_account: "{{ lab_weakness_asreproast_account }}"
+            dcsync_state: "{{ weakness_dcsync_state | default('absent') }}"
+            dcsync_account: "{{ lab_weakness_dcsync_account }}"
+            ucd_state: "{{ weakness_ucd_state | default('absent') }}"
+            ucd_computer: "{{ lab_weakness_ucd_computer }}"
+            cd_state: "{{ weakness_cd_state | default('absent') }}"
+            cd_account: "{{ lab_weakness_cd_account }}"
+            cd_target_spn: "{{ lab_weakness_cd_target_spn }}"
+            rbcd_state: "{{ weakness_rbcd_state | default('absent') }}"
+            rbcd_account: "{{ lab_weakness_rbcd_account }}"
+            rbcd_resource: "{{ lab_weakness_rbcd_resource }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
                 [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups,
-                [string]$Netbios)
+                [string]$Netbios, [hashtable]$Weak)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -193,6 +212,75 @@
             $r['every population group exists'] =
               -not ($Groups | Where-Object { -not (Get-ADGroup -Filter "Name -eq '$_'") })
           }
+
+          # --- #449: each deliberate weakness is in the state its toggle names -
+          # Default absent, so a plain run asserts every one is NOT there — the
+          # negative test, that the path to Domain Admin is not present. To
+          # prove one that is deliberately on, pass its state, e.g.
+          #   ansible-playbook verify.yml -e weakness_kerberoast_state=present
+          if ([bool]::Parse($IsPrimary)) {
+            $wbase = (Get-ADDomain).DistinguishedName
+            $repl = @('1131f6aa-9c07-11d1-f79f-00c04fc2dcd2',
+                      '1131f6ad-9c07-11d1-f79f-00c04fc2dcd2')
+
+            # kerberoast: the account exists and carries its SPN.
+            $ku = Get-ADUser -Filter "SamAccountName -eq '$($Weak.kerberoast_account)'" `
+              -Properties servicePrincipalName -ErrorAction SilentlyContinue
+            $kHave = [bool]($ku -and ($ku.servicePrincipalName -contains $Weak.kerberoast_spn))
+            $r['kerberoast matches its toggle'] = ($kHave -eq ($Weak.kerberoast_state -eq 'present'))
+
+            # asreproast: the account exists with pre-auth disabled.
+            $au = Get-ADUser -Filter "SamAccountName -eq '$($Weak.asreproast_account)'" `
+              -Properties DoesNotRequirePreAuth -ErrorAction SilentlyContinue
+            $aHave = [bool]($au -and $au.DoesNotRequirePreAuth)
+            $r['asreproast matches its toggle'] = ($aHave -eq ($Weak.asreproast_state -eq 'present'))
+
+            # dcsync: the account holds both replication rights on the domain head.
+            $du = Get-ADUser -Filter "SamAccountName -eq '$($Weak.dcsync_account)'" `
+              -ErrorAction SilentlyContinue
+            $dHave = $false
+            if ($du) {
+              $acl = Get-Acl -Path "AD:\$wbase"
+              $granted = $repl | Where-Object {
+                $guid = [guid]$_
+                $acl.Access | Where-Object {
+                  $idSid = try { $_.IdentityReference.Translate(
+                    [System.Security.Principal.SecurityIdentifier]).Value } catch { $null }
+                  $idSid -eq $du.SID.Value -and
+                  ($_.ActiveDirectoryRights -band
+                    [System.DirectoryServices.ActiveDirectoryRights]::ExtendedRight) -and
+                  $_.ObjectType -eq $guid -and $_.AccessControlType -eq 'Allow' }
+              }
+              $dHave = (@($granted).Count -eq $repl.Count)
+            }
+            $r['dcsync matches its toggle'] = ($dHave -eq ($Weak.dcsync_state -eq 'present'))
+
+            # ucd: unconstrained delegation on the member server.
+            $uc = Get-ADComputer -Identity $Weak.ucd_computer `
+              -Properties TrustedForDelegation -ErrorAction SilentlyContinue
+            $uHave = [bool]($uc -and $uc.TrustedForDelegation)
+            $r['ucd matches its toggle'] = ($uHave -eq ($Weak.ucd_state -eq 'present'))
+
+            # cd: the account's allowed-to-delegate-to names titan's CIFS.
+            $cu = Get-ADUser -Filter "SamAccountName -eq '$($Weak.cd_account)'" `
+              -Properties 'msDS-AllowedToDelegateTo' -ErrorAction SilentlyContinue
+            $cHave = [bool]($cu -and (@($cu.'msDS-AllowedToDelegateTo') -contains $Weak.cd_target_spn))
+            $r['cd matches its toggle'] = ($cHave -eq ($Weak.cd_state -eq 'present'))
+
+            # rbcd: the resource trusts the controlled principal.
+            $rp = Get-ADUser -Filter "SamAccountName -eq '$($Weak.rbcd_account)'" `
+              -ErrorAction SilentlyContinue
+            $rc = Get-ADComputer -Identity $Weak.rbcd_resource `
+              -Properties PrincipalsAllowedToDelegateToAccount -ErrorAction SilentlyContinue
+            $bHave = $false
+            if ($rp -and $rc) {
+              $trusted = @($rc.PrincipalsAllowedToDelegateToAccount |
+                ForEach-Object { $_.DistinguishedName })
+              $bHave = ($trusted -contains $rp.DistinguishedName)
+            }
+            $r['rbcd matches its toggle'] = ($bHave -eq ($Weak.rbcd_state -eq 'present'))
+          }
+
           if ($LabRole -eq 'endpoint') {
             $t = Get-ScheduledTask -TaskName Lab-AuthGenerator -ErrorAction SilentlyContinue
             # By SID, not by name: a suffix match would accept AD\notauthgen, or

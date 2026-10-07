@@ -1,0 +1,29 @@
+---
+# #449: unconstrained delegation. Sets (or clears) TRUSTED_FOR_DELEGATION on
+# ramuh, a member server — a domain controller is trusted for delegation by
+# default, so only a member server is an exercise. A host trusted this way
+# caches the TGT of anyone who authenticates to it, which is the primitive.
+#
+# ramuh's computer object is never created or deleted here: present sets the
+# flag, absent clears it, so disabling returns ramuh to an ordinary member.
+# Runs on the PDC emulator; compares before it writes, so a second run of
+# either direction reports nothing changed.
+
+- name: Set or clear unconstrained delegation on the member server
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Computer, [string]$Want)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $wantOn = ($Want -eq 'present')
+      $c = Get-ADComputer -Identity $Computer -Properties TrustedForDelegation -ErrorAction Stop
+      if ($c.TrustedForDelegation -ne $wantOn) {
+        if (-not $Ansible.CheckMode) {
+          Set-ADComputer -Identity $Computer -TrustedForDelegation $wantOn
+        }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      Computer: "{{ lab_weakness_ucd_computer }}"
+      Want: "{{ weakness_ucd_state }}"

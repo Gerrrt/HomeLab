@@ -17,6 +17,41 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-06
+
+- **The lab domain's deliberate weaknesses, each behind its own switchable
+  tag** ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0080](adr/0080-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+  - **Six roles, six tags, all off by default.** `weakness_kerberoast`,
+    `weakness_asreproast`, `weakness_dcsync`, `weakness_ucd`, `weakness_cd`
+    and `weakness_rbcd` join `lab-domain.yml`, each with a
+    `weakness_<name>_state` that defaults to `absent`. The tag selects the
+    role; the variable selects the direction; every role is idempotent both
+    ways. A plain run leaves all six absent, so the merge changes nothing on
+    the live domain.
+  - **What each one is.** `kerberoast` makes `svc-sql` with an SPN on a
+    crackable account (ADR-0029's named `ramuh` target); `asreproast` makes
+    `svc-backup` with Kerberos pre-auth disabled; `dcsync` grants the two
+    replication rights on the domain head to a non-DA `svc-sync`; `ucd` sets
+    unconstrained delegation on `ramuh`; `cd` lets `svc-web` delegate to
+    `titan`'s CIFS (Kerberos only); `rbcd` sets `titan` to trust `svc-rbcd`.
+    The dedicated accounts are deleted when their weakness is turned off, so
+    the ordinary population is never touched (ADR-0078); the delegation flags
+    are cleared on the real computers, which are never created or deleted.
+  - **The negative test is `verify.yml`.** It now asserts each weakness is in
+    the state its toggle names, defaulting to absent — so a plain run proves
+    the path to Domain Admin is not there, and `verify.yml -e
+    weakness_<name>_state=present` proves one that is deliberately on. The §0
+    "do not harden" assertions are untouched.
+  - **A sixth secret.** `LAB_WEAK_PASSWORD` in `phoenix.env` is the
+    deliberately crackable password the weakness accounts share — the crack
+    target for the two roasting weaknesses, and the login the others
+    authenticate with. A role refuses to enable a weakness while it is unset.
+  - **Not applied yet.** This is code and docs only. Nothing has been run
+    against the live domain; the snapshot-first, enable/observe/disable loop
+    per weakness (runbook §5a) is the operational work still to do, and the
+    SOC-detection half (#266/#267/#437) is the deliverable it feeds.
+
 ## 2026-10-04
 
 - **`deploy-agent.sh` proves the log path with a line it writes itself.**

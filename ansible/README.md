@@ -82,6 +82,10 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
     in place of the deploy GPOs (#448).
   - `authgen`: the authentication generator's batch right and scheduled task,
     on the two endpoints.
+  - `weakness_kerberoast`, `weakness_asreproast`, `weakness_dcsync`,
+    `weakness_ucd`, `weakness_cd`, `weakness_rbcd`: #449's deliberate
+    weaknesses, on `bahamut`, each behind its own tag and off by default
+    ([ADR-0080]). Their fixed identifiers are in `group_vars/all.yaml`.
   - `dns_forwarder`: shared by both DC roles.
   - `dns_client`: a guest's IPv4 resolvers, set through `netsh interface ipv4`
     so the IPv6 ones (`::1` on a DC) are never touched. Used by `base`,
@@ -106,11 +110,29 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `tiers` | The tier OUs, admins, `Tier 0 Admins`, member placement | §5 |
 | `shares` | `titan`'s `Public` and `Finance`, with the decoy | §5 |
 | `soc` | Wazuh and Velociraptor, in place of the deploy GPOs | §11 |
+| `kerberoast` | An SPN on a crackable account, `ramuh`'s target | §5 |
+| `asreproast` | Pre-auth disabled on a crackable account | §5 |
+| `dcsync` | Replication rights on a non-DA principal | §5 |
+| `ucd` | Unconstrained delegation on `ramuh` | §5 |
+| `cd` | Constrained delegation, `svc-web` to `titan` CIFS | §5 |
+| `rbcd` | Resource-based constrained delegation on `titan` | §5 |
 
 The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
-§11's agents. [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s SPN
-account, Tier 0 logon GPO and deliberate weaknesses are still to come, each as
-a further tag in this same playbook.
+§11's agents. The last six are
+[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s deliberate weaknesses
+([ADR-0080]), each off until asked for: `weakness_<name>_state` is `absent` by
+default, so a plain run leaves none of them present. Enable one, watch the SOC
+see it, disable it, confirm the signal goes:
+
+```bash
+ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
+ansible-playbook verify.yml      -e weakness_kerberoast_state=present   # it is on
+ansible-playbook lab-domain.yml --tags kerberoast                       # off again
+ansible-playbook verify.yml                                             # all six absent
+```
+
+A plain `ansible-playbook verify.yml` is the negative test: it asserts every
+weakness is absent, so the path to Domain Admin is not there.
 
 ## Rules this tree keeps
 
@@ -123,8 +145,9 @@ a further tag in this same playbook.
   own timer (ADR-0021), and `phoenix` never pushes to them (ADR-0043).
 - **Secrets come from `phoenix.env`.** The variables are
   `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`, `LAB_POPULATION_SEED`,
-  `LAB_TIER_ADMIN_PASSWORD` and `LAB_WAZUH_REGISTRATION_PASSWORD`. Every
-  task that uses one is `no_log`. The exception is
+  `LAB_TIER_ADMIN_PASSWORD`, `LAB_WAZUH_REGISTRATION_PASSWORD` and
+  `LAB_WEAK_PASSWORD` (the deliberately crackable one the weakness accounts
+  share, ADR-0080). Every task that uses one is `no_log`. The exception is
   `population-credentials.yml`, which exists to print passwords and is run
   by hand.
 - **A second run changes nothing.** Every task compares before it acts. A
@@ -135,5 +158,6 @@ a further tag in this same playbook.
   has no route to VLAN 30.
 
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
+[ADR-0080]: ../docs/adr/0080-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix

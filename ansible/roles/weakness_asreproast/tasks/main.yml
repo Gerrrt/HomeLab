@@ -1,0 +1,58 @@
+---
+# #449: AS-REP roasting. svc-backup has Kerberos pre-authentication disabled,
+# so a KRB_AS_REP can be requested for it with no credentials and its encrypted
+# part cracked offline. Its password is LAB_WEAK_PASSWORD, so the crack lands.
+# A dedicated account, so disabling this deletes it and leaves the population
+# untouched (ADR-0078).
+#
+# Runs on the PDC emulator. present: make the account, then disable pre-auth.
+# absent: the account is deleted, which takes the flag with it.
+
+- name: Refuse to enable asreproast without the weak password
+  ansible.builtin.assert:
+    that: lab_weak_password | length >= 1
+    fail_msg: >-
+      LAB_WEAK_PASSWORD is missing from phoenix.env. The AS-REP target's
+      password is meant to be crackable, but it still has to be set.
+    quiet: true
+  when: weakness_asreproast_state == 'present'
+
+- name: The AS-REP roastable account
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_asreproast_account }}"
+    name: "{{ lab_weakness_asreproast_account }}"
+    sam_account_name: "{{ lab_weakness_asreproast_account }}"
+    upn: "{{ lab_weakness_asreproast_account }}@{{ lab_domain }}"
+    description: "#449 asreproast: pre-auth disabled on a crackable account (ADR-0080)"
+    path: "{{ lab_weakness_ou }}"
+    password: "{{ lab_weak_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    state: "{{ weakness_asreproast_state }}"
+  no_log: true
+
+# microsoft.ad.user has no plain switch for this UAC bit in this version, so
+# Set-ADAccountControl does it, compare-first. Only when enabling: when absent
+# the account above is already gone.
+- name: Disable Kerberos pre-authentication on the account
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Sam)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $u = Get-ADUser -Identity $Sam -Properties DoesNotRequirePreAuth -ErrorAction SilentlyContinue
+      if ($null -eq $u) {
+        # Not there yet (check mode before the create above really runs);
+        # enabling will set it.
+        $Ansible.Changed = $true
+      } elseif (-not $u.DoesNotRequirePreAuth) {
+        if (-not $Ansible.CheckMode) {
+          Set-ADAccountControl -Identity $Sam -DoesNotRequirePreAuth $true
+        }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      Sam: "{{ lab_weakness_asreproast_account }}"
+  when: weakness_asreproast_state == 'present'

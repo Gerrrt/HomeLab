@@ -67,3 +67,48 @@ lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSW
 # The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
 # as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
 lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"
+
+# --- #449's deliberate weaknesses (ADR-0080) --------------------------------
+# Each weakness is one tag on lab-domain.yml, with its own
+# weakness_<name>_state (default absent, in the role). These are the fixed
+# identifiers the roles set and verify.yml proves — one source of truth for
+# both, so the proof cannot drift from the thing it proves.
+#
+# The weak password is deliberately crackable: that is the exercise, not an
+# accident, for the two roasting weaknesses, and the login that drives the
+# dcsync and delegation exercises. Like every secret it comes from phoenix.env,
+# never this tree, and the dedicated accounts share it. A role refuses to
+# enable a weakness while it is unset. Nothing is enabled by default: a plain
+# run leaves all six absent, which is #449's negative test.
+lab_weak_password: "{{ lookup('ansible.builtin.env', 'LAB_WEAK_PASSWORD') }}"
+# The dedicated accounts model Tier 1 service identities, so they live in the
+# Tier 1 OU the skeleton already owns; absent deletes them and the OU stays.
+lab_weakness_ou: "OU=Tier1,{{ lab_domain_dn }}"
+
+# kerberoast: an SPN on an account with a crackable password (ADR-0029 names
+# ramuh as the host). asreproast: pre-auth disabled on an account.
+lab_weakness_kerberoast_account: svc-sql
+lab_weakness_kerberoast_spn: "MSSQLSvc/ramuh.{{ lab_domain }}:1433"
+lab_weakness_asreproast_account: svc-backup
+
+# dcsync: the two replication extended rights on the domain head, granted to a
+# non-DA account.
+lab_weakness_dcsync_account: svc-sync
+
+# ucd: unconstrained delegation on a member server (DCs are trusted for it by
+# default, so only a member server teaches anything). The computer object is
+# never created or deleted — the flag is set and cleared.
+lab_weakness_ucd_computer: RAMUH
+
+# cd: Kerberos-only constrained delegation. svc-web (its own SPN, so it is
+# usable for S4U) may delegate to titan's CIFS.
+lab_weakness_cd_account: svc-web
+lab_weakness_cd_spn: "HTTP/web.{{ lab_domain }}"
+lab_weakness_cd_target_spn: "CIFS/titan.{{ lab_domain }}"
+
+# rbcd: titan (the resource) trusts a principal we control to act on its
+# behalf. svc-rbcd is a user with an SPN rather than a computer account, so it
+# takes the shared weak password cleanly and is still usable for S4U.
+lab_weakness_rbcd_account: svc-rbcd
+lab_weakness_rbcd_spn: "HOST/svc-rbcd.{{ lab_domain }}"
+lab_weakness_rbcd_resource: TITAN

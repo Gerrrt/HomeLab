@@ -117,3 +117,51 @@
   roles:
     - role: authgen
       tags: [authgen]
+
+# #449's deliberate weaknesses, each its own tag, each off until asked for
+# (weakness_<name>_state, default absent in the role). A plain run leaves every
+# one absent — the negative test, that the path to Domain Admin is not there.
+# Enable one, watch the SOC see it, disable it, watch the signal go. ADR-0080,
+# and the identifiers are in group_vars/all.yaml. All six are directory writes,
+# so they run on the PDC emulator like tiers and population.
+- name: Kerberoast — an SPN on a crackable account
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_kerberoast
+      tags: [kerberoast]
+
+- name: AS-REP roast — pre-auth disabled on a crackable account
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_asreproast
+      tags: [asreproast]
+
+- name: DCSync — replication rights on a non-DA principal
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_dcsync
+      tags: [dcsync]
+
+- name: Unconstrained delegation — on a member server
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_ucd
+      tags: [ucd]
+
+- name: Constrained delegation — svc-web to titan's CIFS
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_cd
+      tags: [cd]
+
+- name: Resource-based constrained delegation — titan trusts svc-rbcd
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_rbcd
+      tags: [rbcd]
