@@ -3654,3 +3654,130 @@ tests:
       - eval_time: 10m
         alertname: ZpoolVdevErrors
         exp_alerts: []
+
+  # --- GuestServiceUnhealthy: a stopped Zeek, with fenrir still running ---
+  # The failure #858 exists for: the guest is up, so HypervisorGuestStopped is
+  # quiet, and Zeek is not. Pending at 10 minutes, firing at 16, and the
+  # Prometheus beside it, healthy throughout, stays quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_service_healthy{instance="Saruman",job="Saruman-metrics",host="Saruman",guest="fenrir",vmid="190",service="sensor-zeek"}'
+        values: "0x6"
+      - series: 'homelab_guest_service_healthy{instance="Saruman",job="Saruman-metrics",host="Saruman",guest="alexander",vmid="140",service="lab-prometheus"}'
+        values: "1x6"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: GuestServiceUnhealthy
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: GuestServiceUnhealthy
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              host: Saruman
+              guest: fenrir
+              vmid: "190"
+              service: sensor-zeek
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman: sensor-zeek on fenrir is not healthy"
+              description: >-
+                Docker on fenrir (VMID 190) has not called
+                sensor-zeek running and healthy for fifteen minutes: it is
+                stopped, missing, or failing its own healthcheck. The guest is up.
+                From Saruman: `qm guest exec 190 -- docker ps -a`,
+                then the container's log from the lab.
+
+  # --- GuestServiceUnhealthy: a recreate is not an outage -----------------
+  # `make up` on odin recreates the manager: unhealthy for ten minutes while
+  # it starts, then healthy. Under the `for`, so nothing fires.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_service_healthy{instance="Saruman",job="Saruman-metrics",host="Saruman",guest="odin",vmid="160",service="soc-wazuh-manager"}'
+        values: "1 0 0 1x6"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: GuestServiceUnhealthy
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: GuestServiceUnhealthy
+        exp_alerts: []
+
+  # --- GuestServiceUnchecked: a hung agent is unknown, not unhealthy -------
+  # The collector writes checked 0 and no healthy series. So Unhealthy has
+  # nothing to fire on, and Unchecked is what says so, after its hour.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_service_checked{instance="Saruman",job="Saruman-metrics",host="Saruman",guest="odin",vmid="160",service="soc-velociraptor"}'
+        values: "0x16"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: GuestServiceUnchecked
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: GuestServiceUnhealthy
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: GuestServiceUnchecked
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              host: Saruman
+              guest: odin
+              vmid: "160"
+              service: soc-velociraptor
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman: soc-velociraptor on odin has not been checked for an hour"
+              description: >-
+                `qm guest exec 160` on Saruman has failed or
+                timed out for an hour, so whether soc-velociraptor is healthy is
+                unknown. `systemctl status qemu-guest-agent` inside the guest; if it
+                has hung, restarting it is safe.
+
+  # --- GuestServiceStateStale: fires when the file stops being rewritten --
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-service-state.prom"}'
+        values: "0x16"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: GuestServiceStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: Saruman
+              job: Saruman-metrics
+              file: guest-service-state.prom
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman has not rewritten its guests' service state in half an hour"
+              description: >-
+                The file is 50m 0s old, so
+                GuestServiceUnhealthy is reading old answers. Check
+                homelab-guest-service-state.timer on the host and its last run in
+                the journal (`journalctl -u homelab-guest-service-state`); a failed
+                `qm list` writes nothing on purpose, so the journal says why.
+
+  # --- GuestServiceStateStale: quiet while rewritten; its neighbours are not it
+  # guest-state.prom and guest-disk-state.prom sit beside it and are frozen
+  # here. A regex loosened to `.*guest.*state` fires on them.
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-service-state.prom"}'
+        values: "0+300x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: GuestServiceStateStale
+        exp_alerts: []
