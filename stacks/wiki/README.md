@@ -167,14 +167,18 @@ before it answers:
    the targets file is trusted, the way its header asks. Both, because they
    fail differently: the name tests the resolver, the SNI and the leaf's DNS
    SAN; the address tests `default_sni` and the IP SAN. Each must print
-   `probe_success 1`:
+   `probe_success 1` and `probe_http_status_code 200`. The exporter is not
+   published on the host, so `localhost:9115` there refuses; it is asked from
+   inside its own container, as every other probe in
+   [`targets/blackbox.yaml`](../observability/prometheus/targets/blackbox.yaml)
+   is:
 
    ```bash
-   curl -s 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://lemmiwinks.matrix.elysium/healthz' | grep -E '^probe_(success|ssl_earliest_cert_expiry)'
+   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://lemmiwinks.matrix.elysium/healthz' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
    ```
 
    ```bash
-   curl -s 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://10.0.99.30/healthz' | grep -E '^probe_(success|ssl_earliest_cert_expiry)'
+   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://10.0.99.30/healthz' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
    ```
 
 5. `curl -si -X POST http://lemmiwinks.matrix.elysium/login` from Hicks
