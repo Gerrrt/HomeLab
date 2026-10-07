@@ -4,6 +4,14 @@
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (host
 keys are now checked)
 
+> [!NOTE]
+> Renumbered from ADR-0082 to ADR-0084 on 2026-10-07. This decision
+> ([Gerrrt/HomeLab#931](https://github.com/Gerrrt/HomeLab/pull/931)) and the
+> wiki's TLS decision ([Gerrrt/HomeLab#962](https://github.com/Gerrrt/HomeLab/pull/962))
+> both merged carrying ADR-0082; this one landed second and moved, past 0083
+> (claimed by [Gerrrt/HomeLab#928](https://github.com/Gerrrt/HomeLab/pull/928)).
+> The text below is unchanged, per ADR-0001.
+
 ## Context
 
 ADR-0077 decision 2 made OpenSSH the way `phoenix`'s Ansible reaches the lab
