@@ -328,11 +328,14 @@ groups:
           summary: "{{ $labels.host }}: {{ $labels.oom_unit }} was OOM-killed"
           description: >-
             systemd ({{ $labels.unit }}) reports that {{ $labels.oom_unit }}
-            failed with result 'oom-kill'. A user@ manager means a user's own
-            unit: add `--user`, or `-M <user>@` as root. `systemctl status {{ $labels.oom_unit }}` and its
-            journal say which process, and the unit file's MemoryMax= is the
-            first thing to read. If KernelOomKill also fired on this host,
-            the whole machine ran out, not just the unit.
+            failed with result 'oom-kill'. `systemctl status
+            {{ $labels.oom_unit }}` and its journal say which process, and the
+            unit file's MemoryMax= is the first thing to read. If the manager
+            is a user@<uid>.service, it is that user's own unit: as the user,
+            `systemctl --user status {{ $labels.oom_unit }}`; as root,
+            `systemctl --user -M <user>@ status {{ $labels.oom_unit }}`. If
+            KernelOomKill also fired on this host, the whole machine ran out,
+            not just the unit.
 
       - alert: FilesystemRemountedReadOnly
         expr: |
