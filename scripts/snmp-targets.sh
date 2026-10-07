@@ -11,7 +11,7 @@
 # The device list must live in exactly one place. It is currently spread across
 # five: prometheus/targets/snmp.yaml (the real one), generator.yaml's auths:
 # block, render-config.sh's REQUIRED array, secrets/observability.example.yaml,
-# and the -e flags in the Makefile's snmp-generate target. Every new tool reads
+# and the -e flags in scripts/snmp-generate.sh. Every new tool reads
 # it from here instead of adding a sixth, and --check asserts the other copies
 # still agree.
 #
