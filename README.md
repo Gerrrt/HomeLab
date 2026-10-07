@@ -6,6 +6,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/ci.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CI)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
 [![Digest drift](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/digests.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Digest%20drift)](https://github.com/Gerrrt/HomeLab/actions/workflows/digests.yml)
+[![CVE scan](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/cve-scan.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CVE%20scan)](https://github.com/Gerrrt/HomeLab/actions/workflows/cve-scan.yml)
 [![Last commit](https://img.shields.io/github/last-commit/Gerrrt/HomeLab/main?style=plastic&logo=git&logoColor=white&label=last%20commit)](https://github.com/Gerrrt/HomeLab/commits/main)
 [![Open issues](https://img.shields.io/github/issues/Gerrrt/HomeLab?style=plastic&logo=github&logoColor=white&label=open%20issues)](https://github.com/Gerrrt/HomeLab/issues)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?style=plastic&logo=dependabot&logoColor=white)](.github/dependabot.yml)
@@ -124,7 +125,9 @@ documents for different readers.
   `make pin-digests` re-resolves them from the registry. Every `docker run` in
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
-  at all.
+  at all. Every pinned digest is also scanned weekly for fixable HIGH and
+  CRITICAL CVEs, and each image with findings has an open issue until a scan
+  finds it clean.
 - **Documented decisions and runbooks.** 80 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 45
   runbooks for the operations that are easy to get wrong at 1am, one of which

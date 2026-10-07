@@ -576,7 +576,11 @@ the monitoring host, a merged row that nobody installed is now a failed
 `make check-digests` is deliberately **not** here. It needs no host and no
 secret, so it runs weekly in GitHub Actions
 ([`digests.yml`](../../.github/workflows/digests.yml)) instead — genuinely
-off-host, which nothing else in this list is.
+off-host, which nothing else in this list is. `make scan-images` is not here
+either, for the same reason: the weekly CVE scan of those digests runs in
+[`cve-scan.yml`](../../.github/workflows/cve-scan.yml), and its findings
+arrive as issues labelled `security`
+([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
 
 ---
 
