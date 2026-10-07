@@ -68,9 +68,11 @@ locals {
       cores   = 2
       linux   = false
       on_boot = g.startup != null
-      # `on-demand` is what the hand-built endpoints carry, and what an
-      # endpoint left running is found by.
-      tags     = g.startup == null ? ["on-demand"] : []
+      # `lab-domain` on all six, so no clone keeps its template's
+      # `template;windows` (modules/guest/variables.tf). `on-demand` is what
+      # the hand-built endpoints carry, and what an endpoint left running is
+      # found by.
+      tags     = concat(["lab-domain"], g.startup == null ? ["on-demand"] : [])
       password = null
     })
   }
