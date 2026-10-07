@@ -533,6 +533,46 @@ tests:
               pgtables:1200kB oom_score_adj:0
     expect: []
 
+  # --- UnitOomKilled -----------------------------------------------------------
+  # systemd's verdict, as PID 1 writes it: the stream's `unit` is init.scope,
+  # and the unit that died is the line's prefix (#903). The lines are the
+  # shape `journalctl` shows on trinity for 'exit-code', with the result
+  # swapped.
+  - alert: UnitOomKilled
+    name: a unit that failed with result 'oom-kill' fires, named from the line
+    streams:
+      - labels: {log_type: journal, host: prometheus, unit: init.scope}
+        entries:
+          - before: 10m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'oom-kill'."
+    expect:
+      - {host: prometheus, oom_unit: homelab-backup-volumes.service}
+      - {host: trinity, oom_unit: run-p3241787-i3245756.service}
+
+  - alert: UnitOomKilled
+    name: any other result, and a container's cgroup OOM, do not
+    streams:
+      - labels: {log_type: journal, host: trinity, unit: init.scope}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'exit-code'."
+          - before: 4m
+            line: "homelab-backup-volumes.service: Failed with result 'timeout'."
+      # The kernel's line for a Docker container hitting mem_limit, as the
+      # journal's kernel transport carries it. ContainerOomKilled's.
+      - labels: {log_type: journal, host: oracle, transport: kernel}
+        entries:
+          - before: 3m
+            line: >-
+              Memory cgroup out of memory: Killed process 5120 (node)
+              total-vm:1204480kB, anon-rss:512000kB, file-rss:0kB,
+              shmem-rss:0kB, UID:1000 pgtables:1200kB oom_score_adj:0
+    expect: []
+
   # --- IoTAttemptedLateralMovement: more than 20 blocked IoT->internal in 10m -
   - alert: IoTAttemptedLateralMovement
     name: 21 blocked attempts from IoT to management fire

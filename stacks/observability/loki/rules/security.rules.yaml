@@ -260,8 +260,12 @@ groups:
     interval: 1m
     rules:
       - alert: KernelOomKill
-        # The kernel's own record. Complements ContainerOomKilled in
-        # containers.rules.yaml, which only sees cgroup events.
+        # The kernel's own record of the machine-wide OOM killer. Case-sensitive
+        # on purpose: a cgroup-limited kill prints "Memory cgroup out of memory"
+        # and is not this rule's. Who owns those (#903):
+        #   a Docker container      ContainerOomKilled (containers.rules.yaml)
+        #   a systemd unit          UnitOomKilled, below
+        #   any other cgroup        nobody yet. Nothing here creates one.
         expr: |
           sum by (host) (
             count_over_time({log_type=~"syslog|varlog"} |~ "Out of memory: Kill(ed)? process" [15m])
@@ -272,6 +276,49 @@ groups:
           category: capacity
         annotations:
           summary: "{{ $labels.host }}: kernel OOM killer fired"
+
+      - alert: UnitOomKilled
+        # A systemd unit lost a process to the OOM killer: the kernel inside
+        # the unit's own cgroup (a MemoryMax=), the machine-wide killer, or
+        # systemd-oomd. Whichever it was, systemd records its verdict the same
+        # way: "<unit>: Failed with result 'oom-kill'." (src/core/unit.c prints
+        # the line; service.c names the result).
+        #
+        # LIVE TODAY FOR TWO OF THE THREE (#903). A machine-wide OOM kill, or
+        # a systemd-oomd kill wherever it runs, of a unit's process ends in
+        # this verdict now. Only the unit's OWN cap is latent: nothing in
+        # systemd/, ansible/ or stacks/ sets MemoryMax= or MemoryHigh= yet.
+        # That case is the one this rule is mostly for. A capped collector
+        # killed this way would otherwise surface a day later as
+        # ScheduledJobFailed, with nothing saying why.
+        #
+        # THE UNIT IS IN THE LINE, NOT THE LABEL. PID 1 writes it, so the
+        # stream's `unit` is init.scope (or user@<uid>.service for a user
+        # unit). The failed unit is parsed out of the message as `oom_unit`.
+        #
+        # A machine-wide kill of a unit's process fires this AND KernelOomKill.
+        # That is two facts, which unit and that the whole host ran out.
+        expr: |
+          sum by (host, oom_unit) (
+            count_over_time(
+              {log_type="journal"}
+              |= "Failed with result 'oom-kill'"
+              | regexp "^(?P<oom_unit>[^ :]+): Failed with result 'oom-kill'"
+              [15m]
+            )
+          ) > 0
+        labels:
+          component: logs
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.oom_unit }} was OOM-killed"
+          description: >-
+            systemd reports that {{ $labels.oom_unit }} failed with result
+            'oom-kill'. `systemctl status {{ $labels.oom_unit }}` and its
+            journal say which process, and the unit file's MemoryMax= is the
+            first thing to read. If KernelOomKill also fired on this host,
+            the whole machine ran out, not just the unit.
 
       - alert: FilesystemRemountedReadOnly
         expr: |
