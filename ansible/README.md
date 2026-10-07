@@ -9,8 +9,9 @@ This directory configures the lab domain's six guests from `phoenix`
 ADR-0029. This page covers what is here and how to run it.
 
 ```bash
-cd ansible
 set -a; . ~/.config/proxmox/phoenix.env; set +a
+scripts/lab-known-hosts.sh                       # after any of the six is rebuilt
+cd ansible
 ansible-playbook lab-domain.yml --check --diff   # what would change (existing domain only)
 ansible-playbook lab-domain.yml                  # apply
 ansible-playbook verify.yml                      # read-only proof
@@ -130,10 +131,16 @@ a further tag in this same playbook.
 - **A second run changes nothing.** Every task compares before it acts. A
   task that reports `changed` on a guest already in the right state is a bug
   in that task.
+- **Host keys are checked, against `.known_hosts` only.**
+  `scripts/lab-known-hosts.sh` writes it from keys read inside each guest
+  through the Proxmox guest agent, never from what the network presents
+  ([ADR-0082]). A rebuilt guest is refused until it has run again. Do not
+  turn the check off to get past that; run the script.
 - **CI proves it parses, `phoenix` proves it configures.**
   `scripts/lint.sh` runs `ansible-lint`, which includes the syntax check. CI
   has no route to VLAN 30.
 
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
+[ADR-0082]: ../docs/adr/0082-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix

@@ -19,6 +19,12 @@ locals {
   # API key; it is public by design, hence the inline allow.
   win11_generic_key = "VK7JG-NPHTM-C97JM-9MPGT-3V66T" # gitleaks:allow
 
+  # The first-logon script: guest tools, then WinRM for Packer, which only
+  # phoenix may reach (#846). A template only for the address.
+  bootstrap = templatefile("${abspath(path.root)}/windows/scripts/bootstrap.ps1", {
+    phoenix_address = var.phoenix_address
+  })
+
   windows_answer_disc = {
     win11 = {
       "Autounattend.xml" = templatefile("${abspath(path.root)}/windows/autounattend.xml.pkrtpl", {
@@ -28,7 +34,7 @@ locals {
         computer_name  = "TPL-WIN11"
         build_password = var.build_password
       })
-      "bootstrap.ps1" = file("${abspath(path.root)}/windows/scripts/bootstrap.ps1")
+      "bootstrap.ps1" = local.bootstrap
     }
     ws2025 = {
       "Autounattend.xml" = templatefile("${abspath(path.root)}/windows/autounattend.xml.pkrtpl", {
@@ -39,7 +45,7 @@ locals {
         computer_name  = "TPL-WS2025"
         build_password = var.build_password
       })
-      "bootstrap.ps1" = file("${abspath(path.root)}/windows/scripts/bootstrap.ps1")
+      "bootstrap.ps1" = local.bootstrap
     }
   }
 
@@ -142,11 +148,15 @@ source "proxmox-iso" "win11-pro" {
   boot_wait    = "3s"
   boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
 
+  # HTTPS on 5986, admitting phoenix alone (bootstrap.ps1). The certificate
+  # is one bootstrap.ps1 made a minute earlier, so there is nothing to verify
+  # it against: winrm_insecure. TLS keeps the build password from a passive
+  # listener on VLAN 30; it does not stop one in the middle (#846).
   communicator   = "winrm"
   winrm_username = "Administrator"
   winrm_password = var.build_password
+  winrm_use_ssl  = true
   winrm_insecure = true
-  winrm_use_ssl  = false
   winrm_timeout  = "2h"
 }
 
@@ -233,11 +243,12 @@ source "proxmox-iso" "ws2025-eval" {
   boot_wait    = "3s"
   boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
 
+  # HTTPS, as win11-pro above.
   communicator   = "winrm"
   winrm_username = "Administrator"
   winrm_password = var.build_password
+  winrm_use_ssl  = true
   winrm_insecure = true
-  winrm_use_ssl  = false
   winrm_timeout  = "2h"
 }
 

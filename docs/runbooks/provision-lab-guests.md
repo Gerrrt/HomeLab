@@ -90,8 +90,8 @@ elif cp -p "$E" "$E.bak-445"; then
       "$PROXMOX_TOKEN_ID" "$PROXMOX_TOKEN_SECRET" "$(openssl rand -base64 32)" >> "$E" )
   chmod 600 "$E"; grep -o '^[A-Za-z_]*=' "$E"
   ( set -a; . "$E"; set +a; echo "passphrase length ${#TF_VAR_state_passphrase}"
-    curl -fsS -o /dev/null -w 'API %{http_code}\n' -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" \
-      "${PROXMOX_VE_ENDPOINT}api2/json/version" )
+    printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" \
+      | curl -K - -fsS -o /dev/null -w 'API %{http_code}\n' "${PROXMOX_VE_ENDPOINT}api2/json/version" )
 else
   echo "backup failed: nothing written"
 fi
@@ -173,7 +173,7 @@ mkdir -p tofu/state && chmod 700 tofu/state
 tofu -chdir=tofu init
 tofu -chdir=tofu plan -var proof=true -out=proof.tfplan
 tofu -chdir=tofu apply proof.tfplan && rm tofu/proof.tfplan
-api() { curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" "${PROXMOX_URL}$1"; }
+api() { printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" | curl -K - -fsS "${PROXMOX_URL}$1"; }
 api /nodes/Saruman/qemu/998/config | jq '.data | {name, tags, scsi0, net0}'
 api /pools/proof | jq -r '.data.members[].vmid'
 ```

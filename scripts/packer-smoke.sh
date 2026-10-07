@@ -65,7 +65,6 @@ command -v jq >/dev/null || die "jq is required (apt install jq)"
 
 NODE="${PROXMOX_NODE:-Saruman}"
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/id_ed25519}"
-AUTH="Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}"
 
 # Verified TLS, as packer/variables.pkr.hcl does: the token rides in a header,
 # and a guest on VLAN 30 that answered for Saruman would otherwise collect it.
@@ -73,9 +72,15 @@ AUTH="Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}"
 # PROXMOX_CA_FILE points at a copy instead, for a host where it is not.
 CURL_TLS=()
 [[ -n "${PROXMOX_CA_FILE:-}" ]] && CURL_TLS=(--cacert "${PROXMOX_CA_FILE}")
+
+# The token goes to curl as config on stdin (-K -), never as -H: an argument is
+# readable by every user on phoenix in ps and /proc/*/cmdline for as long as
+# the request runs (#846). printf is a builtin, so it never has an argv of its
+# own. The same pattern as deploy-agent.sh's mon_curl.
 api() {
   local method="$1" path="$2"; shift 2
-  curl -fsS "${CURL_TLS[@]}" -X "${method}" -H "${AUTH}" "$@" "${PROXMOX_URL}${path}"
+  printf 'header = "Authorization: PVEAPIToken=%s=%s"\n' "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" \
+    | curl -K - -fsS "${CURL_TLS[@]}" -X "${method}" "$@" "${PROXMOX_URL}${path}"
 }
 
 wait_task() {

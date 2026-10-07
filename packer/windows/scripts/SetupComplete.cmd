@@ -1,11 +1,11 @@
 @echo off
 rem Runs once on a CLONE, at the end of its first Setup, as SYSTEM.
 rem
-rem Closes what bootstrap.ps1 opened for the build: the HTTP Basic WinRM
-rem listener, its firewall rule, and the service. Then starts the one way in a
-rem clone keeps: OpenSSH, key-only, admitting phoenix alone, which openssh.ps1
-rem installed disabled in the template (ADR-0077). Its first start here is what
-rem generates this clone's own host keys.
+rem Closes what bootstrap.ps1 opened for the build: the HTTPS WinRM listener,
+rem the certificate it made for it, its firewall rule, and the service. Then
+rem starts the one way in a clone keeps: OpenSSH, key-only, admitting phoenix
+rem alone, which openssh.ps1 installed disabled in the template (ADR-0077).
+rem Its first start here is what generates this clone's own host keys.
 rem
 rem `call winrm`, NEVER BARE `winrm`. winrm is itself a batch file
 rem (System32\winrm.cmd, around cscript winrm.vbs), and in cmd one batch file
@@ -35,19 +35,21 @@ echo %DATE% %TIME% start>> "%LOG%"
 rem WinRM has to be RUNNING to be reconfigured. On a clone it is a delayed
 rem start and has not come up yet when this runs: on 911's first clone
 rem (2026-10-03) every winrm and WSMan call below failed "the client cannot
-rem connect", so the build's HTTP listener, Basic auth and unencrypted
-rem traffic stayed in its configuration behind a disabled service, ready to
-rem return if anyone re-enabled it. `net start` waits until it is running.
+rem connect", so the build's listener and Basic auth stayed in its
+rem configuration behind a disabled service, ready to return if anyone
+rem re-enabled it. `net start` waits until it is running.
 echo %TIME% WinRM: start, so it can be reconfigured>> "%LOG%"
 net start WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-echo %TIME% winrm: delete the build's HTTP listener>> "%LOG%"
-call winrm delete winrm/config/Listener?Address=*+Transport=HTTP>> "%LOG%" 2>&1
+echo %TIME% winrm: delete the build's HTTPS listener>> "%LOG%"
+call winrm delete winrm/config/Listener?Address=*+Transport=HTTPS>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-echo %TIME% powershell: firewall rule, Basic auth, unencrypted>> "%LOG%"
-powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-http' -ErrorAction SilentlyContinue; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
+rem The certificate's private key is in the template, so every clone holds
+rem the same one until this runs. Nothing trusts it, but it goes.
+echo %TIME% powershell: firewall rule, the packer-winrm certificate, Basic auth, unencrypted>> "%LOG%"
+powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | Remove-Item -Force; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 echo %TIME% WinRM: disable and stop>> "%LOG%"
