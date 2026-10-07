@@ -444,10 +444,15 @@ changes. A commit that does not verify is skipped whatever its CI says, and
 `--allow-unsigned` does not reach it. The journal names each commit it skipped
 and why, and `homelab_deploy_ci_fallback` is `1` on a run that deployed one.
 
-The walk asks about at most `HOMELAB_CONVERGE_WALK` commits (default 10). The
-API calls are anonymous, 60 an hour per address, and `prometheus` and `trinity`
-share one. An ask that fails stops the walk. Either way, with nothing found, the
-run says so, exits 0, stays where it is, and the next hourly run asks again.
+The walk looks at most `HOMELAB_CONVERGE_WALK` commits (default 10) below the
+tip, counting skipped ones. The API calls are anonymous, 60 an hour per address,
+and `prometheus` and `trinity` share one. So an ask that fails stops the walk,
+and a tip whose own ask failed is not walked at all. Either way, with nothing
+found, the run says so, exits 0, stays where it is, and the next hourly run
+asks again.
+
+A fallback whose `make up` failed is retried on the next run even if nothing
+newer has passed: the walk offers the unapplied HEAD as its last candidate.
 
 CI on `main` takes about four minutes, so a wait is normally one hour's delay at
 most. `DeployBehind` fires once three hours pass with no run able to move the

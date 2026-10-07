@@ -27,9 +27,11 @@ docstring gives: it is a record, not a claim about now.
   `e4cf127` had already passed. A tip still in CI now starts a walk down the
   first-parent history. It deploys the newest commit that is a fast-forward,
   verifies against the pinned key, and passed CI, skipping red commits along
-  the way. A red tip still refuses, as before. The walk asks about at most
-  `HOMELAB_CONVERGE_WALK` commits (default 10), because the API calls are
-  anonymous, and it stops at the first ask that fails. A new gauge,
+  the way. A red tip still refuses, as before. The walk looks at most
+  `HOMELAB_CONVERGE_WALK` commits (default 10), skipped ones included, because
+  the API calls are anonymous. It stops at the first ask that fails, and it
+  does not start if the ask about the tip failed. A fallback whose `make up`
+  failed is re-applied on the next run. A new gauge,
   `homelab_deploy_ci_fallback`, is `1` on a run that deployed such a commit.
   `DeployBehind` ignores those runs, so it fires on three hours without
   progress rather than on three hours of a busy `main`.
