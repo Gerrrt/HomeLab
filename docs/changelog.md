@@ -19,6 +19,36 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The wiki is served over https and deployed from a verified checkout,
+  in the repository** ([#847](https://github.com/Gerrrt/HomeLab/issues/847);
+  [ADR-0082](adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)).
+  - **Two gaps were found by the 2026-10-03 review.** The deploy was a `curl`
+    of `compose.yaml` from `main`, with no signature checked. Logins went over
+    plain HTTP on `80:3000`, which nothing had accepted.
+  - **Authored:**
+    - a Caddy in `stacks/wiki` that terminates 443 on a lab-CA leaf and
+      answers 80 with a `308` only;
+    - Wiki.js unpublished;
+    - the README's deploy as fetch, then `verify-commit`, then a `%GF`
+      comparison against `converge.sh`'s pin, then `--ff-only`, then `up`;
+    - both blackbox targets on `http_2xx_lab_ca`;
+    - `check_caddyfile.sh` offering a throwaway `cert.pem` and `key.pem`, so a
+      Caddyfile that loads its leaf from files validates in CI.
+  - **Measured on the pinned Caddy image.**
+    - Its binary carries `cap_net_bind_service` as a file capability. Run as a
+      non-root uid under `no-new-privileges`, the exec is refused, so it runs
+      as root with only `NET_BIND_SERVICE`, the sensitive tier's shape.
+    - A client dialling the address sends no SNI, and was refused the
+      handshake until `default_sni` named the leaf.
+    - The internal CA it provisions anyway logged a failed trust-store
+      install until `auto_https disable_certs` and `skip_install_trust` were
+      both set. Neither alone stopped it.
+    - Redirect, both names, the address, a `POST` to `/login` on 80 and the
+      healthcheck were exercised against a throwaway CA.
+  - **Not yet done on `oracle`.** The cutover in `stacks/wiki/README.md` § TLS
+    is still to run: the Hicks `443` pass, the checkout, the leaf, the Site
+    URL, and the probe.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).

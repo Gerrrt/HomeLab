@@ -125,7 +125,7 @@ documents for different readers.
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
   at all.
-- **Documented decisions and runbooks.** 81 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 82 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 46
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -219,7 +219,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 81 ADRs — architecture decision records
+│   ├── adr/                  # 82 ADRs — architecture decision records
 │   └── runbooks/             # 46 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
