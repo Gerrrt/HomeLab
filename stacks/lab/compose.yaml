@@ -191,13 +191,16 @@ services:
     image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
     container_name: lab-loki
     user: "10001:10001"
-    # The estate's block, as on prometheus above (#845). loki-config.yaml keeps
-    # every path under /loki, the data volume, which is what lets it be
-    # read-only with no tmpfs.
+    # The estate's block, as on prometheus above (#845), including the /tmp
+    # tmpfs its loki needs for retention: the compactor writes its deletion
+    # markers there, and without it retention fails on every pass. The estate's
+    # loki has the reasoning. This stack is where it was found.
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
     read_only: true
+    tmpfs:
+      - /tmp:size=64m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
