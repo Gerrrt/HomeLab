@@ -132,7 +132,7 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]
 
-  # stacks/bloodhound (#451, ADR-0080): BloodHound CE, Postgres and Neo4j on
+  # stacks/bloodhound (#451, ADR-0081): BloodHound CE, Postgres and Neo4j on
   # eden. Two majors are held. Neo4j stays on 4.4, which is what BloodHound CE
   # speaks; 5.x is a different store format, a decision rather than a bump.
   # Postgres follows wiki's rule: a major is a dump and a restore. An entry from

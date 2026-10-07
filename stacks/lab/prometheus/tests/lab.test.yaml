@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All sixteen rules in lab.rules.yaml are covered here. That is a deliberate
+# All nineteen rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -640,3 +640,95 @@ tests:
                 homelab-pbs-task-state.timer on golem and
                 `journalctl -u homelab-pbs-task-state`, which says what PBS
                 answered.
+
+  # --- ScheduledJobFailed ----------------------------------------------------
+  # fenrir's prune exits 0, then 1 from t=30m. Quiet while it succeeds, firing
+  # once the failure has held for ten minutes.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_exit_code{instance="fenrir",job="fenrir-metrics",host="fenrir",homelab_job="zeek-archive-prune"}'
+        values: "0x29 1x60"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: ScheduledJobFailed
+        exp_alerts: []
+      - eval_time: 50m
+        alertname: ScheduledJobFailed
+        exp_alerts:
+          - exp_labels:
+              instance: fenrir
+              job: fenrir-metrics
+              host: fenrir
+              homelab_job: zeek-archive-prune
+              component: sensor
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "zeek-archive-prune on fenrir exited 1"
+              description: >-
+                The last run failed. `journalctl -u homelab-zeek-archive-prune.service -n 100`
+                on the host has the output. Exit 75 means it never started because
+                another job held its lock.
+
+  # --- ScheduledJobStale -----------------------------------------------------
+  # Last success at t=0, never again. Quiet at two days, firing past three
+  # days plus the hour's `for`.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{instance="fenrir",job="fenrir-metrics",host="fenrir",homelab_job="zeek-archive-prune"}'
+        values: "0x4500"
+    alert_rule_test:
+      - eval_time: 48h
+        alertname: ScheduledJobStale
+        exp_alerts: []
+      - eval_time: 74h
+        alertname: ScheduledJobStale
+        exp_alerts:
+          - exp_labels:
+              instance: fenrir
+              job: fenrir-metrics
+              host: fenrir
+              homelab_job: zeek-archive-prune
+              component: sensor
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "zeek-archive-prune on fenrir: no success for 3d 2h 0m 0s"
+              description: >-
+                Zeek's archive is not being pruned and /srv/sensor-data will fill.
+                Check `systemctl list-timers homelab-zeek-archive-prune.timer` and
+                `journalctl -u homelab-zeek-archive-prune` on fenrir —
+                docs/runbooks/build-the-sensor-guest.md §4.
+
+  # --- ScheduledJobNeverRan --------------------------------------------------
+  # Quiet: the job's series exists. Firing: only another job's series exists,
+  # which is what a fenrir without the timer looks like.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_run_timestamp_seconds{instance="fenrir",job="fenrir-metrics",host="fenrir",homelab_job="zeek-archive-prune"}'
+        values: "0x480"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: ScheduledJobNeverRan
+        exp_alerts: []
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_run_timestamp_seconds{instance="fenrir",job="fenrir-metrics",host="fenrir",homelab_job="something-else"}'
+        values: "0x480"
+    alert_rule_test:
+      - eval_time: 8h
+        alertname: ScheduledJobNeverRan
+        exp_alerts:
+          - exp_labels:
+              homelab_job: zeek-archive-prune
+              component: sensor
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "zeek-archive-prune is scheduled but has never recorded a run"
+              description: >-
+                No outcome from fenrir's Zeek archive prune in six hours. Install
+                it from the checkout on Hicks with
+                `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
+                (docs/runbooks/build-the-sensor-guest.md §4), and check that
+                /var/lib/node_exporter/textfile_collector exists on fenrir.

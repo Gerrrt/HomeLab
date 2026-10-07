@@ -16,7 +16,7 @@ domain proves the plumbing and nothing else. The paths get interesting once
 the weaknesses of #449 are applied.
 
 This builds what
-[ADR-0080](../adr/0080-run-bloodhound-ce-on-a-saruman-guest.md) decided for
+[ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md) decided for
 [#451](https://github.com/Gerrrt/HomeLab/issues/451): BloodHound CE on a guest
 of its own, off between sessions, backed up by nothing. It follows
 [`build-the-soc-guest.md`](build-the-soc-guest.md) and
@@ -35,10 +35,10 @@ same, this runbook points there and does not keep a second copy that drifts.
 | Tags | `on-demand` | Off between sessions, and `HypervisorGuestStopped` knows it ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)) |
 | `onboot` | `0` | For the same reason. A `Saruman` reboot does not bring it back, and should not |
 | vCPU / RAM | 4 / 12 GiB | The stack's limits add up to about 8 GiB, with Neo4j's 4 GiB the largest. The rest is the kernel, Docker and page cache |
-| OS disk | 32 GB on `local-lvm` | `phoenix`'s choice. An OS disk does almost no I/O, and `large_data` is already allocated past its size (ADR-0080) |
+| OS disk | 32 GB on `local-lvm` | `phoenix`'s choice. An OS disk does almost no I/O, and `large_data` is already allocated past its size (ADR-0081) |
 | Data disk | 32 GB on `large_data` | Neo4j's random reads are what the SSDs are for. A domain of tens of objects is megabytes of graph |
 | Backup | **None** | The graph is one collection run from rebuilt, and the guest is rebuilt from this repository. It stays out of `golem`'s job |
-| Firewall | `firewall=0`, and no rule on `morpheus` | The upload, the browser and the Alloy push are all intra-segment or already allowed (ADR-0080) |
+| Firewall | `firewall=0`, and no rule on `morpheus` | The upload, the browser and the Alloy push are all intra-segment or already allowed (ADR-0081) |
 
 ## 1. Create the VM
 
@@ -62,7 +62,7 @@ qm create 141 \
   --boot order='scsi0;ide2'
 ```
 
-Check the room first, against both numbers ADR-0080 states. `pvesm status`
+Check the room first, against both numbers ADR-0081 states. `pvesm status`
 gives what is written, and the `lvs` sum gives what is allocated:
 
 ```bash
@@ -216,7 +216,7 @@ docker compose -f stacks/bloodhound/compose.yaml ps
 ```
 
 `app-db` and `graph-db` must be `healthy`, and `bloodhound` and `alloy`
-`running`. `bloodhound` has no health check; ADR-0080 and its compose comment
+`running`. `bloodhound` has no health check; ADR-0081 and its compose comment
 say why.
 
 **Three things in this stack were reasoned, not booted, when it was written.**
@@ -283,12 +283,12 @@ containers to come back. They have `restart: unless-stopped`.
 
 ## 8. Saved queries, if they ever matter
 
-ADR-0080 backs up nothing, and the one thing on this guest that a collection
+ADR-0081 backs up nothing, and the one thing on this guest that a collection
 run does not rebuild is the custom queries saved in the UI. If those become
 worth keeping, export them, not the volume. *Explore → Cypher → Saved
 Queries* exports each one as JSON, and the JSON is small enough to commit
 under `stacks/bloodhound/` as a file the next build imports. That is a
-decision for the day it happens, and ADR-0080 lists it as a reason to reopen.
+decision for the day it happens, and ADR-0081 lists it as a reason to reopen.
 
 ## 9. Write it down
 

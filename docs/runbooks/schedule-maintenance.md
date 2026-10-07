@@ -162,7 +162,7 @@ collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
 `guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
-rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
+rows that collect nothing, `zeek-mirror` and `prune-images`, and one scheduled job, `zeek-archive-prune` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
@@ -191,6 +191,17 @@ agent host has no `homelab_job_*` metrics, so a failed run shows only in
 `journalctl -u homelab-prune-images`. What would show it is the disk: on the
 two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
 which page (below).
+
+**`zeek-archive-prune` is the one agent row with `homelab_job_*` metrics.** It
+deletes files in `fenrir`'s `/srv/sensor-data/zeek/archive` older than the
+retention its unit sets, daily at 03:17, and it replaced a hand-typed
+`/etc/cron.d` line that reported nothing (#850). Its row's script is
+`run-scheduled.sh` itself, installed as `/usr/local/bin/homelab-run-scheduled`,
+and it requires the archive directory, so it installs on `fenrir` alone.
+`fenrir`'s Alloy writes to the lab's Prometheus, not this one, so the alerts on
+it are the lab's own `ScheduledJobFailed`, `ScheduledJobStale` (three days) and
+`ScheduledJobNeverRan`. They page nobody; they are in the lab's `/alerts`.
+[`build-the-sensor-guest.md`](build-the-sensor-guest.md) §4 installs it.
 
 **`guest-disk-state` is how a lab guest's disk reaches a phone.** The lab
 Prometheus has its own `HostDiskWillFillIn24h` and `HostDiskCritical` for

@@ -325,7 +325,7 @@ backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
 when it was built, both did**, and the job took all seven from that night. `alexander`,
 `phoenix`, `ifrit` and `golem` itself are rebuilt from this repository and
 stay out. So does `eden` (141), whose graph is one collection run from rebuilt
-([ADR-0080](../adr/0080-run-bloodhound-ce-on-a-saruman-guest.md)). The job
+([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). The job
 selects VMIDs, so a new guest stays out unless someone adds it.
 
 ## 9. Prove it: one backup, one restore, then delete both

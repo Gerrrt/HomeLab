@@ -239,9 +239,11 @@ Closes on BloodHound running where nothing attacks it.
   what remains is the rest of
   [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5, which
   covers the tiers, the SPN account, the Tier 0 GPO and the shares, and then
-  the weaknesses, each its own tag on top of the population) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
-  and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
-  BloodHound ([ADR-0080](adr/0080-run-bloodhound-ce-on-a-saruman-guest.md),
+  the weaknesses, each its own tag on top of the population) and
+  [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
+  ([ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md))
+  → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
+  BloodHound ([ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
   → [runbook](runbooks/build-the-bloodhound-guest.md)), which closes the
   milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),

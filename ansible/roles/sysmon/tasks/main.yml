@@ -1,0 +1,143 @@
+---
+# Sysmon on all six, with sysmon-modular's balanced config (#450, ADR-0080).
+# Shaped like roles/exporter: what is installed is read first, so a run where
+# the pinned version already runs downloads nothing, and check mode can answer
+# without the zip on disk.
+
+# FileVersion of the installed binary, not the service's existence alone: a
+# guest on an older Sysmon has the service and the wrong driver. ConfigHash is
+# what Sysmon recorded at its last -i or -c, "SHA256=<hex>" with the hash
+# algorithm named, which is the sha256 of the file it was handed.
+- name: Read what Sysmon is installed, and with which config
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      $exe = Get-Item C:\Windows\Sysmon64.exe -ErrorAction SilentlyContinue
+      $svc = Get-Service Sysmon64 -ErrorAction SilentlyContinue
+      $p = Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters -ErrorAction SilentlyContinue
+      @{
+        installed = [bool]($svc -and $exe)
+        version = if ($exe) { '{0}.{1}' -f $exe.VersionInfo.FileMajorPart, $exe.VersionInfo.FileMinorPart } else { '' }
+        config_hash = if ($p.ConfigHash) { ([string]$p.ConfigHash -replace '^SHA256=', '').ToLower() } else { '' }
+        lab_dir = (Test-Path C:\ProgramData\lab)
+      }
+  register: sysmon_state
+  check_mode: false
+
+- name: Note what is installed
+  ansible.builtin.set_fact:
+    sysmon_present: "{{ sysmon_state.output[0].installed }}"
+    sysmon_current: "{{ sysmon_state.output[0].installed and sysmon_state.output[0].version == sysmon_version }}"
+
+- name: Report the install or upgrade as pending, in check mode
+  ansible.builtin.debug:
+    msg: >-
+      {{ inventory_hostname }} would
+      {{ ('upgrade Sysmon ' ~ sysmon_state.output[0].version ~ ' to') if sysmon_present else 'install Sysmon' }}
+      {{ sysmon_version }}
+  changed_when: true
+  when: ansible_check_mode and not sysmon_current
+
+# The same check-mode gap as roles/licence_clock: C:\ProgramData\lab is base's,
+# and a dry run against a guest base has never touched has no folder to copy to.
+- name: Make the config's directory
+  ansible.windows.win_file:
+    path: "{{ sysmon_config_dir }}"
+    state: directory
+  when: sysmon_state.output[0].lab_dir or not ansible_check_mode
+
+- name: Place the vendored config
+  ansible.windows.win_copy:
+    src: sysmonconfig.xml
+    dest: "{{ sysmon_config_path }}"
+  when: sysmon_state.output[0].lab_dir or not ansible_check_mode
+
+# A stale pin fails here, at the checksum, before anything is uninstalled.
+- name: Fetch the pinned Sysmon
+  ansible.windows.win_get_url:
+    url: "{{ sysmon_url }}"
+    dest: "{{ sysmon_zip }}"
+    checksum: "{{ sysmon_zip_sha256 }}"
+    checksum_algorithm: sha256
+    force: false
+  when:
+    - not sysmon_current
+    - not ansible_check_mode
+
+# An older Sysmon is uninstalled with its own binary before the pinned one goes
+# in, rather than trusting -i over an installed driver of another version. -i is
+# handed the config, so the new driver never runs a moment on the default one.
+- name: Install the pinned Sysmon
+  ansible.windows.win_powershell:
+    script: |
+      param([string]$Zip, [string]$Dir, [string]$Config, [bool]$Present)
+      # -ErrorAction Stop here, not $ErrorActionPreference: Windows PowerShell
+      # turns a native program's stderr under 2>&1 into errors, which a global
+      # Stop would throw on. The exit codes below are the test for Sysmon.
+      Expand-Archive -LiteralPath $Zip -DestinationPath $Dir -Force -ErrorAction Stop
+      if ($Present) {
+        $out = & C:\Windows\Sysmon64.exe -u force 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Sysmon -u exited $LASTEXITCODE`: $out" }
+      }
+      $out = & (Join-Path $Dir Sysmon64.exe) -accepteula -i $Config 2>&1
+      if ($LASTEXITCODE -ne 0) { throw "Sysmon -i exited $LASTEXITCODE`: $out" }
+    parameters:
+      Zip: "{{ sysmon_zip }}"
+      Dir: "{{ sysmon_unpacked }}"
+      Config: "{{ sysmon_config_path }}"
+      Present: "{{ sysmon_present | bool }}"
+  when:
+    - not sysmon_current
+    - not ansible_check_mode
+
+# Compare-first against what the driver last loaded, not against whether the
+# copy above changed: a config changed by hand on the guest (sysmon -c) is drift
+# too, and this puts the vendored one back. The file's own hash is read on the
+# guest, so a copy that has not landed (check mode) is compared as it will be.
+- name: Apply the config if the driver is running another
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Config, [string]$Want)
+      $Ansible.Changed = $false
+      $p = Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters -ErrorAction SilentlyContinue
+      $have = ([string]$p.ConfigHash -replace '^SHA256=', '').ToLower()
+      if ($have -ne $Want) {
+        $Ansible.Changed = $true
+        if (-not $Ansible.CheckMode) {
+          $out = & C:\Windows\Sysmon64.exe -c $Config 2>&1
+          if ($LASTEXITCODE -ne 0) { throw "Sysmon -c exited $LASTEXITCODE`: $out" }
+        }
+      }
+    parameters:
+      Config: "{{ sysmon_config_path }}"
+      Want: "{{ sysmon_config_sha256 }}"
+  when: sysmon_present or not ansible_check_mode
+
+# The channel only exists once Sysmon has registered it, so in check mode on a
+# guest without Sysmon there is nothing to size yet.
+- name: Size the Sysmon channel
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Channel, [long]$Bytes)
+      $Ansible.Changed = $false
+      $log = Get-WinEvent -ListLog $Channel -ErrorAction Stop
+      if ($log.MaximumSizeInBytes -ne $Bytes) {
+        $Ansible.Changed = $true
+        if (-not $Ansible.CheckMode) {
+          $log.MaximumSizeInBytes = $Bytes
+          $log.SaveChanges()
+        }
+      }
+    parameters:
+      Channel: "{{ sysmon_channel }}"
+      Bytes: "{{ sysmon_log_max_bytes }}"
+  when: sysmon_present or not ansible_check_mode
+
+- name: Keep Sysmon running
+  ansible.windows.win_service:
+    name: Sysmon64
+    start_mode: auto
+    state: started
+  when: sysmon_present or not ansible_check_mode

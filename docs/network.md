@@ -495,7 +495,7 @@ Where things get broken on purpose.
   `odin`, and it gets no firewall rule the segment does not already have.
 - `eden`, **not built yet**, is planned at `10.0.30.41`, VMID 141, as the
   BloodHound CE server of
-  [ADR-0080](adr/0080-run-bloodhound-ce-on-a-saruman-guest.md)
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)
   ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
   [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
   It is off-decade for `diabolos`'s reason: every `.x0` is taken. It sits in

@@ -112,7 +112,7 @@ creation_rules:
     age: >-
       age1er585qkxfqyyjf4zqpaukzlngs06r64gx2ndlnmj24pxw0g22amq40u555
 
-  # The BloodHound guest, eden (#451, ADR-0080), for soc's reason and one more:
+  # The BloodHound guest, eden (#451, ADR-0081), for soc's reason and one more:
   # the graph it holds is a map of the lab domain's weaknesses, and its secrets
   # are the databases that hold that map. Its key opens
   # secrets/bloodhound.sops.yaml and nothing else. Placeholder until the guest

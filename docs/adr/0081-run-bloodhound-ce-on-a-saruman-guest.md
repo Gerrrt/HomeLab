@@ -1,4 +1,4 @@
-# ADR-0080: Run BloodHound CE on a guest of its own on Saruman, off between sessions
+# ADR-0081: Run BloodHound CE on a guest of its own on Saruman, off between sessions
 
 **Status:** Accepted · 2026-10
 

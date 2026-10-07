@@ -7,7 +7,7 @@
 #              Authored ahead of the guest the way stacks/soc was ahead of
 #              odin and stacks/sensor ahead of fenrir. The build is
 #              docs/runbooks/build-the-bloodhound-guest.md.
-# Decided by:  docs/adr/0080-run-bloodhound-ce-on-a-saruman-guest.md — why
+# Decided by:  docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md — why
 #              Saruman and not ifrit, Winterfell or the domain itself, why the
 #              guest is off between sessions, and why nothing here is backed up.
 # Deploy with: `make up STACK=bloodhound`, from the repository root on eden.
@@ -184,7 +184,7 @@ services:
   # Grafana's is. If an upgrade ever needs root, that is a finding about the
   # image, and the fix is not to take this line out quietly.
   #
-  # The graph and the uploads are not backed up (ADR-0080): a lost graph is
+  # The graph and the uploads are not backed up (ADR-0081): a lost graph is
   # one collection run away. The application database's saved queries are the
   # one thing that is not, and build-the-bloodhound-guest.md §8 says how to
   # export them if they ever matter.

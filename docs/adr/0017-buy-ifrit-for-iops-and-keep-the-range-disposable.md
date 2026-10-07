@@ -17,7 +17,7 @@
 > [!NOTE]
 > The sizing below counts "a Kali VM with BloodHound and its Neo4j" against
 > `ifrit`'s 32 GB. BloodHound does not run there:
-> [ADR-0080](0080-run-bloodhound-ce-on-a-saruman-guest.md) placed it on
+> [ADR-0081](0081-run-bloodhound-ce-on-a-saruman-guest.md) placed it on
 > `eden`, a guest on `Saruman`, because analysis on the attacker's host shares
 > the attacker's fault domain and its revert
 > ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). The collector still

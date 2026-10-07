@@ -12,7 +12,7 @@ Domain Admin exists, so that Wazuh, Zeek and Sysmon can be asked whether they
 saw it ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). It runs on
 `eden` (`10.0.30.41`, ImaginationLAN / VLAN 30), a guest on `Saruman` that is
 **not built yet** and is off between sessions.
-[ADR-0080] is the decision: why `Saruman` and not `ifrit`, Winterfell or the
+[ADR-0081] is the decision: why `Saruman` and not `ifrit`, Winterfell or the
 domain, why it is off by default, and why nothing here is backed up.
 [`build-the-bloodhound-guest.md`] is the build.
 
@@ -59,11 +59,11 @@ Database Management → Clear data*.
 - **The graph is a map of the lab's weaknesses.** It stays on the lab segment,
   and nothing of it crosses to VLAN 99 (ADR-0007). Alloy ships this guest's
   telemetry and container logs to `alexander`, not the graph.
-- **Nothing is backed up** (ADR-0080). A lost graph is one collection run
+- **Nothing is backed up** (ADR-0081). A lost graph is one collection run
   away. Saved queries are the one thing that is not, and
   [`build-the-bloodhound-guest.md`] § 8 says what to do if they ever matter.
 - **Cypher mutations stay off**, as upstream ships them, so that a query typed
   in the UI cannot rewrite the graph it is reading.
 
-[ADR-0080]: ../../docs/adr/0080-run-bloodhound-ce-on-a-saruman-guest.md
+[ADR-0081]: ../../docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md
 [`build-the-bloodhound-guest.md`]: ../../docs/runbooks/build-the-bloodhound-guest.md

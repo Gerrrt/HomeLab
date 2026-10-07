@@ -1,0 +1,80 @@
+---
+# Stop the capture pktmon-start.yml began, convert it to pcapng on the guest, and
+# bring it back to phoenix (#450, ADR-0080). Nothing is left on the guest.
+#
+#   ansible-playbook pktmon-stop.yml --limit titan
+#   ansible-playbook pktmon-stop.yml --limit titan -e pktmon_captures=/tmp/case-12
+#
+# The file lands as <captures>/<guest>-<UTC time>.pcapng, ~/captures by default,
+# ready for Wireshark, tshark or capinfos.
+
+- name: Stop a Pktmon capture and fetch it
+  hosts: lab_domain
+  gather_facts: false
+  vars:
+    pktmon_dir: C:\ProgramData\lab\pktmon
+    pktmon_captures: "{{ lookup('ansible.builtin.env', 'HOME') }}/captures"
+  tasks:
+    - name: Say which one guest to stop
+      ansible.builtin.assert:
+        that:
+          - ansible_limit is defined
+          - ansible_play_hosts_all | length == 1
+        fail_msg: >-
+          Name one guest with --limit, as pktmon-start.yml was given; this
+          matched {{ ansible_play_hosts_all | length }}.
+        quiet: true
+
+    # A capture already stopped but not fetched (a stop that failed after
+    # pktmon stop, or a reboot) is picked up from its files rather than
+    # refused, so a rerun recovers it instead of stranding it on the guest.
+    # etl2pcap leaves out only Pktmon's drop records, which are not traffic.
+    - name: Stop, and convert to pcapng
+      ansible.windows.win_powershell:
+        parameters:
+          Dir: "{{ pktmon_dir }}"
+        script: |
+          param([string]$Dir)
+          $etl = Join-Path $Dir capture.etl
+          $pcap = Join-Path $Dir capture.pcapng
+          if ((pktmon status | Out-String) -notmatch 'not running') {
+            $out = pktmon stop 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "pktmon stop exited $LASTEXITCODE`: $out" }
+            Remove-Item -LiteralPath $pcap -Force -ErrorAction SilentlyContinue
+          } elseif (-not (Test-Path -LiteralPath $etl) -and -not (Test-Path -LiteralPath $pcap)) {
+            throw "Pktmon is not running on $env:COMPUTERNAME and no capture is waiting: nothing to stop."
+          }
+          # On both paths: a recovered capture may have been stopped by hand or
+          # by a reboot, which leaves pktmon-start's filter configured.
+          $null = pktmon filter remove
+          if (-not (Test-Path -LiteralPath $pcap)) {
+            if (-not (Test-Path -LiteralPath $etl)) { throw "Pktmon stopped but $etl is not there." }
+            $out = pktmon etl2pcap $etl --out $pcap 2>&1
+            if ($LASTEXITCODE -ne 0) { throw "pktmon etl2pcap exited $LASTEXITCODE`: $out" }
+          }
+          (Get-Item -LiteralPath $pcap).Length
+      register: pktmon_stopped
+      when: not ansible_check_mode
+
+    # fetch makes the directory on phoenix itself. A delegate_to: localhost
+    # task would inherit group_vars' ansible_shell_type: powershell, and fail.
+    - name: Fetch the pcapng
+      ansible.builtin.fetch:
+        src: "{{ pktmon_dir }}\\capture.pcapng"
+        dest: "{{ pktmon_captures }}/{{ inventory_hostname }}-{{ now(utc=true, fmt='%Y%m%dT%H%M%SZ') }}.pcapng"
+        flat: true
+      register: pktmon_fetched
+      when: not ansible_check_mode
+
+    - name: Leave nothing on the guest
+      ansible.windows.win_file:
+        path: "{{ pktmon_dir }}\\{{ item }}"
+        state: absent
+      loop: [capture.etl, capture.pcapng]
+      when: not ansible_check_mode
+
+    - name: Say where it is
+      ansible.builtin.debug:
+        msg: >-
+          {{ (pktmon_fetched.dest ~ ' (' ~ pktmon_stopped.output[0] ~ ' bytes)')
+             if pktmon_fetched.dest is defined else 'check mode: nothing stopped' }}

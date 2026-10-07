@@ -666,7 +666,7 @@ assumption consistent with what they are.
   data they protect are destroyed together by `qm destroy 161 --purge`.
 - **The BloodHound stack's key is one recipient on one guest, and has no
   backup** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
-  [ADR-0080](adr/0080-run-bloodhound-ce-on-a-saruman-guest.md)).
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
   - **How it is held.** `eden`'s rule sits above the catch-all, with a
     placeholder until the guest exists. So the host holding a map of the lab
     domain's weaknesses opens its own five secrets and nothing else.
