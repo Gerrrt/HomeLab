@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **#182's deployment, recorded late**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  The 2026-09-30 entry below says "Authored, not yet deployed", and the
+  roadmap kept saying so after the issue closed. The ingest proxy was
+  deployed 2026-09-30 at 22:27 UTC, and the issue closed at 23:53 with the
+  evidence on it.
+  - **Published:** Prometheus and Loki on `127.0.0.1`, and `ingest-proxy`
+    on `10.0.99.20:9090` and `:3100`.
+  - **Refused with no token, asked from `oracle`:** a query, a remote write,
+    Loki's delete and an admin snapshot, all with `401`. Loopback still
+    answers without a token.
+  - **Every client arrived on its own token:**
+    - `oracle` and `trinity` passed `deploy-agent.sh`'s arrival check;
+    - `Saruman`'s pushes were refused until its token matched SOPS, with no
+      refusals since 23:49:53;
+    - Homepage and Home Assistant came up healthy under `make up
+      STACK=sensitive`, carrying the reader token.
+  - **The blackbox probes** for health and refusal all returned
+    `probe_success 1`, so `IngestAuthNotEnforced` is armed.
+  - **Found on the way:**
+    - #766, a dpkg conffile prompt on the native upgrade;
+    - the blackbox exporter kept `blackbox.yaml`'s old inode until it was
+      force-recreated;
+    - #771, which commits the encrypted token keys.
+
+  TLS on these ports is
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764).
+
 - **The drifted digests are re-pinned, and `make pin-digests` survives a
   duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
   stacks pinned digests the registry no longer serves under their tag:
@@ -66,6 +95,22 @@ docstring gives: it is a record, not a claim about now.
     - `make up STACK=lab` on `alexander`;
     - §6, bringing the stack up;
     - §7, the first collection.
+
+- **`AlloyDown`: one alert that says the agent is down.** At 05:34 UTC the
+  production `alloy` on the monitoring host was stopped (exit 137, not OOM).
+  `unless-stopped` left it down for 47 minutes, until it was found during
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
+  `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
+  of them said the container was exited or how to start it. `ContainerGone`
+  names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.
+  `AlloyDown` keys on each host's `<host>-alloy` self-scrape. It fires at 10m,
+  and Alertmanager inhibits that host's `RemoteWriteJobStale` while it holds.
+  Three promtool cases cover it, and mutations to `for`, `unless` and per-job
+  aggregation are each killed. Widening the selector is equivalent under
+  `by (instance)`, and the test file says so.
 
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
