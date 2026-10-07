@@ -36,6 +36,21 @@ docstring gives: it is a record, not a claim about now.
   `DeployBehind` ignores those runs, so it fires on three hours without
   progress rather than on three hours of a busy `main`.
 
+- **Wazuh is configured to read the Sysmon channel, but not yet deployed**
+  ([#1035](https://github.com/Gerrrt/HomeLab/issues/1035)).
+  - Read on `odin` first. The manager's ruleset already decodes
+    `Microsoft-Windows-Sysmon/Operational`, and the `default` group's shared
+    `agent.conf` was upstream's empty placeholder. So none of what #450's
+    Sysmon records had been reaching the manager.
+  - `stacks/soc` now mounts a shared `agent.conf` for that group, which adds
+    the channel for Windows agents. `stacks/scratch` mounts the same file. The
+    manager's `verify-agent-conf` accepts it.
+  - ADR-0080 and the proof comment on #450 had said this belonged to #266.
+    #266 was running Wazuh, and it was already closed. ADR-0080 now carries a
+    note.
+  - Not proven yet. The six were rebuilt from the templates today for #448's
+    proof, and the manager had no agents registered when it was read.
+
 - **A Wazuh re-pin took odin's root to 99%, and deploys now remove what they
   supersede** ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)).
   - **What happened.** `make up STACK=soc` pulled #966's re-pinned Wazuh images

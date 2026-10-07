@@ -276,6 +276,10 @@ services:
       # container's environment.
       - ./wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
       - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+      # The `default` group's shared agent config: every Windows agent also
+      # reads the Sysmon channel (#1035). The agents pull it from here, so
+      # nothing on the guests changes. The file says why it lives here.
+      - ./wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
     ports:
       # Agent traffic and enrolment: the six domain machines are the off-host
       # consumers (ADR-0012), and they share this segment, so no firewall rule.

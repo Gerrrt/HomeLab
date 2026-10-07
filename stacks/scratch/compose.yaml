@@ -172,6 +172,9 @@ services:
       - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key:ro
       - ../soc/wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
       - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+      # odin's shared agent config too, so a Windows agent enrolled here reads
+      # its Sysmon channel as it would on odin (#1035).
+      - ../soc/wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
     ports:
       # The agents of whatever is being investigated. Enrolment still needs the
       # password (soc's ossec.conf, mounted above): a disposable store is still
