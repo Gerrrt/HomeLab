@@ -714,3 +714,189 @@ tests:
       - eval_time: 10m
         alertname: IngestAuthNotEnforced
         exp_alerts: []
+
+  # --- SiteDown: one household site on trinity stops answering (#855) -----
+  # Three things a syntax check cannot see. That `for: 10m` is what decides
+  # it — pending at 9 minutes, firing at 11. That the alert carries no
+  # `instance` or `via`, which is what lets Alertmanager group every site into
+  # one notification. And that EndpointUnreachable stays silent for the same
+  # probe: without its `tier!="household"` the site would page twice, at five
+  # minutes and again at ten.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://vaultwarden.matrix.elysium/alive",
+                 name="vaultwarden", role="passwords", host="trinity", via="dns", renewal="acme", tier="household"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://ntfy.matrix.elysium/v1/health",
+                 name="ntfy", role="alerting", host="trinity", via="dns", renewal="acme"}'
+        values: "1+0x15"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: SiteDown
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: SiteDown
+        exp_alerts:
+          - exp_labels:
+              alertname: SiteDown
+              name: vaultwarden
+              role: passwords
+              host: trinity
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#sitedown"
+              summary: "vaultwarden is not answering on trinity"
+              description: >-
+                Probed through Caddy by name for ten minutes, with no successful
+                response. If it is the only site firing, the service behind it is
+                down: `make ps STACK=sensitive` on trinity, then its
+                container's log. If every household site is firing, it is Caddy or
+                the host itself. A certificate that no longer verifies looks
+                exactly like this too.
+      - eval_time: 11m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+
+  # --- SiteDown: Caddy itself is down ---------------------------------------
+  # Every site fails at once, ntfy with them. Each household site fires
+  # SiteDown under its own name; ntfy, which carries no `tier`, fires
+  # EndpointUnreachable at five minutes and is the only thing that does.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://immich.matrix.elysium/api/server/ping",
+                 name="immich", role="photos", host="trinity", via="dns", renewal="acme", tier="household"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://memos.matrix.elysium/healthz",
+                 name="memos", role="notes", host="trinity", via="dns", renewal="acme", tier="household"}'
+        values: "0+0x15"
+      - series: 'probe_success{job="blackbox", instance="https://ntfy.matrix.elysium/v1/health",
+                 name="ntfy", role="alerting", host="trinity", via="dns", renewal="acme"}'
+        values: "0+0x15"
+    alert_rule_test:
+      - eval_time: 6m
+        alertname: EndpointUnreachable
+        exp_alerts:
+          - exp_labels:
+              alertname: EndpointUnreachable
+              job: blackbox
+              instance: "https://ntfy.matrix.elysium/v1/health"
+              name: ntfy
+              role: alerting
+              host: trinity
+              via: dns
+              renewal: acme
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#endpointunreachable"
+              summary: "ntfy is not reachable at https://ntfy.matrix.elysium/v1/health"
+              description: >-
+                Probed by dns and got no successful response for five
+                minutes. Expected on trinity. If the `address` probe for this
+                endpoint is also firing, the service is down; if only the `dns`
+                one is, the service is up and its name is not resolving. For an
+                https target, a certificate that no longer verifies looks exactly
+                like this — `make certs ARGS=--list` shows what is being served.
+      - eval_time: 6m
+        alertname: SiteDown
+        exp_alerts: []
+      - eval_time: 11m
+        alertname: SiteDown
+        exp_alerts:
+          - exp_labels:
+              alertname: SiteDown
+              name: immich
+              role: photos
+              host: trinity
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#sitedown"
+              summary: "immich is not answering on trinity"
+              description: >-
+                Probed through Caddy by name for ten minutes, with no successful
+                response. If it is the only site firing, the service behind it is
+                down: `make ps STACK=sensitive` on trinity, then its
+                container's log. If every household site is firing, it is Caddy or
+                the host itself. A certificate that no longer verifies looks
+                exactly like this too.
+          - exp_labels:
+              alertname: SiteDown
+              name: memos
+              role: notes
+              host: trinity
+              component: blackbox
+              severity: critical
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#sitedown"
+              summary: "memos is not answering on trinity"
+              description: >-
+                Probed through Caddy by name for ten minutes, with no successful
+                response. If it is the only site firing, the service behind it is
+                down: `make ps STACK=sensitive` on trinity, then its
+                container's log. If every household site is firing, it is Caddy or
+                the host itself. A certificate that no longer verifies looks
+                exactly like this too.
+
+  # --- SiteDown: a `make up` restart is not an outage -----------------------
+  # Down for seven minutes — longer than EndpointUnreachable's five, which is
+  # the case the longer `for` exists for — then back. SiteDown must never
+  # fire.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox", instance="https://immich.matrix.elysium/api/server/ping",
+                 name="immich", role="photos", host="trinity", via="dns", renewal="acme", tier="household"}'
+        values: "1 0x6 1x12"
+    alert_rule_test:
+      - eval_time: 7m
+        alertname: SiteDown
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: SiteDown
+        exp_alerts: []
+      - eval_time: 7m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+
+  # --- A household site's ACME leaf reaches the hours pair, not the days ---
+  # `renewal: acme` on every household target is what keeps a healthy
+  # seven-day leaf off the 30/7-day rules; this pins it for a site that is
+  # not ntfy. At 40 hours: TlsAcmeRenewalLate under its own name, and neither
+  # days rule.
+  - interval: 1m
+    input_series:
+      # 40 hours out at t=1h (144000 + 3600).
+      - series: 'probe_ssl_earliest_cert_expiry{job="blackbox", instance="https://vaultwarden.matrix.elysium/alive",
+                 name="vaultwarden", role="passwords", host="trinity", via="dns", renewal="acme", tier="household"}'
+        values: "147600+0x120"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: TlsAcmeRenewalLate
+        exp_alerts:
+          - exp_labels:
+              alertname: TlsAcmeRenewalLate
+              name: vaultwarden
+              role: passwords
+              host: trinity
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "vaultwarden's ACME certificate has 40h left"
+              description: >-
+                Caddy on trinity should have renewed this leaf at about
+                56 hours left and has not. Nothing has stopped verifying yet;
+                TlsAcmeRenewalStalled pages at 36. Read Caddy's log for the renewal
+                error (`docker logs sensitive-caddy 2>&1 | grep -i renew`), then
+                check step-ca is healthy — docs/runbooks/build-the-tier-ca.md.
+      - eval_time: 1h
+        alertname: TlsCertificateExpiringSoon
+        exp_alerts: []
+      - eval_time: 1h
+        alertname: TlsCertificateExpiryImminent
+        exp_alerts: []

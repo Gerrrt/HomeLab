@@ -9,6 +9,9 @@
 # `renewal` is `acme` for a certificate something renews on its own on a short
 #          lifetime — today, the sensitive tier's — and absent otherwise. It
 #          selects which expiry rules apply (blackbox.rules.yaml).
+# `tier`   is `household` for a service the house uses behind trinity's Caddy,
+#          and absent otherwise. It moves the target from EndpointUnreachable
+#          (5m) to SiteDown (10m), which rides out a `make up` on trinity.
 # `via`    is how the endpoint was addressed: `dns` by the name a person types,
 #          `address` by its IP, `compose` by its service name on the compose
 #          network. A `dns` probe should have an `address` twin, because both
@@ -143,9 +146,11 @@
 # and carries the name and no IP SAN, and Caddy picks the site by SNI, so an
 # https probe of 10.0.99.40 fails for a reason that says nothing about ntfy.
 # `/v1/health` answers with no credential, deny-all notwithstanding. The
-# module verifies the chain against the TIER'S root, which is also the only
-# HTTPS check any of trinity's sites has, so its expiry series is the first
-# evidence from outside that Caddy is renewing its seven-day leaves.
+# module verifies the chain against the TIER'S root. It was the first HTTPS
+# check of any of trinity's sites, and it stays on EndpointUnreachable rather
+# than the household sites' SiteDown below: it is the alert-path probe that
+# validate.sh and docs/runbooks/verify-the-alert-path.md pin, and five minutes
+# is the right wait for the thing that delivers every other page.
 #
 # Enabled 2026-09-28 at the cutover (#136), after this was run from the live
 # exporter on prometheus and answered probe_success 1, status 200, and a
@@ -167,6 +172,158 @@
     # A seven-day ACME leaf: the two 30/7-day expiry rules skip it and
     # TlsAcmeRenewalStalled watches it instead (blackbox.rules.yaml).
     renewal: acme
+
+# --- The household sites on trinity (#855) ----------------------------------
+# Every other name trinity's Caddy serves for the house, one probe each. Until
+# these existed nothing outside trinity measured that a household service
+# answered, and nothing watched its certificate: step-ca's leaves are seven
+# days long (ADR-0037), so a stuck renewal is an outage within the week.
+#
+# Each one is the same shape as ntfy above, for the same reasons: by name only,
+# because Caddy picks the site by SNI and the ACME leaf has no IP SAN;
+# http_2xx_tier_ca, so the chain is verified against the tier's root; and
+# `renewal: acme`, so TlsAcmeRenewalLate and TlsAcmeRenewalStalled watch each
+# leaf. A stopped backend makes Caddy answer 502, which fails the probe.
+#
+# `tier: household` sends a failure to SiteDown rather than EndpointUnreachable:
+# ten minutes rather than five, so `make up STACK=sensitive` restarting a
+# service does not page, and one notification for all of them when Caddy
+# itself is down (blackbox.rules.yaml says how).
+#
+# Every path answers 200 with no redirect and no session. That is the expected
+# status for each, and module http_2xx_tier_ca accepts any 2xx. Checked
+# 2026-10-07 from trinity through Caddy at 10.0.99.40, the chain verified
+# against certificates/tier-ca.pem; re-run from the exporter on prometheus
+# with the recipe above, swapping the target.
+#
+# AdGuard's UI is a Caddy site too, and is deliberately not here: it is a page
+# for the operator, not the house, its DNS side is targets/blackbox-dns.yaml's
+# job, and ADR-0010 decided a failed filter is not a page.
+
+# `/alive` is Vaultwarden's own liveness path: a timestamp, no session.
+- targets: ["https://vaultwarden.matrix.elysium/alive"]
+  labels:
+    module: http_2xx_tier_ca
+    name: vaultwarden
+    role: passwords
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/server/ping` answers `{"res":"pong"}` without a session.
+- targets: ["https://immich.matrix.elysium/api/server/ping"]
+  labels:
+    module: http_2xx_tier_ca
+    name: immich
+    role: photos
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# No unauthenticated health path (`/api/` is 401), so the login page `/`
+# redirects to — asked for directly, so the 200 is Django rendering a page.
+- targets: ["https://paperless.matrix.elysium/accounts/login/"]
+  labels:
+    module: http_2xx_tier_ca
+    name: paperless
+    role: documents
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/manifest.json`, the path compose.yaml's healthcheck uses; served by the
+# frontend with no session.
+- targets: ["https://homeassistant.matrix.elysium/manifest.json"]
+  labels:
+    module: http_2xx_tier_ca
+    name: home-assistant
+    role: home-automation
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/healthcheck` answers `up`, the path compose.yaml's healthcheck uses.
+- targets: ["https://home.matrix.elysium/api/healthcheck"]
+  labels:
+    module: http_2xx_tier_ca
+    name: homepage
+    role: front-page
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/health` answers `{"status":"UP"}` without a session.
+- targets: ["https://actual.matrix.elysium/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: actual
+    role: budget
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/app/about` answers the version without a session; Mealie has no
+# dedicated health path over HTTP.
+- targets: ["https://recipes.matrix.elysium/api/app/about"]
+  labels:
+    module: http_2xx_tier_ca
+    name: mealie
+    role: recipes
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/healthcheck` answers `OK`; it also checks Miniflux's database connection.
+- targets: ["https://miniflux.matrix.elysium/healthcheck"]
+  labels:
+    module: http_2xx_tier_ca
+    name: miniflux
+    role: feeds
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/healthz` answers `Service ready.`, the path compose.yaml's healthcheck uses.
+- targets: ["https://memos.matrix.elysium/healthz"]
+  labels:
+    module: http_2xx_tier_ca
+    name: memos
+    role: notes
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/health` answers `{"status": "healthy"}`, compose.yaml's healthcheck path.
+- targets: ["https://links.matrix.elysium/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: linkding
+    role: bookmarks
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/v1/info/status` answers `{"status":"UP"}`, compose.yaml's
+# healthcheck path.
+- targets: ["https://pdf.matrix.elysium/api/v1/info/status"]
+  labels:
+    module: http_2xx_tier_ca
+    name: stirling-pdf
+    role: pdf-tools
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
 
 # --- Devices that otherwise only have SNMP ---------------------------------
 # An SNMP agent answering says nothing about the management UI a person would
