@@ -2,6 +2,55 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> **Pocket ID weighed on 2026-10-07, and it changes nothing until a trigger
+> fires** ([#860](https://github.com/Gerrrt/HomeLab/issues/860)). The
+> Alternatives below weighed only Authelia and Authentik. Pocket ID is a
+> lighter class: one container, passkey-only login, a certified OIDC
+> provider, and no forward-auth, SAML or LDAP server of its own. Checked
+> against v2.18.0, Immich v3.2.4 and Grafana 13.0.2:
+>
+> - **As an added login, it adds no factor.** Immich's password login is a
+>   separate switch (`passwordLogin.enabled`), so OIDC beside local accounts
+>   locks no one out during an outage. It also leaves the one-password route
+>   open, and that route is the residual this record accepts. Grafana's local
+>   form likewise stays unless `disable_login_form` is set.
+> - **As the only login, the first objection returns, smaller.** With password
+>   login off, a Pocket ID outage blocks new Immich logins. The mobile app's
+>   existing sessions survive it. That is a smaller outage than Authentik in
+>   front of the tier, and it is still the standing cost the Decision weighs.
+> - **Linking is cheap for Immich and not for Grafana.** Immich links an
+>   existing user by email at the first OIDC login, so the service is not
+>   migrated. Grafana links by email only with
+>   `oauth_allow_insecure_email_lookup`, which its own documentation says can
+>   lower the instance's security. Grafana also runs on `prometheus`, not
+>   `trinity`, so putting it behind a provider on the tier would make the
+>   monitoring host's login depend on the sensitive tier.
+> - **Recovery is the operator's.** A lost passkey is recovered with a
+>   one-time login code from the admin page, or with `pocket-id
+>   one-time-access-token <user>` on `trinity`. Pocket ID can offer
+>   self-service recovery, an emailed login code requested from the sign-in
+>   page (`EMAIL_ONE_TIME_ACCESS_AS_UNAUTHENTICATED_ENABLED`, off by default).
+>   The shape weighed here leaves it off, for two reasons:
+>   - it needs an SMTP credential, and the tier holds none on purpose (see
+>     Vaultwarden's block in `compose.yaml`);
+>   - it makes reading a mailbox enough to sign in, which is the
+>     password-reset path a passkey exists to remove.
+>
+>   So recovery stays with the operator, and each person should enrol a
+>   passkey on two devices. The provider
+>   would sit in ADR-0023's *Never on the path* class: the photographs'
+>   recovery route is the off-estate copy, not Immich's login.
+> - **The footprint fits the tier's rules.** The distroless `nonroot` image,
+>   SQLite under `/app/data`, and a built-in healthcheck fit `cap_drop: ALL`,
+>   one volume with a sentinel, and Caddy in front.
+>
+> **When a reopen condition fires, Pocket ID is the first candidate,** ahead
+> of Authelia and Authentik. In front of Immich alone, with password login
+> off, is the shape that buys a factor. That is still a new record, as the
+> Decision requires, and not a note on this one. The text below is left as
+> written, per ADR-0001.
+
 ## Context
 
 [ADR-0022](0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)
