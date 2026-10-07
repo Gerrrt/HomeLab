@@ -107,10 +107,14 @@ Rejected:
   landing all six roles changes nothing on the live domain. The purple-team
   rollout stays one weakness at a time, by hand, which is #449's "add weaknesses
   one at a time, the observation is the deliverable".
-- **The negative test is just `verify.yml`.** With no weakness enabled it
-  asserts all six primitives are absent. If one is left on by accident, a plain
-  `verify.yml` goes red and names it — which is the negative test doing its job,
-  not a false alarm.
+- **`verify.yml` proves the primitive-level negative test, not the graph-level
+  one.** With no weakness enabled it asserts all six primitives are absent, and
+  if one is left on by accident a plain `verify.yml` goes red and names it. What
+  it does not do is walk the authorization graph, so it is not on its own a
+  proof that no path to Domain Admin exists — the collector #449 names for that
+  ("run the collector with the tags off") is BloodHound, #451. The two are
+  complementary: this asserts the specific primitives this lab adds are gone;
+  the collector confirms the graph has no path left.
 - **`LAB_WEAK_PASSWORD` is a crackable credential on the deployment host.** It
   is meant to be. It is `no_log` in every task like the other secrets, and the
   accounts that carry it exist only while a weakness is enabled.

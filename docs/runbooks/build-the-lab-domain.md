@@ -180,7 +180,7 @@ that is the exercise — not with `openssl rand`. Only needed before you enable 
 weakness, and it replaces any earlier entry:
 
 ```bash
-(f=~/.config/proxmox/phoenix.env; umask 077; printf 'weak password: '; stty -echo; read -r P; stty echo; echo; [ -n "$P" ] && { sed -i '/^LAB_WEAK_PASSWORD=/d' "$f"; printf "LAB_WEAK_PASSWORD='%s'\n" "$(printf '%s' "$P" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset P)
+(f=~/.config/proxmox/phoenix.env; umask 077; trap 'stty echo' EXIT INT TERM; printf 'weak password: '; stty -echo; read -r P; stty echo; echo; [ -n "$P" ] && { sed -i '/^LAB_WEAK_PASSWORD=/d' "$f"; printf "LAB_WEAK_PASSWORD='%s'\n" "$(printf '%s' "$P" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset P)
 ```
 
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
@@ -655,9 +655,12 @@ ansible-playbook lab-domain.yml --tags kerberoast                       # defaul
 ansible-playbook verify.yml                                             # confirm it is gone
 ```
 
-A plain `ansible-playbook verify.yml`, with nothing enabled, is the **negative
-test**: it asserts all six are absent, so the path to Domain Admin is not there.
-A lab that is always exploitable proves nothing about the tags.
+A plain `ansible-playbook verify.yml`, with nothing enabled, asserts all six of
+these primitives are absent — the **per-primitive negative test**. It does not
+collect the authorization graph, so the graph-level test #449 names — "run the
+collector with the tags off and confirm the path to Domain Admin is not there" —
+is a BloodHound collector run ([#451](https://github.com/Gerrrt/HomeLab/issues/451)),
+not this. A lab that is always exploitable proves nothing about the tags.
 
 | Tag | What `present` makes | What `absent` restores |
 | --- | --- | --- |

@@ -9,6 +9,15 @@
 # Runs on the PDC emulator; compares before it writes, so a second run of
 # either direction reports nothing changed.
 
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_ucd_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_ucd_state is '{{ weakness_ucd_state }}', not 'present' or
+      'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
 - name: Set or clear unconstrained delegation on the member server
   ansible.windows.win_powershell:
     script: |

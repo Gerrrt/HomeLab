@@ -110,12 +110,12 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `tiers` | The tier OUs, admins, `Tier 0 Admins`, member placement | §5 |
 | `shares` | `titan`'s `Public` and `Finance`, with the decoy | §5 |
 | `soc` | Wazuh and Velociraptor, in place of the deploy GPOs | §11 |
-| `kerberoast` | An SPN on a crackable account, `ramuh`'s target | §5 |
-| `asreproast` | Pre-auth disabled on a crackable account | §5 |
-| `dcsync` | Replication rights on a non-DA principal | §5 |
-| `ucd` | Unconstrained delegation on `ramuh` | §5 |
-| `cd` | Constrained delegation, `svc-web` to `titan` CIFS | §5 |
-| `rbcd` | Resource-based constrained delegation on `titan` | §5 |
+| `kerberoast` | An SPN on a crackable account, `ramuh`'s target | §5a |
+| `asreproast` | Pre-auth disabled on a crackable account | §5a |
+| `dcsync` | Replication rights on a non-DA principal | §5a |
+| `ucd` | Unconstrained delegation on `ramuh` | §5a |
+| `cd` | Constrained delegation, `svc-web` to `titan` CIFS | §5a |
+| `rbcd` | Resource-based constrained delegation on `titan` | §5a |
 
 The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
 §11's agents. The last six are
@@ -131,8 +131,12 @@ ansible-playbook lab-domain.yml --tags kerberoast                       # off ag
 ansible-playbook verify.yml                                             # all six absent
 ```
 
-A plain `ansible-playbook verify.yml` is the negative test: it asserts every
-weakness is absent, so the path to Domain Admin is not there.
+A plain `ansible-playbook verify.yml` asserts every one of these six weakness
+primitives is absent — the per-primitive negative test. It does not walk the
+domain's authorization graph, so it does not by itself prove *no* path to
+Domain Admin exists; that graph-level check is a BloodHound collector run with
+the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)), which is
+#449's "run the collector" half.
 
 ## Rules this tree keeps
 

@@ -214,9 +214,12 @@
           }
 
           # --- #449: each deliberate weakness is in the state its toggle names -
-          # Default absent, so a plain run asserts every one is NOT there — the
-          # negative test, that the path to Domain Admin is not present. To
-          # prove one that is deliberately on, pass its state, e.g.
+          # Default absent, so a plain run asserts every one of these six
+          # primitives is NOT there — the per-primitive negative test. It does
+          # not walk the authorization graph, so it is not on its own a proof
+          # that no path to Domain Admin exists; that graph-level check is the
+          # BloodHound collector run with the tags off (#451). To prove one that
+          # is deliberately on, pass its state, e.g.
           #   ansible-playbook verify.yml -e weakness_kerberoast_state=present
           if ([bool]::Parse($IsPrimary)) {
             $wbase = (Get-ADDomain).DistinguishedName

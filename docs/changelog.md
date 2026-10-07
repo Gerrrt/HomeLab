@@ -38,11 +38,13 @@ docstring gives: it is a record, not a claim about now.
     The dedicated accounts are deleted when their weakness is turned off, so
     the ordinary population is never touched (ADR-0078); the delegation flags
     are cleared on the real computers, which are never created or deleted.
-  - **The negative test is `verify.yml`.** It now asserts each weakness is in
-    the state its toggle names, defaulting to absent — so a plain run proves
-    the path to Domain Admin is not there, and `verify.yml -e
-    weakness_<name>_state=present` proves one that is deliberately on. The §0
-    "do not harden" assertions are untouched.
+  - **The per-primitive negative test is `verify.yml`.** It now asserts each
+    weakness is in the state its toggle names, defaulting to absent — so a plain
+    run proves all six primitives are absent, and `verify.yml -e
+    weakness_<name>_state=present` proves one that is deliberately on. It does
+    not walk the authorization graph, so the graph-level "no path to Domain
+    Admin" check #449 names is the BloodHound collector run with the tags off
+    (#451), not this. The §0 "do not harden" assertions are untouched.
   - **A sixth secret.** `LAB_WEAK_PASSWORD` in `phoenix.env` is the
     deliberately crackable password the weakness accounts share — the crack
     target for the two roasting weaknesses, and the login the others

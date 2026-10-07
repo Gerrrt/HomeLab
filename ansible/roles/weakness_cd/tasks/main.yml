@@ -9,6 +9,15 @@
 # A dedicated account: disabling deletes svc-web and the delegation it carries;
 # titan, the target, is never touched. Runs on the PDC emulator.
 
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_cd_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_cd_state is '{{ weakness_cd_state }}', not 'present' or
+      'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
 - name: Refuse to enable cd without the weak password
   ansible.builtin.assert:
     that: lab_weak_password | length >= 1
