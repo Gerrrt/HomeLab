@@ -42,6 +42,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
 | `self-tests.sh` | — | Every fixture suite embedded in the scripts above |
+| `volume-selftest-fixture.sh` | — | Sourced, not run: the throwaway repository, volumes and age keys that `backup-volumes.sh` and `restore-volumes.sh` round-trip in their fixtures |
 | `seed-validation-env.sh` | — | A throwaway `.env` that satisfies `${VAR:?}` guards, so `docker compose config` can run |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |

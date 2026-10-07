@@ -107,6 +107,13 @@ jobs:
             echo "::warning::and exposed to the shared-IP rate limit of #602"
           fi
 
+      # age, for the volume round trip (#854). Not a pass-through shim, the way
+      # the other backup suites stand one in: what those two suites prove is
+      # that a set opens with either recipient's key and not a third's, and a
+      # shim opens everything.
+      - name: Install age
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age
+
       # Every embedded fixture suite in the repository — the collectors that
       # parse output no host here can be asked to produce, the CA-key proof that
       # needs a mounted medium, the offsite copy that needs the second
@@ -121,8 +128,11 @@ jobs:
       # hand-kept list gets you. Discovery also means a suite added later is
       # covered here without anyone remembering to add it.
       #
-      # First among the real work, because none of it needs a daemon, a
-      # network or a secret and all of it finishes in seconds. A broken fixture
+      # First among the real work, because none of it needs a secret and all of
+      # it finishes in seconds. Two suites do need the daemon and one image
+      # pull — backup-volumes.sh and restore-volumes.sh round-trip a throwaway
+      # volume through real age (#854) — and the runner has docker already;
+      # age is installed in the step above. A broken fixture
       # is reported before the six minutes of registry traffic the probe step
       # spends below, which is the ordering #602 asked for when
       # check_compose_health.py's own suite had a dedicated step here. That
