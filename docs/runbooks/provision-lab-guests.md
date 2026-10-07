@@ -90,8 +90,8 @@ elif cp -p "$E" "$E.bak-445"; then
       "$PROXMOX_TOKEN_ID" "$PROXMOX_TOKEN_SECRET" "$(openssl rand -base64 32)" >> "$E" )
   chmod 600 "$E"; grep -o '^[A-Za-z_]*=' "$E"
   ( set -a; . "$E"; set +a; echo "passphrase length ${#TF_VAR_state_passphrase}"
-    curl -fsS -o /dev/null -w 'API %{http_code}\n' -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" \
-      "${PROXMOX_VE_ENDPOINT}api2/json/version" )
+    printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" \
+      | curl -K - -fsS -o /dev/null -w 'API %{http_code}\n' "${PROXMOX_VE_ENDPOINT}api2/json/version" )
 else
   echo "backup failed: nothing written"
 fi
@@ -175,7 +175,7 @@ mkdir -p tofu/state && chmod 700 tofu/state
 tofu -chdir=tofu init
 tofu -chdir=tofu plan -var proof=true -out=proof.tfplan
 tofu -chdir=tofu apply proof.tfplan && rm tofu/proof.tfplan
-api() { curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" "${PROXMOX_URL}$1"; }
+api() { printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" | curl -K - -fsS "${PROXMOX_URL}$1"; }
 api /nodes/Saruman/qemu/998/config | jq '.data | {name, tags, scsi0, net0}'
 api /pools/proof | jq -r '.data.members[].vmid'
 ```
@@ -263,6 +263,7 @@ replaces the guest, and replacing it re-clones it from scratch.
 | 2026-10-03 | §4 half one, `check-tofu-state-encryption.sh` on the real state | Two PASS: the encrypted wrapper with no gitleaks match, and the proof password absent. The passphrase grep returned `0`. The state file was mode 664, found from `Saruman` and fixed (`umask 077` above) |
 | 2026-10-03 | §4 half two, `git add` refused, and `-f` caught | `git add` refused: "ignored by one of your .gitignore files", exit 1. With `-f`, `check-tracked-artefacts.sh` named `tofu/state/lab.tfstate`, exit 1. Reset, and nothing was left staged |
 | 2026-10-03 | §4 proof guest and `proof` pool destroyed | `-var proof=false`: 3 destroyed. From `Saruman`: no 998, no pools, no `vm-998` disk on `large_data`, and no `/pool/proof` ACL. Proxmox deleted the grant with the pool, as §2 says |
+| 2026-10-06 | `PhoenixHostKeys` grant, as root on `Saruman` ([#846](https://github.com/Gerrrt/HomeLab/issues/846), [`build-the-lab-domain.md`](build-the-lab-domain.md#run-it-from-phoenix)) | Role created with `VM.GuestAgent.FileRead` alone and granted to `phoenix@pve` on `/pool/lab-domain` (no such pool yet; accepted, as `/pool/proof` was) and on `/vms/150`–`/vms/155`. `PhoenixBuilder` unchanged. With `phoenix`'s token, `agent/file-read` returned `bahamut`'s host key from 150, and was refused on 160 (`odin`): `Permission check failed (/vms/160, VM.GuestAgent.FileRead\|VM.GuestAgent.Unrestricted)`. The six VMID grants go with their guests on a destroy; the pool grant is the one that outlives a rebuild |
 
 ## Recovery: `phoenix` is gone
 
