@@ -128,7 +128,11 @@ groups:
           summary: "Loki has received no log lines for 30 minutes"
           description: >-
             Either every Alloy agent is down or the push endpoint is
-            unreachable. Logs are being lost, not queued indefinitely.
+            unreachable. A running agent retries a failed push for a few
+            minutes, then drops the batch: those lines are lost. A stopped
+            agent's file, journal and Docker sources resume from their saved
+            positions when it starts, unless the logs rotated away meanwhile.
+            Network syslog sent while it is down is gone.
 
       # --- The Loki ruler (#837) --------------------------------------------
       #
@@ -292,8 +296,10 @@ groups:
           description: >-
             This job arrives by remote_write, so nothing scrapes it and
             InstanceDown cannot see it — it has simply stopped pushing. Either
-            the Alloy agent on {{ $labels.instance }} is down or it cannot reach
-            this host. Metrics from it are being lost, not queued.
+            the Alloy agent on {{ $labels.instance }} is down, and nothing is
+            being collected, or it cannot reach this host, and its metrics wait
+            in its write-ahead log and are sent when it can, for a bounded
+            time.
 
       - alert: ScrapeTargetDisappeared
         # THE MIRROR OF RemoteWriteJobStale, for the one host that is pulled.
@@ -636,7 +642,10 @@ groups:
           dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
           summary: "Alloy on {{ $labels.instance }} is failing to remote-write some samples"
           description: >-
-            Metrics from {{ $labels.instance }} are being lost, not queued. On
+            Metrics from {{ $labels.instance }} are being lost, not queued:
+            this counts samples the receiver refused outright, which remote_write
+            does not retry. (Failures it can recover from are retried and do not
+            count here.) On
             the host, `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'`
             (or `journalctl -u alloy` for a native agent) gives the status the
             receiver returned: 401 is the ingest token, 400 out-of-order or too

@@ -136,7 +136,11 @@ tests:
               summary: "The lab's Loki has received no log lines for 30 minutes"
               description: >-
                 Either the lab's Alloy is down or the push endpoint is
-                unreachable. Logs are being lost, not queued indefinitely.
+                unreachable. A running agent retries a failed push for a few
+                minutes, then drops the batch: those lines are lost. A stopped
+                agent's file, journal and Docker sources resume from their
+                saved positions when it starts, unless the logs rotated away
+                meanwhile.
 
   - interval: 1m
     input_series:
