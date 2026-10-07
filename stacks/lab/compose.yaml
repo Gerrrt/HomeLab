@@ -245,6 +245,7 @@ services:
       INGEST_TOKEN_PHOENIX: ${INGEST_TOKEN_PHOENIX:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_FENRIR: ${INGEST_TOKEN_FENRIR:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_GOLEM: ${INGEST_TOKEN_GOLEM:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_EDEN: ${INGEST_TOKEN_EDEN:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/lab.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
