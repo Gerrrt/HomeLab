@@ -67,6 +67,10 @@ up: render ## Render config and start the stack
 	@# it first. Claimed from SOPS with no network before its first start; a
 	@# claimed one is only checked (seed-actual-password.sh, ADR-0062).
 	@if [ "$(STACK)" = sensitive ]; then ./scripts/seed-actual-password.sh; fi
+	@# A stack whose Alloy mounts /rootfs reads the host's textfile directory,
+	@# and nothing else creates it on a host that runs its own Alloy: alexander,
+	@# odin and eden all came up without it (ensure-textfile-dir.sh).
+	./scripts/ensure-textfile-dir.sh $(STACK)
 	$(COMPOSE) up -d --remove-orphans
 	@# `up -d` recreates a container only when its *service definition* changes,
 	@# so a freshly rendered snmp.yaml or an edited prometheus.yaml is invisible
