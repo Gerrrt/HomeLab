@@ -112,6 +112,16 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
 
 ## 2026-10-05
 
