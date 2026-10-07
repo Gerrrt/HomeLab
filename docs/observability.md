@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-174 rules in total: 155 metric-based in `prometheus/rules/`, and 19 log-based in
+175 rules in total: 155 metric-based in `prometheus/rules/`, and 20 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -354,6 +354,20 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**OOM kills have three owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903)):
+
+- `KernelOomKill`: the machine-wide killer, read from the kernel's line.
+- `ContainerOomKilled`: a Docker container at its `mem_limit`, read from cAdvisor.
+- `UnitOomKilled`: a systemd unit. It reads systemd's own verdict,
+  `<unit>: Failed with result 'oom-kill'.`, from the journal, and names the
+  unit from the line, because PID 1 writes it as `init.scope`.
+
+`UnitOomKilled` is latent until some unit is given a `MemoryMax=`, which none
+is today. A kill inside any other cgroup is still nobody's. `systemd-oomd` is
+not installed on `trinity` (Ubuntu 26.04.1, checked 2026-10-07). Its state on
+the other hosts is not yet recorded. Where it runs, its kills also end in that
+systemd verdict, so this rule sees them.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with

@@ -70,6 +70,9 @@ groups:
           description: "At least {{ $value }} starts in 15 minutes, scrape-limited."
 
       - alert: ContainerOomKilled
+        # cAdvisor's OOM events, so Docker's cgroups only. The machine-wide
+        # killer is KernelOomKill's and a systemd unit's is UnitOomKilled's,
+        # both Loki rules in security.rules.yaml (#903).
         expr: increase(container_oom_events_total{name!=""}[15m]) > 0
         labels:
           component: containers
