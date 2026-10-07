@@ -268,9 +268,31 @@ SHIM
   ROWS_FOR_TEST="${T}/rows.moved" run --prove
   check "--prove: an original the storage template moved is found by checksum" 0 "ok=0 moved=1 newer=0 bad=0"
 
+  # A set that rots after the night it was written (#856): what the nightly
+  # homelab-verify-backups-sensitive run exists to catch. The shim does not
+  # encrypt, so here it is gzip's CRC and tar's parse that refuse the damage;
+  # on the host age's per-chunk AEAD refuses it first. Each case damages the
+  # newest set and puts the good archive back afterwards.
+  newest="$(find "${T}/out" -mindepth 1 -maxdepth 1 -type d -name '2*' | sort | tail -1)"
+  arc="${newest}/immich-library.tar.gz.age"
+  cp "${arc}" "${T}/good.age"
+  size="$(stat -c %s "${arc}")"
+  mid=$((size / 2))
+  byte="$(od -An -tu1 -j "${mid}" -N1 "${arc}" | tr -d ' ')"
+  printf '%b' "\\0$(printf '%03o' $(((byte + 1) % 256)))" \
+    | dd of="${arc}" bs=1 seek="${mid}" count=1 conv=notrunc status=none
+  run --verify-only --local-only
+  check "a set with one byte flipped since it was written does not verify" 1 "verification FAILED"
+  cp "${T}/good.age" "${arc}"
+  truncate -s $((size - 8)) "${arc}"
+  run --verify-only --all --local-only
+  check "a truncated set fails --verify-only --all, which is the nightly run" 1 "verification FAILED"
+  cp "${T}/good.age" "${arc}"
+  run --verify-only --all --local-only
+  check "and with the good archive back, every set verifies again" 0 "./library/.immich present"
+
   # A crossed mapping: another archive's content under this name must not
   # verify, whatever it is called.
-  newest="$(find "${T}/out" -mindepth 1 -maxdepth 1 -type d -name '2*' | sort | tail -1)"
   mkdir -p "${T}/vault" && head -c 2048 /dev/urandom > "${T}/vault/db.sqlite3" && printf 'y\n' > "${T}/vault/rsa_key.pem"
   tar -czf "${newest}/immich-library.tar.gz.age" -C "${T}/vault" .
   run --verify-only --local-only

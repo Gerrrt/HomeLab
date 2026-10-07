@@ -961,8 +961,12 @@ was filled — the two defects [#428] describes.
 **When it runs, and where the sets go.** `homelab-backup-sensitive` runs it
 every night at 04:30 ([#404] step 9). Each set is copied to `oracle` and
 checked there by sha256 ([#535]). The run's outcome is the `backup-sensitive`
-job in the estate's `ScheduledJob*` alerts, with a two-day threshold. The
-unit and its installer are in
+job in the estate's `ScheduledJob*` alerts, with a two-day threshold. At 06:30
+`homelab-verify-backups-sensitive` reads every retained set again, here and
+on `oracle`, along with the library's sets
+([#856](https://github.com/Gerrrt/HomeLab/issues/856)). A set that rots after
+the night it was written fails the next morning, as `verify-backups-sensitive`.
+The units and their installer are in
 [`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
 What this does **not** give is a copy off the estate. `oracle` is in the same
 room and on the same power, and [ADR-0023] requires that copy before Immich or

@@ -72,6 +72,7 @@ instead.
 | `homelab-converge-sensitive` | hourly, at :25 | Converges the sensitive tier onto `main`, report-only until switched on |
 | `homelab-backup-sensitive` | daily 04:30 | Quiesces the tier and archives its volumes |
 | `homelab-backup-library` | daily 05:15 | Archives Immich's library and copies it to `oracle` |
+| `homelab-verify-backups-sensitive` | daily 06:30 | Proves every volume and library set still decrypts, and `oracle`'s copies still hash to their MANIFESTs |
 
 ## On agent hosts
 

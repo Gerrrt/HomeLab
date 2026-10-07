@@ -65,16 +65,37 @@ variable "startup_order" {
 }
 
 variable "cores" {
-  type = number
+  type        = number
+  description = "vCPUs. host CPU type, so each is a real thread on Saruman."
+
+  validation {
+    condition     = var.cores >= 1 && floor(var.cores) == var.cores
+    error_message = "cores must be a whole number, at least 1."
+  }
 }
 
 variable "memory_mib" {
-  type = number
+  type        = number
+  description = "Dedicated memory, no balloon. At least 1024 for Linux, 2048 for Windows (Server 2025's floor)."
+
+  validation {
+    condition     = var.memory_mib >= (var.linux ? 1024 : 2048) && floor(var.memory_mib) == var.memory_mib
+    error_message = "memory_mib must be a whole number, at least 1024 for Linux and 2048 for Windows."
+  }
 }
 
 variable "disk_gib" {
   type        = number
-  description = "At least the template's own disk: 32 for Linux, 64 for Windows."
+  description = "At least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
+
+  # A clone cannot be smaller than its template. Without this, a disk that is
+  # too small fails only at apply, against Proxmox, with the guest half made.
+  # By template, not by var.linux: Kali is Linux and its disk is 64G, and
+  # Server 2025's is 60G, not 64 (packer/*.pkr.hcl, disk_size).
+  validation {
+    condition     = var.disk_gib >= lookup({ 901 = 32, 902 = 64, 911 = 64, 912 = 60 }, var.template, 64) && floor(var.disk_gib) == var.disk_gib
+    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
+  }
 }
 
 variable "linux" {
