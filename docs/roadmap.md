@@ -240,7 +240,8 @@ Closes on BloodHound running where nothing attacks it.
   [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
   (written as `--tags sysmon` and two capture playbooks,
   [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md),
-  and not yet applied) → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
+  and applied to the six on 2026-10-06, with a second run of `changed=0` and
+  `verify.yml` passing) → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
   BloodHound, which closes the milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).

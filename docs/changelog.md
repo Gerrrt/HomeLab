@@ -19,7 +19,7 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
-- **Sysmon and Pktmon for the lab domain are written**
+- **Sysmon and Pktmon are on the lab domain**
   ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
   [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
   - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
@@ -31,6 +31,24 @@ docstring gives: it is a record, not a claim about now.
   - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
     the pcapng to `phoenix`.
   - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
 
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),

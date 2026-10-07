@@ -70,6 +70,9 @@ Decided on #450, 2026-10-06.
      is 15.22, which reads that schema.
 5. **The Sysmon channel is 256 MiB, not the 64 MiB Sysmon leaves.** Until
    #266 ships the events off the guest, the channel is the only copy.
+   `bahamut` wrote 8.6 MiB an hour in its first quarter-hour, install burst
+   included. At that rate the channel holds about a day, where the default
+   held about seven hours.
 6. **Pktmon is on demand, not standing.** `pktmon-start.yml` and
    `pktmon-stop.yml` start a capture on one guest and bring it back to
    `phoenix` as pcapng. Both require `--limit`.
