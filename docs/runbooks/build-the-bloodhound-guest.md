@@ -130,7 +130,7 @@ run as:
 
 ```bash
 sudo install -d -m 0700 -o 999   -g 999   /srv/bloodhound-data/postgres
-sudo install -d -m 0750 -o 65534 -g 65534 /srv/bloodhound-data/work
+sudo install -d -m 0750 -o 0     -g 0     /srv/bloodhound-data/work
 df -h /srv/bloodhound-data
 ```
 
@@ -218,8 +218,9 @@ scp -3 -p \
   garnet@10.0.30.41:code/Gerrrt/HomeLab/certificates/
 ```
 
-On `eden`, the key must be `0640` and yours. BloodHound runs as `nobody` and
-reads it through your gid (`group_add: ${RENDER_GID}`), the way Grafana does:
+On `eden`, the key must be `0640` and yours. BloodHound runs as root with no
+capabilities, so it cannot read past permission bits. It reads the key
+through your gid (`group_add: ${RENDER_GID}`), the way Grafana does:
 
 ```bash
 chmod 640 ~/code/Gerrrt/HomeLab/certificates/bloodhound.matrix.elysium-key.pem
@@ -278,14 +279,17 @@ say why.
 **Three things in this stack were reasoned, not booted, when it was written.**
 Check each one now:
 
-- **BloodHound as `nobody`**, writing only to `work/`:
+- **BloodHound as root with no capabilities**, writing only to `work/`, and
+  reading the image's root-only SharpHound files:
 
   ```bash
   docker logs bloodhound-app 2>&1 | grep -iE 'permission|denied|read-only' || echo clean
   ```
 
-  If it fails, find out **what** it writes before changing the user. The
-  compose comment says not to take that line out quietly.
+  If it fails, find out **what** it wants before changing the user. As
+  `nobody`, the first start on 2026-10-07 could not read the image's 0600
+  SharpHound files, which is why this is root now. The compose comment has
+  the reasoning.
 - **The graph in Postgres.** BloodHound's start log names the graph driver
   it opened. It must be `pg`, and `docker logs bloodhound-app` must show no
   `neo4j` connection attempts:
