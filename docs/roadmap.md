@@ -68,15 +68,6 @@ Closes when it is empty.
   the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
-  Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
-  accident. Authored 2026-09-30:
-  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)'s
-  ingest proxy, a token per agent and a reader token. Not yet deployed. The
-  order is the tokens into both SOPS files, the three agents and `trinity`
-  redeployed carrying them, then `make up` on the monitoring host. The issue
-  stays open until `deploy-agent.sh` has shown fresh data from all three agents
-  and the refusal probes are green.
 
 The rest of the milestone has no order between its issues.
 
@@ -233,14 +224,19 @@ Closes on BloodHound running where nothing attacks it.
   so it waits for the six to be declared in `tofu/` with pinned MACs; #440's
   templates exist since 2026-10-03) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses (the population and the authentication generator are written as
+  weaknesses (the population and the authentication generator are
   `--tags population,authgen`,
-  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
-  and not yet applied; the weaknesses are not written) and
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md);
+  what remains is the rest of
+  [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5, which
+  covers the tiers, the SPN account, the Tier 0 GPO and the shares, and then
+  the weaknesses, each its own tag on top of the population) and
   [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
   ([ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md))
   → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
-  BloodHound, which closes the milestone. All of it runs from `phoenix`
+  BloodHound ([ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
+  → [runbook](runbooks/build-the-bloodhound-guest.md)), which closes the
+  milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).
   **#440's templates read their installers from `smaug-iso`**, the ISO store

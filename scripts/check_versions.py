@@ -150,9 +150,7 @@ PRODUCT_SOURCES = (
 
 
 def query(prom: str, expr: str) -> list[dict]:
-    url = f"{prom.rstrip('/')}/api/v1/query?" + urllib.parse.urlencode(
-        {"query": expr}
-    )
+    url = f"{prom.rstrip('/')}/api/v1/query?" + urllib.parse.urlencode({"query": expr})
     try:
         with urllib.request.urlopen(url, timeout=10) as response:
             payload = json.load(response)
@@ -238,16 +236,12 @@ def documented_versions() -> dict[str, list[tuple[str, str]]]:
     """
     out: dict[str, list[tuple[str, str]]] = {}
 
-    tables = tables_under(
-        HARDWARE_MD.read_text(encoding="utf-8"), re.compile(r"^##\s+Compute")
-    )
+    tables = tables_under(HARDWARE_MD.read_text(encoding="utf-8"), re.compile(r"^##\s+Compute"))
     if not tables:
         raise SystemExit(f"{RED}error:{OFF} docs/hardware.md has no Compute table")
     for row in tables[0][1:]:
         if len(row) >= 6:
-            out.setdefault(strip_md(row[0]).lower(), []).append(
-                ("docs/hardware.md", strip_md(row[5]))
-            )
+            out.setdefault(strip_md(row[0]).lower(), []).append(("docs/hardware.md", strip_md(row[5])))
     managed = set(out)
 
     # Every row, not the first per host: `morpheus` appears in all seven segment
@@ -355,8 +349,9 @@ def documented_cells(device: str) -> list[tuple[str, str]]:
 def check_out_of_band_versions(prom: str, failures: list[str]) -> None:
     """Compare each OUT_OF_BAND device's documented version against sysDescr."""
     reported = {
-        (entry["metric"].get("device") or entry["metric"].get("instance") or "").lower():
-            entry["metric"].get("sysDescr", "")
+        (entry["metric"].get("device") or entry["metric"].get("instance") or "").lower(): entry["metric"].get(
+            "sysDescr", ""
+        )
         for entry in query(prom, "sysDescr")
     }
 
@@ -372,10 +367,7 @@ def check_out_of_band_versions(prom: str, failures: list[str]) -> None:
 
         match = row["running"].search(descr)
         if match is None:
-            fail(
-                f"{label} — {device} reports sysDescr {descr!r}, which carries "
-                f"no version this can read"
-            )
+            fail(f"{label} — {device} reports sysDescr {descr!r}, which carries no version this can read")
             failures.append(f"sysDescr:{device}")
             continue
         running = match.group(1)
@@ -388,18 +380,12 @@ def check_out_of_band_versions(prom: str, failures: list[str]) -> None:
         for document, cell in cells:
             claim = row["documented"].match(cell)
             if claim is None:
-                fail(
-                    f"{document} gives {device} the OS {cell!r}, which this "
-                    f"cannot read as an {label}"
-                )
+                fail(f"{document} gives {device} the OS {cell!r}, which this cannot read as an {label}")
                 failures.append(f"{document}:{device}")
             elif claim.group(1) == running:
                 pass_(f"{document} says {device} runs {cell!r}; sysDescr agrees")
             else:
-                fail(
-                    f"{document} says {device} runs {cell!r}; sysDescr reports "
-                    f"{running}"
-                )
+                fail(f"{document} says {device} runs {cell!r}; sysDescr reports {running}")
                 failures.append(f"{document}:{device}")
 
 
@@ -418,10 +404,7 @@ def check_runbook_pfsense_version(prom: str, failures: list[str]) -> None:
 
     match = PFSENSE_VERSION.search(descr)
     if match is None:
-        fail(
-            f"pfSense version — {PFSENSE_DEVICE} reports sysDescr {descr!r}, "
-            f"which carries no version this can read"
-        )
+        fail(f"pfSense version — {PFSENSE_DEVICE} reports sysDescr {descr!r}, which carries no version this can read")
         failures.append(f"sysDescr:{PFSENSE_DEVICE}")
         return
     running = match.group(1)
@@ -435,18 +418,14 @@ def check_runbook_pfsense_version(prom: str, failures: list[str]) -> None:
     if claim.group(1) == running:
         pass_(f"{RUNBOOK} says morpheus runs {running}; it does")
     else:
-        fail(
-            f"{RUNBOOK} says morpheus runs {claim.group(1)}; sysDescr says {running}"
-        )
+        fail(f"{RUNBOOK} says morpheus runs {claim.group(1)}; sysDescr says {running}")
         failures.append(RUNBOOK)
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prometheus", default="http://localhost:9090")
-    parser.add_argument(
-        "--list", action="store_true", help="print what each source reports"
-    )
+    parser.add_argument("--list", action="store_true", help="print what each source reports")
     args = parser.parse_args()
 
     running = running_versions(args.prometheus)
@@ -483,10 +462,7 @@ def main() -> int:
         # source changes and the comparison happens like any other host. This
         # says what to run rather than describing a gap (#311).
         product = next(
-            (
-                p for p in PRODUCT_SOURCES
-                if any(p["word"] in cell.lower() for _, cell in documented[host])
-            ),
+            (p for p in PRODUCT_SOURCES if any(p["word"] in cell.lower() for _, cell in documented[host])),
             None,
         )
         if product is not None and running[host][1] == "node_os_info":
@@ -504,10 +480,7 @@ def main() -> int:
             if release_line(os_key(cell)) == want:
                 pass_(f"{document} says {host} runs {cell!r}; {source} agrees")
             else:
-                fail(
-                    f"{document} says {host} runs {cell!r}; {source} reports "
-                    f"{value!r}"
-                )
+                fail(f"{document} says {host} runs {cell!r}; {source} reports {value!r}")
                 failures.append(f"{document}:{host}")
 
     print(f"\n{BOLD}Devices outside the Compute table{OFF}")
@@ -520,8 +493,7 @@ def main() -> int:
     sys.stdout.flush()
     if failures:
         print(
-            f"{RED}{len(failures)} document(s) disagree with the running "
-            f"system{OFF}",
+            f"{RED}{len(failures)} document(s) disagree with the running system{OFF}",
             file=sys.stderr,
         )
         return 1

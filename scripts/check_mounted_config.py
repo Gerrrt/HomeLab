@@ -74,6 +74,7 @@ Usage: scripts/check_mounted_config.py [--fix] [STACK]
        --self-test proves the reader sees a stale mount as stale, on a
        throwaway container: the case `docker cp` passed for a year.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -145,7 +146,9 @@ def helper_image() -> str:
     """
     result = subprocess.run(
         [str(REPO / "scripts" / "image-for.sh"), "alloy"],
-        capture_output=True, text=True, check=False,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0 or not result.stdout.strip():
         sys.exit(f"could not resolve the helper image: {result.stderr.strip()}")
@@ -161,15 +164,29 @@ def container_copy(container: str, target: str) -> bytes | None:
     in the module docstring.
     """
     result = subprocess.run(
-        ["docker", "run", "--rm",
-         "--pid", f"container:{container}",
-         "--cap-drop", "ALL", "--cap-add", "SYS_PTRACE",
-         "--cap-add", "DAC_READ_SEARCH",
-         "--network", "none",
-         "--label", "homelab.logs=off",
-         "--entrypoint", "cat",
-         helper_image(), f"/proc/1/root{target}"],
-        capture_output=True, check=False,
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--pid",
+            f"container:{container}",
+            "--cap-drop",
+            "ALL",
+            "--cap-add",
+            "SYS_PTRACE",
+            "--cap-add",
+            "DAC_READ_SEARCH",
+            "--network",
+            "none",
+            "--label",
+            "homelab.logs=off",
+            "--entrypoint",
+            "cat",
+            helper_image(),
+            f"/proc/1/root{target}",
+        ],
+        capture_output=True,
+        check=False,
     )
     if result.returncode != 0:
         return None
@@ -208,38 +225,63 @@ def self_test() -> int:
     config.write_bytes(b"old\n")
     try:
         started = subprocess.run(
-            ["docker", "run", "-d", "--rm", "--name", container,
-             "--user", "10001:10001", "--cap-drop", "ALL", "--read-only",
-             "--security-opt", "no-new-privileges:true",
-             "--network", "none", "--label", "homelab.logs=off",
-             "-v", f"{config}:/etc/selftest/config.yml:ro",
-             "--entrypoint", "sleep", helper_image(), "300"],
-            capture_output=True, text=True, check=False,
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                container,
+                "--user",
+                "10001:10001",
+                "--cap-drop",
+                "ALL",
+                "--read-only",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--network",
+                "none",
+                "--label",
+                "homelab.logs=off",
+                "-v",
+                f"{config}:/etc/selftest/config.yml:ro",
+                "--entrypoint",
+                "sleep",
+                helper_image(),
+                "300",
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if started.returncode != 0:
-            print(f"{RED}  FAIL{RESET} could not start the fixture container: "
-                  f"{started.stderr.strip()}")
+            print(f"{RED}  FAIL{RESET} could not start the fixture container: {started.stderr.strip()}")
             return 1
 
-        check("reads the mounted file before any change",
-              container_copy(container, "/etc/selftest/config.yml") == b"old\n")
+        check(
+            "reads the mounted file before any change",
+            container_copy(container, "/etc/selftest/config.yml") == b"old\n",
+        )
 
         replacement = work / "config.yml.tmp"
         replacement.write_bytes(b"new\n")
         replacement.replace(config)  # rename over the target, as git does
         inside = container_copy(container, "/etc/selftest/config.yml")
-        check("after a rename, reads the old inode the container is pinned to",
-              inside == b"old\n")
-        check("after a rename, so the comparison with the host FAILS",
-              inside is not None and inside != config.read_bytes())
+        check("after a rename, reads the old inode the container is pinned to", inside == b"old\n")
+        check(
+            "after a rename, so the comparison with the host FAILS",
+            inside is not None and inside != config.read_bytes(),
+        )
 
         with config.open("r+b") as f:  # same inode, as render-config.sh writes
             f.truncate(0)
             f.write(b"in place\n")
         # The container's inode is still the pre-rename one, so an in-place
         # write to the NEW file must not show through. That is the point.
-        check("an in-place write to the new file does not reach the old inode",
-              container_copy(container, "/etc/selftest/config.yml") == b"old\n")
+        check(
+            "an in-place write to the new file does not reach the old inode",
+            container_copy(container, "/etc/selftest/config.yml") == b"old\n",
+        )
     finally:
         subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
         shutil.rmtree(work, ignore_errors=True)
@@ -252,19 +294,39 @@ def self_test() -> int:
     config.write_bytes(b"before\n")
     try:
         subprocess.run(
-            ["docker", "run", "-d", "--rm", "--name", container,
-             "--user", "10001:10001", "--cap-drop", "ALL", "--read-only",
-             "--network", "none", "--label", "homelab.logs=off",
-             "-v", f"{config}:/etc/selftest/config.yml:ro",
-             "--entrypoint", "sleep", helper_image(), "300"],
-            capture_output=True, check=True,
+            [
+                "docker",
+                "run",
+                "-d",
+                "--rm",
+                "--name",
+                container,
+                "--user",
+                "10001:10001",
+                "--cap-drop",
+                "ALL",
+                "--read-only",
+                "--network",
+                "none",
+                "--label",
+                "homelab.logs=off",
+                "-v",
+                f"{config}:/etc/selftest/config.yml:ro",
+                "--entrypoint",
+                "sleep",
+                helper_image(),
+                "300",
+            ],
+            capture_output=True,
+            check=True,
         )
         with config.open("r+b") as f:
             f.truncate(0)
             f.write(b"after\n")
         inside = container_copy(container, "/etc/selftest/config.yml")
-        check("an in-place write to the mounted inode is seen, and matches",
-              inside == b"after\n" == config.read_bytes())
+        check(
+            "an in-place write to the mounted inode is seen, and matches", inside == b"after\n" == config.read_bytes()
+        )
     finally:
         subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
         shutil.rmtree(work, ignore_errors=True)
@@ -276,14 +338,11 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("stack", nargs="?", default="observability")
     ap.add_argument(
-        "--fix", action="store_true",
+        "--fix",
+        action="store_true",
         help="force-recreate the services whose mounted config has gone stale",
     )
-    # One line, on purpose: scripts/self-tests.sh discovers suites by grepping
-    # for `add_argument("--self-test"`, and a call split across lines is not
-    # found and silently never runs.
-    ap.add_argument("--self-test", action="store_true",
-                    help="prove the reader sees a stale mount as stale")
+    ap.add_argument("--self-test", action="store_true", help="prove the reader sees a stale mount as stale")
     args = ap.parse_args()
     if args.self_test:
         return self_test()
@@ -294,7 +353,10 @@ def main() -> int:
         return 0
 
     running = subprocess.run(
-        ["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, check=False,
+        ["docker", "ps", "--format", "{{.Names}}"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if running.returncode != 0:
         sys.exit("docker is not available — this is a deploy-time check")
@@ -346,17 +408,11 @@ def main() -> int:
         if inside == host_bytes:
             print(f"{GREEN}  PASS{RESET} {service}: {host.name} matches what is mounted")
         else:
-            print(
-                f"{RED}  FAIL{RESET} {service}: {host.name} on disk differs from what "
-                f"the container has at {target}"
-            )
+            print(f"{RED}  FAIL{RESET} {service}: {host.name} on disk differs from what the container has at {target}")
             stale.append(service)
 
     if not stale:
-        print(
-            f"\nmounted config OK — {checked} single-file mount(s) in "
-            f"{args.stack!r} match the repository"
-        )
+        print(f"\nmounted config OK — {checked} single-file mount(s) in {args.stack!r} match the repository")
         return 0
 
     if not args.fix:
@@ -377,9 +433,18 @@ def main() -> int:
     # broken.
     print(f"\n{BLUE}--{RESET} recreating: {', '.join(sorted(set(stale)))}")
     result = subprocess.run(
-        ["docker", "compose", "-f", str(REPO / "stacks" / args.stack / "compose.yaml"),
-         "up", "-d", "--force-recreate", *sorted(set(stale))],
-        capture_output=False, check=False,
+        [
+            "docker",
+            "compose",
+            "-f",
+            str(REPO / "stacks" / args.stack / "compose.yaml"),
+            "up",
+            "-d",
+            "--force-recreate",
+            *sorted(set(stale)),
+        ],
+        capture_output=False,
+        check=False,
     )
     if result.returncode != 0:
         print("\nrecreate failed", file=sys.stderr)
@@ -396,9 +461,7 @@ def main() -> int:
         if inside != host.read_bytes():
             still.append(service)
     if still:
-        print(
-            f"\nstill stale after recreate: {', '.join(still)}", file=sys.stderr
-        )
+        print(f"\nstill stale after recreate: {', '.join(still)}", file=sys.stderr)
         return 1
     print(f"{GREEN}  PASS{RESET} recreated, and the config now matches")
     return 0

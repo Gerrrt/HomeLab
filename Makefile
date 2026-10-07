@@ -539,6 +539,17 @@ check-digests: ## Verify pinned digests still match the registry
 		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh; \
 	done
 
+.PHONY: scan-images
+scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports in .scan/)
+	@# What .github/workflows/cve-scan.yml runs weekly, minus the issues: the
+	@# summary goes to the terminal. `cve_report.py --dir .scan --sync-issues
+	@# --dry-run` shows what the weekly run would open and close.
+	@# The summary prints even when a scan failed, as the workflow's does: it is
+	@# what says which image failed. The scan's failure is still the exit status.
+	@rc=0; ./scripts/scan-images.sh --out .scan $(ARGS) || rc=$$?; \
+	if [[ -f .scan/images.tsv ]]; then python3 scripts/cve_report.py --dir .scan; fi; \
+	exit $$rc
+
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
 	gitleaks detect --no-banner --redact -c .gitleaks.toml

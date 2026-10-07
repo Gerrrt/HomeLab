@@ -42,6 +42,100 @@ docstring gives: it is a record, not a claim about now.
     console: `make install-agent-collectors` from the Mac for Saruman, and
     [`build-the-nas.md`](runbooks/build-the-nas.md) §6.10 for smaug. #857
     stays open until all four `endpoint` series exist.
+||||||| c191bca
+
+- **#182's deployment, recorded late**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  The 2026-09-30 entry below says "Authored, not yet deployed", and the
+  roadmap kept saying so after the issue closed. The ingest proxy was
+  deployed 2026-09-30 at 22:27 UTC, and the issue closed at 23:53 with the
+  evidence on it.
+  - **Published:** Prometheus and Loki on `127.0.0.1`, and `ingest-proxy`
+    on `10.0.99.20:9090` and `:3100`.
+  - **Refused with no token, asked from `oracle`:** a query, a remote write,
+    Loki's delete and an admin snapshot, all with `401`. Loopback still
+    answers without a token.
+  - **Every client arrived on its own token:**
+    - `oracle` and `trinity` passed `deploy-agent.sh`'s arrival check;
+    - `Saruman`'s pushes were refused until its token matched SOPS, with no
+      refusals since 23:49:53;
+    - Homepage and Home Assistant came up healthy under `make up
+      STACK=sensitive`, carrying the reader token.
+  - **The blackbox probes** for health and refusal all returned
+    `probe_success 1`, so `IngestAuthNotEnforced` is armed.
+  - **Found on the way:**
+    - #766, a dpkg conffile prompt on the native upgrade;
+    - the blackbox exporter kept `blackbox.yaml`'s old inode until it was
+      force-recreated;
+    - #771, which commits the encrypted token keys.
+
+  TLS on these ports is
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764).
+
+- **The drifted digests are re-pinned, and `make pin-digests` survives a
+  duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
+  stacks pinned digests the registry no longer serves under their tag:
+  - `postgres:18.6` in sensitive (two services) and in bloodhound
+  - `postgres:17.11` in wiki
+  - the three `wazuh/*` 4.14.8 images in scratch and in soc
+
+  Re-pinning them exposed a bug in `scripts/pin-digests.sh`. When one file
+  pins the same drifted image twice, the first replace rewrote both lines.
+  The second then died with "expected to find", and under
+  `make pin-digests` that stopped the loop before soc and wiki. The script
+  now dedupes the references before resolving them. Merging this is a deploy
+  of sensitive's two Postgres services: the same 18.6, on a rebuilt image.
+
+- **`eden` exists, with its key and its ingest token; the stack is not up
+  yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **Built from the template, not the ISO.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, with a 32G data disk on `large_data`: 4 vCPU,
+    8 GiB, `onboot 0`, tag `on-demand`, `10.0.30.41`. The SSD pool's
+    allocation went from 920 to 952 GiB, as ADR-0081 said it would.
+    [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)
+    §1–§3 now describe the clone, not an installer.
+  - **Two things the clone did that the runbook did not say.**
+    - Cloud-init's first boot left the guest on a DHCP address. Its netplan
+      renames the NIC to `eth0`, and the rename failed with `[busy]` on an
+      interface already up. One reboot applied the static address.
+    - The sops release's checksums do not cover its `.deb`, so `sops` 3.9.4,
+      `alexander`'s version, is the verified release binary in
+      `/usr/local/bin`.
+  - **The secrets.**
+    - `make secrets-init STACK=bloodhound` on `eden` replaced the rule's
+      placeholder with `eden`'s own key.
+    - Its database, admin and session-signing values were set on the guest
+      with `sops set`, so no value was ever displayed.
+    - `INGEST_TOKEN_EDEN` was made once and set on both guests from stdin: in
+      `secrets/lab.sops.yaml` on `alexander`, and as `INGEST_TOKEN` on `eden`.
+      Their hashes match.
+    - It goes into the Caddy map, the lab compose, `render-config.sh`, the
+      validation env and `lab.example.yaml` in the same pull request as its
+      value. `alexander`'s checkout is left at `HEAD` until that merges.
+  - **Still to do:**
+    - §4, the certificate, which has to come from `prometheus` by way of the
+      Mac;
+    - `make up STACK=lab` on `alexander`;
+    - §6, bringing the stack up;
+    - §7, the first collection.
+
+- **`AlloyDown`: one alert that says the agent is down.** At 05:34 UTC the
+  production `alloy` on the monitoring host was stopped (exit 137, not OOM).
+  `unless-stopped` left it down for 47 minutes, until it was found during
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
+  `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
+  of them said the container was exited or how to start it. `ContainerGone`
+  names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.
+  `AlloyDown` keys on each host's `<host>-alloy` self-scrape. It fires at 10m,
+  and Alertmanager inhibits that host's `RemoteWriteJobStale` while it holds.
+  Three promtool cases cover it, and mutations to `for`, `unless` and per-job
+  aggregation are each killed. Widening the selector is equivalent under
+  `by (instance)`, and the test file says so.
 
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
@@ -84,7 +178,55 @@ docstring gives: it is a record, not a claim about now.
   the change, every stream on this path was `host="morpheus"`, so nothing that
   was arriving is now refused.
 
+- **Every pinned image is scanned for CVEs weekly.** Before this, every image
+  was pinned by digest and `digests.yml` watched those digests for drift, but
+  nothing checked them for known vulnerabilities
+  ([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+  [`cve-scan.yml`](../.github/workflows/cve-scan.yml) runs on Mondays, an
+  hour after `digests.yml`. It runs `trivy`, pinned in the observability
+  compose file behind the `scan` profile beside `gitleaks`, against every
+  digest that any stack pins, using `--severity HIGH,CRITICAL
+  --ignore-unfixed`. The job summary lists every image, including the clean
+  ones. Each image repository with fixable findings has one issue, labelled
+  `security` and with its stacks' labels. The issue is keyed on the
+  repository rather than the tag, so a Dependabot bump updates it instead of
+  opening a twin. It closes when a scan finds the digest clean. A finding does
+  not fail the run, and no pull request is gated on one, not even a fixable
+  CRITICAL on the sensitive tier: the bump is the fix. An image that could
+  not be scanned does fail the run. Run it locally with `make scan-images`.
+
 ## 2026-10-06
+
+- **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
+  between sessions, and not yet built**
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **What is written:**
+    - `stacks/bloodhound`: BloodHound 9.7.1 over one Postgres 18 that holds
+      both its state and its graph (`bhe_graph_driver: pg`), not upstream's
+      default Neo4j, so that Saruman's disks carry one database, not two;
+    - its secrets template, and a `.sops.yaml` rule with a placeholder for
+      the guest's key;
+    - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).
+  - **It moves BloodHound off `ifrit`.**
+    [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+    had sized `ifrit` around it. ADR-0017 carries a note pointing to ADR-0081.
+  - **Sized against `Saruman` as it was read today:**
+    - **RAM:** 75 GiB of 125 free.
+    - **`large_data`:** 28.7% written, but its thin volumes are already
+      allocated to 920 GiB of an 876 GiB pool.
+    - **The disks that follow from that:** the OS disk goes on `local-lvm`, as
+      `phoenix`'s did, and only the 32 GiB data disk goes on the SSDs.
+  - **The image is distroless and runs as root.** The `bloodhound` service
+    therefore has no health check, and it joins `loki` in
+    `check_compose_health.py`'s `ABSENT_BINARIES`. It is run as `nobody`, and
+    `up{job="bloodhound"}` on `alexander` answers whether it is alive.
+  - **Not done here, by design:**
+    - **`INGEST_TOKEN_EDEN` on the lab side.** `stacks/lab/compose.yaml`
+      requires every token it names, so adding the name before its value is
+      in `secrets/lab.sops.yaml` would fail `alexander`'s next render. It goes
+      in with the guest's key, in the pull request that writes the guest down
+      as built (the runbook's §5).
 
 - **The six domain guests are declared in `tofu/`, ready for #448's rebuild
   proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
@@ -203,6 +345,39 @@ docstring gives: it is a record, not a claim about now.
   `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
   its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
   installed on `fenrir`.
+
+- **Recorded late: #449's population went onto the domain on 2026-10-03**
+  ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+  It was recorded on the issue that day and not here. This is written on
+  2026-10-06, when the roadmap was found still saying "not yet applied".
+  - **What was applied from `phoenix`, merged as
+    [#832](https://github.com/Gerrrt/HomeLab/pull/832):**
+    - **`--tags population`:** 41 accounts from the committed
+      `ansible/population/population.yaml`. Forty were drawn by
+      `scripts/gen_population.py --count 40 --seed 449`, and `authgen` is the
+      forty-first. They sit in six department OUs under `OU=People`, with a
+      global group per department and three cross-cutting groups under
+      `OU=Groups`.
+    - **`--tags authgen`:** runbook §6's generator on `carbuncle` and
+      `siren`. `authgen` moved from `CN=Users` into `OU=IT`.
+    - **Passwords:** none in git. Each is derived on `phoenix` from
+      `LAB_POPULATION_SEED` and the account name.
+  - **Proved on `main`'s code.** The rerun was at `00e23e4`, identical under
+    `ansible/` to `b136208`. Its first apply made two changes per endpoint:
+    the stored password and the first credential fingerprint. The second
+    apply was `changed=0` on all six. The generator returned `0` on both
+    endpoints, and `verify.yml` passed on all six. `verify.yml` now also
+    checks four things:
+    - `OU=People` holds exactly the file;
+    - every population group exists;
+    - the generator runs as `AD\authgen`, compared by SID;
+    - its last run succeeded.
+  - **Still open on #449:**
+    - the rest of
+      [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5: the
+      tiers, the SPN account, the Tier 0 GPO and the shares;
+    - the deliberate weaknesses, each its own tag on top of the population.
 
 ## 2026-10-05
 

@@ -139,6 +139,23 @@ if [[ "${1:-}" == "--self-test" ]]; then
     if valid_probe "$p"; then bad "rejects ${p}"; else ok "rejects ${p}"; fi
   done
 
+  # Arguments, through the real parser. timeout turns the old endless loop on
+  # a trailing flag into 124, which is a FAIL here rather than a hung suite.
+  for flag in --probe --ssh --host; do
+    timeout 5 "${BASH_SOURCE[0]}" "${flag}" >/dev/null 2>&1; rc=$?
+    if ((rc != 0 && rc != 124)); then ok "a trailing ${flag} with no value is refused"
+    else bad "a trailing ${flag} with no value is refused (exit ${rc})"; fi
+  done
+  # A directory that refuses the write fails the run. (The chmod and mv after
+  # it are checked the same way; a failure there cannot be staged portably.)
+  if ((EUID != 0)); then
+    ro="$(mktemp -d)"; chmod 0555 "${ro}"
+    TEXTFILE_DIR="${ro}" timeout 20 "${BASH_SOURCE[0]}" --probe dead=h=127.0.0.1:1 >/dev/null 2>&1; rc=$?
+    chmod 0755 "${ro}"; rm -rf "${ro}"
+    if ((rc != 0 && rc != 124)); then ok "an unwritable textfile directory fails the run, not exit 0"
+    else bad "an unwritable textfile directory fails the run, not exit 0 (exit ${rc})"; fi
+  fi
+
   if probe_script "pfsense-ui 127.0.0.1:443" "ilo-ui 10.0.30.10:443" | sh -n 2>/dev/null; then
     ok "the probe script parses as sh"
   else
@@ -147,12 +164,15 @@ if [[ "${1:-}" == "--self-test" ]]; then
   exit $fail
 fi
 
+# A flag given last with no value would make `shift 2` fail without moving,
+# and with no errexit the loop would never end.
+need_value() { [[ $2 -ge 2 && -n "$1" ]] || die "$3 needs a value"; }
 while (($#)); do
   case "$1" in
     --print) PRINT_ONLY=1; shift ;;
-    --ssh)   SSH_TARGET="${2:-}"; shift 2 ;;
-    --host)  FILE_HOST="${2:-}"; shift 2 ;;
-    --probe) PROBES+=("${2:-}"); shift 2 ;;
+    --ssh)   need_value "${2:-}" $# "$1"; SSH_TARGET="$2"; shift 2 ;;
+    --host)  need_value "${2:-}" $# "$1"; FILE_HOST="$2"; shift 2 ;;
+    --probe) need_value "${2:-}" $# "$1"; PROBES+=("$2"); shift 2 ;;
     *) die "unknown argument $1" ;;
   esac
 done
@@ -197,8 +217,10 @@ PROM="${TEXTFILE_DIR}/cert-expiry-${FILE_HOST}.prom"
 [[ -d "${TEXTFILE_DIR}" ]] || die "no ${TEXTFILE_DIR}"
 tmp="${PROM}.$$"
 render "$results" > "${tmp}" || { rm -f "${tmp}"; die "could not write ${tmp}"; }
-chmod 0644 "${tmp}"
-mv -f "${tmp}" "${PROM}"
+# Checked, because nothing else here stops on a failure: an unreadable or
+# unmoved file is stale metrics, and the job must say so rather than exit 0.
+{ chmod 0644 "${tmp}" && mv -f "${tmp}" "${PROM}"; } \
+  || { rm -f "${tmp}"; die "could not install ${PROM}"; }
 while read -r endpoint _ epoch; do
   [[ -n "$endpoint" ]] || continue
   if [[ -n "$epoch" ]]; then
