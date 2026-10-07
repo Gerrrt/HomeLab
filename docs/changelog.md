@@ -17,6 +17,41 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-06
+
+- **JA4+ is live on `fenrir`, and #776 closes**
+  ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
+  This corrects the 2026-10-01 entry "JA4+ is vendored into `stacks/sensor`,
+  and not yet deployed". The stack deployed from `main`.
+  - **Live since 2026-10-04.** The first archived `ssl.log` with a `ja4`
+    field is `ssl.2026-10-04-13-33-43.log`. `sensor-zeek` mounts
+    `/zeek/site/ja4` read-only, and `ja4ssh.log` and `ja4d.log` are written
+    beside the stock logs.
+  - **A guest's outbound TLS carries a JA4.** All six domain guests
+    (`10.0.30.50`–`.55`) do, for example `10.0.30.54` to `login.live.com` with
+    `ja4` `t13d2013h2_2b729b4bf6f3_e24568c0d440`. The other Windows guests'
+    calls to `settings-win.data.microsoft.com` share
+    `t12d1809h2_4b22cbed5bed_7af1ed941c26`. One client stack gives one
+    fingerprint, which is the reason for choosing JA4 over JA3.
+  - **The lab's Loki returns them.** `{job="zeek"} | json | ja4 != ""` on
+    `alexander` returned lines. Counted over the 24 hours to 2026-10-07 05:30
+    UTC, `ssl` lines with a JA4 came from 12 sources:
+    - 3,664 from the domain guests;
+    - 17,655 from `Saruman`;
+    - and the rest from `alexander`, `odin`, `10.0.30.70`, and two hosts on
+      `10.0.50.0/24`.
+  - **ADR-0069's capture-loss comparison, interim.** The full week after
+    deployment ends around 2026-10-11. It gets its own entry then.
+
+    | Window | gaps / acks | Worst hourly `percent_lost` | `pkts_dropped` | Packets |
+    | --- | --- | --- | --- | --- |
+    | 2026-10-01 to 10-03, before | 0.069% | 9.9%, before the GRO fix (#782) | 0 | 135 M |
+    | 2026-10-04 to 10-07, after | 0.030% | 0.23% | 0 | 420 M |
+
+    The scripts have added no loss at three times the traffic. Nothing so far
+    reopens the derived-image option.
+
 ## 2026-10-05
 
 - **The CRS326 is on RouterOS 7, and reset.** Phase 1 of
