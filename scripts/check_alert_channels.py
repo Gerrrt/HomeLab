@@ -52,6 +52,7 @@ did (#288); the times are in docs/runbooks/verify-the-alert-path.md.
 
 Usage: scripts/check_alert_channels.py [--files] [--live] [STACK]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -109,11 +110,11 @@ _WARNINGS: list[str] = []
 # host: docs/security.md's rule about what is published applies to a URL that
 # carries a topic or a check id in it.
 WATCHERS = {
-    "hc-ping.com",          # Healthchecks.io
+    "hc-ping.com",  # Healthchecks.io
     "healthchecks.io",
     "cronitor.link",
     "cronitor.io",
-    "nosnch.in",            # Dead Man's Snitch
+    "nosnch.in",  # Dead Man's Snitch
     "uptime.betterstack.com",
     "betteruptime.com",
 }
@@ -160,7 +161,7 @@ def declared(stack: str) -> tuple[set[str], set[str]]:
     wanted = {m.group(2) for m in URL_FILE.finditer(config.read_text(encoding="utf-8"))}
 
     render = (REPO / "scripts" / "render-config.sh").read_text(encoding="utf-8")
-    block = render[render.index("AM_CHANNELS=("):]
+    block = render[render.index("AM_CHANNELS=(") :]
     block = block[: block.index(")")]
     rendered = {m.group(2) for m in AM_CHANNEL.finditer(block)}
     return wanted, rendered
@@ -175,9 +176,10 @@ def check_heartbeat_destination(container: str, name: str) -> None:
     rather than by hostname, so it is inspected and discarded.
     """
     result = subprocess.run(
-        ["docker", "exec", container, "cat",
-         f"/etc/alertmanager/secrets/{name}"],
-        capture_output=True, text=True, check=False,
+        ["docker", "exec", container, "cat", f"/etc/alertmanager/secrets/{name}"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         warn(f"could not read {name} to classify its destination")
@@ -229,11 +231,13 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("stack", nargs="?", default="observability")
     ap.add_argument(
-        "--files", action="store_true",
+        "--files",
+        action="store_true",
         help="also assert the rendered files exist and are non-empty on this host",
     )
     ap.add_argument(
-        "--live", action="store_true",
+        "--live",
+        action="store_true",
         help="also assert the running container can see them (needs docker)",
     )
     args = ap.parse_args()
@@ -248,10 +252,7 @@ def main() -> int:
     if not compose.is_file():
         sys.exit(f"no compose.yaml for stack {args.stack!r} at {compose}")
     if not re.search(r"^  alertmanager:\s*$", compose.read_text(encoding="utf-8"), re.MULTILINE):
-        print(
-            f"  NOTE stack {args.stack!r} declares no alertmanager service — "
-            f"no notification path to check"
-        )
+        print(f"  NOTE stack {args.stack!r} declares no alertmanager service — no notification path to check")
         return 0
 
     wanted, rendered = declared(args.stack)
@@ -297,7 +298,9 @@ def main() -> int:
         container = "alertmanager"
         probe = subprocess.run(
             ["docker", "inspect", "-f", "{{.State.Status}}", container],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if probe.returncode != 0:
             skip(f"no {container} container here — the container's view is unchecked")
@@ -310,16 +313,14 @@ def main() -> int:
                 # one are different messages. Alertmanager treats them the same
                 # way — badly — but the operator does not.
                 result = subprocess.run(
-                    ["docker", "exec", container, "wc", "-c",
-                     f"/etc/alertmanager/secrets/{name}"],
-                    capture_output=True, text=True, check=False,
+                    ["docker", "exec", container, "wc", "-c", f"/etc/alertmanager/secrets/{name}"],
+                    capture_output=True,
+                    text=True,
+                    check=False,
                 )
                 if result.returncode != 0:
                     detail = (result.stderr or result.stdout).strip().splitlines()
-                    bad(
-                        f"{container} cannot read {name} — "
-                        f"{detail[-1] if detail else 'unknown error'}"
-                    )
+                    bad(f"{container} cannot read {name} — {detail[-1] if detail else 'unknown error'}")
                     continue
                 size = int(result.stdout.split()[0])
                 if size == 0:
@@ -343,10 +344,7 @@ def main() -> int:
     # a skipped check would be the same green line either way, which is the
     # thing this repository keeps writing checks to avoid.
     checked = ["config"] + (["files"] if checked_files else []) + (["container"] if checked_live else [])
-    print(
-        f"\nalert channels OK — {len(wanted)} secret file(s), "
-        f"checked against: {', '.join(checked)}"
-    )
+    print(f"\nalert channels OK — {len(wanted)} secret file(s), checked against: {', '.join(checked)}")
     # A warning that only appeared in scrollback would be the same silence this
     # check exists to break, so it is repeated in the summary and on stderr.
     # NOT a failure, deliberately: the heartbeat one cannot be fixed from this
@@ -356,8 +354,7 @@ def main() -> int:
     # written down about .gitleaksignore.
     if _WARNINGS:
         print(
-            f"\n{len(_WARNINGS)} warning(s) — the configuration is valid and "
-            f"something about the destination is not:",
+            f"\n{len(_WARNINGS)} warning(s) — the configuration is valid and something about the destination is not:",
             file=sys.stderr,
         )
         for msg in _WARNINGS:

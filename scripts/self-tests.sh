@@ -119,13 +119,18 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # than the string is what keeps a usage line or a comment from being mistaken
 # for a suite — and a script that advertises the flag without handling it fails
 # below when it is run, which is the loud direction.
-SELF_TEST_DISPATCH='(== *"--self-test"|--self-test\)|add_argument\("--self-test"|"--self-test" in )'
+#
+# The argparse shape allows whitespace, newlines included, after the paren, and
+# grep -z reads each file as one record so that it can: ruff format puts a long
+# add_argument call's arguments on lines of their own, and the one-line pattern
+# this replaced lost gen_population.py's 15 fixtures without a word (#938).
+SELF_TEST_DISPATCH='(== *"--self-test"|--self-test\)|add_argument\([[:space:]]*"--self-test"|"--self-test" in )'
 
 suites=()
 while IFS= read -r f; do
   [[ "${f}" == "scripts/self-tests.sh" ]] && continue
   [[ -f "${f}" ]] || continue
-  grep -qE "${SELF_TEST_DISPATCH}" "${f}" 2>/dev/null && suites+=("${f}")
+  grep -qzE "${SELF_TEST_DISPATCH}" "${f}" 2>/dev/null && suites+=("${f}")
 done < <(git ls-files scripts 2>/dev/null || find scripts -type f)
 
 if ((LIST_ONLY)); then

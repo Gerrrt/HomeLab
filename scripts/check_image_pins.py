@@ -77,6 +77,7 @@ wrong — see the .gitleaksignore argument in the docstring of check_docs.py.
 
 Usage: scripts/check_image_pins.py
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -93,8 +94,7 @@ try:
 except ModuleNotFoundError:
     print("installing PyYAML", file=sys.stderr)
     if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
+        [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pyyaml"],
         check=False,
     ).returncode:
         sys.exit("PyYAML is required and could not be installed")
@@ -121,8 +121,17 @@ SUBCOMMANDS = {"run", "pull", "create"}
 MANAGEMENT = {"container", "image"}
 # The handful of *global* flags that take a value. Unlike `docker run`'s flags
 # this set is small and stable, and getting it wrong only skips an invocation.
-GLOBAL_VALUE_FLAGS = {"--context", "--config", "--host", "-H", "--log-level",
-                      "-l", "--tlscacert", "--tlscert", "--tlskey"}
+GLOBAL_VALUE_FLAGS = {
+    "--context",
+    "--config",
+    "--host",
+    "-H",
+    "--log-level",
+    "-l",
+    "--tlscacert",
+    "--tlscert",
+    "--tlskey",
+}
 
 VAR = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 ASSIGN = re.compile(
@@ -184,9 +193,7 @@ def makefile_lines(text: str) -> list[Line]:
             variables.setdefault(match.group(1), match.group(2).strip())
     for _ in range(5):  # resolve references between variables, bounded
         for name, value in list(variables.items()):
-            variables[name] = MAKE_REF.sub(
-                lambda m: variables.get(m.group(1), m.group(0)), value
-            )
+            variables[name] = MAKE_REF.sub(lambda m: variables.get(m.group(1), m.group(0)), value)
 
     numbered = []
     for lineno, raw in enumerate(text.splitlines(), 1):
@@ -279,7 +286,7 @@ def statements(text: str) -> list[str]:
         elif depth == 0 and ch == ";":
             out.append(cur)
             cur = ""
-        elif depth == 0 and text[i:i + 2] in ("&&", "||"):
+        elif depth == 0 and text[i : i + 2] in ("&&", "||"):
             out.append(cur)
             cur, i = "", i + 2
             continue
@@ -309,7 +316,7 @@ def extract_substs(text: str) -> tuple[list[str], str]:
                 elif text[j] == ")":
                     depth -= 1
                 j += 1
-            body = text[i + 2:j - 1] if depth == 0 else text[i + 2:]
+            body = text[i + 2 : j - 1] if depth == 0 else text[i + 2 :]
             nested, flat = extract_substs(body)
             inner.extend(nested)
             inner.append(flat)
@@ -403,7 +410,7 @@ def invocation(tokens: list[str]) -> list[str] | None:
             else:
                 break
         if j < len(tokens) and tokens[j] in SUBCOMMANDS:
-            return tokens[j + 1:]
+            return tokens[j + 1 :]
         return None
     return None
 
@@ -423,7 +430,7 @@ def traced_names(lines: list[Line]) -> set[str]:
                 match = ASSIGN.search(statement)
                 if not match or match.group(1) in traced:
                     continue
-                rest = statement[match.end():].strip().strip("\"'")
+                rest = statement[match.end() :].strip().strip("\"'")
                 ref = VAR.match(rest)
                 if ref and ref.group(1) in traced:
                     traced.add(match.group(1))
@@ -441,9 +448,22 @@ PROXY_SERVICE = "docker-socket-proxy"
 # positional is taken as the image instead, the exemption misses, and the run is
 # FLAGGED. A wrong guess here can only refuse a run, never wave one through.
 RUN_BOOLEAN_FLAGS = {
-    "-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-it",
-    "--init", "--privileged", "--read-only", "-P", "--publish-all",
-    "--no-healthcheck", "--oom-kill-disable", "--sig-proxy",
+    "-d",
+    "--detach",
+    "--rm",
+    "-i",
+    "--interactive",
+    "-t",
+    "--tty",
+    "-it",
+    "--init",
+    "--privileged",
+    "--read-only",
+    "-P",
+    "--publish-all",
+    "--no-healthcheck",
+    "--oom-kill-disable",
+    "--sig-proxy",
 }
 
 
@@ -490,8 +510,10 @@ def socket_reach(args: list[str]) -> str | None:
         if source in DOCKER_SOCKETS or source in SOCKET_DIRS:
             return f"binds {source}, which is or holds the Docker socket"
         if source == "/" and f"{target}/run" not in tmpfs:
-            return (f"binds the host's / at {target} without --tmpfs {target}/run, "
-                    f"so the Docker socket is at {target}/run/docker.sock")
+            return (
+                f"binds the host's / at {target} without --tmpfs {target}/run, "
+                f"so the Docker socket is at {target}/run/docker.sock"
+            )
     return None
 
 
@@ -533,10 +555,7 @@ def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
                         f"the image from `image-for.sh {PROXY_SERVICE}` for the "
                         f"socket, and mask /run in a rootfs mount (#193, #836)"
                     )
-                if any(
-                    a == RESOLVED or (VAR.match(a) and VAR.match(a).group(1) in traced)
-                    for a in args
-                ):
+                if any(a == RESOLVED or (VAR.match(a) and VAR.match(a).group(1) in traced) for a in args):
                     continue
                 where = f"{rel}:{line.lineno}"
                 if line.context:
@@ -556,8 +575,7 @@ def sources() -> list[tuple[str, list[Line]]]:
     makefile = REPO / "Makefile"
     out.append(("Makefile", makefile_lines(makefile.read_text(encoding="utf-8"))))
     for path in sorted(REPO.glob(SHELL_GLOB)):
-        out.append((str(path.relative_to(REPO)),
-                    shell_lines(path.read_text(encoding="utf-8"))))
+        out.append((str(path.relative_to(REPO)), shell_lines(path.read_text(encoding="utf-8"))))
     for glob in WORKFLOW_GLOBS:
         for path in sorted(REPO.glob(glob)):
             out.append((str(path.relative_to(REPO)), workflow_lines(path)))
@@ -567,8 +585,7 @@ def sources() -> list[tuple[str, list[Line]]]:
             if path in seen:
                 continue
             seen.add(path)
-            out.append((str(path.relative_to(REPO)),
-                        markdown_lines(path.read_text(encoding="utf-8"))))
+            out.append((str(path.relative_to(REPO)), markdown_lines(path.read_text(encoding="utf-8"))))
     return out
 
 
@@ -600,9 +617,7 @@ FLOAT_SUFFIXES = (".yaml", ".yml", ".sh")
 
 
 def tracked_files() -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True
-    )
+    out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
     return out.stdout.splitlines()
 
 
@@ -628,14 +643,10 @@ def pattern_problems() -> list[str]:
             # compose.yaml is where a version is SUPPOSED to live.
             if in_pin_scan and VERSION_PIN.search(line):
                 problems.append(
-                    f"{rel}:{n} pins an image version outside compose.yaml — "
-                    f"resolve it with scripts/image-for.sh"
+                    f"{rel}:{n} pins an image version outside compose.yaml — resolve it with scripts/image-for.sh"
                 )
             if is_float_scan and FLOATING.search(line):
-                problems.append(
-                    f"{rel}:{n} uses a floating :latest tag — pin an explicit "
-                    f"version"
-                )
+                problems.append(f"{rel}:{n} uses a floating :latest tag — pin an explicit version")
     return problems
 
 
@@ -657,10 +668,7 @@ def digest_problems() -> list[str]:
             image = (svc or {}).get("image")
             if image and "@sha256:" not in image:
                 rel = cf.relative_to(REPO)
-                problems.append(
-                    f"{rel}: {name} image {image} is not pinned by digest — "
-                    f"run make pin-digests"
-                )
+                problems.append(f"{rel}: {name} image {image} is not pinned by digest — run make pin-digests")
     return problems
 
 
@@ -733,6 +741,7 @@ def main() -> int:
 
 def self_test() -> int:
     """The socket rule against fixture shell; the image rule is CI's own run."""
+
     def problems(*text: str) -> int:
         lines = [Line(i + 1, t, "") for i, t in enumerate(text)]
         return sum("socket proxy" in p for p in check_file("fixture", lines)[0])
@@ -740,36 +749,74 @@ def self_test() -> int:
     img = 'IMAGE="$(./scripts/image-for.sh alloy)"'
     proxy = 'PROXY_IMAGE="$(./scripts/image-for.sh docker-socket-proxy)"'
     cases = [
-        ("a collector holding the socket fails, even :ro", 1,
-         (img, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$IMAGE"')),
-        ("the --mount form fails the same way", 1,
-         (img, 'docker run -d --mount type=bind,source=/var/run/docker.sock,target=/s "$IMAGE"')),
-        ("the proxy, traced by service, may hold it", 0,
-         (proxy, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
-        ("any other traced image may not, whatever its variable is called", 1,
-         ('PROXY_IMAGE="$(./scripts/image-for.sh alloy)"',
-          'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
-        ("a run without the socket is not this rule's business", 0,
-         (img, 'docker run -d -v /var/log:/var/log:ro "$IMAGE"')),
-        ("/run/docker.sock is the same socket", 1,
-         (img, 'docker run -d -v /run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("the host's / without /run masked reaches the socket", 1,
-         (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
-        ("the host's / with --tmpfs <target>/run is fine", 0,
-         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"')),
-        ("the proxy's variable as a decoy -e value does not exempt a socket mount", 1,
-         (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("nor as a --label value", 1,
-         (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"')),
-        ("nor inside an -e assignment", 1,
-         (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("the real proxy run, flag for flag as deploy-agent.sh writes it, passes", 0,
-         (proxy, ('docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
-                 '--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m '
-                 '--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 '
-                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'))),
-        ("a mask at the wrong path does not count", 1,
-         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
+        (
+            "a collector holding the socket fails, even :ro",
+            1,
+            (img, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$IMAGE"'),
+        ),
+        (
+            "the --mount form fails the same way",
+            1,
+            (img, 'docker run -d --mount type=bind,source=/var/run/docker.sock,target=/s "$IMAGE"'),
+        ),
+        (
+            "the proxy, traced by service, may hold it",
+            0,
+            (proxy, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'),
+        ),
+        (
+            "any other traced image may not, whatever its variable is called",
+            1,
+            (
+                'PROXY_IMAGE="$(./scripts/image-for.sh alloy)"',
+                'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"',
+            ),
+        ),
+        (
+            "a run without the socket is not this rule's business",
+            0,
+            (img, 'docker run -d -v /var/log:/var/log:ro "$IMAGE"'),
+        ),
+        (
+            "/run/docker.sock is the same socket",
+            1,
+            (img, 'docker run -d -v /run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        ("the host's / without /run masked reaches the socket", 1, (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
+        (
+            "the host's / with --tmpfs <target>/run is fine",
+            0,
+            (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"'),
+        ),
+        (
+            "the proxy's variable as a decoy -e value does not exempt a socket mount",
+            1,
+            (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        (
+            "nor as a --label value",
+            1,
+            (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"'),
+        ),
+        (
+            "nor inside an -e assignment",
+            1,
+            (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        (
+            "the real proxy run, flag for flag as deploy-agent.sh writes it, passes",
+            0,
+            (
+                proxy,
+                (
+                    "docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped "
+                    "--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m "
+                    "--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 "
+                    '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'
+                ),
+            ),
+        ),
+        ("a mask at the wrong path does not count", 1, (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
     ]
     failed = 0
     for name, want, text in cases:

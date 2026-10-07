@@ -28,6 +28,7 @@ the past, and must stay queryable from the ingester for the length of a run:
 
 Usage: loki_scratch_config.py <loki-config.yaml> <work-dir> [--for-tests]
 """
+
 import sys
 
 try:

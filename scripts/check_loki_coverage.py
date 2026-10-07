@@ -93,6 +93,7 @@ of sixteen rules is worse than one that says so.
 
 Usage: scripts/check_loki_coverage.py [--window 7d] [--url http://...] [STACK]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -108,10 +109,10 @@ try:
     import yaml
 except ModuleNotFoundError:
     import subprocess
+
     print("installing PyYAML", file=sys.stderr)
     if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
+        [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pyyaml"],
         check=False,
     ).returncode:
         sys.exit("PyYAML is required and could not be installed")
@@ -153,12 +154,12 @@ def split_fragments(expr: str) -> list[tuple[str, str]]:
             ch = expr[i]
             if quote:
                 if quote == '"' and ch == "\\":
-                    body.append(expr[i:i + 2])
+                    body.append(expr[i : i + 2])
                     i += 2
                     continue
                 if ch == quote:
                     quote = ""
-            elif ch in "`\"":
+            elif ch in '`"':
                 quote = ch
             elif ch == "(":
                 depth += 1
@@ -196,7 +197,7 @@ def _split_selector(fragment: str) -> tuple[str, str]:
                 continue
             if ch == quote:
                 quote = ""
-        elif ch in "`\"":
+        elif ch in '`"':
             quote = ch
         elif ch == "{":
             depth += 1
@@ -205,9 +206,9 @@ def _split_selector(fragment: str) -> tuple[str, str]:
             if not depth:
                 break
         i += 1
-    selector = fragment[start:i + 1]
+    selector = fragment[start : i + 1]
 
-    rest = fragment[i + 1:]
+    rest = fragment[i + 1 :]
     # The range is the last bracketed group outside a string. Found by scanning
     # rather than by rpartition, for the same reason as above: `[0-9]{1,3}` in
     # a regex would otherwise be read as the range.
@@ -218,7 +219,7 @@ def _split_selector(fragment: str) -> tuple[str, str]:
                 continue
             if ch == quote:
                 quote = ""
-        elif ch in "`\"":
+        elif ch in '`"':
             quote = ch
         elif ch == "[":
             last_open = j
@@ -250,32 +251,27 @@ def positive_filters(pipeline: str) -> str:
                 quote = ""
             i += 1
             continue
-        if ch in "`\"":
+        if ch in '`"':
             quote = ch
             token.append(ch)
             i += 1
             continue
         # A filter starts at |~ |= != !~ outside a string.
-        if pipeline[i:i + 2] in ("|~", "|=", "!=", "!~"):
+        if pipeline[i : i + 2] in ("|~", "|=", "!=", "!~"):
             if token:
                 kept.append("".join(token))
-            token = [pipeline[i:i + 2]]
+            token = [pipeline[i : i + 2]]
             i += 2
             continue
         token.append(ch)
         i += 1
     if token:
         kept.append("".join(token))
-    return " ".join(
-        part.strip() for part in kept
-        if part.strip() and not part.lstrip().startswith(("!=", "!~"))
-    )
+    return " ".join(part.strip() for part in kept if part.strip() and not part.lstrip().startswith(("!=", "!~")))
 
 
 def query(url: str, logql: str) -> list[dict]:
-    endpoint = f"{url.rstrip('/')}/loki/api/v1/query?" + urllib.parse.urlencode(
-        {"query": logql}
-    )
+    endpoint = f"{url.rstrip('/')}/loki/api/v1/query?" + urllib.parse.urlencode({"query": logql})
     try:
         with urllib.request.urlopen(endpoint, timeout=180) as response:
             payload = json.load(response)
@@ -302,9 +298,7 @@ def hosts_with_logs(url: str, window: str) -> dict[str, int]:
     return found
 
 
-def selector_reach(
-    url: str, fragments: list[tuple[str, str]], window: str
-) -> dict[str, int]:
+def selector_reach(url: str, fragments: list[tuple[str, str]], window: str) -> dict[str, int]:
     """Hosts the rule's stream selectors reach, line filters removed.
 
     The filters are dropped on purpose. This is the question "can the rule see
@@ -321,9 +315,7 @@ def selector_reach(
     return found
 
 
-def subject_lines(
-    url: str, fragments: list[tuple[str, str]], window: str
-) -> dict[str, dict[str, int]]:
+def subject_lines(url: str, fragments: list[tuple[str, str]], window: str) -> dict[str, dict[str, int]]:
     """Hosts carrying lines the rule is looking for, under any host log source.
 
     The rule's stream selector is replaced and its positive filters kept, which
@@ -340,19 +332,14 @@ def subject_lines(
             # times and the counts treble.
             continue
         seen.add(filters)
-        logql = (
-            f"sum by (host, log_type) "
-            f"(count_over_time({CANDIDATE_SELECTOR} {filters} [{window}]))"
-        )
+        logql = f"sum by (host, log_type) (count_over_time({CANDIDATE_SELECTOR} {filters} [{window}]))"
         for series in query(url, logql):
             metric = series["metric"]
             host, log_type = metric.get("host"), metric.get("log_type", "?")
             if not host:
                 continue
             by_type = found.setdefault(host, {})
-            by_type[log_type] = (
-                by_type.get(log_type, 0) + int(float(series["value"][1]))
-            )
+            by_type[log_type] = by_type.get(log_type, 0) + int(float(series["value"][1]))
     return found
 
 
@@ -361,10 +348,11 @@ def main() -> int:
     ap.add_argument("stack", nargs="?", default="observability")
     ap.add_argument("--url", default="http://127.0.0.1:3100", help="live Loki")
     ap.add_argument(
-        "--window", default="7d",
+        "--window",
+        default="7d",
         help="how far back to look (default 7d). Long enough that a quiet host "
-             "is not mistaken for an unreachable one, short enough to stay "
-             "inside the current labelling — see the docstring.",
+        "is not mistaken for an unreachable one, short enough to stay "
+        "inside the current labelling — see the docstring.",
     )
     args = ap.parse_args()
 
@@ -383,8 +371,7 @@ def main() -> int:
             f"labelled. Either way this check cannot say anything, and saying "
             f"nothing is not the same as passing."
         )
-    print(f"{BLUE}--{RESET} hosts shipping logs: "
-          f"{', '.join(f'{h} ({n})' for h, n in sorted(estate.items()))}")
+    print(f"{BLUE}--{RESET} hosts shipping logs: {', '.join(f'{h} ({n})' for h, n in sorted(estate.items()))}")
 
     checked = 0
     skipped: list[str] = []
@@ -410,8 +397,7 @@ def main() -> int:
                 reach = selector_reach(args.url, fragments, args.window)
                 blind = sorted(set(estate) - set(reach))
                 if not blind:
-                    print(f"{GREEN}  PASS{RESET} {name}: reaches all "
-                          f"{len(estate)} hosts")
+                    print(f"{GREEN}  PASS{RESET} {name}: reaches all {len(estate)} hosts")
                     continue
 
                 # Only now is the second query worth making: it exists to grade
@@ -422,31 +408,29 @@ def main() -> int:
                     where = subject.get(host)
                     if where:
                         total = sum(where.values())
-                        detail = ", ".join(
-                            f"{lt} {n}" for lt, n in sorted(where.items())
-                        )
+                        detail = ", ".join(f"{lt} {n}" for lt, n in sorted(where.items()))
                         live.append(f"{name}/{host}")
-                        print(f"{RED}  FAIL{RESET} {name}: cannot see {host}, "
-                              f"which has {total} line(s) it is looking for "
-                              f"({detail})")
+                        print(
+                            f"{RED}  FAIL{RESET} {name}: cannot see {host}, "
+                            f"which has {total} line(s) it is looking for "
+                            f"({detail})"
+                        )
                     else:
                         latent.append(f"{name}/{host}")
-                        print(f"{YELLOW}  WARN{RESET} {name}: cannot see {host} "
-                              f"at all, though nothing there matches it today")
+                        print(
+                            f"{YELLOW}  WARN{RESET} {name}: cannot see {host} "
+                            f"at all, though nothing there matches it today"
+                        )
 
     if skipped:
         # Named, not counted away. A check that silently examined eight of
         # sixteen rules would be worse than one that says which eight.
-        print(
-            f"{YELLOW}  NOTE{RESET} not host-scoped, so not checked "
-            f"({len(skipped)}): {', '.join(skipped)}"
-        )
+        print(f"{YELLOW}  NOTE{RESET} not host-scoped, so not checked ({len(skipped)}): {', '.join(skipped)}")
 
     if live:
         sys.stdout.flush()
         print(
-            f"\n{len(live)} rule/host pair(s) where the lines exist and the "
-            f"rule cannot see them: {', '.join(live)}",
+            f"\n{len(live)} rule/host pair(s) where the lines exist and the rule cannot see them: {', '.join(live)}",
             file=sys.stderr,
         )
         return 1
