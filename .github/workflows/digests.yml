@@ -64,8 +64,9 @@ jobs:
       #
       # `make check-digests`, not pin-digests.sh directly. The script reads one
       # compose file and defaults to stacks/observability, so until this called
-      # the Makefile loop over scripts/stacks.sh the weekly check covered one
-      # stack of eight, and drift in sensitive, soc and wiki went unreported.
+      # the Makefile loop over scripts/stacks.sh the weekly check covered that
+      # one stack, and drift in scratch, sensitive, soc and wiki went
+      # unreported.
       # The target checks every stack before it fails and names the ones that
       # drifted.
       - name: Check digests
