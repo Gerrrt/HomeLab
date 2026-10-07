@@ -1,0 +1,16 @@
+# ruff, as scripts/lint.sh runs it over every tracked .py file (#853). The
+# version is pinned in scripts/requirements-lint.txt, which Dependabot bumps.
+#
+# ruff walks `.` and honours .gitignore, so the trees a workstation has and a
+# CI checkout does not (.venv/, .claude/worktrees/, backups/) are never linted.
+
+# The oldest python3 these scripts meet: ubuntu-latest in CI. The monitoring
+# host runs newer, which is the direction that cannot break.
+target-version = "py312"
+
+[lint]
+# ruff's defaults, plus bugbear for the likely bugs and pyupgrade so the code
+# reads as the Python it runs on. The defaults are the pinned version's, and
+# they widen: 0.16 added FURB, PLW, SIM, C4, I, ISC and RUF to pyflakes and the
+# pycodestyle errors, which is why a bump arrives as its own PR.
+extend-select = ["B", "UP"]

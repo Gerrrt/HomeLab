@@ -153,7 +153,9 @@ def split_fragments(expr: str) -> list[tuple[str, str]]:
             ch = expr[i]
             if quote:
                 if quote == '"' and ch == "\\":
-                    body.append(expr[i:i + 2]); i += 2; continue
+                    body.append(expr[i:i + 2])
+                    i += 2
+                    continue
                 if ch == quote:
                     quote = ""
             elif ch in "`\"":
@@ -190,7 +192,8 @@ def _split_selector(fragment: str) -> tuple[str, str]:
         ch = fragment[i]
         if quote:
             if quote == '"' and ch == "\\":
-                i += 2; continue
+                i += 2
+                continue
             if ch == quote:
                 quote = ""
         elif ch in "`\"":
@@ -240,7 +243,9 @@ def positive_filters(pipeline: str) -> str:
         if quote:
             token.append(ch)
             if quote == '"' and ch == "\\":
-                token.append(pipeline[i + 1]); i += 2; continue
+                token.append(pipeline[i + 1])
+                i += 2
+                continue
             if ch == quote:
                 quote = ""
             i += 1
