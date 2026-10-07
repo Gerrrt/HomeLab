@@ -19,6 +19,49 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The syslog receiver also listens over TLS, and requires morpheus's client
+  certificate** ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)). The
+  first of #1049's two changes. Nothing sends there yet, and UDP is unchanged.
+  - **What it closes.** Any host on VLAN 99 can forge `10.0.99.1` over UDP,
+    and #844's sender allowlist reads the forged address as morpheus's. The
+    new listener is `6514/tcp`. TCP needs a handshake, so a forged source
+    never completes one. TLS with `ca_file` set makes the pinned Alloy
+    (v1.20.1, `syslogtarget/transport.go`) set
+    `RequireAndVerifyClientCert`, which #1049 had left open as a question.
+  - **morpheus's certificate is pinned, not the CA trusted.** `ca_file` is
+    morpheus's own leaf. Go accepts a certificate found in its trust pool as a
+    chain of one, so no other certificate passes, including another client
+    leaf the same CA signs later. Trusting the CA would have let a holder of
+    any such leaf who took over `10.0.99.1` through both checks (review on
+    #1059). `scripts/gen-certs.sh --client` issues the leaf with
+    `clientAuth`, which Go still requires. The allowlist applies on top.
+  - **The listener has its own leaf,** `syslog.matrix.elysium`, rather than
+    the ingest proxy's key mounted into a second service.
+  - **Proved on the pinned binaries** (Alloy v1.20.1, Loki 3.7.8), with
+    senders on separate addresses:
+    - stored as `host="morpheus"`, `transport="tls"`: morpheus's certificate
+      from morpheus's address, and the same with a forged hostname;
+    - refused in the handshake: no certificate ("client didn't provide a
+      certificate"), and, as "unknown authority", another client leaf from
+      the same CA, a serverAuth leaf, and a client certificate from another
+      CA;
+    - completed, then dropped and counted by the allowlist: morpheus's
+      certificate from another address.
+    `scripts/check_syslog_senders.sh` now runs all seven in CI.
+  - **A `transport` label** (`udp` or `tls`) on every network syslog line, so
+    the switch-over can be watched line by line.
+  - **Certificates before deploy.** Both new files must exist on the
+    monitoring host before converge applies this, or Alloy, which collects
+    everything there, does not start. The mounts are long form with
+    `create_host_path: false`, so a missing one stops the deploy by name
+    rather than becoming a directory. Runbook §7.1.
+  - **What morpheus needs.** pfSense's syslogd sends UDP only, so
+    [`ship-firewall-logs.md`](runbooks/ship-firewall-logs.md) §7 installs
+    syslog-ng to relay over TLS. While it sends both ways, every line is
+    stored twice and count-based rules read double, so the runbook keeps that
+    overlap short. The UDP listener and its `1514` and `514` publishes come
+    out in the second change, once TLS has run for a day.
+
 - **A guest agent that stops answering is resynchronised, not restarted.**
   At 16:34:58 and 16:35:05 UTC, `qm guest exec` timed out on `fenrir` and on
   `alexander`. After that, `qm agent` said both agents were "not running".
