@@ -396,6 +396,14 @@ jobs:
           done
           exit $fail
 
+      # The syslog listener is published off-host, and the Loki security rules
+      # read what it stores by {host="morpheus"}. This boots the pinned Alloy
+      # and Loki, then sends a spoofed line from an unlisted address and a
+      # forged hostname from the allowed one. Neither may change what is stored
+      # (#844).
+      - name: Check the syslog sender allowlist
+        run: ./scripts/check_syslog_senders.sh
+
       # Same shape for the reverse proxy's config: `caddy validate` and
       # `caddy fmt --diff` in the pinned image, per stack, so a Caddyfile that
       # would fail at container start fails here instead (#129). Stacks with

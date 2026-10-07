@@ -103,7 +103,7 @@ themselves are what `docs/architecture.md` claims (#70):
 ```bash
 ss -ltn | grep -E ':(9093|12345)'        # 127.0.0.1 — Alertmanager and Alloy
 ss -ltn | grep -E ':(9090|3100|3000)'    # BIND_ADDR — 0.0.0.0 by default
-ss -lun | grep ':1514'                   # BIND_ADDR
+ss -lun | grep -E ':(1514|514) '        # INGEST_BIND_ADDR — 10.0.99.20, not 0.0.0.0
 ```
 
 Confirm the per-container limits applied too. A limit that silently failed to

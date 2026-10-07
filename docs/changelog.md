@@ -46,6 +46,25 @@ docstring gives: it is a record, not a claim about now.
     verifies against the lab CA, which does nothing while its targets are
     http.
 
+- **Syslog stores only the senders it names.**
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
+  able to reach 1514/udp or 514/udp could write lines labelled
+  `host="morpheus"`, because the message's own hostname overrode the label.
+  Those lines include the filterlog and Suricata lines the Loki security rules
+  read. The issue proposed a leading `keep` relabel rule. On the pinned Alloy
+  v1.20.1 that rule does not drop: `loki.source.syslog` ignores the result of
+  its relabel rules, and a spoofed line was stored as
+  `{log_type="syslog", source="network"}` without being counted. Now `host`
+  comes from the connection address only. A line with no `host` is dropped in
+  `loki.process` and counted under
+  `reason="syslog_sender_not_allowed"`, and the ports bind to
+  `INGEST_BIND_ADDR` instead of `0.0.0.0`.
+  `scripts/check_syslog_senders.sh` sends a real line, a spoofed one and a
+  forged hostname through a scratch Alloy and Loki. It fails with the drop
+  stage removed and with the hostname rule restored. In the seven days before
+  the change, every stream on this path was `host="morpheus"`, so nothing that
+  was arriving is now refused.
+
 ## 2026-10-06
 
 - **JA4+ is live on `fenrir`, and #776 closes**

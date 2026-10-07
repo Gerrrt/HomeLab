@@ -55,7 +55,7 @@ argument in `loki.source.syslog`.
 Confirm the port is actually listening on the management address:
 
 ```bash
-docker compose ps alloy          # expect 0.0.0.0:1514->1514/udp
+docker compose ps alloy          # expect 10.0.99.20:1514->1514/udp
 ss -ulnp | grep 1514
 ```
 
@@ -179,6 +179,7 @@ on the IoT VLAN is enough.
 | Traffic to port **514** | A bare IP was entered in the server list. Nothing listens there. Fix it to `10.0.99.20:1514`. |
 | Traffic to **1514** on the physical NIC only | It is arriving but not reaching the container. Recheck the port publish in §1. |
 | Traffic to **1514** on both the NIC and a `br-`/`veth` interface | Correct. Docker is forwarding it to Alloy. Continue to §4. |
+| Forwarded to the container, never in Loki, and `loki_process_dropped_lines_total{reason="syslog_sender_not_allowed"}` rising on Alloy's `:12345/metrics` | The sender's address is not in the allowlist. Add a rule for it to `loki.relabel "network_syslog"` in `alloy/syslog.alloy` (#844). |
 
 That last case looks like this — the same packet twice, once inbound on the NIC
 and once outbound to the container's address on the bridge:
