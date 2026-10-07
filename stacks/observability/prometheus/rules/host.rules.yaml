@@ -1202,7 +1202,10 @@ groups:
             The guest is running, and `qm guest cmd {{ $labels.vmid }} get-fsinfo`
             on {{ $labels.host }} has failed or timed out for an hour, so this
             guest's disks cannot page. `systemctl status qemu-guest-agent` inside
-            the guest; if it has hung, restarting it is safe.
+            the guest. If it is running but has stopped answering, run
+            `make qga-resync VMID={{ $labels.vmid }}` on {{ $labels.host }} as root
+            first: it resets the agent's parser without touching the guest.
+            If that gets no answer, restarting the agent is safe.
 
       # --- The hypervisor's own firewall (#576) ------------------------------
       #

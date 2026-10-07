@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **A guest agent that stops answering is resynchronised, not restarted.**
+  At 16:34:58 and 16:35:05 UTC, `qm guest exec` timed out on `fenrir` and on
+  `alexander`. After that, `qm agent` said both agents were "not running".
+  The other six answered.
+  - **The agent was alive.** Inside `fenrir`, `qemu-ga` was active and asleep.
+    It had logged nothing after its last good request, not even the pings, so
+    it had stopped recognising requests rather than hung.
+  - **Likely cause.** Both failures fell inside the ISO-store verify on
+    `Saruman` (19.5 GB peak, 2 m 43 s of CPU). The likeliest explanation is a
+    request that arrived half-written, which left the agent's JSON parser in
+    an object that never closes.
+  - **The fix.** A `0xFF` byte, then `guest-sync-delimited`, sent on each
+    agent's socket. Both answered at once and have worked since. Nothing in
+    either guest was restarted.
+  - **What is new.** That is now `scripts/qga-resync.py`, run as
+    `make qga-resync VMID=…` on `Saruman`. It sends the reset and the sync,
+    then proves the channel with a `guest-ping`. Its self-test runs a fake
+    agent that is wedged, one that holds a stale reply, one that is dead, and
+    one that syncs but never pings. `GuestAgentSilent`'s description now
+    names the script before a restart.
+  - **odin.** Its agent "hanging under load", recorded in the alert's comment
+    and in odin's notes, is probably the same failure.
+
 - **Converge deploys the newest commit that passed CI, not only the tip**
   ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`
   asked CI about `main`'s tip alone and waited while it ran. On a busy `main`
