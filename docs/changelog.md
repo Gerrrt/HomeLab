@@ -41,16 +41,25 @@ docstring gives: it is a record, not a claim about now.
     - 17,655 from `Saruman`;
     - and the rest from `alexander`, `odin`, `10.0.30.70`, and two hosts on
       `10.0.50.0/24`.
-  - **ADR-0069's capture-loss comparison, interim.** The full week after
-    deployment ends around 2026-10-11. It gets its own entry then.
+  - **ADR-0069's capture-loss comparison is pending.** The windows are split
+    by `capture_loss.log`'s and `stats.log`'s own timestamps, not by archive
+    file names:
+    - The "before" window is the corrected baseline: from 2026-10-01 05:25
+      UTC to deployment. 05:25 is the first 15-minute interval after the GRO
+      fix (#782). Intervals before it read 6–10% `percent_lost`, which was the
+      reordering artefact, and they are left out.
+    - The cut at deployment, 2026-10-04 13:33, is that of the first archived
+      `ssl.log` with a JA4. It is approximate to the hour's rotation.
 
-    | Window | gaps / acks | Worst hourly `percent_lost` | `pkts_dropped` | Packets |
+    | Window | gaps / acks | Worst 15-minute `percent_lost` | `pkts_dropped` | Packets |
     | --- | --- | --- | --- | --- |
-    | 2026-10-01 to 10-03, before | 0.069% | 9.9%, before the GRO fix (#782) | 0 | 135 M |
-    | 2026-10-04 to 10-07, after | 0.030% | 0.23% | 0 | 420 M |
+    | 10-01 05:25 to 10-04 13:33, before | 0.027% | 0.23% | 0 | 444 M |
+    | 10-04 13:33 to 10-07 05:27, after | 0.009% | 0.05% | 0 | 111 M |
 
-    The scripts have added no loss at three times the traffic. Nothing so far
-    reopens the derived-image option.
+    Neither window shows a rise. They are not yet comparable: the "after"
+    window carries a quarter of the packets, so this is no finding either
+    way. The full week after deployment ends around 2026-10-11, and the
+    comparison is recorded in its own entry then.
 
 ## 2026-10-05
 
