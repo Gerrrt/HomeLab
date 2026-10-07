@@ -57,13 +57,17 @@ the day (ADR-0074). Take the `linux_amd64` zip and check it against the
 ```bash
 sudo apt-get install -y curl jq unzip xorriso
 V=1.16.1   # the tag compose.yaml pins for packer
-cd /tmp
-curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_linux_amd64.zip"
-curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_SHA256SUMS"
-grep " packer_${V}_linux_amd64.zip$" "packer_${V}_SHA256SUMS" | sha256sum -c -
-unzip -o "packer_${V}_linux_amd64.zip" packer && sudo install -m 755 packer /usr/local/bin/packer
-packer version
+cd /tmp \
+  && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_linux_amd64.zip" \
+  && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_SHA256SUMS" \
+  && grep " packer_${V}_linux_amd64.zip$" "packer_${V}_SHA256SUMS" | sha256sum -c - \
+  && unzip -o "packer_${V}_linux_amd64.zip" packer \
+  && sudo install -m 755 packer /usr/local/bin/packer \
+  && packer version
 ```
+
+One chain, so a failed download or a checksum that does not match stops it
+before anything is unpacked or installed.
 
 - **`xorriso`** builds the answer discs. Without it Packer fails with "could
   not find a supported CD ISO creation command" after it has already created

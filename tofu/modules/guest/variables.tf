@@ -64,13 +64,15 @@ variable "memory_mib" {
 
 variable "disk_gib" {
   type        = number
-  description = "At least the template's own disk: 32 for Linux, 64 for Windows."
+  description = "At least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows (911, 912)."
 
   # A clone cannot be smaller than its template. Without this, a disk that is
   # too small fails only at apply, against Proxmox, with the guest half made.
+  # By template, not by var.linux: Kali is Linux and its disk is 64G
+  # (packer/kali.pkr.hcl).
   validation {
-    condition     = var.disk_gib >= (var.linux ? 32 : 64) && floor(var.disk_gib) == var.disk_gib
-    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Linux, 64 for Windows."
+    condition     = var.disk_gib >= (var.template == 901 ? 32 : 64) && floor(var.disk_gib) == var.disk_gib
+    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows (911, 912)."
   }
 }
 

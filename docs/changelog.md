@@ -29,10 +29,10 @@ docstring gives: it is a record, not a claim about now.
   had packer from apt removes it along with the repository. phoenix has not
   been moved yet, so `packer version` there is still unproved.
 - **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
-  at least the template's own disk (32 Linux, 64 Windows). `memory_mib` must be
-  at least 1024 for Linux and 2048 for Windows, and `cores` at least 1. All
-  three are checked at plan, where before a disk that was too small failed only
-  at apply.
+  at least the template's own disk: 32 for Ubuntu, 64 for Kali and Windows.
+  `memory_mib` must be at least 1024 for Linux and 2048 for Windows, and
+  `cores` at least 1. All three are checked at plan, where before a disk that
+  was too small failed only at apply.
 - **9182 is named once.** The new `windows_exporter_port` in
   `group_vars/all.yaml` feeds the MSI's `LISTEN_PORT`, the firewall rule and
   `verify.yml`'s two checks.
