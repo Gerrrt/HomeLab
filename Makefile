@@ -101,6 +101,14 @@ up: render ## Render config and start the stack
 	@# delivery path that was broken — so this has to be a check rather than an
 	@# alert.
 	python3 scripts/check_alert_channels.py --files --live $(STACK)
+	@# Then remove the images this deploy superseded (#1027). Only now, after
+	@# every check above passed: if the new images were unhealthy, make stopped
+	@# there and the old ones are still on disk to go back to. Without this
+	@# they waited for the weekly prune, and a Wazuh re-pin on a Tuesday left
+	@# odin's root at 99% for a week, short of the room the next pull needs.
+	@# Only this stack's repositories, never an image a container uses or any
+	@# stack pins; the script says why each of those is kept.
+	python3 scripts/prune_superseded_images.py $(STACK)
 	@# The port is read back out of the rendered .env rather than expanded here.
 	@# GRAFANA_PORT lives in $(STACK_DIR)/.env, which docker compose reads and make
 	@# does not, so a bare $${GRAFANA_PORT:-3000} in a recipe yields 3000 whatever
