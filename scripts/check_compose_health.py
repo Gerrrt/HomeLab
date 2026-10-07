@@ -45,6 +45,11 @@ and the pair is strictly stronger than the single check it replaces:
     That is what still catches an array naming a service nothing has, which is
     the case the old "not defined" message existed for.
 
+Two checks here are about hardening rather than health, because this is the
+script that already parses every service: no path to the Docker socket except
+through the proxy (#836), and no long-running service without
+`no-new-privileges` unless NNP_EXEMPT records why (#845).
+
 The completeness half is only claimed when this script discovered the stacks
 itself, which it does when given no paths. Explicit paths mean the caller chose
 the scope, and no claim about the whole repository can follow from a subset.
@@ -616,6 +621,90 @@ def socket_mount_problems(services: dict) -> list[str]:
     return problems
 
 
+# Every long-running service carries `no-new-privileges` (#845). The estate
+# put it on every service in #186, the sensitive tier on every one of its own,
+# and then three stacks on VLAN 30 — the segment that exists to hold attackers —
+# shipped nine services without it, because nothing looked. It is free: it
+# stops execve from ever raising privilege, so a setuid binary a later image
+# bump brings cannot be used, and a service that does not need it to start
+# loses nothing.
+#
+# "Long-running" is a restart policy, not the absence of a profile: `renderer`
+# is profiled and still runs for as long as the `capture` profile is up, while
+# the one-shot lint and scan tools have no restart policy at all.
+#
+# An exemption is a reason, written here, keyed by (stack directory, service)
+# because `wazuh.manager` in soc and in scratch are two services. Like
+# ABSENT_BINARIES, it is checked in both directions by --cross-stack: an entry
+# for a service that is gone, or that has since gained the option, is stale.
+NNP_EXEMPT: dict[tuple[str, str], str] = {
+    ("observability", "renderer"): (
+        "Chromium's sandbox has never been run under no-new-privileges here, "
+        "and the service runs only under the `capture` profile for "
+        "`make screenshots`; measuring it is #954"
+    ),
+}
+LONG_RUNNING_RESTARTS = {"always", "unless-stopped", "on-failure"}
+
+
+def has_no_new_privileges(svc: dict) -> bool:
+    """True if security_opt sets no-new-privileges, in either spelling."""
+    for opt in svc.get("security_opt") or []:
+        opt = str(opt).replace("=", ":")
+        if opt == "no-new-privileges" or opt == "no-new-privileges:true":
+            return True
+    return False
+
+
+def privilege_problems(services: dict, stack: str) -> list[str]:
+    """A long-running service without no-new-privileges and no recorded reason."""
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        restart = str(svc.get("restart", "no")).split(":")[0]
+        if restart not in LONG_RUNNING_RESTARTS:
+            continue
+        if has_no_new_privileges(svc) or str(NNP_EXEMPT.get((stack, name), "")).strip():
+            continue
+        problems.append(
+            f"{name} is long-running (restart: {restart}) but does not set "
+            f"`security_opt: [no-new-privileges:true]`. It costs nothing and "
+            f"stops a setuid binary from ever raising privilege; add it, or "
+            f"record why not in NNP_EXEMPT in {pathlib.Path(__file__).name} (#845)"
+        )
+    return problems
+
+
+def nnp_exempt_problems(exempt: dict[tuple[str, str], str], by_stack: dict[tuple[str, str], dict]) -> list[str]:
+    """NNP_EXEMPT entries that no longer hold, given every stack's services.
+
+    Three ways an entry goes wrong, and each one leaves a service without
+    no-new-privileges while the guard stays green: it records no reason, its
+    service has gone, or its service now sets the option and the entry
+    excuses nothing. Split out of cross_stack_problems() so --self-test can
+    drive it without the real stacks.
+    """
+    problems = []
+    for (stack, name), reason in exempt.items():
+        svc = by_stack.get((stack, name))
+        if not str(reason or "").strip():
+            problems.append(
+                f"NNP_EXEMPT excuses {name} in stacks/{stack} with no reason — "
+                f"an exemption is the reason, so a blank one is no exemption"
+            )
+        if svc is None:
+            problems.append(
+                f"NNP_EXEMPT names {name} in stacks/{stack}, which does not "
+                f"exist — the reason it records has gone with the service"
+            )
+        elif has_no_new_privileges(svc):
+            problems.append(
+                f"NNP_EXEMPT still excuses {name} in stacks/{stack}, which now "
+                f"sets no-new-privileges — delete the entry"
+            )
+    return problems
+
+
 def cross_stack_problems() -> list[str]:
     """Names this file asserts about, checked against every stack at once.
 
@@ -641,12 +730,16 @@ def cross_stack_problems() -> list[str]:
         return [f"could not list stacks: {err}"]
 
     declared: set[str] = set()
+    by_stack: dict[tuple[str, str], dict] = {}
     for entry in listed:
         compose_path = REPO / entry / "compose.yaml"
         compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
-        declared |= set(compose.get("services") or {})
+        services = compose.get("services") or {}
+        declared |= set(services)
+        for name, svc in services.items():
+            by_stack[(compose_path.parent.name, name)] = svc or {}
 
-    problems: list[str] = []
+    problems: list[str] = nnp_exempt_problems(NNP_EXEMPT, by_stack)
     entries, problems_from_parse = reload_entries()
     problems += problems_from_parse
     for name, _port in entries:
@@ -965,6 +1058,65 @@ def self_test() -> int:
         len(socket_mount_problems({"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/run:size=64k"]}})),
     )
 
+    # 23-28. The no-new-privileges guard (#845). Keyed on the restart policy,
+    #        so a profile is no way past it and a one-shot tool is not caught.
+    nnp = ["no-new-privileges:true"]
+    check(
+        "a long-runner without no-new-privileges fails",
+        1,
+        len(privilege_problems({"loki": {"restart": "unless-stopped"}}, "lab")),
+    )
+    check(
+        "a profile does not excuse a long-runner",
+        1,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped", "profiles": ["capture"]}}, "lab")),
+    )
+    check(
+        "a one-shot with no restart policy is not long-running",
+        0,
+        len(privilege_problems({"gitleaks": {"profiles": ["scan"]}}, "observability")),
+    )
+    check(
+        "an NNP_EXEMPT entry is honoured for its own stack",
+        0,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "observability")),
+    )
+    check(
+        "an NNP_EXEMPT entry does not leak to another stack",
+        1,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "lab")),
+    )
+    check(
+        "both spellings of the option count",
+        0,
+        len(
+            privilege_problems(
+                {
+                    "a": {"restart": "always", "security_opt": nnp},
+                    "b": {"restart": "on-failure:3", "security_opt": ["no-new-privileges"]},
+                    "c": {"restart": "always", "security_opt": ["no-new-privileges=true"]},
+                },
+                "lab",
+            )
+        ),
+    )
+
+    # 29-33. NNP_EXEMPT itself (#845 review). Each stale shape leaves a
+    #        service without the option while the guard stays green.
+    long_runner = {"restart": "unless-stopped"}
+    check(
+        "a reasoned exemption for a service that exists is fine",
+        0,
+        len(nnp_exempt_problems({("s", "a"): "measured: it needs X"}, {("s", "a"): long_runner})),
+    )
+    check("a blank reason is rejected", 1, len(nnp_exempt_problems({("s", "a"): "  "}, {("s", "a"): long_runner})))
+    check("an exemption for a service that is gone is stale", 1, len(nnp_exempt_problems({("s", "gone"): "why"}, {})))
+    check(
+        "an exemption for a service that now sets the option is stale",
+        1,
+        len(nnp_exempt_problems({("s", "a"): "why"}, {("s", "a"): {**long_runner, "security_opt": nnp}})),
+    )
+    check("the real NNP_EXEMPT has a reason for every entry", True, all(str(r).strip() for r in NNP_EXEMPT.values()))
     return failed
 
 
@@ -1021,6 +1173,7 @@ def main() -> int:
 
     problems += bind_source_problems(path, services)
     problems += socket_mount_problems(services)
+    problems += privilege_problems(services, path.resolve().parent.name)
 
     for name, svc in services.items():
         svc = svc or {}
@@ -1220,7 +1373,7 @@ def main() -> int:
 
     if problems:
         print(
-            f"\n{len(problems)} unsatisfiable health dependency/dependencies in {path.name}",
+            f"\n{len(problems)} problem(s) in {path.name}",
             file=sys.stderr,
         )
         return 1

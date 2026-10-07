@@ -64,6 +64,13 @@ services:
     image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     container_name: lab-prometheus
     user: "65534:65534"
+    # The estate's block, copied as it stands (#845). The reasoning, and the
+    # measurements behind "no tmpfs needed", are against prometheus in
+    # stacks/observability/compose.yaml; this is the same image and digest.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
@@ -184,6 +191,13 @@ services:
     image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
     container_name: lab-loki
     user: "10001:10001"
+    # The estate's block, as on prometheus above (#845). loki-config.yaml keeps
+    # every path under /loki, the data volume, which is what lets it be
+    # read-only with no tmpfs.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -273,7 +287,18 @@ services:
     <<: *service-defaults
     image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
     container_name: lab-grafana
+    # The estate's block, as on prometheus above (#845), including the one
+    # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
+    # that stops the plugin installer logging a read-only error on every
+    # start. Both are argued against grafana in stacks/observability.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
     environment:
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/lab.sops.yaml}
       GF_SECURITY_COOKIE_SECURE: "true"
@@ -394,6 +419,14 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's
+      # docker-socket-proxy has the reasoning.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   alloy:
     <<: *service-defaults
@@ -446,9 +479,24 @@ services:
       # Debug UI, loopback only. No syslog receiver on 1514/udp, because
       # syslog.alloy is not mounted above.
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's alloy
+      # has the reasoning.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       docker-socket-proxy:
-        condition: service_started
+        condition: service_healthy
       loki:
         condition: service_started
       prometheus:

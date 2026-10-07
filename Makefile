@@ -361,7 +361,7 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 	fi
 
 .PHONY: gateway-state
-gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#353, #604)
+gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GUI certificate (#353, #604, #857)
 	@# Two measurements per family: what pfSense reports, and whether traffic of
 	@# that family actually leaves the building. They disagreed on 2026-09-07 —
 	@# WAN_DHCP6 reported 100% loss while v6 reached the internet through it in
@@ -372,6 +372,13 @@ gateway-state: ## Collect the firewall's view of its uplinks and DDNS record (#3
 	@# public resolver, to the WAN address (#604). Compared on the firewall:
 	@# the name and the address are both withheld, and only the verdict comes back.
 	./scripts/collect-gateway-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
+	@#
+	@# And when the GUI's certificate expires (#857, ADR-0084), read off the
+	@# handshake on the firewall itself: the GUI is blocked from this host on
+	@# purpose, and the ssh it already allows is enough. Rides on this target so
+	@# it needs no new timer; a failure fails the job like any other.
+	./scripts/collect-cert-expiry.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus \
+		--probe pfsense-ui=morpheus=127.0.0.1:443
 
 .PHONY: silence-state
 silence-state: ## Collect Alertmanager's silences as metrics (#575)
@@ -814,7 +821,9 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 	@# STACK=sensitive is trinity's half, and what
 	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
 	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
-	@# which trinity never holds. Both scripts' --verify-only also has oracle
+	@# which trinity never holds. Not backups/paperless-documents/ either:
+	@# household-copy re-makes that set on every visit and nothing else reads
+	@# it (#942, carry-the-household-copy.md §4). Both scripts' --verify-only also has oracle
 	@# hash every archive it holds against the MANIFEST here, so oracle's
 	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \

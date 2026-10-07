@@ -126,6 +126,10 @@ modules:
   # allowlist. A 401 without the realm means something else is on the port.
   # IngestAuthNotEnforced reads it. EndpointUnreachable deliberately does not,
   # because "not reachable" is the wrong sentence for a door that opened.
+  #
+  # The proxy's leaf is issued by the lab CA (#764), so the refusal is asked
+  # over a verified chain, as http_2xx_lab_ca asks. tls_config is inert for an
+  # http:// target, which is what lets it land before the proxy serves https.
   http_401_ingest_refused:
     prober: http
     timeout: 10s
@@ -139,6 +143,8 @@ modules:
       fail_if_header_not_matches:
         - header: WWW-Authenticate
           regexp: 'realm="homelab-ingest"'
+      tls_config:
+        ca_file: /etc/blackbox_exporter/tls/ca.pem
 
   # Does anything hold the port open at all.
   #

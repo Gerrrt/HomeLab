@@ -173,6 +173,16 @@ rather than generating it. Both replace any earlier entry:
 (f=~/.config/proxmox/phoenix.env; umask 077; printf 'authd.pass: '; stty -echo; read -r W; stty echo; echo; [ -n "$W" ] && { sed -i '/^LAB_WAZUH_REGISTRATION_PASSWORD=/d' "$f"; printf "LAB_WAZUH_REGISTRATION_PASSWORD='%s'\n" "$(printf '%s' "$W" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset W)
 ```
 
+The deliberate weaknesses (#449, §5a) add a sixth, `LAB_WEAK_PASSWORD`. It is
+the one entry here that is meant to be *weak*: the crackable password the
+weakness accounts share (ADR-0083). Set it to something a wordlist would find —
+that is the exercise — not with `openssl rand`. Only needed before you enable a
+weakness, and it replaces any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; trap 'stty echo' EXIT INT TERM; printf 'weak password: '; stty -echo; read -r P; stty echo; echo; [ -n "$P" ] && { sed -i '/^LAB_WEAK_PASSWORD=/d' "$f"; printf "LAB_WEAK_PASSWORD='%s'\n" "$(printf '%s' "$P" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset P)
+```
+
 `LAB_ENDPOINT_ADMIN_PASSWORD` is `labadmin`'s on the two endpoints. Like the
 tier admins', it is only used when the account is **created**, so the
 hand-built pair keep theirs. Generate one:
@@ -186,7 +196,7 @@ or `LAB_TIER_ADMIN_PASSWORD` is missing or shorter than 14 characters. That
 check runs first on every tag
 ([#846](https://github.com/Gerrrt/HomeLab/issues/846)).
 
-**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0083,
+**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0085,
 which amends ADR-0077 decision 2). `scripts/lab-known-hosts.sh` writes that file.
 It reads each guest's `ssh_host_ed25519_key.pub` from inside the guest,
 through the Proxmox guest agent, so the key is not learned from whatever
@@ -262,13 +272,19 @@ build, preview one stage at a time and apply it before previewing the next:
 | `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
 | `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
 | `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
+| `kerberoast` | §5a | `svc-sql`, an SPN on a crackable account, `ramuh`'s target |
+| `asreproast` | §5a | `svc-backup`, Kerberos pre-auth disabled, crackable |
+| `dcsync` | §5a | `svc-sync`, the two replication rights on the domain head, non-DA |
+| `ucd` | §5a | Unconstrained delegation on `ramuh` |
+| `cd` | §5a | `svc-web` allowed to delegate to `titan`'s CIFS (Kerberos only) |
+| `rbcd` | §5a | `titan` set to trust `svc-rbcd` to act on its behalf |
 
 The tiers, the shares and the SOC agents (the rest of §5, and §11's deployment)
-are applied by the `tiers`, `shares` and `soc` tags. The SPN account, the Tier 0
-logon GPO and the deliberate weaknesses are still
-[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, each arriving as a
-further tag on the same playbook. `ansible-playbook population-credentials.yml` prints the
-population's passwords, on `phoenix`, when you need one.
+are applied by the `tiers`, `shares` and `soc` tags. The last six are #449's
+deliberate weaknesses ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)),
+each off until asked for and driven one at a time — §5a below.
+`ansible-playbook population-credentials.yml` prints the population's passwords,
+on `phoenix`, when you need one.
 
 **Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
 run against stopped endpoints reports them `UNREACHABLE`, not configured.
@@ -754,6 +770,62 @@ Get-SmbServerConfiguration | Select-Object RequireSecuritySignature, EnableSecur
 `RequireSecuritySignature: False` is what you want on `titan` and what Server
 2025 should ship. If it reads `True`, a servicing update has moved the default;
 turn it off deliberately, and write down that you did.
+
+## 5a. The deliberate weaknesses, one tag at a time
+
+The six weaknesses #449 asks for — `kerberoast`, `asreproast`, `dcsync`, `ucd`,
+`cd`, `rbcd` — are each a tag on the same playbook, each off until you ask for
+it ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+A plain run leaves every one absent.
+
+> [!IMPORTANT]
+> **The observation is the deliverable, not the compromise.** The point of each
+> tag being switchable on its own is the purple-team loop: enable one, watch
+> what #266, #267 and #437 actually see, then disable it and confirm the signal
+> goes away. That second half is the part that teaches, and it is impossible in
+> an all-or-nothing lab. Add them one at a time, never all at once.
+
+Before the first one, two things:
+
+- **Snapshot every guest on the hypervisor.** A weakness is a deliberate change
+  to the domain; a snapshot is how you get back to clean if an exercise goes
+  further than intended.
+- **`LAB_WEAK_PASSWORD` in `phoenix.env`.** A sixth entry beside the others. It
+  is the deliberately *crackable* password the weakness accounts share — the
+  crack target for `kerberoast`/`asreproast`, and the login the `dcsync`, `cd`
+  and `rbcd` exercises authenticate with. A role refuses to *enable* a weakness
+  while it is unset. Set it to something a wordlist would find, on purpose.
+
+The loop, one weakness (here `kerberoast`) at a time:
+
+```bash
+ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
+ansible-playbook verify.yml      -e weakness_kerberoast_state=present   # confirm it is on
+# ... run the technique, watch Wazuh / Velociraptor / Zeek see it ...
+ansible-playbook lab-domain.yml --tags kerberoast                       # default absent: off
+ansible-playbook verify.yml                                             # confirm it is gone
+```
+
+A plain `ansible-playbook verify.yml`, with nothing enabled, asserts all six of
+these primitives are absent — the **per-primitive negative test**. It does not
+collect the authorization graph, so the graph-level test #449 names — "run the
+collector with the tags off and confirm the path to Domain Admin is not there" —
+is a BloodHound collector run ([#451](https://github.com/Gerrrt/HomeLab/issues/451)),
+not this. A lab that is always exploitable proves nothing about the tags.
+
+| Tag | What `present` makes | What `absent` restores |
+| --- | --- | --- |
+| `kerberoast` | `svc-sql` in `OU=Tier1`, SPN `MSSQLSvc/ramuh…:1433`, weak password | deletes `svc-sql` |
+| `asreproast` | `svc-backup`, Kerberos pre-auth disabled, weak password | deletes `svc-backup` |
+| `dcsync` | `svc-sync` (non-DA) granted the two replication rights on the domain head | revokes the rights, deletes `svc-sync` |
+| `ucd` | `TRUSTED_FOR_DELEGATION` set on `ramuh` | clears the flag on `ramuh` |
+| `cd` | `svc-web` (its own SPN) allowed to delegate to `CIFS/titan…` | deletes `svc-web`; `titan` untouched |
+| `rbcd` | `titan` set to trust `svc-rbcd` to act on its behalf | clears the trust on `titan`, deletes `svc-rbcd` |
+
+The fixed identifiers — account names, SPNs, the delegation target and resource
+— are in [`ansible/inventory/group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml),
+one source of truth the roles set and `verify.yml` proves. `cd` ships
+Kerberos-only; the protocol-transition variant is an ADR-0083 note away.
 
 ## 6. The authentication generator
 

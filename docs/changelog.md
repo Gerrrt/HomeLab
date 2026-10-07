@@ -19,6 +19,68 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The four management consoles' certificates have expiry gauges**
+  ([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+  [ADR-0084](adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+  These are the pfSense GUI, the iLO, `Saruman`'s `:8006` and the TrueNAS UI.
+  Each answers Hicks only, so no blackbox probe could read them.
+  `scripts/collect-cert-expiry.sh` makes the handshake inside each console's
+  own segment and writes `homelab_cert_expiry_timestamp_seconds`, and no
+  firewall pass was added.
+  - **Where each is read.** pfSense's is read on the firewall over the ssh
+    `make gateway-state` already makes. Saruman's and the iLO's are read from
+    Saruman by a new agent timer, since Saruman shares the iLO's segment.
+    smaug's is read by a root cron job.
+  - **New rules.** `ManagementCertificateExpiringSoon` warns at 30 days and
+    `ManagementCertificateExpiryImminent` pages at 7.
+    `ManagementCertificateUnchecked` covers a console that will not answer, and
+    `CertExpiryStateStale` covers a collector that stopped.
+  - **Measured from the monitoring host on 2026-10-07.** morpheus serves its
+    GUI certificate on `127.0.0.1:443`, `notAfter` 2027-04-16 16:37:44 UTC.
+    That matches the 2026-09-28 regeneration.
+  - **Not yet live: the Saruman and smaug halves.** Each needs someone at a
+    console: `make install-agent-collectors` from the Mac for Saruman, and
+    [`build-the-nas.md`](runbooks/build-the-nas.md) §6.10 for smaug. #857
+    stays open until all four `endpoint` series exist.
+
+- **The Paperless export set on `trinity` is left out of the nightly
+  verification, on purpose** ([#942](https://github.com/Gerrrt/HomeLab/issues/942)).
+  #856 left `backups/paperless-documents/` as the one kind of set on `trinity`
+  that is never re-read. It stays that way, and
+  [`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md) §4
+  says why. Each household visit exports Paperless again and prunes the old
+  set. A restore reads the drive, not `trinity`. The documents themselves are
+  in the volume sets that `verify-backups-sensitive` re-reads nightly.
+  - **What #856 found:** this set is not copied to `oracle` either. That is
+    intended: the drive is its off-host copy.
+
+- **Every client of the ingest ports can verify the estate CA, and none uses
+  it yet** ([#764](https://github.com/Gerrrt/HomeLab/issues/764), first of
+  two). TLS cannot be phased in by client the way #182's tokens were, because
+  an https client gets nothing from an http listener. So this step lands the
+  trust, and the next one turns TLS on and moves every URL together.
+  - The estate CA's certificate is committed, as
+    `stacks/observability/alloy/ingest-ca.pem`. It is the one `.pem` that
+    `.gitignore` lets through. `check_ingest_ca.sh` fails on anything but a
+    single CA certificate there, and on the monitoring host it also fails on
+    one that is not `certificates/ca.pem`.
+  - `deploy-agent.sh` ships it to the estate's agents and sets
+    `INGEST_CA_FILE`, and both writers in `config.alloy` read it as
+    `tls_config { ca_file }`. Measured on the pinned Alloy image:
+    - an empty `ca_file` loads, and pushes over http as before;
+    - with the file set, an https push succeeds where it failed without it;
+    - a `.pem` in `/etc/alloy` is not loaded as config.
+  - Homepage's `NODE_EXTRA_CA_CERTS` and Home Assistant's
+    `REQUESTS_CA_BUNDLE` are bundles that `render-config.sh` writes on
+    trinity. Home Assistant reads the second, and only that, for every client
+    context (`homeassistant/util/ssl.py` on 2026.9.4). So its bundle carries
+    the host's public roots too, not the estate CA alone.
+  - The proxy's leaf, `prometheus.matrix.elysium` with IP SAN `10.0.99.20`,
+    was minted on `prometheus` and is mounted into `ingest-proxy`, which joins
+    the operator's group to read the 0640 key. The refusal probe's module
+    verifies against the lab CA, which does nothing while its targets are
+    http.
+
 - **The wiki is served over https and deployed from a verified checkout,
   in the repository** ([#847](https://github.com/Gerrrt/HomeLab/issues/847);
   [ADR-0082](adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)).
@@ -217,6 +279,40 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **The lab domain's deliberate weaknesses, each behind its own switchable
+  tag** ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0083](adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+  - **Six roles, six tags, all off by default.** `weakness_kerberoast`,
+    `weakness_asreproast`, `weakness_dcsync`, `weakness_ucd`, `weakness_cd`
+    and `weakness_rbcd` join `lab-domain.yml`, each with a
+    `weakness_<name>_state` that defaults to `absent`. The tag selects the
+    role; the variable selects the direction; every role is idempotent both
+    ways. A plain run leaves all six absent, so the merge changes nothing on
+    the live domain.
+  - **What each one is.** `kerberoast` makes `svc-sql` with an SPN on a
+    crackable account (ADR-0029's named `ramuh` target); `asreproast` makes
+    `svc-backup` with Kerberos pre-auth disabled; `dcsync` grants the two
+    replication rights on the domain head to a non-DA `svc-sync`; `ucd` sets
+    unconstrained delegation on `ramuh`; `cd` lets `svc-web` delegate to
+    `titan`'s CIFS (Kerberos only); `rbcd` sets `titan` to trust `svc-rbcd`.
+    The dedicated accounts are deleted when their weakness is turned off, so
+    the ordinary population is never touched (ADR-0078); the delegation flags
+    are cleared on the real computers, which are never created or deleted.
+  - **The per-primitive negative test is `verify.yml`.** It now asserts each
+    weakness is in the state its toggle names, defaulting to absent — so a plain
+    run proves all six primitives are absent, and `verify.yml -e
+    weakness_<name>_state=present` proves one that is deliberately on. It does
+    not walk the authorization graph, so the graph-level "no path to Domain
+    Admin" check #449 names is the BloodHound collector run with the tags off
+    (#451), not this. The §0 "do not harden" assertions are untouched.
+  - **A sixth secret.** `LAB_WEAK_PASSWORD` in `phoenix.env` is the
+    deliberately crackable password the weakness accounts share — the crack
+    target for the two roasting weaknesses, and the login the others
+    authenticate with. A role refuses to enable a weakness while it is unset.
+  - **Not applied yet.** This is code and docs only. Nothing has been run
+    against the live domain; the snapshot-first, enable/observe/disable loop
+    per weakness (runbook §5a) is the operational work still to do, and the
+    SOC-detection half (#266/#267/#437) is the deliverable it feeds.
 - **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
   between sessions, and not yet built**
   ([#451](https://github.com/Gerrrt/HomeLab/issues/451),

@@ -21,10 +21,12 @@ make secrets-init     # generates an age keypair, creates the encrypted file
 make secrets-edit     # replace every change-me value
 
 # TLS. Grafana serves https from this leaf and Prometheus verifies it with the
-# CA — see generate-certificates.md. Both are required before the stack starts.
+# CA — see generate-certificates.md. All of them are required before the stack
+# starts; the last is the ingest proxy's, on 9090 and 3100 (#764).
 make certs ARGS=--ca
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"
 
 make validate         # confirm the configs are sound before starting anything
 make up
@@ -44,8 +46,10 @@ service by that service's own `start_period`, `retries`, `interval` and
 `timeout`, so a slow start is not a failure and a broken probe does not hang
 the deploy.
 
-Loki and Alloy declare no healthcheck, so the check cannot speak for them and
-says so by name rather than passing over them.
+Loki declares no healthcheck — its image has no shell or client to run one
+with — so the check cannot speak for it and says so by name rather than passing
+over it. Alloy's healthcheck asks `/-/ready` through bash
+([#845](https://github.com/Gerrrt/HomeLab/issues/845)).
 
 `certificates/` is gitignored, so a clean clone has neither the CA nor the leaf
 and the `certs` steps above are not optional. Skipping them used to produce a
@@ -146,7 +150,7 @@ Then in the UI:
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
 2. **Prometheus → Status → Rules.** Every rule loaded, none in error. The
-   page lists 152: the 146 alert rules this repository counts everywhere
+   page lists 156: the 150 alert rules this repository counts everywhere
    else, plus the six recording rules:
    `homelab_suricata_expected_interface`,
    `homelab_battery_runtime_seconds`, and the two directions each of

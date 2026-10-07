@@ -89,11 +89,17 @@ trust store holding it, so that has to be deliberate (`--force`).
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"
 ```
 
 The second is speedtest-tracker's UI (#914). Its `--dns` names the compose
 service for symmetry with Grafana's; nothing verifies it today, because
 Prometheus scrapes the tracker over plain HTTP on port 80.
+
+The third is the ingest proxy's, for 9090 and 3100 on `10.0.99.20` (#764).
+Every client dials the address, so the IP SAN is the one that is verified;
+`prometheus.matrix.elysium` is its name because that is what the address is.
+The clients that trust it are in the table under §4.
 
 Include `--ip` for anything reached by address. `docs/roadmap.md` still lists
 internal DNS as unresolved, so in practice most services here are reached by IP,
@@ -167,6 +173,9 @@ the certificate somewhere and not recording it is how it goes stale
 | --- | --- | --- |
 | Prometheus on `prometheus` | `ca_file` — bind-mounted read-only by [`compose.yaml`](../../stacks/observability/compose.yaml), verifies the `grafana` scrape | Nothing to import: `make up` restarts it on the new file |
 | blackbox-exporter on `prometheus` | `ca_file` in [`blackbox.yaml`](../../stacks/observability/blackbox/blackbox.yaml), same mount — the `http_2xx_lab_ca` probes | Same |
+| The Alloy agents on `oracle`, `trinity` and `Saruman` | `tls_config { ca_file }` in [`config.alloy`](../../stacks/observability/alloy/config.alloy), reading `INGEST_CA_FILE`. [`deploy-agent.sh`](../../scripts/deploy-agent.sh) ships the committed copy, [`ingest-ca.pem`](../../stacks/observability/alloy/ingest-ca.pem), to `/etc/alloy` (#764) | Copy the new `ca.pem` over `ingest-ca.pem` and commit it ([`check_ingest_ca.sh`](../../scripts/check_ingest_ca.sh) fails until you do), then rerun `deploy-agent.sh` for each host. Saruman's runs from the Mac |
+| Homepage on `trinity` | `NODE_EXTRA_CA_CERTS`, a bundle of the tier's root and `ingest-ca.pem` that `render-config.sh` writes to `stacks/sensitive/.rendered/` | `make up` on trinity once the commit above is pulled |
+| Home Assistant on `trinity` | `REQUESTS_CA_BUNDLE`, the host's public roots plus `ingest-ca.pem`, from the same render step | Same |
 | Prometheus on `alexander` (the lab guest) | `ca_file`, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5 | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed |
 | The operator's Mac — system keychain | **Not imported.** Confirmed on the device 2026-09-20: not present in Keychain Access, and an import attempt that day was refused with an "invalid key" error. ADR-0037's "the Mac's system store, at least" was wrong; Safari and Chrome do not trust the estate's CA | Nothing |
 | The operator's Mac — Firefox | **Not imported.** Confirmed on the device 2026-09-20: not under Authorities. So no browser on the Mac trusts the estate's CA, and Grafana over `https` there warns until one does — which is a choice, not a defect, and importing it is the row you add here | Nothing |
@@ -209,6 +218,33 @@ Let it lapse and the failure is loud rather than quiet: the lab-CA probe
 verifies, so an expired leaf fails it outright and `EndpointUnreachable` fires
 for Grafana — alongside `up{job="grafana"}` going to 0, since Prometheus
 verifies the same chain on its scrape.
+
+## Management console certificates
+
+Four consoles serve self-signed certificates that this CA never issued, and
+the blackbox probes above cannot reach any of them: each answers Hicks only.
+`scripts/collect-cert-expiry.sh` reads each one's expiry off a handshake made
+inside its own segment and writes `homelab_cert_expiry_timestamp_seconds`;
+`ManagementCertificateExpiringSoon` warns at 30 days and
+`ManagementCertificateExpiryImminent` pages at 7
+([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+[ADR-0084](../adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+
+| `endpoint` | Console | Read by | Reissue |
+| --- | --- | --- | --- |
+| `pfsense-ui` | pfSense GUI on `morpheus` | `make gateway-state` on the monitoring host, over its ssh, every 15 minutes | `pfSsh.php playback generateguicert` in the firewall's shell. That is how the 2026-09-28 regeneration was done, and it gives 398 days, so the 2027-04-16 expiry recurs |
+| `pve-ui` | Proxmox UI on `Saruman`, `:8006` | `homelab-cert-expiry.timer` on Saruman, daily | `pvecm updatecerts --force`, then `systemctl restart pveproxy`, at Saruman's console |
+| `ilo-ui` | iLO on `shiva`, `10.0.30.10` | the same timer on Saruman, which shares its segment | The iLO's own UI: **Administration → Security → SSL Certificate** |
+| `truenas-ui` | TrueNAS UI on `smaug` | a root cron job on smaug ([`build-the-nas.md`](build-the-nas.md) §6.10), daily | **Credentials → Certificates**, then select it under **System → General → GUI** |
+
+After reissuing, the alert clears at the next collection. For `pfsense-ui` that
+is within 15 minutes. For the others it is the next day, or sooner if the
+collector is run by hand: `systemctl start homelab-cert-expiry` on Saruman, or
+the cron job's **Run Now** on smaug.
+
+A console whose certificate cannot be read raises
+`ManagementCertificateUnchecked` after six hours rather than going silent. Run
+the collector with `--print` to see which probe failed.
 
 ## If something goes wrong
 

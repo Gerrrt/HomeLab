@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Pin the lab domain's SSH host keys for ansible/, read through the guest agent
-# rather than learned over the network (#846, ADR-0083).
+# rather than learned over the network (#846, ADR-0085).
 #
 # WHY. ansible/ sends LAB_ADMIN_PASSWORD and LAB_DSRM_PASSWORD over SSH to
 # guests on VLAN 30, a segment built to hold attackers and where ARP spoofing
