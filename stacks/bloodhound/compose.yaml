@@ -4,9 +4,8 @@
 # it runs on (#451).
 #
 # Deployed on: eden (10.0.30.41, VLAN 30 / ImaginationLAN) — a guest on
-#              `Saruman`, VMID 141, tagged `on-demand`. NOT BUILT YET.
-#              Authored ahead of the guest the way stacks/soc was ahead of
-#              odin and stacks/sensor ahead of fenrir. The build is
+#              `Saruman`, VMID 141, tagged `on-demand`. Built 2026-10-07 from
+#              a full clone of template 901, by
 #              docs/runbooks/build-the-bloodhound-guest.md.
 # Decided by:  docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md — why
 #              Saruman and not ifrit, Winterfell or the domain itself, why the

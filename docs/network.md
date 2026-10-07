@@ -430,6 +430,7 @@ Where things get broken on purpose.
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
+| eden | `10.0.30.41` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | BloodHound CE (on demand) |
 
 ### Notes
 
@@ -493,9 +494,9 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
-- `eden`, **not built yet**, is planned at `10.0.30.41`, VMID 141, as the
-  BloodHound CE server of
-  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)
+- `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built
+  2026-10-07** as a full clone of template 901
   ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
   [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
   It is off-decade for `diabolos`'s reason: every `.x0` is taken. It sits in
