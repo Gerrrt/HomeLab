@@ -190,10 +190,10 @@ x-service-defaults: &service-defaults
 # in containers.rules.yaml is the limit-relative complement these numbers make
 # possible, and it has its own promtool test for the same reason.
 #
-# Not set on renderer, archiver, gitleaks, actionlint, editorconfig-checker, packer or
-# tofu: all seven sit behind profiles, none runs in a normal deploy, and there is
-# nothing running to measure. An unmeasured ceiling on a headless Chromium is
-# the guess this block exists to avoid.
+# Not set on renderer, archiver, gitleaks, trivy, actionlint, editorconfig-checker,
+# zizmor, packer or tofu: all nine sit behind profiles, none runs in a normal
+# deploy, and there is nothing running to measure. An unmeasured ceiling on a
+# headless Chromium is the guess this block exists to avoid.
 
 services:
   # ---------------------------------------------------------------------------
@@ -1357,6 +1357,23 @@ services:
     command: ["version"]
 
   # ---------------------------------------------------------------------------
+  # trivy for the weekly CVE scan (.github/workflows/cve-scan.yml, #852). Behind
+  # the `scan` profile beside gitleaks, and here for the same reason: a scanner
+  # pinned anywhere but this file is one Dependabot never bumps, and a stale
+  # vulnerability database's scanner is how a green report goes wrong quietly.
+  #
+  # scripts/scan-images.sh runs it against every digest pinned across stacks/,
+  # reading each one from the registry with --image-src remote, so it needs no
+  # pull and no daemon storage, as pin-digests.sh needs none.
+  #
+  # Its entrypoint IS trivy, so `--version` is the harmless no-op.
+  # ---------------------------------------------------------------------------
+  trivy:
+    profiles: ["scan"]
+    image: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+    command: ["--version"]
+
+  # ---------------------------------------------------------------------------
   # actionlint and editorconfig-checker for scripts/lint.sh. NOT part of the
   # running stack: both sit behind the `lint` profile, so `make up` neither
   # starts nor pulls them, and `docker compose ps` shows nine services as before.
@@ -1368,9 +1385,9 @@ services:
   # at all. Two linters whose first and only feedback was a red build. That is
   # half of #68.
   #
-  # Docker Hub rather than ghcr.io on purpose: scripts/pin-digests.sh resolves
-  # through auth.docker.io and registry-1.docker.io only, so a ghcr.io reference
-  # could not be digest-pinned here and would then fail CI's digest assertion.
+  # Docker Hub was chosen when scripts/pin-digests.sh resolved through
+  # registry-1.docker.io only. It reads the registry host off the reference now,
+  # so ghcr.io pins (zizmor below) resolve too; the choice is history, not a rule.
   #
   # The two `command:` lines differ because the images do. actionlint's
   # entrypoint IS actionlint, so `-version` is the harmless no-op if it is ever

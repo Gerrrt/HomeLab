@@ -225,7 +225,7 @@ services:
 
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.2@sha256:fa7ecaee0a2861ed4add94c0aa9fc3e62dad6d320b07de63e08776f9104b33d1
+    image: ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:6ffb1bd412bad0e280715da19f48491e7ce57068a9840433aaeed8831c2c9ae1
     container_name: scratch-velociraptor
     pids_limit: 1024
     mem_limit: 1024m
