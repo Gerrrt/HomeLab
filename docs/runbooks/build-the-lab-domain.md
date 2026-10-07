@@ -196,7 +196,7 @@ or `LAB_TIER_ADMIN_PASSWORD` is missing or shorter than 14 characters. That
 check runs first on every tag
 ([#846](https://github.com/Gerrrt/HomeLab/issues/846)).
 
-**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0082,
+**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0085,
 which amends ADR-0077 decision 2). `scripts/lab-known-hosts.sh` writes that file.
 It reads each guest's `ssh_host_ed25519_key.pub` from inside the guest,
 through the Proxmox guest agent, so the key is not learned from whatever

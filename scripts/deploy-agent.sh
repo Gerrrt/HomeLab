@@ -57,6 +57,12 @@
 # never — it is the listener morpheus sends to, and it belongs on the
 # monitoring host alone. The header of alloy/config.alloy has the reasoning.
 #
+# ingest-ca.pem, the estate CA's certificate, goes with them when the target
+# pushes to the estate's proxy, and INGEST_CA_FILE names it (#764): the writers
+# verify an https endpoint against it. It is committed, so the Mac's checkout
+# has it too. It does not go to a host of the lab's proxy, which has its own
+# CA question (stacks/lab/README.md) and serves plain http meanwhile.
+#
 # The token
 # ---------
 # 9090 and 3100 on the monitoring host are its ingest proxy, which passes a
@@ -143,6 +149,7 @@ VERSION="${tag##*:v}"
 
 LOKI_URL="http://${MON}:3100/loki/api/v1/push"
 PROMETHEUS_REMOTE_WRITE_URL="http://${MON}:9090/api/v1/write"
+ESTATE_MON="10.0.99.20"
 
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET")
 
@@ -172,6 +179,15 @@ fi
 # Which files this host gets. Never syslog.alloy — see the header.
 FILES=(config.alloy)
 [[ "$RUNTIME" == docker ]] && FILES+=(docker.alloy)
+# The estate's CA, at the path the agent will read it from: /etc/alloy is the
+# config directory on both runtimes, and Alloy loads only *.alloy from it
+# (measured on the pinned image with a .pem beside the config).
+INGEST_CA_FILE=""
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  [[ -f "${ALLOY_DIR}/ingest-ca.pem" ]] || die "no ingest-ca.pem under ${ALLOY_DIR} — it is committed; is this checkout current?"
+  FILES+=(ingest-ca.pem)
+  INGEST_CA_FILE="/etc/alloy/ingest-ca.pem"
+fi
 
 pass "target ${HOST} · runtime ${RUNTIME} · alloy ${VERSION} · files ${FILES[*]}"
 
@@ -184,7 +200,6 @@ TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr 
 # and exits if sops cannot decrypt, so it runs in a subshell and only the two
 # values come back out. Its stderr is left alone: it says why a decrypt
 # failed, and it never prints a value.
-ESTATE_MON="10.0.99.20"
 # Where a refused token's other half lives, for the messages below: the
 # estate's proxy and file, or the lab's (#834).
 if [[ "${MON}" == "${ESTATE_MON}" ]]; then
@@ -333,11 +348,12 @@ docker)
   # The config lives in a named volume, populated from the stage by the image
   # that is about to run it — no second image, nothing unpinned, no sudo. Stale
   # files are removed first so a host that stops being a Docker host does not
-  # keep loading docker.alloy.
+  # keep loading docker.alloy, and one moved to the lab's proxy does not keep
+  # the estate's CA. The stage holds exactly FILES, so /src/* is that list.
   docker volume create alloy-config >/dev/null
   docker volume create alloy-data >/dev/null
   docker run --rm -v alloy-config:/dst -v "${STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
-    -c 'rm -f /dst/*.alloy && cp /src/*.alloy /dst/ && chmod 0644 /dst/*.alloy'
+    -c 'rm -f /dst/*.alloy /dst/*.pem && cp /src/* /dst/ && chmod 0644 /dst/*'
 
   # node_exporter reads this on every scrape and logs level=error while it is
   # missing — which would hold the gate below shut forever. Same privilege
@@ -402,6 +418,7 @@ docker)
     -e LOKI_URL \
     -e PROMETHEUS_REMOTE_WRITE_URL \
     -e INGEST_TOKEN \
+    -e INGEST_CA_FILE \
     -e DOCKER_API=tcp://alloy-socket-proxy:2375 \
     -v alloy-config:/etc/alloy:ro \
     -v alloy-data:/var/lib/alloy/data \
@@ -459,8 +476,12 @@ native)
   # Only the files this host was sent. A stale docker.alloy left behind would
   # be loaded — a directory is one config — and log errors every interval.
   $SUDO install -d -m 0755 /etc/alloy /var/lib/node_exporter/textfile_collector
-  $SUDO find /etc/alloy -maxdepth 1 -name '*.alloy' -delete
+  # The CA likewise, so a host moved to the lab's proxy does not keep it.
+  $SUDO find /etc/alloy -maxdepth 1 \( -name '*.alloy' -o -name '*.pem' \) -delete
   $SUDO install -m 0644 -o root -g root "${STAGE}"/*.alloy /etc/alloy/
+  if [[ -n "${INGEST_CA_FILE}" ]]; then
+    $SUDO install -m 0644 -o root -g root "${STAGE}/ingest-ca.pem" "${INGEST_CA_FILE}"
+  fi
 
   # The unit reads this as its EnvironmentFile, so every line reaches the
   # process — CONFIG_FILE and CUSTOM_ARGS are the package's own, the rest are
@@ -482,6 +503,7 @@ ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"
 PROMETHEUS_REMOTE_WRITE_URL="${PROMETHEUS_REMOTE_WRITE_URL}"
 INGEST_TOKEN="${INGEST_TOKEN}"
+INGEST_CA_FILE="${INGEST_CA_FILE}"
 ALLOY_ROOTFS="/"
 DEFAULTS
 
@@ -507,7 +529,7 @@ DEFAULTS
   ;;
 esac
 REMOTE
-} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
+} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' INGEST_CA_FILE='${INGEST_CA_FILE}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.
