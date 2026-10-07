@@ -1,0 +1,256 @@
+---
+# "The internet is slow" — and whose fault it is (#914).
+#
+# blackbox.rules.yaml answers whether the round trip is slow, and whether that
+# is inside the house or beyond it (#166). This file adds the two quantities
+# that question was missing: how much the link actually carries when asked to
+# (a scheduled Ookla test, run by speedtest-tracker every 30 minutes), and how
+# much of the link the house was already using at the time (pf's own byte
+# counters on the WAN port). A slow test with the WAN near capacity is the
+# house filling the pipe; a slow test with the WAN quiet is beyond the house —
+# and, as it turned out the day this was written, not necessarily beyond the
+# modem: see WanReceiveErrors.
+#
+# THE CEILING IS THE ROUTER, NOT THE PLAN. The plan is 2000/250 Mbit/s. morpheus's
+# WAN port em0 is an Intel I219-LM and negotiates 1000baseT, as does the LAN
+# trunk igc0 (`ifconfig em0` on 2026-10-05). Nothing in the house can see more
+# than ~940 Mbit/s down, so every download threshold below is measured against
+# that, not against the number on the bill.
+groups:
+  - name: internet
+    interval: 60s
+    rules:
+      - record: homelab_wan_bits_per_second
+        # Traffic on the WAN port, in bits per second. "In" on em0 is what
+        # arrives from the internet, so receive is download. pf counts IPv4 and
+        # IPv6 separately; both are summed. Pass counters only: blocked bytes
+        # never reached anyone.
+        #
+        # The interface is matched by its pfInterfacesIfDescr, which the
+        # pfsense module exports hex-encoded — 0x656D30 is "em0". The join is
+        # on the name rather than pfInterfacesIfIndex = 2 because pf numbers
+        # its interfaces in table order, and adding one would move the index
+        # silently. A rate window of 3m is three SNMP scrapes at 60s.
+        expr: |
+          8 * sum(
+            (rate(pfInterfacesIf4BytesInPass{job="snmp"}[3m]) + rate(pfInterfacesIf6BytesInPass{job="snmp"}[3m]))
+            * on (instance, pfInterfacesIfIndex)
+            pfInterfacesIfDescr{job="snmp", pfInterfacesIfDescr="0x656D30"}
+          )
+        labels:
+          direction: receive
+
+      - record: homelab_wan_bits_per_second
+        expr: |
+          8 * sum(
+            (rate(pfInterfacesIf4BytesOutPass{job="snmp"}[3m]) + rate(pfInterfacesIf6BytesOutPass{job="snmp"}[3m]))
+            * on (instance, pfInterfacesIfIndex)
+            pfInterfacesIfDescr{job="snmp", pfInterfacesIfDescr="0x656D30"}
+          )
+        labels:
+          direction: transmit
+
+      - record: homelab_wan_capacity_bits_per_second
+        # What the link can carry each way: the lower of the plan and the port.
+        # Download is the 1000baseT port's usable TCP rate (~940), not the
+        # plan's 2000; upload is the plan's 250, which the port does not limit.
+        # Change these when either end changes — a 2.5G WAN NIC moves the first
+        # to the plan's figure.
+        expr: vector(940e6)
+        labels:
+          direction: receive
+
+      - record: homelab_wan_capacity_bits_per_second
+        expr: vector(250e6)
+        labels:
+          direction: transmit
+
+      - alert: InternetDownloadSlow
+        # Three consecutive tests below 400 Mbit/s, not one: one bad test is
+        # somebody's download, and a rule that fires on it is muted in a week.
+        #
+        # HOW "THREE" IS COUNTED. The gauge holds each result until the next
+        # test, 30 minutes later, so any window longer than 60 minutes overlaps
+        # three result periods; max_over_time across 65m being under the line
+        # means all three were slow. The window first clears the last good
+        # result 65 minutes after the first slow test arrived — five minutes
+        # after the third — and `for: 5m` fires ten minutes after the third
+        # (tests/internet.test.yaml times it from a good result, #915 review).
+        # The result_id clause makes "three" literal rather than inferred: the
+        # ids in the window must span three tests, so a fresh deploy whose
+        # history holds one slow result cannot fire on it.
+        #
+        # 400 is about 40% of the ~940 the port allows. WARNING, never critical:
+        # slow is not down, and nobody should be woken for it.
+        expr: |
+          max(max_over_time(speedtest_tracker_download_bits{job="speedtest-tracker"}[65m])) < 400e6
+          and on ()
+          (
+            max(max_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[65m]))
+              - min(min_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[65m]))
+              >= 2
+          )
+        for: 5m
+        labels:
+          component: internet
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Three speed tests in a row measured under 400 Mbit/s down"
+          description: >-
+            The best download across the last three tests was
+            {{ $value | humanize }}bit/s. Open the Internet dashboard: if WAN
+            receive was near its ~940M ceiling while the tests ran, something
+            in the house is using the link; if it was quiet, check WAN errors
+            before blaming the ISP.
+
+      - alert: InternetUploadSlow
+        # As above, against the plan's 250 Mbit/s upstream: 100 is 40% of it.
+        expr: |
+          max(max_over_time(speedtest_tracker_upload_bits{job="speedtest-tracker"}[65m])) < 100e6
+          and on ()
+          (
+            max(max_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[65m]))
+              - min(min_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[65m]))
+              >= 2
+          )
+        for: 5m
+        labels:
+          component: internet
+          severity: warning
+          category: performance
+        annotations:
+          summary: "Three speed tests in a row measured under 100 Mbit/s up"
+          description: >-
+            The best upload across the last three tests was
+            {{ $value | humanize }}bit/s. Compare WAN transmit on the Internet
+            dashboard: a backup or a cloud sync saturating the upstream looks
+            exactly like this.
+
+      - alert: WanLinkSaturated
+        # The house, not the ISP: the WAN has carried more than 85% of what it
+        # can for ten minutes straight. A speed test lasts ~20 seconds and the
+        # rate window is 3 minutes, so a test alone cannot hold this up.
+        # INFO: a big download is allowed to be big. This is here so that when
+        # someone asks why it was slow at 8pm, the answer is in the alert
+        # history and not only in a graph.
+        expr: |
+          homelab_wan_bits_per_second
+            / on (direction)
+          homelab_wan_capacity_bits_per_second
+            > 0.85
+        for: 10m
+        labels:
+          component: internet
+          severity: info
+          category: saturation
+        annotations:
+          summary: "The WAN {{ $labels.direction }} direction has been over 85% full for ten minutes"
+          description: >-
+            WAN {{ $labels.direction }} is at {{ $value | humanizePercentage }}
+            of capacity. Everything else on the link is competing with whatever
+            this is; the switch's per-port throughput on the Network dashboard
+            names the device.
+
+      - alert: WanReceiveErrors
+        # The fault #914 found, and the reason the plan above was not enough on
+        # its own. On 2026-10-05 every speed test measured 2-37 Mbit/s down and
+        # ~297 up, with the WAN otherwise quiet; em0 was taking 0.6% of its
+        # received packets as CRC errors during a download. That is a physical
+        # fault on the cable between the XB7 and morpheus — the cable, the
+        # modem's port, or the NIC's — and nothing upstream of the modem can
+        # cause it. Reseating the plug in the XB7 cleared it. TCP cannot
+        # outrun 0.6% loss at ~14ms, so it looks exactly like "the internet is
+        # slow". ifInErrors is the generic receive-error counter, not CRC
+        # alone, which is why the description names the driver's breakdown.
+        #
+        # A healthy wired link counts zero, so the threshold is about noise,
+        # not tolerance: ten errors in fifteen minutes, held for fifteen more.
+        # The broken link was averaging ~0.15/s across 45 days of uptime, about
+        # 135 per fifteen minutes, and ~13/s under load. Every other interface
+        # on morpheus read 0 the same day.
+        expr: |
+          increase(ifInErrors{job="snmp", ifDescr="em0"}[15m]) > 10
+        for: 15m
+        labels:
+          component: internet
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "morpheus's WAN port is counting receive errors"
+          description: >-
+            em0 counted {{ $value | humanize }} receive errors in fifteen
+            minutes; a healthy wired link counts none. ifInErrors is the
+            generic counter, so name the cause before acting on it:
+            `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
+            'crc|align|symbol|jabber|fragment'`. If crc_errs is what is
+            climbing, it is the physical link: reseat the plug in the XB7
+            (#914), then re-terminate or replace that cable, then try another
+            XB7 port, then suspect the I219's port.
+
+      - alert: SpeedtestStale
+        # No completed test for over 90 minutes, in either of two shapes:
+        #   - no download metric for 75 minutes while the target answers: the
+        #     latest test failed — a failed result exports only
+        #     speedtest_tracker_result_id, with status="failed" — and so did
+        #     the two after it; or the endpoint says "# no data available" (a
+        #     fresh volume, or its cache was cleared);
+        #   - no new result id for 105 minutes: the scheduler has stopped, and
+        #     the endpoint keeps serving the last good result forever, which
+        #     would otherwise look healthy.
+        # Both are ~105 minutes from the last good result, so the summary is
+        # true of either (#915 review: the earlier 2h window plus `for: 1h`
+        # took three hours).
+        #
+        # WHY `for: 70m` AND NOT LESS. A fresh deploy is true on both branches
+        # in turn: no download metric for up to 30 minutes until the first
+        # test, then one unmoving id for the 30 until the second. That chain
+        # is ~60 minutes of a healthy tracker, and `for` has to outlast it —
+        # tests/internet.test.yaml boots exactly that and stays quiet.
+        # The outer max() folds both branches into one label-free series, so
+        # the two firing together are one alert and not two.
+        #
+        # SpeedtestTrackerDown owns the target not answering — including the
+        # Prometheus integration being switched off in the tracker's settings,
+        # which makes /prometheus a 404 and so fails the scrape outright.
+        expr: |
+          max(
+            absent_over_time(speedtest_tracker_download_bits{job="speedtest-tracker"}[5m])
+            or
+            (
+              max(max_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[35m]))
+                - min(min_over_time(speedtest_tracker_result_id{job="speedtest-tracker"}[35m]))
+                == 0
+            )
+          )
+          unless on () (up{job="speedtest-tracker"} == 0)
+        for: 70m
+        labels:
+          component: internet
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "speedtest-tracker has not recorded a completed test in over 90 minutes"
+          description: >-
+            Either the last three tests failed or the scheduler has stopped
+            producing new results. Open the tracker's UI
+            (https://speedtest.matrix.elysium:8443) and read the latest
+            result's status, then
+            `docker logs speedtest-tracker 2>&1 | tail -50`.
+
+      - alert: SpeedtestTrackerDown
+        # InstanceDown is critical and pages; host.rules.yaml leaves this job
+        # out of it, because no measurement tool being unreachable is worth
+        # waking anyone. This is the same condition at warning.
+        expr: up{job="speedtest-tracker"} == 0
+        for: 15m
+        labels:
+          component: internet
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Prometheus cannot scrape speedtest-tracker"
+          description: >-
+            {{ $labels.instance }} has not answered a scrape for 15 minutes.
+            No speed tests are being recorded. `docker ps -a --filter
+            name=speedtest-tracker` and its logs.

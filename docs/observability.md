@@ -141,7 +141,7 @@ because both halves of #83 were invisible in a diff.
 
 ## Dashboards
 
-Seven dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
+Eight dashboards are provisioned from `grafana/dashboards/` into a **HomeLab**
 folder:
 
 | Dashboard | UID | Covers |
@@ -152,6 +152,7 @@ folder:
 | UPS & Power | `homelab-ups` | Battery, runtime, load, input voltage |
 | Logs | `homelab-logs` | Volume by level and source, error and auth streams |
 | Observability Stack | `homelab-stack` | Scrape health for every target, and Prometheus, Loki, Alertmanager and Alloy watching themselves |
+| Internet | `homelab-internet` | Speed tests beside WAN utilisation, WAN receive errors, round-trip time, latency under load and the firewall's uplink loss — what to read when the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)) |
 | Security | `homelab-security` | Firewall blocks by interface and direction, top blocked sources, Suricata classification and priority, terminal-segment violations |
 
 The JSON in git is the source of truth: Grafana re-provisions over its own copy
@@ -343,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-157 rules in total: 138 metric-based in `prometheus/rules/`, and 19 log-based in
+163 rules in total: 144 metric-based in `prometheus/rules/`, and 19 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -465,7 +466,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-138 rules across eleven files in `prometheus/rules/`:
+144 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -479,6 +480,7 @@ argument and for what to do when it exits 1.
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
 | `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
+| `internet.rules.yaml` | Why the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)): three scheduled speed tests in a row under 400 Mbit/s down or 100 up, the WAN held above 85% of what it can carry, frames arriving corrupted on the WAN port — `WanReceiveErrors`, the fault found the day these were written, when a cable between the XB7 and `morpheus` cut downloads to ~2 Mbit/s — and `speedtest-tracker` itself going quiet or unreachable. Also records `homelab_wan_bits_per_second` from pf's own em0 counters. Download thresholds are against the ~940 Mbit/s the 1000baseT WAN port can carry, not the plan's 2000. `speedtest-tracker` is left out of `InstanceDown`, so its outage is a warning and not a page |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
 
 **Every critical alert links to a runbook** ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
@@ -500,7 +502,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 138 rules of 138 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
+against the broken rule too. Coverage is 144 rules of 144 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all ten
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from

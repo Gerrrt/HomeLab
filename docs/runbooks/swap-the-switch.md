@@ -101,10 +101,12 @@ Confirm the OS and version it booted, the serial and the management MAC:
 Check the box for rack ears and a power supply — it is a used listing. **This
 model is DC-only**: a `DC 10–28V` barrel jack and no AC inlet, so "a power
 supply" means MikroTik's 24 V adapter, and the unit bought for this swap
-arrived without one (2026-09-23). A 48 V MikroTik adapter has the same plug
+arrived without one (2026-09-23); a 24HPOW was delivered for it on
+2026-09-26. A 48 V MikroTik adapter has the same plug
 and is outside the jack's range. **These
-facts go into [`hardware.md`](../hardware.md)**, replacing the "in transit"
-line, and that edit can land on its own before the window.
+facts go into [`hardware.md`](../hardware.md)**, replacing its "go here when
+the bench steps are done" line, and that edit can land on its own before the
+window.
 
 ### 1.3 Reset, then RouterOS
 
@@ -112,7 +114,19 @@ Boot RouterOS, not SwOS. ADR-0041 records why at length; briefly, SwOS serves
 HTTP only and speaks SNMP v1 and v2c only, which is both of the firmware limits
 this purchase exists to escape.
 
-Wipe whatever the last owner left:
+**Get it onto v7 long-term first.** The commands here use v7's syntax, and
+the unit bought for this swap arrived on 6.48.6, which is end of life. With no
+internet at the bench, download the ARM `.npk` files on the workstation and
+drop them into WebFig's *Files*, at `192.168.88.1` from a static address on
+that subnet. Go to the last 6.49 first, then to v7, rebooting after each, then
+run `/system/routerboard/upgrade` and reboot once more. Ask the update server
+which v7 is long-term rather than guessing from the download page:
+`curl https://upgrade.mikrotik.com/routeros/NEWESTa7.long-term`. The switch
+has 16 MB of flash. If an upload reports not enough space, the fallback is
+Netinstall, which has no macOS build.
+
+Wipe whatever the last owner left. This also removes `192.168.88.1`, so
+reconnect with WinBox's *Neighbors* tab, by MAC:
 
 ```text
 /system/reset-configuration no-defaults=yes skip-backup=yes
@@ -151,6 +165,20 @@ and the new UI is proven:
 Confirm the browser trusts it without a warning. If it does not, the leaf is
 wrong or the CA is not installed on the workstation — fix that here, where there
 is no outage running.
+
+**RouterOS 7.23 also puts a `reverse-proxy` service on `443`, enabled.** With
+it on, the HTTPS login page loads without a warning and WebFig then sits on
+"Connecting" while plain `http` works (2026-10-05). Disable it, along with the
+other services that a reset to no defaults leaves on and nothing here uses:
+
+```text
+/ip/service/disable reverse-proxy,ftp,telnet,api,api-ssl
+```
+
+That leaves `ssh`, `winbox` (the way back in by MAC), `www` until Phase 2 and
+`www-ssl`. A reset switch has nothing to take time from on the bench and
+keeps whatever date it last had, so set the clock by hand in UTC with
+`/system/clock/set`.
 
 ### 1.5 SNMPv3, and no v2c
 
@@ -196,7 +224,10 @@ House offline. Alertmanager silenced. The MokerLink stays on the bench, cabled
 and powered, until Phase 3 passes.
 
 1. **Widen the firewall pass to `443`** — the rule in `network.md` that admits
-   `10.7.7.2:80`. Both ports open for the duration of the window.
+   `10.7.7.2:80`. Both ports open for the duration of the window. On
+   `morpheus` it is *Allow HTTP to LAN Switch* on the Hicks interface, read
+   from `pfctl -sr` on 2026-10-05. Copy it beside itself with the destination
+   port set to HTTPS, rather than editing it.
 2. Rack the CRS326 at U9. Cat6 from `morpheus`'s `igc0` to **port 1**, the
    trunk.
 3. Move the patch leads, following the §1.1 map.
@@ -205,9 +236,20 @@ and powered, until Phase 3 passes.
    `morpheus`, which depends on the switch you have just replaced.
 5. Walk the VLANs: internet, wireless, a camera on Skids, a host on VLAN 99, the
    lab on VLAN 30.
-6. Confirm the SNMP scrape is up and the `switch-ui` probe is green.
+6. Confirm the SNMP scrape is up: `up{job="snmp"}` for `10.7.7.2` is `1`, over
+   v3 once the repository half is applied. There is no `switch-ui` probe to
+   check. It was removed on 2026-09-06, as the comment in
+   [`blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml)
+   records, and the UI is proven by step 4.
 7. **Only now**, disable plain `www` on the switch and narrow the firewall rule
-   from `80` to `443`. Prove the UI again afterwards.
+   from `80` to `443`: delete the HTTP original and keep the HTTPS copy. Prove
+   the UI again afterwards.
+8. **Delete *Allow blackbox probe from Prometheus to Switch*** on the Winterfell
+   interface. It passes `10.0.99.20 → 10.7.7.2:80`. The comment in
+   [`blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml)
+   says that rule was dropped and no probe uses it, but `pfctl -sr` on
+   `morpheus` still listed it on 2026-10-05. Once `www` is off it reaches
+   nothing. Leave *Allow SNMP from Prometheus to Switch* beside it.
 
 If any of 4–6 fails and is not fixed within the window's budget, roll back: the
 MokerLink returns to U9, the patch leads go back by the same map, and the
@@ -235,12 +277,15 @@ all of it is the point.
   `network.rules.yaml`. **Do not carry the port references across unchecked**:
   this is a 24 + 2 device replacing a 26-port one, so `ifIndex` and `ifName`
   change, and any rule or dashboard panel naming a port needs re-deriving.
-- The `switch-ui` blackbox target and its `via: dns` twin, `http` → `https`,
-  with a `ca_file` rather than `insecure_skip_verify` — the estate CA is already
-  how blackbox verifies Grafana.
-  [`blackbox.test.yaml`](../../stacks/observability/prometheus/tests/blackbox.test.yaml)
-  uses `switch-ui` as its worked example of an endpoint with no dns twin; that
-  needs a different subject.
+- **No `switch-ui` probe, and none is added.** An earlier draft of this list
+  said to move it from `http` to `https`. There was nothing to move: both
+  probes were removed on 2026-09-06, when the switch LAN was closed to VLAN 99
+  apart from SNMP. `prometheus/targets/blackbox.yaml` records why, and bringing
+  one back would need a new `10.0.99.20 → 10.7.7.2:443` pass, which is a
+  segmentation decision. Decided 2026-09-23 to leave it out: the SNMP scrape
+  already watches the switch. The cost is that the leaf's expiry pages nobody,
+  so this phase adds a dated row for it to
+  [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
 - `SNMP_COMMUNITY_MOKERLINK` in `secrets/observability.sops.yaml` has no
   consumer once v2c is off, and its name is a misnomer the moment `neo` is a
   MikroTik. Retiring it touches `observability.example.yaml`,

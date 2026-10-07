@@ -25,10 +25,11 @@ make up        # from the repository root
 | `alertmanager` | `prom/alertmanager` | 9093 (localhost) | Alert routing, grouping, inhibition |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
 | `caddy` | `caddy` | 9090, 3100 (`INGEST_BIND_ADDR`) | The ingest proxy: a bearer token per agent to push, a reader token to query, the admin and delete APIs to nobody (#182) |
-| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the only published UI, and the only service that terminates TLS |
+| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the main published UI |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
 | `blackbox-exporter` | `prom/blackbox-exporter` | *internal* | Probes from outside a service: is it reachable, and what did the resolver answer |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
+| `speedtest-tracker` | `lscr.io/linuxserver/speedtest-tracker` | 8443 (https) | Ookla speed test every 30 minutes, its history UI, and the latest result for Prometheus (#914) |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, an allowlist of endpoints ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
 "(localhost)" means bound to `127.0.0.1`: reachable from the monitoring host
@@ -43,7 +44,7 @@ to `BIND_ADDR`. Reasoning in
 ## Layout
 
 ```text
-compose.yaml               all nine services, one network, health-gated ordering
+compose.yaml               all ten services, one network, health-gated ordering
 Caddyfile                  the ingest proxy's policy: which token may reach which path
 .env.example               non-sensitive tunables (ports, retention, bind address)
                            edit this, not .env — .env is regenerated on `make up`
@@ -52,8 +53,8 @@ prometheus/
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
   targets/node.yaml        node_exporter scrapes, for the host that runs no Alloy (smaug)
   targets/blackbox*.yaml   probe targets, http, dns and latency — hot-reloaded, no restart
-  rules/*.rules.yaml       138 alert rules: host, network, ups, containers, blackbox,
-                           dns, backup, ids, deploy, stack and watchdog
+  rules/*.rules.yaml       144 alert rules: host, network, ups, containers, blackbox,
+                           dns, backup, ids, deploy, stack, internet and watchdog
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
 alertmanager/
@@ -70,7 +71,7 @@ snmp-exporter/
   snmp.yaml                generated, never hand-edited; ${PLACEHOLDER} communities
 grafana/
   provisioning/            datasources + dashboard provider
-  dashboards/*.json        7 dashboards, 144 panels
+  dashboards/*.json        8 dashboards, 156 panels
   dashboards/README.md     conventions that hold across all of them
 ```
 

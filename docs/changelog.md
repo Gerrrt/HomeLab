@@ -52,7 +52,41 @@ docstring gives: it is a record, not a claim about now.
     per weakness (runbook §5a) is the operational work still to do, and the
     SOC-detection half (#266/#267/#437) is the deliverable it feeds.
 
+## 2026-10-05
+
+- **The CRS326 is on RouterOS 7, and reset.** Phase 1 of
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) began at the bench
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MokerLink's
+  configuration was exported, and the port map was checked against the wiki;
+  port 15 is `smaug`, and no more than 24 copper ports are in use. The CRS326
+  arrived on RouterOS 6.48.6, which is end of life and older than the fix for
+  CVE-2023-30799. The runbook's commands are written for v7, so it went to
+  6.49.22 and then to 7.23.7 long-term before the reset, so the reset ran on
+  the version it keeps. [`hardware.md`](hardware.md) has the serial and MAC.
+- **Phase 1 is done at the bench, apart from the SNMP proof.**
+  - The identity is `neo`.
+  - `www-ssl` serves the estate-CA leaf, and a browser at `10.7.7.2` showed
+    no warning. That needed `reverse-proxy` disabled, which 7.23 enables on
+    the same port.
+  - `ftp`, `telnet`, `api` and `api-ssl` are off.
+  - SNMP has one v3 user, `prometheus` (SHA1/AES), limited to `10.0.99.20`,
+    and the default `public` community is disabled.
+  - The bridge follows the wiki's 2026-09-17 port map. Port 1 is the trunk,
+    with all six VLANs tagged and management untagged on VLAN 1. Ports 2–24
+    accept untagged frames only, each with its VLAN as PVID. VLAN 1 holds only
+    the bridge and port 1, so management is not reachable from an access port,
+    as it was on the MokerLink. The SFP+ cages are disabled. There is no
+    mirroring.
+  - `snmp-verify.sh` cannot reach a switch on a desk, so the v3-only proof
+    moves to Phase 2.
+
 ## 2026-10-04
+
+- **The CRS326's 24HPOW was delivered on 2026-09-26**, the evening of the
+  day the 2026-09-26 entry below called it still in transit. The repository
+  went on saying so for eight days. Nothing but the bench time gates Phase 1
+  of [`swap-the-switch.md`](runbooks/swap-the-switch.md) now, and it has not
+  started ([#444](https://github.com/Gerrrt/HomeLab/issues/444)).
 
 - **`deploy-agent.sh` proves the log path with a line it writes itself.**
   Its arrival check asked Loki for any line from the host newer than the

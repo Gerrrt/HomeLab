@@ -3,7 +3,7 @@
 [![part of stacks/observability](https://img.shields.io/badge/part%20of-stacks%2Fobservability-30363d?style=plastic)](../../../../stacks/observability/README.md)
 [![Grafana](https://img.shields.io/badge/Grafana-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/grafana/)
 
-Seven dashboards, provisioned from this directory into a **HomeLab** folder. The
+Eight dashboards, provisioned from this directory into a **HomeLab** folder. The
 table of what each one covers is in
 [`docs/observability.md`](../../../../docs/observability.md#dashboards); this
 file holds the things that are true of all of them and that a panel description

@@ -65,7 +65,7 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-five of the seven dashboards over a 24-hour window, and stops the renderer
+five of the eight dashboards over a 24-hour window, and stops the renderer
 again. Nothing is left running, and `docker compose ps` shows the same services
 afterwards as before. The renderer carries `homelab.logs=off`, the label the
 estate's other throwaway containers use. That keeps `ContainerGone` from paging
@@ -108,8 +108,12 @@ correct fix for a bad window, not cropping.
 
 ## What is not captured, and why
 
-There are seven dashboards and five screenshots. `homelab-logs` and
-`homelab-security` are excluded on purpose and always will be.
+There are eight dashboards and five screenshots. `homelab-logs` and
+`homelab-security` are excluded on purpose and always will be. `homelab-internet`
+is not captured yet, for a reason that expires: it has no data until
+speedtest-tracker is deployed, and a screenshot of empty panels documents
+nothing. Add it to `scripts/capture-screenshots.sh` after its first day of
+results ([#914](https://github.com/Gerrrt/HomeLab/issues/914)).
 
 ### `homelab-logs` is excluded on purpose
 

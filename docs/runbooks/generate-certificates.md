@@ -85,7 +85,12 @@ trust store holding it, so that has to be deliberate (`--force`).
 
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
+make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
 ```
+
+The second is speedtest-tracker's UI (#914). Its `--dns` names the compose
+service for symmetry with Grafana's; nothing verifies it today, because
+Prometheus scrapes the tracker over plain HTTP on port 80.
 
 Include `--ip` for anything reached by address. `docs/roadmap.md` still lists
 internal DNS as unresolved, so in practice most services here are reached by IP,
