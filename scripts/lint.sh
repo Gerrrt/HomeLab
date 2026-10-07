@@ -275,6 +275,11 @@ run_linter() {
   # paying that twice just to see the message is a poor trade.
   local out rc=0
   out="$("${RUNNER[@]}" "$@" 2>&1)" || rc=$?
+  # LINT_FAIL_ON: a pattern that fails a run exiting 0. For a tool that only
+  # warns about the one thing it was invoked to refuse; see tofu init below.
+  if ((rc == 0)) && [[ -n "${LINT_FAIL_ON:-}" ]] && grep -qF -- "${LINT_FAIL_ON}" <<<"${out}"; then
+    rc=1
+  fi
   if ((rc == 0)); then
     if ((UNPINNED)); then
       pass "${tool} (a local binary, NOT the pinned version: $(hint_for "${tool}") to run that)"
@@ -315,8 +320,16 @@ run_linter packer validate -syntax-only packer/
 # match the committed .terraform.lock.hcl fails here instead of being quietly
 # re-pinned. Whether the state is encrypted is not a lint question; that is
 # scripts/check-tofu-state-encryption.sh --self-test, in self-tests.sh.
+#
+# -lockfile=readonly does not fail on a lock that disagrees with versions.tf: it
+# prints "Changes to the provider selections were detected, but not saved" and
+# exits 0. Dependabot's first provider bump (#961) left the lock that way, with
+# constraints still on the old version and one zh: hash missing, and merged
+# green. So that warning is a failure here. The fix for a red bump is
+# `tofu -chdir=tofu init -upgrade -backend=false`, committed onto its PR.
 run_linter tofu fmt -check -diff -recursive tofu/
-run_linter tofu -chdir=tofu init -backend=false -input=false -lockfile=readonly
+LINT_FAIL_ON='Changes to the provider selections were detected' \
+  run_linter tofu -chdir=tofu init -backend=false -input=false -lockfile=readonly
 run_linter tofu -chdir=tofu validate
 # ansible/ (ADR-0077). Includes ansible-playbook's own syntax check, which needs
 # the pinned collections — hence --project-dir, which makes ansible-lint install
