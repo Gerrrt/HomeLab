@@ -437,6 +437,19 @@ done
 SKIPPED=$((SKIPPED + $(wc -l < "${LOKI_SKIPS}")))
 
 # ---------------------------------------------------------------------------
+head_ "Syslog senders"
+# ---------------------------------------------------------------------------
+# A spoofed line from an unlisted address must not reach Loki, and a message
+# must not choose its own `host` (#844). Same skips contract as the Loki checks
+# above: no docker is a recorded skip, never a pass.
+SYSLOG_SKIPS="$(mktemp)"
+if ! ./scripts/check_syslog_senders.sh --skips-file "${SYSLOG_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${SYSLOG_SKIPS}")))
+rm -f "${SYSLOG_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Caddyfiles"
 # ---------------------------------------------------------------------------
 # A stack that fronts its services with Caddy carries a Caddyfile, and a

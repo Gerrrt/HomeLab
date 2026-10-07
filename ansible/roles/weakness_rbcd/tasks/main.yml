@@ -35,7 +35,7 @@
     name: "{{ lab_weakness_rbcd_account }}"
     sam_account_name: "{{ lab_weakness_rbcd_account }}"
     upn: "{{ lab_weakness_rbcd_account }}@{{ lab_domain }}"
-    description: "#449 rbcd: principal titan trusts to act on its behalf (ADR-0080)"
+    description: "#449 rbcd: principal titan trusts to act on its behalf (ADR-0083)"
     path: "{{ lab_weakness_ou }}"
     password: "{{ lab_weak_password }}"
     update_password: when_changed

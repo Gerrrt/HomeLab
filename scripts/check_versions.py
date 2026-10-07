@@ -50,7 +50,7 @@ import urllib.request
 
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent))
 
-from check_docs import (  # noqa: E402
+from check_docs import (
     HARDWARE_MD,
     NETWORK_MD,
     network_sections,

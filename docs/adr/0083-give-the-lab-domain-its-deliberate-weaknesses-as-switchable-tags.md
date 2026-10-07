@@ -1,4 +1,4 @@
-# ADR-0080: Give the lab domain its deliberate weaknesses as individually switchable tags
+# ADR-0083: Give the lab domain its deliberate weaknesses as individually switchable tags
 
 **Status:** Accepted · 2026-10 · adds to
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (a sixth

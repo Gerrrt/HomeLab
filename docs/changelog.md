@@ -17,11 +17,32 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-07
+
+- **Syslog stores only the senders it names.**
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
+  able to reach 1514/udp or 514/udp could write lines labelled
+  `host="morpheus"`, because the message's own hostname overrode the label.
+  Those lines include the filterlog and Suricata lines the Loki security rules
+  read. The issue proposed a leading `keep` relabel rule. On the pinned Alloy
+  v1.20.1 that rule does not drop: `loki.source.syslog` ignores the result of
+  its relabel rules, and a spoofed line was stored as
+  `{log_type="syslog", source="network"}` without being counted. Now `host`
+  comes from the connection address only. A line with no `host` is dropped in
+  `loki.process` and counted under
+  `reason="syslog_sender_not_allowed"`, and the ports bind to
+  `INGEST_BIND_ADDR` instead of `0.0.0.0`.
+  `scripts/check_syslog_senders.sh` sends a real line, a spoofed one and a
+  forged hostname through a scratch Alloy and Loki. It fails with the drop
+  stage removed and with the hostname rule restored. In the seven days before
+  the change, every stream on this path was `host="morpheus"`, so nothing that
+  was arriving is now refused.
+
 ## 2026-10-06
 
 - **The lab domain's deliberate weaknesses, each behind its own switchable
   tag** ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
-  [ADR-0080](adr/0080-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+  [ADR-0083](adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
   - **Six roles, six tags, all off by default.** `weakness_kerberoast`,
     `weakness_asreproast`, `weakness_dcsync`, `weakness_ucd`, `weakness_cd`
     and `weakness_rbcd` join `lab-domain.yml`, each with a
@@ -53,6 +74,36 @@ docstring gives: it is a record, not a claim about now.
     against the live domain; the snapshot-first, enable/observe/disable loop
     per weakness (runbook §5a) is the operational work still to do, and the
     SOC-detection half (#266/#267/#437) is the deliverable it feeds.
+- **Sysmon and Pktmon are on the lab domain**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
 
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
@@ -95,6 +146,16 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
 
 ## 2026-10-05
 

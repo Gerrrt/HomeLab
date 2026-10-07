@@ -3,5 +3,5 @@
 #   ansible-playbook lab-domain.yml --tags dcsync -e weakness_dcsync_state=present
 # and disable by applying the same tag with the default (or =absent). The
 # identifiers this role acts on are in inventory/group_vars/all.yaml, shared
-# with verify.yml (ADR-0080).
+# with verify.yml (ADR-0083).
 weakness_dcsync_state: absent

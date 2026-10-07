@@ -3,5 +3,5 @@
 #   ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
 # and disable by applying the same tag with the default (or =absent). The
 # identifiers this role acts on are in inventory/group_vars/all.yaml, shared
-# with verify.yml (ADR-0080).
+# with verify.yml (ADR-0083).
 weakness_kerberoast_state: absent

@@ -92,6 +92,17 @@
     - role: exporter
       tags: [exporter]
 
+# #450: what each guest records. sysmon-modular's balanced config, vendored at
+# one release (ADR-0080). It records, it does not harden: nothing it does changes
+# what an exercise can reach.
+- name: Sysmon, so the endpoints record what fired
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: sysmon
+      tags: [sysmon]
+
 - name: The evaluation clock, as a metric
   hosts: servers
   gather_facts: false
@@ -121,7 +132,7 @@
 # #449's deliberate weaknesses, each its own tag, each off until asked for
 # (weakness_<name>_state, default absent in the role). A plain run leaves every
 # one absent — the negative test, that the path to Domain Admin is not there.
-# Enable one, watch the SOC see it, disable it, watch the signal go. ADR-0080,
+# Enable one, watch the SOC see it, disable it, watch the signal go. ADR-0083,
 # and the identifiers are in group_vars/all.yaml. All six are directory writes,
 # so they run on the PDC emulator like tiers and population.
 - name: Kerberoast — an SPN on a crackable account

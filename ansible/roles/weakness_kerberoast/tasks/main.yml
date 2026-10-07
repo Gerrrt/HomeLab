@@ -33,7 +33,7 @@
     name: "{{ lab_weakness_kerberoast_account }}"
     sam_account_name: "{{ lab_weakness_kerberoast_account }}"
     upn: "{{ lab_weakness_kerberoast_account }}@{{ lab_domain }}"
-    description: "#449 kerberoast: SPN on a crackable account (ADR-0080)"
+    description: "#449 kerberoast: SPN on a crackable account (ADR-0083)"
     path: "{{ lab_weakness_ou }}"
     password: "{{ lab_weak_password }}"
     update_password: when_changed
