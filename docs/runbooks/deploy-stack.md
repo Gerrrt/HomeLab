@@ -21,10 +21,12 @@ make secrets-init     # generates an age keypair, creates the encrypted file
 make secrets-edit     # replace every change-me value
 
 # TLS. Grafana serves https from this leaf and Prometheus verifies it with the
-# CA — see generate-certificates.md. Both are required before the stack starts.
+# CA — see generate-certificates.md. All of them are required before the stack
+# starts; the last is the ingest proxy's, on 9090 and 3100 (#764).
 make certs ARGS=--ca
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"
 
 make validate         # confirm the configs are sound before starting anything
 make up

@@ -13,7 +13,7 @@ ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 # ~/.ssh/known_hosts and not whatever the network presents first.
 # scripts/lab-known-hosts.sh writes that file from each guest's own key, read
 # through the Proxmox guest agent; run it after any of the six is rebuilt
-# (ADR-0083, which amends ADR-0077 decision 2). inventory_dir is
+# (ADR-0085, which amends ADR-0077 decision 2). inventory_dir is
 # ansible/inventory, so this holds for ad-hoc `ansible` as well as for every
 # playbook.
 ansible_ssh_common_args: >-

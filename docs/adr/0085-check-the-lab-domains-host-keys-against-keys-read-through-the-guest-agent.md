@@ -1,8 +1,21 @@
-# ADR-0083: Check the lab domain's host keys against keys read through the guest agent
+# ADR-0085: Check the lab domain's host keys against keys read through the guest agent
 
 **Status:** Accepted · 2026-10 · amends decision 2 of
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (host
 keys are now checked)
+
+> [!NOTE]
+> **Renumbered to 0085 on 2026-10-07.** This landed as ADR-0082 in
+> [#931](https://github.com/Gerrrt/HomeLab/pull/931), and
+> [#962](https://github.com/Gerrrt/HomeLab/pull/962) took the same number
+> **twenty-six seconds earlier** (13:48:33Z against 13:48:59Z) for
+> [ADR-0082](0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md).
+> Two files claimed one number on `main` until this commit.
+> `check_adr_numbers()` in [`check_docs.py`](../../scripts/check_docs.py)
+> caught it, and its rule, that the one that landed second renumbers, chose
+> this file. 0083 and 0084 were already claimed by open PRs, so it took
+> 0085. The decision is untouched. Text that predates the renumber,
+> including #931's own commits and description, calls it 0082.
 
 ## Context
 

@@ -89,11 +89,17 @@ trust store holding it, so that has to be deliberate (`--force`).
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"
 make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"
 ```
 
 The second is speedtest-tracker's UI (#914). Its `--dns` names the compose
 service for symmetry with Grafana's; nothing verifies it today, because
 Prometheus scrapes the tracker over plain HTTP on port 80.
+
+The third is the ingest proxy's, for 9090 and 3100 on `10.0.99.20` (#764).
+Every client dials the address, so the IP SAN is the one that is verified;
+`prometheus.matrix.elysium` is its name because that is what the address is.
+The clients that trust it are in the table under §4.
 
 Include `--ip` for anything reached by address. `docs/roadmap.md` still lists
 internal DNS as unresolved, so in practice most services here are reached by IP,
@@ -167,6 +173,9 @@ the certificate somewhere and not recording it is how it goes stale
 | --- | --- | --- |
 | Prometheus on `prometheus` | `ca_file` — bind-mounted read-only by [`compose.yaml`](../../stacks/observability/compose.yaml), verifies the `grafana` scrape | Nothing to import: `make up` restarts it on the new file |
 | blackbox-exporter on `prometheus` | `ca_file` in [`blackbox.yaml`](../../stacks/observability/blackbox/blackbox.yaml), same mount — the `http_2xx_lab_ca` probes | Same |
+| The Alloy agents on `oracle`, `trinity` and `Saruman` | `tls_config { ca_file }` in [`config.alloy`](../../stacks/observability/alloy/config.alloy), reading `INGEST_CA_FILE`. [`deploy-agent.sh`](../../scripts/deploy-agent.sh) ships the committed copy, [`ingest-ca.pem`](../../stacks/observability/alloy/ingest-ca.pem), to `/etc/alloy` (#764) | Copy the new `ca.pem` over `ingest-ca.pem` and commit it ([`check_ingest_ca.sh`](../../scripts/check_ingest_ca.sh) fails until you do), then rerun `deploy-agent.sh` for each host. Saruman's runs from the Mac |
+| Homepage on `trinity` | `NODE_EXTRA_CA_CERTS`, a bundle of the tier's root and `ingest-ca.pem` that `render-config.sh` writes to `stacks/sensitive/.rendered/` | `make up` on trinity once the commit above is pulled |
+| Home Assistant on `trinity` | `REQUESTS_CA_BUNDLE`, the host's public roots plus `ingest-ca.pem`, from the same render step | Same |
 | Prometheus on `alexander` (the lab guest) | `ca_file`, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5 | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed |
 | The operator's Mac — system keychain | **Not imported.** Confirmed on the device 2026-09-20: not present in Keychain Access, and an import attempt that day was refused with an "invalid key" error. ADR-0037's "the Mac's system store, at least" was wrong; Safari and Chrome do not trust the estate's CA | Nothing |
 | The operator's Mac — Firefox | **Not imported.** Confirmed on the device 2026-09-20: not under Authorities. So no browser on the Mac trusts the estate's CA, and Grafana over `https` there warns until one does — which is a choice, not a defect, and importing it is the row you add here | Nothing |
