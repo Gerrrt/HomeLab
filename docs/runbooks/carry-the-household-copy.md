@@ -163,6 +163,17 @@ In order, and each step stops the run if it fails:
    the household key only.
 7. Prune to one set of each kind, and remove dead `.part`s.
 
+The Paperless set in `backups/paperless-documents/` is not re-verified
+nightly, unlike every other set on `trinity`
+([#942](https://github.com/Gerrrt/HomeLab/issues/942)). Nothing reads it
+after the visit that made it. The next visit exports Paperless again, step 3
+verifies the new set, and the old one is pruned. A restore copies the set back
+from the drive, not from `trinity`. The documents themselves are in the
+nightly volume sets (`paperless-media` and `paperless-db-data`), and
+`verify-backups-sensitive` re-reads those every night, here and on `oracle`.
+The copy on the drive is checked at every visit, by step 1 and
+`ARGS=--verify-only`.
+
 The last line is green and names both sets. Then:
 
 ```bash
