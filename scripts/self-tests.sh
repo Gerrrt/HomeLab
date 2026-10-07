@@ -31,6 +31,10 @@
 #   collect-guest-disk-state.sh  get-fsinfo from a guest agent, which is
 #                             hostile input (ADR-0070): a forged mountpoint, bad
 #                             sizes and a flood of filesystems can only be faked
+#   collect-guest-service-state.sh  docker inspect through a guest agent, also
+#                             hostile input (ADR-0088): a stopped service, a
+#                             hung agent and a guest that pads the right answer
+#                             cannot be staged on demand
 #   collect-gateway-state.sh  the gateway parse, for morpheus
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what

@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-171 rules in total: 152 metric-based in `prometheus/rules/`, and 19 log-based in
+174 rules in total: 155 metric-based in `prometheus/rules/`, and 19 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -466,7 +466,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-152 rules across twelve files in `prometheus/rules/`:
+155 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -502,7 +502,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 152 rules of 152 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
+against the broken rule too. Coverage is 155 rules of 155 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
@@ -642,6 +642,21 @@ records why this crosses when ADR-0028 kept guest metrics in the lab, and why
 the agent's answer is treated as hostile input. `GuestAgentSilent` warns when a
 guest's agent stops answering, and `GuestDiskStateStale` when the collector
 stops writing.
+
+**A dead lab service inside a running guest is read the same way.** The lab
+Prometheus sends nothing (ADR-0020), so a crashed lab Prometheus, a stopped
+Zeek or a Wazuh manager with its listener down looked healthy here while the
+guest ran. `scripts/collect-guest-service-state.sh` runs one fixed
+`docker inspect` through each guest's agent every five minutes, for
+`lab-prometheus` on `alexander`, `sensor-zeek` on `fenrir`, and
+`soc-wazuh-manager` and `soc-velociraptor` on `odin`. It writes
+`homelab_guest_service_healthy`, which is 1 only for `running healthy`, so each
+container's own healthcheck is the real test. `GuestServiceUnhealthy` **warns**
+after fifteen minutes. A blind SOC is serious, and not a 2 a.m. page.
+`GuestServiceUnchecked` warns when the agent has not run the check for an hour,
+and `GuestServiceStateStale` when the collector stops writing
+([#858](https://github.com/Gerrrt/HomeLab/issues/858),
+[ADR-0088](../adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)).
 
 ### Routing
 

@@ -1204,6 +1204,79 @@ groups:
             guest's disks cannot page. `systemctl status qemu-guest-agent` inside
             the guest; if it has hung, restarting it is safe.
 
+      # --- Named lab services, read through the hypervisor (#858, ADR-0088) --
+      #
+      # A running guest with a dead service inside it looked healthy from
+      # here: the lab Prometheus sends nothing (ADR-0020), and ADR-0028 let
+      # only run state cross. ADR-0088 lets one bit per named service cross —
+      # whether Docker calls the container `running healthy` — read on
+      # `Saruman` by scripts/collect-guest-service-state.sh. The real test is
+      # each container's own healthcheck: stats.log freshness for Zeek,
+      # `wazuh-remoted is running` for the manager, /-/healthy for Prometheus.
+      #
+      # WARNING, NOT CRITICAL (#858). A blind SOC is serious and is not a 2 a.m.
+      # page for the house; `default` reaches the phone at home. A stopped
+      # guest is HypervisorGuestStopped's, and has no series here at all.
+
+      - alert: GuestServiceUnhealthy
+        # Fifteen minutes on top of the healthcheck's own retries (Zeek's is
+        # three minutes, the manager's two and a half), so a `make up` that
+        # recreates the container does not alert, and a crash does within the
+        # half hour.
+        expr: homelab_guest_service_healthy == 0
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.service }} on {{ $labels.guest }} is not healthy"
+          description: >-
+            Docker on {{ $labels.guest }} (VMID {{ $labels.vmid }}) has not called
+            {{ $labels.service }} running and healthy for fifteen minutes: it is
+            stopped, missing, or failing its own healthcheck. The guest is up.
+            From {{ $labels.host }}: `qm guest exec {{ $labels.vmid }} -- docker ps -a`,
+            then the container's log from the lab.
+
+      - alert: GuestServiceUnchecked
+        # The agent did not run the check to completion for an hour, so the
+        # service's health is unknown and GuestServiceUnhealthy cannot fire.
+        # The hour is GuestAgentSilent's, for odin's agent hanging under load.
+        expr: homelab_guest_service_checked == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.service }} on {{ $labels.guest }} has not been checked for an hour"
+          description: >-
+            `qm guest exec {{ $labels.vmid }}` on {{ $labels.host }} has failed or
+            timed out for an hour, so whether {{ $labels.service }} is healthy is
+            unknown. `systemctl status qemu-guest-agent` inside the guest; if it
+            has hung, restarting it is safe.
+
+      - alert: GuestServiceStateStale
+        # The collector stopped rewriting its file. A timestamp rather than
+        # presence, for GuestDiskStateStale's reason: the .prom persists and is
+        # re-served, so every service would stay healthy after the timer died.
+        # Thirty minutes is six runs of a five-minute timer.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*guest-service-state\\.prom"} > 1800
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its guests' service state in half an hour"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            GuestServiceUnhealthy is reading old answers. Check
+            homelab-guest-service-state.timer on the host and its last run in
+            the journal (`journalctl -u homelab-guest-service-state`); a failed
+            `qm list` writes nothing on purpose, so the journal says why.
+
       # --- The hypervisor's own firewall (#576) ------------------------------
       #
       # #566 found `Saruman`'s Proxmox firewall disabled while ADR-0014 and
