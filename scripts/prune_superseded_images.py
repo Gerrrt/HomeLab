@@ -40,16 +40,12 @@ import pathlib
 import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:  # the same fallback check_compose_health.py uses
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from scripts/_deps.py, the one place it may come from: the host's
+# python3-yaml, never a run-time install from PyPI on a production host (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -114,6 +110,20 @@ def compose_refs(path: pathlib.Path) -> list[str]:
     return [str(svc["image"]) for svc in (compose.get("services") or {}).values() if svc and svc.get("image")]
 
 
+def stack_compose_paths() -> list[pathlib.Path]:
+    """Every stack's compose.yaml, from scripts/stacks.sh, the one enumerator.
+
+    Not a glob of stacks/*: stacks.sh fails on a directory under stacks/ with
+    no compose.yaml, and that failure must stop this. The all-stack pin scan is
+    what keeps another stack's images safe, so a stack it silently skipped is
+    a stack whose pinned images it could remove.
+    """
+    listed = subprocess.run(
+        [str(REPO / "scripts/stacks.sh"), "--paths"], capture_output=True, text=True, check=True
+    ).stdout.split()
+    return [REPO / entry / "compose.yaml" for entry in listed]
+
+
 def docker(*args: str) -> str:
     return subprocess.run(["docker", *args], capture_output=True, text=True, check=True).stdout
 
@@ -136,7 +146,12 @@ def main(argv: list[str]) -> int:
         return 2
 
     stack_refs = compose_refs(compose_path)
-    all_refs = [ref for p in sorted((REPO / "stacks").glob("*/compose.yaml")) for ref in compose_refs(p)]
+    try:
+        all_refs = [ref for p in stack_compose_paths() for ref in compose_refs(p)]
+    except (OSError, subprocess.CalledProcessError) as exc:
+        err = (getattr(exc, "stderr", "") or str(exc)).strip()
+        print(f"{RED}error:{OFF} could not list the stacks, so removing nothing: {err}", file=sys.stderr)
+        return 1
 
     try:
         local = [
