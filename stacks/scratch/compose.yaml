@@ -77,6 +77,10 @@ services:
     pids_limit: 4096
     mem_limit: 3584m
     memswap_limit: 3584m
+    # soc's DIFFERENCE 5: no capabilities, not read_only (#845).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -126,6 +130,13 @@ services:
     pids_limit: 1024
     mem_limit: 2048m
     memswap_limit: 2048m
+    # soc's DIFFERENCE 6: the seven measured capabilities, not read_only
+    # (#845). They were measured on a FIRST boot, which is the only kind of
+    # boot this guest has.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID, SYS_CHROOT]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -188,6 +199,18 @@ services:
     hostname: wazuh.dashboard
     mem_limit: 1024m
     memswap_limit: 1024m
+    # soc's DIFFERENCE 7: the estate's whole block, read-only with these tmpfs
+    # mounts; soc's file says what each one holds (#845).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /usr/share/wazuh-dashboard/config:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data/wazuh/downloads:uid=1000,gid=1000,mode=0755,size=64m
+      - /usr/share/wazuh-dashboard/data/wazuh/logs:uid=1000,gid=1000,mode=0775,size=16m
+      - /tmp:size=64m
     environment:
       INDEXER_USERNAME: admin
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/scratch.sops.yaml}

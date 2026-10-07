@@ -90,6 +90,22 @@ services:
     # grow with it.
     mem_limit: 3584m
     memswap_limit: 3584m
+    # DIFFERENCE 5: every capability dropped and no-new-privileges, which
+    # upstream's compose sets on none of the three (#845). Measured on odin
+    # on 2026-10-07: this image runs as wazuh-indexer (uid 1000), and every
+    # process in it — docker-init, sh, java — had CapEff 0000000000000000, so
+    # the drop takes away only the bounding set: the estate's "belt and
+    # braces" case on its prometheus, and the same reasoning.
+    #
+    # NOT read_only. `docker diff` on the running container: the entrypoint
+    # creates config/opensearch.keystore (bootstrap.password, kept across
+    # starts) in the directory where the image ships jvm.options,
+    # log4j2.properties and the security plugin's defaults, so a tmpfs over
+    # config/ hides those and the keystore has no setting to live elsewhere.
+    # It also writes /var/log/wazuh-indexer, which grows, .cache/JNA and /tmp.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -168,6 +184,43 @@ services:
     pids_limit: 1024
     mem_limit: 2048m
     memswap_limit: 2048m
+    # DIFFERENCE 6: seven capabilities of Docker's default fourteen, each
+    # measured rather than taken from the documentation (#845). s6, filebeat,
+    # authd, execd, logcollector, modulesd and syscheckd run as root here;
+    # remoted, analysisd, wazuh-db, monitord and the API run as wazuh (999).
+    # A throwaway FIRST boot on odin on 2026-10-07 — fresh volumes, internal
+    # network, the real ossec.conf — was repeated with one capability more or
+    # less until it matched an uncapped control run exactly (the same ten
+    # daemons up, an API token issued), and then with each of the seven taken
+    # away in turn. Every removal broke the boot; this is what failed:
+    #
+    #   CHOWN, FOWNER  the init's `cp -ar` restoring /var/ossec/queue, and the
+    #                  API's chmod of rbac.db: EPERM on files root does not own
+    #   DAC_OVERRIDE   root reading /var/ossec/etc, which is 999's and 0770
+    #   SETUID/SETGID  the daemons dropping from root to wazuh — "(1131)
+    #                  Unable to switch to user" and "(1130) … to group"
+    #   SYS_CHROOT     analysisd, remoted and the rest still chroot to
+    #                  /var/ossec — "(1132): Unable to chroot"
+    #   KILL           wazuh-control's `kill -0` on daemons running as 999,
+    #                  which is how the init decides apid "did not start
+    #                  correctly" and gives up on the whole manager
+    #
+    # The first boot is the case that needs most (it is the one that chowns),
+    # so the same set covers a warm start; it is also exactly scratch's first
+    # and only boot. Dropped: FSETID, MKNOD, NET_RAW, NET_BIND_SERVICE (1514,
+    # 1515 and 55000 are not privileged ports), SETPCAP, SETFCAP, AUDIT_WRITE.
+    #
+    # NOT read_only. s6-overlay writes /run, and the cont-init scripts rewrite
+    # /etc/services.d and /etc/cont-init.d; the daemons write /var/ossec/stats
+    # and the pid files in /var/ossec/var/run, and something runs dnf,
+    # touching /var/lib/dnf and /var/cache/dnf — 320 paths in `docker diff`,
+    # 248 of them outside /run.
+    # Covering that in tmpfs would be a second copy of the image's layout to
+    # keep in step with every bump.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID, SYS_CHROOT]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -226,6 +279,14 @@ services:
     ports:
       # Agent traffic and enrolment: the six domain machines are the off-host
       # consumers (ADR-0012), and they share this segment, so no firewall rule.
+      #
+      # DIFFERENCE 8: published on the segment, where the lab's Prometheus and
+      # Loki went to loopback behind a token proxy (#834). A proxy has nothing
+      # to add here: these listeners authenticate for themselves. Enrolment
+      # on 1515 needs authd.pass (above) and issues each agent its own key, and
+      # 1514 carries only traffic encrypted to a key enrolment issued. Those
+      # are what stand between the segment and the manager, as the token does
+      # for the lab's stores. BIND_ADDR narrows it to odin's own address.
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
     # 55000 is the API: the dashboard reaches it on this network and nothing
@@ -264,6 +325,35 @@ services:
     hostname: wazuh.dashboard
     mem_limit: 1024m
     memswap_limit: 1024m
+    # DIFFERENCE 7: the estate's whole block — no capabilities, no new
+    # privileges, read-only (#845). Runs as wazuh-dashboard (uid 1000) with
+    # CapEff 0. Every write `docker diff` showed lands in a tmpfs, and a
+    # read-only copy booted on odin on 2026-10-07 against the live indexer:
+    # login page 200, the Wazuh API reached, templates updated, no EROFS or
+    # EACCES. What each tmpfs is for:
+    #
+    #   config/   the entrypoint runs `opensearch-dashboards-keystore create`
+    #             on EVERY start, so the keystore is never state; the image's
+    #             own config/certs (the demo pair) is hidden and unused
+    #   data/     data/uuid. A new server uuid per start costs nothing here
+    #   data/wazuh/downloads, data/wazuh/logs
+    #             created by the app at start. Their own mounts, owned by
+    #             1000, because Docker makes the mount point for the
+    #             dashboard-config volume below as root, and 1000 cannot then
+    #             mkdir beside it — that was the first boot's fatal error.
+    #             downloads is where a CSV export lands; 64m bounds one.
+    #
+    # All of it is memory charged to the 1024m above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /usr/share/wazuh-dashboard/config:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data/wazuh/downloads:uid=1000,gid=1000,mode=0755,size=64m
+      - /usr/share/wazuh-dashboard/data/wazuh/logs:uid=1000,gid=1000,mode=0775,size=16m
+      - /tmp:size=64m
     environment:
       INDEXER_USERNAME: admin
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
@@ -441,6 +531,14 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's
+      # docker-socket-proxy has the reasoning.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Collection agent for this guest — and the first genuine off-host client
@@ -459,6 +557,16 @@ services:
     image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
     container_name: soc-alloy
     pids_limit: 1024
+    # A bound, not a measurement: re-derive from process_resident_memory_bytes
+    # {job="odin-alloy"} in the lab's Prometheus after a fortnight, as zeek's
+    # says. (Per-container container_memory_rss is not kept there: the lab's
+    # cAdvisor series are the root cgroup only.) 299 MiB was the peak over
+    # the 9.7 days odin had run on 2026-10-07, median 287 — flat, with no
+    # excursion yet — and 1024m is the estate's ~3.5x on top (#114).
+    # The neighbour is why it matters: an unbounded Alloy that runs away is
+    # what the kernel OOM-kills wazuh.indexer for (#845).
+    mem_limit: 1024m
+    memswap_limit: 1024m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -512,11 +620,26 @@ services:
       - /rootfs/run:size=64k,mode=0755
     depends_on:
       docker-socket-proxy:
-        condition: service_started
+        condition: service_healthy
     ports:
       # Debug UI, loopback only. No syslog receiver: syslog.alloy is not
       # mounted above, for the reason stacks/lab gives.
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's alloy
+      # has the reasoning.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # The certificate generator, behind a profile: `make up` neither starts nor

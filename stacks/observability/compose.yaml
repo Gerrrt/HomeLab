@@ -1007,6 +1007,17 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # GET /version, which the allowlist above admits (#845). Not
+      # `wget --spider`: that sends HEAD, the GET-only rule refuses it, and a
+      # working proxy would read as unhealthy. The request goes through to the
+      # socket, so this says the proxy AND the daemon behind it answer. busybox
+      # wget from the haproxy Alpine base; --probe proves it.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   alloy:
     <<: *service-defaults
@@ -1206,7 +1217,31 @@ services:
       # neither sender has to move. Gerrrt/Lemmiwinks#161.
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_PORT:-1514}:1514/udp"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_STD_PORT:-514}:1514/udp"
+    healthcheck:
+      # /-/ready over bash's /dev/tcp (#845). The image is Ubuntu with neither
+      # curl nor wget, so bash is the client, and check_compose_health.py
+      # --probe proves bash is still in the image after a bump. /-/ready
+      # answers 503 until the config graph has loaded and 200 after, so this
+      # says the agent is running its config rather than that a process
+      # exists. It does not say the pushes land; the receiving end's alerts
+      # (InstanceDown, LokiIngestionStalled) still say that.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
+      # Healthy, now that it can say so (#845): without the proxy every
+      # docker.alloy component fails while the agent itself reports fine.
+      docker-socket-proxy:
+        condition: service_healthy
       # service_started for loki, for the same reason as grafana above: the
       # distroless image cannot report health. Alloy retries a failed push with
       # backoff and buffers in the meantime, so racing Loki's startup is safe.
