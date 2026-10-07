@@ -47,9 +47,11 @@ call winrm delete winrm/config/Listener?Address=*+Transport=HTTPS>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 rem The certificate's private key is in the template, so every clone holds
-rem the same one until this runs. Nothing trusts it, but it goes.
+rem the same one until this runs. Nothing trusts it, but it goes: -DeleteKey,
+rem because without it the certificate provider removes the certificate and
+rem leaves its private key in the machine key store.
 echo %TIME% powershell: firewall rule, the packer-winrm certificate, Basic auth, unencrypted>> "%LOG%"
-powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | Remove-Item -Force; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
+powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-https' -ErrorAction SilentlyContinue; Get-ChildItem Cert:\LocalMachine\My | Where-Object { $_.FriendlyName -eq 'packer-winrm' } | Remove-Item -DeleteKey -Force; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 echo %TIME% WinRM: disable and stop>> "%LOG%"
