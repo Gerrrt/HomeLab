@@ -242,7 +242,7 @@ What differs from the monitoring host, and why:
 
 ## What it records
 
-Eight gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
+Ten gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
 written on every exit path including the refusals, so a run that declined to
 move still reports what the host is on.
 
@@ -256,6 +256,8 @@ move still reports what the host is on.
 | `homelab_deploy_apply_enabled` | Whether this host applies what it fetches, or is in report-only mode |
 | `homelab_deploy_unapplied` | Whether the checkout has moved past what `make up` last applied |
 | `homelab_deploy_tip_ci` | What CI said about the fetched tip: `1` passed, `0` did not, `-1` not asked (nothing to deploy) or not finished |
+| `homelab_deploy_services_revived` | How many stopped stack services this run started again; `-1` means docker could not be asked |
+| `homelab_deploy_services_stopped` | How many stack services meant to run this run left stopped, and why is in the journal; `-1` as above |
 
 **Where the checkout is and what is running are two facts, and the first
 version recorded only one.** On 2026-10-01 the checkout reached #781's merge by
@@ -282,6 +284,49 @@ journalctl -u 'homelab-converge*' -n 20 --no-pager | grep homelab-deploy
 `SENSITIVE_JOBS` on `trinity`), so `ScheduledJobStale`,
 `ScheduledJobFailed` and `ScheduledJobNeverRan` cover it exactly as they cover
 the backups.
+
+## When a service is stopped
+
+Every run, on every path, including the refusals below, convergence looks for
+a container of its stack that should be running and is not. That means the
+compose working directory is this checkout's `stacks/<stack>`, the restart
+policy is `unless-stopped` or `always`, and the state is exited or dead. It
+starts each one with `docker start`, which uses the config it already had, so
+this deploys nothing
+([ADR-0087](../adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).
+It exists because a `docker kill` is a user stop, which `unless-stopped`
+respects. On 2026-10-07 a scratch test killed containers by image, took the
+production `alloy` with them, and nothing started it for 47 minutes.
+
+`DeployServiceRevived` (info) says it happened. **Something stopped that
+service, so find out what.** The journal names the container:
+
+```bash
+journalctl -u 'homelab-converge*' -n 50 --no-pager | grep -E 'started|leaving|held|backup'
+journalctl -u docker --since today | grep 'stopping restart-manager'
+```
+
+It leaves a service alone in three cases.
+
+| Case | Why | Until |
+| --- | --- | --- |
+| Stopped under 30 minutes ago | A runbook's deliberate stop, such as `docker stop alertmanager` in [`verify-the-alert-path.md`](verify-the-alert-path.md) | The first run after half an hour. `HOMELAB_CONVERGE_REVIVE_GRACE` (seconds) in `/etc/default/homelab-timers` changes it |
+| Named in the hold file | A longer deliberate stop, such as a restore | The line is removed |
+| `backups/volumes/.lock` is held | A hand-run `make backup` stops the services whose volumes it copies, and starting one mid-copy archives a live store. Timer-run backups share converge's `backups` lock and cannot overlap at all | The backup finishes |
+
+**The hold file** is `.git/homelab-hold-<stack>` in the deployment checkout:
+one compose **service** name per line (as in `compose.yaml`, so `caddy` for the
+`ingest-proxy` container), `*` for all of them, and `#` for comments. Say why
+in the comment:
+
+```bash
+printf '# restoring loki, #NNN\nloki\n' >> "$(git -C /home/robo/code/Gerrrt/HomeLab rev-parse --git-path homelab-hold-observability)"
+```
+
+It is outside the tree, so it is not drift. Anything it holds is still counted
+in `homelab_deploy_services_stopped`, and `DeployServicesStopped` fires after
+two hours, so a hold nobody came back to is not silent. A report-only host
+counts what it would have started the same way.
 
 ## When it refuses
 

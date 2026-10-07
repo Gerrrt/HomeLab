@@ -19,6 +19,31 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **Production `alloy` was killed by another session's test, and converge now
+  starts a stopped stack service**
+  ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).
+  - **What happened.** At 05:34:23 UTC a scratch test of Alloy configs ended
+    with `docker ps -q --filter ancestor=<pinned alloy image> | xargs docker
+    kill`. The live `alloy` runs the same image, so it was killed too.
+    `unless-stopped` does not restart after a kill. Host metrics, host logs and
+    `morpheus`'s syslog stopped, and `InstanceDown`, `RemoteWriteJobStale` and
+    `FirewallLogsStopped` paged.
+  - **How it ended.** Another session started it at 06:21:53, and #933's deploy
+    recreated it at 07:27.
+  - **Found by** matching dockerd's "stopping restart-manager" line for the
+    container against every session's commands at that second.
+  - **What was lost.** `morpheus`'s UDP syslog for the 47 minutes is lost.
+    Suricata's own `alerts.log` on the firewall still holds that window.
+  - **Why converge did not help.** The 06:26 run was waiting on CI, and at an
+    applied tip it never looked at a container.
+  - **Now.** Every run, on every path, starts a container of its stack that is
+    meant to run (`unless-stopped` or `always`) and has been stopped for more
+    than half an hour. It leaves alone one named in
+    `.git/homelab-hold-<stack>`, and any while a backup holds its lock.
+    `DeployServiceRevived` says when it did. `DeployServicesStopped` says when
+    one has been left down for two hours. The fixture suite has nine new cases,
+    and each guard fails cases when removed.
+
 - **#182's deployment, recorded late**
   ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
   [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
