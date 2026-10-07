@@ -61,6 +61,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **The six domain guests are declared in `tofu/`, ready for #448's rebuild
+  proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
+  were read from the hand-built guests' `qm config` and written into
+  `tofu/guests.tf`. The guest module gained a MAC (ADR-0077 decision 6), the
+  UUID and the startup order. It now also states q35, OVMF and the EFI disk on
+  every guest, and the TPM on Windows. Every template is UEFI, and the
+  provider's default is SeaBIOS.
+- **`labadmin` is now in code.** Both endpoints had it, in Administrators,
+  and nothing in `ansible/` made it. Windows 11's setup creates it, and a
+  clone of 911 would not have had it. `roles/endpoint_admin` creates it when
+  it is missing, from `LAB_ENDPOINT_ADMIN_PASSWORD`, and `verify.yml` checks
+  it on both endpoints.
+- **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
+  "Rebuild from the pipeline" is the procedure: import, destroy, apply,
+  configure, verify.
 - **Packer is pinned the way tofu is**
   ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
   `packer/versions.pkr.hcl` required `>= 1.11.0`, and
@@ -112,7 +127,6 @@ docstring gives: it is a record, not a claim about now.
       A `delegate_to: localhost` task had inherited the group's PowerShell
       shell type. The task was removed, and a rerun of the stop now picks up
       a capture left that way. That rerun is the one that fetched the file.
-
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
