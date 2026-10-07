@@ -82,7 +82,7 @@ PRESERVED_VARIABLE = ("current", "options")
 # indent=2 matches .editorconfig; ensure_ascii=False keeps em dashes readable
 # in a diff and undoes Grafana's `\u0026`. sort_keys is deliberately absent:
 # order is decided by reorder() against the committed file.
-CANONICAL = dict(indent=2, ensure_ascii=False)
+CANONICAL = {"indent": 2, "ensure_ascii": False}
 
 # Keys that identify "the same item" across two versions of a list, in
 # preference order. Without this, lists are paired by index, and moving a panel

@@ -30,11 +30,12 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
+| `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |
@@ -130,7 +131,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
 | `check-ruleset.sh` | `check-ruleset`, `apply-ruleset` | The ruleset on `main` against [`.github/rulesets/main.json`](../.github/OVERVIEW.md) |
 | `snmp-verify.sh`, `snmp-walk.sh` | `snmp-verify`, `snmp-walk` | Each SNMP device answers its current credential; walk one subtree the way the exporter would |
-| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once, and the vendor MIBs `generator.yaml` needs |
+| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh`, `snmp-generate.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once; the vendor MIBs `generator.yaml` needs; and the regeneration of `snmp.yaml` from them |
 
 ## Dashboards and the lab
 
@@ -141,6 +142,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
+| `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |
 
 ## Adding a script
 

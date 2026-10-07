@@ -31,11 +31,13 @@
           Sams: "{{ population_users | map(attribute='sam') | list }}"
           Groups: "{{ population_groups | map(attribute='name') | list }}"
           Netbios: "{{ lab_netbios }}"
+          SysmonVersion: "{{ sysmon_version }}"
+          SysmonConfig: "{{ sysmon_config_sha256 }}"
         script: |
           param([string]$Domain, [string]$Name, [string]$IsDc, [string]$IsPrimary,
                 [string]$IsTitan, [string]$Gateway, [string]$Scraper, [string]$LabRole,
                 [string]$PrimaryDc, [string]$PeopleOu, [string[]]$Sams, [string[]]$Groups,
-                [string]$Netbios)
+                [string]$Netbios, [string]$SysmonVersion, [string]$SysmonConfig)
           $Ansible.Changed = $false
           # Not $isDc: PowerShell names are case-insensitive, so that is the [string]
           # parameter above, and assigning the bool to it turns it back into "False",
@@ -63,6 +65,20 @@
           $r['Wazuh agent running'] = ((Get-Service WazuhSvc -ErrorAction SilentlyContinue).Status -eq 'Running')
           $velo = Get-Service Velociraptor -ErrorAction SilentlyContinue
           $r['Velociraptor client running'] = ($velo.Status -eq 'Running')
+          # --- #450: Sysmon, recording with the vendored config ----------------
+          # The driver as well as the service: Sysmon64 running over an unloaded
+          # SysmonDrv records nothing. ConfigHash is what the driver last loaded,
+          # so this fails on a config changed by hand as well as on a stale one.
+          $r['Sysmon running'] = ((Get-Service Sysmon64 -ErrorAction SilentlyContinue).Status -eq 'Running')
+          $r['Sysmon driver loaded'] = ((Get-Service SysmonDrv -ErrorAction SilentlyContinue).Status -eq 'Running')
+          $sx = (Get-Item C:\Windows\Sysmon64.exe -ErrorAction SilentlyContinue).VersionInfo
+          $r["Sysmon is $SysmonVersion"] =
+            ($sx -and ('{0}.{1}' -f $sx.FileMajorPart, $sx.FileMinorPart) -eq $SysmonVersion)
+          $sp = Get-ItemProperty HKLM:\SYSTEM\CurrentControlSet\Services\SysmonDrv\Parameters `
+            -ErrorAction SilentlyContinue
+          $r['Sysmon runs the vendored config'] = (([string]$sp.ConfigHash -replace '^SHA256=', '') -eq $SysmonConfig)
+          $r['Sysmon has recorded something'] = [bool](Get-WinEvent -LogName Microsoft-Windows-Sysmon/Operational `
+            -MaxEvents 1 -ErrorAction SilentlyContinue)
           $r['9182 listening'] = [bool](Get-NetTCPConnection -LocalPort 9182 -State Listen `
             -ErrorAction SilentlyContinue)
           $open = Get-NetFirewallPortFilter -Protocol TCP |
