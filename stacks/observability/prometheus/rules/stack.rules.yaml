@@ -462,9 +462,10 @@ groups:
         # THOSE ARE LOKI'S NAMES, NOT THIS ALERT'S. They are the `reason` label
         # of loki_discarded_samples_total. This rule reads Alloy's counter,
         # whose `reason` is one of batch_too_large, ingester_error,
-        # queue_is_full, rate_limited and stream_limited (Alloy v1.20.1), and
-        # Alloy files every rejection Loki sends back — too old, too far behind
-        # — under ingester_error. So a restart replay arrives here as
+        # queue_is_full, rate_limited and stream_limited (Alloy v1.20.1). A 429
+        # from Loki is rate_limited and a 413 is batch_too_large; the rest,
+        # including the "too old" and "too far behind" refusals a replay draws,
+        # fall to ingester_error. So a restart replay arrives here as
         # `reason="ingester_error"`. On 2026-10-07 at 15:42 one Alloy restart
         # dropped about 90,000 entries that way, from `alloy` and
         # `prometheus-alloy`, while Loki counted the same burst as
