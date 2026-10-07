@@ -17,6 +17,26 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-06
+
+- **Packer is pinned the way tofu is**
+  ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
+  `packer/versions.pkr.hcl` required `>= 1.11.0`, and
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §1
+  installed whatever HashiCorp's apt repository held, while CI linted with
+  `hashicorp/packer:1.16.1`. The requirement is now `~> 1.16.0`, and §1
+  installs the 1.16.1 zip after checking it against `SHA256SUMS`. A host that
+  had packer from apt removes it along with the repository. phoenix has not
+  been moved yet, so `packer version` there is still unproved.
+- **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
+  at least the template's own disk (32 Linux, 64 Windows). `memory_mib` must be
+  at least 1024 for Linux and 2048 for Windows, and `cores` at least 1. All
+  three are checked at plan, where before a disk that was too small failed only
+  at apply.
+- **9182 is named once.** The new `windows_exporter_port` in
+  `group_vars/all.yaml` feeds the MSI's `LISTEN_PORT`, the firewall rule and
+  `verify.yml`'s two checks.
+
 ## 2026-10-05
 
 - **The CRS326 is on RouterOS 7, and reset.** Phase 1 of

@@ -43,16 +43,35 @@ variable "bridge" {
 }
 
 variable "cores" {
-  type = number
+  type        = number
+  description = "vCPUs. host CPU type, so each is a real thread on Saruman."
+
+  validation {
+    condition     = var.cores >= 1 && floor(var.cores) == var.cores
+    error_message = "cores must be a whole number, at least 1."
+  }
 }
 
 variable "memory_mib" {
-  type = number
+  type        = number
+  description = "Dedicated memory, no balloon. At least 1024 for Linux, 2048 for Windows (Server 2025's floor)."
+
+  validation {
+    condition     = var.memory_mib >= (var.linux ? 1024 : 2048) && floor(var.memory_mib) == var.memory_mib
+    error_message = "memory_mib must be a whole number, at least 1024 for Linux and 2048 for Windows."
+  }
 }
 
 variable "disk_gib" {
   type        = number
   description = "At least the template's own disk: 32 for Linux, 64 for Windows."
+
+  # A clone cannot be smaller than its template. Without this, a disk that is
+  # too small fails only at apply, against Proxmox, with the guest half made.
+  validation {
+    condition     = var.disk_gib >= (var.linux ? 32 : 64) && floor(var.disk_gib) == var.disk_gib
+    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Linux, 64 for Windows."
+  }
 }
 
 variable "linux" {
