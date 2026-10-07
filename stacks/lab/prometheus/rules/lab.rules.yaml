@@ -1,7 +1,7 @@
 ---
 # The lab stack watching itself.
 #
-# Sixteen rules, and the number is still the point. The estate has 48; ADR-0007
+# Nineteen rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
@@ -11,7 +11,8 @@
 # and they are here rather than in a stack of their own because this Prometheus
 # is the only thing on the segment that scrapes it. Seven cover golem's backups
 # (ADR-0053), because a verify nobody watches is a green check with nothing
-# behind it, and this is where the lab looks.
+# behind it, and this is where the lab looks. Three cover fenrir's Zeek archive
+# prune (#850), the one run-scheduled.sh job whose outcome lands here.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -385,3 +386,68 @@ groups:
             homelab-pbs-task-state.timer on golem and
             `journalctl -u homelab-pbs-task-state`, which says what PBS
             answered.
+
+      # fenrir's Zeek archive prune (#850), the one scheduled job whose outcome
+      # lands here. It runs through run-scheduled.sh like the estate's jobs, so
+      # it writes the same homelab_job_* series, and these three carry the
+      # estate's names for the same conditions. What they cannot carry is the
+      # estate's threshold table: homelab_job_max_age_seconds is written by
+      # install-timers.sh on oracle, and nothing writes it on fenrir, so the
+      # threshold is stated inline, as PbsVerifyOverdue states its fortnight.
+      #
+      # The prune matters because nothing else bounds the archive: a prune that
+      # stops is found by /srv/sensor-data filling, and that is found only here.
+
+      # The last run failed. Within ten minutes rather than after Stale's three
+      # days, so a broken prune is visible the morning it breaks.
+      - alert: ScheduledJobFailed
+        expr: homelab_job_last_exit_code != 0
+        for: 10m
+        labels:
+          component: sensor
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} on {{ $labels.instance }} exited {{ $value }}"
+          description: >-
+            The last run failed. `journalctl -u homelab-{{ $labels.homelab_job }}.service -n 100`
+            on the host has the output. Exit 75 means it never started because
+            another job held its lock.
+
+      # No success for three days. The prune is daily, so this is three missed
+      # nights: the timer stopped, fenrir has been off, or it fails every night
+      # (run-scheduled.sh carries the last success forward across a failure, so
+      # a nightly failure ages out here on schedule).
+      - alert: ScheduledJobStale
+        expr: time() - homelab_job_last_success_timestamp_seconds{homelab_job="zeek-archive-prune"} > 3 * 86400
+        for: 1h
+        labels:
+          component: sensor
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} on {{ $labels.instance }} has not succeeded for {{ $value | humanizeDuration }}"
+          description: >-
+            Zeek's archive is not being pruned and /srv/sensor-data will fill.
+            Check `systemctl list-timers homelab-zeek-archive-prune.timer` and
+            `journalctl -u homelab-zeek-archive-prune` on fenrir —
+            docs/runbooks/build-the-sensor-guest.md §4.
+
+      # No run recorded at all: the timer was never installed (a rebuilt fenrir
+      # where nobody ran the installer), its .prom was removed, or fenrir's
+      # Alloy is not shipping the textfile directory. Stale cannot see any of
+      # those, because a job that never ran leaves no series to be old.
+      - alert: ScheduledJobNeverRan
+        expr: absent_over_time(homelab_job_last_run_timestamp_seconds{homelab_job="zeek-archive-prune"}[6h])
+        for: 1h
+        labels:
+          component: sensor
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} is scheduled but has never recorded a run"
+          description: >-
+            No outcome from fenrir's Zeek archive prune in six hours. Install
+            it with `make install-agent-collectors ARGS='--only zeek-archive-prune'`
+            (docs/runbooks/build-the-sensor-guest.md §4), and check that
+            /var/lib/node_exporter/textfile_collector exists on fenrir.

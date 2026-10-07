@@ -39,7 +39,7 @@ drifts.
 | NICs | **Two.** `net0` on `vmbr0` and `net1` alone on `vmbr1` | `net0` is the guest's own traffic, including its log shipping to `alexander`. `net1` receives only the mirror's copies and reaches nothing (ADR-0068) |
 | Firewall | `firewall=0` on both | As on every guest here: the isolation is the bridge (`build-the-playground.md` §4). A Proxmox firewall bridge on `net1` would also put an `fwbr` between the tap and the mirror |
 | vCPU / RAM | 4 / 8 GiB | Zeek is one process per interface, and the lab's traffic is a trickle beside what one core handles. Most of the RAM is page cache for the logs. It is a bound, and gets re-derived after a fortnight |
-| Disk | **Two: 32 GB OS, 64 GB data**, both on `large_data` | The data disk at `/srv/sensor-data` holds the current logs and fourteen days of hourly archive. The lab's Loki keeps 360 h of what Alloy ships; the archive is the local copy for the days after that |
+| Disk | **Two: 32 GB OS, 64 GB data**, both on `large_data` | The data disk at `/srv/sensor-data` holds the current logs and the hourly archive, kept for the retention `homelab-zeek-archive-prune` sets (§4). The lab's Loki keeps 360 h of what Alloy ships; the archive is the local copy for the days after that |
 | Mirror | `tc`, not Open vSwitch | ADR-0068 |
 
 ## 1. The capture bridge, on `Saruman`
@@ -264,11 +264,37 @@ Both containers should be running, and Zeek should be writing into
 `/srv/sensor-data/zeek`. With no mirror yet, it sees nothing: only
 `reporter.log` and `stats.log` appear.
 
-**Prune the archive**, because nothing else will:
+**Prune the archive**, because nothing else will. The prune is a timer shipped
+from the repository,
+[`homelab-zeek-archive-prune`](../../systemd/agent/homelab-zeek-archive-prune.service),
+daily at 03:17, and the retention is set in that unit and nowhere else
+(`ZEEK_ARCHIVE_RETENTION_DAYS`). It runs through `run-scheduled.sh`, so its
+outcome is a `.prom` file that this guest's Alloy ships to the lab's
+Prometheus, where `ScheduledJobFailed`, `ScheduledJobStale` and
+`ScheduledJobNeverRan` read it (#850).
+
+That file needs the textfile directory, which nothing else creates on this
+guest. On `fenrir`:
 
 ```bash
-echo '17 3 * * * root find /srv/sensor-data/zeek/archive -type f -mtime +14 -delete' \
-  | sudo tee /etc/cron.d/zeek-archive-prune
+sudo install -d -m 0755 -o root -g root /var/lib/node_exporter/textfile_collector
+```
+
+Then install the timer from the checkout on Hicks, as §5 does for `Saruman`.
+Log in as your own user on `fenrir`; the installer asks for its sudo password
+once:
+
+```bash
+make install-agent-collectors AGENT=<user>@10.0.30.90 ARGS='--only zeek-archive-prune'
+```
+
+It must end with `zeek-archive-prune.prom written, mode 644`.
+
+**On a `fenrir` built before #850**, remove the cron line the timer replaces,
+so the two do not both prune:
+
+```bash
+sudo rm -f /etc/cron.d/zeek-archive-prune
 ```
 
 ## 5. The mirror and its gauge, on `Saruman`
