@@ -20,6 +20,7 @@ Usage:
   scripts/check_rule_tests.py              check every stack
   scripts/check_rule_tests.py --self-test  run the fixtures
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -45,8 +46,7 @@ def untested(rules_text: list[str], tests_text: list[str]) -> list[str]:
 
 
 def stacks() -> list[str]:
-    out = subprocess.run([str(REPO / "scripts/stacks.sh")],
-                         capture_output=True, text=True, check=True)
+    out = subprocess.run([str(REPO / "scripts/stacks.sh")], capture_output=True, text=True, check=True)
     return out.stdout.split()
 
 
@@ -62,8 +62,9 @@ def main() -> int:
         if not rules:
             continue
         tests = sorted((prom / "tests").glob("*.test.yaml"))
-        missing = untested([r.read_text(encoding="utf-8") for r in rules],
-                           [t.read_text(encoding="utf-8") for t in tests])
+        missing = untested(
+            [r.read_text(encoding="utf-8") for r in rules], [t.read_text(encoding="utf-8") for t in tests]
+        )
         checked += len([m for r in rules for m in ALERT.findall(r.read_text(encoding="utf-8"))])
         for name in missing:
             if ALLOWED.get((stack, name), "").strip():
@@ -77,10 +78,7 @@ def main() -> int:
             if s == stack and not reason.strip():
                 problems.append(f"ALLOWED names {s}/{name} with no reason: an exception needs one")
             elif s == stack and name not in missing:
-                problems.append(
-                    f"ALLOWED names {s}/{name}, which is tested now (or gone): "
-                    f"remove the entry"
-                )
+                problems.append(f"ALLOWED names {s}/{name}, which is tested now (or gone): remove the entry")
     for problem in problems:
         print(f"  {problem}", file=sys.stderr)
     if problems:
@@ -90,12 +88,17 @@ def main() -> int:
 
 
 def self_test() -> int:
-    rules = ["groups:\n  - name: g\n    rules:\n      - alert: A\n        expr: up\n      - alert: B\n        expr: up\n"]
+    rules = [
+        "groups:\n  - name: g\n    rules:\n      - alert: A\n        expr: up\n      - alert: B\n        expr: up\n"
+    ]
     cases = [
         ("a rule no test selects is reported", untested(rules, ["alertname: A\n"]), ["B"]),
         ("every rule selected is clean", untested(rules, ["alertname: A\n", "  alertname: B\n"]), []),
-        ("a rule named only in a comment is not tested",
-         untested(rules, ["alertname: A\n# B is tested elsewhere\n"]), ["B"]),
+        (
+            "a rule named only in a comment is not tested",
+            untested(rules, ["alertname: A\n# B is tested elsewhere\n"]),
+            ["B"],
+        ),
         ("a record: rule is not an alert", untested(["      - record: x\n        expr: up\n"], []), []),
     ]
     failed = 0
