@@ -36,6 +36,7 @@ Usage: scripts/qga-resync.py [--timeout SECONDS] <vmid>...
 """
 
 import json
+import math
 import os
 import secrets
 import socket
@@ -44,6 +45,11 @@ import time
 
 QGA_DIR = os.environ.get("QGA_DIR", "/var/run/qemu-server")
 DEFAULT_TIMEOUT = 10.0
+# What the agent sends is the guest's to choose (ADR-0070), and this runs as
+# root on the hypervisor. A reply that grows past this without ending is
+# refused rather than buffered: collect-guest-disk-state.sh's cap, for its
+# reason.
+MAX_REPLY = 1024 * 1024
 
 
 class NoAnswer(Exception):
@@ -62,15 +68,21 @@ def _replies(sock, deadline):
             data = sock.recv(65536)
         except TimeoutError:
             raise NoAnswer("timed out") from None
+        except OSError as e:
+            raise NoAnswer(f"the socket failed: {e}") from None
         if not data:
             raise NoAnswer("the socket closed")
         buf += data.replace(b"\xff", b"")
         while b"\n" in buf:
             line, buf = buf.split(b"\n", 1)
             try:
-                yield json.loads(line)
+                reply = json.loads(line)
             except ValueError:
                 continue
+            if isinstance(reply, dict):
+                yield reply
+        if len(buf) > MAX_REPLY:
+            raise NoAnswer(f"a reply passed {MAX_REPLY} bytes without ending, and was refused")
 
 
 def _await(sock, deadline, want):
@@ -78,6 +90,13 @@ def _await(sock, deadline, want):
         if want(reply):
             return reply
     raise NoAnswer("the socket closed")
+
+
+def _send(sock, request, prefix=b""):
+    try:
+        sock.sendall(prefix + json.dumps(request).encode() + b"\n")
+    except OSError as e:
+        raise NoAnswer(f"the socket failed: {e}") from None
 
 
 def resync(vmid, timeout=DEFAULT_TIMEOUT):
@@ -94,20 +113,20 @@ def resync(vmid, timeout=DEFAULT_TIMEOUT):
             sock.connect(path)
         except OSError as e:
             return f"could not connect to {path}: {e}"
-        request = {"execute": "guest-sync-delimited", "arguments": {"id": sync_id}}
-        sock.sendall(b"\xff" + json.dumps(request).encode() + b"\n")
         try:
+            _send(sock, {"execute": "guest-sync-delimited", "arguments": {"id": sync_id}}, prefix=b"\xff")
             # A stale reply from before the reset may come first; only ours counts.
             _await(sock, deadline, lambda r: r.get("return") == sync_id)
         except NoAnswer as e:
             return f"no answer to guest-sync-delimited: {e}"
-        sock.sendall(json.dumps({"execute": "guest-ping"}).encode() + b"\n")
         try:
+            _send(sock, {"execute": "guest-ping"})
             reply = _await(sock, deadline, lambda r: "return" in r or "error" in r)
         except NoAnswer as e:
             return f"resynchronised, but no answer to guest-ping: {e}"
         if "error" in reply:
-            return f"resynchronised, but guest-ping failed: {reply['error']}"
+            # The guest's words, so quoted and cut short rather than printed raw.
+            return f"resynchronised, but guest-ping failed: {json.dumps(reply['error'])[:200]}"
         return None
     finally:
         sock.close()
@@ -141,6 +160,16 @@ def self_test():
             # never closes, so nothing parses until a 0xFF resets it.
             reset = mode != "wedged"
             try:
+                if mode == "flood":
+                    # A compromised guest: bytes that never end in a newline.
+                    chunk = b"x" * 65536
+                    for _ in range(MAX_REPLY // len(chunk) + 2):
+                        conn.sendall(chunk)
+                if mode == "hangup":
+                    # The peer goes away mid-conversation, with a reset.
+                    conn.setsockopt(socket.SOL_SOCKET, socket.SO_LINGER, b"\x01\x00\x00\x00\x00\x00\x00\x00")
+                    conn.close()
+                    return
                 if mode == "stale":
                     # A reply to an earlier sync, still in the channel.
                     conn.sendall(b'\xff{"return": 7}\n')
@@ -180,7 +209,7 @@ def self_test():
     saved = QGA_DIR
     with tempfile.TemporaryDirectory() as d:
         QGA_DIR = d
-        for vmid, mode in ((1, "wedged"), (2, "stale"), (3, "dead"), (4, "no-ping")):
+        for vmid, mode in ((1, "wedged"), (2, "stale"), (3, "dead"), (4, "no-ping"), (6, "flood"), (7, "hangup")):
             fake_agent(os.path.join(d, f"{vmid}.qga"), mode)
         check("a wedged agent answers after the 0xFF reset", None, resync(1, timeout=2))
         check("a stale reply to an earlier sync is not taken for ours", None, resync(2, timeout=2))
@@ -199,8 +228,31 @@ def self_test():
             f"no {os.path.join(d, '5.qga')}: the guest is not running, or has no agent configured",
             resync(5, timeout=0.5),
         )
+        check(
+            "a reply that never ends is refused at the cap, not buffered",
+            f"no answer to guest-sync-delimited: a reply passed {MAX_REPLY} bytes without ending, and was refused",
+            resync(6, timeout=5),
+        )
+        hangup = resync(7, timeout=2)
+        check(
+            "a peer that hangs up is a reason, not a traceback",
+            True,
+            hangup is not None and hangup.startswith("no answer to guest-sync-delimited: "),
+        )
+        for bad in ("0", "-1", "nan", "inf", "x"):
+            check(f"--timeout {bad} is refused", None, parse_timeout(bad))
+        check("--timeout 2.5 is taken", 2.5, parse_timeout("2.5"))
     QGA_DIR = saved
     return failed
+
+
+def parse_timeout(text):
+    """A finite, positive number of seconds, or None."""
+    try:
+        value = float(text)
+    except ValueError:
+        return None
+    return value if math.isfinite(value) and value > 0 else None
 
 
 def main():
@@ -209,9 +261,8 @@ def main():
         sys.exit(self_test())
     timeout = DEFAULT_TIMEOUT
     if args[:1] == ["--timeout"] and len(args) >= 2:
-        try:
-            timeout = float(args[1])
-        except ValueError:
+        timeout = parse_timeout(args[1])
+        if timeout is None:
             sys.exit(__doc__.split("Usage:")[1].strip())
         args = args[2:]
     if not args or not all(a.isdigit() for a in args):
