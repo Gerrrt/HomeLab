@@ -14,14 +14,17 @@
 # separately (cpqHePowerMeterCurrReading, 117 W that day). It is a subset of
 # this, so adding both would double-count.
 #
-# Prometheus is plain HTTP on 9090 inside Winterfell. Since #182 that port is
-# the estate's ingest proxy, which serves a query only to the reader token
-# (ADR-0067). The header comes from the environment, with `!env_var`, and
+# Prometheus is on 9090 inside Winterfell. Since #182 that port is the
+# estate's ingest proxy, which serves a query only to the reader token
+# (ADR-0067), and since #764 it serves https under the estate CA (ADR-0086).
+# verify_ssl is the integration's default, on, and it verifies against
+# REQUESTS_CA_BUNDLE, which compose.yaml points at a bundle holding that CA.
+# The header comes from the environment, with `!env_var`, and
 # compose.yaml's guard fills it from secrets/sensitive.sops.yaml. The query
 # returns one number.
 
 rest:
-  - resource: http://10.0.99.20:9090/api/v1/query
+  - resource: https://10.0.99.20:9090/api/v1/query
     headers:
       Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
     params:

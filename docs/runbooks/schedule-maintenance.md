@@ -161,7 +161,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`, `cert-expiry`,
-`guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `guest-service-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
 rows that collect nothing, `zeek-mirror` and `prune-images`, and one scheduled job, `zeek-archive-prune` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
@@ -216,6 +216,18 @@ both critical
 answered stops, and `GuestDiskStateStale` warns when the collector does. It
 requires `qm`, so it installs on the hypervisor only:
 `make install-agent-collectors AGENT=root@Saruman ARGS='--only guest-disk-state'`.
+
+**`guest-service-state` is how a dead lab service reaches a phone.** Every five
+minutes, on `Saruman`, `scripts/collect-guest-service-state.sh` asks Docker in
+`alexander`, `fenrir` and `odin`, through each guest's agent, whether the lab
+Prometheus, Zeek, the Wazuh manager and Velociraptor are `running healthy`.
+The estate's `GuestServiceUnhealthy` warns after fifteen minutes
+([ADR-0088](../adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md),
+[#858](https://github.com/Gerrrt/HomeLab/issues/858)). `GuestServiceUnchecked`
+warns when an agent stops running the check, and `GuestServiceStateStale` when
+the collector stops writing. It requires `qm`, so it installs on the hypervisor
+only, from the Mac, because VLAN 99 cannot reach VLAN 30 on port 22:
+`make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only guest-service-state'`.
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable
@@ -580,7 +592,14 @@ off-host, which nothing else in this list is. `make scan-images` is not here
 either, for the same reason: the weekly CVE scan of those digests runs in
 [`cve-scan.yml`](../../.github/workflows/cve-scan.yml), and its findings
 arrive as issues labelled `security`
-([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+([#852](https://github.com/Gerrrt/HomeLab/issues/852)). The household
+wiki's engine is watched the same way:
+[`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
+`requarks/wiki`'s own advisories and releases every Monday against the
+pinned version. It keeps one issue, labelled `security` and `wiki`, open while
+an advisory affects the pin or an ADR-0089 trigger has fired. That is what
+starts the 30-day clock for an advisory nobody fixes. Run it locally with
+`python3 scripts/wiki_watch.py`.
 
 ---
 

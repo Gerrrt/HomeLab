@@ -5,11 +5,12 @@
 // merges every *.alloy in it into a single configuration. The header of
 // config.alloy says which file goes where.
 //
-// This file exists ONLY on the monitoring host. It opens a UDP listener on
+// This file exists ONLY on the monitoring host. It opens two listeners on
 // every interface the process can see, which inside the compose stack is the
-// container's own namespace, published to the host by compose.yaml as
-// ${INGEST_BIND_ADDR}:1514/udp for morpheus to send to. Only senders named in
-// loki.relabel.network_syslog are stored (#844). On a remote agent the same
+// container's own namespace, published to the host by compose.yaml for
+// morpheus to send to: ${INGEST_BIND_ADDR}:1514/udp, and
+// ${INGEST_BIND_ADDR}:6514/tcp with TLS and a required client certificate
+// (#1049). Only senders named in loki.relabel.network_syslog are stored (#844). On a remote agent the same
 // listener would be an unused open port — and on a host running the native
 // package, an unused open port on the host's real interface, on a segment
 // ADR-0014 puts an attack VM on. scripts/deploy-agent.sh never ships it.
@@ -28,6 +29,38 @@
 // interface (10.0.99.1), so no firewall rule is required.
 //
 // UDP and RFC3164 because that is what pfSense sends by default.
+//
+// TLS ON 6514, AND WHY BOTH LISTENERS FOR NOW (#1049). A UDP source address
+// can be forged by any host on VLAN 99, so #844's allowlist below cannot tell
+// morpheus from something claiming to be it. The second listener closes that:
+//
+//   - TCP, so a blindly forged source never completes a handshake and the
+//     allowlist's address means what it says.
+//   - TLS with ca_file set, which is what makes the pinned Alloy (v1.20.1,
+//     syslogtarget/transport.go) set ClientAuth = RequireAndVerifyClientCert.
+//     A sender with no certificate, or one that does not chain to ca_file, is
+//     refused during the handshake, before a byte of syslog is read.
+//   - ca_file is MORPHEUS'S OWN CERTIFICATE, not the estate CA. Go accepts a
+//     certificate found in its trust pool as a chain of one, so this pins the
+//     exact leaf: no other certificate passes, including another client leaf
+//     the same CA signs later. Trusting the estate CA instead would accept
+//     any of them, and a holder of one who took over 10.0.99.1 would pass
+//     both checks. The leaf must still carry extendedKeyUsage clientAuth,
+//     which scripts/gen-certs.sh --client gives it.
+//
+// The allowlist still applies to TLS lines too, so taking over 10.0.99.1 on
+// the segment is not enough without morpheus's key, and holding the key is
+// not enough from another address.
+//
+// pfSense's own syslogd sends UDP only, so morpheus sends TLS through the
+// syslog-ng package (docs/runbooks/ship-firewall-logs.md §7). syslog-ng's
+// syslog() driver speaks RFC 5424 with octet-counted framing, hence that
+// format here; Alloy's TCP reader takes either framing.
+//
+// The UDP listener stays until TLS lines are proven arriving as
+// host="morpheus" with transport="tls", because a gap in firewall logs cannot
+// be replayed. Removing it, and its two published ports, is what finally
+// closes the forgeable path; until then it is still open.
 //
 // use_incoming_timestamp is DELIBERATELY false. RFC3164 carries neither a year
 // nor a timezone, and trusting a timestamp with neither is how the first
@@ -59,8 +92,38 @@ loki.source.syslog "network" {
 		use_incoming_timestamp          = false
 
 		labels = {
-			log_type = "syslog",
-			source   = "network",
+			log_type  = "syslog",
+			source    = "network",
+			transport = "udp",
+		}
+	}
+
+	// use_incoming_timestamp stays false for the same reason as above, even
+	// though RFC 5424 carries a zone: one clock for every line from morpheus,
+	// whichever way it came, so the two transports interleave correctly
+	// during the switch-over.
+	listener {
+		address                = "0.0.0.0:6514"
+		protocol               = "tcp"
+		syslog_format          = "rfc5424"
+		use_incoming_timestamp = false
+
+		labels = {
+			log_type  = "syslog",
+			source    = "network",
+			transport = "tls",
+		}
+
+		// The listener's own leaf, syslog.matrix.elysium with 10.0.99.20 as an
+		// IP SAN, and a key no other service holds. ca_file is morpheus's
+		// certificate, pinned (above), and it is also what turns client
+		// certificates from optional to required: leaving it out would give
+		// an encrypted stream from anyone. Re-issuing morpheus's leaf means
+		// restarting Alloy, which reads this file at start.
+		tls_config {
+			cert_file = "/etc/syslog-tls/cert.pem"
+			key_file  = "/etc/syslog-tls/key.pem"
+			ca_file   = "/etc/syslog-tls/morpheus.pem"
 		}
 	}
 
@@ -103,13 +166,13 @@ loki.relabel "network_syslog" {
 	// Timestamp straight to tag. So the only values that field would ever carry
 	// here are ones some other sender chose.
 	//
-	// What this does not close: UDP has no handshake, so a host on VLAN 99 can
-	// forge 10.0.99.1 as its source address and be let in. No filter on the
-	// source address can stop that, wherever it runs: not a pfSense rule (VLAN
-	// 99 reaches this host on the switched segment without crossing the
-	// firewall), and not a host firewall here either, because it would see
-	// the same forged address. Only an authenticated transport closes it, such
-	// as syslog over TLS with a client certificate morpheus holds.
+	// What this does not close ON UDP: there is no handshake, so a host on
+	// VLAN 99 can forge 10.0.99.1 as its source address and be let in. No
+	// filter on the source address can stop that, wherever it runs: not a
+	// pfSense rule (VLAN 99 reaches this host on the switched segment without
+	// crossing the firewall), and not a host firewall here either, because it
+	// would see the same forged address. The TLS listener above is what closes
+	// it, once morpheus sends there and the UDP listener is removed (#1049).
 	rule {
 		source_labels = ["__syslog_connection_ip_address"]
 		regex         = "10\\.0\\.99\\.1"

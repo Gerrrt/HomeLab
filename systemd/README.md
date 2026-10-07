@@ -97,6 +97,7 @@ for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 | `homelab-pve-firewall-state` | every 5 min | `Saruman` | Whether the Proxmox firewall is on |
 | `homelab-guest-state` | every 10 min | `Saruman` | Which guests are running |
 | `homelab-guest-disk-state` | every 10 min | `Saruman` | How full the guests' filesystems are |
+| `homelab-guest-service-state` | every 5 min | `Saruman` | Whether the named lab services are healthy ([#858](https://github.com/Gerrrt/HomeLab/issues/858)) |
 | `homelab-thin-pool-state` | every 10 min | `Saruman` | How full the LVM-thin pools are |
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |

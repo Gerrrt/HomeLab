@@ -16,10 +16,17 @@ ansible_ssh_private_key_file: ~/.ssh/id_ed25519
 # (ADR-0085, which amends ADR-0077 decision 2). inventory_dir is
 # ansible/inventory, so this holds for ad-hoc `ansible` as well as for every
 # playbook.
+#
+# ServerAlive: a connection whose peer went quiet is dropped within ~15 s, so
+# a retry gets a fresh one instead of queueing behind a ControlPersist master
+# that will never answer. A DC's address change does exactly that (the #448
+# rebuild lost both DCs to it, roles/base).
 ansible_ssh_common_args: >-
   -o UserKnownHostsFile={{ inventory_dir }}/../.known_hosts
   -o GlobalKnownHostsFile=/dev/null
   -o StrictHostKeyChecking=yes
+  -o ServerAliveInterval=5
+  -o ServerAliveCountMax=3
 
 # --- ADR-0029, encoded, not re-decided --------------------------------------
 lab_domain: ad.matrix.elysium

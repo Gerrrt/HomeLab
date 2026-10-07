@@ -79,10 +79,25 @@
   poll: 0
   register: base_static
 
+# Dropping the DHCP address kills the session the task above ran in, and
+# ssh's ControlPersist master for this host dies with it without noticing.
+# A connection made in the next few seconds dies the same way: on leviathan
+# sshd accepted one 5 s after the change, and Windows' network state then
+# churned for another 11 s ("Network State Change Fired", then Identified).
+# wait_for_connection retried down that dead master until it timed out, which
+# is how the #448 rebuild lost both DCs ("Data could not be sent to remote
+# host") with the address correctly set. Hence a reset here, a 30 s delay
+# below, and ServerAlive in group_vars so a master that does stall is dropped.
+# Unconditional, because reset_connection ignores `when`; on a guest whose
+# address was already static it only closes a connection the next task
+# reopens.
+- name: Drop the connection the address change broke
+  ansible.builtin.meta: reset_connection
+
 - name: Wait for the DC to answer at its static address
   ansible.builtin.wait_for_connection:
-    delay: 5
-    timeout: 120
+    delay: 30
+    timeout: 180
   when: base_static.ansible_job_id is defined
 
 - name: Collect the result of the address change

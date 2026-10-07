@@ -48,7 +48,8 @@
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
-# thin-pool-state (#538), guest-disk-state (#778), pve-firewall-state (#576),
+# thin-pool-state (#538), guest-disk-state (#778), guest-service-state (#858),
+# pve-firewall-state (#576),
 # iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
 # drift-check (#470), plus
 # two rows that collect nothing (below) and zeek-archive-prune (#850), a
@@ -117,6 +118,7 @@ COLLECTORS=(
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
+  "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"

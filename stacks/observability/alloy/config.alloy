@@ -22,8 +22,8 @@
 // The remote endpoints are read from the environment so a host outside the
 // compose network can point at the monitoring host explicitly:
 //
-//   LOKI_URL=http://10.0.99.20:3100/loki/api/v1/push
-//   PROMETHEUS_REMOTE_WRITE_URL=http://10.0.99.20:9090/api/v1/write
+//   LOKI_URL=https://10.0.99.20:3100/loki/api/v1/push
+//   PROMETHEUS_REMOTE_WRITE_URL=https://10.0.99.20:9090/api/v1/write
 //   INGEST_TOKEN=<this host's agent token>
 //   ALLOY_ROOTFS=/   (native package only; the container layout is the default)
 //
@@ -310,13 +310,37 @@ loki.process "authlogs" {
 // ============================================================================
 // VAR LOG COLLECTION
 // ============================================================================
+//
+// The files nothing else ships: dpkg.log, alternatives.log, cloud-init's,
+// apport's and the like. What rsyslog ALSO writes to /var/log/syslog is
+// excluded, because the `syslog` source below already carries it and the
+// journal carries it again (#909). On golem one `logger` line came back as
+// three streams: journal, syslog and varlog's user.log.
+//
+//   auth.log    the `authlogs` source above has it, as log_type="authlog"
+//   kern.log    Debian and Ubuntu: also in syslog
+//   user.log    Debian: also in syslog
+//   mail.log    Debian and Ubuntu: also in syslog
+//   cron.log    Debian, when enabled: also in syslog
+//   daemon.log  Debian, when enabled: also in syslog
+//
+// KEPT: `messages`. On a host whose rsyslog writes no `syslog` file it is the
+// only general one, and excluding it would take the kernel rules' input with
+// it. No host here writes both by default.
+//
+// A GLOB, NOT A REGEX. __path_exclude__ is matched like __path__, so
+// alternatives are `{a,b}`. The pattern that stood here, `(syslog|auth.log)`,
+// was a regex and matched nothing: trinity's Alloy was tailing auth.log as
+// varlog as well as authlog (checked 2026-10-07), so every auth event was
+// stored three times, not the two #909 counted. syslog itself never needed
+// excluding; it has no .log suffix, so __path__ never matched it.
 
 local.file_match "varlogs" {
 	path_targets = [
 		{
 			__address__      = "localhost",
 			__path__         = "/var/log/{messages,*.log}",
-			__path_exclude__ = "/var/log/(syslog|auth.log)",
+			__path_exclude__ = "/var/log/{auth,kern,user,mail,cron,daemon}.log",
 			instance         = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
 			job              = "/var/log/*.log",
 		},

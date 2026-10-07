@@ -63,6 +63,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `secrets-env.sh` | — | Sourced, not run: a stack's SOPS file as shell variables |
 | `converge.sh` | `converge` | Fetches `main`, refuses it unless GitHub signed it and CI passed, fast-forwards and runs `make up` ([ADR-0021](../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `record-applied.sh` | via `up` | Records the revision `make up` applied, so converge can tell a hand edit from a deploy |
+| `deploy-lock.sh` | via `up`, `converge` | One deploy of a stack at a time per checkout: `make up` waits for the holder, and converge leaves a held stack for its next run |
 | `reload-config.sh` | `reload` | Hot-reloads Prometheus, Alertmanager and snmp-exporter |
 | `check_mounted_config.py`, `check_container_health.py`, `check_alert_channels.py` | via `up` | After a deploy: each container runs the repo's config, its healthcheck passes, and Alertmanager can read every receiver URL |
 | `seed-ha-http.sh`, `seed-actual-password.sh` | via `up` | First-start state for Home Assistant and Actual, written before anything can reach them |
@@ -121,6 +122,7 @@ they describe. The rest are installed on the host they describe by
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
+| `collect-guest-service-state.sh` | Whether the lab Prometheus, Zeek, the Wazuh manager and Velociraptor are healthy, read through the guest agent ([ADR-0088](../docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)) |
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |
 | `collect-zeek-mirror-state.sh`, `zeek-mirror.sh` | The `tc` mirror to the Zeek sensor: build it, and whether it carries packets ([ADR-0068](../docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)) |

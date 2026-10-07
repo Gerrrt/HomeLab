@@ -47,7 +47,7 @@ it is not closed by anything in this document.
 | Container logs | Alloy → Docker socket | stream | stdout/stderr per container |
 | systemd journal | Alloy | stream | unit, boot ID, transport, priority. Delivery is watched by `JournalSourceStopped` |
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
-| syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else |
+| syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else. The `*.log` source skips `auth.log` and the facility files rsyslog also writes to `syslog` (`kern`, `user`, `mail`, `cron`, `daemon`), so a line is not stored once per copy ([#909](https://github.com/Gerrrt/HomeLab/issues/909)) |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
 | pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-171 rules in total: 152 metric-based in `prometheus/rules/`, and 19 log-based in
+175 rules in total: 155 metric-based in `prometheus/rules/`, and 20 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -354,6 +354,24 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**OOM kills have three owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903)):
+
+- `KernelOomKill`: the machine-wide killer, read from the kernel's line.
+- `ContainerOomKilled`: a Docker container at its `mem_limit`, read from cAdvisor.
+- `UnitOomKilled`: a systemd unit. It reads systemd's own verdict,
+  `<unit>: Failed with result 'oom-kill'.`, from the journal, and names the
+  unit from the line, because PID 1 writes it as `init.scope`. Only a systemd
+  manager's own stream counts: PID 1 or a `user@<uid>.service`, over the
+  journal's native transport. So `logger` or a service's stdout cannot raise
+  it, and the alert keeps `unit` to say which manager reported it.
+
+`UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
+by `systemd-oomd`. Only a unit's own cap is latent: no unit is given
+`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. `systemd-oomd` is
+not installed on `trinity` (Ubuntu 26.04.1, checked 2026-10-07). Its state on
+the other hosts is not yet recorded. Where it runs, its kills also end in that
+systemd verdict, so this rule sees them.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with
@@ -466,7 +484,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-152 rules across twelve files in `prometheus/rules/`:
+155 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -502,7 +520,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 152 rules of 152 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
+against the broken rule too. Coverage is 155 rules of 155 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
@@ -642,6 +660,21 @@ records why this crosses when ADR-0028 kept guest metrics in the lab, and why
 the agent's answer is treated as hostile input. `GuestAgentSilent` warns when a
 guest's agent stops answering, and `GuestDiskStateStale` when the collector
 stops writing.
+
+**A dead lab service inside a running guest is read the same way.** The lab
+Prometheus sends nothing (ADR-0020), so a crashed lab Prometheus, a stopped
+Zeek or a Wazuh manager with its listener down looked healthy here while the
+guest ran. `scripts/collect-guest-service-state.sh` runs one fixed
+`docker inspect` through each guest's agent every five minutes, for
+`lab-prometheus` on `alexander`, `sensor-zeek` on `fenrir`, and
+`soc-wazuh-manager` and `soc-velociraptor` on `odin`. It writes
+`homelab_guest_service_healthy`, which is 1 only for `running healthy`, so each
+container's own healthcheck is the real test. `GuestServiceUnhealthy` **warns**
+after fifteen minutes. A blind SOC is serious, and not a 2 a.m. page.
+`GuestServiceUnchecked` warns when the agent has not run the check for an hour,
+and `GuestServiceStateStale` when the collector stops writing
+([#858](https://github.com/Gerrrt/HomeLab/issues/858),
+[ADR-0088](../adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)).
 
 ### Routing
 
@@ -966,8 +999,9 @@ See [`runbooks/add-monitored-device.md`](runbooks/add-monitored-device.md). In
 short:
 
 - **A Linux host:** run Alloy with `LOKI_URL` and
-  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `10.0.99.20`. Nothing on the
-  monitoring host changes.
+  `PROMETHEUS_REMOTE_WRITE_URL` pointed at `https://10.0.99.20`, and
+  `INGEST_CA_FILE` at the estate CA; `deploy-agent.sh` sets all three. The
+  monitoring host needs the host's token added (the runbook).
 - **A Linux host that may not push:** a firewall pass first, then
   `node_exporter` in that host's own compose stack, then a target in
   `prometheus/targets/node.yaml` with `instance` set to the hostname. The

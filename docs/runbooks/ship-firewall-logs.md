@@ -358,6 +358,142 @@ volume and little of the signal.
 
 ---
 
+## 7. Move morpheus to TLS (#1049)
+
+UDP has no handshake, so any host on VLAN 99 can send a line with a forged
+source of `10.0.99.1` and have it stored as `host="morpheus"`, filterlog and
+Suricata lines included. #844's sender allowlist cannot tell the difference.
+The receiver therefore also listens on **6514/tcp with TLS, and requires
+morpheus's own client certificate**, pinned: no other certificate passes, even
+another client leaf from the same CA. The sender allowlist still applies on
+top. `stacks/observability/alloy/syslog.alloy` says why each
+part is needed.
+
+pfSense's own syslog daemon sends UDP only, so morpheus sends TLS through the
+**syslog-ng package**. That is a change to the firewall, made at its console.
+The order below keeps UDP flowing until TLS is proven, because a gap in
+firewall logs cannot be replayed.
+
+> [!WARNING]
+> While morpheus sends both ways, every line is stored twice, once per
+> `transport`. Count-based Loki rules (the lateral-movement and brute-force
+> thresholds) read double for that window and can fire on half the real
+> volume. Keep the overlap to the minutes §7.5 needs, and remove the UDP
+> server in §7.6 the same sitting.
+
+### 7.1 Issue both certificates, before the change is deployed
+
+The listener mounts two files that do not exist until this step: its own
+server leaf and morpheus's client certificate. compose refuses to start Alloy
+without them, and that Alloy is the one collecting **everything** on this
+host. So run this on the monitoring host, which holds the estate CA, **before**
+the change that adds the listener reaches `main`, since converge deploys it
+within the hour:
+
+```bash
+scripts/gen-certs.sh --host syslog.matrix.elysium --ip 10.0.99.20
+scripts/gen-certs.sh --host morpheus.matrix.elysium --ip 10.0.99.1 --client
+```
+
+The first is the listener's own leaf. Its key is mounted into nothing else,
+so it is not the ingest proxy's. The second reports `EKU clientAuth`, and
+`syslog.alloy` pins that exact certificate. Re-issuing it later means
+restarting Alloy, which reads the pin at start.
+
+### 7.2 Deploy the receiver and check it refuses strangers
+
+On the monitoring host, once the change is on `main`:
+
+```bash
+make up
+docker logs alloy 2>&1 | grep 'protocol=tcp tls=true'     # the 6514 listener, with TLS
+ss -ltn | grep ':6514 '                                    # 10.0.99.20:6514, not 0.0.0.0
+```
+
+A connection with no client certificate has to be refused. This one should
+end in `alert certificate required`:
+
+```bash
+openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null 2>&1 | tail -3
+```
+
+### 7.3 Install and configure syslog-ng on morpheus
+
+1. **System → Package Manager → Available Packages**, install `syslog-ng`.
+2. Copy `certificates/ca.pem`, `certificates/morpheus.matrix.elysium.pem` and
+   `certificates/morpheus.matrix.elysium-key.pem` to
+   `/usr/local/etc/syslog-ng/tls/` on morpheus, as `ca.pem`, `morpheus.pem`
+   and `morpheus-key.pem`. The key must be `0600`, owned by root.
+3. In **Services → Syslog-ng**, under Advanced, add these objects. They
+   receive pfSense's own syslog on loopback and relay it over TLS. Check the
+   field names against the package's form on the box, since this runbook was
+   written before the first install:
+
+   ```text
+   source s_pfsense {
+     network(ip("127.0.0.1") port(5140) transport("udp") flags(no-hostname));
+   };
+   destination d_alloy_tls {
+     syslog("10.0.99.20" port(6514) transport("tls")
+       tls(ca-file("/usr/local/etc/syslog-ng/tls/ca.pem")
+           cert-file("/usr/local/etc/syslog-ng/tls/morpheus.pem")
+           key-file("/usr/local/etc/syslog-ng/tls/morpheus-key.pem")
+           peer-verify(required-trusted)));
+   };
+   log { source(s_pfsense); destination(d_alloy_tls); };
+   ```
+
+   `flags(no-hostname)` matters. pfSense's lines carry no hostname
+   (`<134>Oct  7 18:00:00 filterlog[4242]: …`), and without the flag syslog-ng
+   can read the tag as one. `peer-verify(required-trusted)` makes morpheus
+   check the listener's certificate as well, against the same CA.
+
+The certificate files sit outside `config.xml`, so a config restore does not
+bring them back. After [`restore-the-firewall.md`](restore-the-firewall.md),
+repeat step 2.
+
+### 7.4 Send to both
+
+**Status → System Logs → Settings**, Remote Logging: add `127.0.0.1:5140` as a
+second remote log server, beside `10.0.99.20:1514`. Save. The overlap in the
+warning above starts now.
+
+### 7.5 Prove TLS carries what UDP did
+
+```bash
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (transport, app) (count_over_time({host="morpheus"}[5m]))' \
+  | jq -r '.data.result[] | "\(.metric.transport) \(.metric.app) \(.value[1])"' | sort
+```
+
+Each `app` should show about the same count under `udp` and `tls`. Then check
+that the labels the rules read survived the relay. Each query below should
+return the same series under both transports:
+
+```bash
+# filterlog parsed into action and interface
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (transport, action) (count_over_time({host="morpheus", app="filterlog"}[5m]))' | jq '.data.result'
+# Suricata's per-interface label, which comes from the syslog facility
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (transport, interface) (count_over_time({host="morpheus", app="suricata"}[30m]))' | jq '.data.result'
+```
+
+If `tls` is missing or short, remove `127.0.0.1:5140` (UDP alone carries on)
+and read syslog-ng's log on morpheus before trying again.
+
+### 7.6 Stop sending UDP
+
+Remove `10.0.99.20:1514` from the remote log servers, leaving `127.0.0.1:5140`.
+`{host="morpheus", transport="udp"}` should go quiet within a minute, and
+`FirewallLogsStopped` should stay quiet, since `tls` carries the same lines.
+
+The forgeable path is still open until the UDP listener and its `1514` and
+`514` publishes leave `syslog.alloy` and `compose.yaml`. That is the second
+change on #1049, made once this has run for a day.
+
+---
+
 ## Rollback
 
 Untick **Enable Remote Logging** on pfSense. That stops the source instantly and
@@ -368,6 +504,11 @@ hours later if the DHCP class was on, and `SuricataLogsStopped` nine hours later
 if System Events was. All three are correct — they exist precisely so that a
 silent pipeline is distinguishable from a quiet network. Silence them if the
 stop was deliberate.
+
+**From TLS (§7):** while the UDP listener still exists, put
+`10.0.99.20:1514` back in the remote log servers and remove
+`127.0.0.1:5140`. Lines arrive as `transport="udp"` again at once, and nothing
+on the monitoring host changes.
 
 Unticking **DHCP Events** alone is the narrower rollback, and it is the one
 `FirewallLogsStopped` cannot see: filterlog keeps arriving while the lease

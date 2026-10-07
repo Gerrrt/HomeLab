@@ -57,7 +57,21 @@ help: ## Show this help
 # ---------------------------------------------------------------------------
 
 .PHONY: up
-up: render ## Render config and start the stack
+up: ## Render config and start the stack
+	@# One deploy of a stack at a time, from this checkout. On 2026-10-07 a
+	@# hand `make up` and a `make converge` eighteen seconds apart recreated the
+	@# same containers at once and one failed halfway on a container-name
+	@# conflict. The recipe below, render included, runs under the stack's
+	@# deploy lock; a second `make up` waits up to HOMELAB_DEPLOY_LOCK_WAIT
+	@# seconds (900), naming the holder, then exits 75. converge.sh holds the
+	@# same lock and its own `make up` runs straight through it
+	@# (scripts/deploy-lock.sh says how).
+	@./scripts/deploy-lock.sh $(STACK) -- $(MAKE) --no-print-directory _up STACK=$(STACK)
+
+# The deploy itself. Not for calling directly: `make up` is the same recipe
+# under the deploy lock, and the lock is the point.
+.PHONY: _up
+_up: render
 	@# Home Assistant's HTTP settings live in its volume's .storage/http, not in
 	@# configuration.yaml, and a fresh volume without them trusts no proxy, so
 	@# every request through Caddy gets 400. Seeded before any container starts;

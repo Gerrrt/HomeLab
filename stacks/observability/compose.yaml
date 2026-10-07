@@ -409,12 +409,23 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    # No tmpfs needed, and this one was designed for it: loki-config.yaml puts
-    # `rule_path: /loki/rules-temp` inside the data volume on purpose, with a
-    # comment saying why. Verified rather than trusted — a read-only copy was
-    # watched evaluating the real rule files and writing its temporary rule
-    # state into the volume.
+    # loki-config.yaml puts `rule_path: /loki/rules-temp` inside the data
+    # volume on purpose, and #186 verified that a read-only copy evaluates the
+    # real rule files and writes its rule state there.
+    #
+    # What that test could not see is retention (#845's day-run, 2026-10-07).
+    # The compactor opens each deletion-marker file in os.TempDir, which is
+    # /tmp, before it applies retention. On a read-only root that fails with
+    # "failed to create marker writer: open /tmp/<n>: read-only file system",
+    # every pass, so retention_period was never enforced and nothing past it
+    # was deleted. That path only runs once there is data older than the
+    # period to mark, which no short boot test reaches. The lab's Loki showed
+    # it within hours of being made read-only. /tmp is a tmpfs for that reason
+    # alone. 64m, because markers are chunk IDs, a few KB per table per pass;
+    # it is charged to the mem_limit above.
     read_only: true
+    tmpfs:
+      - /tmp:size=64m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -591,7 +602,7 @@ services:
   # ---------------------------------------------------------------------------
   blackbox-exporter:
     <<: *service-defaults
-    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
+    image: prom/blackbox-exporter:v0.29.0@sha256:9613f2884689b6fad9f1939f6a3b0388c93a022cfaededb19545b329b5c83dea
     container_name: blackbox-exporter
     # 65534, and this line is here because the image does not supply one:
     # prom/blackbox-exporter:v0.28.0 sets no USER, so without it this container
@@ -634,7 +645,9 @@ services:
     # prom/blackbox-exporter:v0.28.0 sets no USER in its image config and
     # nothing above sets `user:`. The issue asserted the image runs as `nobody`.
     # It does not, so this line is here on its own merits rather than as a
-    # formality.
+    # formality. Re-read on v0.29.0 (2026-10-07): still no USER, the same
+    # entrypoint and port, and busybox wget still present, so this block and
+    # the healthcheck stand as written.
     #
     # Nothing in blackbox.yaml needs a capability. There is no `icmp` prober
     # defined — the seven modules are four http, one tcp_connect and two dns —
@@ -1131,6 +1144,10 @@ services:
       # first second and ContainerRestartLoop fires, rather than coming up and
       # collecting nothing.
       - "473"
+      # The operator's gid, for the TLS syslog key (#1049): 0640 and owned by
+      # whoever ran gen-certs.sh, and root here has no DAC_OVERRIDE to read
+      # past that. The ingest proxy and Grafana read their keys the same way.
+      - "${RENDER_GID:?run make render}"
     # Without this the cAdvisor exporter reports exactly one series, id="/",
     # and every per-container metric is missing — which is what the Docker
     # Containers dashboard and four of the nine rules in containers.rules.yaml
@@ -1182,6 +1199,35 @@ services:
       # holds every container's logs, so an unread mount of it is pure reach.
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+      # The TLS syslog listener (#1049): its own leaf, syslog.matrix.elysium
+      # with 10.0.99.20 as an IP SAN, whose key is mounted into nothing else,
+      # and morpheus's client certificate, which syslog.alloy pins as the only
+      # one it accepts. Both are issued on this host before the first `make
+      # up` that carries these lines (ship-firewall-logs.md §7.1).
+      #
+      # Long form so that create_host_path can be off, as stacks/sensitive
+      # does. Short form would have Docker create a DIRECTORY at a missing
+      # certificate path, inside certificates/, and Alloy would then fail on
+      # a directory where a file should be. Off, the deploy stops and names
+      # the missing file instead.
+      - type: bind
+        source: ../../certificates/syslog.matrix.elysium.pem
+        target: /etc/syslog-tls/cert.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../certificates/syslog.matrix.elysium-key.pem
+        target: /etc/syslog-tls/key.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../certificates/morpheus.matrix.elysium.pem
+        target: /etc/syslog-tls/morpheus.pem
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
       # Network syslog for devices that cannot run an agent — morpheus today.
@@ -1230,6 +1276,11 @@ services:
       # neither sender has to move. Gerrrt/Lemmiwinks#161.
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_PORT:-1514}:1514/udp"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_STD_PORT:-514}:1514/udp"
+      # Syslog over TLS with a required client certificate, the transport
+      # that cannot be forged from VLAN 99 the way UDP can (#1049). 6514 is
+      # RFC 5425's port. Published alongside the two UDP ports rather than in
+      # place of them: they go when morpheus is proven sending here.
+      - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_TLS_PORT:-6514}:6514/tcp"
     healthcheck:
       # /-/ready over bash's /dev/tcp (#845). The image is Ubuntu with neither
       # curl nor wget, so bash is the client, and check_compose_health.py

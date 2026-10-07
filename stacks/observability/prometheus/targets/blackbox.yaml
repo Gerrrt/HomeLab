@@ -61,10 +61,10 @@
 # nothing. Probing 10.0.99.20 hairpins through Docker's published port and
 # fails in exactly that case.
 #
-# Grafana terminates TLS itself, on a lab-CA leaf, as the wiki's Caddy does:
-# the chain is verified against certificates/ca.pem and the name against the
-# URL, so the `address` probe is also what checks that the leaf carries its IP
-# SAN.
+# Grafana and the ingest proxy below terminate TLS on lab-CA leaves, as the
+# wiki's Caddy does: the chain is verified against certificates/ca.pem and the
+# name against the URL, so an `address` probe is also what checks that the
+# leaf carries its IP SAN.
 # `/api/health` because it answers without a session — `/` is a redirect to
 # the login page, which also works, but says less.
 
@@ -84,23 +84,25 @@
     host: prometheus
     via: address
 
-# Plain http on the management VLAN, and these two answer without a token:
+# https under the estate CA since #764, and these two answer without a token:
 # the ingest proxy that holds 10.0.99.20:9090 and :3100 passes its health
 # paths through unauthenticated for exactly this probe (#182). A 200 here says
-# the publish, the proxy and the service behind it all work. The paths are the
-# readiness endpoints the compose healthchecks use.
+# the publish, the proxy's leaf, the proxy and the service behind it all
+# work, and the probe's certificate expiry is the leaf's, which is how
+# TlsCertificateExpiringSoon covers it. The paths are the readiness endpoints
+# the compose healthchecks use.
 
-- targets: ["http://10.0.99.20:9090/-/healthy"]
+- targets: ["https://10.0.99.20:9090/-/healthy"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: prometheus
     role: metrics
     host: prometheus
     via: address
 
-- targets: ["http://10.0.99.20:3100/ready"]
+- targets: ["https://10.0.99.20:3100/ready"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: loki
     role: logs
     host: prometheus
@@ -112,8 +114,13 @@
 # EndpointUnreachable and the dns/address join, and IngestAuthNotEnforced
 # reads them. The delete path is probed rather than a read because it is the
 # one whose loss would cost data.
+#
+# A refusal probe that fails its TLS handshake has no status code, so
+# IngestAuthNotEnforced cannot see it, and EndpointUnreachable skips
+# `via: refusal`. That is not a gap: the health probes above ask the same two
+# ports with the same CA, so a broken certificate pages there.
 
-- targets: ["http://10.0.99.20:9090/api/v1/query?query=up"]
+- targets: ["https://10.0.99.20:9090/api/v1/query?query=up"]
   labels:
     module: http_401_ingest_refused
     name: prometheus
@@ -121,7 +128,7 @@
     host: prometheus
     via: refusal
 
-- targets: ["http://10.0.99.20:3100/loki/api/v1/delete"]
+- targets: ["https://10.0.99.20:3100/loki/api/v1/delete"]
   labels:
     module: http_401_ingest_refused
     name: loki

@@ -899,13 +899,13 @@ tests:
   # healthy.
   - interval: 1m
     input_series:
-      - series: 'prometheus_remote_storage_samples_failed_total{instance="oracle",job="oracle-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="oracle",job="oracle-alloy",url="https://10.0.99.20:9090/api/v1/write"}'
         values: "0+3x40"
       - series: 'prometheus_remote_storage_samples_failed_total{instance="prometheus",job="prometheus-alloy",url="http://prometheus:9090/api/v1/write"}'
         values: "0+2x40"
       - series: 'prometheus_remote_storage_samples_failed_total{instance="alloy:12345",job="alloy",url="http://prometheus:9090/api/v1/write"}'
         values: "0+2x40"
-      - series: 'prometheus_remote_storage_samples_failed_total{instance="trinity",job="trinity-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="trinity",job="trinity-alloy",url="https://10.0.99.20:9090/api/v1/write"}'
         values: "0+0x40"
     alert_rule_test:
       - eval_time: 12m

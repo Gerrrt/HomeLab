@@ -162,7 +162,7 @@
         description: Scrape targets up, as Prometheus sees them
         widget:
           type: prometheus
-          url: http://10.0.99.20:9090
+          url: https://10.0.99.20:9090
           headers:
             Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
 
@@ -178,7 +178,7 @@
         # network-snmp.json's state-table panel.
         widget:
           type: prometheusmetric
-          url: http://10.0.99.20:9090
+          url: https://10.0.99.20:9090
           headers:
             Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
@@ -195,7 +195,7 @@
         # ups-power.json's charge, runtime and load panels (RFC 1628 UPS-MIB).
         widget:
           type: prometheusmetric
-          url: http://10.0.99.20:9090
+          url: https://10.0.99.20:9090
           headers:
             Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
@@ -235,7 +235,7 @@
         # network-snmp.json's iLO power panel (CPQHLTH-MIB).
         widget:
           type: prometheusmetric
-          url: http://10.0.99.20:9090
+          url: https://10.0.99.20:9090
           headers:
             Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 60000
@@ -268,7 +268,7 @@
         # would have to sum every dataset and still miss snapshots.
         widget:
           type: prometheusmetric
-          url: http://10.0.99.20:9090
+          url: https://10.0.99.20:9090
           headers:
             Authorization: "Bearer {{HOMEPAGE_VAR_PROMETHEUS_TOKEN}}"
           refreshInterval: 300000

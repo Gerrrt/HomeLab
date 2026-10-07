@@ -1,0 +1,51 @@
+---
+name: Wiki.js watch
+
+# ADR-0089 keeps the household wiki on Wiki.js 2.x until one of three triggers
+# fires: a requarks/wiki advisory affecting the pin with no 2.x fix after 30
+# days, no 2.x release for six months, or a stable 3.x release. Nothing read
+# the project's own advisories. cve-scan.yml reads the image's packages, a
+# different list. And an advisory that is never fixed produces neither a
+# release nor a pin bump, so nothing would ever have prompted a reading. This
+# is that reading, weekly, so day 30 cannot pass between two of them.
+#
+# cve-scan.yml's shape for its reasons: off-host, no secret beyond the run's
+# own token, and the issue is the notification. A finding does not fail the
+# run; failing to read the advisories or the releases does. The logic is
+# scripts/wiki_watch.py, runnable locally, so this file only wires it up.
+#
+# The same 60-day inactivity rule as digests.yml applies:
+#
+#   gh workflow view wiki-watch.yml     # "disabled_inactivity" means exactly this
+#   gh workflow enable wiki-watch.yml
+on:
+  schedule:
+    # Mondays, after cve-scan.yml, and after Dependabot's Sunday PRs, so a
+    # weekend bump that fixed an advisory does not open an issue.
+    - cron: "30 8 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: ADR-0089's triggers are read against the pinned Wiki.js
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Read the advisories and releases, and sync the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/wiki_watch.py --sync-issue >> "$GITHUB_STEP_SUMMARY"
