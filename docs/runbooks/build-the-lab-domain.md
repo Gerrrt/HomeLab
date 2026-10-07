@@ -769,6 +769,38 @@ And read the number this ADR deliberately did not write down:
 slmgr /dlv     # "Remaining Windows rearm count" — record it in §11
 ```
 
+### Sysmon, so the endpoints record what fired
+
+**Applied by `--tags sysmon`**
+([`roles/sysmon`](../../ansible/roles/sysmon/tasks/main.yml), #450,
+[ADR-0080](../adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+Windows' default logging does not record:
+
+- the command line of a process;
+- the DLLs it loads;
+- the connections it makes;
+- the named pipes it opens.
+
+Kerberoasting and NTLM relay show up in those. Sysmon records them in
+`Microsoft-Windows-Sysmon/Operational`, which the role sizes to 256 MiB. Its
+config is sysmon-modular's balanced profile, vendored at one release.
+
+- **To move the config to a newer release,** run
+  `scripts/vendor-sysmon-config.sh configs-<commit>` and commit the diff. The
+  next `--tags sysmon` run reapplies it on every guest.
+- **To check the vendored copy is still upstream's,** run
+  `scripts/vendor-sysmon-config.sh --check`.
+- **When Microsoft ships a new Sysmon,** a rebuild fails at the zip's checksum.
+  Move `sysmon_version` and `sysmon_zip_sha256` in
+  [`group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml)
+  together, then apply.
+
+Wazuh does not read this channel yet; that is #266's.
+
+**For a packet capture from inside one guest,** use the two Pktmon playbooks
+in [`ansible/README.md`](../../ansible/README.md#capture-on-demand). It takes
+two commands, and the pcapng lands on `phoenix`.
+
 ## 8. Turn on the scrape
 
 On `alexander`, uncomment the `windows` job in

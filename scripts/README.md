@@ -142,6 +142,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
+| `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |
 
 ## Adding a script
 
