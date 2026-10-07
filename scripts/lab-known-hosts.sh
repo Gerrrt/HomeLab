@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Pin the lab domain's SSH host keys for ansible/, read through the guest agent
-# rather than learned over the network (#846, ADR-0082).
+# rather than learned over the network (#846, ADR-0083).
 #
 # WHY. ansible/ sends LAB_ADMIN_PASSWORD and LAB_DSRM_PASSWORD over SSH to
 # guests on VLAN 30, a segment built to hold attackers and where ARP spoofing
@@ -77,6 +77,12 @@ while read -r name addr; do
   # Exactly one guest of that name. Two would mean a stray clone, and reading
   # the wrong one's key would pin a guest ansible/ is not about to talk to.
   match="$(jq -c --arg n "${name}" '[.data[] | select(.name == $n and .template != 1)]' <<<"${guests}")"
+  # None at all usually means the token cannot see the guest, not that it is
+  # gone: /cluster/resources lists only what the token holds VM.Audit on. A
+  # /vms/<id> grant of PhoenixHostKeys alone replaces the inherited
+  # PhoenixBuilder there, and did exactly this on 2026-10-07.
+  [[ "$(jq length <<<"${match}")" != 0 ]] \
+    || die "${name}: no guest of that name is visible to ${PROXMOX_TOKEN_ID} — it lacks VM.Audit there, or the guest does not exist (build-the-lab-domain.md, Run it from phoenix)"
   [[ "$(jq length <<<"${match}")" == 1 ]] \
     || die "${name}: expected one guest of that name, found $(jq length <<<"${match}")"
   vmid="$(jq -r '.[0].vmid' <<<"${match}")"

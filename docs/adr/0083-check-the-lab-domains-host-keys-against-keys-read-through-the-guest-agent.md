@@ -1,4 +1,4 @@
-# ADR-0082: Check the lab domain's host keys against keys read through the guest agent
+# ADR-0083: Check the lab domain's host keys against keys read through the guest agent
 
 **Status:** Accepted · 2026-10 · amends decision 2 of
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (host
