@@ -135,8 +135,8 @@ A plain `ansible-playbook verify.yml` asserts every one of these six weakness
 primitives is absent — the per-primitive negative test. It does not walk the
 domain's authorization graph, so it does not by itself prove *no* path to
 Domain Admin exists; that graph-level check is a BloodHound collector run with
-the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)), which is
-#449's "run the collector" half.
+the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)) — the "run
+the collector" half that #449 asks for.
 
 ## Rules this tree keeps
 
