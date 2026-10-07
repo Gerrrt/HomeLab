@@ -493,6 +493,22 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
+- `eden`, **not built yet**, is planned at `10.0.30.41`, VMID 141, as the
+  BloodHound CE server of
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  It is off-decade for `diabolos`'s reason: every `.x0` is taken. It sits in
+  `alexander`'s decade, beside the other lab guest that serves a UI to a human.
+  It is off between sessions and tagged `on-demand`, so an absence from the
+  segment is normal. Every path it needs is already open:
+  - a collector on the domain uploads to it within the segment;
+  - Hicks reaches its UI on `8443` over the existing rule;
+  - its Alloy pushes to `alexander`.
+
+  So it adds no firewall rule. It resolves at the gateway like `alexander`. It
+  reads nothing from AD's DNS, because the collector does the domain's
+  lookups and uploads the result.
 - `odin` is at `10.0.30.60` — a static below `.100`, continuing the decade
   spacing — for [`stacks/soc`](../stacks/soc): Wazuh and Velociraptor, the
   security half of ADR-0007, placed there by
