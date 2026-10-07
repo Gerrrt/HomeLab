@@ -42,7 +42,6 @@ docstring gives: it is a record, not a claim about now.
     console: `make install-agent-collectors` from the Mac for Saruman, and
     [`build-the-nas.md`](runbooks/build-the-nas.md) §6.10 for smaug. #857
     stays open until all four `endpoint` series exist.
-||||||| c191bca
 
 - **#182's deployment, recorded late**
   ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
@@ -157,7 +156,6 @@ docstring gives: it is a record, not a claim about now.
     entry. It took about three minutes.
   - **The fixture.** `backup-library.sh --self-test` now flips one byte in a
     set and truncates another, and `--verify-only --all` fails on both.
-||||||| parent of 4ab91f2 (wip #857)
 
 - **Syslog stores only the senders it names.**
   [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
