@@ -4,6 +4,14 @@ version: 2
 updates:
   # Pinned container images in compose.yaml. This is what makes pinning
   # sustainable — without it, pinned tags simply rot.
+  #
+  # grafana/alloy is the exception to "one PR per directory is fine". lab,
+  # sensor and soc all mount this stack's alloy/config.alloy, so their Alloy has
+  # to be this one, digest for digest, and check_image_pins.py fails a pull
+  # request that moves one without the others (#848). Those four entries cannot
+  # be merged the way soc and scratch were, because here and in lab Alloy rides
+  # in the grafana-stack group. So when an Alloy bump arrives, push the same
+  # bump to the other three stacks onto that PR and close the rest.
   - package-ecosystem: docker-compose
     directory: /stacks/observability
     schedule:
@@ -64,8 +72,18 @@ updates:
   # the day they are written. One thing Dependabot cannot bump is
   # CERT_TOOL_VERSION in compose.yaml, which tracks the wazuh/* major.minor —
   # the compose file says so where it is set.
+  #
+  # stacks/scratch (#438, ADR-0071), the disposable copy of soc on diabolos,
+  # rides in this entry rather than its own. It mounts soc's config
+  # (../soc/wazuh/..., ../soc/velociraptor/...), so a scratch store on a
+  # different Wazuh from odin's answers a different question. With its own
+  # entry a release arrived as two PRs that had to be merged together, and only
+  # discipline made sure they were. Since #848 check_image_pins.py fails either
+  # one alone, and `directories` puts each group's bump to both stacks in ONE PR.
+  # Velociraptor gets a group for the same reason; an ungrouped dependency would
+  # still arrive as one PR per directory.
   - package-ecosystem: docker-compose
-    directory: /stacks/soc
+    directories: [/stacks/soc, /stacks/scratch]
     schedule:
       interval: weekly
       day: sunday
@@ -76,6 +94,8 @@ updates:
     groups:
       wazuh:
         patterns: ["wazuh/*"]
+      velociraptor:
+        patterns: ["velocidex/*"]
 
   # The media stack on smaug. Present before the pool is, for the reason the
   # entries above give — but this one was absent while three documents said it
@@ -132,30 +152,12 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]
 
-  # stacks/scratch (#438, ADR-0071): the disposable copy of soc on diabolos,
-  # on the same images and digests. Its own entry because a separate
-  # directory is a separate PR, so a wazuh/* release arrives as one PR here and
-  # one in /stacks/soc. Merge them together: the two stacks share their mounted
-  # config, and a scratch store on a different Wazuh from odin's answers a
-  # different question.
-  - package-ecosystem: docker-compose
-    directory: /stacks/scratch
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
-    groups:
-      wazuh:
-        patterns: ["wazuh/*"]
-
   # ansible/ (ADR-0077): ansible-core in requirements.txt, ansible-lint in
   # requirements-lint.txt, both exact. The collections in requirements.yml are
   # not an ecosystem Dependabot reads, and stay a deliberate edit like Packer's
-  # plugin pin. Monthly: phoenix applies these by hand, so a weekly PR would
-  # outrun anyone running them.
+  # plugin pin; the weekly scripts/check_tool_versions.py job in digests.yml is
+  # what says a newer one exists (#848). Monthly: phoenix applies these by
+  # hand, so a weekly PR would outrun anyone running them.
   - package-ecosystem: pip
     directory: /ansible
     schedule:
@@ -164,9 +166,12 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "lab"]
 
-  # ruff, pinned in scripts/requirements-lint.txt for scripts/lint.sh (#853).
-  # Monthly: a new release can bring new findings, and one PR a month to fix
-  # them is enough.
+  # scripts/: three pins, all monthly — neither is a deploy, and a new linter
+  # release can bring new findings, so one PR a month to fix them is enough.
+  #   - PyYAML, with its hashes, in requirements.txt, which scripts/_deps.py
+  #     installs on a CI runner and nowhere else; a host takes it from apt (#848).
+  #   - yamllint in requirements-lint.txt, for scripts/lint.sh (#848).
+  #   - ruff in requirements-lint.txt, for scripts/lint.sh (#853).
   - package-ecosystem: pip
     directory: /scripts
     schedule:
@@ -174,6 +179,19 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "ci"]
+
+  # tofu/ (ADR-0076, #848): the bpg/proxmox provider in versions.tf and its
+  # hashes in .terraform.lock.hcl. Dependabot's opentofu ecosystem resolves it
+  # against registry.opentofu.org, the registry the lock file names; CI's
+  # `tofu init -lockfile=readonly` fails a bump whose lock entries do not
+  # match. Monthly: phoenix applies it by hand, like ansible/ above.
+  - package-ecosystem: opentofu
+    directory: /tofu
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "lab"]
 
   - package-ecosystem: github-actions
     directory: /
