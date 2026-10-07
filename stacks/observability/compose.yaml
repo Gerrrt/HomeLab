@@ -634,7 +634,9 @@ services:
     # prom/blackbox-exporter:v0.28.0 sets no USER in its image config and
     # nothing above sets `user:`. The issue asserted the image runs as `nobody`.
     # It does not, so this line is here on its own merits rather than as a
-    # formality.
+    # formality. Re-read on v0.29.0 (2026-10-07): still no USER, the same
+    # entrypoint and port, and busybox wget still present, so this block and
+    # the healthcheck stand as written.
     #
     # Nothing in blackbox.yaml needs a capability. There is no `icmp` prober
     # defined — the seven modules are four http, one tcp_connect and two dns —
