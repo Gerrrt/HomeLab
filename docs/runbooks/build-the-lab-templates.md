@@ -335,6 +335,13 @@ What each one does, so a stall can be placed:
 **When a Windows build stalls at "Waiting for WinRM",** open the VM's console
 in the Proxmox UI from Hicks:
 
+- **"No bootable option or device was found" under "Press any key to boot
+  from CD or DVD":** the boot command missed the prompt, so Setup never
+  started. The VM shows no disk writes, and Packer would wait out its
+  two-hour `winrm_timeout`. Stop the build with Ctrl-C, which deletes the VM,
+  and run it again. Since #846 the boot command presses a key every second
+  for thirty seconds, so this should not happen again; if it does, the
+  prompt arrived later than that.
 - **No disk to install to:** the driver paths missed. Check the VirtIO disc's
   folder names against `driver_dir` in `packer/windows.pkr.hcl`.
 - **Sitting at the desktop with no network:** `NetKVM` did not load.

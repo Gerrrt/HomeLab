@@ -49,6 +49,16 @@ locals {
     }
   }
 
+  # "Press any key to boot from CD or DVD" lasts about five seconds, and when
+  # it starts depends on how long OVMF spends on the empty system disk first,
+  # which moves with the host's load. Three presses between seconds 3 and 5
+  # missed it on 2026-10-07: 912 sat at "No bootable option or device was
+  # found" with no disk written, and Packer waited out winrm_timeout. So press
+  # once a second for thirty seconds instead, a window the prompt cannot fall
+  # outside. A press after the CD has started is harmless: Windows Boot Manager
+  # shows no menu for one entry, and Setup's pages are unattended.
+  windows_boot_command = [join("", [for i in range(30) : "<spacebar><wait1s>"])]
+
   # phoenix's key, installed as the clones' only administrators' key by
   # openssh.ps1 (ADR-0077). Public; read at build time, never copied in here.
   phoenix_pubkey = trimspace(file(pathexpand(var.ssh_public_key_file)))
@@ -142,11 +152,11 @@ source "proxmox-iso" "win11-pro" {
   # OVMF shows "Press any key to boot from CD or DVD" for a few seconds.
   # The system disk, then the installer: the VirtIO and answer discs are not
   # bootable, and OVMF trying them first is what made the Ubuntu build miss
-  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
-  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  # its boot prompt (packer/ubuntu.pkr.hcl). See local.windows_boot_command
+  # for how the prompt is caught.
   boot         = "order=scsi0;ide2"
-  boot_wait    = "3s"
-  boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
+  boot_wait    = "1s"
+  boot_command = local.windows_boot_command
 
   # HTTPS on 5986, admitting phoenix alone (bootstrap.ps1). The certificate
   # is one bootstrap.ps1 made a minute earlier, so there is nothing to verify
@@ -235,13 +245,11 @@ source "proxmox-iso" "ws2025-eval" {
     unmount          = true
   }
 
-  # The system disk, then the installer: the VirtIO and answer discs are not
-  # bootable, and OVMF trying them first is what made the Ubuntu build miss
-  # its boot prompt (packer/ubuntu.pkr.hcl). "Press any key to boot from CD"
-  # lasts about five seconds, so the margin here is thinner than Ubuntu's.
+  # The system disk, then the installer, and the prompt caught the same way
+  # as win11-pro above.
   boot         = "order=scsi0;ide2"
-  boot_wait    = "3s"
-  boot_command = ["<spacebar><wait1s><spacebar><wait1s><spacebar>"]
+  boot_wait    = "1s"
+  boot_command = local.windows_boot_command
 
   # HTTPS, as win11-pro above.
   communicator   = "winrm"
