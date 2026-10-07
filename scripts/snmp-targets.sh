@@ -11,9 +11,10 @@
 # The device list must live in exactly one place. It is currently spread across
 # five: prometheus/targets/snmp.yaml (the real one), generator.yaml's auths:
 # block, render-config.sh's REQUIRED array, secrets/observability.example.yaml,
-# and the -e flags in the Makefile's snmp-generate target. Every new tool reads
-# it from here instead of adding a sixth, and --check asserts the other copies
-# still agree.
+# and the auths the generator copies into snmp.yaml. Every new tool reads it
+# from here instead of adding a sixth — scripts/snmp-generate.sh derives its -e
+# flags from this output, so it is a reader, not a copy — and --check asserts
+# the other copies still agree.
 #
 # The secret key names are derived, not stored: auth_pfsense -> SNMP_COMMUNITY_PFSENSE,
 # and for a v3 device auth_ilo -> SNMP_AUTHPASS_ILO,SNMP_PRIVPASS_ILO. Which of
