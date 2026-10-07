@@ -90,6 +90,17 @@ paths = [
   # `\.env$` does not match .env.example, which is committed and carries only
   # change-me values.
   '''(^|/)\.env$''',
+  # Third-party Ansible collections, downloaded and gitignored (ansible/.gitignore).
+  # `ansible-lint --project-dir ansible` in scripts/lint.sh installs
+  # ansible/requirements.yml into ansible/.ansible/ on every run, and
+  # ansible.cfg's collections_path is ansible/.collections/. ansible.windows
+  # ships test fixtures — PEM keys, a .pfx, passwords in task files — so
+  # `make validate` failed its working-tree scan on nine of them, on a clean
+  # main, every time lint had run first (2026-10-07). None of it is ours or
+  # secret, and none of it can be committed, for the reason the trees above
+  # cannot: CI's checks on tracked artefacts, not this scan, are the control.
+  '''(^|/)ansible/\.ansible/''',
+  '''(^|/)ansible/\.collections/''',
 ]
 
 regexes = [
