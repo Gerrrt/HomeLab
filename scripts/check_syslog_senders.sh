@@ -8,7 +8,7 @@
 # write such lines, and a message's own hostname field overrode the label.
 # This boots the pinned Loki and the pinned Alloy, loading syslog.alloy and
 # nothing else, on a scratch Docker network where every sender has a fixed
-# address. It then sends three lines:
+# address. It then sends three lines over UDP:
 #
 #   1. from the allowed address, shaped as pfSense sends (no hostname)
 #      -> stored, host="morpheus"
@@ -17,9 +17,22 @@
 #   3. from the allowed address, claiming hostname `evil`
 #      -> stored, host="morpheus": the message hostname is not trusted
 #
-# Case 2 is checked for absence only after cases 1 and 3, which were sent
-# after it, have arrived. "Absent" therefore means refused, not slow. The
-# counter shows that it reached Alloy at all.
+# and six over TLS to the 6514 listener (#1049), with certificates made for
+# this run by a throwaway CA standing in for the estate's:
+#
+#   4. from the allowed address with morpheus's client certificate
+#      -> stored, host="morpheus", transport="tls"
+#   5. the same, claiming hostname `evil` -> stored, host="morpheus"
+#   6. no client certificate                  -> refused in the handshake
+#   7. a serverAuth leaf, as Grafana's is     -> refused: wrong key usage
+#   8. a client certificate from another CA   -> refused: unknown authority
+#   9. morpheus's certificate from another address
+#      -> the handshake completes, the allowlist drops it, and it is counted
+#
+# Each refusal (2, 6-9) is checked for absence only after the accepted lines,
+# which were sent after it, have arrived. "Absent" therefore means refused,
+# not slow. The counter shows 2 and 9 reached Alloy at all, and Alloy's own
+# log names the reason for each of 6, 7 and 8.
 #
 # The one change made to syslog.alloy: the scratch network cannot be
 # 10.0.99.0/24 without taking the monitoring host's real route to VLAN 99, so
@@ -90,7 +103,37 @@ pydeps="$(python3 "${REPO_ROOT}/scripts/_deps.py" --pythonpath)" \
   || die "PyYAML is required: sudo apt install python3-yaml"
 [[ -n "${pydeps}" ]] && export PYTHONPATH="${pydeps}${PYTHONPATH:+:${PYTHONPATH}}"
 
-mkdir -p "${WORK}/data" "${WORK}/rules/fake" "${WORK}/alloy"
+mkdir -p "${WORK}/data" "${WORK}/rules/fake" "${WORK}/alloy" "${WORK}/tls"
+
+# Certificates for the TLS cases, from a throwaway CA shaped as
+# scripts/gen-certs.sh issues: the listener's own serverAuth leaf with the
+# scratch Alloy's address as an IP SAN, morpheus's clientAuth leaf, a
+# serverAuth leaf standing in for a server key lifted from Grafana, and a
+# clientAuth leaf from a second CA the listener does not trust.
+command -v openssl >/dev/null 2>&1 || die "openssl is required for the TLS cases"
+mkca() { # dir
+  openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj "/CN=syslogcheck-$1" \
+    -keyout "${WORK}/tls/$1-ca-key.pem" -out "${WORK}/tls/$1-ca.pem" \
+    -addext 'basicConstraints=critical,CA:TRUE,pathlen:0' \
+    -addext 'keyUsage=critical,keyCertSign,cRLSign' 2>/dev/null
+}
+mkleaf() { # name ca eku san
+  openssl req -newkey rsa:2048 -nodes -subj "/CN=$1" \
+    -keyout "${WORK}/tls/$1-key.pem" -out "${WORK}/tls/$1.csr" 2>/dev/null
+  openssl x509 -req -in "${WORK}/tls/$1.csr" -days 1 \
+    -CA "${WORK}/tls/$2-ca.pem" -CAkey "${WORK}/tls/$2-ca-key.pem" -CAcreateserial \
+    -out "${WORK}/tls/$1.pem" \
+    -extfile <(printf 'subjectAltName=%s\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=%s\n' "$4" "$3") 2>/dev/null
+}
+mkca estate
+mkca other
+mkleaf cert     estate serverAuth "IP:${ALLOY_IP}"
+mkleaf morpheus estate clientAuth "DNS:morpheus.matrix.elysium"
+mkleaf grafana  estate serverAuth "DNS:grafana.matrix.elysium"
+mkleaf rogue    other  clientAuth "DNS:morpheus.matrix.elysium"
+# The names syslog.alloy reads, under the path compose mounts them at.
+cp "${WORK}/tls/estate-ca.pem" "${WORK}/tls/ca.pem"
+mv "${WORK}/tls/cert-key.pem" "${WORK}/tls/key.pem"
 python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \
   "${REPO_ROOT}/stacks/observability/loki/loki-config.yaml" "${WORK}" --for-tests \
   > "${WORK}/loki.yaml"
@@ -121,7 +164,7 @@ docker run -d --name "${TAG}-loki" --label homelab.logs=off \
 docker run -d --name "${TAG}-alloy" --label homelab.logs=off \
   --network "${NET}" --ip "${ALLOY_IP}" \
   -e LOKI_URL="http://${LOKI_IP}:3100/loki/api/v1/push" \
-  -v "${WORK}/alloy:/etc/alloy:ro" "${ALLOY_IMAGE}" \
+  -v "${WORK}/alloy:/etc/alloy:ro" -v "${WORK}/tls:/etc/syslog-tls:ro" "${ALLOY_IMAGE}" \
   run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/tmp/alloy /etc/alloy >/dev/null
 
 wait_for() { # url seconds
@@ -150,6 +193,13 @@ for ((i = 0; i < 120; i++)); do
   fi
   sleep 1
 done
+# A listener whose tls_config was lost would still listen, in plain TCP, and
+# every refusal below would then fail for the wrong reason. Alloy says which
+# it started.
+if ((alloy_up)) && ! docker logs "${TAG}-alloy" 2>&1 | grep -q 'address=0.0.0.0:6514 protocol=tcp tls=true'; then
+  docker logs --tail 20 "${TAG}-alloy" 2>&1 | sed 's/^/        /'
+  die "the 6514 listener did not start with TLS"
+fi
 if ((!alloy_up)); then
   docker logs --tail 20 "${TAG}-alloy" 2>&1 | sed 's/^/        /'
   curl -sS -m 2 "http://${ALLOY_IP}:12345/-/ready" 2>&1 | sed 's/^/        ready: /' || true
@@ -167,10 +217,32 @@ send() { # from-ip line
     -c 'printf "%s\n" "$1" > "/dev/udp/$2/1514"' _ "$2" "${ALLOY_IP}"
 }
 
+# RFC 5424 with octet-counted framing, as syslog-ng's syslog() driver sends
+# it, through openssl s_client in the pinned Alloy image. The last argument
+# names the client certificate, or is empty for none.
+send_tls() { # from-ip line cert-name
+  docker run --rm --label homelab.logs=off --network "${NET}" --ip "$1" \
+    -v "${WORK}/tls:/tls:ro" --entrypoint bash "${ALLOY_IMAGE}" -c '
+      msg="$1"; args=(-connect "$2:6514" -CAfile /tls/ca.pem -quiet -no_ign_eof)
+      [[ -n "$3" ]] && args+=(-cert "/tls/$3.pem" -key "/tls/$3-key.pem")
+      printf "%d %s" "${#msg}" "${msg}" | timeout 15 openssl s_client "${args[@]}" >/dev/null 2>&1 || true
+    ' _ "$2" "${ALLOY_IP}" "$3"
+}
+rfc5424() { # hostname token
+  printf '<134>1 %s %s filterlog 4242 - - %s,,,1000000103,igc0.20,match,block,in,4' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2"
+}
+
 RUN_ID="$(date +%s)-$$"
 TOK_ALLOWED="allowed-${RUN_ID}"
 TOK_SPOOF="spoofed-${RUN_ID}"
 TOK_EVIL="evilname-${RUN_ID}"
+TOK_TLS="tls-allowed-${RUN_ID}"
+TOK_TLS_EVIL="tls-evilname-${RUN_ID}"
+TOK_TLS_NOCERT="tls-nocert-${RUN_ID}"
+TOK_TLS_SERVER="tls-serverleaf-${RUN_ID}"
+TOK_TLS_OTHERCA="tls-otherca-${RUN_ID}"
+TOK_TLS_STRANGER="tls-stranger-${RUN_ID}"
 STAMP="$(LC_ALL=C date -u '+%b %e %H:%M:%S')"
 
 dropped_before="$(dropped)"
@@ -178,6 +250,14 @@ dropped_before="$(dropped)"
 send "${STRANGER_IP}" "<134>${STAMP} morpheus filterlog[4242]: ${TOK_SPOOF},,,1000000103,igc0.20,match,block,in,4"
 send "${ALLOWED_IP}"  "<134>${STAMP} filterlog[4242]: ${TOK_ALLOWED},,,1000000103,igc0.20,match,block,in,4"
 send "${ALLOWED_IP}"  "<134>${STAMP} evil filterlog[4242]: ${TOK_EVIL},,,1000000103,igc0.20,match,block,in,4"
+
+# The TLS refusals first, for the same reason.
+send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_NOCERT}")"   ""
+send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_SERVER}")"   grafana
+send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_OTHERCA}")"  rogue
+send_tls "${STRANGER_IP}" "$(rfc5424 - "${TOK_TLS_STRANGER}")" morpheus
+send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS}")"          morpheus
+send_tls "${ALLOWED_IP}"  "$(rfc5424 evil "${TOK_TLS_EVIL}")"  morpheus
 
 # Prints the label set of every stream holding the token, one JSON per line.
 streams_with() {
@@ -206,7 +286,7 @@ wait_streams() { # token seconds -> prints streams once present
 }
 
 FAILED=0
-info "sent three lines through ${ALLOY_FILE#"${REPO_ROOT}"/}"
+info "sent three lines over UDP and six over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
 
 # host_is <streams> — every stream carries host="morpheus" and nothing else
 # says `evil`.
@@ -248,11 +328,68 @@ else
   fail "a line from an unlisted sender was stored: ${s2}"
 fi
 
-dropped_after="$(dropped)"
-if ((dropped_after - dropped_before == 1)); then
-  pass "the refused line is counted (reason=\"syslog_sender_not_allowed\")"
+# --- TLS (#1049) ---------------------------------------------------------------
+
+transport_is_tls() {
+  python3 -c '
+import json, sys
+streams = [json.loads(l) for l in sys.stdin if l.strip()]
+sys.exit(0 if streams and all(s.get("transport") == "tls" for s in streams) else 1)'
+}
+
+if s4="$(wait_streams "${TOK_TLS}" 45)"; then
+  if printf '%s\n' "${s4}" | host_is_morpheus && printf '%s\n' "${s4}" | transport_is_tls; then
+    pass "TLS with morpheus's client certificate stored as host=\"morpheus\", transport=\"tls\""
+  else
+    fail "TLS line stored with the wrong labels: ${s4}"
+  fi
 else
-  fail "drop counter moved by $((dropped_after - dropped_before)), expected 1"
+  fail "TLS line with morpheus's client certificate never reached Loki"
+fi
+
+if s5="$(wait_streams "${TOK_TLS_EVIL}" 15)"; then
+  if printf '%s\n' "${s5}" | host_is_morpheus; then
+    pass "over TLS too, a message hostname of \"evil\" does not override host=\"morpheus\""
+  else
+    fail "over TLS the message hostname set the labels: ${s5}"
+  fi
+else
+  fail "TLS line with a hostname never reached Loki"
+fi
+
+absent() { # token description
+  local out
+  if ! out="$(streams_with "$1")"; then
+    fail "the Loki query for $2 failed, so its absence is unproven"
+  elif [[ -z "${out}" ]]; then
+    pass "$2 is not in Loki"
+  else
+    fail "$2 was stored: ${out}"
+  fi
+}
+absent "${TOK_TLS_NOCERT}"   "a TLS line with no client certificate"
+absent "${TOK_TLS_SERVER}"   "a TLS line authenticated with a serverAuth leaf"
+absent "${TOK_TLS_OTHERCA}"  "a TLS line with another CA's client certificate"
+absent "${TOK_TLS_STRANGER}" "a TLS line with morpheus's certificate from ${STRANGER_IP}"
+
+# The three handshake refusals, by Alloy's own reason, so a refusal for some
+# other cause (a broken leaf, a wrong path) cannot pass as the intended one.
+ALLOY_LOG="$(docker logs "${TAG}-alloy" 2>&1)"
+for reason in "client didn't provide a certificate" \
+              "certificate specifies an incompatible key usage" \
+              "certificate signed by unknown authority"; do
+  if grep -qF "${reason}" <<< "${ALLOY_LOG}"; then
+    pass "Alloy refused a handshake: ${reason}"
+  else
+    fail "Alloy never logged \"${reason}\""
+  fi
+done
+
+dropped_after="$(dropped)"
+if ((dropped_after - dropped_before == 2)); then
+  pass "both lines from ${STRANGER_IP} are counted (reason=\"syslog_sender_not_allowed\"), UDP and TLS"
+else
+  fail "drop counter moved by $((dropped_after - dropped_before)), expected 2"
 fi
 
 exit "${FAILED}"

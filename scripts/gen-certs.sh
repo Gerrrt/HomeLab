@@ -35,6 +35,13 @@
 #                   more than one name — its FQDN from a browser and its compose
 #                   service name from inside the network — needs every one of
 #                   them, or verification fails for the names that are missing.
+#   --client        issue a CLIENT certificate (extendedKeyUsage=clientAuth)
+#                   instead of a server one. Every other leaf here is
+#                   serverAuth only, and that is what makes a client one
+#                   mean something: Go's crypto/tls requires clientAuth of a
+#                   client certificate, so a key lifted from Grafana or the
+#                   ingest proxy cannot pass as a client. The first is
+#                   morpheus's, for TLS syslog to Alloy (#1049).
 #   --days <n>      leaf lifetime, default 825
 #   --force         overwrite an existing CA or leaf
 #
@@ -69,6 +76,7 @@ HOST=""
 IPS=()
 DNS=()
 FORCE=0
+CLIENT=0
 
 while (($#)); do
   case "$1" in
@@ -79,6 +87,7 @@ while (($#)); do
     --dns)   DNS+=("${2:?--dns needs a name}"); shift 2 ;;
     --days)  LEAF_DAYS="${2:?--days needs a number}"; shift 2 ;;
     --force) FORCE=1; shift ;;
+    --client) CLIENT=1; shift ;;
     # Printed straight from the comment block above rather than kept as a
     # second copy that drifts. Bounded by where the comments stop, not by a
     # line number: the literal 2,32p this replaced had already slipped and was
@@ -200,7 +209,13 @@ if ((LEAF_DAYS > 825)); then
   die "leaf lifetime ${LEAF_DAYS} exceeds 825 days, which browsers reject outright"
 fi
 
-info "issuing ${HOST} (${LEAF_DAYS} days)"
+# One purpose per key: a leaf is a server or a client, never both, so a
+# client key that leaks cannot serve a TLS endpoint and a server key that
+# leaks cannot authenticate as a sender.
+EKU="serverAuth"
+((CLIENT)) && EKU="clientAuth"
+
+info "issuing ${HOST} (${LEAF_DAYS} days, ${EKU})"
 info "SANs: ${SAN}"
 
 TMP="$(mktemp -d)"
@@ -214,7 +229,7 @@ openssl x509 -req -in "${TMP}/csr.pem" -sha256 \
   -CA "${CA_CRT}" -CAkey "${CA_KEY}" -CAcreateserial \
   -CAserial "${CERT_DIR}/ca.srl" \
   -out "${CRT}" -days "${LEAF_DAYS}" \
-  -extfile <(printf 'subjectAltName=%s\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n' "${SAN}") 2>/dev/null
+  -extfile <(printf 'subjectAltName=%s\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=%s\n' "${SAN}" "${EKU}") 2>/dev/null
 
 # 0640, not 0600. A container serving this key runs as its own uid — Grafana is
 # 472:0 — and cannot read a file owned by the operator at 0600. The compose
@@ -226,10 +241,11 @@ chmod 644 "${CRT}"
 
 # Prove it verifies against the CA now, rather than discovering at deploy time
 # that the chain does not build.
-openssl verify -CAfile "${CA_CRT}" "${CRT}" >/dev/null 2>&1 \
+openssl verify -CAfile "${CA_CRT}" -purpose "$( ((CLIENT)) && echo sslclient || echo sslserver)" "${CRT}" >/dev/null 2>&1 \
   || die "the issued certificate does not verify against the CA — refusing to report success"
 
 ok "issued ${CRT#"${REPO_ROOT}"/}"
 printf '  key  %s\n' "${KEY#"${REPO_ROOT}"/}"
 printf '  SANs %s\n' "${SAN}"
+printf '  EKU  %s\n' "${EKU}"
 printf '  verified against %s\n\n' "${CA_CRT#"${REPO_ROOT}"/}"
