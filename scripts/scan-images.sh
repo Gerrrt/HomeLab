@@ -75,8 +75,20 @@ TRIVY_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" trivy)"
 DB_REPOS='ghcr.io/aquasecurity/trivy-db:2,public.ecr.aws/aquasecurity/trivy-db:2'
 JAVA_DB_REPOS='ghcr.io/aquasecurity/trivy-java-db:1,public.ecr.aws/aquasecurity/trivy-java-db:1'
 
+# --out is cleared of the previous run's reports, so it must be a directory
+# this script owns: empty, new, or carrying the marker an earlier run left. A
+# directory with anything else in it is refused rather than cleaned, because
+# `--out ~/somewhere` must not cost someone their settings.json.
+MARKER=".scan-images"
+if [[ -d "${OUT}" && ! -e "${OUT}/${MARKER}" ]] && [[ -n "$(ls -A "${OUT}")" ]]; then
+  die "${OUT} is not empty and was not written by this script; pick a new --out"
+fi
 mkdir -p "${OUT}" "${CACHE}"
-rm -f "${OUT}"/images.tsv "${OUT}"/*.json "${OUT}"/*.err
+touch "${OUT}/${MARKER}"
+# Only the names this script writes: images.tsv and NNN.json / NNN.err.
+for f in "${OUT}"/*; do
+  [[ "${f##*/}" =~ ^(images\.tsv|[0-9]{3,}\.(json|err))$ ]] && rm -f -- "${f}"
+done
 
 # reference -> comma-separated stacks, in first-seen order. Same awk as
 # pin-digests.sh, quote stripping included.
@@ -92,6 +104,11 @@ add() {
   fi
 }
 
+# Captured first, not read from a process substitution: stacks.sh prints the
+# good stacks before failing on a malformed one, and `< <(...)` would discard
+# that failure and scan an incomplete list as if it were complete.
+stack_paths="$("${REPO_ROOT}/scripts/stacks.sh" --paths)" || die "scripts/stacks.sh failed; not scanning a partial list"
+
 unpinned=()
 while read -r sd; do
   stack="${sd#stacks/}"
@@ -106,7 +123,7 @@ while read -r sd; do
       if (v != "") print v
     }
   ' "${REPO_ROOT}/${sd}/compose.yaml")
-done < <("${REPO_ROOT}/scripts/stacks.sh" --paths)
+done <<<"${stack_paths}"
 
 ((${#unpinned[@]} == 0)) || die "refusing to scan unpinned references: ${unpinned[*]}"
 ((${#order[@]} > 0)) || die "no image: lines found under stacks/"

@@ -28,8 +28,18 @@ WHAT EACH RUN DOES TO AN ISSUE
                                 on the next scheduled run
   any of its tags failed scan   leave it alone: unknown is not clean
 
-A stack label that does not exist is warned about and dropped. Failing the sync
-for a missing label would hide every finding behind a cosmetic problem.
+WHAT "NEW" IS MEASURED AGAINST. Not the rendered table: an oversized body drops
+rows, and trivy's IDs are not all CVEs — GHSA-, GO- and ALAS- IDs appear too.
+The body carries every finding ID of the last scan in a second hidden marker, zlib-compressed and base64-encoded, and the next scan
+compares against that. A body without one (edited by hand, or older) falls
+back to the CVE and GHSA IDs visible in it.
+
+LABELS. `security` plus one per stack the image is pinned in. Stack labels are
+the scanner's to manage, so an edit also removes a stack label the image no
+longer has — an image dropped from `sensitive` must not keep claiming it.
+Every other label on the issue, priority and triage included, is left alone.
+A stack label that does not exist is warned about and dropped: failing the
+sync for a missing label would hide every finding behind a cosmetic problem.
 
 Usage: scripts/cve_report.py --dir DIR                 the summary, to stdout
        scripts/cve_report.py --dir DIR --sync-issues   create/edit/close via gh
@@ -44,6 +54,7 @@ Environment:
 from __future__ import annotations
 
 import argparse
+import base64
 import dataclasses
 import json
 import os
@@ -52,6 +63,7 @@ import re
 import subprocess
 import sys
 import time
+import zlib
 
 RED = "\033[0;31m"
 YELLOW = "\033[0;33m"
@@ -60,6 +72,7 @@ OFF = "\033[0m"
 
 SEVERITIES = ("CRITICAL", "HIGH")
 MARKER = re.compile(r"<!-- cve-scan: (\S+) -->")
+IDS_MARKER = re.compile(r"<!-- cve-scan-ids: ([A-Za-z0-9+/=]*) -->")
 FINDING_ID = re.compile(r"\b(?:CVE-\d{4}-\d{4,}|GHSA(?:-[0-9a-z]{4}){3})\b")
 
 # Stacks whose label is not their name. `test` is scan-images.sh --extra.
@@ -115,6 +128,7 @@ class Action:
     body: str = ""
     labels: tuple[str, ...] = ()
     comment: str = ""
+    remove_labels: tuple[str, ...] = ()
 
 
 def repo_of(ref: str) -> str:
@@ -234,9 +248,28 @@ def issue_title(repo: str, images: list[Image]) -> str:
     return f"Fixable CVEs in {repo} ({crit} critical, {high} high)"
 
 
+def encode_ids(ids: set[str]) -> str:
+    raw = "\n".join(sorted(ids)).encode("utf-8")
+    return f"<!-- cve-scan-ids: {base64.b64encode(zlib.compress(raw, 9)).decode('ascii')} -->"
+
+
+def previous_ids(body: str) -> set[str]:
+    """The finding IDs the last scan recorded in this body. See the docstring."""
+    m = IDS_MARKER.search(body)
+    if m:
+        try:
+            raw = zlib.decompress(base64.b64decode(m.group(1), validate=True)).decode("utf-8")
+            return set(filter(None, raw.split("\n")))
+        except (ValueError, zlib.error, UnicodeDecodeError):
+            pass
+    return set(FINDING_ID.findall(body))
+
+
 def issue_body(repo: str, images: list[Image], url: str) -> str:
+    ids = {f.id for i in images for f in i.findings or []}
     head = [
         f"<!-- cve-scan: {repo} -->",
+        encode_ids(ids),
         ("The weekly CVE scan found fixable HIGH or CRITICAL vulnerabilities in "
          f"`{repo}`. This body is rewritten by every scan, and the issue closes "
          "itself when a scan finds the pinned digest clean."),
@@ -267,9 +300,16 @@ def issue_body(repo: str, images: list[Image], url: str) -> str:
     return body
 
 
-def plan(images: list[Image], existing: list[dict], known_labels: set[str]) -> tuple[list[Action], list[str]]:
+def plan(images: list[Image], existing: list[dict], known_labels: set[str],
+         stack_names: set[str] | None = None) -> tuple[list[Action], list[str]]:
     """What to do to the issues, and the warnings to print. Pure, so the
-    self-test can hold it to the table in the module docstring."""
+    self-test can hold it to the table in the module docstring.
+
+    `stack_names` is every stack scripts/stacks.sh lists; their labels are the
+    ones an edit may remove. It defaults to the stacks the images name."""
+    if stack_names is None:
+        stack_names = {s for i in images for s in i.stacks}
+    owned = {LABEL_FOR.get(s, s) for s in stack_names | {"test"}}
     by_repo: dict[str, list[Image]] = {}
     for i in images:
         by_repo.setdefault(i.repo, []).append(i)
@@ -306,13 +346,15 @@ def plan(images: list[Image], existing: list[dict], known_labels: set[str]) -> t
         if issue is None:
             actions.append(Action("create", repo, None, title, body, tuple(labels)))
             continue
-        before = set(FINDING_ID.findall(issue.get("body") or ""))
+        before = previous_ids(issue.get("body") or "")
         new = sorted({f.id for i in imgs for f in i.findings or []} - before)
         comment = ""
         if new:
             shown = ", ".join(new[:20]) + (f" and {len(new) - 20} more" if len(new) > 20 else "")
             comment = f"New since the last scan: {shown}."
-        actions.append(Action("edit", repo, issue["number"], title, body, tuple(labels), comment))
+        current = {label["name"] for label in issue.get("labels") or []}
+        stale = tuple(sorted((current & owned) - set(labels)))
+        actions.append(Action("edit", repo, issue["number"], title, body, tuple(labels), comment, stale))
     for repo, issue in sorted(open_issues.items()):
         if repo not in by_repo:
             actions.append(Action("close", repo, issue["number"],
@@ -333,15 +375,18 @@ def sync(images: list[Image], dry_run: bool) -> int:
     # GitHub search: the marker is an HTML comment, and whether search indexes
     # one is not something to depend on.
     existing = json.loads(gh("issue", "list", "-R", repo, "--state", "open", "--label", "security",
-                             "--limit", "1000", "--json", "number,title,body"))
+                             "--limit", "1000", "--json", "number,title,body,labels"))
     known = {label["name"] for label in json.loads(gh("label", "list", "-R", repo, "--limit", "500",
                                                       "--json", "name"))}
-    actions, warnings = plan(images, existing, known)
+    stacks = subprocess.run([str(pathlib.Path(__file__).with_name("stacks.sh"))],
+                            capture_output=True, text=True, check=True).stdout.split()
+    actions, warnings = plan(images, existing, known, set(stacks))
     for w in warnings:
         print(f"{YELLOW}warning:{OFF} {w}", file=sys.stderr)
     for a in actions:
         where = f"#{a.number}" if a.number else "new"
-        print(f"{a.kind:6} {where:6} {a.repo}" + (f"  [{', '.join(a.labels)}]" if a.labels else ""))
+        print(f"{a.kind:6} {where:6} {a.repo}" + (f"  [{', '.join(a.labels)}]" if a.labels else "")
+              + (f"  -[{', '.join(a.remove_labels)}]" if a.remove_labels else ""))
         if dry_run:
             continue
         # The first run opens dozens at once, and GitHub's secondary rate limit
@@ -351,8 +396,9 @@ def sync(images: list[Image], dry_run: bool) -> int:
             label_args = [arg for label in a.labels for arg in ("--label", label)]
             gh("issue", "create", "-R", repo, "--title", a.title, "--body-file", "-", *label_args, stdin=a.body)
         elif a.kind == "edit":
+            remove = ["--remove-label", ",".join(a.remove_labels)] if a.remove_labels else []
             gh("issue", "edit", str(a.number), "-R", repo, "--title", a.title, "--body-file", "-",
-               "--add-label", ",".join(a.labels), stdin=a.body)
+               "--add-label", ",".join(a.labels), *remove, stdin=a.body)
             if a.comment:
                 gh("issue", "comment", str(a.number), "-R", repo, "--body-file", "-", stdin=a.comment)
         elif a.kind == "close":
@@ -446,6 +492,29 @@ def self_test() -> int:
             for n in range(2000)]
     body = issue_body("big", [Image("big:1@sha256:aa", ["lab"], many)], "")
     check("an oversized body is cut under the issue limit", len(body) <= BODY_LIMIT and "more." in body)
+    check("the cut body still records every finding ID", previous_ids(body) == {f.id for f in many})
+    actions, _ = plan([Image("big:1@sha256:aa", ["lab"], many)],
+                      [{"number": 20, "body": body}], labels | {"lab"})
+    check("an unchanged oversized report announces nothing new", actions[0].comment == "")
+
+    go = [Finding("GO-2026-1234", "HIGH", "stdlib", "1.22.0", "1.22.5", "", ""),
+          Finding("ALAS2023-2026-999", "HIGH", "curl", "8.1", "8.2", "", "")]
+    gobody = issue_body("go", [Image("go:1@sha256:aa", ["lab"], go)], "")
+    actions, _ = plan([Image("go:1@sha256:aa", ["lab"], go)], [{"number": 21, "body": gobody}], labels | {"lab"})
+    check("non-CVE IDs round-trip: unchanged report, no comment", actions[0].comment == "")
+    actions, _ = plan([Image("go:1@sha256:aa", ["lab"], [*go, Finding("GO-2026-9999", "HIGH", "x", "1", "2", "", "")])],
+                      [{"number": 21, "body": gobody}], labels | {"lab"})
+    check("a new non-CVE ID is announced", actions[0].comment == "New since the last scan: GO-2026-9999.")
+    check("a corrupt ID marker falls back to the visible IDs",
+          previous_ids("<!-- cve-scan-ids: !!! --> CVE-2026-0001") == {"CVE-2026-0001"})
+
+    moved = {"number": 22, "body": "<!-- cve-scan: postgres -->",
+             "labels": [{"name": "security"}, {"name": "sensitive"}, {"name": "priority/critical"}]}
+    actions, _ = plan([Image("postgres:17.11@sha256:bb", ["wiki"], vuln)], [moved], labels,
+                      {"sensitive", "wiki", "lab"})
+    check("a stack the image left loses its label", actions[0].remove_labels == ("sensitive",))
+    check("and the image's current stack is added", actions[0].labels == ("security", "wiki"))
+    check("labels the scanner does not own are kept", "priority/critical" not in actions[0].remove_labels)
 
     text = summary(images)
     check("summary lists every image, clean ones too", all(f"`{i.name}`" in text for i in images))
