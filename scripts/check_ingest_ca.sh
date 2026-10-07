@@ -13,6 +13,10 @@
 #
 # What it asserts:
 #   - exactly one PEM block, and it is a CERTIFICATE (no key, no chain);
+#   - nothing else at all: the file, whitespace aside, is byte for byte what
+#     openssl writes back for that certificate. OpenSSL ignores text before
+#     and after the block, so without this a CA with anything appended — a
+#     note, a pasted secret with no PEM header — passed every other line;
 #   - that certificate is a CA (basicConstraints CA:TRUE);
 #   - where certificates/ca.pem exists (the monitoring host), it is the same
 #     certificate. A re-minted CA with a stale committed copy would have every
@@ -48,6 +52,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
     -days 1 -extfile <(printf 'basicConstraints=CA:FALSE\n') -out "${T}/leaf.pem" 2>/dev/null
   cat "${T}/ca.pem" "${T}/ca-key.pem" > "${T}/with-key.pem"
   cat "${T}/ca.pem" "${T}/other.pem" > "${T}/two.pem"
+  { cat "${T}/ca.pem"; printf 'appended text\n'; } > "${T}/trailing.pem"
+  { printf 'leading text\n'; cat "${T}/ca.pem"; } > "${T}/leading.pem"
+  { cat "${T}/ca.pem"; printf '\n\n'; } > "${T}/blank-lines.pem"
   case_() {  # <want 0|1> <committed> <host ca> <what>
     local rc=0
     INGEST_CA="$2" HOST_CA="$3" "${BASH_SOURCE[0]}" >/dev/null 2>&1 || rc=$?
@@ -58,6 +65,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
   case_ 1 "${T}/with-key.pem" "${T}/ca.pem"      "a certificate with its key appended fails"
   case_ 1 "${T}/ca-key.pem"   "${T}/ca.pem"      "a bare key fails"
   case_ 1 "${T}/two.pem"      "${T}/ca.pem"      "two certificates fail"
+  case_ 1 "${T}/trailing.pem" "${T}/ca.pem"      "a CA with text after it fails"
+  case_ 1 "${T}/leading.pem"  "${T}/ca.pem"      "a CA with text before it fails"
+  case_ 0 "${T}/blank-lines.pem" "${T}/ca.pem"   "a CA with trailing blank lines passes"
   case_ 1 "${T}/leaf.pem"     "${T}/leaf.pem"    "a leaf (CA:FALSE) fails"
   case_ 1 "${T}/ca.pem"       "${T}/other.pem"   "a CA other than the host's fails"
   case_ 1 "${T}/absent.pem"   "${T}/ca.pem"      "a missing file fails"
@@ -72,6 +82,8 @@ blocks="$(grep -c -- '-----BEGIN ' "${COMMITTED}" || true)"
 certs="$(grep -c -- '-----BEGIN CERTIFICATE-----' "${COMMITTED}" || true)"
 ((blocks == 1 && certs == 1)) \
   || die "${rel} must hold exactly one CERTIFICATE block and nothing else (found ${blocks} block(s), ${certs} certificate(s)). If a key ever reached it, treat the CA as compromised: docs/runbooks/generate-certificates.md"
+[[ "$(tr -d '[:space:]' < "${COMMITTED}")" == "$(openssl x509 -in "${COMMITTED}" 2>/dev/null | tr -d '[:space:]')" ]] \
+  || die "${rel} holds something besides its certificate: text before or after the PEM block. The file must be the certificate and nothing else"
 openssl x509 -in "${COMMITTED}" -noout -ext basicConstraints 2>/dev/null | grep -q 'CA:TRUE' \
   || die "${rel} is not a CA certificate (no basicConstraints CA:TRUE)"
 

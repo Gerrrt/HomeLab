@@ -199,44 +199,16 @@ unset untracked src
 # ---------------------------------------------------------------------------
 # Trust bundles for the sensitive tier's clients of the estate's ingest proxy
 #
-# Homepage and Home Assistant on trinity query Prometheus through the proxy on
-# 10.0.99.20:9090, whose leaf is issued by the estate CA (#764). Each takes its
-# trust from ONE file, so the estate CA has to be appended to what they
-# already trust rather than handed over on its own:
-#
-#   homepage-ca.pem        tier-ca.pem + the estate CA. NODE_EXTRA_CA_CERTS
-#                          adds to Node's built-in roots, so the tier's root
-#                          (step-ca's leaves, ADR-0037) and the estate's are
-#                          the whole of what it needs.
-#   home-assistant-ca.pem  the host's public roots + the estate CA. Home
-#                          Assistant builds every client SSL context from
-#                          REQUESTS_CA_BUNDLE when it is set and certifi
-#                          otherwise (homeassistant/util/ssl.py, read on the
-#                          pinned 2026.9.4 image), and the bundle REPLACES
-#                          certifi, so it must still hold the public roots its
-#                          cloud integrations need. The host's are Ubuntu's
-#                          ca-certificates, which unattended-upgrades keeps
-#                          current — fresher than a copy of the image's.
-#
-# The estate CA is the committed stacks/observability/alloy/ingest-ca.pem,
-# because trinity's checkout has no certificates/ca.pem and should not need a
-# copy step to forget (scripts/check_ingest_ca.sh keeps the two the same).
-# Written with `>`, which keeps the inode, so the single-file mounts see a new
-# bundle without a recreate. Certificates only, nothing secret, so 0644.
+# Homepage and Home Assistant verify the proxy's leaf against the estate CA
+# (#764), each through one bundle file. scripts/render-trust-bundles.sh has the
+# reasoning, and why a changed bundle gets a new inode where everything else
+# this script writes keeps its own. It decrypts nothing, which is why it is a
+# script of its own: check_hardened_boot.sh needs the same bundle in CI.
 # ---------------------------------------------------------------------------
 if [[ "${STACK}" == sensitive ]]; then
-  ingest_ca="${REPO_ROOT}/stacks/observability/alloy/ingest-ca.pem"
-  tier_ca="${REPO_ROOT}/certificates/tier-ca.pem"
-  system_roots="/etc/ssl/certs/ca-certificates.crt"
-  for f in "${ingest_ca}" "${tier_ca}" "${system_roots}"; do
-    [[ -s "${f}" ]] || die "cannot build the trust bundles: ${f} is missing or empty"
-  done
-  mkdir -p "${STACK_DIR}/.rendered"
-  cat "${tier_ca}" "${ingest_ca}" > "${STACK_DIR}/.rendered/homepage-ca.pem"
-  cat "${system_roots}" "${ingest_ca}" > "${STACK_DIR}/.rendered/home-assistant-ca.pem"
-  chmod 644 "${STACK_DIR}/.rendered/homepage-ca.pem" "${STACK_DIR}/.rendered/home-assistant-ca.pem"
-  info "wrote the trust bundles in sensitive/.rendered (estate CA for the ingest proxy, #764)"
-  unset ingest_ca tier_ca system_roots f
+  "${REPO_ROOT}/scripts/render-trust-bundles.sh" "${STACK_DIR}/.rendered" \
+    | sed 's/^/-- trust bundle: /' \
+    || die "could not write the trust bundles"
 fi
 
 # ---------------------------------------------------------------------------
