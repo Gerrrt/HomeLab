@@ -35,6 +35,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
+| `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |

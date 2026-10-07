@@ -303,6 +303,10 @@ check-loki-rules: ## Validate Loki (LogQL) rules and panel queries, and behaviou
 	./scripts/check_loki_rules.sh
 	python3 scripts/test_loki_rules.py
 
+.PHONY: check-syslog-senders
+check-syslog-senders: ## Send spoofed and real syslog through a scratch Alloy and Loki; only named senders are stored
+	./scripts/check_syslog_senders.sh
+
 .PHONY: patch-state
 patch-state: ## Collect this host's package patch state into the textfile dir
 	@# Needs no root: apt-check runs unprivileged, /var/run/reboot-required is a

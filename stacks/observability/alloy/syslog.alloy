@@ -8,7 +8,8 @@
 // This file exists ONLY on the monitoring host. It opens a UDP listener on
 // every interface the process can see, which inside the compose stack is the
 // container's own namespace, published to the host by compose.yaml as
-// ${BIND_ADDR}:1514/udp for morpheus to send to. On a remote agent the same
+// ${INGEST_BIND_ADDR}:1514/udp for morpheus to send to. Only senders named in
+// loki.relabel.network_syslog are stored (#844). On a remote agent the same
 // listener would be an unused open port — and on a host running the native
 // package, an unused open port on the host's real interface, on a segment
 // ADR-0014 puts an attack VM on. scripts/deploy-agent.sh never ships it.
@@ -72,38 +73,48 @@ loki.source.syslog "network" {
 loki.relabel "network_syslog" {
 	forward_to = []
 
-	// The SENDING device's hostname becomes `host`. This is the reason
-	// loki.write.network_syslog below exists — see the comment there.
+	// THIS IS THE LIST OF SENDERS, and anything not on it is dropped (#844).
 	//
-	// pfSense does not send one. RFC3164 is <PRI>TIMESTAMP HOSTNAME TAG:, and
-	// what arrives on the wire is:
+	// `host` comes from the connection address and from nothing else. One rule
+	// per sender, mapping its address to its name. A sender that matches none
+	// gets no `host` label, and the first stage of loki.process.network_syslog
+	// drops every line without one before it is stored. To add a device, add a
+	// rule here. Until it has one, its lines are counted in
+	// loki_process_dropped_lines_total{reason="syslog_sender_not_allowed"} and
+	// not kept.
+	//
+	// Why not a `keep` rule here, which is what relabelling normally uses:
+	// on loki.source.syslog's relabel_rules a failed `keep` does NOT drop. The
+	// listener ignores the drop result and sends the line anyway, with whatever
+	// labels it had when the keep stopped processing. Measured on the pinned
+	// v1.20.1 by scripts/check_syslog_senders.sh: a leading keep let a spoofed
+	// line through as {log_type="syslog", source="network"}, and nothing was
+	// counted. (loki.relabel as a COMPONENT does drop an entry with no labels
+	// left, but this file only uses its .rules, applied inside the listener.)
+	//
+	// The message's own hostname is deliberately not used. Before #844 it
+	// overrode the name derived here, so any sender could write lines labelled
+	// host="morpheus", including the filterlog and Suricata lines the Loki
+	// security rules read. pfSense does not send one anyway. RFC3164 is
+	// <PRI>TIMESTAMP HOSTNAME TAG:, and what arrives on the wire is:
 	//
 	//   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,...
 	//
-	// Timestamp straight to tag, no hostname field. So __syslog_message_hostname
-	// is empty, Loki drops empty labels, and the streams carried no `host` at
-	// all — which is why {host="morpheus"} returned nothing and looked for all
-	// the world like the logs were not arriving.
+	// Timestamp straight to tag. So the only values that field would ever carry
+	// here are ones some other sender chose.
 	//
-	// The connection address supplies it instead. Order matters: this rule sets
-	// the default, and the rule below overrides it only when the message
-	// actually carries a hostname. One value per sender, so no cardinality cost.
+	// What this does not close: UDP has no handshake, so a host on VLAN 99 can
+	// forge 10.0.99.1 as its source address and be let in. No filter on the
+	// source address can stop that, wherever it runs: not a pfSense rule (VLAN
+	// 99 reaches this host on the switched segment without crossing the
+	// firewall), and not a host firewall here either, because it would see
+	// the same forged address. Only an authenticated transport closes it, such
+	// as syslog over TLS with a client certificate morpheus holds.
 	rule {
 		source_labels = ["__syslog_connection_ip_address"]
 		regex         = "10\\.0\\.99\\.1"
 		target_label  = "host"
 		replacement   = "morpheus"
-	}
-
-	// `(.+)` is load-bearing, not decoration. A relabel rule whose regex does
-	// not match is a no-op, so an empty message hostname leaves the name derived
-	// above intact. With the default regex of `(.*)` this would match the empty
-	// string and blank the label back out.
-	rule {
-		source_labels = ["__syslog_message_hostname"]
-		regex         = "(.+)"
-		target_label  = "host"
-		replacement   = "$1"
 	}
 
 	// pfSense tags filterlog, dhcpd, unbound, sshd and so on. Low cardinality,
@@ -173,15 +184,14 @@ loki.relabel "network_syslog" {
 	//   - ORDER MATTERS ONLY IN THAT THE FIRST RULE IS FIRST. It is the default,
 	//     and the four after it override it when they match. The overrides are
 	//     mutually exclusive — relabel regexes are fully anchored — so their
-	//     order relative to each other is free. This is the same idiom as the
-	//     `host` rules above.
+	//     order relative to each other is free.
 	//   - THE DEFAULT IS A LITERAL `info`, NOT A COPY OF THE SEVERITY. That is
 	//     what makes the vocabulary closed: a severity nobody anticipated lands
 	//     inside the five values instead of leaking a sixth one out to Loki,
 	//     which is exactly how #83 happened. It is the same decision as
 	//     log_processor's `{{ else }}info{{ end }}`.
-	//   - `.+` NOT `.*`, for the reason spelled out against `host` above. `.*`
-	//     matches the empty string, so a message with no severity at all would
+	//   - `.+` NOT `.*`. A relabel rule whose regex does not match is a no-op,
+	//     and `.*` matches the empty string, so a message with no severity at all would
 	//     be stamped `info` — inventing a value rather than leaving the label
 	//     unset. Absent is visibly absent; wrong is not.
 	//
@@ -231,6 +241,22 @@ loki.relabel "network_syslog" {
 
 loki.process "network_syslog" {
 	forward_to = [loki.write.network_syslog.receiver]
+
+	// FIRST, and the reason the listener is safe to publish: a line from a
+	// sender loki.relabel.network_syslog does not name has no `host`, and is
+	// dropped here before anything else reads it (#844). The counter is how you
+	// tell a refused device apart from a silent one. A line that arrives on the
+	// wire, shows up as a rise in
+	// loki_process_dropped_lines_total{reason="syslog_sender_not_allowed"} and
+	// never reaches Loki came from an address the list above does not have.
+	//
+	// `source="network"` is there because a LogQL selector needs one non-empty
+	// matcher. Every line on this path carries it, from the listener's labels.
+	stage.match {
+		selector            = `{source="network", host=""}`
+		action              = "drop"
+		drop_counter_reason = "syslog_sender_not_allowed"
+	}
 
 	// pfSense filterlog is CSV inside the syslog message:
 	//
@@ -295,8 +321,8 @@ loki.process "network_syslog" {
 // merely relays. Reusing it would relabel every pfSense line as though it came
 // from prometheus, and {host="morpheus"} would return nothing at all.
 //
-// No external_labels here, so the `host` set from the sender's own hostname in
-// loki.relabel.network_syslog survives to Loki.
+// No external_labels here, so the `host` that loki.relabel.network_syslog
+// derives from the sender's address survives to Loki.
 loki.write "network_syslog" {
 	endpoint {
 		url = coalesce(sys.env("LOKI_URL"), "http://loki:3100/loki/api/v1/push")
