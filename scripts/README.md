@@ -138,6 +138,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset |
 | `check_loki_coverage.py` | `check-loki-coverage` | No Loki rule is blind to a host whose logs it would match |
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
+| `qga-resync.py` | `qga-resync` | Resets a guest agent's parser and proves it with a ping, when `qm agent` says it is not running but the guest is fine — on `Saruman`, as root |
 | `check-ruleset.sh` | `check-ruleset`, `apply-ruleset` | The ruleset on `main` against [`.github/rulesets/main.json`](../.github/OVERVIEW.md) |
 | `snmp-verify.sh`, `snmp-walk.sh` | `snmp-verify`, `snmp-walk` | Each SNMP device answers its current credential; walk one subtree the way the exporter would |
 | `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh`, `snmp-generate.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once; the vendor MIBs `generator.yaml` needs; and the regeneration of `snmp.yaml` from them |

@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **A guest agent that stops answering is resynchronised, not restarted.**
+  At 16:34:58 and 16:35:05 UTC, `qm guest exec` timed out on `fenrir` and on
+  `alexander`. After that, `qm agent` said both agents were "not running".
+  The other six answered.
+  - **The agent was alive.** Inside `fenrir`, `qemu-ga` was active and asleep.
+    It had logged nothing after its last good request, not even the pings, so
+    it had stopped recognising requests rather than hung.
+  - **Likely cause.** Both failures fell inside the ISO-store verify on
+    `Saruman` (19.5 GB peak, 2 m 43 s of CPU). The likeliest explanation is a
+    request that arrived half-written, which left the agent's JSON parser in
+    an object that never closes.
+  - **The fix.** A `0xFF` byte, then `guest-sync-delimited`, sent on each
+    agent's socket. Both answered at once and have worked since. Nothing in
+    either guest was restarted.
+  - **What is new.** That is now `scripts/qga-resync.py`, run as
+    `make qga-resync VMID=…` on `Saruman`. It sends the reset and the sync,
+    then proves the channel with a `guest-ping`. Its self-test runs a fake
+    agent that is wedged, one that holds a stale reply, one that is dead, and
+    one that syncs but never pings. `GuestAgentSilent`'s description now
+    names the script before a restart.
+  - **odin.** Its agent "hanging under load", recorded in the alert's comment
+    and in odin's notes, is probably the same failure.
+
 - **One deploy of a stack at a time.** At 15:41:49 and 15:42:07 UTC two
   sessions deployed the observability stack from the deployment checkout, one
   with `make up` and one with `make converge`. Both recreated alertmanager and
@@ -51,6 +74,21 @@ docstring gives: it is a record, not a claim about now.
   `homelab_deploy_ci_fallback`, is `1` on a run that deployed such a commit.
   `DeployBehind` ignores those runs, so it fires on three hours without
   progress rather than on three hours of a busy `main`.
+
+- **Wazuh is configured to read the Sysmon channel, but not yet deployed**
+  ([#1035](https://github.com/Gerrrt/HomeLab/issues/1035)).
+  - Read on `odin` first. The manager's ruleset already decodes
+    `Microsoft-Windows-Sysmon/Operational`, and the `default` group's shared
+    `agent.conf` was upstream's empty placeholder. So none of what #450's
+    Sysmon records had been reaching the manager.
+  - `stacks/soc` now mounts a shared `agent.conf` for that group, which adds
+    the channel for Windows agents. `stacks/scratch` mounts the same file. The
+    manager's `verify-agent-conf` accepts it.
+  - ADR-0080 and the proof comment on #450 had said this belonged to #266.
+    #266 was running Wazuh, and it was already closed. ADR-0080 now carries a
+    note.
+  - Not proven yet. The six were rebuilt from the templates today for #448's
+    proof, and the manager had no agents registered when it was read.
 
 - **A Wazuh re-pin took odin's root to 99%, and deploys now remove what they
   supersede** ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)).

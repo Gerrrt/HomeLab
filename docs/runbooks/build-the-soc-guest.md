@@ -586,6 +586,26 @@ can be rotated with one `make secrets-edit STACK=soc` and one `make up`.
 Confirm in the dashboard: *Agents* shows four active while the servers run
 and six during a session, and each server's `wazuh-alerts-*` count climbs.
 
+**What each agent reads.** Two sources:
+
+- the MSI's own `ossec.conf`, which collects Application, Security and System;
+- the `default` group's shared
+  [`agent.conf`](../../stacks/soc/wazuh/manager/shared/default/agent.conf),
+  which the manager serves. It adds the Sysmon channel that
+  [ADR-0080](../adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)
+  put on every guest (#1035).
+
+An agent picks up a change to the shared file by itself and restarts to apply
+it. To check that one has it, run this on `odin`:
+
+```bash
+docker exec soc-wazuh-manager /var/ossec/bin/agent_groups -S -i <agent id>
+```
+
+It says whether the agent's copy is synced. A process started on an endpoint
+then appears in *Discover* as `rule.groups: sysmon`, with its
+`data.win.eventdata.commandLine`.
+
 ## 12. Write it down
 
 The guest is not built until the documents say so, and `make check-docs` walks
