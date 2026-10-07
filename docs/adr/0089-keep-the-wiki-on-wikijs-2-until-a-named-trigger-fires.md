@@ -2,6 +2,16 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> **Trigger 1 is enforced from 2026-10-07.**
+> [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
+> `requarks/wiki`'s published advisories and releases every Monday, through
+> [`scripts/wiki_watch.py`](../../scripts/wiki_watch.py). It keeps one issue,
+> labelled `security` and `wiki`, open while an advisory affects the pin or a
+> trigger has fired. So the first consequence below, "Trigger 1 is not
+> enforced yet", describes the record as it was written. The same run also
+> reads triggers 2 and 3. The text below is left as written, per ADR-0001.
+
 ## Context
 
 The household wiki on `oracle` runs `ghcr.io/requarks/wiki:2.5.316` on
