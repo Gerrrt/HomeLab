@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **A Wazuh re-pin took odin's root to 99%, and deploys now remove what they
+  supersede** ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)).
+  - **What happened.** `make up STACK=soc` pulled #966's re-pinned Wazuh images
+    (new digests, same 4.14.8) and Velociraptor 0.77.3, about 7.4 GB. The four
+    images they replaced stayed on disk, and `/` went from 75% to 99%, 492 MB
+    free. They were removed by hand. `GuestDiskCritical` needs 15 minutes
+    below 10% free, and the disk was cleaned at about 12, so it did not page.
+  - **The two problems.** A pull needs the old set and the new one at once,
+    because the running containers keep the old images until they are
+    recreated: odin had 7.1 GB free against a 7.4 GB pull. And nothing removed
+    the superseded set until the weekly prune on Monday.
+  - **What changed.** odin's OS disk was grown online from 32 to 48 GB, so `/`
+    has 23 GB free, and `build-the-soc-guest.md` says 48. `make up` now runs
+    `prune_superseded_images.py` after its health checks. It removes only
+    images of the stack's own repositories that no container uses and no stack
+    pins, so a profile-only image like the certs generator survives. The
+    weekly prune stays as the backstop.
+
 - **Production `alloy` was killed by another session's test, and converge now
   starts a stopped stack service**
   ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).

@@ -22,6 +22,13 @@
 #
 # The before and after are printed so the journal records what each run
 # reclaimed, the same as the monitoring host's.
+#
+# Since #1027 this is the backstop, not the main path. `make up` removes the
+# images its own deploy superseded as soon as the stack is healthy
+# (scripts/prune_superseded_images.py), because a week was too long: a Wazuh
+# re-pin on a Tuesday left odin's root at 99%, short of the room the next pull
+# needs. This still catches anything that path does not, such as a stack
+# that was removed outright.
 
 set -euo pipefail
 
