@@ -45,8 +45,9 @@ docstring gives: it is a record, not a claim about now.
   ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
   - **What is written:**
-    - `stacks/bloodhound`: BloodHound 9.7.1, Postgres 18 and Neo4j 4.4,
-      upstream's shape, hardened;
+    - `stacks/bloodhound`: BloodHound 9.7.1 over one Postgres 18 that holds
+      both its state and its graph (`bhe_graph_driver: pg`), not upstream's
+      default Neo4j, so that Saruman's disks carry one database, not two;
     - its secrets template, and a `.sops.yaml` rule with a placeholder for
       the guest's key;
     - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).

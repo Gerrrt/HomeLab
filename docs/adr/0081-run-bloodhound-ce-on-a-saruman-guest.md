@@ -16,9 +16,11 @@ anything would have seen it. That is a graph problem, and BloodHound Community
 Edition is the tool built for it.
 [#451](https://github.com/Gerrrt/HomeLab/issues/451) asks where it runs.
 
-BloodHound CE is one Go binary with two databases under it: Postgres for its
-users and saved queries, and Neo4j 4.4 for the graph. Upstream ships it as a
-compose file. Its collector, SharpHound or bloodhound-python, runs against the
+BloodHound CE is one Go binary over a database. Upstream's compose file gives
+it two: Postgres for its users and saved queries, and Neo4j 4.4 for the graph.
+The binary also ships a Postgres graph driver, chosen at start by
+`bhe_graph_driver`, which keeps the graph in the same Postgres as everything
+else. Its collector, SharpHound or bloodhound-python, runs against the
 domain from wherever the operator is. Its output is a zip, uploaded through the
 UI. So only the server needs a home.
 
@@ -55,16 +57,23 @@ guest on `Saruman`: `eden`, VMID 141, `10.0.30.41`.**
   | Resource | Size | Why |
   | --- | --- | --- |
   | vCPU | 4 | |
-  | RAM | 12 GiB | The stack's memory limits add up to about 8 GiB. The rest is for the guest kernel, Docker and page cache |
+  | RAM | 8 GiB | The stack's memory limits add up to about 5.5 GiB: 3 for BloodHound, 2 for Postgres. The rest is for the guest kernel, Docker and page cache |
   | OS disk | 32 GiB, on `local-lvm` | Phoenix's choice: an OS disk's I/O is trivial, so it does not need the SSDs |
-  | Data disk | 32 GiB, on `large_data` | Neo4j and Postgres live on it, and the graph's random reads are what the SSDs are for. 32 GiB is generous for a domain of tens of objects |
+  | Data disk | 32 GiB, on `large_data` | Postgres lives on it, graph included, and the graph's random reads are what the SSDs are for. 32 GiB is generous for a domain of tens of objects |
 
   The data disk brings the SSD pool's allocation to 952 GiB of 876. What is
   written grows by megabytes.
 - **It is off between sessions.** The guest carries the Proxmox tag
   `on-demand` ([ADR-0079](0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md))
   and `onboot 0`. It is started for an analysis session and shut down after.
-  Its 12 GiB and its I/O are spent only then.
+  Its 8 GiB and its I/O are spent only then.
+- **One database: the graph lives in Postgres, not Neo4j.** BloodHound runs
+  with `bhe_graph_driver: pg`, so its state and its graph share one Postgres
+  18. That means one store on `Saruman`'s disks instead of two, one data
+  directory, and one password. It also means no JVM sizing its heap and page
+  cache from the host's memory rather than the container's. The disk budget
+  [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
+  sized so carefully is spent once.
 - **Nothing on it is backed up.**
   - **It stays out of `golem`'s nightly job**, like `alexander`, `phoenix` and
     `fenrir`. The job selects VMIDs, so leaving it out takes no change
@@ -103,7 +112,7 @@ guest on `Saruman`: `eden`, VMID 141, `10.0.30.41`.**
 - **Its secrets have their own key and rule.**
   - `secrets/bloodhound.sops.yaml` gets its own `.sops.yaml` rule above the
     catch-all, and eden's own age key, made on the guest.
-  - It holds five values: the two database passwords, the first admin, the
+  - It holds four values: the database password, the first admin, the
     session signing key and the ingest token.
   - Of these, only the ingest token is also held anywhere else, on `alexander`.
 - **The collector is not part of this decision.** SharpHound ships inside the
@@ -137,9 +146,9 @@ guest on `Saruman`: `eden`, VMID 141, `10.0.30.41`.**
     ([ADR-0020](0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)).
   - **`odin`'s** 16 GiB is sized to Wazuh's stated minimums
     ([ADR-0030](0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md)).
-  - **Neither is off between sessions.** A Neo4j that holds 4 GiB all day to
-    be used one evening a week costs more on an always-on guest than the
-    guest it would avoid.
+  - **Neither is off between sessions.** A graph store that holds gigabytes
+    all day to be used one evening a week costs more on an always-on guest
+    than the guest it would avoid.
 - **In Docker on the hypervisor.** Docker rewrites the iptables `Saruman`'s own
   firewall relies on
   ([ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)).
@@ -147,8 +156,15 @@ guest on `Saruman`: `eden`, VMID 141, `10.0.30.41`.**
 - **Both disks on `large_data`.** That is fenrir's shape. It adds 32 GiB more
   allocation to a pool that is already allocated past its size, to buy speed
   for an OS disk that does almost no I/O.
-- **Always on.** It would reserve 12 GiB, and Neo4j's checkpointing on the
-  SSDs, for a tool that is used in sessions.
+- **Neo4j for the graph, as upstream's compose ships it.** It is the
+  better-trodden path, and BloodHound's own documentation assumes it. But it
+  is a second database with a second password and a second data directory.
+  Its heap and page cache size themselves from the host unless pinned, and
+  BloodHound CE speaks only its 4.4 line, which Dependabot would have to be
+  held to. For a domain of tens of objects, the Postgres driver answers the
+  same queries from the store the stack already has.
+- **Always on.** It would reserve 8 GiB, and the database's checkpointing on
+  the SSDs, for a tool that is used in sessions.
 
 ## Consequences
 
@@ -175,16 +191,23 @@ guest on `Saruman`: `eden`, VMID 141, `10.0.30.41`.**
   [ADR-0028](0028-let-guest-liveness-cross-but-not-guest-telemetry.md) lets
   its run state cross, as for every guest, and the `on-demand` tag keeps that
   quiet.
+- **It is built before #449's weaknesses exist, and that is deliberate.** The
+  graph already has edges from the 41-account population and its groups. The weaknesses land as tags on top, and each one is a reason to
+  collect again, not to rebuild anything here.
+- **The Postgres graph driver is the less-trodden path.** If a query or an
+  ingest misbehaves in a way upstream's Neo4j setup does not, that is a
+  finding about the driver. The fix is a decision to reopen this, not a quiet
+  second database.
 - **It is authored ahead of the build**, as `stacks/soc` and `stacks/sensor`
   were. The stack, its secrets template, its `.sops.yaml` rule with a
   placeholder and its runbook come first. The guest, its key, its token on
   `alexander` and the closing of #451 come in the pull request that writes it
   down as built.
 - **Reopened by:**
-  - a domain large enough that Neo4j's 4 GiB, or the SSD pool's headroom,
+  - a domain large enough that Postgres's 2 GiB, or the SSD pool's headroom,
     stops being generous;
-  - BloodHound CE dropping Neo4j for its Postgres graph driver, which would
-    make one of the two databases unnecessary;
+  - BloodHound CE dropping or deprecating its Postgres graph driver, or a
+    query the lab needs that only the Neo4j driver answers;
   - `ifrit` arriving with a reason to analyse from the range, which this ADR
     argues against but does not forbid;
   - saved queries becoming something worth a backup.

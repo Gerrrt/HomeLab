@@ -132,11 +132,10 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]
 
-  # stacks/bloodhound (#451, ADR-0081): BloodHound CE, Postgres and Neo4j on
-  # eden. Two majors are held. Neo4j stays on 4.4, which is what BloodHound CE
-  # speaks; 5.x is a different store format, a decision rather than a bump.
-  # Postgres follows wiki's rule: a major is a dump and a restore. An entry from
-  # the first commit, which is the lesson sensor's comment above records.
+  # stacks/bloodhound (#451, ADR-0081): BloodHound CE and the one Postgres
+  # that holds its state and its graph, on eden. Postgres majors are held, by
+  # wiki's rule: a major is a dump and a restore. An entry from the first
+  # commit, which is the lesson sensor's comment above records.
   - package-ecosystem: docker-compose
     directory: /stacks/bloodhound
     schedule:
@@ -144,8 +143,6 @@ updates:
       day: sunday
     open-pull-requests-limit: 5
     ignore:
-      - dependency-name: neo4j
-        update-types: ["version-update:semver-major"]
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
     commit-message:

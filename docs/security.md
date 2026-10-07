@@ -669,10 +669,10 @@ assumption consistent with what they are.
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
   - **How it is held.** `eden`'s rule sits above the catch-all, with a
     placeholder until the guest exists. So the host holding a map of the lab
-    domain's weaknesses opens its own five secrets and nothing else.
+    domain's weaknesses opens its own four secrets and nothing else.
   - **Why it gets no second recipient, unlike ADR-0024's other keys.** What
     the key guards is all re-issuable:
-    - the two databases' passwords, which guard data that is itself one
+    - the database's password, which guards data that is itself one
       collection run from rebuilt;
     - a first admin, which matters only on the first start;
     - a session signing key;

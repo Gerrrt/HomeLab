@@ -34,9 +34,9 @@ same, this runbook points there and does not keep a second copy that drifts.
 | VMID | `141` | The last octet, legible from `qm list` |
 | Tags | `on-demand` | Off between sessions, and `HypervisorGuestStopped` knows it ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)) |
 | `onboot` | `0` | For the same reason. A `Saruman` reboot does not bring it back, and should not |
-| vCPU / RAM | 4 / 12 GiB | The stack's limits add up to about 8 GiB, with Neo4j's 4 GiB the largest. The rest is the kernel, Docker and page cache |
+| vCPU / RAM | 4 / 8 GiB | The stack's limits add up to about 5.5 GiB: BloodHound's 3 and Postgres's 2. The rest is the kernel, Docker and page cache |
 | OS disk | 32 GB on `local-lvm` | `phoenix`'s choice. An OS disk does almost no I/O, and `large_data` is already allocated past its size (ADR-0081) |
-| Data disk | 32 GB on `large_data` | Neo4j's random reads are what the SSDs are for. A domain of tens of objects is megabytes of graph |
+| Data disk | 32 GB on `large_data` | Postgres holds the graph too (ADR-0081), and its random reads are what the SSDs are for. A domain of tens of objects is megabytes of graph |
 | Backup | **None** | The graph is one collection run from rebuilt, and the guest is rebuilt from this repository. It stays out of `golem`'s job |
 | Firewall | `firewall=0`, and no rule on `morpheus` | The upload, the browser and the Alloy push are all intra-segment or already allowed (ADR-0081) |
 
@@ -50,7 +50,7 @@ qm create 141 \
   --name eden \
   --ostype l26 \
   --cpu host --cores 4 --sockets 1 \
-  --memory 12288 --balloon 0 \
+  --memory 8192 --balloon 0 \
   --scsihw virtio-scsi-single \
   --scsi0 local-lvm:32,discard=on,iothread=1 \
   --scsi1 large_data:32,discard=on,iothread=1,ssd=1 \
@@ -88,12 +88,11 @@ from `Saruman` is the check.
 
 **The data disk** is `odin`'s § *The data disk*, with `bloodhound-data` for
 `soc-data`, on the other 32G disk. That includes the `chattr +i` guard on the
-empty mountpoint. Then create the three directories, owned by the uids the
+empty mountpoint. Then create the two directories, owned by the uids the
 services run as:
 
 ```bash
 sudo install -d -m 0700 -o 999   -g 999   /srv/bloodhound-data/postgres
-sudo install -d -m 0750 -o 7474  -g 7474  /srv/bloodhound-data/neo4j
 sudo install -d -m 0750 -o 65534 -g 65534 /srv/bloodhound-data/work
 df -h /srv/bloodhound-data
 ```
@@ -119,13 +118,13 @@ rule and not to the catch-all:
 scripts/check_sops_rules.py | grep bloodhound
 ```
 
-Fill the four values that are made here.
+Fill the three values that are made here.
 [`secrets/bloodhound.example.yaml`](../../secrets/bloodhound.example.yaml)
 says how each is made, and the admin password's symbol is the one that gets
 forgotten:
 
 ```bash
-make gen-secret ARGS='--count 3'
+make gen-secret ARGS='--count 2'
 openssl rand -base64 32
 make secrets-edit STACK=bloodhound
 ```
@@ -215,7 +214,7 @@ make up STACK=bloodhound
 docker compose -f stacks/bloodhound/compose.yaml ps
 ```
 
-`app-db` and `graph-db` must be `healthy`, and `bloodhound` and `alloy`
+`app-db` must be `healthy`, and `bloodhound` and `alloy`
 `running`. `bloodhound` has no health check; ADR-0081 and its compose comment
 say why.
 
@@ -230,8 +229,14 @@ Check each one now:
 
   If it fails, find out **what** it writes before changing the user. The
   compose comment says not to take that line out quietly.
-- **Neo4j as 7474 from the start:** `graph-db` reaching `healthy` is the
-  proof.
+- **The graph in Postgres.** BloodHound's start log names the graph driver
+  it opened. It must be `pg`, and `docker logs bloodhound-app` must show no
+  `neo4j` connection attempts:
+
+  ```bash
+  docker logs bloodhound-app 2>&1 | grep -iE 'graph|driver|neo4j' | head
+  ```
+
 - **The metrics scrape, over TLS.** The image is distroless, so nothing in it
   can `curl` its own port. Alloy's UI on `127.0.0.1:12345` shows
   `prometheus.scrape.bloodhound`'s last scrape and error. A certificate error

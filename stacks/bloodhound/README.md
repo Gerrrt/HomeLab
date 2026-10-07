@@ -4,7 +4,7 @@
 [![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
 ![status: not built](https://img.shields.io/badge/status-not%20built-d29922?style=plastic)
 [![BloodHound CE](https://img.shields.io/badge/BloodHound%20CE-c0392b?style=plastic)](https://github.com/SpecterOps/BloodHound)
-[![Neo4j](https://img.shields.io/badge/Neo4j-4581C3?style=plastic&logo=neo4j&logoColor=white)](https://neo4j.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=plastic&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 
 Attack-path analysis for the lab domain, `ad.matrix.elysium`: which path to
@@ -18,15 +18,14 @@ domain, why it is off by default, and why nothing here is backed up.
 
 ```bash
 make secrets-init STACK=bloodhound     # on eden, once: its own age key and rule
-make secrets-edit STACK=bloodhound     # the five values in secrets/bloodhound.example.yaml
+make secrets-edit STACK=bloodhound     # the four values in secrets/bloodhound.example.yaml
 make up STACK=bloodhound
 ```
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | `bloodhound` | `specterops/bloodhound` | 8443 (https) | The API, the ingest workers and the UI. TLS on a leaf from the estate's CA. Serves the SharpHound and AzureHound release it was built with |
-| `app-db` | `postgres` | *internal* | Users, saved queries, upload jobs, audit log |
-| `graph-db` | `neo4j` | *internal* | The graph. Held to 4.4, which is what BloodHound CE speaks |
+| `app-db` | `postgres` | *internal* | Users, saved queries, upload jobs, audit log, **and the graph**: BloodHound's Postgres graph driver, not upstream's default Neo4j ([ADR-0081]) |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector. Pushes to `alexander`, and scrapes BloodHound's metrics as `job="bloodhound"` |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 

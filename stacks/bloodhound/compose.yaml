@@ -1,6 +1,7 @@
 ---
-# The attack-path stack: BloodHound Community Edition, the two databases under
-# it, and the Alloy that reports on the guest it runs on (#451).
+# The attack-path stack: BloodHound Community Edition, the one Postgres that
+# holds both its state and its graph, and the Alloy that reports on the guest
+# it runs on (#451).
 #
 # Deployed on: eden (10.0.30.41, VLAN 30 / ImaginationLAN) — a guest on
 #              `Saruman`, VMID 141, tagged `on-demand`. NOT BUILT YET.
@@ -35,8 +36,8 @@
 #
 # EVERY mem_limit HERE IS A BOUND, NOT A MEASUREMENT. Re-derive them from
 # container_memory_rss in the lab's Prometheus after the first real ingest, as
-# stacks/soc says of its own. 12 GiB of guest is the sum below plus about 3 GiB
-# for the kernel, Docker and page cache.
+# stacks/soc says of its own. 8 GiB of guest is the sum below plus about 2.5
+# GiB for the kernel, Docker and page cache.
 
 name: bloodhound
 
@@ -48,8 +49,13 @@ x-logging: &default-logging
 
 services:
   # ---------------------------------------------------------------------------
-  # Postgres — BloodHound's application database: users, saved queries, file
-  # upload jobs, audit log. Not the graph.
+  # Postgres — BloodHound's application database AND its graph: users, saved
+  # queries, upload jobs and audit log, and the nodes and edges beside them.
+  #
+  # ONE DATABASE, NOT TWO (ADR-0081). Upstream's compose defaults to a Neo4j
+  # 4.4 for the graph; BloodHound CE also ships a Postgres graph driver, picked
+  # by bhe_graph_driver below. With it the stack has one store on Saruman's
+  # disks instead of two, and no JVM sizing itself from the host's memory.
   #
   # Upstream's compose pins postgres:18 and this follows it. Hardened as
   # stacks/sensitive's paperless-db is, and for its reasons: run as the image's
@@ -74,8 +80,10 @@ services:
     tmpfs:
       - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
       - /tmp:size=64m
-    mem_limit: 1024m
-    memswap_limit: 1024m
+    # Twice what an app-state-only Postgres would get, because the graph's
+    # pathfinding queries run here now. A bound, as the header says.
+    mem_limit: 2048m
+    memswap_limit: 2048m
     environment:
       POSTGRES_DB: bloodhound
       POSTGRES_USER: bloodhound
@@ -90,66 +98,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
-
-  # ---------------------------------------------------------------------------
-  # Neo4j — the graph itself.
-  #
-  # DIFFERENCE: held to 4.4. BloodHound CE speaks Bolt to a 4.4 server and
-  # upstream's compose pins 4.4.x; 5.x is a different store format and a
-  # different Cypher dialect in places. .github/dependabot.yml ignores Neo4j
-  # majors for that reason, so a 5.x arrives as a decision and not as a bump.
-  #
-  # Runs as the image's own neo4j user, 7474, rather than starting as root and
-  # dropping with gosu. Neo4j's image supports that directly: the entrypoint
-  # writes NEO4J_* settings into conf/ under /var/lib/neo4j, which the image
-  # already gives to 7474, and refuses to start if /data is not writable by the
-  # running user, which build-the-bloodhound-guest.md arranges. NOT read_only
-  # for that same conf/ write at every start.
-  #
-  # The heap and page cache are set rather than left to Neo4j's heuristics,
-  # which size from the HOST's memory and not the container's limit: on a
-  # 12 GiB guest they would reach for most of it and be OOM-killed against the
-  # limit below. 2 GiB of heap answers BloodHound's pathfinding queries on a
-  # domain of tens of objects with room to spare; 1 GiB of page cache holds
-  # the whole store several times over. Re-derive when the domain grows.
-  #
-  # The browser on 7474 and Bolt on 7687 are NOT published. Upstream binds both
-  # to the host's loopback; nothing on this guest uses them except over the
-  # compose network, so here they are not bound at all (ADR-0012).
-  # ---------------------------------------------------------------------------
-  graph-db:
-    image: neo4j:4.4.48@sha256:6a5b0f7dbba88b4b6ab912772f5599d37282cfd5df99a590d96ab2da2b103ce4
-    container_name: bloodhound-graph-db
-    restart: unless-stopped
-    logging: *default-logging
-    init: true
-    pids_limit: 512
-    networks: [bloodhound]
-    user: "7474:7474"
-    cap_drop: [ALL]
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: 4096m
-    memswap_limit: 4096m
-    environment:
-      NEO4J_AUTH: neo4j/${BLOODHOUND_NEO4J_PASSWORD:?set in secrets/bloodhound.sops.yaml}
-      NEO4J_dbms_memory_heap_initial__size: 2g
-      NEO4J_dbms_memory_heap_max__size: 2g
-      NEO4J_dbms_memory_pagecache_size: 1g
-      # An upload of a collection made by a newer SharpHound than the store
-      # was created under is upstream's reason for this; kept as they ship it.
-      NEO4J_dbms_allow__upgrade: "true"
-    volumes:
-      - graph-db-data:/data
-    expose:
-      - "7687"
-      - "7474"
-    healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost:7474"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 60s
 
   # ---------------------------------------------------------------------------
   # BloodHound CE — the API, the ingest workers and the UI, one Go binary.
@@ -209,11 +157,12 @@ services:
     mem_limit: 3072m
     memswap_limit: 3072m
     environment:
-      # Unguarded here: app-db and graph-db carry the ${VAR:?} guard for the
-      # same two passwords, so compose refuses to start before these are read.
+      # Unguarded here: app-db carries the ${VAR:?} guard for the same
+      # password, so compose refuses to start before this is read.
       bhe_database_connection: "user=bloodhound password=${BLOODHOUND_DB_PASSWORD} dbname=bloodhound host=app-db"
-      bhe_neo4j_connection: "neo4j://neo4j:${BLOODHOUND_NEO4J_PASSWORD}@graph-db:7687/"
-      bhe_graph_driver: neo4j
+      # The graph in app-db too, not in a Neo4j (ADR-0081). The binary picks
+      # its driver from this at start: `neo4j` or `pg`, nothing else.
+      bhe_graph_driver: pg
       bhe_root_url: https://${BLOODHOUND_HOSTNAME:-bloodhound.matrix.elysium}:${BLOODHOUND_PORT:-8443}/
       bhe_tls_cert_file: /etc/bloodhound/tls/cert.pem
       bhe_tls_key_file: /etc/bloodhound/tls/key.pem
@@ -244,8 +193,6 @@ services:
       - "${BIND_ADDR:-0.0.0.0}:${BLOODHOUND_PORT:-8443}:8080"
     depends_on:
       app-db:
-        condition: service_healthy
-      graph-db:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
@@ -302,7 +249,7 @@ services:
   # that does not exist on VLAN 99.
   #
   # What reaches alexander is host and container telemetry, container logs and
-  # BloodHound's own metrics. Not the graph: nothing here reads Neo4j or
+  # BloodHound's own metrics. Not the graph: nothing here reads
   # Postgres. The container logs carry BloodHound's request log, which names
   # the API paths queried, not the query results.
   # ---------------------------------------------------------------------------
@@ -359,7 +306,7 @@ networks:
     driver: bridge
 
 volumes:
-  # The three stores live on eden's second disk, not the OS volume, the way
+  # The two stores live on eden's second disk, not the OS volume, the way
   # fenrir's Zeek logs and odin's indexer do: a graph store grows with every
   # collection ingested, and a separate filesystem is somewhere for that
   # arithmetic to be wrong safely. build-the-bloodhound-guest.md makes the
@@ -372,12 +319,6 @@ volumes:
       type: none
       o: bind
       device: ${BLOODHOUND_DATA_DIR:-/srv/bloodhound-data}/postgres
-  graph-db-data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${BLOODHOUND_DATA_DIR:-/srv/bloodhound-data}/neo4j
   bloodhound-work:
     driver: local
     driver_opts:

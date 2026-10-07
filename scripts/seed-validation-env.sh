@@ -90,7 +90,6 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "API_PASSWORD=validation-only"
   echo "VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD=validation-only"
   echo "BLOODHOUND_DB_PASSWORD=validation-only"
-  echo "BLOODHOUND_NEO4J_PASSWORD=validation-only"
   echo "BLOODHOUND_ADMIN_PASSWORD=Validation-only-1!"
   echo "BLOODHOUND_JWT_SIGNING_KEY=validation-only"
   # RENDER_UID/GID are written to .env by render-config.sh from the deploying
