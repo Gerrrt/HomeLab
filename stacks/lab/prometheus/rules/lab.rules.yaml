@@ -119,7 +119,13 @@ groups:
           summary: "The lab's Loki has received no log lines for 30 minutes"
           description: >-
             Either the lab's Alloy is down or the push endpoint is unreachable.
-            Logs are being lost, not queued indefinitely.
+            A running agent retries a failed push for a few minutes, then drops
+            the batch: those lines are lost. A stopped agent's file and Docker
+            sources resume from their saved positions when it starts, unless
+            the logs rotated away meanwhile. Its journal source resumes only
+            after an outage under 24 hours (its max_age); after a longer one,
+            those journal lines are skipped. Loki refuses any line older than
+            168 hours.
 
       # The guests' own disks: `alexander`, and `odin`, whose Alloy pushes here
       # (stacks/soc). The estate's HostDisk* rules cannot see either, because

@@ -6,6 +6,16 @@ in is now part of the image) and the "join none of the estate's loops"
 consequence of
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
 
+> [!NOTE]
+> "Host keys are not pinned" (decision 2, below) is amended by
+> [ADR-0082](0082-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md),
+> 2026-10. Host keys are checked, against keys `scripts/lab-known-hosts.sh`
+> reads from each guest through the Proxmox guest agent after each rebuild.
+> The Windows build's WinRM, which "WinRM is rejected" calls HTTP Basic, is
+> HTTPS scoped to `phoenix` since
+> [#846](https://github.com/Gerrrt/HomeLab/issues/846); the rejection stands.
+> The text here is left as written, per ADR-0001.
+
 ## Context
 
 [`build-the-lab-domain.md`](../runbooks/build-the-lab-domain.md) builds

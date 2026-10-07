@@ -79,10 +79,13 @@ for stack in "${STACKS[@]}"; do
   # A throwaway certificate, one day, unrelated to any CA this estate has ever
   # run. It exists so the issuer's `trusted_roots /etc/caddy/tls/ca.pem` has a
   # PEM to parse; it proves nothing about the real root and is not meant to.
+  # The same pair is also offered as /etc/caddy/tls/cert.pem and key.pem, for
+  # a Caddyfile that loads its leaf from files rather than over ACME — the
+  # wiki's (#847) — since `caddy validate` loads them and fails on a missing
+  # one. It proves the paths and the syntax, not the leaf.
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
     -subj '/CN=caddyfile-validation' \
     -keyout "${work}/key.pem" -out "${work}/ca.pem" >/dev/null 2>&1
-  rm -f "${work}/key.pem"
   chmod 644 "${work}"/*.pem
   chmod 755 "${work}"
 
@@ -107,6 +110,8 @@ for stack in "${STACKS[@]}"; do
     --env-file "${work}/env" \
     -v "${work}/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "${work}/ca.pem:/etc/caddy/tls/ca.pem:ro" \
+    -v "${work}/ca.pem:/etc/caddy/tls/cert.pem:ro" \
+    -v "${work}/key.pem:/etc/caddy/tls/key.pem:ro" \
     "${image}")
 
   info "${stack}: caddy validate against $(basename "${image%%@*}")"

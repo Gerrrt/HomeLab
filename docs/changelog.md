@@ -19,6 +19,67 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-07
 
+- **The wiki is served over https and deployed from a verified checkout,
+  in the repository** ([#847](https://github.com/Gerrrt/HomeLab/issues/847);
+  [ADR-0082](adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)).
+  - **Two gaps were found by the 2026-10-03 review.** The deploy was a `curl`
+    of `compose.yaml` from `main`, with no signature checked. Logins went over
+    plain HTTP on `80:3000`, which nothing had accepted.
+  - **Authored:**
+    - a Caddy in `stacks/wiki` that terminates 443 on a lab-CA leaf and
+      answers 80 with a `308` only;
+    - Wiki.js unpublished;
+    - the README's deploy, against one fetched SHA: fetch from the
+      canonical URL, read its CI, require a clean `main`, `verify-commit`,
+      compare `%GF` with `converge.sh`'s pin, `--ff-only`, require `HEAD` to
+      be that SHA, then `up`;
+    - both blackbox targets on `http_2xx_lab_ca`;
+    - `check_caddyfile.sh` offering a throwaway `cert.pem` and `key.pem`, so a
+      Caddyfile that loads its leaf from files validates in CI.
+  - **Measured on the pinned Caddy image.**
+    - Its binary carries `cap_net_bind_service` as a file capability. Run as a
+      non-root uid under `no-new-privileges`, the exec is refused, so it runs
+      as root with only `NET_BIND_SERVICE`, the sensitive tier's shape.
+    - A client dialling the address sends no SNI, and was refused the
+      handshake until `default_sni` named the leaf.
+    - The internal CA it provisions anyway logged a failed trust-store
+      install until `auto_https disable_certs` and `skip_install_trust` were
+      both set. Neither alone stopped it.
+    - Redirect, both names, the address, a `POST` to `/login` on 80 and the
+      healthcheck were exercised against a throwaway CA.
+  - **Not yet done on `oracle`.** The cutover in `stacks/wiki/README.md` § TLS
+    is still to run: the Hicks `443` pass, the checkout, the leaf, the Site
+    URL, and the probe.
+
+- **#182's deployment, recorded late**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  The 2026-09-30 entry below says "Authored, not yet deployed", and the
+  roadmap kept saying so after the issue closed. The ingest proxy was
+  deployed 2026-09-30 at 22:27 UTC, and the issue closed at 23:53 with the
+  evidence on it.
+  - **Published:** Prometheus and Loki on `127.0.0.1`, and `ingest-proxy`
+    on `10.0.99.20:9090` and `:3100`.
+  - **Refused with no token, asked from `oracle`:** a query, a remote write,
+    Loki's delete and an admin snapshot, all with `401`. Loopback still
+    answers without a token.
+  - **Every client arrived on its own token:**
+    - `oracle` and `trinity` passed `deploy-agent.sh`'s arrival check;
+    - `Saruman`'s pushes were refused until its token matched SOPS, with no
+      refusals since 23:49:53;
+    - Homepage and Home Assistant came up healthy under `make up
+      STACK=sensitive`, carrying the reader token.
+  - **The blackbox probes** for health and refusal all returned
+    `probe_success 1`, so `IngestAuthNotEnforced` is armed.
+  - **Found on the way:**
+    - #766, a dpkg conffile prompt on the native upgrade;
+    - the blackbox exporter kept `blackbox.yaml`'s old inode until it was
+      force-recreated;
+    - #771, which commits the encrypted token keys.
+
+  TLS on these ports is
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764).
+
 - **The drifted digests are re-pinned, and `make pin-digests` survives a
   duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
   stacks pinned digests the registry no longer serves under their tag:
@@ -122,6 +183,20 @@ docstring gives: it is a record, not a claim about now.
   stage removed and with the hostname rule restored. In the seven days before
   the change, every stream on this path was `host="morpheus"`, so nothing that
   was arriving is now refused.
+
+- **The weekly digest-drift check covers every stack, not just one.**
+  `digests.yml` ran `scripts/pin-digests.sh` with no `COMPOSE_FILE`, so it
+  checked only `stacks/observability`. It now runs
+  `make check-digests`, which loops over `scripts/stacks.sh`. That target also
+  stopped at the first stack that drifted, because of `-e` in `.SHELLFLAGS`;
+  it now checks every stack and then fails, naming the ones that drifted. The
+  first full run on 2026-10-07 found drift that had gone unreported in five
+  stacks: observability (`debian:13-slim`), scratch and soc (the three
+  `wazuh/*` 4.14.8 images), sensitive (`postgres:18.6`, pinned by two
+  services), and wiki (`postgres:17.11`). The tags have not moved, but
+  upstream rebuilt them. They were re-pinned the same day in their own change
+  ([#966](https://github.com/Gerrrt/HomeLab/pull/966)), because a merge to
+  sensitive is a deploy.
 
 - **Every pinned image is scanned for CVEs weekly.** Before this, every image
   was pinned by digest and `digests.yml` watched those digests for drift, but

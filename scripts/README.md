@@ -147,6 +147,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `export-dashboards.sh`, `export_dashboards.py` | `dashboards-export` | Folds UI edits in the running Grafana back over the committed JSON |
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
+| `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0082](../docs/adr/0082-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
 | `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |

@@ -90,6 +90,20 @@ paths = [
   # `\.env$` does not match .env.example, which is committed and carries only
   # change-me values.
   '''(^|/)\.env$''',
+  # Third-party Ansible collections, downloaded and gitignored (ansible/.gitignore).
+  # `ansible-lint --project-dir ansible` in scripts/lint.sh installs
+  # ansible/requirements.yml into ansible/.ansible/ on every run, and
+  # ansible.cfg's collections_path is ansible/.collections/. ansible.windows
+  # ships test fixtures — PEM keys, a .pfx, passwords in task files — so
+  # `make validate` failed its working-tree scan on nine of them, on a clean
+  # main, every time lint had run first (2026-10-07). None of it is ours or
+  # secret. What keeps it out of the repository is
+  # scripts/check-tracked-artefacts.sh, which names both paths, `git add -f`
+  # included, and runs in CI and in validate.sh. An allowlisted path is
+  # invisible to the history scan as well, so that check is the only control
+  # on it, not a second one.
+  '''(^|/)ansible/\.ansible/''',
+  '''(^|/)ansible/\.collections/''',
 ]
 
 regexes = [

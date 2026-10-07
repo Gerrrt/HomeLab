@@ -15,6 +15,35 @@
 # DNS GlobalQueryBlockList are the exercises ADR-0014 built the segment for;
 # no role touches them, and verify.yml fails if any of them has moved.
 
+# FIRST, AND ON EVERY TAG. Without phoenix.env exported, lookup('env') returns
+# "" and base would rotate Administrator to an empty password, silently: the
+# task is no_log, so even its error would be hidden (#846). Fourteen is the
+# floor packer/variables.pkr.hcl sets for the build password. Tagged always,
+# so a one-stage run (--tags exporter) is guarded too. It targets lab_domain,
+# not localhost, so that --limit cannot leave it out: `--limit titan --tags
+# base` would select no localhost, and skip it. assert runs on the controller
+# and connects to nothing, so evaluating it per host costs nothing, and
+# any_errors_fatal stops every host on a failure. The population seed, the
+# Wazuh password and the endpoint admin's are asserted by the roles that use
+# them.
+- name: The secrets are present before anything uses them
+  hosts: lab_domain
+  gather_facts: false
+  any_errors_fatal: true
+  tags: [always]
+  tasks:
+    - name: Refuse to run without the passwords from phoenix.env
+      ansible.builtin.assert:
+        that:
+          - lab_admin_password | length >= 14
+          - lab_dsrm_password | length >= 14
+          - lab_tier_admin_password | length >= 14
+        fail_msg: >-
+          LAB_ADMIN_PASSWORD, LAB_DSRM_PASSWORD or LAB_TIER_ADMIN_PASSWORD is
+          missing or shorter than 14 characters. Export phoenix.env first:
+          set -a; . ~/.config/proxmox/phoenix.env; set +a
+        quiet: true
+
 # Strictly serial: one Windows guest at a time. A reboot storm on Saruman's
 # disks is the failure build-the-lab-domain.md §0 prices, and the domain's
 # order (forest, clock, second DC, joins) is serial anyway.

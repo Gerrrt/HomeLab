@@ -527,10 +527,17 @@ pin-digests: ## Re-resolve image digests in every stack's compose.yaml (--write 
 
 .PHONY: check-digests
 check-digests: ## Verify pinned digests still match the registry
-	@paths="$$(./scripts/stacks.sh --paths)"; for sd in $$paths; do \
+	@# Every stack is checked before this fails. Under .SHELLFLAGS' -e the loop
+	@# used to stop at the first stack that drifted, so one stale pin hid every
+	@# stack after it in stacks.sh order. This is also what digests.yml runs
+	@# weekly, so the CI check and the local one cannot cover different stacks.
+	@paths="$$(./scripts/stacks.sh --paths)"; failed=""; for sd in $$paths; do \
 		printf '\033[0;34m--\033[0m %s\n' "$$sd"; \
-		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh; \
-	done
+		COMPOSE_FILE="$$sd/compose.yaml" ./scripts/pin-digests.sh || failed="$$failed $${sd#stacks/}"; \
+	done; \
+	if [[ -n "$$failed" ]]; then \
+		printf '\n\033[0;31mdigest drift or resolve failure in:\033[0m%s\n' "$$failed"; exit 1; \
+	fi
 
 .PHONY: scan-images
 scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports in .scan/)

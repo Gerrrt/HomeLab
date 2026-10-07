@@ -74,7 +74,8 @@ variable "ssh_public_key_file" {
 }
 
 # The one address the clones' OpenSSH rule admits (packer/windows/scripts/
-# openssh.ps1). phoenix's, from ADR-0043.
+# openssh.ps1), and the one the build's WinRM rule admits (bootstrap.ps1).
+# phoenix's, from ADR-0043.
 variable "phoenix_address" {
   type    = string
   default = "10.0.30.70"

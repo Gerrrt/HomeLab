@@ -1,0 +1,35 @@
+# TLS in front of Wiki.js on oracle (ADR-0082, #847).
+#
+# The certificate is a leaf from the estate's CA, issued on prometheus with
+# `make certs` and carried here by hand (README.md § TLS). Caddy obtains
+# nothing and renews nothing. The redirect from 80 is written out below,
+# where it can be read, rather than left implicit.
+{
+	admin off
+	# Caddy obtains nothing: the certificate is the one loaded from files
+	# below. Caddy's internal CA is provisioned anyway, for the address site,
+	# and at start it tries to install its root into the container's
+	# read-only store and logs an error. Neither line alone stopped that on
+	# the pinned image; the two together do. Measured 2026-10-07.
+	auto_https disable_certs
+	skip_install_trust
+	# A client that dials the address sends no SNI — blackbox's `address`
+	# probe, and anyone who types 10.0.99.30 — and with a certificate loaded
+	# from files Caddy has nothing to choose it by, so the handshake ends in
+	# an internal-error alert. Measured 2026-10-07 on the pinned image. The
+	# leaf carries the IP SAN, so offering it by default is correct.
+	default_sni lemmiwinks.matrix.elysium
+}
+
+# Port 80 answers one thing: go to 443. The card on the fridge prints the http
+# name (ADR-0023), and this keeps it working without Wiki.js ever receiving a
+# request in clear. `{host}` is the name without a port.
+http:// {
+	redir https://{host}{uri} 308
+}
+
+# The names the leaf carries, and the address, which blackbox probes too.
+https://lemmiwinks.matrix.elysium, https://oracle.matrix.elysium, https://10.0.99.30 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	reverse_proxy app:3000
+}

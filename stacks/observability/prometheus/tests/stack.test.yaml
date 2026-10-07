@@ -180,9 +180,12 @@ tests:
               summary: "oracle-metrics on oracle has stopped reporting"
               description: >-
                 This job arrives by remote_write, so nothing scrapes it and
-                InstanceDown cannot see it — it has simply stopped pushing.
-                Either the Alloy agent on oracle is down or it cannot reach this
-                host. Metrics from it are being lost, not queued.
+                InstanceDown cannot see it — it has simply stopped arriving.
+                Either Alloy on oracle is not collecting this job, and those
+                samples are not being taken: the whole agent is down (AlloyDown
+                says so), or this one collector failed while the rest reports.
+                Or Alloy cannot reach this host, and its metrics wait in its
+                write-ahead log and are sent when it can, for a bounded time.
 
   # --- RemoteWriteJobStale: quiet while the agent is pushing ----------------
   # The production state. Without this case the rule would pass its test while
@@ -921,7 +924,10 @@ tests:
               dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on oracle is failing to remote-write some samples"
               description: >-
-                Metrics from oracle are being lost, not queued. On the host, `docker
+                Metrics from oracle are being lost, not queued:
+                this counts samples the receiver refused outright, which
+                remote_write does not retry. (Failures it can recover from are
+                retried and do not count here.) On the host, `docker
                 logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
                 `journalctl -u alloy` for a native agent) gives the status the
                 receiver returned: 401 is the ingest token, 400 out-of-order or too
@@ -936,7 +942,10 @@ tests:
               dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on prometheus is failing to remote-write some samples"
               description: >-
-                Metrics from prometheus are being lost, not queued. On the host,
+                Metrics from prometheus are being lost, not queued:
+                this counts samples the receiver refused outright, which
+                remote_write does not retry. (Failures it can recover from are
+                retried and do not count here.) On the host,
                 `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
                 `journalctl -u alloy` for a native agent) gives the status the
                 receiver returned: 401 is the ingest token, 400 out-of-order or too
@@ -1056,7 +1065,14 @@ tests:
               summary: "Loki has received no log lines for 30 minutes"
               description: >-
                 Either every Alloy agent is down or the push endpoint is
-                unreachable. Logs are being lost, not queued indefinitely.
+                unreachable. A running agent retries a failed push for a few
+                minutes, then drops the batch: those lines are lost. A stopped
+                agent's file and Docker sources resume from their saved positions
+                when it starts, unless the logs rotated away meanwhile. Its
+                journal source resumes only after an outage under 24 hours (its
+                max_age); after a longer one, those journal lines are skipped.
+                Loki refuses any line older than 168 hours.
+                Network syslog sent while it is down is gone.
 
   # LokiIngestionStalled: lines still arriving is quiet.
   - interval: 1m
