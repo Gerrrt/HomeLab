@@ -664,6 +664,25 @@ assumption consistent with what they are.
   there, and `.gitignore` keeps that file out of git. The key has no backup,
   unlike every other key in ADR-0024, on purpose: the key, the secrets and the
   data they protect are destroyed together by `qm destroy 161 --purge`.
+- **The BloodHound stack's key is one recipient on one guest, and has no
+  backup** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **How it is held.** `eden`'s rule sits above the catch-all, with a
+    placeholder until the guest exists. So the host holding a map of the lab
+    domain's weaknesses opens its own four secrets and nothing else.
+  - **Why it gets no second recipient, unlike ADR-0024's other keys.** What
+    the key guards is all re-issuable:
+    - the database's password, which guards data that is itself one
+      collection run from rebuilt;
+    - a first admin, which matters only on the first start;
+    - a session signing key;
+    - an ingest token, whose other copy is on `alexander`.
+  - **What losing it costs.** New values, a fresh data disk and a collection
+    run. `check_sops_rules.py`'s list of stacks whose key guards data
+    therefore leaves it out.
+  - **The graph itself never leaves the guest.** Not to a backup, and not to
+    VLAN 99. Its Alloy ships the guest's telemetry to `alexander`, not the
+    graph.
 
 ### Known historical exposure
 

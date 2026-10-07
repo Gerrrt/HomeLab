@@ -28,6 +28,9 @@ lab_functional_level: WinThreshold
 # domain's, so one variable is the truth for both.
 lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
 lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
+# labadmin's, on the two endpoints (roles/endpoint_admin). Set only when the
+# account is made, so on the hand-built pair it changes nothing.
+lab_endpoint_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ENDPOINT_ADMIN_PASSWORD') }}"
 
 # --- The population (#449) ----------------------------------------------------
 # ansible/population/population.yaml is committed and holds no passwords. Each
@@ -54,7 +57,9 @@ windows_exporter_sha256: 0aadce6afb20182b678bfca9e8f2e8464ef48c469b28b4cf02e99d8
 windows_exporter_product_id: "{130B5CF0-5B4F-4E85-AE10-3B9CB3FAB69B}"
 windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,textfile
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
-# alexander, the lab Prometheus. The only source the 9182 rule admits.
+# The port the exporter listens on, and the one its firewall rule opens.
+windows_exporter_port: 9182
+# alexander, the lab Prometheus. The only source that rule admits.
 windows_exporter_scraper: 10.0.30.40
 
 # --- The skeleton #414 built by hand (runbook §5), reproduced so the #448 ------
