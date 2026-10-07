@@ -1187,10 +1187,26 @@ groups:
         # Windows domain machines, until someone installs one) stays quiet
         # rather than alerting forever. odin's agent has hung under load; the
         # hour is what keeps that from paging on every busy spell.
+        #
+        # ANSWERED SINCE THIS GUEST WAS CREATED. A rebuild reuses the VMID and
+        # the name, so the day's history can belong to a guest that no longer
+        # exists. On 2026-10-07 Packer rebuilt tpl-ws2025-eval (vmid 912) at
+        # 17:57; the earlier build's agent had answered at 13:57, and the new
+        # one, mid Windows install, had no agent yet. That is not an agent that
+        # stopped, and it went pending. So a guest whose last answer predates
+        # its own creation time (`meta: ctime=`, read from the config by
+        # collect-guest-state.sh) is left out. A guest whose config could not
+        # be read has no creation time, the `unless` matches nothing, and it
+        # alerts as before; GuestConfigUnreadable owns that case.
         expr: >-
           homelab_guest_agent_up == 0
           and on (host, guest, vmid)
           max_over_time(homelab_guest_agent_up[1d]) == 1
+          unless on (host, guest, vmid)
+          (
+            max_over_time(timestamp(homelab_guest_agent_up == 1)[1d:1m])
+            < on (host, guest, vmid) homelab_guest_created_timestamp_seconds
+          )
         for: 1h
         labels:
           component: host

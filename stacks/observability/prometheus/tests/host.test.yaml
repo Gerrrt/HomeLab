@@ -2173,6 +2173,49 @@ tests:
         alertname: GuestAgentSilent
         exp_alerts: []
 
+  # --- GuestAgentSilent: quiet for a rebuilt guest, loud once it has answered
+  # The 2026-10-07 shape. vmid 912 answers for its first hour, stops, and at
+  # 2h is recreated under the same id and name: its creation time moves from
+  # 0 to 7200. The new guest is mid-install with no agent, so at 4h its last
+  # answer (55m) is older than its creation, and nothing fires.
+  #
+  # vmid 913 is rebuilt the same way, but its new agent answers from 2h to
+  # 2h25m and then hangs. That one stopped after this guest existed, and it
+  # still fires, so the guard is "since creation", not "recently created".
+  #
+  # Mutation this catches: dropping the `unless` clause fires 912 at 4h.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="tpl-ws2025-eval",vmid="912"}'
+        values: "1x11 0x36"
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="tpl-ws2025-eval",vmid="912"}'
+        values: "0x23 7200x24"
+      - series: 'homelab_guest_agent_up{host="Saruman",guest="tpl-ubuntu-2604",vmid="913"}'
+        values: "1x11 0x11 1x5 0x18"
+      - series: 'homelab_guest_created_timestamp_seconds{host="Saruman",guest="tpl-ubuntu-2604",vmid="913"}'
+        values: "0x23 7200x24"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: GuestAgentSilent
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: tpl-ubuntu-2604
+              vmid: "913"
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman: guest tpl-ubuntu-2604's agent has not answered for an hour"
+              description: >-
+                The guest is running, and `qm guest cmd 913 get-fsinfo` on
+                Saruman has failed or timed out for an hour, so this guest's
+                disks cannot page. `systemctl status qemu-guest-agent` inside
+                the guest. If it is running but has stopped answering, run
+                `make qga-resync VMID=913` on Saruman as root first: it
+                resets the agent's parser without touching the guest. If
+                that gets no answer, restarting the agent is safe.
+
   # --- PveFirewallDisabled: fires when a stop is left in place --------------
   # On for ten minutes, off from 10m, and still off at 25m: fifteen minutes,
   # past the ten `for` allows.
