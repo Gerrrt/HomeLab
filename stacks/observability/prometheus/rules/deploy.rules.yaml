@@ -5,7 +5,7 @@
 # what got deployed, so `make up` on an uncommitted tree and `make up` on `main`
 # were indistinguishable; and nothing compared the host to the repository, so a
 # config edited in place stayed edited until a deploy silently overwrote it.
-# scripts/converge.sh now runs hourly and writes seven gauges into the same
+# scripts/converge.sh now runs hourly and writes ten gauges into the same
 # textfile directory the maintenance jobs use.
 #
 # TWO HOSTS PULL. prometheus converges the observability stack as robo, from
@@ -26,7 +26,7 @@
 # correctly refuses to move — because the tree is dirty, or the tip did not
 # verify — exits non-zero and is fully described by ScheduledJobFailed, but the
 # interesting fact is WHICH refusal and how far behind the host now is. These
-# seven rules read the record converge.sh writes rather than its exit code.
+# rules read the record converge.sh writes rather than its exit code.
 #
 # WHY THERE IS NO ALERT ON THE REVISION ITSELF
 #
@@ -241,6 +241,60 @@ groups:
             Remove the line and restart the converge timer
             (homelab-converge-sensitive.timer on trinity) to let it act; this
             resolves on the next run. docs/runbooks/converge-the-host.md.
+
+      - alert: DeployServiceRevived
+        # Convergence found a stack service stopped and started it (ADR-0087).
+        #
+        # Fixed, so info — but something stopped a service that should not have
+        # been stopped, and that something is still out there. On 2026-10-07 it
+        # was a scratch test killing containers by image; nothing would have
+        # said so once the service was back. The gauge holds until the next
+        # run, so this fires for about an hour and resolves on its own.
+        #
+        # `> 0`, not `!= 0`: -1 is "docker could not be asked", not a revival.
+        expr: homelab_deploy_services_revived > 0
+        labels:
+          component: deploy
+          severity: info
+          category: availability
+        annotations:
+          summary: "Convergence started {{ $value }} stopped service(s) on {{ $labels.instance }}"
+          description: >-
+            A service the stack says should be running was stopped for more
+            than half an hour, and convergence started it again with the config
+            it already had. Find what stopped it before it does it again:
+            `journalctl -u 'homelab-converge*' -n 50` names the container, and
+            `journalctl -u docker | grep 'stopping restart-manager'` gives the
+            minute it stopped. docs/runbooks/converge-the-host.md.
+
+      - alert: DeployServicesStopped
+        # A stack service meant to be running has been left stopped across
+        # runs: held by the hold file, under a hand-run backup, or a host in
+        # report-only mode (ADR-0087).
+        #
+        # The hold file is a deliberate choice like report-only mode, and the
+        # same reasoning as DeployApplyDisabled applies: it lives in .git on the
+        # host, nothing else tracks it, and it is exactly what is still there a
+        # month later. A service inside the half-hour grace is started on the
+        # next run, so two hours is never a deliberate test that is still
+        # running — it is something nobody came back to.
+        #
+        # `> 0`, not `!= 0`, for the -1 sentinel.
+        expr: homelab_deploy_services_stopped > 0
+        for: 2h
+        labels:
+          component: deploy
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $value }} stack service(s) on {{ $labels.instance }} stopped and left stopped"
+          description: >-
+            Convergence is leaving a service down that the stack says should
+            run. `journalctl -u 'homelab-converge*' -n 50` says which and why:
+            held by .git/homelab-hold-<stack> in the deployment checkout (remove
+            the line, or the file, if the work it was for is done), a backup
+            holding its lock, or report-only mode (DeployApplyDisabled).
+            docs/runbooks/converge-the-host.md.
 
       - alert: DeployMetricsAbsent
         # The measuring apparatus, and not a duplicate of

@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-169 rules in total: 150 metric-based in `prometheus/rules/`, and 19 log-based in
+171 rules in total: 152 metric-based in `prometheus/rules/`, and 19 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -466,7 +466,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-150 rules across twelve files in `prometheus/rules/`:
+152 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -479,7 +479,7 @@ argument and for what to do when it exits 1.
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana and the wiki verified against the lab CA ([#847](https://github.com/Gerrrt/HomeLab/issues/847)), the APC card's self-signed one read but not trusted, Prometheus, Loki and Alertmanager over plain http (the switch UI's probes were removed on 2026-09-06, `targets/blackbox.yaml`), each of the household sites behind `trinity`'s Caddy, verified against the tier's root, paging as `SiteDown` after ten minutes so a `make up` restart does not ([#855](https://github.com/Gerrrt/HomeLab/issues/855)), and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)). Their certificates' expiry is watched without that pass, from `host.rules.yaml` ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
-| `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
+| `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Also whether convergence had to start a stack service that something stopped — `DeployServiceRevived` — and whether one has been left stopped for two hours, held or under a backup — `DeployServicesStopped` ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)) |
 | `internet.rules.yaml` | Why the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)): three scheduled speed tests in a row under 400 Mbit/s down or 100 up, the WAN held above 85% of what it can carry, frames arriving corrupted on the WAN port — `WanReceiveErrors`, the fault found the day these were written, when a cable between the XB7 and `morpheus` cut downloads to ~2 Mbit/s — and `speedtest-tracker` itself going quiet or unreachable. Also records `homelab_wan_bits_per_second` from pf's own em0 counters. Download thresholds are against the ~940 Mbit/s the 1000baseT WAN port can carry, not the plan's 2000. `speedtest-tracker` is left out of `InstanceDown`, so its outage is a warning and not a page |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
 
@@ -502,7 +502,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 150 rules of 150 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
+against the broken rule too. Coverage is 152 rules of 152 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from

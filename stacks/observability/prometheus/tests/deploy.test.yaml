@@ -253,6 +253,75 @@ tests:
                 this resolves on the next run.
                 docs/runbooks/converge-the-host.md.
 
+  # --- DeployServiceRevived: one started, none, and not measured ----------
+  #
+  # oracle sits at -1, "docker could not be asked". A rule written `!= 0`
+  # passes the other two and fires for every host whose daemon blinked.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_services_revived{instance="prometheus"}'
+        values: "1+0x60"
+      - series: 'homelab_deploy_services_revived{instance="trinity"}'
+        values: "0+0x60"
+      - series: 'homelab_deploy_services_revived{instance="oracle"}'
+        values: "-1+0x60"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DeployServiceRevived
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployServiceRevived
+              instance: prometheus
+              component: deploy
+              severity: info
+              category: availability
+            exp_annotations:
+              summary: "Convergence started 1 stopped service(s) on prometheus"
+              description: >-
+                A service the stack says should be running was stopped for more
+                than half an hour, and convergence started it again with the
+                config it already had. Find what stopped it before it does it
+                again: `journalctl -u 'homelab-converge*' -n 50` names the
+                container, and `journalctl -u docker | grep 'stopping
+                restart-manager'` gives the minute it stopped.
+                docs/runbooks/converge-the-host.md.
+
+  # --- DeployServicesStopped: left stopped, none, and not measured --------
+  #
+  # A service inside the grace period is counted for one hourly run and started
+  # on the next, so the `for` is what keeps a deliberate test from firing.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_services_stopped{instance="prometheus"}'
+        values: "1+0x180"
+      - series: 'homelab_deploy_services_stopped{instance="trinity"}'
+        values: "-1+0x180"
+      - series: 'homelab_deploy_services_stopped{instance="oracle"}'
+        values: "0+0x180"
+    alert_rule_test:
+      - eval_time: 1h55m
+        alertname: DeployServicesStopped
+        exp_alerts: []
+
+      - eval_time: 2h5m
+        alertname: DeployServicesStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployServicesStopped
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "1 stack service(s) on prometheus stopped and left stopped"
+              description: >-
+                Convergence is leaving a service down that the stack says should
+                run. `journalctl -u 'homelab-converge*' -n 50` says which and
+                why: held by .git/homelab-hold-<stack> in the deployment checkout
+                (remove the line, or the file, if the work it was for is done), a
+                backup holding its lock, or report-only mode
+                (DeployApplyDisabled). docs/runbooks/converge-the-host.md.
+
   # --- DeployMetricsAbsent: the series is there ---------------------------
   #
   # Paired with the block below, which is the same rule with nothing fed to it.
