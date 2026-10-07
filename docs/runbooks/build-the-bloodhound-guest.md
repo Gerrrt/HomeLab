@@ -8,7 +8,8 @@ from a template rather than an installer.
 
 **You will need:** root on `Saruman`, the Ubuntu template `901`
 ([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)),
-the Mac on Hicks for §4's certificate copy, and `alexander`.
+a shell on `prometheus` for §4's certificate, the Mac on Hicks to carry it to
+`eden`, and `alexander`.
 
 **Before this:** the domain ([#414](https://github.com/Gerrrt/HomeLab/issues/414),
 built 2026-09-25) and its population
@@ -172,7 +173,7 @@ scripts/check_sops_rules.py | grep bloodhound
 
 `secrets-init` also says to back the key up off the machine. **Do not.**
 ADR-0081 gives this key no backup on purpose: everything it opens is
-re-issuable.
+re-issuable. Losing it means replacing it, and § 11 is how.
 
 Fill the three values that are made here.
 [`secrets/bloodhound.example.yaml`](../../secrets/bloodhound.example.yaml)
@@ -378,3 +379,45 @@ On the same day, in one pull request with §5's lab changes:
 4. Revoke the leaf on `prometheus` by deleting its two files. The estate's CA
    has no CRL, so the leaf stays valid until it expires. Nothing trusts it for
    anything but `bloodhound.matrix.elysium`.
+
+## 11. Lost the guest, or its key
+
+The key has no backup (ADR-0081), so a rebuilt `eden` cannot open the
+committed `secrets/bloodhound.sops.yaml`. **`make secrets-init` will not fix
+that on its own.** It writes a key only over the
+`REPLACE_WITH_BLOODHOUND_AGE_PUBLIC_KEY` placeholder. Finding a different real
+key in the rule, it warns, suggests `secrets-add-recipient` from a host that
+can still decrypt, and changes nothing. No such host exists, so the rule and
+the file are reset instead, on the new guest, after §1–§3's install steps:
+
+```bash
+cd ~/code/Gerrrt/HomeLab
+sed -i '/path_regex: secrets\/bloodhound/,/age1/ s|age1[a-z0-9]*|REPLACE_WITH_BLOODHOUND_AGE_PUBLIC_KEY|' .sops.yaml
+git diff .sops.yaml    # exactly one line: the bloodhound rule's recipient
+rm secrets/bloodhound.sops.yaml
+make secrets-init STACK=bloodhound
+```
+
+**Check the `git diff` before going on.** The `sed` is scoped to the lines
+from the `bloodhound` rule's `path_regex` to its key, and must change that
+line only. An unscoped `s|age1…|` replaces every rule's key, which was caught
+testing this section. If the diff shows more than one line,
+`git checkout .sops.yaml` and make the edit by hand.
+
+Then refill the file as §3 says, with new values. `INGEST_TOKEN` is the one
+value that is not new: take `INGEST_TOKEN_EDEN` from `secrets/lab.sops.yaml`
+on `alexander`, as §5 does. Or rotate it on both guests in the same pull
+request.
+
+**The old data does not survive new secrets.** Postgres sets its password only
+when it initialises an empty data directory, so a surviving
+`/srv/bloodhound-data/postgres` still expects the old one. Empty it and collect
+again. ADR-0081 accepts that cost, a collection run:
+
+```bash
+docker compose -f stacks/bloodhound/compose.yaml down
+sudo find /srv/bloodhound-data/postgres /srv/bloodhound-data/work -mindepth 1 -delete
+```
+
+Commit `.sops.yaml` and the new `secrets/bloodhound.sops.yaml` through a pull
+request, then continue from §4.
