@@ -605,6 +605,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 | `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
+| `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
@@ -621,6 +622,14 @@ It stops nothing, so its timer is `Persistent=true` and catches up a missed
 night at boot. It shares the `backups` lock with `backup-sensitive`, so an
 overrunning volume backup is waited for rather than raced.
 
+`verify-backups-sensitive` is the monitoring host's `verify-backups` for this
+host's sets ([#856](https://github.com/Gerrrt/HomeLab/issues/856)). It
+decrypts and reads every retained volume and library set here, then has
+`oracle` hash every archive it holds and compares each hash with the set's
+MANIFEST. That is where `oracle`'s copies are verified, without a key on
+`oracle`. It stops nothing, and it shares the `backups` lock so a prune never
+deletes a set it is reading.
+
 `converge-sensitive` is the monitoring host's `converge` for the tier
 ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
 `backups` lock too, so it never runs `make up` under a quiesced tier. **Before
@@ -635,12 +644,12 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-five. The last two are the household's copy
+six. The last two are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
 timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
-one table, and `--check` enforces that. The installer primes `backup-library` and
-`converge-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+one table, and `--check` enforces that. The installer primes `backup-library`,
+`converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 
