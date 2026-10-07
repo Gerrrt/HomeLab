@@ -52,6 +52,7 @@ Environment:
 
 from __future__ import annotations
 
+import calendar
 import datetime as dt
 import json
 import os
@@ -59,6 +60,7 @@ import pathlib
 import re
 import subprocess
 import sys
+import urllib.request
 from dataclasses import dataclass, field
 
 RED = "\033[0;31m"
@@ -70,7 +72,7 @@ COMPOSE = pathlib.Path(__file__).resolve().parent.parent / "stacks" / "wiki" / "
 PIN = re.compile(r"image:\s*ghcr\.io/requarks/wiki:v?(\d+\.\d+\.\d+)@sha256:")
 MARKER = "<!-- wiki-watch: requarks/wiki -->"
 CLOCK_DAYS = 30  # ADR-0089 trigger 1
-STALE_DAYS = 183  # ADR-0089 trigger 2, six months
+STALE_MONTHS = 6  # ADR-0089 trigger 2, calendar months, not days
 VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 STABLE_3 = re.compile(r"^v?3\.\d+\.\d+$")
 TWO_X = re.compile(r"^v?2\.\d+\.\d+$")
@@ -138,6 +140,15 @@ class Report:
         return bool(self.findings or self.stale or self.stable_3)
 
 
+def add_months(when: dt.datetime, months: int) -> dt.datetime:
+    """The same day `months` calendar months on, clamped to the end of a shorter
+    month: 08-31 plus six months is 02-28 (or 29), not March."""
+    month = when.month - 1 + months
+    year, month = when.year + month // 12, month % 12 + 1
+    day = min(when.day, calendar.monthrange(year, month)[1])
+    return when.replace(year=year, month=month, day=day)
+
+
 def parse_time(text: str) -> dt.datetime:
     return dt.datetime.fromisoformat(text)
 
@@ -185,7 +196,7 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
             report.latest_2x = (tag, when)
         if STABLE_3.match(tag) and not r.get("prerelease"):
             report.stable_3 = report.stable_3 or tag
-    if report.latest_2x is None or (now - report.latest_2x[1]).days >= STALE_DAYS:
+    if report.latest_2x is None or now >= add_months(report.latest_2x[1], STALE_MONTHS):
         report.stale = True
     return report
 
@@ -232,11 +243,43 @@ def gh(*args: str, stdin: str | None = None) -> str:
 
 
 def fetch() -> tuple[list[dict], list[dict]]:
-    # One object per line from `--jq '.[]'`, which works on any gh; --slurp is
-    # newer than some hosts' gh.
+    """Both lists, through gh and the run's token, or without a token if that is
+    refused. A workflow's GITHUB_TOKEN is scoped to its own repository, and
+    whether it may read another repository's advisory list is not something to
+    find out on the Monday it matters. Published advisories and releases of a
+    public repository need no token at all. Both failing exits non-zero."""
+
+    def with_gh(endpoint: str) -> list[dict] | None:
+        # One object per line from `--jq '.[]'`, which works on any gh; --slurp
+        # is newer than some hosts' gh.
+        proc = subprocess.run(
+            ["gh", "api", "--paginate", "--jq", ".[]", endpoint], text=True, capture_output=True, check=False
+        )
+        if proc.returncode != 0:
+            print(f"gh api {endpoint} refused ({proc.stderr.strip()}); trying without a token", file=sys.stderr)
+            return None
+        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+
+    def without_token(endpoint: str) -> list[dict]:
+        items: list[dict] = []
+        for page in range(1, 11):  # 1,000 items: an order more than either list holds
+            req = urllib.request.Request(
+                f"https://api.github.com/{endpoint}&page={page}",
+                headers={"Accept": "application/vnd.github+json", "User-Agent": "wiki-watch"},
+            )
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    batch = json.load(resp)
+            except OSError as e:
+                sys.exit(f"{RED}error:{OFF} {endpoint}: {e}")
+            items += batch
+            if len(batch) < 100:
+                return items
+        sys.exit(f"{RED}error:{OFF} {endpoint}: more than 1,000 items, which is not this list")
+
     def every(endpoint: str) -> list[dict]:
-        out = gh("api", "--paginate", "--jq", ".[]", endpoint)
-        return [json.loads(line) for line in out.splitlines() if line.strip()]
+        got = with_gh(endpoint)
+        return got if got is not None else without_token(endpoint)
 
     return (
         every(f"repos/{UPSTREAM}/security-advisories?state=published&per_page=100"),
@@ -381,6 +424,21 @@ def self_test() -> int:
     old = [{"tag_name": "v2.5.316", "published_at": "2026-03-01T00:00:00Z", "prerelease": False}]
     check("220 days without a 2.x release is trigger 2", assess("2.5.316", [], old, now).stale, True)
     check("no 2.x release at all is trigger 2", assess("2.5.316", [], [], now).stale, True)
+    # Calendar months, not 183 days (#1057 review). 2026-03-01 plus 183 days is
+    # Monday 2026-08-31, a day early; the anniversary is 09-01.
+    mar1 = [{"tag_name": "v2.5.316", "published_at": "2026-03-01T00:00:00Z", "prerelease": False}]
+    at = dt.datetime(2026, 8, 31, tzinfo=dt.UTC)
+    check("the day before the six-month anniversary is not trigger 2", assess("2.5.316", [], mar1, at).stale, False)
+    at = dt.datetime(2026, 9, 1, tzinfo=dt.UTC)
+    check("the anniversary itself is trigger 2", assess("2.5.316", [], mar1, at).stale, True)
+    aug31 = dt.datetime(2025, 8, 31, tzinfo=dt.UTC)
+    check("six months from 08-31 clamps to the end of February", add_months(aug31, 6).date(), dt.date(2026, 2, 28))
+    check("and to the 29th in a leap year", add_months(aug31.replace(year=2027), 6).date(), dt.date(2028, 2, 29))
+    check(
+        "months carry into the next year",
+        add_months(dt.datetime(2026, 10, 7, tzinfo=dt.UTC), 6).date(),
+        dt.date(2027, 4, 7),
+    )
     ga = releases + [{"tag_name": "v3.0.0", "published_at": "2026-10-05T00:00:00Z", "prerelease": False}]
     check("a stable v3.0.0 is trigger 3", assess("2.5.316", [], ga, now).stable_3, "v3.0.0")
     pre = releases + [{"tag_name": "v3.0.0", "published_at": "2026-10-05T00:00:00Z", "prerelease": True}]
