@@ -53,6 +53,7 @@ The KVM in the rack is that access.
 | `oracle` | `matrix.elysium` | `10.0.99.30` | The machine the wiki runs on |
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
+| `speedtest` | `matrix.elysium` | `10.0.99.20` | Speed-test history on `:8443` — matches the certificate's CN (#914) |
 | `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0018. Note the subnet: this one is not `10.0.99.x` |
 
 `morpheus` needs no entry. It already resolves — and note it answers with **two**
@@ -95,6 +96,7 @@ dig +short @10.0.99.1 lemmiwinks.matrix.elysium
 dig +short @10.0.99.1 oracle.matrix.elysium
 dig +short @10.0.99.1 prometheus.matrix.elysium
 dig +short @10.0.99.1 grafana.matrix.elysium
+dig +short @10.0.99.1 speedtest.matrix.elysium
 dig +short @10.0.99.1 neo.matrix.elysium
 ```
 

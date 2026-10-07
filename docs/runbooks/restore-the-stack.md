@@ -1,19 +1,23 @@
 # Runbook: Restore the observability stack
 
-**Target:** the five Docker data volumes on `prometheus` (10.0.99.20), VLAN 99
+**Target:** the six Docker data volumes on `prometheus` (10.0.99.20), VLAN 99
 **Time:** 10 minutes for one volume; 30 for the whole set on a rebuilt host
 **You will need:** a backup set (here, or its copy on `oracle`), the age private
 key, and the stack stopped — the restore script stops it for you
 
 Nothing in the house breaks when this stack is down, and that is exactly what
 makes it easy to lose. Metrics and logs re-accumulate, the dashboards are in
-git, and the alert rules are in git, so for four of the five volumes the loss is
+git, and the alert rules are in git, so for five of the six volumes the loss is
 a hole in the record rather than a loss of function. The record is the thing
 that tells you whether the incident in front of you has happened before, and it
 is the one part of this repository that cannot be rebuilt from the repository.
 `grafana-data` is different in kind again: it holds the users, the annotations,
 the admin password and every dashboard edit made in the UI and never exported.
-It is the only state here with no copy in git.
+It is the only state here with no copy in git that matters.
+`speedtest-data` is a record like the others — every result is also in
+Prometheus — but a fresh one boots with the default login and with the
+Prometheus integration off, so after restoring without it, redo §2's
+speedtest step in [deploy-stack.md](deploy-stack.md).
 
 > [!CAUTION]
 > Restoring is destructive and its worst failure is silent. A stack brought back

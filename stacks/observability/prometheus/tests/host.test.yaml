@@ -122,7 +122,8 @@ tests:
   #
   # All 14 were killed. If you change a rule here, re-run them:
   #
-  #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m
+  #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m;
+  #                       job!= -> job=  (the speedtest-tracker case below)
   #   HostDiskCritical    < 0.10 -> < 0.01;  drop fstype!~"tmpfs|overlay";
   #                       for: 15m -> 0m
   #   HostMemoryPressure  < 0.10 -> < 0.01;  for: 15m -> 0m
@@ -177,6 +178,19 @@ tests:
         values: "0 0 0 1 1 1 1 1 1 1 1 1"
     alert_rule_test:
       - eval_time: 10m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- InstanceDown: quiet for speedtest-tracker, which does not page -------
+  # Down for twenty minutes, well past `for: 5m`. SpeedtestTrackerDown in
+  # internet.rules.yaml owns this job at warning (#914); a measurement tool
+  # being unreachable is not worth waking anyone for.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="speedtest-tracker:80",job="speedtest-tracker"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
         alertname: InstanceDown
         exp_alerts: []
 
@@ -297,6 +311,54 @@ tests:
       - eval_time: 10m
         alertname: HostMemoryPressure
         exp_alerts: []
+
+  # --- HostMemoryPressure: quiet on a ZFS host whose ARC is full (#910) ------
+  # smaug on 2026-10-04, in round numbers: 7% MemAvailable, 25 GiB of ARC above
+  # a 1 GiB floor. The ARC is reclaimable, so this is not pressure. The series
+  # carry smaug's real labels (role, vlan): with only instance and job, a
+  # `+ on (instance, job)` version passed here and still fired in production.
+  - interval: 5m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "2300000000x24"
+      - series: 'node_memory_MemTotal_bytes{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "31000000000x24"
+      - series: 'node_zfs_arc_size{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "25000000000x24"
+      - series: 'node_zfs_arc_c_min{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostMemoryPressure
+        exp_alerts: []
+
+  # --- HostMemoryPressure: still fires on a ZFS host with its ARC at the floor
+  # Nothing left to reclaim: the ARC is the alert's to ignore only above c_min.
+  - interval: 5m
+    input_series:
+      - series: 'node_memory_MemAvailable_bytes{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "2300000000x24"
+      - series: 'node_memory_MemTotal_bytes{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "31000000000x24"
+      - series: 'node_zfs_arc_size{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1000000000x24"
+      - series: 'node_zfs_arc_c_min{instance="smaug",job="node",role="nas",vlan="40"}'
+        values: "1000000000x24"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: HostMemoryPressure
+        exp_alerts:
+          - exp_labels:
+              alertname: HostMemoryPressure
+              instance: smaug
+              job: node
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "smaug has less than 10% memory available"
 
   # --- HostMemoryPressure: quiet at 25% available ---------------------------
   - interval: 5m

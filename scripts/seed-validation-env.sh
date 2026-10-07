@@ -43,6 +43,9 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
 {
   echo "GRAFANA_ADMIN_PASSWORD=validation-only"
   echo "GRAFANA_RENDERER_TOKEN=validation-only"
+  # speedtest-tracker refuses an APP_KEY that is not base64 of 32 bytes, so
+  # the placeholder has that shape; it is all zeroes and encrypts nothing.
+  echo "SPEEDTEST_APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
   # Distinct from each other, because the ingest proxy's map refuses a
   # duplicate key at start and a boot of it should get past that.
   echo "INGEST_TOKEN_ORACLE=validation-only-oracle"

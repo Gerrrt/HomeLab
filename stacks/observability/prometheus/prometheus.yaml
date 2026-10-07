@@ -56,6 +56,17 @@ scrape_configs:
     static_configs:
       - targets: ["blackbox-exporter:9115"]
 
+  # The latest speed test result (#914). Plain HTTP on the compose network;
+  # the published 443 is for browsers. 60s, not 15s: the value changes once
+  # every 30 minutes, and internet.rules.yaml reads it with max_over_time.
+  # /prometheus is a 404 until the tracker's Prometheus integration is on —
+  # docs/runbooks/deploy-stack.md switches it on at first deploy.
+  - job_name: speedtest-tracker
+    scrape_interval: 60s
+    metrics_path: /prometheus
+    static_configs:
+      - targets: ["speedtest-tracker:80"]
+
   # ---------------------------------------------------------------------------
   # SNMP network devices.
   #

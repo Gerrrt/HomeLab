@@ -184,7 +184,7 @@ hole from the monitoring VLAN into the monitored one.
 
 | Host | VLAN | Stack | Contents |
 | --- | --- | --- | --- |
-| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, docker-socket-proxy, Alloy |
+| `prometheus` (10.0.99.20) | 🔴 99 | [`stacks/observability`](../stacks/observability) | Prometheus, Alertmanager, Loki, Grafana, snmp-exporter, blackbox-exporter, speedtest-tracker, docker-socket-proxy, Alloy |
 | `Saruman` (10.0.30.110) | 🟢 30 | *(none — and none intended)* | Proxmox VE 9, hosting eleven guests: `alexander`, built 2026-09-05 ([#262](https://github.com/Gerrrt/HomeLab/issues/262)); `phoenix`, built 2026-09-20 ([#436](https://github.com/Gerrrt/HomeLab/issues/436)); `odin`, built 2026-09-27 for the security tooling (ADR-0030); `fenrir`, built 2026-09-30 as the Zeek sensor ([#437](https://github.com/Gerrrt/HomeLab/issues/437)); `golem`, built 2026-10-03 as the backup server ([#485](https://github.com/Gerrrt/HomeLab/issues/485)); and ADR-0029's six-machine domain, built by hand 2026-09-24 to 2026-09-25 ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), of which `carbuncle` and `siren` run per session. Alloy agent (native package). It runs no compose stack by decision, not by omission: Docker would rewrite the iptables its own firewall relies on ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)), which is why the agent here is the native package and why `stacks/lab` runs in a guest |
 | `alexander` (10.0.30.40) | 🟢 30 | [`stacks/lab`](../stacks/lab) | Prometheus, Loki, Grafana, Alloy and its Docker socket proxy, and Caddy as the ingest proxy in front of the first two ([#834](https://github.com/Gerrrt/HomeLab/issues/834)) — the lab's own observability, which never remote-writes to VLAN 99 ([ADR-0007](adr/0007-defensive-estate-and-offensive-range.md), [ADR-0020](adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md)). A guest on `Saruman`, not the hypervisor; Alloy agent (Docker) |
 | `odin` (10.0.30.60) | 🟢 30 | [`stacks/soc`](../stacks/soc) | Wazuh (indexer, manager, dashboard), Velociraptor and Alloy: the security half of ADR-0007, placed by [ADR-0030](adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md) on a second guest on `Saruman` because `alexander`'s 8 GiB cannot hold both. Built 2026-09-27 by [`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md), the stack authored and CI-validated ahead of the guest the way `stacks/lab` was ahead of `alexander` ([#266](https://github.com/Gerrrt/HomeLab/issues/266), [#267](https://github.com/Gerrrt/HomeLab/issues/267)); the six domain machines enrol as agents by GPO, which is the day those two issues close. Its Alloy pushes to `alexander`, never to VLAN 99, and the indexer's health is the one series that crosses into the lab's Prometheus. Alloy agent (Docker) |
@@ -211,7 +211,8 @@ re-shard of everything. Reasoning in
 
 | Service | Port | Bound to | Notes |
 | --- | --- | --- | --- |
-| Grafana | 3000 | `${BIND_ADDR}` | The only UI meant to be opened by a human, and the only service that terminates TLS — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
+| Grafana | 3000 | `${BIND_ADDR}` | The main UI meant to be opened by a human — `https://`, on a lab-CA certificate a browser will warn about until you trust `certificates/ca.pem` |
+| speedtest-tracker | 443 | `${BIND_ADDR}` | Published on the host as `SPEEDTEST_PORT`, 8443 by default. The speed-test history UI (#914), `https://` on its own lab-CA leaf, behind the app's login. `/prometheus` and `/api/healthcheck` answer without it — see [security.md](security.md#hardening-applied-to-the-stack). Prometheus scrapes port 80 on the compose network instead |
 | Caddy (ingest proxy) | 9090 | `${INGEST_BIND_ADDR}` | Where the agents on `oracle`, `trinity` and `Saruman` remote-write, and where Homepage and Home Assistant query. A bearer token per client, and a path allowlist per role; see [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md) |
 | Caddy (ingest proxy) | 3100 | `${INGEST_BIND_ADDR}` | Where the same agents push logs. Loki's delete API is refused to every token |
 | Prometheus | 9090 | `127.0.0.1` | Unauthenticated, so loopback only; off-host clients come through the ingest proxy |
@@ -225,7 +226,7 @@ re-shard of everything. Reasoning in
 
 A port is published only when something off this host uses it
 ([ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)). Grafana
-is opened in a browser from Hicks, the syslog receiver takes pushes from
+and speedtest-tracker are opened in a browser from Hicks, the syslog receiver takes pushes from
 `morpheus`, and the ingest proxy takes metrics and logs from the Alloy agents
 on `oracle`, `trinity` and `Saruman`. Alertmanager has no such client, so it
 binds to `127.0.0.1`; silences are reached through Grafana, which proxies it
@@ -233,7 +234,7 @@ over the compose network behind a login.
 
 A published port must also say what a client has to prove before it is served
 ([ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
-Grafana wants a login. The ingest proxy wants a bearer token: one per agent,
+Grafana and speedtest-tracker want a login. The ingest proxy wants a bearer token: one per agent,
 which can push and do nothing else, and one reader token, which can query and
 do nothing else. Neither role reaches Prometheus's admin API or Loki's delete
 API. Prometheus and Loki themselves authenticate nothing, so they are published
