@@ -625,6 +625,12 @@ same way, and prove the set against the database:
 make backup-library ARGS=--prove
 ```
 
+And `verify-backups-sensitive`, nightly at 06:30, which re-reads every set of
+both kinds here and checks `oracle`'s copies against their MANIFESTs
+([#856](https://github.com/Gerrrt/HomeLab/issues/856)). It stops nothing, so
+the installer primes it too. `verify-backups-sensitive.prom` must read exit
+code `0`.
+
 ## 13. Before the first real photo, document or vault item
 
 These five are the gate on the data, not on the containers, and each is

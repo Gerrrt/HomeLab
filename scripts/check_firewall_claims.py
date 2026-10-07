@@ -54,6 +54,7 @@ Usage: scripts/check_firewall_claims.py [--derive] [--claims PATH]
 Environment: FW_HOST (default 10.0.99.1), FW_USER (default root) — the same
 pair scripts/backup-firewall.sh uses.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -63,17 +64,11 @@ import re
 import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 CLAIMS = REPO / "docs" / "firewall-claims.yaml"
@@ -94,9 +89,7 @@ NOISE = re.compile(r'\s*(label\s+"[^"]*"|ridentifier\s+\d+)')
 # Nothing here hardcodes which macro belongs to which VLAN: OPT1..OPT6 are
 # assigned in the order pfSense's interfaces were created, and a table of them
 # in this repository would be one more hand-maintained fact that can go stale.
-CATCH_ALL = re.compile(
-    r"^pass\s+in\s+quick\s+on\s+(\S+)\s+(inet6?)\s+from\s+<(\w+)__NETWORK>\s+to\s+any\b"
-)
+CATCH_ALL = re.compile(r"^pass\s+in\s+quick\s+on\s+(\S+)\s+(inet6?)\s+from\s+<(\w+)__NETWORK>\s+to\s+any\b")
 FULL_BLOCK = re.compile(
     r"^block\s+drop\s+in(?:\s+log)?\s+quick\s+on\s+(\S+)\s+(inet6?)"
     r"\s+from\s+<(\w+)__NETWORK>\s+to\s+<(\w+)__NETWORK>\s*$"
@@ -109,9 +102,10 @@ def fetch_rules() -> list[str]:
     host = os.environ.get("FW_HOST", "10.0.99.1")
     user = os.environ.get("FW_USER", "root")
     result = subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10",
-         f"{user}@{host}", "pfctl -a '*' -sr"],
-        capture_output=True, text=True, check=False,
+        ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", f"{user}@{host}", "pfctl -a '*' -sr"],
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if result.returncode != 0:
         detail = (result.stderr or result.stdout).strip().splitlines()
@@ -155,8 +149,7 @@ def derive(rules: list[str]) -> dict[str, dict]:
             blocked = set()
             for line in rules[:index]:
                 b = FULL_BLOCK.match(line)
-                if b and b.group(1) == iface and b.group(2) == family \
-                        and b.group(3) == macro:
+                if b and b.group(1) == iface and b.group(2) == family and b.group(3) == macro:
                     blocked.add(b.group(4))
             wholesale[family] = sorted(every - blocked - {macro})
         posture[iface] = {"macro": macro, "wholesale": wholesale}
@@ -176,7 +169,8 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--claims", type=pathlib.Path, default=CLAIMS)
     ap.add_argument(
-        "--derive", action="store_true",
+        "--derive",
+        action="store_true",
         help="print the live posture as YAML instead of checking it",
     )
     args = ap.parse_args()
@@ -196,8 +190,7 @@ def main() -> int:
         # claims file where it has them and left blank where it does not.
         known = {}
         if args.claims.is_file():
-            known = (yaml.safe_load(args.claims.read_text(encoding="utf-8")) or {}) \
-                .get("interfaces", {})
+            known = (yaml.safe_load(args.claims.read_text(encoding="utf-8")) or {}).get("interfaces", {})
         out = {
             iface: {
                 "segment": (known.get(iface) or {}).get("segment", "CHANGE ME"),
@@ -223,8 +216,7 @@ def main() -> int:
     for iface in sorted(set(declared) - set(posture)):
         failures.append(f"{iface} is declared here and has no catch-all on the firewall")
         print(
-            f"{RED}  FAIL{RESET} {iface} ({name(iface)}): declared here, but the "
-            f"firewall has no catch-all pass for it"
+            f"{RED}  FAIL{RESET} {iface} ({name(iface)}): declared here, but the firewall has no catch-all pass for it"
         )
 
     for iface in sorted(set(posture) & set(declared)):
@@ -235,10 +227,7 @@ def main() -> int:
             expected = want.get(family) or []
             if sorted(expected) == got:
                 shape = ", ".join(name_for(declared, posture, m) for m in got) or "nothing"
-                print(
-                    f"{GREEN}  PASS{RESET} {iface} ({name(iface)}) {family}: "
-                    f"catch-all reaches {shape}"
-                )
+                print(f"{GREEN}  PASS{RESET} {iface} ({name(iface)}) {family}: catch-all reaches {shape}")
                 continue
             gained = sorted(set(got) - set(expected))
             closed = sorted(set(expected) - set(got))

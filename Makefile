@@ -788,7 +788,7 @@ backup-library: ## On trinity: archive Immich's library off its USB disk, encryp
 	./scripts/backup-library.sh $(ARGS)
 
 .PHONY: verify-backups
-verify-backups: ## Re-verify every retained set of every kind: the volume, NAS and wiki sets
+verify-backups: ## Re-verify every retained set of every kind: volume, NAS and wiki sets; on trinity (STACK=sensitive) volume and library sets
 	@# What homelab-verify-backups.timer runs nightly. Two directories, one
 	@# job: backups/volumes/ is verified against the stack's derived volume
 	@# list and backups/nas/ each set against its own MANIFEST, and a media set in the volume
@@ -799,10 +799,21 @@ verify-backups: ## Re-verify every retained set of every kind: the volume, NAS a
 	@# backups/wiki/ (#251) is walked once it exists: before the first
 	@# backup-wiki run there is nothing to verify, and that run not happening
 	@# is ScheduledJobNeverRan's to report, not this job's.
+	@#
+	@# STACK=sensitive is trinity's half, and what
+	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
+	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
+	@# which trinity never holds. Both scripts' --verify-only also has oracle
+	@# hash every archive it holds against the MANIFEST here, so oracle's
+	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \
 	STACK=$(STACK) ./scripts/backup-volumes.sh --verify-only --all || rc=1; \
-	./scripts/backup-nas.sh --verify-only --all || rc=1; \
-	if [ -d backups/wiki ]; then ./scripts/backup-wiki.sh --verify-only --all || rc=1; fi; \
+	if [ "$(STACK)" = sensitive ]; then \
+		./scripts/backup-library.sh --verify-only --all || rc=1; \
+	else \
+		./scripts/backup-nas.sh --verify-only --all || rc=1; \
+		if [ -d backups/wiki ]; then ./scripts/backup-wiki.sh --verify-only --all || rc=1; fi; \
+	fi; \
 	exit $$rc
 
 .PHONY: backup-offsite

@@ -105,7 +105,9 @@
 #   scripts/converge.sh --dry-run          say what it would do, change nothing
 #   scripts/converge.sh --allow-unsigned   fast-forward past a failed signature
 #   scripts/converge.sh --allow-red        deploy a tip whose CI did not pass (#833)
-#   scripts/converge.sh --self-test        run the CI gate's fixtures
+#   scripts/converge.sh --self-test        run the fixtures: the CI gate, then
+#                                          every refusal against a throwaway
+#                                          repository and key (#854)
 #   scripts/converge.sh --stack sensitive  converge trinity's tier, not the
 #                                          monitoring host's (default observability)
 #
@@ -119,6 +121,14 @@
 #                            homelab_deploy_apply_enabled, so the mode is
 #                            visible from Prometheus rather than only from a
 #                            file on the host.
+#   CONVERGE_UNSAFE_SELF_TEST  the self-test's, and nobody else's. When set,
+#                            CONVERGE_DEPLOY_ROOT, CONVERGE_FETCH_URL and
+#                            CONVERGE_SIGNING_FPR replace the deployment root,
+#                            the URL fetched and the pinned fingerprint, so the
+#                            fixtures can run every refusal below against a
+#                            throwaway repository and a throwaway key (#854).
+#                            Unset, all three are ignored. Set on a host, it is
+#                            a host told to trust another key, and says so.
 
 set -euo pipefail
 
@@ -126,6 +136,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Read-only, credential-free, and not taken from the checkout's own config.
 CANONICAL_URL="https://github.com/Gerrrt/HomeLab.git"
+# What the fetch names. The canonical URL everywhere but the self-test, which
+# serves `main` from a bare repository it built (CONVERGE_UNSAFE_SELF_TEST).
+FETCH_URL="${CANONICAL_URL}"
 BRANCH="main"
 
 # GitHub's web-flow signing key, full fingerprint. Not the 16-hex key id: a key
@@ -238,7 +251,15 @@ for name in required:
 ci_verdict() {
   local api_ok="$2" name status conclusion red=0 wait=0 seen=0
   # Drain stdin on every path, so the writer never dies of a broken pipe.
-  while IFS=$'\t' read -r name status conclusion; do
+  #
+  # `|| [[ -n ${name} ]]` reads a last line with no newline, and the caller
+  # below sends exactly that: ci_summary is a $(...), which strips the newline,
+  # and printf '%s' does not put it back. Without it the LAST required check —
+  # Secret scan — was never looked at, so a tip with Secret scan failed or still
+  # running deployed as green. The unit fixtures above piped ci_summarise
+  # straight in, newline intact, and could not see it; the end-to-end one in
+  # self_test_converge did (#854).
+  while IFS=$'\t' read -r name status conclusion || [[ -n "${name}" ]]; do
     [[ -n "${name}" ]] || continue
     seen=$((seen + 1))
     if [[ "${status}" != "completed" ]]; then
@@ -258,8 +279,8 @@ ci_verdict() {
 }
 
 # Fixtures for the three functions above: the parse against check-runs shaped
-# like GitHub's, and the verdict against each state a tip can be in. The rest of
-# this script needs a deployment checkout and a network, and is #854's.
+# like GitHub's, and the verdict against each state a tip can be in. Then the
+# whole script, end to end, by self_test_converge below (#854).
 self_test() {
   local fail=0 got
   check() {
@@ -308,8 +329,244 @@ self_test() {
     "$(verdict "$(green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"timed_out"/')" 600)" red
   check "a failure beats a check still running" \
     "$(verdict "$(runs "$(run Lint completed '"failure"' github-actions 1)" "$(run 'Secret scan' in_progress null github-actions 2)")" 600)" red
+  # As the main path feeds it: through a $(...) and printf '%s', last newline gone.
+  got="$(green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"completed","conclusion":"failure"/' | ci_summarise)"
+  check "the last check counts without its newline" "$(printf '%s' "${got}" | ci_verdict 600 1)" red
 
+  self_test_converge
   return "${fail}"
+}
+
+# The decisions, end to end (#854). Each refusal is the thing that keeps a bad
+# `main` off a host, and until this each one was tested only by never having
+# fired. So every one runs here against a real repository, a real signature and
+# a real fetch:
+#
+#   - a throwaway GNUPGHOME holding two ed25519 keys, the "pinned" one and an
+#     impostor, so a good signature from the wrong key is a fixture and not an
+#     argument;
+#   - a bare repository standing in for GitHub, served to the fetch through
+#     CONVERGE_FETCH_URL, and a clone of it as the deployment checkout;
+#   - a COPY of this script and record-applied.sh committed in that clone and
+#     run from it, so REPO_ROOT is derived exactly as on a host and the
+#     REPO_ROOT == DEPLOY_ROOT refusal is the real one;
+#   - `make` and `curl` stubbed on PATH: make logs that it was asked and writes
+#     the applied record as the Makefile's `up` does, curl serves check-runs
+#     JSON built by the helpers above.
+#
+# A refusal passes only if it exits 1, says why, AND never reached `make`. That
+# last part is the point: delete any one refusal and the run behind it goes on
+# to deploy, and its fixture fails.
+#
+# Runs as a function of the parent self_test, so check() and the JSON builders
+# are in scope and a failure lands in the same `fail`.
+self_test_converge() {
+  local T PIN IMPOSTOR RETIRED OUT RC here
+  local name
+  for name in git gpg gpgconf python3; do
+    if ! command -v "${name}" >/dev/null 2>&1; then
+      printf '\033[0;33m  SKIP\033[0m converge end to end: %s is not installed\n' "${name}"
+      return 0
+    fi
+  done
+
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # -P: REPO_ROOT inside the copy is a `pwd`, and a symlinked TMPDIR would
+  # otherwise make every run a REPO_ROOT != DEPLOY_ROOT refusal.
+  T="$(cd "$(mktemp -d)" && pwd -P)"
+  # Cleanup must not change the exit status, and must not leave an agent behind.
+  # shellcheck disable=SC2064,SC2154  # T is fixed now and is what must be removed; rc is the trap's own
+  trap "rc=\$?; GNUPGHOME='${T}/gnupg' gpgconf --kill all >/dev/null 2>&1 || :; GNUPGHOME='${T}/gnupg' gpgconf --remove-socketdir >/dev/null 2>&1 || :; rm -rf '${T}'; exit \"\${rc}\"" EXIT INT TERM
+
+  # Nothing from the operator's own git or gpg reaches the fixture: a global
+  # commit.gpgsign would sign the "unsigned" tip, and their keyring would be the
+  # one asked.
+  export GNUPGHOME="${T}/gnupg" GIT_CONFIG_GLOBAL="${T}/gitconfig" GIT_CONFIG_NOSYSTEM=1
+  mkdir -m 0700 "${GNUPGHOME}"
+  git config --file "${GIT_CONFIG_GLOBAL}" user.name "converge self-test"
+  git config --file "${GIT_CONFIG_GLOBAL}" user.email "selftest@converge.invalid"
+  git config --file "${GIT_CONFIG_GLOBAL}" init.defaultBranch main
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'pinned <pinned@converge.invalid>' ed25519 sign never 2>/dev/null
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'impostor <impostor@converge.invalid>' ed25519 sign never 2>/dev/null
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'retired <retired@converge.invalid>' ed25519 sign never 2>/dev/null
+  # Now, quietly, rather than chattering on the first signature.
+  gpg --batch --check-trustdb >/dev/null 2>&1 || :
+  fpr_of() { gpg --batch --with-colons --list-secret-keys "$1" | awk -F: '$1 == "fpr" { print $10; exit }'; }
+  PIN="$(fpr_of pinned@converge.invalid)"
+  IMPOSTOR="$(fpr_of impostor@converge.invalid)"
+  RETIRED="$(fpr_of retired@converge.invalid)"
+
+  mkdir "${T}/bin" "${T}/prom"
+  cat > "${T}/bin/make" <<EOF
+#!/usr/bin/env bash
+# The Makefile's up target, as far as converge can tell: it ran, and it ended by
+# recording what it applied (Makefile, scripts/record-applied.sh).
+set -euo pipefail
+printf '%s\n' "\$*" >> '${T}/make.log'
+for a in "\$@"; do [[ "\${a}" == STACK=* ]] && ./scripts/record-applied.sh "\${a#STACK=}"; done
+exit 0
+EOF
+  cat > "${T}/bin/curl" <<EOF
+#!/bin/sh
+cat '${T}/ci.json'
+EOF
+  chmod +x "${T}/bin/make" "${T}/bin/curl"
+
+  # commit <repo> <unsigned|pinned|impostor> <message>
+  commit() {
+    case "$2" in
+      unsigned) git -C "$1" commit -q --allow-empty --no-gpg-sign -m "$3" ;;
+      pinned)   git -C "$1" commit -q --allow-empty -S"${PIN}" -m "$3" ;;
+      impostor) git -C "$1" commit -q --allow-empty -S"${IMPOSTOR}" -m "$3" ;;
+      retired)  git -C "$1" commit -q --allow-empty -S"${RETIRED}" -m "$3" ;;
+    esac
+  }
+  # A fresh world for each case: GitHub at one signed commit, the deployment
+  # checkout cloned from it and deployed (its applied record is HEAD), CI green.
+  fresh() {
+    rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"*
+    git init -q "${T}/work"
+    mkdir "${T}/work/scripts"
+    cp "${here}/converge.sh" "${here}/record-applied.sh" "${T}/work/scripts/"
+    printf 'fixture\n' > "${T}/work/README"
+    git -C "${T}/work" add -A
+    commit "${T}/work" pinned "root"
+    git clone -q --bare "${T}/work" "${T}/origin.git"
+    git clone -q "${T}/origin.git" "${T}/deploy"
+    # As on a host, so the "origin is not canonical" warning is not noise here.
+    git -C "${T}/deploy" remote set-url origin "${CANONICAL_URL}"
+    (cd "${T}/deploy" && ./scripts/record-applied.sh observability)
+    green_tip > "${T}/ci.json"
+  }
+  # GitHub's main moves by one commit, signed as $1.
+  advance() {
+    commit "${T}/work" "$1" "advance ($1)"
+    git -C "${T}/work" push -q "${T}/origin.git" HEAD:main
+  }
+  converge() {  # <args...> -> OUT, RC
+    : > "${T}/make.log"
+    set +e
+    OUT="$(cd "${T}/deploy" && PATH="${T}/bin:${PATH}" CONVERGE_UNSAFE_SELF_TEST=1 \
+           CONVERGE_DEPLOY_ROOT="${DEPLOY_FOR_TEST:-${T}/deploy}" \
+           CONVERGE_FETCH_URL="${FETCH_FOR_TEST:-${T}/origin.git}" CONVERGE_SIGNING_FPR="${PIN_FOR_TEST:-${PIN}}" \
+           TEXTFILE_DIR="${T}/prom" ./scripts/converge.sh "$@" 2>&1)"
+    RC=$?
+    set -e
+  }
+  # expect <name> <rc> <output substring> <made: 0 never reached make, 1 did>
+  expect() {
+    local made=0
+    [[ -s "${T}/make.log" ]] && made=1
+    if [[ "${RC}" == "$2" && "${OUT}" == *"$3"* && "${made}" == "$4" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s\n' "$1"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s\n       exit %s, wanted %s; make reached %s, wanted %s; wanted output containing: %s\n' \
+        "$1" "${RC}" "$2" "${made}" "$4" "$3"
+      printf '%s\n' "${OUT}" | sed 's/^/       | /'
+      fail=1
+    fi
+  }
+  prom() { awk -v m="homelab_deploy_$1" '$1 == m { print $2 }' "${T}/prom/homelab-deploy.prom" 2>/dev/null; }
+  head_of() { git -C "$1" rev-parse HEAD; }
+
+  # --- the refusals: exit 1, and never reach make -------------------------
+  fresh; advance unsigned; converge
+  expect "refuses an unsigned tip" 1 "did not verify" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main~1)"
+
+  fresh; advance impostor; converge
+  expect "refuses a tip signed by a key that is not the pinned one" 1 "did not verify" 0
+
+  # The one fixture where the fingerprint matches and the signature still must
+  # not pass: the pinned key, revoked after it signed. %GF is the pin, %G? is R.
+  # gpg wrote a revocation certificate at key generation; its armour line is
+  # defused with a leading ':' so it cannot be imported by accident.
+  fresh; advance retired
+  sed 's/^:-----BEGIN/-----BEGIN/' "${GNUPGHOME}/openpgp-revocs.d/${RETIRED}.rev" \
+    | gpg --batch --quiet --import 2>/dev/null
+  PIN_FOR_TEST="${RETIRED}" converge
+  expect "refuses a tip signed by the pinned key once that key is revoked" 1 "did not verify" 0
+
+  fresh; advance pinned; : > "${T}/deploy/stray"; converge
+  expect "refuses an untracked file in the checkout" 1 "uncommitted changes" 0
+  check "  and records the drift" "$(prom tree_dirty)" 1
+
+  fresh; advance pinned; printf 'edited on the host\n' >> "${T}/deploy/README"; converge
+  expect "refuses an edited tracked file" 1 "uncommitted changes" 0
+
+  fresh; commit "${T}/deploy" pinned "a local commit"; advance pinned; converge
+  expect "refuses a tip that is not a fast-forward" 1 "is not a fast-forward" 0
+
+  fresh; git -C "${T}/deploy" checkout -q --detach; advance pinned; converge
+  expect "refuses a checkout that is not on main" 1 "not main" 0
+
+  fresh; advance pinned; FETCH_FOR_TEST="${T}/nowhere.git" converge
+  expect "refuses when the fetch fails" 1 "could not fetch main" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"failure"/' > "${T}/ci.json"
+  converge
+  expect "refuses a tip whose CI failed" 1 "CI did not pass" 0
+  check "  and records it red" "$(prom tip_ci)" 0
+
+  fresh; advance pinned; mkdir "${T}/elsewhere"; DEPLOY_FOR_TEST="${T}/elsewhere" converge
+  expect "refuses to converge any checkout but the deployment one" 1 "refusing to converge" 0
+
+  fresh; advance pinned; converge --stack lab
+  expect "refuses a stack nothing pulls" 1 "nothing converges stack 'lab'" 0
+
+  if ((EUID != 0)); then
+    fresh; advance pinned; chmod 0555 "${T}/prom"; converge; chmod 0755 "${T}/prom"
+    expect "refuses when the record cannot be written" 1 "is not writable" 0
+  fi
+
+  # --- the paths that proceed -------------------------------------------
+  fresh; advance pinned; converge
+  expect "deploys a signed fast-forward that CI passed" 0 "converged to" 1
+  check "  with the stack named" "$(cat "${T}/make.log")" "up STACK=observability"
+  check "  at the tip" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main)"
+  check "  recorded verified and applied" "$(prom verified) $(prom unapplied) $(prom tip_ci)" "1 0 1"
+
+  # Straight on from the deploy above. CI now says red: the no-op path must not
+  # ask, so it cannot hear it.
+  green_tip | sed 's/"conclusion":"success"/"conclusion":"failure"/g' > "${T}/ci.json"
+  converge
+  expect "does nothing at a tip it already applied, and does not ask CI" 0 "converged —" 0
+
+  # HEAD == main but not what make up last applied: the 2026-10-01 incident.
+  # NOT a refusal — the deploy the move skipped is the fix, so it applies.
+  fresh; rm -f "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-applied-observability)"
+  converge
+  expect "applies a checkout that is at the tip with nothing on record" 0 "nothing on record" 1
+
+  fresh; (cd "${T}/deploy" && printf '%s-dirty\n' "$(git rev-parse HEAD)" > "$(git rev-parse --git-path homelab-applied-observability)")
+  converge
+  expect "applies a checkout whose last deploy was of a dirty tree" 0 "and now deployed" 1
+
+  fresh; rm -f "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-applied-observability)"
+  converge --dry-run
+  expect "a dry run reports the unapplied checkout and applies nothing" 0 "dry run" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/' > "${T}/ci.json"
+  converge
+  expect "waits, exit 0, while CI is still running" 0 "CI has not finished" 0
+
+  fresh; advance pinned; HOMELAB_CONVERGE_APPLY=0 converge
+  expect "HOMELAB_CONVERGE_APPLY=0 reports and applies nothing" 0 "dry run" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main~1)"
+  check "  and records report-only" "$(prom apply_enabled) $(prom behind_commits)" "0 1"
+
+  fresh; advance unsigned; converge --allow-unsigned
+  expect "--allow-unsigned deploys an unsigned tip" 0 "converged to" 1
+  check "  and records it unverified" "$(prom verified)" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"conclusion":"success"/"conclusion":"failure"/g' > "${T}/ci.json"
+  converge --allow-red
+  expect "--allow-red deploys a tip whose CI failed" 0 "converged to" 1
+
+  unset GNUPGHOME GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
 }
 
 DRY_RUN=0
@@ -351,6 +608,17 @@ case "${DEPLOY_STACK}" in
   sensitive)     DEPLOY_ROOT="${HOME:?}/code/Gerrrt/HomeLab" ;;
   *) die "nothing converges stack '${DEPLOY_STACK}' — only observability (prometheus) and sensitive (trinity) pull" ;;
 esac
+
+# The self-test's seams (#854). After the stack refusal, so the fixture still
+# meets it, and before every other one, so it meets those against its own
+# repository. The REPO_ROOT == DEPLOY_ROOT check stays real: the fixture runs a
+# copy of this script committed inside the repository it converges.
+if [[ -n "${CONVERGE_UNSAFE_SELF_TEST:-}" ]]; then
+  DEPLOY_ROOT="${CONVERGE_DEPLOY_ROOT:-${DEPLOY_ROOT}}"
+  FETCH_URL="${CONVERGE_FETCH_URL:-${FETCH_URL}}"
+  SIGNING_FPR="${CONVERGE_SIGNING_FPR:-${SIGNING_FPR}}"
+  warn "CONVERGE_UNSAFE_SELF_TEST is set — converging ${DEPLOY_ROOT} from ${FETCH_URL}, trusting ${SIGNING_FPR}"
+fi
 
 # The report-only switch, so the timer can be installed and watched before it is
 # allowed to act. Folded into DRY_RUN rather than given a second code path —
@@ -574,12 +842,12 @@ fi
 # ---------------------------------------------------------------------------
 # Fetch
 # ---------------------------------------------------------------------------
-info "fetching ${BRANCH} from ${CANONICAL_URL}"
+info "fetching ${BRANCH} from ${FETCH_URL}"
 # --no-tags because nothing here reads a tag and a tag is another thing that can
 # move. No --depth: a shallow fetch has no merge base, so the fast-forward
 # assertion and the behind-count below would both be unanswerable.
-git fetch --quiet --no-tags "${CANONICAL_URL}" "${BRANCH}" \
-  || die "could not fetch ${BRANCH} from ${CANONICAL_URL}.
+git fetch --quiet --no-tags "${FETCH_URL}" "${BRANCH}" \
+  || die "could not fetch ${BRANCH} from ${FETCH_URL}.
 The host stays on ${REVISION}, which is the correct outcome of not knowing what
 ${BRANCH} says. If this persists, DeployBehind will not fire — nothing was
 learned about how far behind the host is — but ScheduledJobFailed will."

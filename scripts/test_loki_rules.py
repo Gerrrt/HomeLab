@@ -58,6 +58,7 @@ check_rule_tests.py applies to promtool).
 
 Usage: test_loki_rules.py [--stack NAME] [--skips-file PATH] [--self-test]
 """
+
 from __future__ import annotations
 
 import json
@@ -73,15 +74,16 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-try:
-    import yaml
-except ImportError:
-    sys.exit("PyYAML is required: python3 -m pip install pyyaml")
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PORT = 3198
 GAP = 1200  # seconds between one test's span and the next. Any rule reaching
-            # further must be declared by its tests (layout() enforces it).
+# further must be declared by its tests (layout() enforces it).
 # reject_old_samples_max_age is 168h in loki-config.yaml. Stay well inside it,
 # because a rejected push is a test that silently has no data.
 MAX_LOOKBACK = 150 * 3600
@@ -92,7 +94,7 @@ EXEMPT: dict[str, str] = {}
 # Rules that cannot have a quiet case, each with the reason.
 FIRES_ONLY: dict[str, str] = {
     "LokiRulerWatchdog": "vector(1): it fires forever by design, and "
-                         "LokiRulerSilent (Prometheus) is what notices it stop",
+    "LokiRulerSilent (Prometheus) is what notices it stop",
 }
 
 _DUR = re.compile(r"(\d+)([smhd])")
@@ -124,15 +126,15 @@ def expand(test: dict, eval_at: int) -> list[tuple[dict, int, str]]:
                 if ts > eval_at:
                     raise ValueError(
                         f"{test['name']}: entry {k + 1} of {e['line'][:40]!r} lands "
-                        f"after the evaluation instant. Shorten count/every or raise before")
+                        f"after the evaluation instant. Shorten count/every or raise before"
+                    )
                 out.append((labels, ts, str(e["line"])))
     return out
 
 
 def label_sets(series: list[dict]) -> list[tuple]:
     """Order-free, comparable form of a list of label dicts."""
-    return sorted(tuple(sorted((str(k), str(v)) for k, v in s.items() if k != "__name__"))
-                  for s in series)
+    return sorted(tuple(sorted((str(k), str(v)) for k, v in s.items() if k != "__name__")) for s in series)
 
 
 def coverage(rules: dict[str, dict], tests: list[dict]) -> list[str]:
@@ -152,7 +154,8 @@ def coverage(rules: dict[str, dict], tests: list[dict]) -> list[str]:
             if kind not in have:
                 problems.append(
                     f"{name} has no case where it {'returns a series' if kind == 'fires' else 'stays quiet'}. "
-                    f"Each tested rule needs both, or a broken rule can still pass")
+                    f"Each tested rule needs both, or a broken rule can still pass"
+                )
     for name in sorted(rules):
         if name not in kinds and name not in EXEMPT:
             problems.append(f"{name} has no behaviour test, and EXEMPT does not say why")
@@ -171,8 +174,7 @@ def rule_range(expr: str) -> int:
     minutes wide but reads 30 to 40 minutes back, so it reaches 40m. Counting
     the width alone let it past the spacing check and into the neighbouring
     case's lines (#894 review)."""
-    return max([0] + [parse_duration(r) + (parse_duration(o) if o else 0)
-                      for r, o in _RANGE.findall(expr)])
+    return max([0] + [parse_duration(r) + (parse_duration(o) if o else 0) for r, o in _RANGE.findall(expr)])
 
 
 def layout(tests: list[dict], base: int, rules: dict | None = None) -> tuple[list, list[str]]:
@@ -197,11 +199,14 @@ def layout(tests: list[dict], base: int, rules: dict | None = None) -> tuple[lis
             problems.append(
                 f"{t['name']}: {t['alert']} looks back {reach // 60}m, further than the "
                 f"{GAP // 60}m between cases. Declare `window: {reach // 60}m` (or more), or "
-                f"`isolated_by:` saying how it stays apart from the other cases")
+                f"`isolated_by:` saying how it stays apart from the other cases"
+            )
         cursor = at - max([window] + [at - ts for _, ts, _ in entries]) - GAP
         if base - min([at - window] + [ts for _, ts, _ in entries]) > MAX_LOOKBACK:
-            problems.append(f"{t['name']}: reaches more than {MAX_LOOKBACK // 3600}h back, "
-                            f"past what Loki accepts (reject_old_samples_max_age)")
+            problems.append(
+                f"{t['name']}: reaches more than {MAX_LOOKBACK // 3600}h back, "
+                f"past what Loki accepts (reject_old_samples_max_age)"
+            )
         plan.append((t, at, entries))
     return plan, problems
 
@@ -259,10 +264,12 @@ def push(entries: list[tuple[dict, int, str]]) -> None:
     streams: dict[tuple, list] = {}
     for labels, ts, line in entries:
         streams.setdefault(tuple(sorted(labels.items())), []).append((ts, line))
-    body = {"streams": [
-        {"stream": dict(key), "values": [[str(ts * 10**9 + i), line]
-                                         for i, (ts, line) in enumerate(sorted(vals))]}
-        for key, vals in streams.items()]}
+    body = {
+        "streams": [
+            {"stream": dict(key), "values": [[str(ts * 10**9 + i), line] for i, (ts, line) in enumerate(sorted(vals))]}
+            for key, vals in streams.items()
+        ]
+    }
     code, text = http("/loki/api/v1/push", json.dumps(body).encode())
     if code not in (200, 204):
         raise RuntimeError(f"push refused ({code}): {text[:500]}")
@@ -325,14 +332,19 @@ def barrier(entries: list[tuple[dict, int, str]], now: int, log: pathlib.Path) -
         if got == want:
             return
         if time.time() > deadline:
-            short = [f"{selector(dict(k))} (oldest {(now - oldest[k]) / 3600:.1f}h): "
-                     f"{got[k]} of {n}" for k, n in want.items() if got[k] != n]
-            noise = [line for line in log.read_text(errors="replace").splitlines()
-                     if re.search(r"level=(warn|error)", line)][-10:]
+            short = [
+                f"{selector(dict(k))} (oldest {(now - oldest[k]) / 3600:.1f}h): {got[k]} of {n}"
+                for k, n in want.items()
+                if got[k] != n
+            ]
+            noise = [
+                line for line in log.read_text(errors="replace").splitlines() if re.search(r"level=(warn|error)", line)
+            ][-10:]
             raise RuntimeError(
                 f"{len(short)} of {len(want)} stream(s) not fully queryable after 60s:\n        "
                 + "\n        ".join(short)
-                + ("\n      loki warnings:\n        " + "\n        ".join(noise) if noise else ""))
+                + ("\n      loki warnings:\n        " + "\n        ".join(noise) if noise else "")
+            )
         time.sleep(2)
 
 
@@ -340,9 +352,17 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
     (work / "rules" / "fake").mkdir(parents=True)
     (work / "data").mkdir()
     cfg = subprocess.run(
-        [sys.executable, str(REPO / "scripts/loki_scratch_config.py"),
-         str(stack / "loki/loki-config.yaml"), str(work), "--for-tests"],
-        check=True, capture_output=True, text=True).stdout
+        [
+            sys.executable,
+            str(REPO / "scripts/loki_scratch_config.py"),
+            str(stack / "loki/loki-config.yaml"),
+            str(work),
+            "--for-tests",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout
     (work / "loki.yaml").write_text(cfg)
     os.chmod(work, 0o777)
     for p in work.rglob("*"):
@@ -357,17 +377,39 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
     else:
         # This stack's pin, not observability's: image-for.sh falls back to
         # stacks/observability/compose.yaml unless told otherwise.
-        image = subprocess.run([str(REPO / "scripts/image-for.sh"), "loki"],
-                               env={**os.environ, "COMPOSE_FILE": str(stack / "compose.yaml")},
-                               check=True, capture_output=True, text=True).stdout.strip()
+        image = subprocess.run(
+            [str(REPO / "scripts/image-for.sh"), "loki"],
+            env={**os.environ, "COMPOSE_FILE": str(stack / "compose.yaml")},
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
         name = f"loki-rule-tests-{os.getpid()}"
         cleanup = ["docker", "rm", "-f", name]
         with open(work / "loki.log", "w") as log:
             proc = subprocess.Popen(
-                ["docker", "run", "--rm", "--name", name, "--user", f"{os.getuid()}:{os.getgid()}",
-                 "-p", f"127.0.0.1:{PORT}:{PORT}", "-v", f"{work}:{work}", "-w", str(work),
-                 "--entrypoint", "loki", image, *args],
-                stdout=log, stderr=subprocess.STDOUT)
+                [
+                    "docker",
+                    "run",
+                    "--rm",
+                    "--name",
+                    name,
+                    "--user",
+                    f"{os.getuid()}:{os.getgid()}",
+                    "-p",
+                    f"127.0.0.1:{PORT}:{PORT}",
+                    "-v",
+                    f"{work}:{work}",
+                    "-w",
+                    str(work),
+                    "--entrypoint",
+                    "loki",
+                    image,
+                    *args,
+                ],
+                stdout=log,
+                stderr=subprocess.STDOUT,
+            )
     deadline = time.time() + 120
     while True:
         code, text = http("/ready")
@@ -385,8 +427,7 @@ def run(stack_name: str, skips_file: str | None) -> int:
     # Before the no-rules fast path: a mistyped --stack has no loki/rules
     # either, and must not read as a stack that passed with nothing to test.
     if not (stack / "compose.yaml").is_file():
-        print(f"\033[0;31m  FAIL\033[0m no such stack: {stack_name} (no {stack}/compose.yaml)",
-              file=sys.stderr)
+        print(f"\033[0;31m  FAIL\033[0m no such stack: {stack_name} (no {stack}/compose.yaml)", file=sys.stderr)
         return 1
     rules_dir, tests_dir = stack / "loki/rules", stack / "loki/tests"
     if not rules_dir.is_dir():
@@ -405,7 +446,8 @@ def run(stack_name: str, skips_file: str | None) -> int:
         return 1
 
     if not shutil.which("loki") and not (
-            shutil.which("docker") and subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0):
+        shutil.which("docker") and subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0
+    ):
         msg = "no loki binary and no docker daemon: Loki rule behaviour tests not run"
         print(f"\033[0;33m  SKIP\033[0m {msg}")
         if skips_file:
@@ -429,8 +471,10 @@ def run(stack_name: str, skips_file: str | None) -> int:
             verdict = "\033[0;32mPASS\033[0m" if ok else "\033[0;31mFAIL\033[0m"
             print(f"  {verdict} {t['alert']}: {t['name']}")
             if not ok:
-                print(f"        expected {[dict(s) for s in want] or 'no series'}\n"
-                      f"        got      {[dict(s) for s in got] or 'no series'}")
+                print(
+                    f"        expected {[dict(s) for s in want] or 'no series'}\n"
+                    f"        got      {[dict(s) for s in got] or 'no series'}"
+                )
     except RuntimeError as e:
         print(f"\033[0;31m  FAIL\033[0m {e}", file=sys.stderr)
         return 1
@@ -446,79 +490,160 @@ def run(stack_name: str, skips_file: str | None) -> int:
         shutil.rmtree(work, ignore_errors=True)
 
     tested = sorted({t["alert"] for t, _, _ in plan})
-    print(f"\033[0;{'31' if failed else '32'}m  {'FAIL' if failed else 'PASS'}\033[0m "
-          f"{len(plan) - failed}/{len(plan)} Loki rule test(s) over {len(tested)} of "
-          f"{len(rules)} rule(s); {len(EXEMPT)} exempt")
+    print(
+        f"\033[0;{'31' if failed else '32'}m  {'FAIL' if failed else 'PASS'}\033[0m "
+        f"{len(plan) - failed}/{len(plan)} Loki rule test(s) over {len(tested)} of "
+        f"{len(rules)} rule(s); {len(EXEMPT)} exempt"
+    )
     return 1 if failed else 0
 
 
 def self_test() -> int:
-    rules = {"Crit": {"expr": "x", "severity": "critical"},
-             "Warn": {"expr": "x", "severity": "warning"},
-             "LokiRulerWatchdog": {"expr": "vector(1)", "severity": "none"}}
-    both = [{"alert": "Crit", "name": "a", "expect": [{"h": "x"}]},
-            {"alert": "Crit", "name": "b", "expect": []},
-            {"alert": "Warn", "name": "c", "expect": [{"h": "x"}]},
-            {"alert": "Warn", "name": "d", "expect": []},
-            {"alert": "LokiRulerWatchdog", "name": "e", "expect": [{}]}]
-    t = {"name": "t", "streams": [{"labels": {"a": 1},
-                                   "entries": [{"before": "4m", "count": 3, "every": "10s", "line": "l"}]}]}
+    rules = {
+        "Crit": {"expr": "x", "severity": "critical"},
+        "Warn": {"expr": "x", "severity": "warning"},
+        "LokiRulerWatchdog": {"expr": "vector(1)", "severity": "none"},
+    }
+    both = [
+        {"alert": "Crit", "name": "a", "expect": [{"h": "x"}]},
+        {"alert": "Crit", "name": "b", "expect": []},
+        {"alert": "Warn", "name": "c", "expect": [{"h": "x"}]},
+        {"alert": "Warn", "name": "d", "expect": []},
+        {"alert": "LokiRulerWatchdog", "name": "e", "expect": [{}]},
+    ]
+    t = {
+        "name": "t",
+        "streams": [{"labels": {"a": 1}, "entries": [{"before": "4m", "count": 3, "every": "10s", "line": "l"}]}],
+    }
     cases = [
         ("durations parse, compound ones too", parse_duration("1h30m") == 5400 and parse_duration("2d") == 172800),
         ("a bare number is not a duration", _raises(lambda: parse_duration("90"))),
-        ("entries expand forwards from `before`, labels as strings",
-         expand(t, 1000) == [({"a": "1"}, 760, "l"), ({"a": "1"}, 770, "l"), ({"a": "1"}, 780, "l")]),
-        ("an entry past the evaluation instant is refused",
-         _raises(lambda: expand({**t, "streams": [{"labels": {"a": 1}, "entries": [
-             {"before": "5s", "count": 10, "line": "l"}]}]}, 1000))),
-        ("a selector's expected count includes every stream that contains it",
-         expected_counts([({"app": "s", "i": "x"}, 5, "l"), ({"app": "s", "i": "x"}, 6, "l"),
-                          ({"app": "s"}, 9, "l")])[0]
-         == {(("app", "s"), ("i", "x")): 2, (("app", "s"),): 3}),
-        ("and reaches back to the oldest line among them",
-         expected_counts([({"app": "s", "i": "x"}, 5, "l"), ({"app": "s"}, 9, "l")])[1][(("app", "s"),)] == 5),
-        ("label sets compare without order, and ignore __name__",
-         label_sets([{"b": "2", "a": "1", "__name__": "x"}]) == label_sets([{"a": "1", "b": "2"}])),
+        (
+            "entries expand forwards from `before`, labels as strings",
+            expand(t, 1000) == [({"a": "1"}, 760, "l"), ({"a": "1"}, 770, "l"), ({"a": "1"}, 780, "l")],
+        ),
+        (
+            "an entry past the evaluation instant is refused",
+            _raises(
+                lambda: expand(
+                    {**t, "streams": [{"labels": {"a": 1}, "entries": [{"before": "5s", "count": 10, "line": "l"}]}]},
+                    1000,
+                )
+            ),
+        ),
+        (
+            "a selector's expected count includes every stream that contains it",
+            expected_counts(
+                [({"app": "s", "i": "x"}, 5, "l"), ({"app": "s", "i": "x"}, 6, "l"), ({"app": "s"}, 9, "l")]
+            )[0]
+            == {(("app", "s"), ("i", "x")): 2, (("app", "s"),): 3},
+        ),
+        (
+            "and reaches back to the oldest line among them",
+            expected_counts([({"app": "s", "i": "x"}, 5, "l"), ({"app": "s"}, 9, "l")])[1][(("app", "s"),)] == 5,
+        ),
+        (
+            "label sets compare without order, and ignore __name__",
+            label_sets([{"b": "2", "a": "1", "__name__": "x"}]) == label_sets([{"a": "1", "b": "2"}]),
+        ),
         ("every rule tested both ways (the watchdog firing only) is covered", coverage(rules, both) == []),
-        ("an untested rule fails coverage, warning or not",
-         any("Warn has no behaviour test" in p for p in coverage(rules, both[:2] + both[4:]))),
+        (
+            "an untested rule fails coverage, warning or not",
+            any("Warn has no behaviour test" in p for p in coverage(rules, both[:2] + both[4:])),
+        ),
         ("a tested rule with only a quiet case fails coverage", len(coverage(rules, both[1:])) == 1),
-        ("a tested rule with only a firing case fails coverage",
-         len(coverage(rules, both[:1] + both[2:])) == 1),
-        ("FIRES_ONLY excuses the watchdog's missing quiet case, and no other",
-         not any("LokiRulerWatchdog" in p for p in coverage(rules, both))),
-        ("an absence test's window is kept clear of the next test's lines",
-         _clear(layout([{"name": "gone", "window": "9h", "streams": []},
-                        {"name": "next", "streams": [{"labels": {"a": 1}, "entries": [
-                            {"before": "1m", "line": "l"}]}]}], 10**6))),
-        ("a long-reaching line pushes the next test back past it",
-         _clear(layout([{"name": "old", "streams": [{"labels": {"a": 1}, "entries": [
-                            {"before": "2d", "line": "l"}]}]},
-                        {"name": "next", "window": "30m", "streams": []}], 10**6))),
-        ("a rule's reach is its longest [range] plus that range's offset",
-         rule_range("sum(count_over_time({a=\"b\"}[10m])) unless sum(count_over_time({a=\"b\"}[7d] offset 10m))")
-         == 7 * 86400 + 600),
-        ("a narrow range far back reaches its whole depth",
-         rule_range("count_over_time({a=\"b\"}[10m] offset 30m)") == 2400),
-        ("so it must be declared, though its width fits in the gap",
-         bool(layout([{"alert": "Deep", "name": "d", "streams": []}], 10**6,
-                     {"Deep": {"expr": "count_over_time({a=\"b\"}[10m] offset 30m)"}})[1])),
-        ("a case whose rule outreaches the gap must declare window or isolated_by",
-         bool(layout([{"alert": "Gone", "name": "g", "streams": []}], 10**6,
-                     {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1])),
-        ("a declared window that is long enough satisfies it",
-         not layout([{"alert": "Gone", "name": "g", "window": "9h", "streams": []}], 10**6,
-                    {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1]),
-        ("a window shorter than the rule's range does not",
-         bool(layout([{"alert": "Gone", "name": "g", "window": "2h", "streams": []}], 10**6,
-                     {"Gone": {"expr": "absent_over_time({a=\"b\"}[9h])"}})[1])),
-        ("isolated_by stands in for a week-long window",
-         not layout([{"alert": "New", "name": "n", "isolated_by": "mac", "streams": []}], 10**6,
-                    {"New": {"expr": "count_over_time({a=\"b\"}[7d] offset 10m)"}})[1]),
-        ("a test reaching past Loki's acceptance window is refused",
-         bool(layout([{"name": "far", "window": "200h", "streams": []}], 10**6)[1])),
-        ("a test naming no rule fails coverage",
-         any("no rule" in p for p in coverage(rules, both + [{"alert": "Gone", "name": "g", "expect": []}]))),
+        ("a tested rule with only a firing case fails coverage", len(coverage(rules, both[:1] + both[2:])) == 1),
+        (
+            "FIRES_ONLY excuses the watchdog's missing quiet case, and no other",
+            not any("LokiRulerWatchdog" in p for p in coverage(rules, both)),
+        ),
+        (
+            "an absence test's window is kept clear of the next test's lines",
+            _clear(
+                layout(
+                    [
+                        {"name": "gone", "window": "9h", "streams": []},
+                        {"name": "next", "streams": [{"labels": {"a": 1}, "entries": [{"before": "1m", "line": "l"}]}]},
+                    ],
+                    10**6,
+                )
+            ),
+        ),
+        (
+            "a long-reaching line pushes the next test back past it",
+            _clear(
+                layout(
+                    [
+                        {"name": "old", "streams": [{"labels": {"a": 1}, "entries": [{"before": "2d", "line": "l"}]}]},
+                        {"name": "next", "window": "30m", "streams": []},
+                    ],
+                    10**6,
+                )
+            ),
+        ),
+        (
+            "a rule's reach is its longest [range] plus that range's offset",
+            rule_range('sum(count_over_time({a="b"}[10m])) unless sum(count_over_time({a="b"}[7d] offset 10m))')
+            == 7 * 86400 + 600,
+        ),
+        (
+            "a narrow range far back reaches its whole depth",
+            rule_range('count_over_time({a="b"}[10m] offset 30m)') == 2400,
+        ),
+        (
+            "so it must be declared, though its width fits in the gap",
+            bool(
+                layout(
+                    [{"alert": "Deep", "name": "d", "streams": []}],
+                    10**6,
+                    {"Deep": {"expr": 'count_over_time({a="b"}[10m] offset 30m)'}},
+                )[1]
+            ),
+        ),
+        (
+            "a case whose rule outreaches the gap must declare window or isolated_by",
+            bool(
+                layout(
+                    [{"alert": "Gone", "name": "g", "streams": []}],
+                    10**6,
+                    {"Gone": {"expr": 'absent_over_time({a="b"}[9h])'}},
+                )[1]
+            ),
+        ),
+        (
+            "a declared window that is long enough satisfies it",
+            not layout(
+                [{"alert": "Gone", "name": "g", "window": "9h", "streams": []}],
+                10**6,
+                {"Gone": {"expr": 'absent_over_time({a="b"}[9h])'}},
+            )[1],
+        ),
+        (
+            "a window shorter than the rule's range does not",
+            bool(
+                layout(
+                    [{"alert": "Gone", "name": "g", "window": "2h", "streams": []}],
+                    10**6,
+                    {"Gone": {"expr": 'absent_over_time({a="b"}[9h])'}},
+                )[1]
+            ),
+        ),
+        (
+            "isolated_by stands in for a week-long window",
+            not layout(
+                [{"alert": "New", "name": "n", "isolated_by": "mac", "streams": []}],
+                10**6,
+                {"New": {"expr": 'count_over_time({a="b"}[7d] offset 10m)'}},
+            )[1],
+        ),
+        (
+            "a test reaching past Loki's acceptance window is refused",
+            bool(layout([{"name": "far", "window": "200h", "streams": []}], 10**6)[1]),
+        ),
+        (
+            "a test naming no rule fails coverage",
+            any("no rule" in p for p in coverage(rules, both + [{"alert": "Gone", "name": "g", "expect": []}])),
+        ),
     ]
     failed = 0
     for name, ok in cases:
@@ -535,8 +660,7 @@ def _clear(laid: tuple) -> bool:
         w = parse_duration(t["window"]) if "window" in t else 0
         spans.append((min([at - w] + [ts for _, ts, _ in entries]), at))
     lines = [(i, ts) for i, (_, _, entries) in enumerate(plan) for _, ts, _ in entries]
-    return not problems and all(not (lo <= ts <= hi)
-                                for i, ts in lines for j, (lo, hi) in enumerate(spans) if i != j)
+    return not problems and all(not (lo <= ts <= hi) for i, ts in lines for j, (lo, hi) in enumerate(spans) if i != j)
 
 
 def _raises(fn) -> bool:

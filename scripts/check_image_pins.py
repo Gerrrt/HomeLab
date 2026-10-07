@@ -72,11 +72,22 @@ compose files; this asks it of the shell, where deploy-agent.sh started
 oracle's Alloy with the socket for months after #193 and #836 had taken it off
 every compose-managed collector, because nothing that read shell looked.
 
+The shared-config rule
+----------------------
+An image that mounts another stack's config must carry that stack's exact
+pin: scratch's wazuh/* against soc's, and every grafana/alloy against
+observability's, because all of them mount ../observability/alloy/. CI's
+`alloy fmt` resolves only observability's pin, so a half-merged pair of
+Dependabot bumps would have validated the config on one release and run it on
+another, green (#848). The pairs are read off the mounts; see
+shared_config_pairs().
+
 There is deliberately no ignore mechanism. If a case needs one, the rule is
 wrong — see the .gitleaksignore argument in the docstring of check_docs.py.
 
 Usage: scripts/check_image_pins.py
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -86,19 +97,11 @@ import sys
 from collections.abc import Iterator
 from typing import NamedTuple
 
-# PyYAML is not guaranteed on a clean runner, and this script gates CI. Same
-# install-rather-than-fail as check_docs.py and check_compose_health.py.
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -121,8 +124,17 @@ SUBCOMMANDS = {"run", "pull", "create"}
 MANAGEMENT = {"container", "image"}
 # The handful of *global* flags that take a value. Unlike `docker run`'s flags
 # this set is small and stable, and getting it wrong only skips an invocation.
-GLOBAL_VALUE_FLAGS = {"--context", "--config", "--host", "-H", "--log-level",
-                      "-l", "--tlscacert", "--tlscert", "--tlskey"}
+GLOBAL_VALUE_FLAGS = {
+    "--context",
+    "--config",
+    "--host",
+    "-H",
+    "--log-level",
+    "-l",
+    "--tlscacert",
+    "--tlscert",
+    "--tlskey",
+}
 
 VAR = re.compile(r"^\$\{?([A-Za-z_][A-Za-z0-9_]*)\}?$")
 ASSIGN = re.compile(
@@ -184,9 +196,7 @@ def makefile_lines(text: str) -> list[Line]:
             variables.setdefault(match.group(1), match.group(2).strip())
     for _ in range(5):  # resolve references between variables, bounded
         for name, value in list(variables.items()):
-            variables[name] = MAKE_REF.sub(
-                lambda m: variables.get(m.group(1), m.group(0)), value
-            )
+            variables[name] = MAKE_REF.sub(lambda m: variables.get(m.group(1), m.group(0)), value)
 
     numbered = []
     for lineno, raw in enumerate(text.splitlines(), 1):
@@ -279,7 +289,7 @@ def statements(text: str) -> list[str]:
         elif depth == 0 and ch == ";":
             out.append(cur)
             cur = ""
-        elif depth == 0 and text[i:i + 2] in ("&&", "||"):
+        elif depth == 0 and text[i : i + 2] in ("&&", "||"):
             out.append(cur)
             cur, i = "", i + 2
             continue
@@ -309,7 +319,7 @@ def extract_substs(text: str) -> tuple[list[str], str]:
                 elif text[j] == ")":
                     depth -= 1
                 j += 1
-            body = text[i + 2:j - 1] if depth == 0 else text[i + 2:]
+            body = text[i + 2 : j - 1] if depth == 0 else text[i + 2 :]
             nested, flat = extract_substs(body)
             inner.extend(nested)
             inner.append(flat)
@@ -403,7 +413,7 @@ def invocation(tokens: list[str]) -> list[str] | None:
             else:
                 break
         if j < len(tokens) and tokens[j] in SUBCOMMANDS:
-            return tokens[j + 1:]
+            return tokens[j + 1 :]
         return None
     return None
 
@@ -423,7 +433,7 @@ def traced_names(lines: list[Line]) -> set[str]:
                 match = ASSIGN.search(statement)
                 if not match or match.group(1) in traced:
                     continue
-                rest = statement[match.end():].strip().strip("\"'")
+                rest = statement[match.end() :].strip().strip("\"'")
                 ref = VAR.match(rest)
                 if ref and ref.group(1) in traced:
                     traced.add(match.group(1))
@@ -441,9 +451,22 @@ PROXY_SERVICE = "docker-socket-proxy"
 # positional is taken as the image instead, the exemption misses, and the run is
 # FLAGGED. A wrong guess here can only refuse a run, never wave one through.
 RUN_BOOLEAN_FLAGS = {
-    "-d", "--detach", "--rm", "-i", "--interactive", "-t", "--tty", "-it",
-    "--init", "--privileged", "--read-only", "-P", "--publish-all",
-    "--no-healthcheck", "--oom-kill-disable", "--sig-proxy",
+    "-d",
+    "--detach",
+    "--rm",
+    "-i",
+    "--interactive",
+    "-t",
+    "--tty",
+    "-it",
+    "--init",
+    "--privileged",
+    "--read-only",
+    "-P",
+    "--publish-all",
+    "--no-healthcheck",
+    "--oom-kill-disable",
+    "--sig-proxy",
 }
 
 
@@ -490,8 +513,10 @@ def socket_reach(args: list[str]) -> str | None:
         if source in DOCKER_SOCKETS or source in SOCKET_DIRS:
             return f"binds {source}, which is or holds the Docker socket"
         if source == "/" and f"{target}/run" not in tmpfs:
-            return (f"binds the host's / at {target} without --tmpfs {target}/run, "
-                    f"so the Docker socket is at {target}/run/docker.sock")
+            return (
+                f"binds the host's / at {target} without --tmpfs {target}/run, "
+                f"so the Docker socket is at {target}/run/docker.sock"
+            )
     return None
 
 
@@ -533,10 +558,7 @@ def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
                         f"the image from `image-for.sh {PROXY_SERVICE}` for the "
                         f"socket, and mask /run in a rootfs mount (#193, #836)"
                     )
-                if any(
-                    a == RESOLVED or (VAR.match(a) and VAR.match(a).group(1) in traced)
-                    for a in args
-                ):
+                if any(a == RESOLVED or (VAR.match(a) and VAR.match(a).group(1) in traced) for a in args):
                     continue
                 where = f"{rel}:{line.lineno}"
                 if line.context:
@@ -556,8 +578,7 @@ def sources() -> list[tuple[str, list[Line]]]:
     makefile = REPO / "Makefile"
     out.append(("Makefile", makefile_lines(makefile.read_text(encoding="utf-8"))))
     for path in sorted(REPO.glob(SHELL_GLOB)):
-        out.append((str(path.relative_to(REPO)),
-                    shell_lines(path.read_text(encoding="utf-8"))))
+        out.append((str(path.relative_to(REPO)), shell_lines(path.read_text(encoding="utf-8"))))
     for glob in WORKFLOW_GLOBS:
         for path in sorted(REPO.glob(glob)):
             out.append((str(path.relative_to(REPO)), workflow_lines(path)))
@@ -567,8 +588,7 @@ def sources() -> list[tuple[str, list[Line]]]:
             if path in seen:
                 continue
             seen.add(path)
-            out.append((str(path.relative_to(REPO)),
-                        markdown_lines(path.read_text(encoding="utf-8"))))
+            out.append((str(path.relative_to(REPO)), markdown_lines(path.read_text(encoding="utf-8"))))
     return out
 
 
@@ -600,9 +620,7 @@ FLOAT_SUFFIXES = (".yaml", ".yml", ".sh")
 
 
 def tracked_files() -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True
-    )
+    out = subprocess.run(["git", "ls-files"], cwd=REPO, capture_output=True, text=True, check=True)
     return out.stdout.splitlines()
 
 
@@ -628,14 +646,10 @@ def pattern_problems() -> list[str]:
             # compose.yaml is where a version is SUPPOSED to live.
             if in_pin_scan and VERSION_PIN.search(line):
                 problems.append(
-                    f"{rel}:{n} pins an image version outside compose.yaml — "
-                    f"resolve it with scripts/image-for.sh"
+                    f"{rel}:{n} pins an image version outside compose.yaml — resolve it with scripts/image-for.sh"
                 )
             if is_float_scan and FLOATING.search(line):
-                problems.append(
-                    f"{rel}:{n} uses a floating :latest tag — pin an explicit "
-                    f"version"
-                )
+                problems.append(f"{rel}:{n} uses a floating :latest tag — pin an explicit version")
     return problems
 
 
@@ -657,10 +671,7 @@ def digest_problems() -> list[str]:
             image = (svc or {}).get("image")
             if image and "@sha256:" not in image:
                 rel = cf.relative_to(REPO)
-                problems.append(
-                    f"{rel}: {name} image {image} is not pinned by digest — "
-                    f"run make pin-digests"
-                )
+                problems.append(f"{rel}: {name} image {image} is not pinned by digest — run make pin-digests")
     return problems
 
 
@@ -699,11 +710,95 @@ def arch_tag_problems() -> list[str]:
     return problems
 
 
+def _repository(image: str) -> str:
+    """An image reference minus its tag and digest: `repo[:tag][@digest]` → `repo`."""
+    ref = image.partition("@")[0]
+    head, _, last = ref.rpartition("/")
+    return f"{head}/{last.partition(':')[0]}" if head else last.partition(":")[0]
+
+
+def _bind_sources(svc: dict) -> Iterator[str]:
+    for vol in (svc or {}).get("volumes") or []:
+        if isinstance(vol, str):
+            src = vol.split(":", 1)[0]
+            if src.startswith((".", "/", "~")):
+                yield src
+        elif isinstance(vol, dict) and vol.get("type") == "bind" and vol.get("source"):
+            yield str(vol["source"])
+
+
+def shared_config_pairs(stacks: dict[str, dict], root: pathlib.Path) -> tuple[list[str], int]:
+    """Images that mount another stack's config must match that stack's pin.
+
+    stacks/scratch mounts ../soc/wazuh/…, and lab, sensor and soc all mount
+    ../observability/alloy/config.alloy. Config written for one release and run
+    under another answers a different question, and until #848 only discipline
+    kept the pairs together: Dependabot opens one PR per directory, and merging
+    one of a pair left main green.
+
+    So: for every bind mount whose source lies inside ANOTHER stack's directory,
+    every service in that stack with the same image repository must carry the
+    identical reference, tag and digest. The pairs come from the mounts rather
+    than a list of names, so a new cross-stack mount is covered the day it is
+    written. Lab's Prometheus and Grafana mount nothing of observability's, and
+    stay free to move on their own (dependabot.yml says why).
+
+    `stacks` maps a stack name to its parsed compose file; `root` is the
+    directory those names live under. Returns (problems, pairs compared).
+    """
+    problems: list[str] = []
+    pairs = 0
+    root = root.resolve()
+    for name, doc in sorted(stacks.items()):
+        for svc_name, svc in ((doc or {}).get("services") or {}).items():
+            image = str((svc or {}).get("image") or "")
+            if not image:
+                continue
+            owners: set[str] = set()
+            for src in _bind_sources(svc):
+                path = (root / name / src).resolve()
+                try:
+                    rel = path.relative_to(root)
+                except ValueError:
+                    continue
+                if rel.parts and rel.parts[0] != name and rel.parts[0] in stacks:
+                    owners.add(rel.parts[0])
+            for owner in sorted(owners):
+                for twin_name, twin in ((stacks[owner] or {}).get("services") or {}).items():
+                    twin_image = str((twin or {}).get("image") or "")
+                    if _repository(twin_image) != _repository(image):
+                        continue
+                    pairs += 1
+                    if twin_image != image:
+                        problems.append(
+                            f"stacks/{name}: {svc_name} runs {image} but mounts "
+                            f"config from stacks/{owner}, whose {twin_name} runs "
+                            f"{twin_image} — the two share that config, so bump "
+                            f"both in one PR"
+                        )
+    return problems, pairs
+
+
+def shared_config_problems() -> tuple[list[str], int]:
+    stacks = {
+        cf.parent.name: yaml.safe_load(cf.read_text(encoding="utf-8")) or {}
+        for cf in REPO.glob("stacks/*/compose.yaml")
+    }
+    problems, pairs = shared_config_pairs(stacks, REPO / "stacks")
+    if not pairs:
+        # Alloy alone is mounted across four stacks today. Zero means the
+        # parser stopped seeing mounts, not that the estate stopped sharing.
+        problems.append("no cross-stack shared-config image pairs found — this check has stopped checking")
+    return problems, pairs
+
+
 def main() -> int:
     problems, sites, files = [], 0, 0
     problems.extend(pattern_problems())
     problems.extend(digest_problems())
     problems.extend(arch_tag_problems())
+    shared, pairs = shared_config_problems()
+    problems.extend(shared)
     for rel, lines in sources():
         found, seen = check_file(rel, lines)
         problems.extend(found)
@@ -716,7 +811,8 @@ def main() -> int:
         print(
             f"\n{len(problems)} image pin problem(s): a docker command running an "
             f"image from outside compose.yaml or holding the Docker socket, or "
-            f"a compose image without a digest or on a single-architecture tag",
+            f"a compose image without a digest, on a single-architecture tag, "
+            f"or apart from the stack whose config it mounts",
             file=sys.stderr,
         )
         return 1
@@ -726,13 +822,14 @@ def main() -> int:
     print(
         f"image pins OK — {sites} docker run/pull/create invocation(s) across "
         f"{files} file(s), every image resolved from compose.yaml via "
-        f"scripts/image-for.sh"
+        f"scripts/image-for.sh; {pairs} shared-config pin pair(s) identical"
     )
     return 0
 
 
 def self_test() -> int:
     """The socket rule against fixture shell; the image rule is CI's own run."""
+
     def problems(*text: str) -> int:
         lines = [Line(i + 1, t, "") for i, t in enumerate(text)]
         return sum("socket proxy" in p for p in check_file("fixture", lines)[0])
@@ -740,40 +837,129 @@ def self_test() -> int:
     img = 'IMAGE="$(./scripts/image-for.sh alloy)"'
     proxy = 'PROXY_IMAGE="$(./scripts/image-for.sh docker-socket-proxy)"'
     cases = [
-        ("a collector holding the socket fails, even :ro", 1,
-         (img, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$IMAGE"')),
-        ("the --mount form fails the same way", 1,
-         (img, 'docker run -d --mount type=bind,source=/var/run/docker.sock,target=/s "$IMAGE"')),
-        ("the proxy, traced by service, may hold it", 0,
-         (proxy, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
-        ("any other traced image may not, whatever its variable is called", 1,
-         ('PROXY_IMAGE="$(./scripts/image-for.sh alloy)"',
-          'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"')),
-        ("a run without the socket is not this rule's business", 0,
-         (img, 'docker run -d -v /var/log:/var/log:ro "$IMAGE"')),
-        ("/run/docker.sock is the same socket", 1,
-         (img, 'docker run -d -v /run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("the host's / without /run masked reaches the socket", 1,
-         (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
-        ("the host's / with --tmpfs <target>/run is fine", 0,
-         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"')),
-        ("the proxy's variable as a decoy -e value does not exempt a socket mount", 1,
-         (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("nor as a --label value", 1,
-         (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"')),
-        ("nor inside an -e assignment", 1,
-         (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"')),
-        ("the real proxy run, flag for flag as deploy-agent.sh writes it, passes", 0,
-         (proxy, ('docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped '
-                 '--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m '
-                 '--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 '
-                 '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'))),
-        ("a mask at the wrong path does not count", 1,
-         (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
+        (
+            "a collector holding the socket fails, even :ro",
+            1,
+            (img, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$IMAGE"'),
+        ),
+        (
+            "the --mount form fails the same way",
+            1,
+            (img, 'docker run -d --mount type=bind,source=/var/run/docker.sock,target=/s "$IMAGE"'),
+        ),
+        (
+            "the proxy, traced by service, may hold it",
+            0,
+            (proxy, 'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'),
+        ),
+        (
+            "any other traced image may not, whatever its variable is called",
+            1,
+            (
+                'PROXY_IMAGE="$(./scripts/image-for.sh alloy)"',
+                'docker run -d -v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"',
+            ),
+        ),
+        (
+            "a run without the socket is not this rule's business",
+            0,
+            (img, 'docker run -d -v /var/log:/var/log:ro "$IMAGE"'),
+        ),
+        (
+            "/run/docker.sock is the same socket",
+            1,
+            (img, 'docker run -d -v /run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        ("the host's / without /run masked reaches the socket", 1, (img, 'docker run -d -v /:/rootfs:ro "$IMAGE"')),
+        (
+            "the host's / with --tmpfs <target>/run is fine",
+            0,
+            (img, 'docker run -d -v /:/rootfs:ro --tmpfs /rootfs/run:size=64k "$IMAGE"'),
+        ),
+        (
+            "the proxy's variable as a decoy -e value does not exempt a socket mount",
+            1,
+            (img, proxy, 'docker run -d -e "$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        (
+            "nor as a --label value",
+            1,
+            (img, proxy, 'docker run -d --label "$PROXY_IMAGE" -v /var/run/docker.sock:/s "$IMAGE"'),
+        ),
+        (
+            "nor inside an -e assignment",
+            1,
+            (img, proxy, 'docker run -e DECOY="$PROXY_IMAGE" -v /var/run/docker.sock:/var/run/docker.sock "$IMAGE"'),
+        ),
+        (
+            "the real proxy run, flag for flag as deploy-agent.sh writes it, passes",
+            0,
+            (
+                proxy,
+                (
+                    "docker run -d --name alloy-socket-proxy --network alloy --restart unless-stopped "
+                    "--cap-drop ALL --security-opt no-new-privileges:true --memory 64m --memory-swap 64m "
+                    "--log-driver json-file --log-opt max-size=10m -e CONTAINERS=1 -e POST=0 "
+                    '-v /var/run/docker.sock:/var/run/docker.sock:ro "$PROXY_IMAGE"'
+                ),
+            ),
+        ),
+        ("a mask at the wrong path does not count", 1, (img, 'docker run -d -v /:/rootfs:ro --tmpfs /run "$IMAGE"')),
     ]
     failed = 0
     for name, want, text in cases:
         got = problems(*text)
+        ok = got == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))
+
+    # The shared-config rule, on parsed compose dicts rather than files. The
+    # root is never read, only resolved against, so any path will do.
+    a = "grafana/alloy:v1@sha256:" + "a" * 64
+    b = "grafana/alloy:v1@sha256:" + "b" * 64
+    prom_a = "prom/prometheus:v3@sha256:" + "a" * 64
+    prom_b = "prom/prometheus:v3@sha256:" + "b" * 64
+
+    def stacks(
+        sensor_image: str,
+        mount: str = "../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro",
+        lab_prom: str = prom_a,
+    ) -> dict:
+        return {
+            "observability": {
+                "services": {
+                    "alloy": {"image": a, "volumes": ["./alloy/config.alloy:/etc/alloy/config.alloy:ro"]},
+                    "prometheus": {"image": prom_a},
+                }
+            },
+            "sensor": {"services": {"alloy": {"image": sensor_image, "volumes": [mount]}}},
+            "lab": {
+                "services": {"prometheus": {"image": lab_prom, "volumes": ["../../certificates/ca.pem:/etc/ca.pem:ro"]}}
+            },
+        }
+
+    shared_cases = [
+        ("matching Alloy pins across a shared config pass", (0, 1), stacks(a)),
+        ("a mismatched Alloy digest fails", (1, 1), stacks(b)),
+        (
+            "the long bind syntax is read the same way",
+            (1, 1),
+            stacks(
+                b,
+                {"type": "bind", "source": "../observability/alloy/config.alloy", "target": "/etc/alloy/config.alloy"},
+            ),
+        ),
+        (
+            "an Alloy mounting nothing of another stack's is free",
+            (0, 0),
+            stacks(b, "./alloy/config.alloy:/etc/alloy/config.alloy:ro"),
+        ),
+        ("lab and observability Prometheus may differ; they share no config", (0, 1), stacks(a, lab_prom=prom_b)),
+    ]
+    root = pathlib.Path("/nonexistent/stacks")
+    for name, want, fixture in shared_cases:
+        found, pairs = shared_config_pairs(fixture, root)
+        got = (len(found), pairs)
         ok = got == want
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))
