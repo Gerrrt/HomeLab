@@ -35,6 +35,7 @@ From shell, where the import happens in a child python3:
 --pythonpath prints the directory it installed into, or nothing when yaml was
 already importable.
 """
+
 from __future__ import annotations
 
 import importlib
@@ -59,6 +60,7 @@ def _ensure() -> str:
     """Make `import yaml` work; return the directory added to sys.path, or ''."""
     try:
         import yaml  # noqa: F401
+
         return ""
     except ModuleNotFoundError:
         pass
@@ -71,9 +73,20 @@ def _ensure() -> str:
         return str(target)
     print(f"installing pinned PyYAML from {REQUIREMENTS.name}", file=sys.stderr)
     if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "--require-hashes", "--no-deps",
-         "--target", str(target), "-r", str(REQUIREMENTS)],
+        [
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--quiet",
+            "--disable-pip-version-check",
+            "--require-hashes",
+            "--no-deps",
+            "--target",
+            str(target),
+            "-r",
+            str(REQUIREMENTS),
+        ],
         check=False,
     ).returncode:
         sys.exit(f"could not install the pinned PyYAML from {REQUIREMENTS}")
