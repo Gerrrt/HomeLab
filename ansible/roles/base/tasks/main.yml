@@ -79,6 +79,17 @@
   poll: 0
   register: base_static
 
+# Dropping the DHCP address kills the session the task above ran in, and
+# ssh's ControlPersist master for this host dies with it without noticing.
+# wait_for_connection then retries down that dead master until it times out,
+# which is how the #448 rebuild's first run lost bahamut ("Data could not be
+# sent to remote host") with the address correctly set. A fresh connection
+# reaches the same address at once. Unconditional, because reset_connection
+# ignores `when`; on a guest whose address was already static it only closes
+# a connection the next task reopens.
+- name: Drop the connection the address change broke
+  ansible.builtin.meta: reset_connection
+
 - name: Wait for the DC to answer at its static address
   ansible.builtin.wait_for_connection:
     delay: 5
