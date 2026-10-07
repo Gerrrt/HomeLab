@@ -297,9 +297,11 @@ run_linter yamllint --strict .
 # No arguments: the globs live in .markdownlint-cli2.yaml.
 run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
-# The rules are in ruff.toml (#853). Formatting is not checked: that would be a
-# reformat of every script for no finding.
+# Two calls, one tool, as with packer: check is what the code does (#853), and
+# format is how it is laid out (#938). Both read ruff.toml. --diff so a failure
+# shows the fix, and `ruff format scripts/` applies it.
 run_linter ruff check .
+run_linter ruff format --check --diff .
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
 run_linter zizmor --offline .github/workflows

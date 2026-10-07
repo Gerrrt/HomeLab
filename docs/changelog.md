@@ -46,6 +46,20 @@ docstring gives: it is a record, not a claim about now.
     verifies against the lab CA, which does nothing while its targets are
     http.
 
+- **The drifted digests are re-pinned, and `make pin-digests` survives a
+  duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
+  stacks pinned digests the registry no longer serves under their tag:
+  - `postgres:18.6` in sensitive (two services) and in bloodhound
+  - `postgres:17.11` in wiki
+  - the three `wazuh/*` 4.14.8 images in scratch and in soc
+
+  Re-pinning them exposed a bug in `scripts/pin-digests.sh`. When one file
+  pins the same drifted image twice, the first replace rewrote both lines.
+  The second then died with "expected to find", and under
+  `make pin-digests` that stopped the loop before soc and wiki. The script
+  now dedupes the references before resolving them. Merging this is a deploy
+  of sensitive's two Postgres services: the same 18.6, on a rebuilt image.
+
 - **`eden` exists, with its key and its ingest token; the stack is not up
   yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).

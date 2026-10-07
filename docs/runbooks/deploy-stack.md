@@ -148,7 +148,7 @@ Then in the UI:
 1. **Prometheus → Status → Targets.** Every job `UP`. The four `snmp` targets
    take up to 45 seconds on their first scrape.
 2. **Prometheus → Status → Rules.** Every rule loaded, none in error. The
-   page lists 150: the 144 alert rules this repository counts everywhere
+   page lists 151: the 145 alert rules this repository counts everywhere
    else, plus the six recording rules:
    `homelab_suricata_expected_interface`,
    `homelab_battery_runtime_seconds`, and the two directions each of

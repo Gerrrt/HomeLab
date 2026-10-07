@@ -8,6 +8,20 @@
 # host runs newer, which is the direction that cannot break.
 target-version = "py312"
 
+# The column limit .yamllint.yaml already uses, so one number holds for the
+# repository (#938). Measured against the scripts as they were: 88 and 120
+# differ by about 650 lines of reformat, and 140 saves only 130 more.
+line-length = 120
+
+# `ruff format --check` in scripts/lint.sh holds the layout (#938). Quotes are
+# ruff's default, double, because 94% of the string literals already were;
+# "preserve" would have spared 16 lines of the first reformat.
+[format]
+# ruff 0.16 also formats Python fences inside Markdown, and walks all 155 .md
+# files here to find none. A snippet in a runbook illustrates; it is not code
+# this repository runs, so its spacing is not a reason for Lint to fail.
+exclude = ["*.md"]
+
 [lint]
 # ruff's defaults, plus bugbear for the likely bugs and pyupgrade so the code
 # reads as the Python it runs on. The defaults are the pinned version's, and
