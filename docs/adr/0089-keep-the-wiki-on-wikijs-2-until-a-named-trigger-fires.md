@@ -85,11 +85,16 @@ the cheaper move if it arrives.
 
 ## Consequences
 
-- **Trigger 1 depends on someone reading the advisories.** Nothing here
-  watches `requarks/wiki`'s own advisories. The weekly CVE scan reads the
-  image's packages, which is a different list. So they are read at every pin
-  bump, and whenever a 2.x release appears. What this record adds is the
-  30-day clock, and that a missed clock is a move, not a wait.
+- **Trigger 1 is not enforced yet.** Nothing here watches `requarks/wiki`'s
+  own advisories. The weekly CVE scan reads the image's packages, which is a
+  different list. A pin bump or a new 2.x release would prompt a reading,
+  but an advisory that never gets a fix produces neither. That is exactly
+  the case the 30-day clock exists for, and nothing would start it. Until a
+  recurring check reads the project's advisories, at least weekly so day 30
+  cannot pass between two readings, this trigger depends on someone
+  remembering to look. That recurring check is the follow-up this record
+  leaves open. What the record itself adds is the clock, and that a missed
+  clock is a move, not a wait.
 - **Trigger 2 is a calendar fact, and nothing alerts on it.** It is read
   whenever the pin is bumped: a bump that finds no 2.x release in six months
   is the trigger firing.
