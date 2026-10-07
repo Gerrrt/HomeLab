@@ -123,14 +123,21 @@ services:
   # §5 does for alexander. Over plain HTTP the login form's password, and the
   # session token after it, would cross a segment built for ARP spoofing.
   #
-  # DIFFERENCE: runs as nobody, not as the image's root. (The three services
-  # of this stack proper run unprivileged. alloy and docker-socket-proxy run as
-  # root with no capabilities, exactly as in stacks/sensor: the socket and the
-  # host's logs are what they are for, and that file argues it.) The binary binds an
-  # unprivileged port and writes only to work_dir, which is a volume here.
-  # The key is 0640 to the operator and readable through RENDER_GID, as
-  # Grafana's is. If an upgrade ever needs root, that is a finding about the
-  # image, and the fix is not to take this line out quietly.
+  # ROOT, WITH NO CAPABILITIES. This ran as nobody until the first start on
+  # eden (2026-10-07), which found what that cost. The image ships SharpHound's
+  # zip and its .sha256 as 0600 root:root under /etc/bloodhound/collectors,
+  # while AzureHound's are world-readable. As nobody, BloodHound could not read
+  # them, logged an ERROR at every start, and offered no SharpHound under
+  # Download Collectors, the path that keeps the collector's version matched to
+  # the server's. Garrett chose uid 0 over fetching SharpHound separately.
+  #
+  # What uid 0 is here: no capabilities (`cap_drop: [ALL]`), a read-only root
+  # and no-new-privileges. Without CAP_DAC_OVERRIDE, root reads what it OWNS,
+  # which is the image's files, and nothing else on permission bits alone. So
+  # the TLS key, 0640 to the operator, still arrives through RENDER_GID as
+  # Grafana's does, and work_dir on the data disk is owned by root
+  # (build-the-bloodhound-guest.md §2). It binds an unprivileged port. If an
+  # upgrade makes those files readable, go back to 65534 and say so.
   #
   # The graph and the uploads are not backed up (ADR-0081): a lost graph is
   # one collection run away. The application database's saved queries are the
@@ -145,7 +152,7 @@ services:
     init: true
     pids_limit: 512
     networks: [bloodhound]
-    user: "65534:65534"
+    user: "0:0"
     group_add:
       - "${RENDER_GID:?run make render STACK=bloodhound}"
     cap_drop: [ALL]
