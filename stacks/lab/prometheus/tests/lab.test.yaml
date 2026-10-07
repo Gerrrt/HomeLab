@@ -693,7 +693,7 @@ tests:
               severity: warning
               category: correctness
             exp_annotations:
-              summary: "zeek-archive-prune on fenrir has not succeeded for 3d 2h 0m 0s"
+              summary: "zeek-archive-prune on fenrir: no success for 3d 2h 0m 0s"
               description: >-
                 Zeek's archive is not being pruned and /srv/sensor-data will fill.
                 Check `systemctl list-timers homelab-zeek-archive-prune.timer` and

@@ -419,14 +419,16 @@ groups:
       # (run-scheduled.sh carries the last success forward across a failure, so
       # a nightly failure ages out here on schedule).
       - alert: ScheduledJobStale
-        expr: time() - homelab_job_last_success_timestamp_seconds{homelab_job="zeek-archive-prune"} > 3 * 86400
+        expr: |
+          time() - homelab_job_last_success_timestamp_seconds{homelab_job="zeek-archive-prune"}
+            > 3 * 86400
         for: 1h
         labels:
           component: sensor
           severity: warning
           category: correctness
         annotations:
-          summary: "{{ $labels.homelab_job }} on {{ $labels.instance }} has not succeeded for {{ $value | humanizeDuration }}"
+          summary: "{{ $labels.homelab_job }} on {{ $labels.instance }}: no success for {{ $value | humanizeDuration }}"
           description: >-
             Zeek's archive is not being pruned and /srv/sensor-data will fill.
             Check `systemctl list-timers homelab-zeek-archive-prune.timer` and
