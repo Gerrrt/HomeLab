@@ -284,10 +284,12 @@ groups:
         # way: "<unit>: Failed with result 'oom-kill'." (src/core/unit.c prints
         # the line; service.c names the result).
         #
-        # LATENT TODAY (#903). Nothing in systemd/, ansible/ or stacks/ sets
-        # MemoryMax= or MemoryHigh=, so no repository-managed unit can be
-        # cgroup-killed yet. This is for the first one that is: a capped
-        # collector killed this way would otherwise surface a day later as
+        # LIVE TODAY FOR TWO OF THE THREE (#903). A machine-wide OOM kill, or
+        # a systemd-oomd kill wherever it runs, of a unit's process ends in
+        # this verdict now. Only the unit's OWN cap is latent: nothing in
+        # systemd/, ansible/ or stacks/ sets MemoryMax= or MemoryHigh= yet.
+        # That case is the one this rule is mostly for. A capped collector
+        # killed this way would otherwise surface a day later as
         # ScheduledJobFailed, with nothing saying why.
         #
         # THE UNIT IS IN THE LINE, NOT THE LABEL. PID 1 writes it, so the

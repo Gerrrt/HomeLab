@@ -363,8 +363,9 @@ errors.
   `<unit>: Failed with result 'oom-kill'.`, from the journal, and names the
   unit from the line, because PID 1 writes it as `init.scope`.
 
-`UnitOomKilled` is latent until some unit is given a `MemoryMax=`, which none
-is today. A kill inside any other cgroup is still nobody's. `systemd-oomd` is
+`UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
+by `systemd-oomd`. Only a unit's own cap is latent: no unit is given
+`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. `systemd-oomd` is
 not installed on `trinity` (Ubuntu 26.04.1, checked 2026-10-07). Its state on
 the other hosts is not yet recorded. Where it runs, its kills also end in that
 systemd verdict, so this rule sees them.
