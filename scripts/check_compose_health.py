@@ -1068,17 +1068,17 @@ def self_test() -> int:
     check(
         "a long-runner without no-new-privileges fails",
         1,
-        len(privilege_problems({"loki": {"restart": "unless-stopped"}}, "lab")),
+        len(privilege_problems({"loki": {"restart": "unless-stopped"}}, "lab", {})),
     )
     check(
         "a profile does not excuse a long-runner",
         1,
-        len(privilege_problems({"renderer": {"restart": "unless-stopped", "profiles": ["capture"]}}, "lab")),
+        len(privilege_problems({"renderer": {"restart": "unless-stopped", "profiles": ["capture"]}}, "lab", {})),
     )
     check(
         "a one-shot with no restart policy is not long-running",
         0,
-        len(privilege_problems({"gitleaks": {"profiles": ["scan"]}}, "observability")),
+        len(privilege_problems({"gitleaks": {"profiles": ["scan"]}}, "observability", {})),
     )
     check(
         "an NNP_EXEMPT entry is honoured for its own stack",
@@ -1101,6 +1101,7 @@ def self_test() -> int:
                     "c": {"restart": "always", "security_opt": ["no-new-privileges=true"]},
                 },
                 "lab",
+                {},
             )
         ),
     )
