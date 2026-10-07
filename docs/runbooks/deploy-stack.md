@@ -46,8 +46,10 @@ service by that service's own `start_period`, `retries`, `interval` and
 `timeout`, so a slow start is not a failure and a broken probe does not hang
 the deploy.
 
-Loki and Alloy declare no healthcheck, so the check cannot speak for them and
-says so by name rather than passing over them.
+Loki declares no healthcheck — its image has no shell or client to run one
+with — so the check cannot speak for it and says so by name rather than passing
+over it. Alloy's healthcheck asks `/-/ready` through bash
+([#845](https://github.com/Gerrrt/HomeLab/issues/845)).
 
 `certificates/` is gitignored, so a clean clone has neither the CA nor the leaf
 and the `certs` steps above are not optional. Skipping them used to produce a
