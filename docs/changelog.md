@@ -48,6 +48,54 @@ docstring gives: it is a record, not a claim about now.
   TLS on these ports is
   [#764](https://github.com/Gerrrt/HomeLab/issues/764).
 
+- **The drifted digests are re-pinned, and `make pin-digests` survives a
+  duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
+  stacks pinned digests the registry no longer serves under their tag:
+  - `postgres:18.6` in sensitive (two services) and in bloodhound
+  - `postgres:17.11` in wiki
+  - the three `wazuh/*` 4.14.8 images in scratch and in soc
+
+  Re-pinning them exposed a bug in `scripts/pin-digests.sh`. When one file
+  pins the same drifted image twice, the first replace rewrote both lines.
+  The second then died with "expected to find", and under
+  `make pin-digests` that stopped the loop before soc and wiki. The script
+  now dedupes the references before resolving them. Merging this is a deploy
+  of sensitive's two Postgres services: the same 18.6, on a rebuilt image.
+
+- **`eden` exists, with its key and its ingest token; the stack is not up
+  yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **Built from the template, not the ISO.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, with a 32G data disk on `large_data`: 4 vCPU,
+    8 GiB, `onboot 0`, tag `on-demand`, `10.0.30.41`. The SSD pool's
+    allocation went from 920 to 952 GiB, as ADR-0081 said it would.
+    [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)
+    §1–§3 now describe the clone, not an installer.
+  - **Two things the clone did that the runbook did not say.**
+    - Cloud-init's first boot left the guest on a DHCP address. Its netplan
+      renames the NIC to `eth0`, and the rename failed with `[busy]` on an
+      interface already up. One reboot applied the static address.
+    - The sops release's checksums do not cover its `.deb`, so `sops` 3.9.4,
+      `alexander`'s version, is the verified release binary in
+      `/usr/local/bin`.
+  - **The secrets.**
+    - `make secrets-init STACK=bloodhound` on `eden` replaced the rule's
+      placeholder with `eden`'s own key.
+    - Its database, admin and session-signing values were set on the guest
+      with `sops set`, so no value was ever displayed.
+    - `INGEST_TOKEN_EDEN` was made once and set on both guests from stdin: in
+      `secrets/lab.sops.yaml` on `alexander`, and as `INGEST_TOKEN` on `eden`.
+      Their hashes match.
+    - It goes into the Caddy map, the lab compose, `render-config.sh`, the
+      validation env and `lab.example.yaml` in the same pull request as its
+      value. `alexander`'s checkout is left at `HEAD` until that merges.
+  - **Still to do:**
+    - §4, the certificate, which has to come from `prometheus` by way of the
+      Mac;
+    - `make up STACK=lab` on `alexander`;
+    - §6, bringing the stack up;
+    - §7, the first collection.
+
 - **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
   ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
