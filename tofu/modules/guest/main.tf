@@ -68,16 +68,6 @@ resource "proxmox_virtual_environment_vm" "this" {
     }
   }
 
-  # The DCs before the members after a host reboot, as `--startup` in
-  # build-the-lab-domain.md §1 has it. The endpoints are on demand and get none.
-  dynamic "startup" {
-    for_each = var.startup_order == null ? [] : [1]
-    content {
-      order    = var.startup_order
-      up_delay = 120
-    }
-  }
-
   cpu {
     type    = "host"
     cores   = var.cores
@@ -138,4 +128,14 @@ resource "proxmox_virtual_environment_vm" "this" {
   # Without the agent answering, a shutdown request is ignored and the destroy
   # waits out its timeout. A guest being destroyed has nothing to save.
   stop_on_destroy = true
+
+  # Not set here, and never changed from here. Proxmox asks for Sys.Modify on
+  # `/` to set a guest's `startup` (PVE::API2::Qemu), a host-wide privilege
+  # ADR-0043 keeps from phoenix. The #448 rebuild's first apply was refused
+  # with 403 on exactly this. Root on Saruman sets the order after an apply
+  # (build-the-lab-domain.md, "Rebuild from the pipeline"); the guests.tf
+  # output `startup_orders` says what to set.
+  lifecycle {
+    ignore_changes = [startup]
+  }
 }

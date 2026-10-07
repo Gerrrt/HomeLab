@@ -58,12 +58,6 @@ variable "smbios_uuid" {
   description = "The guest's smbios1 uuid. Pinned where an activation is keyed to it."
 }
 
-variable "startup_order" {
-  type        = number
-  default     = null
-  description = "Boot order after a host reboot. Null for a guest that is on demand."
-}
-
 variable "cores" {
   type        = number
   description = "vCPUs. host CPU type, so each is a real thread on Saruman."
