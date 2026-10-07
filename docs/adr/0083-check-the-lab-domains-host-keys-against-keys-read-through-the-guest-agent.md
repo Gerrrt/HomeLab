@@ -4,6 +4,18 @@
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (host
 keys are now checked)
 
+> [!NOTE]
+> **Merged as ADR-0082, renumbered the same day.** This decision landed in
+> [#931](https://github.com/Gerrrt/HomeLab/pull/931) (`be31da3`, 2026-10-07
+> 13:48:58Z) as `0082-check-the-lab-domains-host-keys-…`, 26 seconds after
+> [#962](https://github.com/Gerrrt/HomeLab/pull/962) had landed the wiki's
+> [ADR-0082](0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md).
+> Each was green against a `main` without the other. `check_docs.py` refuses
+> two files claiming one number and renumbers the one that landed second, so
+> this one moved to 0083. That commit's message, #931 and #846 still say
+> ADR-0082 for this decision; history is not rewritten, and this note is the
+> mapping. Nothing in the decision changed.
+
 ## Context
 
 ADR-0077 decision 2 made OpenSSH the way `phoenix`'s Ansible reaches the lab
