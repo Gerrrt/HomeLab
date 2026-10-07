@@ -35,6 +35,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
+| `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |
@@ -130,7 +131,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
 | `check-ruleset.sh` | `check-ruleset`, `apply-ruleset` | The ruleset on `main` against [`.github/rulesets/main.json`](../.github/OVERVIEW.md) |
 | `snmp-verify.sh`, `snmp-walk.sh` | `snmp-verify`, `snmp-walk` | Each SNMP device answers its current credential; walk one subtree the way the exporter would |
-| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once, and the vendor MIBs `generator.yaml` needs |
+| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh`, `snmp-generate.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once; the vendor MIBs `generator.yaml` needs; and the regeneration of `snmp.yaml` from them |
 
 ## Dashboards and the lab
 
