@@ -36,10 +36,12 @@
 # says `make up` stays true and this script's blast radius is the DECISION to
 # deploy, not the deployment.
 #
-# The no-op path costs one fetch. When the checkout is already at the fetched
-# tip, the tree is clean and `make up` last applied that same revision, nothing
-# is rendered, no container is touched and docker is never called — which is
-# what makes an hourly cadence reasonable.
+# The no-op path costs one fetch and one look at the stack's containers. When
+# the checkout is already at the fetched tip, the tree is clean and `make up`
+# last applied that same revision, nothing is rendered and no running container
+# is touched — which is what makes an hourly cadence reasonable. The one thing
+# it does is start a service that should be running and is not (ADR-0087,
+# "Stopped services" below).
 #
 # "AT THE TIP" IS NOT "DEPLOYED", and the first version treated it as though it
 # were. On 2026-10-01 the checkout reached #781's merge by a `git pull` by hand,
@@ -352,7 +354,10 @@ self_test() {
 #     REPO_ROOT == DEPLOY_ROOT refusal is the real one;
 #   - `make` and `curl` stubbed on PATH: make logs that it was asked and writes
 #     the applied record as the Makefile's `up` does, curl serves check-runs
-#     JSON built by the helpers above.
+#     JSON built by the helpers above;
+#   - `docker` stubbed too, serving the containers a case lists and logging what
+#     it was asked to start. No case can reach the host's real daemon — every
+#     run, not only the stopped-service ones, goes through "Stopped services".
 #
 # A refusal passes only if it exits 1, says why, AND never reached `make`. That
 # last part is the point: delete any one refusal and the run behind it goes on
@@ -410,7 +415,48 @@ EOF
 #!/bin/sh
 cat '${T}/ci.json'
 EOF
-  chmod +x "${T}/bin/make" "${T}/bin/curl"
+  # Containers as `id|name|status|policy|finished|service|working_dir|oneoff`.
+  # `ps` answers only for the working directory it was asked about, so a
+  # scratch project's container in the list proves the selector.
+  cat > "${T}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+F="${DOCKER_FIXTURE_DIR:?}"
+case "$1" in
+  info)    [[ -e "${F}/docker-down" ]] && exit 1; exit 0 ;;
+  # The services compose counts as active: the case's own list, or every
+  # service it put in the containers file.
+  compose) [[ -e "${F}/compose-fails" ]] && exit 1
+           if [[ -f "${F}/services" ]]; then cat "${F}/services"
+           elif [[ -f "${F}/containers" ]]; then cut -d'|' -f6 "${F}/containers"; fi ;;
+  ps)      [[ -e "${F}/ps-fails" ]] && exit 1
+           wd=""
+           for a in "$@"; do
+             [[ "${a}" == label=com.docker.compose.project.working_dir=* ]] && wd="${a#*working_dir=}"
+           done
+           [[ -f "${F}/containers" ]] || exit 0
+           awk -F'|' -v wd="${wd}" '$7 == wd && $8 == "False" { print $1 }' "${F}/containers" ;;
+  inspect) [[ -e "${F}/inspect-fails" ]] && exit 1
+           shift 3
+           for id in "$@"; do
+             awk -F'|' -v id="${id}" '$1 == id { print "/" $2 "|" $3 "|" $4 "|" $5 "|" $6 }' "${F}/containers"
+           done ;;
+  # Logs the name, and whether the backup lock was held while it started.
+  start)   lock="${F}/deploy/backups/volumes/.lock"
+           if [[ -f "${lock}" ]] && ! flock -n "${lock}" true; then
+             printf '%s\n' "$2" >> "${F}/docker.log"
+           else
+             printf '%s(unlocked)\n' "$2" >> "${F}/docker.log"
+           fi ;;
+  *)       printf 'docker stub: unexpected %s\n' "$*" >&2; exit 2 ;;
+esac
+EOF
+  chmod +x "${T}/bin/make" "${T}/bin/curl" "${T}/bin/docker"
+  # container <name> <status> <policy> <minutes since it stopped> [working dir] [oneoff]
+  container() {
+    printf '%s|%s|%s|%s|%s|%s|%s|%s\n' "id-$1" "$1" "$2" "$3" \
+      "$(date -u -d "-$4 minutes" +%Y-%m-%dT%H:%M:%S.000000000Z)" "$1" \
+      "${5:-${T}/deploy/stacks/observability}" "${6:-False}" >> "${T}/containers"
+  }
 
   # commit <repo> <unsigned|pinned|impostor> <message>
   commit() {
@@ -424,11 +470,15 @@ EOF
   # A fresh world for each case: GitHub at one signed commit, the deployment
   # checkout cloned from it and deployed (its applied record is HEAD), CI green.
   fresh() {
-    rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"*
+    rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"* \
+           "${T}/containers" "${T}/docker.log" "${T}/docker-down" "${T}/services" \
+           "${T}/compose-fails" "${T}/ps-fails" "${T}/inspect-fails"
     git init -q "${T}/work"
     mkdir "${T}/work/scripts"
     cp "${here}/converge.sh" "${here}/record-applied.sh" "${T}/work/scripts/"
     printf 'fixture\n' > "${T}/work/README"
+    # As the repository's own .gitignore has it: the backup lock lives there.
+    printf 'backups/\n' > "${T}/work/.gitignore"
     git -C "${T}/work" add -A
     commit "${T}/work" pinned "root"
     git clone -q --bare "${T}/work" "${T}/origin.git"
@@ -445,8 +495,9 @@ EOF
   }
   converge() {  # <args...> -> OUT, RC
     : > "${T}/make.log"
+    : > "${T}/docker.log"
     set +e
-    OUT="$(cd "${T}/deploy" && PATH="${T}/bin:${PATH}" CONVERGE_UNSAFE_SELF_TEST=1 \
+    OUT="$(cd "${T}/deploy" && PATH="${T}/bin:${PATH}" CONVERGE_UNSAFE_SELF_TEST=1 DOCKER_FIXTURE_DIR="${T}" \
            CONVERGE_DEPLOY_ROOT="${DEPLOY_FOR_TEST:-${T}/deploy}" \
            CONVERGE_FETCH_URL="${FETCH_FOR_TEST:-${T}/origin.git}" CONVERGE_SIGNING_FPR="${PIN_FOR_TEST:-${PIN}}" \
            TEXTFILE_DIR="${T}/prom" ./scripts/converge.sh "$@" 2>&1)"
@@ -566,6 +617,83 @@ EOF
   converge --allow-red
   expect "--allow-red deploys a tip whose CI failed" 0 "converged to" 1
 
+  # --- stopped services (ADR-0087) ---------------------------------------
+  # The 2026-10-07 shape: at a tip already applied, production alloy killed two
+  # hours ago. Beside it, what must NOT be started: a scratch project's alloy
+  # from the same image, a one-shot that finished, and a one-off `compose run`.
+  # And one running service, which must not be counted.
+  started() { tr '\n' ' ' < "${T}/docker.log" | sed 's/ $//'; }
+  fresh
+  container alloy exited unless-stopped 120
+  container syslogcheck-alloy exited unless-stopped 120 "${T}/elsewhere/stacks/observability"
+  container prune-once exited no 120
+  container run-once exited unless-stopped 120 "${T}/deploy/stacks/observability" True
+  container prometheus running unless-stopped 0
+  converge
+  expect "starts a stack service killed two hours ago, at a tip already applied" 0 "started alloy" 0
+  check "  and only that one" "$(started)" "alloy"
+  check "  and records it" "$(prom services_revived) $(prom services_stopped)" "1 0"
+
+  fresh; container alertmanager exited unless-stopped 5; converge
+  expect "leaves one stopped five minutes ago, as a runbook's deliberate stop" 0 "leaving it until" 0
+  check "  and does not start it" "$(started)" ""
+  check "  and counts it as left stopped" "$(prom services_revived) $(prom services_stopped)" "0 1"
+
+  fresh; container alloy exited unless-stopped 120
+  printf '# restoring loki by hand, #NNN\nalloy\n' > "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-hold-observability)"
+  converge
+  expect "leaves a service the hold file names" 0 "held by" 0
+  check "  and counts it, so a forgotten hold still shows" "$(started) $(prom services_stopped)" " 1"
+
+  fresh; container alloy exited unless-stopped 120
+  printf '*\n' > "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-hold-observability)"
+  converge
+  check "a hold of * holds every service" "$(started)" ""
+
+  if command -v flock >/dev/null 2>&1; then
+    fresh; container grafana exited unless-stopped 120
+    mkdir -p "${T}/deploy/backups/volumes"
+    flock "${T}/deploy/backups/volumes/.lock" sleep 30 & holder=$!
+    sleep 0.3
+    converge
+    kill "${holder}" 2>/dev/null; wait "${holder}" 2>/dev/null || :
+    expect "starts nothing while a backup holds its lock" 0 "a backup holds" 0
+    check "  and starts nothing" "$(started)" ""
+  fi
+
+  fresh; container alloy exited unless-stopped 120; converge --dry-run
+  expect "a dry run says what it would start and starts nothing" 0 "would start alloy" 0
+  check "  and starts nothing" "$(started)" ""
+
+  # The 06:26 run that day was on this path, not the no-op one.
+  fresh; container alloy exited unless-stopped 120; advance pinned
+  green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/' > "${T}/ci.json"
+  converge
+  expect "starts it while waiting on CI" 0 "CI has not finished" 0
+  check "  started" "$(started)" "alloy"
+
+  fresh; container alloy exited unless-stopped 120; advance pinned; : > "${T}/deploy/stray"; converge
+  expect "starts it even when it refuses a dirty tree" 1 "uncommitted changes" 0
+  check "  started" "$(started)" "alloy"
+
+  # A profile compose does not count as active — the `capture` renderer — is
+  # neither started nor counted, however long it has been stopped.
+  fresh; container alloy running unless-stopped 0; container renderer exited unless-stopped 120
+  printf 'alloy\n' > "${T}/services"
+  converge
+  check "a profile-gated service that is not active is left alone" "$(started) $(prom services_stopped)" " 0"
+
+  for broken in compose-fails ps-fails inspect-fails; do
+    fresh; container alloy exited unless-stopped 120; : > "${T}/${broken}"; converge
+    expect "carries on when docker ${broken%-fails} fails" 0 "not checking for stopped services" 0
+    check "  starts nothing and records unmeasured, not zero" \
+      "$(started) $(prom services_revived) $(prom services_stopped)" " -1 -1"
+  done
+
+  fresh; container alloy exited unless-stopped 120; : > "${T}/docker-down"; converge
+  expect "carries on when docker cannot be asked" 0 "docker cannot be asked" 0
+  check "  and records unmeasured, not zero" "$(prom services_revived) $(prom services_stopped)" "-1 -1"
+
   unset GNUPGHOME GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
 }
 
@@ -683,6 +811,10 @@ UNAPPLIED=0
 # What CI said about the fetched tip. -1 until asked, and stays -1 on a run with
 # nothing to deploy, because nothing was asked.
 CI_TIP=-1
+# Stack services started again, and left stopped ("Stopped services" below).
+# -1 until measured, and stays -1 when docker cannot be asked.
+REVIVED=-1
+STOPPED=-1
 
 recorded=0
 record() {
@@ -718,14 +850,20 @@ homelab_deploy_unapplied ${UNAPPLIED}
 # HELP homelab_deploy_tip_ci What CI said about the fetched tip: 1 passed, 0 did not, -1 not asked (nothing to deploy) or not finished.
 # TYPE homelab_deploy_tip_ci gauge
 homelab_deploy_tip_ci ${CI_TIP}
+# HELP homelab_deploy_services_revived Stack services this run found stopped and started again. -1 when docker could not be asked.
+# TYPE homelab_deploy_services_revived gauge
+homelab_deploy_services_revived ${REVIVED}
+# HELP homelab_deploy_services_stopped Stack services meant to be running that this run left stopped: held, inside the grace period, under a backup, or a dry run. -1 when docker could not be asked.
+# TYPE homelab_deploy_services_stopped gauge
+homelab_deploy_services_stopped ${STOPPED}
 EOF
   chmod 0644 "${tmp}"
   mv -f "${tmp}" "${PROM}"
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s revived=%s stopped=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}" "${REVIVED}" "${STOPPED}"
 }
 trap record EXIT
 
@@ -769,6 +907,138 @@ COMMIT_TS="$(git log -1 --format=%ct HEAD)"
 # is cheap, and assuming a deploy that may never have happened is the bug.
 APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || true)"
 [[ "${APPLIED}" == "$(git rev-parse HEAD)" ]] || UNAPPLIED=1
+
+# ---------------------------------------------------------------------------
+# Stopped services
+# ---------------------------------------------------------------------------
+#
+# A service the stack says should be running, and is not, is started again
+# (ADR-0087). On 2026-10-07 at 05:34 a scratch test elsewhere on this host ran
+# `docker kill` by image and took the production `alloy` with it. `unless-stopped`
+# does not restart a container after a user stop or kill, and this script did
+# nothing at a tip it had already applied, so it stayed down until a person
+# started it 47 minutes later. The 06:26 run was on the CI-wait path, not the
+# no-op one, which is why this runs on EVERY path, before anything can refuse.
+#
+# `docker start`, not `make up`. It starts the container with the config it was
+# created with — what was last applied — so it needs nothing from the checkout
+# and is as safe on a dirty tree or a red tip as on a clean one. Deploying is
+# still only ever `make up`, below.
+#
+# WHAT COUNTS. Containers of THIS checkout's stack (the compose working
+# directory under DEPLOY_ROOT, so no worktree's or scratch project's), not
+# one-off `compose run`s, whose service compose counts as active — so a
+# profile-gated helper such as the `capture` renderer is never started, while
+# trinity's `ml`, switched on by COMPOSE_PROFILES in its .env, is — whose
+# restart policy says they are meant to run (unless-stopped or always: a
+# one-shot that finished is not stopped), and that are exited or dead.
+#
+# A MEASUREMENT THAT FAILED IS NOT ZERO. If compose, `docker ps` or `docker
+# inspect` fails, both gauges stay -1 and nothing is started, rather than
+# recording "nothing stopped" from an answer that never came.
+#
+# WHAT IS LEFT ALONE, because a person or a job stopped it on purpose:
+#   - one stopped under REVIVE_GRACE ago. The runbooks' deliberate stops — the
+#     alert-path check's `docker stop alertmanager`, AdGuard's ten minutes —
+#     are inside half an hour.
+#   - one named in the hold file, for a longer deliberate stop. One service per
+#     line, `*` for all, `#` comments; `rm` it to let them be started again.
+#     homelab_deploy_services_stopped keeps counting what it holds, so a hold
+#     that was forgotten fires DeployServicesStopped rather than hiding.
+#   - all of them while backup-volumes.sh holds its lock: a hand-run backup
+#     stops the services that own the volumes it is copying, and one started
+#     mid-copy turns the archive into a copy of a live store. So the starts
+#     happen UNDER that lock, taken without waiting and held until the last
+#     one returns — a probe-and-release would leave a backup free to begin in
+#     between. A hand backup that tries in those seconds is refused by its own
+#     `flock -n` and can be run again. Timer-run backups already share this
+#     unit's `backups` lock and cannot overlap at all. No flock, no starts.
+REVIVE_GRACE="${HOMELAB_CONVERGE_REVIVE_GRACE:-1800}"
+[[ "${REVIVE_GRACE}" =~ ^[0-9]+$ ]] || die "HOMELAB_CONVERGE_REVIVE_GRACE must be seconds, not '${REVIVE_GRACE}'"
+HOLD_FILE="$(git rev-parse --path-format=absolute --git-path "homelab-hold-${DEPLOY_STACK}")"
+BACKUP_LOCK="${DEPLOY_ROOT}/backups/volumes/.lock"
+
+held() {
+  [[ -f "${HOLD_FILE}" ]] || return 1
+  sed 's/#.*//; s/[[:space:]]//g' "${HOLD_FILE}" | grep -qxF -e '*' -e "$1"
+}
+
+revive_stopped() {
+  local name status policy finished service age now active ps_out inspect_out lock_fd
+  local stopped=0
+  local -a ids=() start=()
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    warn "docker cannot be asked from here — not checking for stopped services"
+    return 0
+  fi
+  if ! active="$(docker compose -f "${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}/compose.yaml" config --services 2>/dev/null)"; then
+    warn "docker compose could not read stacks/${DEPLOY_STACK}/compose.yaml — not checking for stopped services"
+    return 0
+  fi
+  if ! ps_out="$(docker ps -aq \
+      --filter "label=com.docker.compose.project.working_dir=${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}" \
+      --filter "label=com.docker.compose.oneoff=False")"; then
+    warn "docker ps failed — not checking for stopped services"
+    return 0
+  fi
+  if [[ -n "${ps_out}" ]]; then
+    mapfile -t ids <<<"${ps_out}"
+    if ! inspect_out="$(docker inspect --format \
+        '{{.Name}}|{{.State.Status}}|{{.HostConfig.RestartPolicy.Name}}|{{.State.FinishedAt}}|{{index .Config.Labels "com.docker.compose.service"}}' \
+        "${ids[@]}")"; then
+      warn "docker inspect failed — not checking for stopped services"
+      return 0
+    fi
+    now="$(date +%s)"
+    while IFS='|' read -r name status policy finished service; do
+      name="${name#/}"
+      case "${status}" in exited|dead) ;; *) continue ;; esac
+      case "${policy}" in unless-stopped|always) ;; *) continue ;; esac
+      grep -qxF -- "${service}" <<<"${active}" || continue
+      stopped=$((stopped + 1))
+      age=$(( now - $(date -d "${finished}" +%s 2>/dev/null || echo "${now}") ))
+      if held "${service}"; then
+        warn "${name} is stopped and held by ${HOLD_FILE} — leaving it"
+      elif ((age < REVIVE_GRACE)); then
+        warn "${name} stopped $((age / 60))m ago — leaving it until it has been down $((REVIVE_GRACE / 60))m"
+      else
+        start+=("${name}")
+      fi
+    done <<<"${inspect_out}"
+  fi
+  # Measured: from here the gauges are real numbers.
+  REVIVED=0
+  STOPPED="${stopped}"
+
+  ((${#start[@]})) || return 0
+  if ((DRY_RUN)); then
+    warn "dry run — would start ${start[*]}"
+    return 0
+  fi
+  if ! command -v flock >/dev/null 2>&1; then
+    warn "no flock here, so a backup cannot be ruled out — not starting ${start[*]}"
+    return 0
+  fi
+  mkdir -p "${BACKUP_LOCK%/*}"
+  exec {lock_fd}>>"${BACKUP_LOCK}"
+  if ! flock -n "${lock_fd}"; then
+    exec {lock_fd}>&-
+    warn "a backup holds ${BACKUP_LOCK} — not starting ${start[*]} under it; the next run asks again"
+    return 0
+  fi
+  for name in "${start[@]}"; do
+    if docker start "${name}" >/dev/null; then
+      REVIVED=$((REVIVED + 1))
+      STOPPED=$((STOPPED - 1))
+      warn "started ${name}, which was stopped and should not have been — find out what stopped it"
+    else
+      warn "could not start ${name} — docker logs ${name}"
+    fi
+  done
+  exec {lock_fd}>&-
+}
+
+revive_stopped
 
 # ---------------------------------------------------------------------------
 # Signature
@@ -939,8 +1209,8 @@ if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
   BEHIND=0
   if ((UNAPPLIED == 0)); then
     green "converged — ${REVISION} is ${BRANCH}"
-    # Nothing rendered, no container touched, docker never called. This is the
-    # path an hourly cadence spends almost all of its time on.
+    # Nothing rendered and no running container touched. This is the path an
+    # hourly cadence spends almost all of its time on.
     exit 0
   fi
   # At the tip and never deployed from it — the 2026-10-01 shape. Not a

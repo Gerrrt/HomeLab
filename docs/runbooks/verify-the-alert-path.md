@@ -419,6 +419,11 @@ docker start alertmanager
 # it must return to green within one repeat_interval
 ```
 
+Start it again yourself. If it is still stopped half an hour later, the next
+hourly convergence starts it and `DeployServiceRevived` says so
+([`converge-the-host.md`](converge-the-host.md#when-a-service-is-stopped)). For
+a longer test, hold it first.
+
 Doing this once is worth more than the rule is. A dead man's switch nobody has
 ever seen trip is indistinguishable from a dead man's switch that does not work.
 
