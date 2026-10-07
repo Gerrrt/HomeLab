@@ -282,11 +282,11 @@ sudo install -d -m 0755 -o root -g root /var/lib/node_exporter/textfile_collecto
 ```
 
 Then install the timer from the checkout on Hicks, as §5 does for `Saruman`.
-Log in as your own user on `fenrir`; the installer asks for its sudo password
+Log in as `atreus`, `fenrir`'s user; the installer asks for its sudo password
 once:
 
 ```bash
-make install-agent-collectors AGENT=<user>@10.0.30.90 ARGS='--only zeek-archive-prune'
+make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'
 ```
 
 It must end with `zeek-archive-prune.prom written, mode 644`.

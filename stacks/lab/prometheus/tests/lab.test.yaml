@@ -729,6 +729,6 @@ tests:
               description: >-
                 No outcome from fenrir's Zeek archive prune in six hours. Install
                 it from the checkout on Hicks with
-                `make install-agent-collectors AGENT=<user>@10.0.30.90 ARGS='--only zeek-archive-prune'`
+                `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
                 (docs/runbooks/build-the-sensor-guest.md §4), and check that
                 /var/lib/node_exporter/textfile_collector exists on fenrir.
