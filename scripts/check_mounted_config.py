@@ -85,17 +85,11 @@ import subprocess
 import sys
 import tempfile
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -151,7 +145,7 @@ def helper_image() -> str:
     """
     result = subprocess.run(
         [str(REPO / "scripts" / "image-for.sh"), "alloy"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if result.returncode != 0 or not result.stdout.strip():
         sys.exit(f"could not resolve the helper image: {result.stderr.strip()}")
@@ -175,7 +169,7 @@ def container_copy(container: str, target: str) -> bytes | None:
          "--label", "homelab.logs=off",
          "--entrypoint", "cat",
          helper_image(), f"/proc/1/root{target}"],
-        capture_output=True,
+        capture_output=True, check=False,
     )
     if result.returncode != 0:
         return None
@@ -197,7 +191,7 @@ def self_test() -> int:
     uid with every capability dropped, as loki does, so the reader's
     capabilities are tested against the hardest target the stacks have.
     """
-    if subprocess.run(["docker", "info"], capture_output=True).returncode != 0:
+    if subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0:
         print(f"{YELLOW}  SKIP{RESET} --self-test needs a docker daemon")
         return 0
 
@@ -220,7 +214,7 @@ def self_test() -> int:
              "--network", "none", "--label", "homelab.logs=off",
              "-v", f"{config}:/etc/selftest/config.yml:ro",
              "--entrypoint", "sleep", helper_image(), "300"],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if started.returncode != 0:
             print(f"{RED}  FAIL{RESET} could not start the fixture container: "
@@ -247,7 +241,7 @@ def self_test() -> int:
         check("an in-place write to the new file does not reach the old inode",
               container_copy(container, "/etc/selftest/config.yml") == b"old\n")
     finally:
-        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
         shutil.rmtree(work, ignore_errors=True)
 
     # And the in-place case the right way round: a fresh container on a file
@@ -272,7 +266,7 @@ def self_test() -> int:
         check("an in-place write to the mounted inode is seen, and matches",
               inside == b"after\n" == config.read_bytes())
     finally:
-        subprocess.run(["docker", "rm", "-f", container], capture_output=True)
+        subprocess.run(["docker", "rm", "-f", container], capture_output=True, check=False)
         shutil.rmtree(work, ignore_errors=True)
 
     return 1 if failures else 0
@@ -300,7 +294,7 @@ def main() -> int:
         return 0
 
     running = subprocess.run(
-        ["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True,
+        ["docker", "ps", "--format", "{{.Names}}"], capture_output=True, text=True, check=False,
     )
     if running.returncode != 0:
         sys.exit("docker is not available — this is a deploy-time check")
@@ -385,7 +379,7 @@ def main() -> int:
     result = subprocess.run(
         ["docker", "compose", "-f", str(REPO / "stacks" / args.stack / "compose.yaml"),
          "up", "-d", "--force-recreate", *sorted(set(stale))],
-        capture_output=False,
+        capture_output=False, check=False,
     )
     if result.returncode != 0:
         print("\nrecreate failed", file=sys.stderr)

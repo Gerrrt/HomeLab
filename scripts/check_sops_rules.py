@@ -78,11 +78,11 @@ import re
 import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover - CI installs it
-    print("PyYAML is required: python3 -m pip install pyyaml", file=sys.stderr)
-    raise SystemExit(1)
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 POLICY = REPO / ".sops.yaml"
@@ -258,7 +258,7 @@ def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
     """ADR-0073: household keys in no rule; the technical second in the catch-all."""
     listed = subprocess.run(
         [str(REPO / "scripts/household-recipients.sh"), "--roles"],
-        capture_output=True, text=True,
+        capture_output=True, text=True, check=False,
     )
     if listed.returncode != 0:
         return [f"stacks/sensitive/household.recipients: {listed.stderr.strip()}"]

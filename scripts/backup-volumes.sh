@@ -141,6 +141,8 @@
 #   scripts/backup-volumes.sh --verify-only --all   re-verify every retained set, here and there
 #   scripts/backup-volumes.sh --verify-only --set <STAMP> [--only vol,vol]
 #   scripts/backup-volumes.sh --prune               apply retention only, both sides
+#   scripts/backup-volumes.sh --self-test           back up, verify and refuse, against a
+#                                                   throwaway volume and keys (#854)
 #
 # Environment:
 #   STACK              default observability   selects stacks/<STACK>/compose.yaml
@@ -154,6 +156,85 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# --self-test (#854)
+#
+# The real script, run end to end with real age and real docker against a
+# throwaway repository, volume and keys — scripts/volume-selftest-fixture.sh
+# says what it builds. Only when RUN as --self-test: five scripts source this
+# file, with their own arguments still in "$@", and one of them asking for its
+# own self-test must not get this one.
+#
+# What it holds the script to:
+#   - a backup writes a set whose MANIFEST names both recipients and the
+#     sha256 of what is on disk;
+#   - the set opens with EITHER recipient's key and not with a third — the
+#     property the two-recipient rule (#835) exists for, which until this was
+#     asserted only about the secrets file and never about an archive;
+#   - a flipped byte, an archive without its sentinel, an archive carrying
+#     another volume's, and a project whose volume does not exist all refuse.
+# ---------------------------------------------------------------------------
+if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
+  # shellcheck source=scripts/volume-selftest-fixture.sh
+  source "${REPO_ROOT}/scripts/volume-selftest-fixture.sh"
+  vf_setup "${REPO_ROOT}" || exit 0
+  ENV=(STACK=observability COMPOSE_FILE= TEXTFILE_DIR="${VF}/no-textfile")
+
+  vf_volume "${VF_P}a" grafana
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}a" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "backs up a volume, encrypted and verified" 0 "wrote backups/volumes/"
+  STAMP="$(vf_newest_set)"
+  SET="${VF_REPO}/backups/volumes/${STAMP}"
+  check "  the MANIFEST names both recipients" \
+    "$(awk -F'\t' '$1 == "recipient" { print $2 }' "${SET}/MANIFEST" | tr , '\n' | sort | paste -sd,)" \
+    "$(printf '%s\n' "${VF_R1}" "${VF_R2}" | sort | paste -sd,)"
+  check "  and the sha256 of the archive on disk" \
+    "$(awk -F'\t' '$1 == "grafana-data" { print $5 }' "${SET}/MANIFEST")" \
+    "$(sha256sum "${SET}/grafana-data.tar.gz.age" | awk '{ print $1 }')"
+  check "  and the project it was taken from" \
+    "$(awk -F'\t' '$1 == "project" { print $2 }' "${SET}/MANIFEST")" "${VF_P}a"
+
+  # The two-recipient property, on an archive (#835).
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set opens with the first recipient's key" 0 "--local-only"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set opens with the second recipient's key" 0 "--local-only"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K3}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set does not open with a key it was not encrypted to" 1 "verification FAILED"
+
+  # A copy of the set, one byte changed. age's AEAD is what refuses it.
+  cp -a "${SET}" "${VF_REPO}/backups/volumes/20000101T000000Z"
+  vf_flip "${VF_REPO}/backups/volumes/20000101T000000Z/grafana-data.tar.gz.age"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --verify-only --set 20000101T000000Z --local-only
+  expect "a flipped byte does not verify" 1 "FAILED to decrypt or read"
+  rm -rf "${VF_REPO}/backups/volumes/20000101T000000Z"
+
+  vf_volume "${VF_P}u" unmarked
+  vf_new_second
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}u" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses an archive without the volume's sentinel" 1 "grafana.db is not in the archive"
+  check "  and writes no MANIFEST for it" "$(vf_newest_set)" "${STAMP}"
+
+  vf_volume "${VF_P}f" foreign
+  vf_new_second
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}f" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses an archive carrying another volume's sentinel" 1 "carries the sentinel of"
+
+  # `docker run -v` would create the volume empty; the inspect before it is
+  # what keeps a wrong project name from writing a plausible empty archive.
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}missing" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses a project whose volume does not exist" 1 "no volume ${VF_P}missing_grafana-data"
+  vf_exists "${VF_P}missing_grafana-data" && VF_VOLUMES+=("${VF_P}missing_grafana-data")
+  check "  and does not create it" "$(vf_exists "${VF_P}missing_grafana-data" && echo created || echo absent)" absent
+
+  printf 'placeholder: ENC[AES256_GCM,data:fixture,type:str]\n' > "${VF_REPO}/secrets/observability.sops.yaml"
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}a" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses a stack with no recipients to encrypt to" 1 "no age recipients"
+
+  exit "${fail}"
+fi
+
 STACK="${STACK:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"

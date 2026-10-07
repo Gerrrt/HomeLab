@@ -72,20 +72,13 @@ import functools
 import json
 import pathlib
 import re
-import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 STACK = REPO / "stacks/observability"
@@ -278,7 +271,7 @@ def strip_md(cell: str) -> str:
 #
 # Matched against the RAW cell, never strip_md()'s output: that helper removes
 # every `*`, which takes the emphasis with it and leaves the marker unfindable.
-NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.I)
+NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
@@ -286,14 +279,14 @@ NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.I)
 # ---------------------------------------------------------------------------
 def count_alerts(paths) -> int:
     return sum(
-        len(re.findall(r"^\s*-\s*alert:", p.read_text(encoding="utf-8"), re.M))
+        len(re.findall(r"^\s*-\s*alert:", p.read_text(encoding="utf-8"), re.MULTILINE))
         for p in paths
     )
 
 
 def count_recording_rules(paths) -> int:
     return sum(
-        len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.M))
+        len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.MULTILINE))
         for p in paths
     )
 
@@ -314,7 +307,7 @@ def tested_alertnames(paths) -> set[str]:
     for path in paths:
         names.update(
             re.findall(
-                r"^\s*alertname:\s*(\S+)", path.read_text(encoding="utf-8"), re.M
+                r"^\s*alertname:\s*(\S+)", path.read_text(encoding="utf-8"), re.MULTILINE
             )
         )
     return names
@@ -381,7 +374,7 @@ def count_notifying_receivers() -> int:
 # would overcount — the failure is loud rather than silent, because the count
 # is asserted against hardware.md's sentence, but it is worth extending here
 # rather than reaching for a different phrasing in the table.
-NO_ALLOY = re.compile(r"\bno\s+alloy\b", re.I)
+NO_ALLOY = re.compile(r"\bno\s+alloy\b", re.IGNORECASE)
 
 
 def count_alloy_agents() -> int:
@@ -443,7 +436,7 @@ def count_vlans() -> int:
     keeps that distinction.
     """
     text = NETWORK_MD.read_text(encoding="utf-8")
-    rows = tables_under(text, re.compile(r"^#\s+Network$", re.M))
+    rows = tables_under(text, re.compile(r"^#\s+Network$", re.MULTILINE))
     if not rows:
         return 0
     return sum(1 for row in rows[0] if len(row) > 1 and strip_md(row[1]).isdigit())
@@ -524,7 +517,7 @@ def facts() -> dict:
 # ---------------------------------------------------------------------------
 # 1. Counted claims
 # ---------------------------------------------------------------------------
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _unreadable_pattern(pattern: str) -> re.Pattern[str]:
     """`pattern` with the number token swapped for the ones that cannot be read.
 
@@ -556,16 +549,16 @@ def check_counts(f: dict) -> list[str]:
         (rf"{COUNT}" + WS + r"panels", {f["panels"]}, "panels"),
         # "39 rules across six files" states two counts. The first was checked
         # and the second was not, so splitting a rule file could not fail here.
-        (rf"rules across" + WS + COUNT + WS + r"files", {f["prometheus_rule_files"]},
+        (r"rules across" + WS + COUNT + WS + r"files", {f["prometheus_rule_files"]},
          "Prometheus rule files"),
         # How many rules have a unit test, and how many do not. Both were
         # unguarded and both were already stale: the sentence read "Coverage is
         # six rules of 39 ... ContainerHighMemory and Watchdog" while
         # blackbox.test.yaml had covered three more for weeks. This is the
         # figure most likely to drift, because it moves whenever a test lands.
-        (rf"[Cc]overage is" + WS + COUNT + WS + r"rules", {f["tested_rules"]},
+        (r"[Cc]overage is" + WS + COUNT + WS + r"rules", {f["tested_rules"]},
          "unit-tested rules"),
-        (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
+        (r"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
          "rules without a unit test"),
         # The same count in the wording #843 left it in, once it reached zero:
         # "the other 0 are still validated" reads as nonsense, and a clearer
@@ -576,7 +569,7 @@ def check_counts(f: dict) -> list[str]:
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
         # stale the same way the moment a rule was added (#81).
-        (rf"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
+        (r"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
          "rules in the coverage denominator"),
         # deploy-stack.md's Status → Rules step: "The page lists 129: the 127
         # alert rules ... plus the two recording rules". Three counts in one
@@ -710,7 +703,7 @@ def check_counts(f: dict) -> list[str]:
 def network_sections(text: str) -> dict[str, list[list[str]]]:
     """Host rows keyed by VLAN id, plus 'wan' and 'lan'."""
     out: dict[str, list[list[str]]] = {}
-    for heading in re.finditer(r"^##\s+(.+)$", text, re.M):
+    for heading in re.finditer(r"^##\s+(.+)$", text, re.MULTILINE):
         title = heading.group(1)
         vlan_match = re.search(r"VLAN\s+(\d+)", title)
         if vlan_match:
@@ -1164,7 +1157,7 @@ def check_guest_claims() -> list[str]:
     problems: list[str] = []
     text = ARCH_MD.read_text(encoding="utf-8")
 
-    hosts = tables_under(text, re.compile(r"^##\s+.*[Hh]ost", re.M))
+    hosts = tables_under(text, re.compile(r"^##\s+.*[Hh]ost", re.MULTILINE))
     if not hosts:
         return ["docs/architecture.md has no host table under a Host heading"]
     rows = [r for r in hosts[0] if len(r) >= 4]
@@ -1180,7 +1173,7 @@ def check_guest_claims() -> list[str]:
 
     for row in rows:
         name = row[0].split("`")[1] if "`" in row[0] else row[0]
-        if not re.search(r"no guests(?:\s+yet)?\b", row[-1], re.I):
+        if not re.search(r"no guests(?:\s+yet)?\b", row[-1], re.IGNORECASE):
             continue
         if name in guest_of:
             problems.append(
@@ -1256,9 +1249,9 @@ def check_firewall_posture() -> list[str]:
     claimed_open = named("It does not hold for")
     if claimed_deny is None or claimed_open is None:
         return problems + [
-            "docs/security.md no longer opens its Segmentation section with "
+            ("docs/security.md no longer opens its Segmentation section with "
             "'Default deny holds for' / 'It does not hold for', so this check "
-            "has stopped reading it — re-anchor it or the section is unchecked"
+            "has stopped reading it — re-anchor it or the section is unchecked")
         ]
 
     for segment in sorted(deny - claimed_deny):
@@ -1305,9 +1298,9 @@ def check_buy_list() -> list[str]:
     tables = tables_under(roadmap, re.compile(r"^## Everything still to buy\b"))
     if not tables:
         return [
-            "docs/roadmap.md has no table under 'Everything still to buy' — "
+            ("docs/roadmap.md has no table under 'Everything still to buy' — "
             "README's count of outstanding purchases has nothing to check "
-            "against"
+            "against")
         ]
 
     # The section's first table is the "Buy these" list; rows[0] is its header.
@@ -1322,10 +1315,10 @@ def check_buy_list() -> list[str]:
     match = pattern.search(text)
     if not match:
         return [
-            "README.md no longer says 'N items now, M later' of the roadmap's "
+            ("README.md no longer says 'N items now, M later' of the roadmap's "
             "outstanding purchases — the claim moved or was reworded, and this "
             "assertion cannot follow it. Update the pattern or drop the check "
-            "deliberately"
+            "deliberately")
         ]
 
     line = text[: match.start()].count("\n") + 1

@@ -73,10 +73,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-try:
-    import yaml
-except ImportError:
-    sys.exit("PyYAML is required: python3 -m pip install pyyaml")
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 PORT = 3198
@@ -327,8 +328,8 @@ def barrier(entries: list[tuple[dict, int, str]], now: int, log: pathlib.Path) -
         if time.time() > deadline:
             short = [f"{selector(dict(k))} (oldest {(now - oldest[k]) / 3600:.1f}h): "
                      f"{got[k]} of {n}" for k, n in want.items() if got[k] != n]
-            noise = [l for l in log.read_text(errors="replace").splitlines()
-                     if re.search(r"level=(warn|error)", l)][-10:]
+            noise = [line for line in log.read_text(errors="replace").splitlines()
+                     if re.search(r"level=(warn|error)", line)][-10:]
             raise RuntimeError(
                 f"{len(short)} of {len(want)} stream(s) not fully queryable after 60s:\n        "
                 + "\n        ".join(short)
@@ -349,9 +350,11 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
         os.chmod(p, 0o777)
     args = [f"-config.file={work}/loki.yaml", "-target=all", f"-server.http-listen-port={PORT}"]
     cleanup: list[str] = []
+    # Popen hands the child its own copy of the log's descriptor, so each
+    # `with` closes only this process's handle, not Loki's.
     if shutil.which("loki"):
-        proc = subprocess.Popen(["loki", *args], stdout=open(work / "loki.log", "w"),
-                                stderr=subprocess.STDOUT)
+        with open(work / "loki.log", "w") as log:
+            proc = subprocess.Popen(["loki", *args], stdout=log, stderr=subprocess.STDOUT)
     else:
         # This stack's pin, not observability's: image-for.sh falls back to
         # stacks/observability/compose.yaml unless told otherwise.
@@ -360,11 +363,12 @@ def boot(stack: pathlib.Path, work: pathlib.Path) -> tuple[subprocess.Popen, lis
                                check=True, capture_output=True, text=True).stdout.strip()
         name = f"loki-rule-tests-{os.getpid()}"
         cleanup = ["docker", "rm", "-f", name]
-        proc = subprocess.Popen(
-            ["docker", "run", "--rm", "--name", name, "--user", f"{os.getuid()}:{os.getgid()}",
-             "-p", f"127.0.0.1:{PORT}:{PORT}", "-v", f"{work}:{work}", "-w", str(work),
-             "--entrypoint", "loki", image, *args],
-            stdout=open(work / "loki.log", "w"), stderr=subprocess.STDOUT)
+        with open(work / "loki.log", "w") as log:
+            proc = subprocess.Popen(
+                ["docker", "run", "--rm", "--name", name, "--user", f"{os.getuid()}:{os.getgid()}",
+                 "-p", f"127.0.0.1:{PORT}:{PORT}", "-v", f"{work}:{work}", "-w", str(work),
+                 "--entrypoint", "loki", image, *args],
+                stdout=log, stderr=subprocess.STDOUT)
     deadline = time.time() + 120
     while True:
         code, text = http("/ready")
@@ -402,7 +406,7 @@ def run(stack_name: str, skips_file: str | None) -> int:
         return 1
 
     if not shutil.which("loki") and not (
-            shutil.which("docker") and subprocess.run(["docker", "info"], capture_output=True).returncode == 0):
+            shutil.which("docker") and subprocess.run(["docker", "info"], capture_output=True, check=False).returncode == 0):
         msg = "no loki binary and no docker daemon: Loki rule behaviour tests not run"
         print(f"\033[0;33m  SKIP\033[0m {msg}")
         if skips_file:
@@ -433,7 +437,7 @@ def run(stack_name: str, skips_file: str | None) -> int:
         return 1
     finally:
         if cleanup:
-            subprocess.run(cleanup, capture_output=True)
+            subprocess.run(cleanup, capture_output=True, check=False)
         if proc and proc.poll() is None:
             proc.terminate()
             try:

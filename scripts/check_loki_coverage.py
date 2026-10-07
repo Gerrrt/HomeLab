@@ -104,18 +104,11 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    import subprocess
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -153,7 +146,9 @@ def split_fragments(expr: str) -> list[tuple[str, str]]:
             ch = expr[i]
             if quote:
                 if quote == '"' and ch == "\\":
-                    body.append(expr[i:i + 2]); i += 2; continue
+                    body.append(expr[i:i + 2])
+                    i += 2
+                    continue
                 if ch == quote:
                     quote = ""
             elif ch in "`\"":
@@ -190,7 +185,8 @@ def _split_selector(fragment: str) -> tuple[str, str]:
         ch = fragment[i]
         if quote:
             if quote == '"' and ch == "\\":
-                i += 2; continue
+                i += 2
+                continue
             if ch == quote:
                 quote = ""
         elif ch in "`\"":
@@ -240,7 +236,9 @@ def positive_filters(pipeline: str) -> str:
         if quote:
             token.append(ch)
             if quote == '"' and ch == "\\":
-                token.append(pipeline[i + 1]); i += 2; continue
+                token.append(pipeline[i + 1])
+                i += 2
+                continue
             if ch == quote:
                 quote = ""
             i += 1

@@ -48,6 +48,27 @@ docstring gives: it is a record, not a claim about now.
   TLS on these ports is
   [#764](https://github.com/Gerrrt/HomeLab/issues/764).
 
+- **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
+  ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  - **The gap.** A set on `trinity` was verified the night it was written and
+    never again. `make verify-backups` ran only on `prometheus`.
+  - **What closes it.** `make verify-backups STACK=sensitive` walks the
+    tier's volume sets and Immich's library sets instead of the NAS and wiki
+    sets, which `trinity` never holds. `homelab-verify-backups-sensitive` runs
+    it at 06:30 through `run-scheduled.sh`, under the `backups` lock, as
+    `verify-backups-sensitive` with a two-day threshold.
+  - **`oracle`'s copies.** These were already checkable from `trinity`:
+    `--verify-only` on both scripts has `oracle` sha256 every archive it holds
+    and compares each hash with the MANIFEST here. Nothing had scheduled it.
+    ADR-0064 records the answer: verified from `trinity`, with nothing
+    decrypted on `oracle`.
+  - **First run, by hand, 2026-10-07.** 7 volume sets and 2 library sets
+    decrypted on `trinity`, and every copy on `oracle` hashed to its MANIFEST
+    entry. It took about three minutes.
+  - **The fixture.** `backup-library.sh --self-test` now flips one byte in a
+    set and truncates another, and `--verify-only --all` fails on both.
+
 - **Syslog stores only the senders it names.**
   [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
   able to reach 1514/udp or 514/udp could write lines labelled
@@ -69,6 +90,103 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-06
 
+- **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
+  between sessions, and not yet built**
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **What is written:**
+    - `stacks/bloodhound`: BloodHound 9.7.1 over one Postgres 18 that holds
+      both its state and its graph (`bhe_graph_driver: pg`), not upstream's
+      default Neo4j, so that Saruman's disks carry one database, not two;
+    - its secrets template, and a `.sops.yaml` rule with a placeholder for
+      the guest's key;
+    - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).
+  - **It moves BloodHound off `ifrit`.**
+    [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+    had sized `ifrit` around it. ADR-0017 carries a note pointing to ADR-0081.
+  - **Sized against `Saruman` as it was read today:**
+    - **RAM:** 75 GiB of 125 free.
+    - **`large_data`:** 28.7% written, but its thin volumes are already
+      allocated to 920 GiB of an 876 GiB pool.
+    - **The disks that follow from that:** the OS disk goes on `local-lvm`, as
+      `phoenix`'s did, and only the 32 GiB data disk goes on the SSDs.
+  - **The image is distroless and runs as root.** The `bloodhound` service
+    therefore has no health check, and it joins `loki` in
+    `check_compose_health.py`'s `ABSENT_BINARIES`. It is run as `nobody`, and
+    `up{job="bloodhound"}` on `alexander` answers whether it is alive.
+  - **Not done here, by design:**
+    - **`INGEST_TOKEN_EDEN` on the lab side.** `stacks/lab/compose.yaml`
+      requires every token it names, so adding the name before its value is
+      in `secrets/lab.sops.yaml` would fail `alexander`'s next render. It goes
+      in with the guest's key, in the pull request that writes the guest down
+      as built (the runbook's §5).
+
+- **The six domain guests are declared in `tofu/`, ready for #448's rebuild
+  proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
+  were read from the hand-built guests' `qm config` and written into
+  `tofu/guests.tf`. The guest module gained a MAC (ADR-0077 decision 6), the
+  UUID and the startup order. It now also states q35, OVMF and the EFI disk on
+  every guest, and the TPM on Windows. Every template is UEFI, and the
+  provider's default is SeaBIOS.
+- **`labadmin` is now in code.** Both endpoints had it, in Administrators,
+  and nothing in `ansible/` made it. Windows 11's setup creates it, and a
+  clone of 911 would not have had it. `roles/endpoint_admin` creates it when
+  it is missing, from `LAB_ENDPOINT_ADMIN_PASSWORD`, and `verify.yml` checks
+  it on both endpoints.
+- **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
+  "Rebuild from the pipeline" is the procedure: import, destroy, apply,
+  configure, verify.
+- **Packer is pinned the way tofu is**
+  ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
+  `packer/versions.pkr.hcl` required `>= 1.11.0`, and
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §1
+  installed whatever HashiCorp's apt repository held, while CI linted with
+  `hashicorp/packer:1.16.1`. The requirement is now `~> 1.16.0`, and §1
+  installs the 1.16.1 zip after checking it against `SHA256SUMS`. A host that
+  had packer from apt removes it along with the repository. phoenix was such a
+  host: it held `packer 1.16.1-1` from apt, the right version only because
+  nothing newer had shipped yet. §1 was run there the same day. The apt package
+  and the repository are gone, the zip's checksum matched, and as `locke`,
+  `command -v packer` prints `/usr/local/bin/packer`, `packer version` prints
+  `Packer v1.16.1`, and `packer init` accepts the new `~> 1.16.0`.
+- **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
+  at least the template's own disk: 32 for Ubuntu, 64 for Kali and Windows.
+  `memory_mib` must be at least 1024 for Linux and 2048 for Windows, and
+  `cores` at least 1. All three are checked at plan, where before a disk that
+  was too small failed only at apply.
+- **9182 is named once.** The new `windows_exporter_port` in
+  `group_vars/all.yaml` feeds the MSI's `LISTEN_PORT`, the firewall rule and
+  `verify.yml`'s two checks.
+- **Sysmon and Pktmon are on the lab domain**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
 - **JA4+ is live on `fenrir`, and #776 closes**
   ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
   [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
@@ -110,6 +228,49 @@ docstring gives: it is a record, not a claim about now.
     window carries a quarter of the packets, so this is no finding either
     way. The full week after deployment ends around 2026-10-11, and the
     comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
+
+- **Recorded late: #449's population went onto the domain on 2026-10-03**
+  ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+  It was recorded on the issue that day and not here. This is written on
+  2026-10-06, when the roadmap was found still saying "not yet applied".
+  - **What was applied from `phoenix`, merged as
+    [#832](https://github.com/Gerrrt/HomeLab/pull/832):**
+    - **`--tags population`:** 41 accounts from the committed
+      `ansible/population/population.yaml`. Forty were drawn by
+      `scripts/gen_population.py --count 40 --seed 449`, and `authgen` is the
+      forty-first. They sit in six department OUs under `OU=People`, with a
+      global group per department and three cross-cutting groups under
+      `OU=Groups`.
+    - **`--tags authgen`:** runbook §6's generator on `carbuncle` and
+      `siren`. `authgen` moved from `CN=Users` into `OU=IT`.
+    - **Passwords:** none in git. Each is derived on `phoenix` from
+      `LAB_POPULATION_SEED` and the account name.
+  - **Proved on `main`'s code.** The rerun was at `00e23e4`, identical under
+    `ansible/` to `b136208`. Its first apply made two changes per endpoint:
+    the stored password and the first credential fingerprint. The second
+    apply was `changed=0` on all six. The generator returned `0` on both
+    endpoints, and `verify.yml` passed on all six. `verify.yml` now also
+    checks four things:
+    - `OU=People` holds exactly the file;
+    - every population group exists;
+    - the generator runs as `AD\authgen`, compared by SID;
+    - its last run succeeded.
+  - **Still open on #449:**
+    - the rest of
+      [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5: the
+      tiers, the SPN account, the Tier 0 GPO and the shares;
+    - the deliberate weaknesses, each its own tag on top of the population.
 
 ## 2026-10-05
 

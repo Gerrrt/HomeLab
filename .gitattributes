@@ -14,3 +14,10 @@ stacks/sensor/zeek/ja4/** -whitespace linguist-vendored
 # Normalise line endings.
 * text=auto eol=lf
 *.png binary
+
+# sysmon-modular's Sysmon config, vendored byte-for-byte by
+# scripts/vendor-sysmon-config.sh (ADR-0080). -text, not just -whitespace: it
+# has CRs, and the eol=lf above would rewrite them, which changes the sha256
+# that ansible/verify.yml compares with each guest's Sysmon ConfigHash. It sits
+# below the catch-all because, of two lines that match, the later one wins.
+ansible/roles/sysmon/files/sysmonconfig.xml -text -whitespace linguist-vendored

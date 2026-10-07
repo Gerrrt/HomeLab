@@ -1,0 +1,15 @@
+---
+# The rule set ansible-lint applies, pinned here rather than left to whatever
+# the version in requirements-lint.txt defaults to, so that a Dependabot bump
+# changes the linter and not, silently, the rules (#853).
+profile: production
+
+# The collections are needed for the syntax check, and scripts/lint.sh passes
+# --project-dir ansible so they install from requirements.yml into .ansible/.
+offline: false
+
+# No skip_list, and no .ansible-lint-ignore: the profile raises nothing. Its
+# yaml rule reads .yamllint.yaml from the directory ansible-lint runs in, which
+# is the repository root, so it is yamllint's 120 columns that apply here and
+# not ansible-lint's own 160. Run from ansible/ instead, the GUID string in
+# roles/gpos/defaults/main.yml fails a rule CI never applies.

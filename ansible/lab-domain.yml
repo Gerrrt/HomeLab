@@ -55,6 +55,13 @@
     - role: member
       tags: [join]
 
+- name: The endpoints' own local administrator
+  hosts: endpoints
+  gather_facts: false
+  roles:
+    - role: endpoint_admin
+      tags: [endpoint_admin]
+
 - name: The tiers ADR-0029 names, and where the members sit in them
   hosts: dc_primary
   gather_facts: false
@@ -91,6 +98,17 @@
   roles:
     - role: exporter
       tags: [exporter]
+
+# #450: what each guest records. sysmon-modular's balanced config, vendored at
+# one release (ADR-0080). It records, it does not harden: nothing it does changes
+# what an exercise can reach.
+- name: Sysmon, so the endpoints record what fired
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: sysmon
+      tags: [sysmon]
 
 - name: The evaluation clock, as a metric
   hosts: servers

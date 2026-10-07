@@ -18,19 +18,24 @@ Two conventions hold across all of them:
 - **Images come from `compose.yaml`, by way of `image-for.sh`.** A `docker run`
   that names its image anywhere else fails `check_image_pins.py`, so a script
   can only run an image that Dependabot can see and that has a pinned digest.
+- **Python's one third-party module is PyYAML, and it is pinned.** Every
+  script that needs it takes it from `_deps.py`: the host's `python3-yaml`, or
+  on a CI runner the hash-pinned `requirements.txt`. A host never installs it
+  from PyPI. `compose-guards.sh` is the one exception, and installs nothing:
+  it uses PyYAML only if it is already importable, and approximates without it.
 - **A check that cannot run says SKIP, not PASS.** `validate.sh` counts the
   skips and prints them at the end, because a skipped check proves nothing.
 
 ## Validate: what CI runs
 
-`validate.sh` runs every row here except the last three. CI runs the first two
-of those as a job and a workflow of their own. The third runs on `phoenix`,
+`validate.sh` runs every row here except the last four. CI runs the first three
+of those as a job and workflows of their own. The fourth runs on `phoenix`,
 and only its fixtures run in CI, through `self-tests.sh`.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
@@ -38,14 +43,16 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
-| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |
+| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
 | `self-tests.sh` | — | Every fixture suite embedded in the scripts above |
+| `volume-selftest-fixture.sh` | — | Sourced, not run: the throwaway repository, volumes and age keys that `backup-volumes.sh` and `restore-volumes.sh` round-trip in their fixtures |
 | `seed-validation-env.sh` | — | A throwaway `.env` that satisfies `${VAR:?}` guards, so `docker compose config` can run |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
+| `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
 | `check-tofu-state-encryption.sh` | — | `tofu/`'s state is encrypted, proved rather than assumed — run on `phoenix`; its fixtures run in `self-tests.sh` |
 
 ## Deploy and converge
@@ -142,6 +149,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
+| `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |
 
 ## Adding a script
 

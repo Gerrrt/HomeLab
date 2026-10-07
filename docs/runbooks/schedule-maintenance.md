@@ -162,7 +162,7 @@ collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`,
 `guest-state`, `thin-pool-state`, `guest-disk-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
-rows that collect nothing, `zeek-mirror` and `prune-images` — and checks each host's requirements **per
+rows that collect nothing, `zeek-mirror` and `prune-images`, and one scheduled job, `zeek-archive-prune` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
 it.
@@ -191,6 +191,17 @@ agent host has no `homelab_job_*` metrics, so a failed run shows only in
 `journalctl -u homelab-prune-images`. What would show it is the disk: on the
 two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
 which page (below).
+
+**`zeek-archive-prune` is the one agent row with `homelab_job_*` metrics.** It
+deletes files in `fenrir`'s `/srv/sensor-data/zeek/archive` older than the
+retention its unit sets, daily at 03:17, and it replaced a hand-typed
+`/etc/cron.d` line that reported nothing (#850). Its row's script is
+`run-scheduled.sh` itself, installed as `/usr/local/bin/homelab-run-scheduled`,
+and it requires the archive directory, so it installs on `fenrir` alone.
+`fenrir`'s Alloy writes to the lab's Prometheus, not this one, so the alerts on
+it are the lab's own `ScheduledJobFailed`, `ScheduledJobStale` (three days) and
+`ScheduledJobNeverRan`. They page nobody; they are in the lab's `/alerts`.
+[`build-the-sensor-guest.md`](build-the-sensor-guest.md) §4 installs it.
 
 **`guest-disk-state` is how a lab guest's disk reaches a phone.** The lab
 Prometheus has its own `HostDiskWillFillIn24h` and `HostDiskCritical` for
@@ -605,6 +616,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `backup-sensitive` | `make backup` with `STACK=sensitive` | daily 04:30 | 2 days |
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 | `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
+| `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
@@ -621,6 +633,14 @@ It stops nothing, so its timer is `Persistent=true` and catches up a missed
 night at boot. It shares the `backups` lock with `backup-sensitive`, so an
 overrunning volume backup is waited for rather than raced.
 
+`verify-backups-sensitive` is the monitoring host's `verify-backups` for this
+host's sets ([#856](https://github.com/Gerrrt/HomeLab/issues/856)). It
+decrypts and reads every retained volume and library set here, then has
+`oracle` hash every archive it holds and compares each hash with the set's
+MANIFEST. That is where `oracle`'s copies are verified, without a key on
+`oracle`. It stops nothing, and it shares the `backups` lock so a prune never
+deletes a set it is reading.
+
 `converge-sensitive` is the monitoring host's `converge` for the tier
 ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
 `backups` lock too, so it never runs `make up` under a quiesced tier. **Before
@@ -635,12 +655,12 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-five. The last two are the household's copy
+six. The last two are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
 timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
-one table, and `--check` enforces that. The installer primes `backup-library` and
-`converge-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+one table, and `--check` enforces that. The installer primes `backup-library`,
+`converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 

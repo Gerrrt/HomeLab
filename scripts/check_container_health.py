@@ -79,17 +79,11 @@ import subprocess
 import sys
 import time
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 
@@ -285,9 +279,9 @@ def main() -> int:
             elif health == "none":
                 results[service] = (
                     False,
-                    "running with no health status, but compose declares a "
+                    ("running with no health status, but compose declares a "
                     "healthcheck — this container predates it and has not been "
-                    "recreated since",
+                    "recreated since"),
                 )
             elif elapsed >= deadlines[service]:
                 # In practice the `unhealthy` branch above is the one that
@@ -299,9 +293,9 @@ def main() -> int:
                 # this script waiting forever rather than to diagnose a 404.
                 results[service] = (
                     False,
-                    f"still starting after {deadlines[service]:.0f}s "
+                    (f"still starting after {deadlines[service]:.0f}s "
                     f"(start_period + retries x (interval + timeout)) — Docker "
-                    f"has not reached a verdict, so the probe is not returning",
+                    f"has not reached a verdict, so the probe is not returning"),
                 )
             else:
                 continue  # still legitimately starting
