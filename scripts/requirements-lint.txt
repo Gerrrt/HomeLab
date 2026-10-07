@@ -1,0 +1,6 @@
+# What scripts/lint.sh runs yamllint from: `pipx run --spec` reads the pin from
+# here (#848). yamllint publishes no upstream image, so it cannot sit in
+# compose.yaml beside the other linters; this is the ansible-lint arrangement
+# instead (ansible/requirements-lint.txt), and Dependabot's pip entry for
+# /scripts bumps it.
+yamllint==1.38.0

@@ -66,20 +66,11 @@ import tempfile
 import time
 from typing import Callable
 
-# PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
-# it rather than failing a green compose file on a missing library — the same
-# thing scripts/check_loki_rules.sh does, for the same reason.
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml  # noqa: E402
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT = REPO / "stacks/observability/compose.yaml"

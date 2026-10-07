@@ -14,15 +14,20 @@
 # it. The self-check at the bottom asserts the callers really do call it,
 # because one definition only helps for as long as nothing routes around it.
 #
-# actionlint, editorconfig-checker, packer and tofu run from images pinned in
-# stacks/observability/compose.yaml behind the `lint` profile, for the same
-# reason `archiver` and `gitleaks` are there: an image this repository runs must
-# be one Dependabot bumps and `make pin-digests` can re-digest (#65). yamllint,
-# markdownlint-cli2 and shellcheck keep their binary/pipx/npx runners — CI has
-# used those exact runners for as long as this job has existed, and they need no
-# install to be reachable.
+# Every linter here runs at a version this repository pins (#848). actionlint,
+# editorconfig-checker, zizmor, markdownlint-cli2, shellcheck, packer and tofu
+# run from images pinned in stacks/observability/compose.yaml behind the `lint`
+# profile, for the same reason `archiver` and `gitleaks` are there: an image
+# this repository runs must be one Dependabot bumps and `make pin-digests` can
+# re-digest (#65). markdownlint-cli2 and shellcheck were the last two to move:
+# they ran from `npx --yes` and the runner's apt package, so the version that
+# judged a pull request was whatever npm or Ubuntu served that day.
 #
-# ansible-lint joins the pipx side, and not by preference. The only images of it
+# yamllint publishes no image of its own, so it runs from `pipx run --spec`,
+# with the version read from scripts/requirements-lint.txt, which Dependabot's
+# pip entry for /scripts bumps.
+#
+# ansible-lint is on the pipx side too, and not by preference. The only images of it
 # on Docker Hub are third-party rebuilds without upstream's version numbers, and
 # scripts/pin-digests.sh resolves Docker Hub alone, so the upstream ghcr.io image
 # could not be digest-pinned here. Its version is pinned instead in
@@ -113,24 +118,57 @@ have_docker() { have docker && docker info >/dev/null 2>&1; }
 # for a globally installed binary and gave up. Two red CI runs were spent on
 # defects a local run could have caught, and reported as passing instead.
 #
-# So: prefer the real binary, fall back to the runner CI uses. For actionlint
-# and editorconfig-checker that runner is the pinned image from compose.yaml —
-# neither has a pipx/npx equivalent worth trusting, and an image this repository
-# runs has to come from compose.yaml anyway.
+# That fix preferred a binary on PATH and fell back to the runner CI used. #848
+# turned the order round: the pinned runner comes first, everywhere. A binary
+# on PATH is whatever version that machine happens to have, and on a GitHub
+# runner the preinstalled yamllint and shellcheck would have outranked every
+# pin. A PATH binary is now only the last resort of a local run, and is
+# reported as unpinned when it is used. --require-all (CI) never takes it.
 #
 # Sets an array rather than returning a string to word-split: the docker forms
 # embed ${REPO_ROOT}, and word-splitting a path is how that breaks on the first
 # directory with a space in it.
 RUNNER=()
+UNPINNED=0
 runner_for() {
-  local tool="$1" img
   RUNNER=()
-  if have "${tool}"; then RUNNER=("${tool}"); return 0; fi
+  UNPINNED=0
+  pinned_runner_for "$1" && return 0
+  if ! ((REQUIRE_ALL)) && have "$1"; then
+    RUNNER=("$1")
+    UNPINNED=1
+    return 0
+  fi
+  return 1
+}
+
+pinned_runner_for() {
+  local tool="$1" img
   case "${tool}" in
     yamllint)
-      if have pipx; then RUNNER=(pipx run yamllint); return 0; fi ;;
+      # Same shape as ansible-lint below: the pin file is the only place the
+      # version is written.
+      if have pipx; then
+        RUNNER=(pipx run --spec "$(grep -E '^yamllint==' scripts/requirements-lint.txt)" yamllint)
+        return 0
+      fi ;;
     markdownlint-cli2)
-      if have npx; then RUNNER=(npx --yes markdownlint-cli2); return 0; fi ;;
+      # The entrypoint IS markdownlint-cli2, and with no arguments it reads its
+      # globs from .markdownlint-cli2.yaml at the mount root. --user only so the
+      # uid matches the checkout's owner; it writes nothing.
+      if have_docker; then
+        img="$(./scripts/image-for.sh markdownlint-cli2)"
+        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -v "${REPO_ROOT}:/workdir:ro" -w /workdir "${img}")
+        return 0
+      fi ;;
+    shellcheck)
+      # The entrypoint IS shellcheck. Handed relative paths from the caller,
+      # which is why the working directory is the mount.
+      if have_docker; then
+        img="$(./scripts/image-for.sh shellcheck)"
+        RUNNER=(docker run --rm -v "${REPO_ROOT}:/mnt:ro" -w /mnt "${img}")
+        return 0
+      fi ;;
     ansible-lint)
       # The spec is read from the pin file rather than written here, so that
       # file stays the only place the version appears. requirements.txt goes in
@@ -206,11 +244,8 @@ runner_for() {
 # engine. Say what to install.
 hint_for() {
   case "$1" in
-    yamllint)          printf 'pip install yamllint, or install pipx' ;;
-    markdownlint-cli2) printf 'npm i -g markdownlint-cli2, or install npx' ;;
-    shellcheck)        printf 'apt install shellcheck' ;;
-    ansible-lint)      printf 'pip install -r ansible/requirements-lint.txt, or install pipx' ;;
-    *)                 printf 'needs a docker daemon, or the binary on PATH' ;;
+    yamllint|ansible-lint) printf 'install pipx' ;;
+    *)                     printf 'needs a docker daemon' ;;
   esac
 }
 
@@ -230,7 +265,11 @@ run_linter() {
   local out rc=0
   out="$("${RUNNER[@]}" "$@" 2>&1)" || rc=$?
   if ((rc == 0)); then
-    pass "${tool}"
+    if ((UNPINNED)); then
+      pass "${tool} (a local binary, NOT the pinned version: $(hint_for "${tool}") to run that)"
+    else
+      pass "${tool}"
+    fi
   else
     printf '%s\n' "${out}"
     fail "${tool}"

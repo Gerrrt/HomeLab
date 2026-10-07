@@ -18,13 +18,16 @@ Two conventions hold across all of them:
 - **Images come from `compose.yaml`, by way of `image-for.sh`.** A `docker run`
   that names its image anywhere else fails `check_image_pins.py`, so a script
   can only run an image that Dependabot can see and that has a pinned digest.
+- **Python's one third-party module is PyYAML, and it is pinned.** Every
+  script takes it from `_deps.py`: the host's `python3-yaml`, or on a CI runner
+  the hash-pinned `requirements.txt`. Nothing runs `pip install` on a host.
 - **A check that cannot run says SKIP, not PASS.** `validate.sh` counts the
   skips and prints them at the end, because a skipped check proves nothing.
 
 ## Validate: what CI runs
 
-`validate.sh` runs every row here except the last three. CI runs the first two
-of those as a job and a workflow of their own. The third runs on `phoenix`,
+`validate.sh` runs every row here except the last four. CI runs the first three
+of those as a job and workflows of their own. The fourth runs on `phoenix`,
 and only its fixtures run in CI, through `self-tests.sh`.
 
 | Script | `make` | Checks |
@@ -38,7 +41,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
-| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |
+| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
@@ -46,6 +49,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `seed-validation-env.sh` | — | A throwaway `.env` that satisfies `${VAR:?}` guards, so `docker compose config` can run |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
+| `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
 | `check-tofu-state-encryption.sh` | — | `tofu/`'s state is encrypted, proved rather than assumed — run on `phoenix`; its fixtures run in `self-tests.sh` |
 
 ## Deploy and converge

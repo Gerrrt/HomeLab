@@ -78,11 +78,11 @@ import re
 import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:  # pragma: no cover - CI installs it
-    print("PyYAML is required: python3 -m pip install pyyaml", file=sys.stderr)
-    raise SystemExit(1)
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml  # noqa: E402
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 POLICY = REPO / ".sops.yaml"

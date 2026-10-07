@@ -1384,6 +1384,21 @@ services:
     image: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
     command: ["--version"]
 
+  # markdownlint-cli2 and shellcheck (#848). They ran from `npx --yes` and the
+  # runner's apt package, so the version that judged a pull request was
+  # whatever npm or Ubuntu served that day, and nothing here could bump it.
+  # Upstream's own images, from Docker Hub for pin-digests.sh's reason above.
+  # Both entrypoints ARE the linter.
+  markdownlint-cli2:
+    profiles: ["lint"]
+    image: davidanson/markdownlint-cli2:v0.23.3@sha256:d5f3f3f04b2e285dcbcdcd13b4454d119e273e3c393a9dabd163dba4abad526d
+    command: ["--help"]
+
+  shellcheck:
+    profiles: ["lint"]
+    image: koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
+    command: ["--version"]
+
   # ---------------------------------------------------------------------------
   # packer for scripts/lint.sh: `fmt -check` and `validate -syntax-only` over
   # packer/ (ADR-0074). Behind the `lint` profile like the two above, and for
