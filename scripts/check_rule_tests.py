@@ -33,8 +33,8 @@ REPO = pathlib.Path(__file__).resolve().parent.parent
 # every stack has one. Add to this only with a reason a reviewer can weigh.
 ALLOWED: dict[tuple[str, str], str] = {}
 
-ALERT = re.compile(r"^\s*-\s*alert:\s*(\S+)\s*$", re.M)
-TESTED = re.compile(r"^\s*alertname:\s*(\S+)\s*$", re.M)
+ALERT = re.compile(r"^\s*-\s*alert:\s*(\S+)\s*$", re.MULTILINE)
+TESTED = re.compile(r"^\s*alertname:\s*(\S+)\s*$", re.MULTILINE)
 
 
 def untested(rules_text: list[str], tests_text: list[str]) -> list[str]:

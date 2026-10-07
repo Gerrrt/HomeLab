@@ -181,6 +181,17 @@ updates:
       prefix: "chore(deps)"
     labels: ["dependencies", "lab"]
 
+  # ruff, pinned in scripts/requirements-lint.txt for scripts/lint.sh (#853).
+  # Monthly: a new release can bring new findings, and one PR a month to fix
+  # them is enough.
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "ci"]
+
   - package-ecosystem: github-actions
     directory: /
     schedule:
