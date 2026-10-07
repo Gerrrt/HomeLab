@@ -34,7 +34,47 @@ docstring gives: it is a record, not a claim about now.
 - **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
   "Rebuild from the pipeline" is the procedure: import, destroy, apply,
   configure, verify.
-||||||| ed5236f
+- **JA4+ is live on `fenrir`, and #776 closes**
+  ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
+  This corrects the 2026-10-01 entry "JA4+ is vendored into `stacks/sensor`,
+  and not yet deployed". The stack deployed from `main`.
+  - **Live since 2026-10-04.** The first archived `ssl.log` with a `ja4`
+    field is `ssl.2026-10-04-13-33-43.log`. `sensor-zeek` mounts
+    `/zeek/site/ja4` read-only, and `ja4ssh.log` and `ja4d.log` are written
+    beside the stock logs.
+  - **A guest's outbound TLS carries a JA4.** All six domain guests
+    (`10.0.30.50`–`.55`) do, for example `10.0.30.54` to `login.live.com` with
+    `ja4` `t13d2013h2_2b729b4bf6f3_e24568c0d440`. The other Windows guests'
+    calls to `settings-win.data.microsoft.com` share
+    `t12d1809h2_4b22cbed5bed_7af1ed941c26`. One client stack gives one
+    fingerprint, which is the reason for choosing JA4 over JA3.
+  - **The lab's Loki returns them.** `{job="zeek"} | json | ja4 != ""` on
+    `alexander` returned lines. Counted over the 24 hours to 2026-10-07 05:30
+    UTC, `ssl` lines with a JA4 came from 12 sources:
+    - 3,664 from the domain guests;
+    - 17,655 from `Saruman`;
+    - and the rest from `alexander`, `odin`, `10.0.30.70`, and two hosts on
+      `10.0.50.0/24`.
+  - **ADR-0069's capture-loss comparison is pending.** The windows are split
+    by `capture_loss.log`'s and `stats.log`'s own timestamps, not by archive
+    file names:
+    - The "before" window is the corrected baseline: from 2026-10-01 05:25
+      UTC to deployment. 05:25 is the first 15-minute interval after the GRO
+      fix (#782). Intervals before it read 6–10% `percent_lost`, which was the
+      reordering artefact, and they are left out.
+    - The cut at deployment, 2026-10-04 13:33, is that of the first archived
+      `ssl.log` with a JA4. It is approximate to the hour's rotation.
+
+    | Window | gaps / acks | Worst 15-minute `percent_lost` | `pkts_dropped` | Packets |
+    | --- | --- | --- | --- | --- |
+    | 10-01 05:25 to 10-04 13:33, before | 0.027% | 0.23% | 0 | 444 M |
+    | 10-04 13:33 to 10-07 05:27, after | 0.009% | 0.05% | 0 | 111 M |
+
+    Neither window shows a rise. They are not yet comparable: the "after"
+    window carries a quarter of the packets, so this is no finding either
+    way. The full week after deployment ends around 2026-10-11, and the
+    comparison is recorded in its own entry then.
 
 ## 2026-10-05
 
