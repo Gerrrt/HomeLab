@@ -432,11 +432,15 @@ skips step 4.
 
    ```bash
    cd ansible
-   for t in base forest replica join endpoint_admin tiers gpos shares soc exporter sysmon licence population authgen; do
+   for t in base forest replica join endpoint_admin tiers gpos shares sysmon soc exporter licence population authgen; do
      ansible-playbook lab-domain.yml --tags "$t" || break
    done
    ansible-playbook lab-domain.yml        # again: must report changed=0
    ```
+
+   `sysmon` goes before `soc`, as in `lab-domain.yml`. The Wazuh agent
+   subscribes to the Sysmon channel once, when it starts, and an agent started
+   before that channel exists never reads it (#1035).
 
 9. **Verify.** All of this has to hold:
    - `ansible-playbook verify.yml` passes on all six;

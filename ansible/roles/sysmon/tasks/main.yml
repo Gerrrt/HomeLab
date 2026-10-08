@@ -86,9 +86,10 @@
         # returned failure Event manifest installation failed": the publisher was
         # registered and the Operational channel was not. Uninstalling what that
         # left and installing again worked at once. Why the first fails is not
-        # known; the Wazuh agent, installed just before and subscribed to this
-        # channel since #1035, is the suspect. One retry, and the first attempt's
-        # output is kept if the second fails too.
+        # known. The Wazuh agent's failed subscription to this channel was the
+        # suspect, but all five agents read had that failure and only titan's
+        # install failed, so it is not the cause on its own. One retry, and the
+        # first attempt's output is kept if the second fails too.
         $first = "exited $LASTEXITCODE`: $out"
         & $exe -u force 2>&1 | Out-Null
         $out = & $exe -accepteula -i $Config 2>&1
@@ -102,6 +103,7 @@
   when:
     - not sysmon_current
     - not ansible_check_mode
+  notify: Resubscribe the Wazuh agent to the Sysmon channel
 
 # Compare-first against what the driver last loaded, not against whether the
 # copy above changed: a config changed by hand on the guest (sysmon -c) is drift
