@@ -29,9 +29,10 @@ make up STACK=soc        # from the repository root, on odin
 | `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8889 (https), 8003 | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector, pushing to the lab's stores on `alexander` — and the indexer-health exporter |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
+| `caddy` | `caddy` | 8448 | The two agent MSIs `ansible/roles/soc_agents` installs on the six, staged by `scripts/stage-agent-msis.sh` and served to the six domain addresses only ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)) |
 | `wazuh.certs-generator` | `wazuh/wazuh-certs-generator` | — | Behind the `certs` profile: run once, before the first start, to issue the indexer/manager/dashboard mTLS material |
 
-Six services, and what is absent is as deliberate as what is here:
+Seven services, and what is absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** They are on `alexander`, four hundred
   metres of copper away on the same segment, and this guest's Alloy pushes to
@@ -98,7 +99,8 @@ nothing, one layer along.
 ## Layout
 
 ```text
-compose.yaml                     six services, one network, health-gated ordering
+compose.yaml                     seven services, one network, health-gated ordering
+Caddyfile                        the caddy service: the agent MSIs, to the six domain addresses only (#1068)
 .env.example                     non-sensitive tunables — edit this, not .env
 alloy/opensearch.alloy           the indexer-health exporter (see above)
 wazuh/

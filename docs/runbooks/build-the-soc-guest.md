@@ -547,6 +547,26 @@ visible.
 > The rest of this section is the original by-hand procedure, kept for that
 > history and for a domain without the pipeline.
 
+**The pipeline's MSIs come from this guest (#1068).** The stack's `caddy`
+service (container `soc-agent-msi`) serves `${SOC_DATA_DIR}/agent-msi` on port 8448, to the six domain
+addresses (`.50`–`.55`) and nobody else. What it serves is staged by one
+script, run as root on `odin` from the checkout:
+
+```bash
+sudo scripts/stage-agent-msis.sh
+```
+
+It reads the versions and sha256s from
+[`roles/soc_agents/defaults/main.yml`](../../ansible/roles/soc_agents/defaults/main.yml).
+It fetches the Wazuh MSI from the vendor, and finds the Velociraptor MSI this
+server repacked by its hash in the datastore. It refuses either if the hash is
+not the pinned one. Run it once after the first `make up`, and again after any
+bump of either pin. A Velociraptor upgrade that means a new client MSI is two
+steps: run *Server.Utils.CreateMSI*, then move the role's pins to what it
+built. The script never decides that for you. Check from a guest with
+`Invoke-WebRequest -Method Head http://10.0.30.60:8448/<file>`, which should
+give 200. From anywhere else it gives 403.
+
 Both agents go to ADR-0029's six machines through the domain, because the
 domain is the exercise (ADR-0030): a reverted or rebuilt workstation re-enrols
 at the next policy refresh, which is what makes snapshot-and-revert and a SIEM

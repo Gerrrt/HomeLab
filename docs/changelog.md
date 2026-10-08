@@ -17,6 +17,20 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-08
+
+- **The lab pipeline's agent MSIs have a home on `odin`**
+  ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)). #448's rebuild
+  stopped at `--tags soc` because `roles/soc_agents` had no URL for either
+  installer, and got past it with a temporary `http.server` on `odin`. The SOC
+  stack now runs a `caddy` service (container `soc-agent-msi`), the estate's Caddy at the same digest, read-only
+  and as a numeric user. It serves `${SOC_DATA_DIR}/agent-msi` on 8448 to the
+  six domain addresses and gives everyone else 403.
+  `scripts/stage-agent-msis.sh` stages both files from the role's own pins: the
+  Wazuh MSI from the vendor, and the Velociraptor MSI found by its hash in the
+  server's datastore. `group_vars/all.yaml` sets both URLs, so `--tags soc`
+  needs no `-e`.
+
 ## 2026-10-07
 
 - **The lab's secrets open with a second key, kept off Saruman**
