@@ -294,8 +294,12 @@ SHIM
     byte="$(od -An -tu1 -j "${off}" -N1 "${arc}" | tr -d ' ')"
     printf '%b' "\\0$(printf '%03o' $(((byte + 1) % 256)))" \
       | dd of="${arc}" bs=1 seek="${off}" count=1 conv=notrunc status=none
-    gzip -t "${arc}" 2>/dev/null && cmp -s "${T}/good.tar" <(gzip -dc "${arc}") || break
-    off=$((off + 1))
+    # Still valid and byte-identical: a no-op, so try the next byte.
+    if gzip -t "${arc}" 2>/dev/null && cmp -s "${T}/good.tar" <(gzip -dc "${arc}"); then
+      off=$((off + 1))
+    else
+      break
+    fi
   done
   assert "the flipped byte damages the archive (a no-op flip proves nothing)" \
     '! { gzip -t "${arc}" 2>/dev/null && cmp -s "${T}/good.tar" <(gzip -dc "${arc}"); }'
