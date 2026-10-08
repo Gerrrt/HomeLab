@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`ZeekConnLogStopped` also fires when the conn.log series disappears**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
+  #1066).
+  - **The gap.** In the pinned Alloy (v1.20.1),
+    `loki_source_file_read_bytes_total` is a gauge holding the file's read
+    offset, and the tailer deletes it when it stops (`tailer.go`,
+    `DeleteLabelValues`). If `conn.log` stops existing (Zeek gone around an
+    hourly rotation, or its log volume recreated), the series goes away,
+    `increase(...) == 0` returns nothing, and the rule could never fire, in
+    the very failure it was written for.
+  - **The fix.** `or absent_over_time(...[30m])` over the same selector, so
+    either way it fires 45 minutes after the last byte. It also fires if
+    fenrir's Alloy stops pushing.
+  - **Tests.** Two new cases: a series that stops fires, and a gap shorter
+    than the window (an Alloy redeploy) does not. The merged rule, run
+    against the new tests, fails the first. `make check-rules STACK=lab`
+    passes on promtool 3.15.0.
+
 - **What the SOC could not see of #449's weaknesses, written as a fix, not yet applied**
   ([#1077](https://github.com/Gerrrt/HomeLab/issues/1077)).
   - **What #449's config-only loop showed.** Of the six weaknesses switched
