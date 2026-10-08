@@ -68,8 +68,10 @@
       $sd = $res.'msDS-AllowedToActOnBehalfOfOtherIdentity'
       $curSids = @()
       if ($sd) {
+        # Allow rules only: a Deny naming a principal is the opposite of trust.
         $curSids = @($sd.GetAccessRules($true, $true,
             [System.Security.Principal.SecurityIdentifier]) |
+          Where-Object { $_.AccessControlType -eq 'Allow' } |
           ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique)
       }
       if ($wantOn) {

@@ -305,8 +305,10 @@
             $bHave = $false
             $rsd = if ($rc) { $rc.'msDS-AllowedToActOnBehalfOfOtherIdentity' }
             if ($rp -and $rsd) {
+              # Allow rules only: a Deny naming svc-rbcd is not trust.
               $trusted = @($rsd.GetAccessRules($true, $true,
                   [System.Security.Principal.SecurityIdentifier]) |
+                Where-Object { $_.AccessControlType -eq 'Allow' } |
                 ForEach-Object { $_.IdentityReference.Value })
               $bHave = ($trusted -contains $rp.SID.Value)
             }
