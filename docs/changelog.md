@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`systemd-oomd` runs on none of the eight hosts checked**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)).
+  - `UnitOomKilled` (#1050, #1058) would see its kills wherever it ran.
+    #903's last item is to record where it runs.
+  - Checked from `Saruman` on 2026-10-08: `Saruman`, `golem`, `alexander`,
+    `odin`, `fenrir`, `phoenix` and `eden` all report `not-found`/`inactive`,
+    as `trinity` did on 2026-10-07.
+  - `prometheus`, `oracle` and `smaug` still need checking: they ship
+    journals, but `Saruman` can't reach VLANs 99 and 40.
+
 - **Postgres re-pinned again, a day after #966.** Upstream rebuilt
   `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
   digests #966 pinned already drifted:
