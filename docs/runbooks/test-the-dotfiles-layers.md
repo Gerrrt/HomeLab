@@ -153,27 +153,49 @@ Then, per layer:
 - **Fedora:** `ssh tester@10.0.30.92`, then the same with
   `dotfiles-Fedora`, and `./bootstrap.sh --no-flatpak`. It is a headless
   Server.
-- **Windows:** `ssh tester@10.0.30.98`, then:
+- **Windows: from the console, not over SSH.** The first run (2026-10-08)
+  showed that the layer cannot be tested in an SSH session:
+  - **`winget`.** It is not registered for an account that has never had an
+    interactive logon. It can be registered by hand
+    (`Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe`,
+    then the `source2.msix` from `cdn.winget.microsoft.com/cache/`).
+  - **MSIX installs.** PowerShell 7's MSIX package will not install in an
+    SSH session (`0x80073D19`).
+  - **`winget configure`.** It needs Store access, which an SSH session
+    cannot get (`0x80070520`).
+  - **scoop.** Windows 11 refuses to traverse scoop's `current` junctions
+    from a network logon ("untrusted mount point"). `install.ps1` stopped
+    at its second package with nothing linked.
+
+  None of these is a dotfiles bug. Run it as the README says, at the
+  console in the Proxmox UI (*dot-windows → Console*), logged in as
+  `tester`. Its password is not known, so set one first over SSH as
+  `Administrator`:
 
   ```powershell
-  winget install --accept-source-agreements --accept-package-agreements Git.Git Microsoft.PowerShell
+  Set-LocalUser tester -Password (Read-Host -AsSecureString)
   ```
 
-  Open a new session, so the new `PATH` is read, and then:
+  The password is a run-time change, and the next rollback discards it.
+  Then, at the console, in Windows PowerShell:
 
   ```powershell
-  git clone https://github.com/dotgibson/dotfiles-Windows $HOME\dotfiles-Windows
-  cd $HOME\dotfiles-Windows; winget configure -f configuration.dsc.yaml --accept-configuration-agreements
-  pwsh -NoProfile -File .\bootstrap.ps1
+  winget install Git.Git Microsoft.PowerShell
+  git clone https://github.com/dotgibson/dotfiles-Windows.git ~/dotfiles-Windows
+  cd ~/dotfiles-Windows
+  winget configure -f configuration.dsc.yaml --accept-configuration-agreements
   ```
 
-  Then run the layer's doctor in a new `pwsh`.
+  Approve the UAC prompts with the `Administrator` password, which is the
+  template's build password from `phoenix.env`. Then, in a new `pwsh`:
+  `cd ~/dotfiles-Windows; .\install.ps1`. After that, in another new `pwsh`,
+  run the layer's doctor (`powershell/os/45-doctor`).
 
   **The guest is unactivated (ADR-0090 §6).** A step that fails on a
-  Personalization setting is that, not a dotfiles bug. **If `winget` will
-  not run over SSH,** use the console in the Proxmox UI as `tester`. Its
-  password is not known, so reset it from the `Administrator` session first.
-  That is a run-time change, and the rollback discards it.
+  Personalization setting is that, not a dotfiles bug. **WSL** is in
+  `configuration.dsc.yaml`, and it needs nested virtualization, which this
+  guest is not given. A WSL failure here is the test bed's, not the
+  layer's.
 
 To test a release rather than `main`, clone with `--branch <tag>`.
 
@@ -221,3 +243,5 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-08 | First boot, Linux | No login: cloud-init's `useradd operator` exited 9 on Debian (system group `operator`, gid 37); Fedora has a system user of that name. `username = "tester"` in `tofu/guests.tf`, then `-replace` of 191 and 192: 2 destroyed, 2 added. `tester` logs in by key with `sudo` on both |
 | 2026-10-08 | First boot, Windows; §3's `tester` | `tester` was refused its key twice: no profile (fixed by `CreateProfile`), and the key file owned by `Administrator` (fixed by `/setowner`). Then `Medium Mandatory Level`, `C:\Users\tester` |
 | 2026-10-08 | §3 `clean` snapshots | All three stopped, then `qm snapshot <id> clean`. `large_data` 36.7% used |
+| 2026-10-08 | First runs, Debian and Fedora (dotfiles v7.14.0) | Debian: `bootstrap.sh` exit 0 in 1m44s, `core doctor` exit 0, "install missing" `sesh yq doggo`. Fedora (`--no-flatpak`): exit 0 in 8m20s, doctor exit 0, but 14 missing, `atuin mise uv jj` among them. Its `/tmp` is a 1.9 GiB tmpfs with `usrquota`. yazi's cargo build there hit `Disk quota exceeded`, and the downloads after it failed on the full `/tmp`. About 1.5 GiB of `cargo-install*` was left behind. `atuin`'s installer exited 1 before that, cause not shown. These are layer findings, not test-bed ones |
+| 2026-10-08 | First run, Windows, over SSH | Not a valid test. `winget`, MSIX, `winget configure` and scoop's junctions all fail in an SSH session (§4). PowerShell 7.6.6 went in by MSI as `Administrator`, and Developer Mode by registry. `install.ps1` as `tester` stopped at scoop's second package, "untrusted mount point", exit 1, nothing linked. Windows runs are at the console from now on |
