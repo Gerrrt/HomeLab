@@ -139,6 +139,55 @@
   when: not domain_role_is_dc
   no_log: true
 
+# What the template's build left behind (#846). Packer's WinRM ran over HTTPS on
+# a self-signed certificate, FriendlyName packer-winrm, made in bootstrap.ps1.
+# Templates built before #1031 left it on every clone, the same one on each
+# clone of a template; since #1031 the sysprep task removes it before
+# generalising. On the six rebuilt on 2026-10-07 the private key was already
+# gone ("Missing stored keyset": sysprep does not keep it), so what remains is a
+# public certificate. Still removed, so that verify.yml can hold the guest to
+# having none.
+#
+# Never orphan a key: a key that opens is deleted through its provider first.
+# One that cannot be opened lets the certificate go only once certutil says
+# the keyset is missing AND the key store has no such container; anything else
+# fails the task and keeps the certificate that names the key.
+- name: Remove the build's WinRM certificate, its private key first
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param()
+      $Ansible.Changed = $false
+      $crypto = 'System.Security.Cryptography'
+      $certs = @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object FriendlyName -eq 'packer-winrm')
+      foreach ($c in $certs) {
+        $Ansible.Changed = $true
+        if ($Ansible.CheckMode) { continue }
+        if ($c.HasPrivateKey) {
+          $k = $null
+          try { $k = ("$crypto.X509Certificates.RSACertificateExtensions" -as [type])::GetRSAPrivateKey($c) } catch { }
+          if ($k -is ("$crypto.RSACng" -as [type])) {
+            $k.Key.Delete()
+          } elseif ($k -is ("$crypto.RSACryptoServiceProvider" -as [type])) {
+            $k.PersistKeyInCsp = $false; $k.Clear()
+          } else {
+            $info = @(certutil -store My $c.Thumbprint)
+            $m = ($info | Select-String -Pattern 'Key Container = (.+)$' | Select-Object -First 1).Matches
+            $name = if ($m) { $m[0].Groups[1].Value.Trim() } else { '' }
+            $ksp = ("$crypto.CngProvider" -as [type])::MicrosoftSoftwareKeyStorageProvider
+            $machine = ("$crypto.CngKeyOpenOptions" -as [type])::MachineKey
+            $exists = $name -and ("$crypto.CngKey" -as [type])::Exists($name, $ksp, $machine)
+            if ($exists -or -not ($info -match 'Missing stored keyset')) {
+              throw "packer-winrm $($c.Thumbprint): its key did not open and is not confirmed gone; kept"
+            }
+          }
+        }
+        Remove-Item -Path ('Cert:\LocalMachine\My\' + $c.Thumbprint) -Force
+      }
+  # Its own tag as well as base's, so the six rebuilt before #1031 can be
+  # cleaned without re-running the rest of base: --tags packer_cert.
+  tags: [packer_cert]
+
 # Where the roles after this one put what they download and place, so that
 # everything Ansible owns on a guest is in one directory.
 - name: Make the pipeline's own directory

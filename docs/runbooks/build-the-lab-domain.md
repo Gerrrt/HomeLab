@@ -260,7 +260,8 @@ build, preview one stage at a time and apply it before previewing the next:
 
 | Tag | This page | What it applies |
 | --- | --- | --- |
-| `base` | §2 | Names, the DCs' static addresses, members' resolvers, and the build password rotated to `LAB_ADMIN_PASSWORD` |
+| `base` | §2 | Names, the DCs' static addresses, members' resolvers, the build password rotated to `LAB_ADMIN_PASSWORD`, and the build's `packer-winrm` certificate removed |
+| `packer_cert` | §2 | Only that certificate removal, for a guest cloned from a template built before [#1031](https://github.com/Gerrrt/HomeLab/pull/1031) |
 | `forest` | §3 | `bahamut`'s forest, the forwarder, the root hints removed, and the clock from `10.0.30.1`. It stops if the clock reads anything else |
 | `replica` | §4 | `leviathan` promoted and left on NT5DS, then each DC's resolver set to its partner and loopback |
 | `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
