@@ -68,9 +68,22 @@ creation_rules:
   # prevent. It surfaced only on the guest, as sops' "no identity matched any
   # of the recipients". scripts/check_sops_rules.py now fails on any rule that
   # matches no file, which is what makes a dead rule loud instead of harmless.
+  #
+  # TWO RECIPIENTS SINCE #671: alexander's key, and the ADR-0024 technical
+  # second on the offline medium, the same one the estate and sensitive rules
+  # hold. The file stopped holding only regenerable credentials when #485 put
+  # PBS_ENCRYPTION_KEY in it, the only key that reads Saruman's backups on
+  # golem. alexander is a guest ON Saruman, and its own backup is encrypted
+  # with that same PBS key, so a dead Saruman took the only key that opened
+  # this file along with it. The second's private half lives off Saruman.
+  # ADR-0020 is not inverted: it stops the lab's key opening the estate's
+  # secrets, and this is the estate's recovery key opening the lab's.
+  # scripts/check_sops_rules.py now fails if this file opens with fewer
+  # than two.
   - path_regex: secrets/lab(\..+)?\.sops\.ya?ml$
     age: >-
-      age1fwtswt22kljrgmnzah8twwnkzha07l3vlg30n30pahczh0dfvq8s22jdge
+      age1fwtswt22kljrgmnzah8twwnkzha07l3vlg30n30pahczh0dfvq8s22jdge,
+      age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
 
   # The sensitive tier, for the opposite reason to the lab's: not because the
   # host is less trusted than the estate, but because it has no use for the

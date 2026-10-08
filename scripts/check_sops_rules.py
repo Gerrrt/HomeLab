@@ -92,15 +92,17 @@ POLICY = REPO / ".sops.yaml"
 # that can be made again (#835). Each is read from the committed file's own
 # `sops:` block, not from .sops.yaml, for key-recipients.sh's reason.
 #
-# soc and lab are NOT here, deliberately. Their keys open only passwords and
-# tokens that a rebuild regenerates, and neither stack's backups are encrypted
-# to them: losing odin's or alexander's key costs an evening, not a vault. The
-# lab's second key is #671's question, on its own terms.
+# soc is NOT here, deliberately. Its key opens only passwords and tokens that a
+# rebuild regenerates, and none of its backups are encrypted to it: losing
+# odin's key costs an evening, not a vault. The lab WAS in that position until
+# #485 put golem's PBS encryption key in its file (#671).
 SECOND_RECIPIENT_REQUIRED = {
     "secrets/observability.sops.yaml": "the estate's key also encrypts its volume backups (backup-volumes.sh)",
     "secrets/sensitive.sops.yaml": "trinity's key also encrypts the tier's volume backups, Vaultwarden's "
     "among them (backup-volumes.sh STACK=sensitive)",
     "secrets/tofu.sops.yaml": "the state passphrase: without it the encrypted OpenTofu state is unreadable (ADR-0076)",
+    "secrets/lab.sops.yaml": "PBS_ENCRYPTION_KEY, the only key that reads Saruman's backups on golem, and alexander's "
+    "own backup is encrypted with it, so its key cannot be the only way in (#671)",
 }
 
 
