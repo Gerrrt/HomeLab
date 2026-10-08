@@ -17,6 +17,168 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-08
+
+- **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
+  entry below, "`systemd-oomd` runs on none of the eight hosts checked".
+  - The operator ran the two `systemctl` lines from Winterfell on
+    `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
+    like the other eight.
+  - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
+    covers a journal-shipping host that turns it on later, because its kills
+    end in the same systemd verdict.
+  - **Correction to the entry below:** it says `smaug` ships its journal. It
+    does not. The NAS ships no logs and runs no Alloy (`observability.md`), so
+    no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
+    Its check is an inventory fact, not coverage.
+
+- **The Wazuh manager collector installs on odin.** Its requirement in
+  `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
+  installer checks requirements with `test -x` as the SSH user, and that
+  directory is `0750 root:systemd-journal` by design
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)), so
+  `barnabas` could not enter it. The install refused odin, the one host it was
+  for, as "missing". The requirement is now `/srv/soc-data`, which passes on
+  odin and fails on fenrir and alexander.
+
+- **`WazuhAgentsNotConnected` joins each running guest to its own agent**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
+  #1066).
+  - **What was wrong.** It compared the count of domain guests whose
+    `windows_exporter` answers with the count of Active agents. That is
+    correct with exactly the six enrolled, but any other Active agent filled a
+    missing guest's place, and the alert could not say which guest.
+  - **The collector.** It now writes
+    `homelab_wazuh_agent_active{agent="<name>"}` per agent. Run read-only
+    against odin's manager, its six names match the six guests' `instance`
+    labels exactly.
+  - **The rule.** It fires per guest, naming it, via
+    `unless on (instance) label_replace(...)`. Only when no per-agent series
+    exist at all does it fall back to the old count: an older collector, or
+    a manager with nothing enrolled. So the order the collector and the rule
+    deploy in does not matter, and a failed `agent_control`, which writes
+    neither, stays `WazuhManagerStateUnreadable`'s alert.
+  - **Tests.** Seven cases replace three:
+    - a named guest firing, and another agent not masking one;
+    - the count fallback firing and staying quiet;
+    - guests off, all reporting, and the source unreadable.
+    As mutations, dropping the fallback fails the old-collector case, and
+    the count alone fails the masking case.
+
+- **`check_mounted_config.py` reads long-form bind mounts too.**
+  - **What it missed.** It compared only short-form `./src:/dst` mounts, so a
+    mount written in compose's long form, as a mapping with
+    `create_host_path: false`, was never checked. On the monitoring host that
+    is Alloy's three syslog TLS files from #1049. They are now in its list,
+    and every other stack's list is unchanged.
+  - **The crash.** Its `--self-test` crashed with `FileNotFoundError` on a
+    host with no `docker` binary at all, instead of skipping. It now skips
+    the container half there.
+  - **New fixtures.** Six run without Docker: both forms read, and named
+    volumes, tmpfs and a target-less short form left out.
+
+- **`systemd-oomd` runs on none of the eight hosts checked**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)).
+  - `UnitOomKilled` (#1050, #1058) would see its kills wherever it ran.
+    #903's last item is to record where it runs.
+  - Checked from `Saruman` on 2026-10-08: `Saruman`, `golem`, `alexander`,
+    `odin`, `fenrir`, `phoenix` and `eden` all report `not-found`/`inactive`,
+    as `trinity` did on 2026-10-07.
+  - `prometheus`, `oracle` and `smaug` still need checking: they ship
+    journals, but `Saruman` can't reach VLANs 99 and 40.
+
+- **Postgres re-pinned again, a day after #966.** Upstream rebuilt
+  `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
+  digests #966 pinned already drifted:
+  - `18.6` in sensitive (two services) and bloodhound: `fc973eb` to `74935e7`
+  - `17.11` in wiki: `ae69c45` to `2d2b899`
+
+  The tags have not moved. Merging this restarts sensitive's two Postgres
+  services on the rebuilt image, the same release, so there is no data
+  migration.
+
+- **`ZeekConnLogStopped` also fires when the conn.log series disappears**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
+  #1066).
+  - **The gap.** In the pinned Alloy (v1.20.1),
+    `loki_source_file_read_bytes_total` is a gauge holding the file's read
+    offset, and the tailer deletes it when it stops (`tailer.go`,
+    `DeleteLabelValues`). If `conn.log` stops existing (Zeek gone around an
+    hourly rotation, or its log volume recreated), the series goes away,
+    `increase(...) == 0` returns nothing, and the rule could never fire, in
+    the very failure it was written for.
+  - **The fix.** `or absent_over_time(...[30m])` over the same selector, so
+    either way it fires 45 minutes after the last byte. It also fires if
+    fenrir's Alloy stops pushing.
+  - **Tests.** Two new cases: a series that stops fires, and a gap shorter
+    than the window (an Alloy redeploy) does not. The merged rule, run
+    against the new tests, fails the first. `make check-rules STACK=lab`
+    passes on promtool 3.15.0.
+
+- **What the SOC could not see of #449's weaknesses, written as a fix, not yet applied**
+  ([#1077](https://github.com/Gerrrt/HomeLab/issues/1077)).
+  - **What #449's config-only loop showed.** Of the six weaknesses switched
+    on, DCSync's replication grant left no event at all. Kerberoast's SPN and
+    RBCD's attribute never appeared. The rest arrived only as generic "user or
+    computer account changed" alerts at levels 5 and 8.
+  - **Why, read from the domain:**
+    - The DCs don't audit Directory Service Changes, so there is no 5136.
+    - The domain head's SACL covers only the domain object itself.
+    - Wazuh has no rule for 4662.
+    - titan and ramuh audited File Share and nothing else. #414's one-line
+      advanced audit GPO had replaced their whole basic policy, logons included.
+  - **The fix:**
+    - `gpos` gives the member servers the Windows default set plus File Share,
+      and adds a DC audit GPO carrying their 17 subcategories plus Directory
+      Service Changes.
+    - The new `ds_audit` role audits writes to SPNs and the delegation
+      attributes on users and computers.
+    - `stacks/soc` mounts seven local rules (100100–100106) that name each
+      weakness, and takes PowerShell's own `__PSScriptPolicyTest_*.ps1` probe
+      file, which every Ansible task tripped at level 15, down to level 0.
+    - The DCSync rule (100106) leaves out the two DCs by name, `bahamut$` and
+      `leviathan$`, not every machine account. A computer account any user
+      can create, once granted replication rights, would otherwise DCSync
+      unseen.
+    - `verify.yml` checks the effective audit subcategories.
+  - **Tested before deploy.** A throwaway manager on `odin`, from the
+    production image digest, was fed the #449 events through the real Windows
+    decoder. All eight positives raised the new rules. The five negatives (a
+    cleared flag, an unchanged field, an SPN on a computer, a DC's own
+    replication, and a script that is not the probe file) did not.
+
+- **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
+  Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
+  the `TIMEBASED_EVAL` channel with 179.5 days left, and both rearm counts
+  (Windows and SKU) are **0**. The hand build had 1. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got a full period, but generalising the image
+  spends the rearm, so the next rebuild
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)'s clock) has to start
+  from a freshly built template. `LabWindowsEvaluationExpiring` fires around
+  2027-03-06. Recorded in `build-the-lab-domain.md` §11.
+- **The Packer build no longer puts the Proxmox token on a command line.**
+  The Windows builds' `shell-local` step passed `PROXMOX_TOKEN_SECRET` in
+  `environment_vars`, and shell-local writes those inline into its
+  `/bin/sh -c` command. So for the whole sysprep wait, the `phoenix@pve!builder`
+  secret sat in `/proc/<pid>/cmdline`, readable by any user on `phoenix`. It was
+  seen in `ps` during the #448 rebuild's 912 build. `wait-for-sysprep.sh` now
+  inherits the secret from Packer's own environment, where the variable's
+  default already reads it. A null build on `phoenix` proved both halves: the
+  old form put the value on one process's argv, the new one on none, and the
+  script still received it. The exposed token is to be rotated.
+- **The lab pipeline's agent MSIs have a home on `odin`**
+  ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)). #448's rebuild
+  stopped at `--tags soc` because `roles/soc_agents` had no URL for either
+  installer, and got past it with a temporary `http.server` on `odin`. The SOC
+  stack now runs a `caddy` service (container `soc-agent-msi`), the estate's Caddy at the same digest, read-only
+  and as a numeric user. It serves `${SOC_DATA_DIR}/agent-msi` on 8448 to the
+  six domain addresses and gives everyone else 403.
+  `scripts/stage-agent-msis.sh` stages both files from the role's own pins: the
+  Wazuh MSI from the vendor, and the Velociraptor MSI found by its hash in the
+  server's datastore. `group_vars/all.yaml` sets both URLs, so `--tags soc`
+  needs no `-e`.
+
 ## 2026-10-07
 
 - **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),

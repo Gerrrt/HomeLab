@@ -1,0 +1,25 @@
+---
+# Which attribute writes the DCs record, as 5136, on which objects (#1077).
+#
+# Directory Service Changes (the "Lab - Audit Domain Controllers" GPO) turns
+# 5136 on, but a write is only recorded where an object's SACL asks for it, and
+# the domain head's SACL out of the box covers the domain object alone. These
+# entries go on the domain head, inherited by every user or computer below it:
+# Everyone, Success, WriteProperty on one attribute. Each is an attribute a
+# #449 weakness writes, and one an attacker writes to do the same thing.
+#
+# The replication grant DCSync needs is a change to the domain head's own DACL,
+# which its default SACL (Everyone: WriteProperty, WriteDacl, WriteOwner)
+# already records once 5136 is on, so it has no entry here.
+#
+# Names, not GUIDs: the role reads each schemaIDGUID from the schema at run
+# time, so nothing here can name the wrong attribute.
+ds_audit_attribute_writes:
+  - attribute: servicePrincipalName
+    object_class: user                          # kerberoast: an SPN on a person
+  - attribute: msDS-AllowedToDelegateTo
+    object_class: user                          # constrained delegation
+  - attribute: msDS-AllowedToDelegateTo
+    object_class: computer
+  - attribute: msDS-AllowedToActOnBehalfOfOtherIdentity
+    object_class: computer                      # resource-based constrained delegation

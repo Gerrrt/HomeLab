@@ -167,30 +167,62 @@ groups:
     rules:
       # A lab guest is up and its Wazuh agent is not reporting. The domain
       # guests are on-demand (ADR-0079), so "agents disconnected" alone would
-      # fire every evening. Counting the guests whose windows_exporter answers
-      # against the agents the manager calls Active is what stays quiet when
-      # the guests are off and fires when one is on and silent to the SOC.
-      # Thirty minutes covers a booting guest's agent catching up.
+      # fire every evening. Each guest whose windows_exporter answers is
+      # joined to the agent of the same name, and one with no Active agent
+      # fires, named. That stays quiet when the guests are off and fires when
+      # one is on and silent to the SOC. Thirty minutes covers a booting
+      # guest's agent catching up.
       #
-      # The difference is computed first and compared with zero, so $value is
-      # the number of guests without an agent. A bare `a > b` returns a, the
-      # count of guests up, which read "4 more" for one missing agent.
+      # BY NAME, NOT BY COUNT. This compared the count of guests up with the
+      # count of Active agents until #1038's review: correct with exactly the
+      # six enrolled, but any other Active agent (a Linux host enrolled later)
+      # would fill a missing guest's place, and the alert could not say which
+      # guest. collect-wazuh-manager-state.sh writes one series per agent,
+      # lowercased, and the guests' `instance` labels are their hostnames, so
+      # label_replace lines the two up.
+      #
+      # The count survives as a fallback, used only when no per-agent series
+      # exist at all: a collector from before the per-agent series (so deploy
+      # order does not matter), or a manager with nothing enrolled, where
+      # `unless` alone would have no names to match and every running guest
+      # would fire. With the series present, the by-name half decides.
+      #
+      # An unreadable agents source fires neither half: the collector then
+      # writes no per-agent series and no per-status counts, so both are
+      # empty. WazuhManagerStateUnreadable is the alert for that.
       - alert: WazuhAgentsNotConnected
         expr: |
-          (count(up{job="windows"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0
+          (
+            (
+              (
+                up{job="windows"} == 1
+                unless on (instance)
+                label_replace(homelab_wazuh_agent_active == 1, "instance", "$1", "agent", "(.+)")
+              )
+              and on ()
+              (count(homelab_wazuh_agent_active) > 0)
+            )
+            or
+            (
+              ((count(up{job="windows"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0)
+              unless on ()
+              (count(homelab_wazuh_agent_active) > 0)
+            )
+          )
         for: 30m
         labels:
           component: soc
           severity: warning
           category: availability
         annotations:
-          summary: "{{ $value }} running lab guest(s) without a connected Wazuh agent"
+          summary: >-
+            {{ if $labels.instance }}{{ $labels.instance }} is{{ else }}{{ $value }} lab
+            guest(s) are{{ end }} running without a connected Wazuh agent
           description: >-
-            windows_exporter answers on more domain guests than the manager has
-            Active agents, so at least one running guest is invisible to the
-            SOC. On odin: `docker exec soc-wazuh-manager
-            /var/ossec/bin/agent_control -l` names the Disconnected ones; on
-            the guest, `Get-Service WazuhSvc`.
+            windows_exporter answers on a domain guest that the manager has no
+            Active agent for, so the guest is invisible to the SOC. On odin:
+            `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+            gives each agent's status; on the guest, `Get-Service WazuhSvc`.
 
       # A queue inside analysisd nearly full. The value is a 0..1 fraction
       # (queue_op.c: elements / (size - 1)). A full queue drops events, which
@@ -272,6 +304,17 @@ groups:
   # odin and fenrir talk across the mirrored segment whether or not a domain
   # guest is on. Keyed on Alloy's component and path, not on the job, so a
   # rebuilt sensor under another hostname does not orphan it.
+  #
+  # AND ON THE SERIES GOING AWAY. Despite its name, Alloy v1.20.1's
+  # loki_source_file_read_bytes_total is a gauge holding the file's read
+  # offset (rotation makes it drop, which increase() reads as a reset), and
+  # the tailer DELETES it when it stops (tailer.go, DeleteLabelValues). So if
+  # conn.log stops existing (Zeek gone around an hourly rotation, its log
+  # volume recreated) the series disappears, `increase(...) == 0` returns
+  # nothing, and the first half below can never fire. absent_over_time is
+  # the second half, over the same 30m, so either way it fires 45 minutes
+  # after the last byte. It also fires if fenrir's Alloy stops pushing at all,
+  # which is a loss of Zeek's view too.
   - name: sensor
     interval: 60s
     rules:
@@ -282,6 +325,12 @@ groups:
               component_id="loki.source.file.zeek", path="/zeek/logs/conn.log"
             }[30m]
           ) == 0
+          or
+          absent_over_time(
+            loki_source_file_read_bytes_total{
+              component_id="loki.source.file.zeek", path="/zeek/logs/conn.log"
+            }[30m]
+          )
         for: 15m
         labels:
           component: sensor

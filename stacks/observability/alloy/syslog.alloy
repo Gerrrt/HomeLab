@@ -5,12 +5,12 @@
 // merges every *.alloy in it into a single configuration. The header of
 // config.alloy says which file goes where.
 //
-// This file exists ONLY on the monitoring host. It opens two listeners on
+// This file exists ONLY on the monitoring host. It opens one listener on
 // every interface the process can see, which inside the compose stack is the
 // container's own namespace, published to the host by compose.yaml for
-// morpheus to send to: ${INGEST_BIND_ADDR}:1514/udp, and
-// ${INGEST_BIND_ADDR}:6514/tcp with TLS and a required client certificate
-// (#1049). Only senders named in loki.relabel.network_syslog are stored (#844). On a remote agent the same
+// morpheus to send to: ${INGEST_BIND_ADDR}:6514/tcp, with TLS and a required
+// client certificate (#1049). Only senders named in
+// loki.relabel.network_syslog are stored (#844). On a remote agent the same
 // listener would be an unused open port — and on a host running the native
 // package, an unused open port on the host's real interface, on a segment
 // ADR-0014 puts an attack VM on. scripts/deploy-agent.sh never ships it.
@@ -28,11 +28,10 @@
 // pfSense reaches this on the management VLAN, where it already has an
 // interface (10.0.99.1), so no firewall rule is required.
 //
-// UDP and RFC3164 because that is what pfSense sends by default.
-//
-// TLS ON 6514, AND WHY BOTH LISTENERS FOR NOW (#1049). A UDP source address
-// can be forged by any host on VLAN 99, so #844's allowlist below cannot tell
-// morpheus from something claiming to be it. The second listener closes that:
+// TLS ON 6514, AND NO UDP (#1049). This listener was UDP and RFC3164 at
+// first, because that is what pfSense sends by default. But a UDP source
+// address can be forged by any host on VLAN 99, so #844's allowlist below
+// could not tell morpheus from something claiming to be it. TLS closes that:
 //
 //   - TCP, so a blindly forged source never completes a handshake and the
 //     allowlist's address means what it says.
@@ -53,18 +52,20 @@
 // not enough from another address.
 //
 // pfSense's own syslogd sends UDP only, so morpheus sends TLS through the
-// syslog-ng package (docs/runbooks/ship-firewall-logs.md §7). syslog-ng's
+// syslog-ng package (docs/runbooks/ship-firewall-logs.md §3). syslog-ng's
 // syslog() driver speaks RFC 5424 with octet-counted framing, hence that
 // format here; Alloy's TCP reader takes either framing.
 //
-// The UDP listener stays until TLS lines are proven arriving as
-// host="morpheus" with transport="tls", because a gap in firewall logs cannot
-// be replayed. Removing it, and its two published ports, is what finally
-// closes the forgeable path; until then it is still open.
+// The UDP listener ran beside this one until TLS lines were proven arriving
+// as host="morpheus" with transport="tls" for a day, because a gap in
+// firewall logs cannot be replayed. It and its 1514 and 514 publishes are now
+// gone, and so is the forgeable path. `transport` stays as a label, so a
+// query written during the switch-over still reads.
 //
-// use_incoming_timestamp is DELIBERATELY false. RFC3164 carries neither a year
-// nor a timezone, and trusting a timestamp with neither is how the first
-// deployment of this listener failed. Measured on the wire:
+// use_incoming_timestamp is DELIBERATELY false, and the reason is the UDP
+// listener's history. RFC3164 carries neither a year nor a timezone, and
+// trusting a timestamp with neither is how the first deployment of this
+// listener failed. Measured on the wire:
 //
 //   <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,in,...
 //
@@ -79,29 +80,11 @@
 // Go documents UnixNano as undefined outside 1678-2262, so it overflows int64
 // and wraps rather than reading as obviously ancient. Nothing rejects it.
 //
-// rfc3164_default_to_current_year stays on — it is still correct about the year,
-// and it costs nothing — but it is no longer load-bearing. Alloy now stamps
-// receive time instead. morpheus is one hop away on the same VLAN, so that is
-// accurate to milliseconds, and it is a value this stack can reason about.
+// RFC 5424 does carry a zone, and the TLS listener still stamps receive time:
+// morpheus is one hop away on the same VLAN, so that is accurate to
+// milliseconds, it is a value this stack can reason about, and it does not
+// depend on morpheus's clock or syslog-ng's template.
 loki.source.syslog "network" {
-	listener {
-		address                         = "0.0.0.0:1514"
-		protocol                        = "udp"
-		syslog_format                   = "rfc3164"
-		rfc3164_default_to_current_year = true
-		use_incoming_timestamp          = false
-
-		labels = {
-			log_type  = "syslog",
-			source    = "network",
-			transport = "udp",
-		}
-	}
-
-	// use_incoming_timestamp stays false for the same reason as above, even
-	// though RFC 5424 carries a zone: one clock for every line from morpheus,
-	// whichever way it came, so the two transports interleave correctly
-	// during the switch-over.
 	listener {
 		address                = "0.0.0.0:6514"
 		protocol               = "tcp"
@@ -166,13 +149,14 @@ loki.relabel "network_syslog" {
 	// Timestamp straight to tag. So the only values that field would ever carry
 	// here are ones some other sender chose.
 	//
-	// What this does not close ON UDP: there is no handshake, so a host on
-	// VLAN 99 can forge 10.0.99.1 as its source address and be let in. No
-	// filter on the source address can stop that, wherever it runs: not a
-	// pfSense rule (VLAN 99 reaches this host on the switched segment without
-	// crossing the firewall), and not a host firewall here either, because it
-	// would see the same forged address. The TLS listener above is what closes
-	// it, once morpheus sends there and the UDP listener is removed (#1049).
+	// An address alone was never enough, and that is why there is no UDP
+	// listener any more (#1049). Over UDP there is no handshake, so a host on
+	// VLAN 99 could forge 10.0.99.1 as its source address and be let in, and
+	// no filter on the source address could stop it: not a pfSense rule (VLAN
+	// 99 reaches this host on the switched segment without crossing the
+	// firewall), and not a host firewall here, which would see the same forged
+	// address. Over the TLS listener the address cannot be forged blind, and
+	// this rule now sits behind a pinned client certificate as well.
 	rule {
 		source_labels = ["__syslog_connection_ip_address"]
 		regex         = "10\\.0\\.99\\.1"

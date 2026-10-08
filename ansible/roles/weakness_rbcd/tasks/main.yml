@@ -49,8 +49,12 @@
 
 # Both directions, always run: on disable this clears titan's attribute while
 # svc-rbcd still exists (so its DN resolves), before the delete below.
-# PrincipalsAllowedToDelegateToAccount is the AD-module view of titan's
-# msDS-AllowedToActOnBehalfOfOtherIdentity. Compares first.
+# Compares first, and by SID, from the attribute itself: titan's
+# msDS-AllowedToActOnBehalfOfOtherIdentity is a security descriptor, and its
+# access rules are the principals it trusts. The AD module's
+# PrincipalsAllowedToDelegateToAccount view of it hands back distinguished-name
+# strings, so reading .DistinguishedName off each entry gave $null: enable
+# rewrote the attribute on every run, and verify.yml never saw it set (#1075).
 - name: Set or clear the trust on the resource
   ansible.windows.win_powershell:
     script: |
@@ -60,9 +64,16 @@
       Import-Module ActiveDirectory
       $wantOn = ($Want -eq 'present')
       $res = Get-ADComputer -Identity $Resource `
-        -Properties PrincipalsAllowedToDelegateToAccount -ErrorAction Stop
-      $curDns = @($res.PrincipalsAllowedToDelegateToAccount |
-        ForEach-Object { $_.DistinguishedName })
+        -Properties 'msDS-AllowedToActOnBehalfOfOtherIdentity' -ErrorAction Stop
+      $sd = $res.'msDS-AllowedToActOnBehalfOfOtherIdentity'
+      $curSids = @()
+      if ($sd) {
+        # Allow rules only: a Deny naming a principal is the opposite of trust.
+        $curSids = @($sd.GetAccessRules($true, $true,
+            [System.Security.Principal.SecurityIdentifier]) |
+          Where-Object { $_.AccessControlType -eq 'Allow' } |
+          ForEach-Object { $_.IdentityReference.Value } | Sort-Object -Unique)
+      }
       if ($wantOn) {
         $p = Get-ADUser -Identity $Principal -ErrorAction SilentlyContinue
         if ($null -eq $p) {
@@ -70,7 +81,7 @@
           $Ansible.Changed = $true
           return
         }
-        if ($curDns.Count -ne 1 -or $curDns[0] -ne $p.DistinguishedName) {
+        if ($curSids.Count -ne 1 -or $curSids[0] -ne $p.SID.Value) {
           if (-not $Ansible.CheckMode) {
             Set-ADComputer -Identity $Resource `
               -PrincipalsAllowedToDelegateToAccount $p.DistinguishedName
@@ -78,7 +89,7 @@
           $Ansible.Changed = $true
         }
       } else {
-        if ($curDns.Count -gt 0) {
+        if ($curSids.Count -gt 0) {
           if (-not $Ansible.CheckMode) {
             Set-ADComputer -Identity $Resource `
               -PrincipalsAllowedToDelegateToAccount $null

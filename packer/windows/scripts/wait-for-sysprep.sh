@@ -19,15 +19,17 @@
 # minutes later. Every request has its own timeout and the loop runs to a
 # clock, so neither case can hang.
 #
-# Environment, from windows.pkr.hcl: PROXMOX_URL, PROXMOX_TOKEN_ID,
-# PROXMOX_TOKEN_SECRET, NODE, VMID. TLS is verified, as packer-smoke.sh does,
-# with PROXMOX_CA_FILE for a host whose trust store lacks the cluster CA.
+# Environment: PROXMOX_URL, PROXMOX_TOKEN_ID, NODE and VMID from windows.pkr.hcl,
+# and PROXMOX_TOKEN_SECRET inherited from packer's own environment (phoenix.env,
+# exported), never passed by windows.pkr.hcl, which would put it on argv. TLS
+# is verified, as packer-smoke.sh does, with PROXMOX_CA_FILE for a host whose
+# trust store lacks the cluster CA.
 set -euo pipefail
 
 die() { printf '\nwait-for-sysprep: %s\n' "$*" >&2; exit 1; }
 
 for v in PROXMOX_URL PROXMOX_TOKEN_ID PROXMOX_TOKEN_SECRET NODE VMID; do
-  [[ -n "${!v:-}" ]] || die "${v} is unset"
+  [[ -n "${!v:-}" ]] || die "${v} is unset (PROXMOX_TOKEN_SECRET comes from packer's environment: set -a; . ~/.config/proxmox/phoenix.env; set +a)"
 done
 command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required (apt install jq)"

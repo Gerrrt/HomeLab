@@ -271,6 +271,8 @@ build, preview one stage at a time and apply it before previewing the next:
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
 | `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
 | `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
+| `gpos` | §5 | *Deny Tier 0 Logon on Members*, and the two audit policies: the member servers' (Windows defaults plus File Share) and the DCs' (their 17 subcategories plus Directory Service Changes), #1077 |
+| `audit` | §5 | Inherited audit entries on the domain head, so SPN and delegation writes on users and computers log a 5136 (#1077) |
 | `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
 | `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
 | `kerberoast` | §5a | `svc-sql`, an SPN on a crackable account, `ramuh`'s target |
@@ -364,6 +366,10 @@ skips step 4.
    - the `/pool/lab-domain` grant on `Saruman`
      ([`provision-lab-guests.md` §2](provision-lab-guests.md#2-what-the-token-is-missing-on-saruman));
    - `LAB_ENDPOINT_ADMIN_PASSWORD` in `phoenix.env`;
+   - the two agent MSIs staged on `odin`
+     ([`build-the-soc-guest.md` §11](build-the-soc-guest.md#11-agents-by-gpo--the-second-evening-and-after-414)).
+     `--tags soc` fetches them from there, and stops on a fresh guest if they
+     are not;
    - new `LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD`, generated as above. A
      fresh forest takes whatever they say.
 2. **The templates pass their smoke test.**
@@ -428,11 +434,15 @@ skips step 4.
 
    ```bash
    cd ansible
-   for t in base forest replica join endpoint_admin tiers gpos shares soc exporter sysmon licence population authgen; do
+   for t in base forest replica join endpoint_admin tiers gpos audit shares sysmon soc exporter licence population authgen; do
      ansible-playbook lab-domain.yml --tags "$t" || break
    done
    ansible-playbook lab-domain.yml        # again: must report changed=0
    ```
+
+   `sysmon` goes before `soc`, as in `lab-domain.yml`. The Wazuh agent
+   subscribes to the Sysmon channel once, when it starts, and an agent started
+   before that channel exists never reads it (#1035).
 
 9. **Verify.** All of this has to hold:
    - `ansible-playbook verify.yml` passes on all six;
@@ -935,7 +945,10 @@ run.
 > Rebuild the template first (that runbook's §8). Whether a clone of an older
 > template gets a full 180 days depends on the rearms that template has already
 > spent. A fresh install has not spent any, so the rebuild settles it. Read
-> `slmgr /dlv` on the clone and record it below, as before.
+> `slmgr /dlv` on the clone and record it in §11, as before. The 2026-10-08
+> rebuild is the evidence: clones of a template built the day before got 179.5
+> days and a rearm count of **0**. A fresh template gives a full period. The
+> clone cannot extend it.
 
 Install `windows_exporter` on all six. The collector list matters:
 
@@ -1221,6 +1234,14 @@ if you forget:
   expiration read 173 days on the DCs and 174 on the members, which lands
   around 2027-03-23. One rearm is one more 180-day period, not a way to skip
   the rebuild.
+
+  **Read again on 2026-10-08, after #448's rebuild from the pipeline: 0.**
+  Both counts are 0 on all four servers, which are on the `TIMEBASED_EVAL`
+  channel with 179.5 days left. That lands around **2027-04-05**, and
+  `LabWindowsEvaluationExpiring` fires about 2027-03-06. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got the full period but no rearm: generalising
+  the image spends it. So there is no rearm to fall back on this time. The next
+  rebuild starts from a freshly built 912, as the tip in §7 says.
 
 `make check-docs` walks you through the first two.
 

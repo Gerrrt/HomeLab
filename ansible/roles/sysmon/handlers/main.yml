@@ -1,0 +1,18 @@
+---
+# The Wazuh agent subscribes to Microsoft-Windows-Sysmon/Operational once, when
+# it starts (#1035's shared agent.conf), and never again: a subscription that
+# failed because the channel did not exist yet (EvtSubscribe 15007), or that
+# an uninstall pulled out from under it, stays dead until the agent restarts.
+# Read on the #448 rebuild, 2026-10-08: five of the six agents had started
+# before Sysmon and sent no Sysmon alert at all; ramuh, reset after Sysmon was
+# in, sent 155. So whenever this role installs or upgrades Sysmon, the agent is
+# restarted. A guest without the agent (soc_agents not run yet) is left alone.
+- name: Resubscribe the Wazuh agent to the Sysmon channel
+  ansible.windows.win_powershell:
+    script: |
+      $Ansible.Changed = $false
+      $svc = Get-Service WazuhSvc -ErrorAction SilentlyContinue
+      if ($svc) {
+        Restart-Service WazuhSvc -ErrorAction Stop
+        $Ansible.Changed = $true
+      }

@@ -236,7 +236,7 @@ log-shipping runbook only enabled Firewall Events.
 > Editing *Remote Syslog Contents* means saving the same settings page that
 > twice left the daemon not sending during the log-shipping deploy — once on
 > first enable, once after merely removing a stale server entry. Both times the
-> page redisplayed perfectly and **zero packets** went out. See §2 of
+> page redisplayed perfectly and **zero packets** went out. See §4 of
 > [`ship-firewall-logs.md`](ship-firewall-logs.md).
 >
 > So save it the reliable way: tick **System Events**, **Save**, then untick
@@ -465,7 +465,7 @@ a section rather than the one paragraph it used to be.
 2. **The `interface` label is live and proven on Skids.** `syslog.alloy` maps
    the syslog facility to `interface`, and that change reaches the running
    agent only when the main checkout has it and Alloy has been restarted — see
-   §1 of [`ship-firewall-logs.md`](ship-firewall-logs.md) for the "the file is
+   §2 of [`ship-firewall-logs.md`](ship-firewall-logs.md) for the "the file is
    newer than the process" trap. Then, ten minutes later:
 
    ```bash

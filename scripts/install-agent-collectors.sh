@@ -49,8 +49,11 @@
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
 # thin-pool-state (#538), guest-disk-state (#778), guest-service-state (#858),
-# wazuh-manager-state (#1038, odin only: its requirement is the manager's
-# queue directory on odin's data disk, which no other host has),
+# wazuh-manager-state (#1038, odin only: its requirement is odin's data disk,
+# /srv/soc-data, which no other host has. Not the manager-queue directory
+# under it, as first written: requirements are checked with `test -x` as the
+# SSH user, and manager-queue is 0750 root:systemd-journal, so the check
+# failed on the one host it was meant for),
 # pve-firewall-state (#576),
 # iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
 # drift-check (#470), plus
@@ -121,7 +124,7 @@ COLLECTORS=(
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
   "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
-  "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data/manager-queue"
+  "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"

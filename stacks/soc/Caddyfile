@@ -1,0 +1,35 @@
+# The two installers roles/soc_agents fetches onto the lab domain (#1068):
+# the Wazuh agent MSI and the Velociraptor client MSI, staged on odin by
+# scripts/stage-agent-msis.sh and checked there against the role's pins.
+#
+# Served to ADR-0029's six and nothing else. odin is single-homed on VLAN 30,
+# but Hicks reaches it over the 50 -> 30 rule, so the bind address alone would
+# not hold the line. And the Velociraptor MSI carries the client config: the
+# server URL, its CA and the enrolment nonce, which #864 took out of SYSVOL for
+# exactly this reason. An address on VLAN 30 can be spoofed, so this narrows
+# who can fetch it; it does not make the file a secret (docs/security.md).
+#
+# Plain http, like the Velociraptor frontend's own enrolment path: the role
+# checks every file against a pinned sha256 before installing it, so a
+# tampered byte fails the run rather than reaching a guest.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8448 {
+	# The healthcheck, from inside the container. Says nothing about the files.
+	handle /healthz {
+		respond "ok" 200
+	}
+
+	# bahamut .50 through siren .55, as ansible/inventory/hosts.yaml has them.
+	@six remote_ip 10.0.30.50/31 10.0.30.52/31 10.0.30.54/31
+	handle @six {
+		root * /srv/agent-msi
+		file_server
+	}
+
+	respond 403
+}

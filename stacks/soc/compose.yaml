@@ -280,6 +280,10 @@ services:
       # reads the Sysmon channel (#1035). The agents pull it from here, so
       # nothing on the guests changes. The file says why it lives here.
       - ./wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
+      # The lab's own rules, over the image's sample local_rules.xml: the
+      # #449 weaknesses raise alerts that name them, and PowerShell's own
+      # probe file stops raising "malware dropped" (#1077).
+      - ./wazuh/manager/rules/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml:ro
     ports:
       # Agent traffic and enrolment: the six domain machines are the off-host
       # consumers (ADR-0012), and they share this segment, so no firewall rule.
@@ -484,6 +488,58 @@ services:
       # The first start generates the config, creates the admin user and then
       # builds the client MSI, deb and rpm from the release on GitHub.
       start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # The agent installers (#1068). roles/soc_agents installs the Wazuh agent and
+  # the Velociraptor client on the six directly, and needs both MSIs at a URL
+  # they can reach. Nothing in the image builds them: scripts/stage-agent-msis.sh
+  # puts them in ${SOC_DATA_DIR}/agent-msi on this guest, checked against the
+  # role's pinned sha256s, and this serves that directory read-only. The
+  # Caddyfile answers ADR-0029's six addresses and refuses everyone else,
+  # because the Velociraptor MSI carries the client's enrolment config.
+  #
+  # The estate's Caddy, at the digest stacks/lab runs, hardened the same way:
+  # a numeric user, a read-only root, every capability dropped but one. 8448 is
+  # above 1024 and needs no privilege to bind, but the image's caddy binary
+  # carries cap_net_bind_service as a FILE capability, and the kernel refuses
+  # to exec a binary whose file capabilities are outside the bounding set: with
+  # [ALL] dropped and no-new-privileges, the first deploy on odin crash-looped
+  # on "exec caddy failed: Operation not permitted". So NET_BIND_SERVICE is
+  # kept, as the ingest proxy keeps it, for the exec rather than the bind. The service is `caddy`,
+  # as in stacks/lab, because scripts/check_caddyfile.sh validates a stack's
+  # Caddyfile against the image of the service by that name.
+  # ---------------------------------------------------------------------------
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.7@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
+    container_name: soc-agent-msi
+    user: "65534:65534"
+    pids_limit: 64
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=65534,gid=65534
+      - /config:size=1m,uid=65534,gid=65534
+      - /tmp:size=1m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SOC_DATA_DIR:-/srv/soc-data}/agent-msi:/srv/agent-msi:ro
+    ports:
+      # The six domain guests fetch from here during `--tags soc`. Fixed, not
+      # a tunable: ansible/inventory/group_vars/all.yaml names this port in
+      # both URLs, and a second copy of a number is how they drift apart.
+      - "${BIND_ADDR:-0.0.0.0}:8448:8448"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8448/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
