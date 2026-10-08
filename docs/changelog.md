@@ -31,13 +31,17 @@ docstring gives: it is a record, not a claim about now.
     against odin's manager, its six names match the six guests' `instance`
     labels exactly.
   - **The rule.** It fires per guest, naming it, via
-    `unless on (instance) label_replace(...)`. It is guarded on the agents
-    source being readable, so a failed `agent_control` raises
-    `WazuhManagerStateUnreadable` and not one alert per guest.
-  - **Tests.** Five cases replace three: a named guest firing, another
-    agent not masking one, guests off, all reporting, and the source
-    unreadable. As mutations, the old count expression fails the masking case,
-    and the rule without its guard fails the unreadable one.
+    `unless on (instance) label_replace(...)`. Only when no per-agent series
+    exist at all does it fall back to the old count: an older collector, or
+    a manager with nothing enrolled. So the order the collector and the rule
+    deploy in does not matter, and a failed `agent_control`, which writes
+    neither, stays `WazuhManagerStateUnreadable`'s alert.
+  - **Tests.** Seven cases replace three:
+    - a named guest firing, and another agent not masking one;
+    - the count fallback firing and staying quiet;
+    - guests off, all reporting, and the source unreadable.
+    As mutations, dropping the fallback fails the old-collector case, and
+    the count alone fails the masking case.
 
 - **Postgres re-pinned again, a day after #966.** Upstream rebuilt
   `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the

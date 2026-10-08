@@ -181,31 +181,46 @@ groups:
       # lowercased, and the guests' `instance` labels are their hostnames, so
       # label_replace lines the two up.
       #
-      # Only while the agents source reads. Unreadable, there are no
-      # per-agent series, and every running guest would fire at once;
-      # WazuhManagerStateUnreadable is the alert for that.
+      # The count survives as a fallback, used only when no per-agent series
+      # exist at all: a collector from before the per-agent series (so deploy
+      # order does not matter), or a manager with nothing enrolled, where
+      # `unless` alone would have no names to match and every running guest
+      # would fire. With the series present, the by-name half decides.
+      #
+      # An unreadable agents source fires neither half: the collector then
+      # writes no per-agent series and no per-status counts, so both are
+      # empty. WazuhManagerStateUnreadable is the alert for that.
       - alert: WazuhAgentsNotConnected
         expr: |
           (
-            up{job="windows"} == 1
-            unless on (instance)
-            label_replace(homelab_wazuh_agent_active == 1, "instance", "$1", "agent", "(.+)")
+            (
+              (
+                up{job="windows"} == 1
+                unless on (instance)
+                label_replace(homelab_wazuh_agent_active == 1, "instance", "$1", "agent", "(.+)")
+              )
+              and on ()
+              (count(homelab_wazuh_agent_active) > 0)
+            )
+            or
+            (
+              ((count(up{job="windows"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0)
+              unless on ()
+              (count(homelab_wazuh_agent_active) > 0)
+            )
           )
-          and on ()
-          (homelab_wazuh_manager_source_ok{source="agents"} == 1)
         for: 30m
         labels:
           component: soc
           severity: warning
           category: availability
         annotations:
-          summary: "{{ $labels.instance }} is running without a connected Wazuh agent"
+          summary: "{{ if $labels.instance }}{{ $labels.instance }} is{{ else }}{{ $value }} lab guest(s) are{{ end }} running without a connected Wazuh agent"
           description: >-
-            windows_exporter answers on {{ $labels.instance }}, and the manager
-            has no Active agent of that name, so the guest is invisible to the
-            SOC. On odin: `docker exec soc-wazuh-manager
-            /var/ossec/bin/agent_control -l` gives its status; on the guest,
-            `Get-Service WazuhSvc`.
+            windows_exporter answers on a domain guest that the manager has no
+            Active agent for, so the guest is invisible to the SOC. On odin:
+            `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+            gives each agent's status; on the guest, `Get-Service WazuhSvc`.
 
       # A queue inside analysisd nearly full. The value is a 0..1 fraction
       # (queue_op.c: elements / (size - 1)). A full queue drops events, which
