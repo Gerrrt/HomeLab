@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
+  entry below, "`systemd-oomd` runs on none of the eight hosts checked".
+  - The operator ran the two `systemctl` lines from Winterfell on
+    `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
+    like the other eight.
+  - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
+    covers a host that turns it on later, because its kills end in the same
+    systemd verdict.
+
 - **`WazuhAgentsNotConnected` joins each running guest to its own agent**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
   #1066).

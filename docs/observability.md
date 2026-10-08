@@ -376,11 +376,14 @@ sees them. Where it was checked, it does not run
 - `trinity`, Ubuntu 26.04.1, checked 2026-10-07;
 - `Saruman` and `golem`, Debian 13, checked 2026-10-08;
 - `alexander`, `odin`, `fenrir`, `phoenix` and `eden`, Ubuntu 26.04.1,
-  checked 2026-10-08.
+  checked 2026-10-08;
+- `prometheus` and `oracle`, Ubuntu 24.04 LTS, and `smaug`, TrueNAS 25.10,
+  checked 2026-10-08 by the operator from Winterfell, since `Saruman` cannot
+  reach VLANs 99 and 40.
 
-**Not yet checked:** `prometheus`, `oracle` (VLAN 99) and `smaug` (VLAN 40).
-All three ship their journals, but none can be reached from `Saruman`, where
-the other checks ran.
+That is every host that ships its journal, so there is no `systemd-oomd` kill
+to show. A host that later turns it on is covered by `UnitOomKilled` without
+a change, because its kills end in the same verdict.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with
