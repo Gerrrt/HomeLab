@@ -368,10 +368,19 @@ errors.
 
 `UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
 by `systemd-oomd`. Only a unit's own cap is latent: no unit is given
-`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. `systemd-oomd` is
-not installed on `trinity` (Ubuntu 26.04.1, checked 2026-10-07). Its state on
-the other hosts is not yet recorded. Where it runs, its kills also end in that
-systemd verdict, so this rule sees them.
+`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. Where
+`systemd-oomd` runs, its kills also end in that systemd verdict, so this rule
+sees them. Where it was checked, it does not run
+(`systemctl is-enabled`/`is-active systemd-oomd`: `not-found`/`inactive`):
+
+- `trinity`, Ubuntu 26.04.1, checked 2026-10-07;
+- `Saruman` and `golem`, Debian 13, checked 2026-10-08;
+- `alexander`, `odin`, `fenrir`, `phoenix` and `eden`, Ubuntu 26.04.1,
+  checked 2026-10-08.
+
+**Not yet checked:** `prometheus`, `oracle` (VLAN 99) and `smaug` (VLAN 40).
+All three ship their journals, but none can be reached from `Saruman`, where
+the other checks ran.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with
