@@ -180,11 +180,30 @@ Then, per layer:
   Then, at the console, in Windows PowerShell:
 
   ```powershell
+  winget configure --enable
   winget install Git.Git Microsoft.PowerShell
   git clone https://github.com/dotgibson/dotfiles-Windows.git ~/dotfiles-Windows
   cd ~/dotfiles-Windows
   winget configure -f configuration.dsc.yaml --accept-configuration-agreements
   ```
+
+  A fresh install has `winget configure` switched off, and the README does
+  not say to turn it on. On 2026-10-08 the file's directives read
+  `allowPrerequisites`, which winget does not know. `Microsoft.Windows.Developer`
+  (`OsVersion`, `DeveloperMode`) is published only as prereleases, so
+  without `allowPrerelease` the run stops at "OsVersion [os-version] The
+  configuration unit could not be found". Until the layer fixes it, fix the
+  local copy before `winget configure`:
+
+  ```powershell
+  (Get-Content configuration.dsc.yaml) -replace 'allowPrerequisites','allowPrerelease' | Set-Content configuration.dsc.yaml
+  ```
+
+  **The console opens at OOBE's "Who's going to use this device?"**, because
+  911's answer file declares no local account (a template bug, tracked
+  separately). Create a throwaway account there, which the rollback
+  discards. Then sign out and sign in as `tester` under *Other user*, because
+  OOBE's account is an administrator.
 
   Approve the UAC prompts with the `Administrator` password, which is the
   template's build password from `phoenix.env`. Then, in a new `pwsh`:
