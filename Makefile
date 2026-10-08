@@ -8,16 +8,32 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 STACK       ?= observability
-# The Python the checks run under: the first python3 on PATH that can import
-# yaml, else /usr/bin/python3. A bare `python3` used to win by PATH order alone,
-# and on alexander (2026-10-08) that was mise's 3.14, ahead of the system
-# python3 that has PyYAML. `make up STACK=lab` brought the containers up and
-# then stopped at check_mounted_config.py, so the new rules were never
-# reloaded. Resolved once, here; override with `make ... PYTHON=/path/to/python3`.
+# The Python the checks run under: the first python3 ON PATH, in order, that
+# can import yaml, else /usr/bin/python3. A bare `python3` used to win by PATH
+# order alone, and on alexander (2026-10-08) that was mise's 3.14, ahead of the
+# system python3 that has PyYAML. `make up STACK=lab` brought the containers up
+# and then stopped at check_mounted_config.py, so the new rules were never
+# reloaded. Every PATH entry is tried, so a yaml-less venv ahead of a working
+# interpreter does not hide it. Override with `make ... PYTHON=/path/to/python3`.
+FIND_PYTHON = IFS=:; for d in $$PATH; do [ -x "$$d/python3" ] && "$$d/python3" -c 'import yaml' >/dev/null 2>&1 && { echo "$$d/python3"; exit 0; }; done; [ -x /usr/bin/python3 ] && echo /usr/bin/python3 || echo python3
 ifeq ($(origin PYTHON),undefined)
-PYTHON := $(shell for p in "$$(command -v python3 2>/dev/null)" /usr/bin/python3; do \
-            [ -n "$$p" ] && "$$p" -c 'import yaml' >/dev/null 2>&1 && { echo "$$p"; exit 0; }; \
-          done; echo python3)
+PYTHON := $(shell $(FIND_PYTHON))
+endif
+# Exported, so `up`'s sub-make inherits this choice rather than finding the shim
+# below first on PATH and choosing that.
+export PYTHON
+# The recipes call $(PYTHON), but the scripts they run (validate.sh,
+# check_loki_rules.sh and the rest) call `python3` themselves. So a one-line
+# python3 that execs $(PYTHON) goes first on PATH for every recipe. It is a
+# script, not a symlink: a symlinked venv python3 looks for pyvenv.cfg beside
+# the link and loses the venv's packages. It lives under ~/.cache, keyed on the
+# chosen path, so worktrees that choose differently do not collide.
+ifneq ($(filter /%,$(PYTHON)),)
+PYTHON_SHIM := $(HOME)/.cache/homelab-make/$(shell printf '%s' '$(PYTHON)' | cksum | cut -d' ' -f1)
+$(shell mkdir -p '$(PYTHON_SHIM)' && printf '#!/bin/sh\nexec %s "$$@"\n' '$(PYTHON)' > '$(PYTHON_SHIM)/python3' && chmod 0755 '$(PYTHON_SHIM)/python3')
+ifeq ($(findstring $(PYTHON_SHIM),$(PATH)),)
+export PATH := $(PYTHON_SHIM):$(PATH)
+endif
 endif
 # How far back check-loki-coverage looks, and the reason it is 24h rather than
 # the 7d it started as (#335). The window is not a sensitivity dial in the
