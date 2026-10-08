@@ -149,13 +149,14 @@ loki.relabel "network_syslog" {
 	// Timestamp straight to tag. So the only values that field would ever carry
 	// here are ones some other sender chose.
 	//
-	// What this does not close ON UDP: there is no handshake, so a host on
-	// VLAN 99 can forge 10.0.99.1 as its source address and be let in. No
-	// filter on the source address can stop that, wherever it runs: not a
-	// pfSense rule (VLAN 99 reaches this host on the switched segment without
-	// crossing the firewall), and not a host firewall here either, because it
-	// would see the same forged address. The TLS listener above is what closes
-	// it, once morpheus sends there and the UDP listener is removed (#1049).
+	// An address alone was never enough, and that is why there is no UDP
+	// listener any more (#1049). Over UDP there is no handshake, so a host on
+	// VLAN 99 could forge 10.0.99.1 as its source address and be let in, and
+	// no filter on the source address could stop it: not a pfSense rule (VLAN
+	// 99 reaches this host on the switched segment without crossing the
+	// firewall), and not a host firewall here, which would see the same forged
+	// address. Over the TLS listener the address cannot be forged blind, and
+	// this rule now sits behind a pinned client certificate as well.
 	rule {
 		source_labels = ["__syslog_connection_ip_address"]
 		regex         = "10\\.0\\.99\\.1"
