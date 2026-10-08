@@ -495,8 +495,13 @@ services:
   # because the Velociraptor MSI carries the client's enrolment config.
   #
   # The estate's Caddy, at the digest stacks/lab runs, hardened the same way:
-  # a numeric user, a read-only root, every capability dropped. 8448 is above
-  # 1024, so unlike the ingest proxy it keeps none. The service is `caddy`,
+  # a numeric user, a read-only root, every capability dropped but one. 8448 is
+  # above 1024 and needs no privilege to bind, but the image's caddy binary
+  # carries cap_net_bind_service as a FILE capability, and the kernel refuses
+  # to exec a binary whose file capabilities are outside the bounding set: with
+  # [ALL] dropped and no-new-privileges, the first deploy on odin crash-looped
+  # on "exec caddy failed: Operation not permitted". So NET_BIND_SERVICE is
+  # kept, as the ingest proxy keeps it, for the exec rather than the bind. The service is `caddy`,
   # as in stacks/lab, because scripts/check_caddyfile.sh validates a stack's
   # Caddyfile against the image of the service by that name.
   # ---------------------------------------------------------------------------
@@ -509,6 +514,7 @@ services:
     mem_limit: 64m
     memswap_limit: 64m
     cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
     read_only: true
