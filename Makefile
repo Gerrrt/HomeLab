@@ -8,6 +8,17 @@ SHELL := /bin/bash
 .DEFAULT_GOAL := help
 
 STACK       ?= observability
+# The Python the checks run under: the first python3 on PATH that can import
+# yaml, else /usr/bin/python3. A bare `python3` used to win by PATH order alone,
+# and on alexander (2026-10-08) that was mise's 3.14, ahead of the system
+# python3 that has PyYAML. `make up STACK=lab` brought the containers up and
+# then stopped at check_mounted_config.py, so the new rules were never
+# reloaded. Resolved once, here; override with `make ... PYTHON=/path/to/python3`.
+ifeq ($(origin PYTHON),undefined)
+PYTHON := $(shell for p in "$$(command -v python3 2>/dev/null)" /usr/bin/python3; do \
+            [ -n "$$p" ] && "$$p" -c 'import yaml' >/dev/null 2>&1 && { echo "$$p"; exit 0; }; \
+          done; echo python3)
+endif
 # How far back check-loki-coverage looks, and the reason it is 24h rather than
 # the 7d it started as (#335). The window is not a sensitivity dial in the
 # direction it looks: BOTH sides of the check's comparison use it, so a host
@@ -97,7 +108,7 @@ _up: render
 	@# returns 200 having faithfully re-read them. That is #355, found when #166
 	@# deployed clean and its three targets never appeared. --fix recreates only
 	@# the services that actually diverged, then asserts the recreate worked.
-	python3 scripts/check_mounted_config.py --fix $(STACK)
+	$(PYTHON) scripts/check_mounted_config.py --fix $(STACK)
 	./scripts/reload-config.sh $(STACK)
 	@# The deploy asserts on its own result. Everything above reports success
 	@# from having ISSUED the commands — compose accepted the file, the reloads
@@ -110,7 +121,7 @@ _up: render
 	@# It waits, so a slow start is not a failure: the per-service deadline is
 	@# derived from that service's own start_period, retries, interval and
 	@# timeout, and is the point Docker itself would have given up.
-	python3 scripts/check_container_health.py $(STACK)
+	$(PYTHON) scripts/check_container_health.py $(STACK)
 	@# And that Alertmanager can still read the URLs it notifies through. The
 	@# container's view, not this host's: in #214 the files were present here and
 	@# absent inside the container, and every receiver reads from the same
@@ -118,7 +129,7 @@ _up: render
 	@# alert that fired about it could not be delivered, because it was the
 	@# delivery path that was broken — so this has to be a check rather than an
 	@# alert.
-	python3 scripts/check_alert_channels.py --files --live $(STACK)
+	$(PYTHON) scripts/check_alert_channels.py --files --live $(STACK)
 	@# Then remove the images this deploy superseded (#1027). Only now, after
 	@# every check above passed: if the new images were unhealthy, make stopped
 	@# there and the old ones are still on disk to go back to. Without this
@@ -126,7 +137,7 @@ _up: render
 	@# odin's root at 99% for a week, short of the room the next pull needs.
 	@# Only this stack's repositories, never an image a container uses or any
 	@# stack pins; the script says why each of those is kept.
-	python3 scripts/prune_superseded_images.py $(STACK)
+	$(PYTHON) scripts/prune_superseded_images.py $(STACK)
 	@# The port is read back out of the rendered .env rather than expanded here.
 	@# GRAFANA_PORT lives in $(STACK_DIR)/.env, which docker compose reads and make
 	@# does not, so a bare $${GRAFANA_PORT:-3000} in a recipe yields 3000 whatever
@@ -283,18 +294,18 @@ lint: ## Lint YAML, Markdown, shell, workflows and EditorConfig
 
 .PHONY: check-docs
 check-docs: ## Verify the documents agree with the configs
-	python3 scripts/check_docs.py
+	$(PYTHON) scripts/check_docs.py
 
 .PHONY: check-dashboards
 check-dashboards: ## Validate dashboard JSON and datasource references
-	python3 scripts/check_dashboards.py
+	$(PYTHON) scripts/check_dashboards.py
 
 .PHONY: check-rules
 check-rules: ## Validate and unit-test Prometheus rules and config
 	promtool check config $(STACK_DIR)/prometheus/prometheus.yaml
 	promtool check rules $(STACK_DIR)/prometheus/rules/*.rules.yaml
 	promtool test rules $(STACK_DIR)/prometheus/tests/*.test.yaml
-	python3 scripts/check_rule_tests.py
+	$(PYTHON) scripts/check_rule_tests.py
 
 .PHONY: check-compose-health
 check-compose-health: ## Verify health deps are satisfiable, probe the images (needs docker)
@@ -304,7 +315,7 @@ check-compose-health: ## Verify health deps are satisfiable, probe the images (n
 	@# Dependabot bump (#79). Without a docker daemon this fails and says to
 	@# drop the flag, rather than handing back a green run it did not earn.
 	@# `make validate` is the graceful path — it skips the probe and says so.
-	python3 scripts/check_compose_health.py --probe
+	$(PYTHON) scripts/check_compose_health.py --probe
 
 .PHONY: check-hardened-boot
 check-hardened-boot: ## Boot Home Assistant under its hardening and throw it away (needs docker)
@@ -322,12 +333,12 @@ check-container-health: ## Ask the RUNNING stack whether its healthchecks pass (
 	@# endpoint it probes actually answers, which only a running daemon knows.
 	@# `make up` runs it; this target is for asking again later without a
 	@# redeploy. Add --no-wait for a snapshot of a stack that is already up.
-	python3 scripts/check_container_health.py $(STACK)
+	$(PYTHON) scripts/check_container_health.py $(STACK)
 
 .PHONY: check-loki-rules
 check-loki-rules: ## Validate Loki (LogQL) rules and panel queries, and behaviour-test the rules
 	./scripts/check_loki_rules.sh
-	python3 scripts/test_loki_rules.py
+	$(PYTHON) scripts/test_loki_rules.py
 
 .PHONY: check-syslog-senders
 check-syslog-senders: ## Send spoofed and real syslog through a scratch Alloy and Loki; only named senders are stored
@@ -413,7 +424,7 @@ silence-state: ## Collect Alertmanager's silences as metrics (#575)
 	@# alert a silence covers, when it ends or who owns it — and a silence that
 	@# lapses returns its alert to a phone with nothing to say why. Loopback
 	@# only: Alertmanager binds to 127.0.0.1 (ADR-0012), so this runs here.
-	python3 scripts/collect_silences.py
+	$(PYTHON) scripts/collect_silences.py
 
 .PHONY: prune-images
 prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
@@ -476,7 +487,7 @@ check-mounted-config: ## Verify each container runs the config the repo has (dep
 	@# it with --fix. Compares BYTES rather than inodes: an inode check would
 	@# report a file rewritten with identical content as stale, which git and
 	@# render-config.sh both do routinely.
-	python3 scripts/check_mounted_config.py $(STACK)
+	$(PYTHON) scripts/check_mounted_config.py $(STACK)
 
 .PHONY: check-alert-channels
 check-alert-channels: ## Verify Alertmanager can read every receiver URL (deploy-time)
@@ -484,7 +495,7 @@ check-alert-channels: ## Verify Alertmanager can read every receiver URL (deploy
 	@# a secret nor a host. This adds --files and --live, which need both: the
 	@# rendered files on this host, and what the running container can actually
 	@# open. #214 is the difference between those two.
-	python3 scripts/check_alert_channels.py --files --live $(STACK)
+	$(PYTHON) scripts/check_alert_channels.py --files --live $(STACK)
 
 .PHONY: check-loki-coverage
 check-loki-coverage: ## Ask the LIVE Loki whether any rule is blind to a host (deploy-time)
@@ -493,7 +504,7 @@ check-loki-coverage: ## Ask the LIVE Loki whether any rule is blind to a host (d
 	@# throwaway config with no data and asks whether the rules PARSE. This asks
 	@# whether they can SEE, which only a Loki holding real logs can answer, and
 	@# CI has no log store at all (#327). WINDOW=24h to narrow it.
-	python3 scripts/check_loki_coverage.py $(STACK) --window $(WINDOW)
+	$(PYTHON) scripts/check_loki_coverage.py $(STACK) --window $(WINDOW)
 
 .PHONY: check-firewall
 check-firewall: ## Diff docs/firewall-claims.yaml against the LIVE pfSense ruleset (deploy-time)
@@ -504,7 +515,7 @@ check-firewall: ## Diff docs/firewall-claims.yaml against the LIVE pfSense rules
 	@# blueprint of the network (ADR-0026). So this asks the firewall directly,
 	@# over SSH, and `make check-docs` covers the half that is pure text.
 	@# Prose about pfctl was wrong three times on 2026-09-06 alone (#363).
-	python3 scripts/check_firewall_claims.py
+	$(PYTHON) scripts/check_firewall_claims.py
 
 .PHONY: check-ruleset
 check-ruleset: ## Diff .github/rulesets/main.json against the LIVE ruleset on main
@@ -533,7 +544,7 @@ check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards 
 
 .PHONY: check-image-pins
 check-image-pins: ## Verify every docker image comes from compose.yaml
-	python3 scripts/check_image_pins.py
+	$(PYTHON) scripts/check_image_pins.py
 
 .PHONY: check-timers
 check-timers: ## Verify the schedule and its staleness thresholds agree
@@ -580,7 +591,7 @@ scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports 
 	@# The summary prints even when a scan failed, as the workflow's does: it is
 	@# what says which image failed. The scan's failure is still the exit status.
 	@rc=0; ./scripts/scan-images.sh --out .scan $(ARGS) || rc=$$?; \
-	if [[ -f .scan/images.tsv ]]; then python3 scripts/cve_report.py --dir .scan; fi; \
+	if [[ -f .scan/images.tsv ]]; then $(PYTHON) scripts/cve_report.py --dir .scan; fi; \
 	exit $$rc
 
 .PHONY: scan
