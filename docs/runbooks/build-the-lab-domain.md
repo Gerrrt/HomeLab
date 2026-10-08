@@ -364,6 +364,10 @@ skips step 4.
    - the `/pool/lab-domain` grant on `Saruman`
      ([`provision-lab-guests.md` §2](provision-lab-guests.md#2-what-the-token-is-missing-on-saruman));
    - `LAB_ENDPOINT_ADMIN_PASSWORD` in `phoenix.env`;
+   - the two agent MSIs staged on `odin`
+     ([`build-the-soc-guest.md` §11](build-the-soc-guest.md#11-agents-by-gpo--the-second-evening-and-after-414)).
+     `--tags soc` fetches them from there, and stops on a fresh guest if they
+     are not;
    - new `LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD`, generated as above. A
      fresh forest takes whatever they say.
 2. **The templates pass their smoke test.**
