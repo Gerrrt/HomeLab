@@ -293,16 +293,24 @@
             $cHave = [bool]($cu -and (@($cu.'msDS-AllowedToDelegateTo') -contains $Weak.cd_target_spn))
             $r['cd matches its toggle'] = ($cHave -eq ($Weak.cd_state -eq 'present'))
 
-            # rbcd: the resource trusts the controlled principal.
+            # rbcd: the resource trusts the controlled principal. Read by SID
+            # from the security descriptor itself, as roles/weakness_rbcd does:
+            # the AD module's PrincipalsAllowedToDelegateToAccount gives DN
+            # strings, and taking .DistinguishedName off them made this check
+            # false whenever rbcd was on (#1075).
             $rp = Get-ADUser -Filter "SamAccountName -eq '$($Weak.rbcd_account)'" `
               -ErrorAction SilentlyContinue
             $rc = Get-ADComputer -Identity $Weak.rbcd_resource `
-              -Properties PrincipalsAllowedToDelegateToAccount -ErrorAction SilentlyContinue
+              -Properties 'msDS-AllowedToActOnBehalfOfOtherIdentity' -ErrorAction SilentlyContinue
             $bHave = $false
-            if ($rp -and $rc) {
-              $trusted = @($rc.PrincipalsAllowedToDelegateToAccount |
-                ForEach-Object { $_.DistinguishedName })
-              $bHave = ($trusted -contains $rp.DistinguishedName)
+            $rsd = if ($rc) { $rc.'msDS-AllowedToActOnBehalfOfOtherIdentity' }
+            if ($rp -and $rsd) {
+              # Allow rules only: a Deny naming svc-rbcd is not trust.
+              $trusted = @($rsd.GetAccessRules($true, $true,
+                  [System.Security.Principal.SecurityIdentifier]) |
+                Where-Object { $_.AccessControlType -eq 'Allow' } |
+                ForEach-Object { $_.IdentityReference.Value })
+              $bHave = ($trusted -contains $rp.SID.Value)
             }
             $r['rbcd matches its toggle'] = ($bHave -eq ($Weak.rbcd_state -eq 'present'))
           }
