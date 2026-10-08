@@ -3857,19 +3857,31 @@ tests:
                 HostMemoryPressure says whether memory was short beforehand.
 
   # --- NasOomKill: a flat counter, a reboot's reset, and another host ------
-  # smaug's counter sits at 7, then a reboot takes it to 0 and it stays there:
-  # a reset, not a kill. prometheus's counter rises, and it is not this rule's
-  # to report: KernelOomKill or ContainerOomKilled owns a host that ships logs.
+  # smaug's counter sits at 7, then a reboot at t=15m takes it to 0 and it
+  # stays there: a reset, not a kill. Evaluated at 15m and 20m, when the
+  # 15-minute window holds both the 7s and the 0, so the reset itself is
+  # inside it.
+  #
+  # Two other hosts' counters rise, and neither is this rule's to report:
+  #   - another job="node" host, which only the instance="smaug" selector
+  #     keeps out (job="node" alone would let it in);
+  #   - prometheus, a host that ships logs, which KernelOomKill or
+  #     ContainerOomKilled owns.
   - interval: 5m
     input_series:
       - series: 'node_vmstat_oom_kill{job="node",instance="smaug",role="nas",vlan="40"}'
         values: "7 7 7 0 0 0 0 0 0"
+      - series: 'node_vmstat_oom_kill{job="node",instance="other-nas",role="nas",vlan="40"}'
+        values: "0 0 1 1 1 1 1 1 1"
       - series: 'node_vmstat_oom_kill{job="prometheus-metrics",instance="prometheus"}'
         values: "0 0 1 1 1 1 1 1 1"
     alert_rule_test:
       - eval_time: 10m
         alertname: NasOomKill
         exp_alerts: []
-      - eval_time: 25m
+      - eval_time: 15m
+        alertname: NasOomKill
+        exp_alerts: []
+      - eval_time: 20m
         alertname: NasOomKill
         exp_alerts: []

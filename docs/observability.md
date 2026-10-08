@@ -372,7 +372,7 @@ errors.
 
 `UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
 by `systemd-oomd`. Only a unit's own cap is latent: no unit is given
-`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. Where
+`MemoryMax=` yet. On a host other than `smaug`, a kill inside any other cgroup is still nobody's. Where
 `systemd-oomd` runs, its kills also end in that systemd verdict, so this rule
 sees them. Where it was checked, it does not run
 (`systemctl is-enabled`/`is-active systemd-oomd`: `not-found`/`inactive`):
