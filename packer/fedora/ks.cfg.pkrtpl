@@ -25,7 +25,11 @@ part /boot --fstype=xfs --size=1024
 part / --fstype=xfs --grow
 bootloader --timeout=1
 
-services --enabled=sshd,qemu-guest-agent,cloud-init
+# Not cloud-init: since 24.3 its units are cloud-init-main and
+# cloud-init-network, there is no cloud-init.service to name, and Anaconda
+# stops the install with "Error enabling service cloud-init: 1" if it is
+# listed. Fedora's presets enable its units when the package is installed.
+services --enabled=sshd,qemu-guest-agent
 
 %packages
 @^server-product-environment
