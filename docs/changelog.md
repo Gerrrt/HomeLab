@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`WazuhAgentsNotConnected` joins each running guest to its own agent**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
+  #1066).
+  - **What was wrong.** It compared the count of domain guests whose
+    `windows_exporter` answers with the count of Active agents. That is
+    correct with exactly the six enrolled, but any other Active agent filled a
+    missing guest's place, and the alert could not say which guest.
+  - **The collector.** It now writes
+    `homelab_wazuh_agent_active{agent="<name>"}` per agent. Run read-only
+    against odin's manager, its six names match the six guests' `instance`
+    labels exactly.
+  - **The rule.** It fires per guest, naming it, via
+    `unless on (instance) label_replace(...)`. Only when no per-agent series
+    exist at all does it fall back to the old count: an older collector, or
+    a manager with nothing enrolled. So the order the collector and the rule
+    deploy in does not matter, and a failed `agent_control`, which writes
+    neither, stays `WazuhManagerStateUnreadable`'s alert.
+  - **Tests.** Seven cases replace three:
+    - a named guest firing, and another agent not masking one;
+    - the count fallback firing and staying quiet;
+    - guests off, all reporting, and the source unreadable.
+    As mutations, dropping the fallback fails the old-collector case, and
+    the count alone fails the masking case.
+
 - **`check_mounted_config.py` reads long-form bind mounts too.**
   - **What it missed.** It compared only short-form `./src:/dst` mounts, so a
     mount written in compose's long form, as a mapping with
