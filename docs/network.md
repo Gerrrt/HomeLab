@@ -432,6 +432,9 @@ Where things get broken on purpose.
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
+| dot-debian | `10.0.30.91` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Debian 13 | Rack U3 | Dotfiles test VM, on demand |
+| dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
+| dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
 
@@ -501,8 +504,9 @@ Where things get broken on purpose.
   [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md)), one
   per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
   `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
-  `.97` `dot-nixos`, `.98` `dot-windows`. **Not built yet.** They join the
-  table above as each is built. They are off-decade for `diabolos`'s reason,
+  `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
+  on 2026-10-08 and are in the table above; the other five join it as each
+  is built. They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
   is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
   between runs and tagged `on-demand`, and are not lab-domain members, so

@@ -13,8 +13,8 @@ page is the map.
 | --- | --- | --- | --- | --- |
 | 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, built and usable |
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
-| 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
-| 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 

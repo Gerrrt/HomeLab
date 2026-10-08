@@ -33,26 +33,42 @@ docstring gives: it is a record, not a claim about now.
     no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
     Its check is an inventory fact, not coverage.
 
-- **The dotfiles OS-layer VMs, phase 1, written**
+- **The dotfiles OS-layer VMs, phase 1: built, and first runs**
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
-  - **What.** Templates 903 `tpl-debian-13` (preseed over HTTP, as Kali's) and
-    904 `tpl-fedora-server` (kickstart on an `OEMDRV` disc). Three on-demand
-    guests in a `dotfiles` pool: `dot-debian` (191), `dot-fedora` (192) and
-    `dot-windows` (198, an unactivated clone of 911). A new runbook,
-    [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md),
-    covers the `clean` snapshot, taken stopped, and the rollback,
-    bootstrap and read loop.
+  - **What.** Templates 903 `tpl-debian-13` (preseed over HTTP, as Kali's)
+    and 904 `tpl-fedora-server` (kickstart on an `OEMDRV` disc), each built
+    twice and smoke-tested. Three on-demand guests in a `dotfiles` pool, on
+    their reservations, each with a `clean` snapshot taken stopped:
+    `dot-debian` (191), `dot-fedora` (192) and `dot-windows` (198, an
+    unactivated clone of 911). The runbook is
+    [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md).
   - **The installers.** Debian 13.7.0 netinst and Fedora Server 44-1.7
-    netinst went into the ISO store's list from their publishers' signed
-    hashes. The Debian CD signing key `DF9B 9C49 … 6294 BE9B` and Fedora 44's
-    primary key `36F6 12DC … 6D9F 90A6` both gave a good signature over the
-    checksum files on 2026-10-07.
-  - **Checked so far.** `packer fmt` and `packer validate -syntax-only`, and
-    `tofu fmt` and `tofu validate` (1.16.1 and 1.13.1, checksum-verified
-    binaries) all pass, and `check_docs.py` is clean. Nothing is built yet:
-    the ISOs, the builds, the smoke tests, the apply and the first run are
-    the runbooks' and are recorded there.
+    netinst, listed from their publishers' signed hashes. The Debian CD
+    signing key `DF9B 9C49 … 6294 BE9B` and Fedora 44's primary key
+    `36F6 12DC … 6D9F 90A6` both gave a good signature. Both read
+    `state="match"` on the share.
+  - **What the builds found.**
+    - **Fedora's kickstart.** Anaconda stops on
+      `services --enabled=cloud-init`, because there is no such unit since
+      cloud-init 24.3. Fedora 44's presets also leave `cloud-init-network`
+      off, so the kickstart names it.
+    - **Debian's boot command.** Kali's 10s `boot_wait` typed into Debian's
+      GRUB before its menu was drawn. 20s works.
+    - **The guest user.** The module's default `operator` cannot be
+      created: Debian ships a system group of that name and Fedora a system
+      user. The dotfiles guests use `tester`.
+    - **The Windows `tester` user.** It needs a profile made with
+      `CreateProfile`, and its `authorized_keys` must be owned by the user,
+      before sshd will take its key.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Debian:** clean.
+    - **Fedora:** exits 0 with 14 tools missing. yazi's cargo build fills
+      the per-user quota on Fedora's tmpfs `/tmp`, and the downloads after
+      it fail.
+    - **Windows:** cannot be tested over SSH at all. `winget`, MSIX
+      installs, `winget configure` and scoop's junctions each fail in a
+      network logon, so its runs are at the console.
   - **Found on the way.** `packer/README.md` still called 911 "first build
     pending" and 912 "needs a rebuild". Both were rebuilt on 2026-10-07 after
     the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
