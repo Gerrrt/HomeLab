@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`check_mounted_config.py` reads long-form bind mounts too.**
+  - **What it missed.** It compared only short-form `./src:/dst` mounts, so a
+    mount written in compose's long form, as a mapping with
+    `create_host_path: false`, was never checked. On the monitoring host that
+    is Alloy's three syslog TLS files from #1049. They are now in its list,
+    and every other stack's list is unchanged.
+  - **The crash.** Its `--self-test` crashed with `FileNotFoundError` on a
+    host with no `docker` binary at all, instead of skipping. It now skips
+    the container half there.
+  - **New fixtures.** Six run without Docker: both forms read, and named
+    volumes, tmpfs and a target-less short form left out.
+
 - **Postgres re-pinned again, a day after #966.** Upstream rebuilt
   `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
   digests #966 pinned already drifted:
