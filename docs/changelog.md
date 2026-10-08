@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`WazuhAgentsNotConnected` joins each running guest to its own agent**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
+  #1066).
+  - **What was wrong.** It compared the count of domain guests whose
+    `windows_exporter` answers with the count of Active agents. That is
+    correct with exactly the six enrolled, but any other Active agent filled a
+    missing guest's place, and the alert could not say which guest.
+  - **The collector.** It now writes
+    `homelab_wazuh_agent_active{agent="<name>"}` per agent. Run read-only
+    against odin's manager, its six names match the six guests' `instance`
+    labels exactly.
+  - **The rule.** It fires per guest, naming it, via
+    `unless on (instance) label_replace(...)`. It is guarded on the agents
+    source being readable, so a failed `agent_control` raises
+    `WazuhManagerStateUnreadable` and not one alert per guest.
+  - **Tests.** Five cases replace three: a named guest firing, another
+    agent not masking one, guests off, all reporting, and the source
+    unreadable. As mutations, the old count expression fails the masking case,
+    and the rule without its guard fails the unreadable one.
+
 - **Postgres re-pinned again, a day after #966.** Upstream rebuilt
   `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
   digests #966 pinned already drifted:

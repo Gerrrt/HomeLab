@@ -19,6 +19,10 @@
 #   /var/ossec/bin/agent_control -l -j         every agent and its status:
 #       Active, Disconnected, Never connected, Pending or Unknown
 #       (read-agents.c). Agent 000, the manager itself, is not counted.
+#       Written twice: a count per status (homelab_wazuh_agents), and one
+#       series per agent, homelab_wazuh_agent_active{agent="<name>"} 1 or 0,
+#       which WazuhAgentsNotConnected joins to each guest's windows_exporter
+#       by name.
 # Keys and formats read from the 4.14.8 source the stack pins.
 #
 # BOTH STATE FILES SAY "THIS FILE WILL BE DEPRECATED IN FUTURE VERSIONS". So
@@ -135,13 +139,27 @@ except (ValueError, RecursionError):
     agents = None
 ok["agents"] = int(isinstance(agents, list))
 if ok["agents"]:
+    per_agent = {}
     for agent in agents:
         if not isinstance(agent, dict) or agent.get("id") == "000":
             continue
         # The manager's own row says "Active/Local"; an agent's never does.
-        counts[STATUS.get(str(agent.get("status", "")), "unknown")] += 1
+        status = STATUS.get(str(agent.get("status", "")), "unknown")
+        counts[status] += 1
+        # One series per agent, so WazuhAgentsNotConnected can join each
+        # running guest to its own agent by name rather than compare two
+        # counts, where any other Active agent would fill a missing guest's
+        # place. The name is the guest's hostname, which is what its
+        # windows_exporter's `instance` label is too: lowercased, and kept to
+        # characters a label value needs no escaping for. A name that comes
+        # out empty is left out rather than guessed.
+        name = re.sub(r"[^a-z0-9_.-]", "", str(agent.get("name", "")).lower())
+        if name:
+            per_agent[name] = max(per_agent.get(name, 0), int(status == "active"))
     for status, n in counts.items():
         lines.append(f'homelab_wazuh_agents{{status="{status}"}} {n}')
+    for name, active in sorted(per_agent.items()):
+        lines.append(f'homelab_wazuh_agent_active{{agent="{name}"}} {active}')
 
 for source in ("analysisd", "remoted", "agents"):
     lines.append(f'homelab_wazuh_manager_source_ok{{source="{source}"}} {ok[source]}')
@@ -200,6 +218,10 @@ discarded_count='12'
   has "never-connected agents" 'homelab_wazuh_agents{status="never_connected"} 1'
   has "a status this does not know is unknown" 'homelab_wazuh_agents{status="unknown"} 1'
   has "an empty status is reported as zero" 'homelab_wazuh_agents{status="pending"} 0'
+  has "each agent by name: an active one is 1" 'homelab_wazuh_agent_active{agent="bahamut"} 1'
+  has "a disconnected one is 0" 'homelab_wazuh_agent_active{agent="leviathan"} 0'
+  has "a never-connected one is 0" 'homelab_wazuh_agent_active{agent="titan"} 0'
+  lacks "the manager's own row has no per-agent series" 'agent="odin"'
   for s in analysisd remoted agents; do has "${s} read" "homelab_wazuh_manager_source_ok{source=\"${s}\"} 1"; done
 
   # A future version without the state files, and an agent_control that failed.
@@ -211,6 +233,7 @@ discarded_count='12'
   has "output that is not a state file is a 0" 'homelab_wazuh_manager_source_ok{source="remoted"} 0'
   has "agent_control reporting an error is a 0" 'homelab_wazuh_manager_source_ok{source="agents"} 0'
   lacks "and no numbers are made up" 'homelab_wazuh_agents{'
+  lacks "and no agent is made up either" 'homelab_wazuh_agent_active{'
   lacks "or ratios" '_ratio'
 
   # Garbage and oversize.

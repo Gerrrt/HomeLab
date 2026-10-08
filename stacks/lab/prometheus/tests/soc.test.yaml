@@ -215,8 +215,8 @@ tests:
         exp_alerts: []
 
   # --- WazuhAgentsNotConnected: a running guest the SOC cannot see (#1038) --
-  # Four domain guests answer; the manager has three Active agents. Pending
-  # at 20 minutes, firing at 35.
+  # Four domain guests answer; ramuh's agent is not Active. carbuncle is off.
+  # Pending at 20 minutes, firing at 35, and the alert names ramuh.
   - interval: 5m
     input_series:
       - series: 'up{job="windows",instance="bahamut"}'
@@ -229,8 +229,18 @@ tests:
         values: "1x10"
       - series: 'up{job="windows",instance="carbuncle"}'
         values: "0x10"
-      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="active"}'
-        values: "3x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="titan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="ramuh"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="carbuncle"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
     alert_rule_test:
       - eval_time: 20m
         alertname: WazuhAgentsNotConnected
@@ -239,17 +249,56 @@ tests:
         alertname: WazuhAgentsNotConnected
         exp_alerts:
           - exp_labels:
+              job: windows
+              instance: ramuh
               component: soc
               severity: warning
               category: availability
             exp_annotations:
-              summary: "1 running lab guest(s) without a connected Wazuh agent"
+              summary: "ramuh is running without a connected Wazuh agent"
               description: >-
-                windows_exporter answers on more domain guests than the manager has
-                Active agents, so at least one running guest is invisible to the
+                windows_exporter answers on ramuh, and the manager
+                has no Active agent of that name, so the guest is invisible to the
                 SOC. On odin: `docker exec soc-wazuh-manager
-                /var/ossec/bin/agent_control -l` names the Disconnected ones; on
-                the guest, `Get-Service WazuhSvc`.
+                /var/ossec/bin/agent_control -l` gives its status; on the guest,
+                `Get-Service WazuhSvc`.
+
+  # --- WazuhAgentsNotConnected: another Active agent does not hide one ------
+  # The case the count-based rule could not see: two guests up and two Active
+  # agents, but one of the two is a host that is not a domain guest, so
+  # leviathan is still invisible. By name, it fires for leviathan.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="linuxbox"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              job: windows
+              instance: leviathan
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "leviathan is running without a connected Wazuh agent"
+              description: >-
+                windows_exporter answers on leviathan, and the manager
+                has no Active agent of that name, so the guest is invisible to the
+                SOC. On odin: `docker exec soc-wazuh-manager
+                /var/ossec/bin/agent_control -l` gives its status; on the guest,
+                `Get-Service WazuhSvc`.
 
   # --- WazuhAgentsNotConnected: guests off between sessions -----------------
   # ADR-0079's on-demand guests: every one down, every agent Disconnected.
@@ -260,10 +309,12 @@ tests:
         values: "0x10"
       - series: 'up{job="windows",instance="leviathan"}'
         values: "0x10"
-      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="active"}'
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
         values: "0x10"
-      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="disconnected"}'
-        values: "6x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
     alert_rule_test:
       - eval_time: 45m
         alertname: WazuhAgentsNotConnected
@@ -276,8 +327,29 @@ tests:
         values: "1x10"
       - series: 'up{job="windows",instance="leviathan"}'
         values: "1x10"
-      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="active"}'
-        values: "2x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: the agents source unreadable ----------------
+  # No per-agent series at all, because agent_control failed. Every running
+  # guest would match `unless` with nothing to join; the source_ok guard keeps
+  # it quiet, and WazuhManagerStateUnreadable is the alert for this.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "0x10"
     alert_rule_test:
       - eval_time: 45m
         alertname: WazuhAgentsNotConnected
