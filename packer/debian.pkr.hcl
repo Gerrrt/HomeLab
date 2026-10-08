@@ -81,8 +81,12 @@ source "proxmox-iso" "debian" {
   boot = "order=scsi0;ide2"
 
   # Debian's EFI GRUB: drop to the prompt and boot the text installer's kernel
-  # with the preseed URL, rather than drive the graphical menu.
-  boot_wait = "10s"
+  # with the preseed URL, rather than drive the graphical menu. 20s, not
+  # Kali's 10: OVMF fails the empty disk first, and on the first build
+  # (2026-10-08) the `c` landed before the menu was drawn. The menu has no
+  # timeout, so the build sat at it waiting for SSH until the line was typed
+  # by hand from the console.
+  boot_wait = "20s"
   boot_command = [
     "c<wait3s>",
     "linux /install.amd/vmlinuz auto=true priority=critical ",
