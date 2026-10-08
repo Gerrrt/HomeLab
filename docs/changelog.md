@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **What the SOC could not see of #449's weaknesses, written as a fix, not yet applied**
+  ([#1077](https://github.com/Gerrrt/HomeLab/issues/1077)).
+  - **What #449's config-only loop showed.** Of the six weaknesses switched
+    on, DCSync's replication grant left no event at all. Kerberoast's SPN and
+    RBCD's attribute never appeared. The rest arrived only as generic "user or
+    computer account changed" alerts at levels 5 and 8.
+  - **Why, read from the domain:**
+    - The DCs don't audit Directory Service Changes, so there is no 5136.
+    - The domain head's SACL covers only the domain object itself.
+    - Wazuh has no rule for 4662.
+    - titan and ramuh audited File Share and nothing else. #414's one-line
+      advanced audit GPO had replaced their whole basic policy, logons included.
+  - **The fix:**
+    - `gpos` gives the member servers the Windows default set plus File Share,
+      and adds a DC audit GPO carrying their 17 subcategories plus Directory
+      Service Changes.
+    - The new `ds_audit` role audits writes to SPNs and the delegation
+      attributes on users and computers.
+    - `stacks/soc` mounts seven local rules (100100–100106) that name each
+      weakness, and takes PowerShell's own `__PSScriptPolicyTest_*.ps1` probe
+      file, which every Ansible task tripped at level 15, down to level 0.
+    - `verify.yml` checks the effective audit subcategories.
+  - **Tested before deploy.** A throwaway manager on `odin`, from the
+    production image digest, was fed the #449 events through the real Windows
+    decoder. All eight positives raised the new rules. The five negatives (a
+    cleared flag, an unchanged field, an SPN on a computer, a DC's own
+    replication, and a script that is not the probe file) did not.
+
 - **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
   Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
   the `TIMEBASED_EVAL` channel with 179.5 days left, and both rearm counts

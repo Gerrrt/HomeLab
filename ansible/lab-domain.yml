@@ -98,12 +98,21 @@
     - role: tiers
       tags: [tiers]
 
-- name: The Tier 0 logon denial and the file-share audit
+- name: The Tier 0 logon denial, and the audit policies
   hosts: dc_primary
   gather_facts: false
   roles:
     - role: gpos
       tags: [gpos]
+
+# #1077: which attribute writes the DCs record. The GPO above turns 5136 on;
+# this says which writes on users and computers count.
+- name: The domain head audits the writes the weaknesses make
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: ds_audit
+      tags: [audit]
 
 - name: Titan's shares, with the decoy
   hosts: titan

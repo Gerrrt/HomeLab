@@ -216,11 +216,42 @@
             # is unchanged, and the tiering exists so a violation is an event.
             foreach ($lk in @(
               @{g='Deny Tier 0 Logon on Members'; ous=@('Servers','Workstations')},
-              @{g='Lab - Audit File Share'; ous=@('Servers')})) {
+              @{g='Lab - Audit File Share'; ous=@('Servers')},
+              @{g='Lab - Audit Domain Controllers'; ous=@('Domain Controllers')})) {
               $r["$($lk.g) exists"] = [bool](Get-GPO -Name $lk.g -ErrorAction SilentlyContinue)
               $r["$($lk.g) is linked where §5 puts it"] = -not ($lk.ous | Where-Object {
                 -not ((Get-GPInheritance -Target "OU=$_,$($base)").GpoLinks | Where-Object DisplayName -eq $lk.g)
               })
+            }
+          }
+
+          # --- #1077: what each guest audits, as auditpol reads it -------------
+          # By GUID, not name, so a localised auditpol reads the same. An
+          # advanced audit GPO replaces the basic policy outright, so a GPO that
+          # lists too few subcategories turns the rest off; Logon is the canary
+          # for that on every role, and #414's file-share GPO did exactly it.
+          $audited = { param($g) $row = @(auditpol /get /subcategory:"{$g}" /r | ConvertFrom-Csv)[0]
+            [string]$row.'Inclusion Setting' }
+          $r['Logon is audited'] = ((& $audited '0CCE9215-69AE-11D9-BED3-505054503030') -match 'Success')
+          if ($onDc) {
+            $r['Directory Service Changes is audited'] =
+              ((& $audited '0CCE923C-69AE-11D9-BED3-505054503030') -match 'Success')
+          }
+          if ($LabRole -eq 'member') {
+            $r['File Share is audited'] = ((& $audited '0CCE9224-69AE-11D9-BED3-505054503030') -match 'Success')
+          }
+          if ([bool]::Parse($IsPrimary)) {
+            # roles/ds_audit's four inherited entries, by attribute name.
+            $schema = (Get-ADRootDSE).schemaNamingContext
+            $guid = { param($n) [guid](Get-ADObject -SearchBase $schema -Filter "lDAPDisplayName -eq '$n'" `
+              -Properties schemaIDGUID).schemaIDGUID }
+            $sacl = (Get-Acl -Audit -Path ("AD:\" + (Get-ADDomain).DistinguishedName)).Audit
+            foreach ($w in @(@('servicePrincipalName','user'), @('msDS-AllowedToDelegateTo','user'),
+                             @('msDS-AllowedToDelegateTo','computer'),
+                             @('msDS-AllowedToActOnBehalfOfOtherIdentity','computer'))) {
+              $a = & $guid $w[0]; $c = & $guid $w[1]
+              $r["the domain head audits writes to $($w[0]) on $($w[1])s"] = [bool]($sacl | Where-Object {
+                $_.ObjectType -eq $a -and $_.InheritedObjectType -eq $c -and $_.AuditFlags -eq 'Success' })
             }
           }
 

@@ -280,6 +280,10 @@ services:
       # reads the Sysmon channel (#1035). The agents pull it from here, so
       # nothing on the guests changes. The file says why it lives here.
       - ./wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
+      # The lab's own rules, over the image's sample local_rules.xml: the
+      # #449 weaknesses raise alerts that name them, and PowerShell's own
+      # probe file stops raising "malware dropped" (#1077).
+      - ./wazuh/manager/rules/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml:ro
     ports:
       # Agent traffic and enrolment: the six domain machines are the off-host
       # consumers (ADR-0012), and they share this segment, so no firewall rule.
