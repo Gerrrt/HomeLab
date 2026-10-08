@@ -122,6 +122,7 @@ they describe. The rest are installed on the host they describe by
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
+| `collect-wazuh-manager-state.sh` | The Wazuh manager's agent counts, analysisd queues and dropped events, for the lab's Prometheus ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
 | `collect-guest-service-state.sh` | Whether the lab Prometheus, Zeek, the Wazuh manager and Velociraptor are healthy, read through the guest agent ([ADR-0088](../docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)) |
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |

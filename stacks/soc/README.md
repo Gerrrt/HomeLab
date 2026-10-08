@@ -73,6 +73,23 @@ the boundary. The rules live where the series arrive:
 [`stacks/lab/prometheus/rules/soc.rules.yaml`](../lab/prometheus/rules/soc.rules.yaml),
 six of them, each with a firing and a quiet promtool case.
 
+**The manager's own numbers** come from a collector on odin, not from Alloy:
+[`scripts/collect-wazuh-manager-state.sh`](../../scripts/collect-wazuh-manager-state.sh)
+runs every five minutes and `docker exec`s into `soc-wazuh-manager` for its
+analysisd and remoted state files and `agent_control -l -j`. It writes a
+textfile odin's Alloy already pushes. The rules beside the indexer's say:
+
+- a running domain guest's agent is not connected (counted against the guests
+  whose `windows_exporter` answers, so guests switched off between sessions are
+  quiet);
+- an analysisd queue is over 90%;
+- events were dropped;
+- a state file stopped being readable: both say they will be deprecated in a
+  future Wazuh ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)).
+
+Install it from the Mac, since VLAN 99 cannot reach VLAN 30 on port 22:
+`make install-agent-collectors AGENT=<you>@10.0.30.60 ARGS='--only wazuh-manager-state'`, with your own account on odin.
+
 The file lives here and **not** in `stacks/observability/alloy/`, because the
 estate's Alloy mounts that whole directory and would load it on VLAN 99
 pointing at an OpenSearch that does not exist — a healthy exporter collecting

@@ -35,6 +35,9 @@
 #                             hostile input (ADR-0088): a stopped service, a
 #                             hung agent and a guest that pads the right answer
 #                             cannot be staged on demand
+#   collect-wazuh-manager-state.sh  the Wazuh manager's state files and
+#                             agent_control JSON; a removed state file (both
+#                             say they will be deprecated) cannot be staged
 #   collect-gateway-state.sh  the gateway parse, for morpheus
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what

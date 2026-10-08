@@ -86,6 +86,11 @@
           $r['Wazuh agent running'] = ((Get-Service WazuhSvc -ErrorAction SilentlyContinue).Status -eq 'Running')
           $velo = Get-Service Velociraptor -ErrorAction SilentlyContinue
           $r['Velociraptor client running'] = ($velo.Status -eq 'Running')
+          # The build's WinRM certificate (#846): roles/base removes it from a
+          # clone of a template built before #1031, which removes it before
+          # sysprep. None on any guest either way.
+          $r['no packer-winrm certificate from the build'] = (@(Get-ChildItem -Path Cert:\LocalMachine\My |
+            Where-Object FriendlyName -eq 'packer-winrm').Count -eq 0)
           # --- #450: Sysmon, recording with the vendored config ----------------
           # The driver as well as the service: Sysmon64 running over an unloaded
           # SysmonDrv records nothing. ConfigHash is what the driver last loaded,

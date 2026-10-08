@@ -79,8 +79,21 @@
         $out = & C:\Windows\Sysmon64.exe -u force 2>&1
         if ($LASTEXITCODE -ne 0) { throw "Sysmon -u exited $LASTEXITCODE`: $out" }
       }
-      $out = & (Join-Path $Dir Sysmon64.exe) -accepteula -i $Config 2>&1
-      if ($LASTEXITCODE -ne 0) { throw "Sysmon -i exited $LASTEXITCODE`: $out" }
+      $exe = Join-Path $Dir Sysmon64.exe
+      $out = & $exe -accepteula -i $Config 2>&1
+      if ($LASTEXITCODE -ne 0) {
+        # The #448 rebuild's first -i on a fresh titan exited 13 with "wevtutil.exe
+        # returned failure Event manifest installation failed": the publisher was
+        # registered and the Operational channel was not. Uninstalling what that
+        # left and installing again worked at once. Why the first fails is not
+        # known; the Wazuh agent, installed just before and subscribed to this
+        # channel since #1035, is the suspect. One retry, and the first attempt's
+        # output is kept if the second fails too.
+        $first = "exited $LASTEXITCODE`: $out"
+        & $exe -u force 2>&1 | Out-Null
+        $out = & $exe -accepteula -i $Config 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "Sysmon -i exited $LASTEXITCODE`: $out (first attempt $first)" }
+      }
     parameters:
       Zip: "{{ sysmon_zip }}"
       Dir: "{{ sysmon_unpacked }}"
