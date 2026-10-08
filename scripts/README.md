@@ -152,6 +152,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `export-dashboards.sh`, `export_dashboards.py` | `dashboards-export` | Folds UI edits in the running Grafana back over the committed JSON |
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
+| `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs into the SOC stack's `agent-msi` directory on `odin`, checked against the role's pins ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)) |
 | `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
