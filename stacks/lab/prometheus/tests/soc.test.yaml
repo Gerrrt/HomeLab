@@ -453,6 +453,53 @@ tests:
                 says whether packets reach fenrir. On fenrir, `docker logs
                 sensor-zeek` and the newest lines of conn.log.
 
+  # --- ZeekConnLogStopped: the series itself goes away --------------------
+  # Alloy deletes a tailer's read_bytes series when the tailer stops, so a
+  # conn.log that stops existing is a series that stops, not one that goes
+  # flat. Last sample at t=15m: the 30m range is empty from t=45m, pending
+  # then, firing at 60m. Only the selector's equality matchers survive as
+  # labels; job and instance went with the series.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "0+50000x3 _x12"
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/dns.log"}'
+        values: "1000+2000x15"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ZeekConnLogStopped
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: ZeekConnLogStopped
+        exp_alerts:
+          - exp_labels:
+              component_id: loki.source.file.zeek
+              path: /zeek/logs/conn.log
+              component: sensor
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Zeek has written nothing to conn.log for 45 minutes"
+              description: >-
+                Zeek's event loop may still be turning while it logs no
+                connections: the mirror is up and carrying nothing it can parse,
+                or the capture interface changed. The estate's ZeekMirrorInactive
+                says whether packets reach fenrir. On fenrir, `docker logs
+                sensor-zeek` and the newest lines of conn.log.
+
+  # --- ZeekConnLogStopped: a gap shorter than the window is not a stop -----
+  # A tailer restart (Alloy redeployed) drops the series for a few minutes and
+  # it comes back growing. The 30m range always holds a sample, so the
+  # absence half never holds, and the bytes keep increasing.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "0+50000x5 _x2 0+40000x8"
+    alert_rule_test:
+      - eval_time: 75m
+        alertname: ZeekConnLogStopped
+        exp_alerts: []
+
   # --- ZeekConnLogStopped: the hourly rotation is a reset, not a stop -------
   # Zeek rotates conn.log every hour: the new file starts at 0 and grows.
   - interval: 5m
