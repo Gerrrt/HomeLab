@@ -152,6 +152,10 @@ services:
     pids_limit: 512
     networks: [bloodhound]
     user: "0:0"
+    # Relative ingest temp files are written to CWD; the image sets it to /,
+    # which read_only:true makes unwritable (#451). Point CWD at the work
+    # volume so the ingest store can write its temp files.
+    working_dir: /opt/bloodhound/work
     group_add:
       - "${RENDER_GID:?run make render STACK=bloodhound}"
     cap_drop: [ALL]

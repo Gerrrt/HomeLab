@@ -209,8 +209,22 @@ docstring gives: it is a record, not a claim about now.
     logs in with no reset pending.
   - **The token path works:** without a token the lab proxy returns 401; with
     `INGEST_TOKEN_EDEN` the push is accepted.
-  - **First collection:** *pending. §7's SharpHound run and the
-    `ad.matrix.elysium` graph are recorded here before this entry merges.*
+  - **First collection (§7), 2026-10-08.** A SharpHound v2.16.0 run from
+    `carbuncle` against `ad.matrix.elysium`, uploaded through the UI, ingested
+    and analysed clean (`ad_post_processing:success`). The graph holds the
+    baseline domain: **373 nodes, 3,922 edges** — one Domain
+    (`AD.MATRIX.ELYSIUM`), 6 Computers, 49 Users, 73 Groups, 14 OUs, 5 GPOs,
+    31 nodes tagged Tier Zero. Weaknesses are off (#449), so this is the clean
+    baseline; their tags add the interesting paths later. The collector ran on
+    `carbuncle` over a temporary RDP enablement (backed out after), because the
+    Win11 endpoints' console is parked at OOBE (#1092).
+  - **Two fixes the first real ingest forced.** BloodHound wrote its upload
+    temp file relative to the container's working directory `/`, which
+    `read_only: true` makes unwritable; `working_dir` now points at the
+    `/opt/bloodhound/work` volume. And the work subdirectories, created as
+    `nobody` on the first boot before #1025 switched the app to root, were
+    chowned to root on `eden` so the capability-less root user can write them
+    (a fresh build creates them as root and needs no repair).
 
 - **The lab's secrets open with a second key, kept off Saruman**
   ([#671](https://github.com/Gerrrt/HomeLab/issues/671)). Not yet proved.
