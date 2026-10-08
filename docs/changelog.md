@@ -40,6 +40,15 @@ docstring gives: it is a record, not a claim about now.
   - **CI now refuses one key here.** `scripts/check_sops_rules.py` lists
     `lab.sops.yaml` among the files that must open with two keys, with the PBS
     key as the reason. The pre-re-key file fails it.
+  - **`add-recipient.sh` no longer refuses a file holding the shared
+    second** (review on #1065). It found a file's rule from its first
+    recipient in sorted order and refused if that key sat in more than one
+    rule, and `age19mkg…` sorts first. So the estate, sensitive and now lab
+    files could not gain a recipient. It now anchors on the first recipient
+    listed in exactly one rule, and still refuses a file whose keys are all
+    shared. This was tested on alexander with throwaway keys: the old script
+    refuses, and the new one re-keys the lab file to 3, where the new key
+    alone decrypts it.
   - **Still owed:** proving the second opens the file with only that key, run
     with the offline copy: `make secrets-verify-backup STACK=lab KEY=…`. Until
     then ADR-0024 counts it as never proved.
