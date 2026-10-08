@@ -41,6 +41,39 @@
           <PlainText>true</PlainText>
         </AdministratorPassword>
       </UserAccounts>
+      <!--
+        AutoLogon ONCE, then off (#1092). Without it a Windows 11 clone parks
+        forever on the OOBE "create a user account" page: HideLocalAccountScreen
+        with only the built-in Administrator does not finish that page on client
+        SKUs, only on Server. The generalised image still never autologins -
+        scripts/sysprep.ps1 strips the build's autologon, and this file re-adds
+        it for the clone's single OOBE pass alone. LogonCount 1 spends it, and
+        the FirstLogonCommands below turn it off and delete the plaintext
+        DefaultPassword that Setup writes to Winlogon, so nothing persists past
+        that first logon. The built-in Administrator stays enabled with the
+        build password (above) until ansible/'s base role rotates it (#448).
+      -->
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>1</LogonCount>
+        <Username>Administrator</Username>
+        <Password>
+          <Value>${build_password}</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Turn the one-shot autologon off</Description>
+          <CommandLine>reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f</CommandLine>
+        </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>Drop the plaintext credential Setup wrote to Winlogon</Description>
+          <CommandLine>reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /f</CommandLine>
+        </SynchronousCommand>
+      </FirstLogonCommands>
     </component>
   </settings>
 </unattend>
