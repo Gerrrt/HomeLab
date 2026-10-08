@@ -376,11 +376,18 @@ sees them. Where it was checked, it does not run
 - `trinity`, Ubuntu 26.04.1, checked 2026-10-07;
 - `Saruman` and `golem`, Debian 13, checked 2026-10-08;
 - `alexander`, `odin`, `fenrir`, `phoenix` and `eden`, Ubuntu 26.04.1,
-  checked 2026-10-08.
+  checked 2026-10-08;
+- `prometheus` and `oracle`, Ubuntu 24.04 LTS, checked 2026-10-08 by the
+  operator from Winterfell, since `Saruman` cannot reach VLAN 99.
 
-**Not yet checked:** `prometheus`, `oracle` (VLAN 99) and `smaug` (VLAN 40).
-All three ship their journals, but none can be reached from `Saruman`, where
-the other checks ran.
+That is every host that ships its journal, so there is no `systemd-oomd` kill
+to show. A journal-shipping host that later turns it on is covered by
+`UnitOomKilled` without a change, because its kills end in the same verdict.
+
+`smaug` was checked too (TrueNAS 25.10, `not-found`/`inactive`), but it is the
+exception: it ships no logs and runs no Alloy (the table at the top of this
+page), so no journal verdict from it can reach Loki. An OOM kill on the NAS,
+of any kind, is not seen by `UnitOomKilled` or `KernelOomKill`.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with

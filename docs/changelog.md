@@ -44,6 +44,20 @@ docstring gives: it is a record, not a claim about now.
     the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
     templates' descriptions. The table now says so.
 
+- **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
+  entry below, "`systemd-oomd` runs on none of the eight hosts checked".
+  - The operator ran the two `systemctl` lines from Winterfell on
+    `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
+    like the other eight.
+  - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
+    covers a journal-shipping host that turns it on later, because its kills
+    end in the same systemd verdict.
+  - **Correction to the entry below:** it says `smaug` ships its journal. It
+    does not. The NAS ships no logs and runs no Alloy (`observability.md`), so
+    no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
+    Its check is an inventory fact, not coverage.
+
 - **The Wazuh manager collector installs on odin.** Its requirement in
   `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
   installer checks requirements with `test -x` as the SSH user, and that
