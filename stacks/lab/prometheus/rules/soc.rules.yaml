@@ -272,6 +272,17 @@ groups:
   # odin and fenrir talk across the mirrored segment whether or not a domain
   # guest is on. Keyed on Alloy's component and path, not on the job, so a
   # rebuilt sensor under another hostname does not orphan it.
+  #
+  # AND ON THE SERIES GOING AWAY. Despite its name, Alloy v1.20.1's
+  # loki_source_file_read_bytes_total is a gauge holding the file's read
+  # offset (rotation makes it drop, which increase() reads as a reset), and
+  # the tailer DELETES it when it stops (tailer.go, DeleteLabelValues). So if
+  # conn.log stops existing (Zeek gone around an hourly rotation, its log
+  # volume recreated) the series disappears, `increase(...) == 0` returns
+  # nothing, and the first half below can never fire. absent_over_time is
+  # the second half, over the same 30m, so either way it fires 45 minutes
+  # after the last byte. It also fires if fenrir's Alloy stops pushing at all,
+  # which is a loss of Zeek's view too.
   - name: sensor
     interval: 60s
     rules:
@@ -282,6 +293,12 @@ groups:
               component_id="loki.source.file.zeek", path="/zeek/logs/conn.log"
             }[30m]
           ) == 0
+          or
+          absent_over_time(
+            loki_source_file_read_bytes_total{
+              component_id="loki.source.file.zeek", path="/zeek/logs/conn.log"
+            }[30m]
+          )
         for: 15m
         labels:
           component: sensor
