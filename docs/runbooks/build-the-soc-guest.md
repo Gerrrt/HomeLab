@@ -547,8 +547,8 @@ visible.
 > The rest of this section is the original by-hand procedure, kept for that
 > history and for a domain without the pipeline.
 
-**The pipeline's MSIs come from this guest (#1068).** The stack's `agent-msi`
-service serves `${SOC_DATA_DIR}/agent-msi` on port 8448, to the six domain
+**The pipeline's MSIs come from this guest (#1068).** The stack's `caddy`
+service (container `soc-agent-msi`) serves `${SOC_DATA_DIR}/agent-msi` on port 8448, to the six domain
 addresses (`.50`–`.55`) and nobody else. What it serves is staged by one
 script, run as root on `odin` from the checkout:
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # Put the two installers roles/soc_agents fetches into the directory the SOC
-# stack's agent-msi service serves (#1068). Run on odin, as root, from the
+# stack's caddy service (container soc-agent-msi) serves (#1068). Run on odin, as root, from the
 # repository checkout, after `make up STACK=soc` and after any bump of either
 # pin in ansible/roles/soc_agents/defaults/main.yml.
 #
@@ -36,7 +36,20 @@ ok() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 DEFAULTS="${REPO}/ansible/roles/soc_agents/defaults/main.yml"
-DATA="${SOC_DATA_DIR:-/srv/soc-data}"
+# The same SOC_DATA_DIR compose.yaml mounts: the environment if set, else the
+# stack's rendered .env, else .env.example, which is what .env is rendered from.
+# Run under plain `sudo`, nothing else would carry it, and a custom value would
+# stage into one directory while the caddy service served another.
+stack_setting() {
+  local f
+  for f in "${REPO}/stacks/soc/.env" "${REPO}/stacks/soc/.env.example"; do
+    [[ -f "${f}" ]] || continue
+    sed -nE "s/^$1=[\"']?([^\"'#[:space:]]+)[\"']?.*$/\1/p" "${f}" | tail -n1
+    return 0
+  done
+}
+DATA="${SOC_DATA_DIR:-$(stack_setting SOC_DATA_DIR)}"
+DATA="${DATA:-/srv/soc-data}"
 OUT="${DATA}/agent-msi"
 DATASTORE="${DATA}/velociraptor"
 WAZUH_BASE="${WAZUH_MSI_BASE:-https://packages.wazuh.com/4.x/windows}"
@@ -86,20 +99,18 @@ done < <(find "${DATASTORE}" -type f -iname '*.msi' -print0)
 cp "${found}" "${stage}/velociraptor-client-${velo_version}.msi"
 ok "velociraptor-client-${velo_version}.msi matches the pin (${found#"${DATASTORE}/"})"
 
-# The directory itself stays: agent-msi bind-mounts it, and a bind mount holds
-# the directory it was given, so a directory moved into its place would never
-# be seen. Each file is renamed in, which is atomic on one filesystem, and only
-# then is anything else in it removed.
+# The directory itself stays: the caddy service bind-mounts it, and a bind
+# mount holds the directory it was given, so a directory moved into its place
+# would never be seen. Each file is renamed in, which is atomic on one
+# filesystem, and only then is everything else in it removed, hidden entries
+# and directories included: whatever is left there is served.
 install -d -m 0755 "${OUT}"
 chmod 0644 "${stage}"/*.msi
 for f in "${stage}"/*.msi; do
   mv -f "${f}" "${OUT}/"
 done
-for f in "${OUT}"/*; do
-  [[ -e "${f}" ]] || continue
-  case "$(basename "${f}")" in
-    "wazuh-agent-${wazuh_version}.msi" | "velociraptor-client-${velo_version}.msi") ;;
-    *) rm -f "${f}" ;;
-  esac
-done
+find "${OUT}" -mindepth 1 -maxdepth 1 \
+  ! -name "wazuh-agent-${wazuh_version}.msi" \
+  ! -name "velociraptor-client-${velo_version}.msi" \
+  -exec rm -rf -- {} +
 ok "staged in ${OUT}: wazuh-agent-${wazuh_version}.msi velociraptor-client-${velo_version}.msi"

@@ -245,7 +245,7 @@ port only where something off the host uses it.
 | Wazuh `1514`, `1515` — agent comms and enrolment | The six endpoints | Yes |
 | Wazuh `443` — dashboard | A browser on Hicks | Yes |
 | Wazuh `9200` — indexer | This guest's own Alloy | No |
-| `agent-msi` `8448` — the two agent MSIs (added 2026-10-08, #1068) | The six domain guests, during `ansible-playbook --tags soc` | Yes. The Caddyfile answers `.50`–`.55` and gives everyone else 403 |
+| Caddy `8448` — the two agent MSIs (added 2026-10-08, #1068) | The six domain guests, during `ansible-playbook --tags soc` | Yes. The Caddyfile answers `.50`–`.55` and gives everyone else 403 |
 
 **None of this needs a firewall rule.** `odin` and `alexander` are both on VLAN
 30, and so are the endpoints, so every one of these paths is intra-segment.

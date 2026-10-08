@@ -496,9 +496,11 @@ services:
   #
   # The estate's Caddy, at the digest stacks/lab runs, hardened the same way:
   # a numeric user, a read-only root, every capability dropped. 8448 is above
-  # 1024, so unlike the ingest proxy it keeps none.
+  # 1024, so unlike the ingest proxy it keeps none. The service is `caddy`,
+  # as in stacks/lab, because scripts/check_caddyfile.sh validates a stack's
+  # Caddyfile against the image of the service by that name.
   # ---------------------------------------------------------------------------
-  agent-msi:
+  caddy:
     <<: *service-defaults
     image: caddy:2.11.7@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
     container_name: soc-agent-msi
@@ -518,8 +520,10 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${SOC_DATA_DIR:-/srv/soc-data}/agent-msi:/srv/agent-msi:ro
     ports:
-      # The six domain guests fetch from here during `--tags soc`.
-      - "${BIND_ADDR:-0.0.0.0}:${AGENT_MSI_PORT:-8448}:8448"
+      # The six domain guests fetch from here during `--tags soc`. Fixed, not
+      # a tunable: ansible/inventory/group_vars/all.yaml names this port in
+      # both URLs, and a second copy of a number is how they drift apart.
+      - "${BIND_ADDR:-0.0.0.0}:8448:8448"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8448/healthz"]
       interval: 30s

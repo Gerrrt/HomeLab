@@ -9,7 +9,7 @@
 # The MSIs are binaries, not in the repo (*.msi is gitignored): the Velociraptor
 # one is repacked on odin by Server.Utils.CreateMSI with the client config
 # inside it (build-the-soc-guest.md §11), the Wazuh one is the vendor's. Both
-# are served by the SOC stack's agent-msi service on odin, staged there by
+# are served by the SOC stack's caddy service on odin, staged there by
 # scripts/stage-agent-msis.sh against the pins below (#1068).
 # soc_agents_*_msi_url is set in group_vars/all.yaml, not here, and the role
 # still fails with a clear message if it needs one and finds it unset.

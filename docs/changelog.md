@@ -23,7 +23,7 @@ docstring gives: it is a record, not a claim about now.
   ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)). #448's rebuild
   stopped at `--tags soc` because `roles/soc_agents` had no URL for either
   installer, and got past it with a temporary `http.server` on `odin`. The SOC
-  stack now runs `agent-msi`, the estate's Caddy at the same digest, read-only
+  stack now runs a `caddy` service (container `soc-agent-msi`), the estate's Caddy at the same digest, read-only
   and as a numeric user. It serves `${SOC_DATA_DIR}/agent-msi` on 8448 to the
   six domain addresses and gives everyone else 403.
   `scripts/stage-agent-msis.sh` stages both files from the role's own pins: the
