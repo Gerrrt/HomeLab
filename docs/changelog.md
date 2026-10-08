@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **The Packer build no longer puts the Proxmox token on a command line.**
+  The Windows builds' `shell-local` step passed `PROXMOX_TOKEN_SECRET` in
+  `environment_vars`, and shell-local writes those inline into its
+  `/bin/sh -c` command. So for the whole sysprep wait, the `phoenix@pve!builder`
+  secret sat in `/proc/<pid>/cmdline`, readable by any user on `phoenix`. It was
+  seen in `ps` during the #448 rebuild's 912 build. `wait-for-sysprep.sh` now
+  inherits the secret from Packer's own environment, where the variable's
+  default already reads it. A null build on `phoenix` proved both halves: the
+  old form put the value on one process's argv, the new one on none, and the
+  script still received it. The exposed token is to be rotated.
 - **The lab pipeline's agent MSIs have a home on `odin`**
   ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)). #448's rebuild
   stopped at `--tags soc` because `roles/soc_agents` had no URL for either
