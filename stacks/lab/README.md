@@ -62,10 +62,13 @@ prometheus/
   rules/lab.rules.yaml     9 rules — four for this stack watching itself,
                            two for the guests' disks, three for the domain
                            ADR-0029 sized
-  rules/soc.rules.yaml     6 rules — the SOC's indexer on odin, whose health is
-                           pushed here by stacks/soc's Alloy (ADR-0030)
+  rules/soc.rules.yaml     12 rules — the SOC's indexer on odin, whose health is
+                           pushed here by stacks/soc's Alloy (ADR-0030); the
+                           manager's agents, queues and drops, from odin's
+                           wazuh-manager-state collector; and Zeek's conn
+                           stream, from fenrir's Alloy (#1038)
   tests/lab.test.yaml      promtool unit tests; all nineteen rules, firing + quiet
-  tests/soc.test.yaml      the same for the six
+  tests/soc.test.yaml      the same for the twelve
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
   provisioning/            two datasources + dashboard provider

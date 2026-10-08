@@ -1,0 +1,30 @@
+# The Wazuh manager's agents, queues and dropped events (#1038).
+#
+# WHAT IT IS FOR. The lab's Prometheus saw the indexer and nothing of the
+# manager, so agents disconnecting or analysisd dropping events showed only
+# as the indexer being written to less. This reads the manager's own state
+# files and `agent_control -l -j` by `docker exec`, and writes a textfile that
+# odin's Alloy pushes to the lab's Prometheus, where soc.rules.yaml reads it.
+#
+# Root, for `docker exec`. Nothing here talks to the network.
+[Unit]
+Description=HomeLab: record the Wazuh manager's agents, queues and dropped events
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/scripts/collect-wazuh-manager-state.sh
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/srv/soc-data/manager-queue
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-wazuh-manager-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-wazuh-manager-state

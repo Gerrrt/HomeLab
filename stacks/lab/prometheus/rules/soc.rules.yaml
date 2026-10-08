@@ -23,6 +23,10 @@
 # Every label these key on is set by opensearch.alloy: `job="wazuh-indexer"`
 # is fixed there deliberately, so a rebuilt guest under another hostname does
 # not silently orphan these rules.
+#
+# Since #1038 the file also holds two more groups, below the indexer's: the
+# manager's own state (soc-manager), and Zeek's conn stream (sensor). Their
+# series arrive the same way, by push, so the same limit on absence applies.
 groups:
   - name: soc
     interval: 60s
@@ -149,3 +153,141 @@ groups:
             The cluster answers and its health is fine; it is simply not being
             written to. Check the manager first — filebeat on it is what
             writes — then whether any agent is connected at all.
+
+  # --- The manager, read off its own state (#1038) ------------------------
+  #
+  # scripts/collect-wazuh-manager-state.sh on odin reads the manager's
+  # analysisd and remoted state files and `agent_control -l -j`, by `docker
+  # exec`, into a textfile odin's Alloy pushes here (job odin-metrics). The
+  # indexer rules above see a SIEM that stops being written to; these say why,
+  # one layer earlier. Same limit: nothing here pages (ADR-0020). Whether the
+  # manager is RUNNING at all is the estate's GuestServiceUnhealthy (#858).
+  - name: soc-manager
+    interval: 60s
+    rules:
+      # A lab guest is up and its Wazuh agent is not reporting. The domain
+      # guests are on-demand (ADR-0079), so "agents disconnected" alone would
+      # fire every evening. Counting the guests whose windows_exporter answers
+      # against the agents the manager calls Active is what stays quiet when
+      # the guests are off and fires when one is on and silent to the SOC.
+      # Thirty minutes covers a booting guest's agent catching up.
+      - alert: WazuhAgentsNotConnected
+        expr: |
+          count(up{job="windows"} == 1) > sum(homelab_wazuh_agents{status="active"})
+        for: 30m
+        labels:
+          component: soc
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $value }} more lab guests are up than Wazuh agents are connected"
+          description: >-
+            windows_exporter answers on more domain guests than the manager has
+            Active agents, so at least one running guest is invisible to the
+            SOC. On odin: `docker exec soc-wazuh-manager
+            /var/ossec/bin/agent_control -l` names the Disconnected ones; on
+            the guest, `Get-Service WazuhSvc`.
+
+      # A queue inside analysisd nearly full. The value is a 0..1 fraction
+      # (queue_op.c: elements / (size - 1)). A full queue drops events, which
+      # the next rule counts; this is the warning before it.
+      - alert: WazuhAnalysisdQueueFilling
+        expr: |
+          max by (queue) (homelab_wazuh_analysisd_queue_usage_ratio) > 0.9
+        for: 15m
+        labels:
+          component: soc
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "Wazuh analysisd's {{ $labels.queue }} queue is {{ $value | humanizePercentage }} full"
+          description: >-
+            analysisd is falling behind on {{ $labels.queue }} events. Usually
+            an event storm from one agent or a slow indexer behind filebeat;
+            WazuhIngestionStalled says whether the indexer is still taking
+            writes.
+
+      # Events the manager received and threw away. A counter that resets
+      # when the manager restarts, which increase() allows for.
+      - alert: WazuhEventsDropped
+        expr: |
+          increase(homelab_wazuh_analysisd_events_dropped_total[30m]) > 0
+        labels:
+          component: soc
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "Wazuh analysisd dropped {{ $value | printf \"%.0f\" }} events in 30 minutes"
+          description: >-
+            Those events never reached a rule or the indexer, so the SOC did
+            not see them. WazuhAnalysisdQueueFilling usually fires first.
+
+      # A source the collector could not read. Both state files say "THIS
+      # FILE WILL BE DEPRECATED IN FUTURE VERSIONS", so the day an upgrade
+      # removes one is this alert, not a quiet absence of series.
+      - alert: WazuhManagerStateUnreadable
+        expr: |
+          homelab_wazuh_manager_source_ok == 0
+        for: 30m
+        labels:
+          component: soc
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "The Wazuh manager's {{ $labels.source }} state could not be read"
+          description: >-
+            scripts/collect-wazuh-manager-state.sh --print on odin shows what
+            it got. After a Wazuh upgrade, check whether the state file still
+            exists, or whether `agent_control -l -j` changed its shape.
+
+      # The collector stopped writing: its timer died, or the manager is not
+      # running (it writes nothing rather than a row of false zeros).
+      - alert: WazuhManagerStateStale
+        expr: |
+          time() - node_textfile_mtime_seconds{file=~".*wazuh-manager-state\\.prom"} > 1800
+        for: 15m
+        labels:
+          component: soc
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "odin has not rewritten the Wazuh manager's state in half an hour"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old. `journalctl -u
+            homelab-wazuh-manager-state` on odin says why; "is not running" in
+            it means the manager is down, which the estate's
+            GuestServiceUnhealthy reports too.
+
+  # --- Zeek's conn stream (#1038) -----------------------------------------
+  #
+  # The estate's GuestServiceUnhealthy says Zeek's event loop is turning
+  # (stats.log is fresh). It does not say Zeek is still logging traffic.
+  # fenrir's Alloy tails every Zeek log as its own file, and its self-metrics
+  # arrive here by push, so the bytes it reads from each are already in this
+  # Prometheus. conn.log is the one that is never legitimately quiet: alexander,
+  # odin and fenrir talk across the mirrored segment whether or not a domain
+  # guest is on. Keyed on Alloy's component and path, not on the job, so a
+  # rebuilt sensor under another hostname does not orphan it.
+  - name: sensor
+    interval: 60s
+    rules:
+      - alert: ZeekConnLogStopped
+        expr: |
+          increase(
+            loki_source_file_read_bytes_total{
+              component_id="loki.source.file.zeek", path="/zeek/logs/conn.log"
+            }[30m]
+          ) == 0
+        for: 15m
+        labels:
+          component: sensor
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Zeek has written nothing to conn.log for 45 minutes"
+          description: >-
+            Zeek's event loop may still be turning while it logs no
+            connections: the mirror is up and carrying nothing it can parse,
+            or the capture interface changed. The estate's ZeekMirrorInactive
+            says whether packets reach fenrir. On fenrir, `docker logs
+            sensor-zeek` and the newest lines of conn.log.
