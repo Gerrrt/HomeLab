@@ -101,6 +101,28 @@ BLUE = "\033[0;34m"
 RESET = "\033[0m"
 
 
+def bind_source_target(volume: object) -> tuple[str, str] | None:
+    """(host source, container target) of a host bind mount, in either compose form.
+
+    The short form is `./src:/dst[:ro]`. The long form is a mapping with
+    `type: bind`, `source` and `target`, which a stack uses when it needs
+    `bind: {create_host_path: false}` (stacks/sensitive, and the observability
+    alloy's syslog TLS files, #1049). Only the short form was read until
+    then, so a long-form mount was never compared at all. Named volumes,
+    tmpfs and anything not on a host path return None.
+    """
+    if isinstance(volume, str):
+        if not volume.startswith((".", "/")):
+            return None
+        parts = volume.split(":")
+        return (parts[0], parts[1]) if len(parts) >= 2 else None
+    if isinstance(volume, dict) and volume.get("type") == "bind":
+        source, target = volume.get("source"), volume.get("target")
+        if isinstance(source, str) and isinstance(target, str) and source.startswith((".", "/")):
+            return source, target
+    return None
+
+
 def single_file_mounts(stack: str) -> list[tuple[str, str, pathlib.Path | None, str]]:
     """(service, container name, host path, container path) per single-FILE bind mount.
 
@@ -116,12 +138,10 @@ def single_file_mounts(stack: str) -> list[tuple[str, str, pathlib.Path | None, 
         if spec.get("profiles"):
             continue
         for volume in spec.get("volumes", []) or []:
-            if not isinstance(volume, str) or not volume.startswith((".", "/")):
+            bound = bind_source_target(volume)
+            if bound is None:
                 continue
-            parts = volume.split(":")
-            if len(parts) < 2:
-                continue
-            source, target = parts[0], parts[1]
+            source, target = bound
             host = (stack_dir / source).resolve()
             container = spec.get("container_name") or service
             if host.is_file():
@@ -208,16 +228,46 @@ def self_test() -> int:
     uid with every capability dropped, as loki does, so the reader's
     capabilities are tested against the hardest target the stacks have.
     """
-    if subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0:
-        print(f"{YELLOW}  SKIP{RESET} --self-test needs a docker daemon")
-        return 0
-
     failures = 0
 
     def check(name: str, ok: bool) -> None:
         nonlocal failures
         print(f"{GREEN if ok else RED}  {'PASS' if ok else 'FAIL'}{RESET} {name}")
         failures += not ok
+
+    # Which mounts are read at all. Pure, so these run without a daemon.
+    check("a short-form bind is read", bind_source_target("./a.yaml:/etc/a.yaml:ro") == ("./a.yaml", "/etc/a.yaml"))
+    check(
+        "a long-form bind is read (#1049's syslog TLS files)",
+        bind_source_target(
+            {
+                "type": "bind",
+                "source": "../../certificates/syslog.pem",
+                "target": "/etc/syslog-tls/cert.pem",
+                "read_only": True,
+                "bind": {"create_host_path": False},
+            }
+        )
+        == ("../../certificates/syslog.pem", "/etc/syslog-tls/cert.pem"),
+    )
+    check("a named volume is not", bind_source_target("alloy-data:/var/lib/alloy/data") is None)
+    check(
+        "a long-form named volume is not",
+        bind_source_target({"type": "volume", "source": "alloy-data", "target": "/data"}) is None,
+    )
+    check("tmpfs is not", bind_source_target({"type": "tmpfs", "target": "/tmp"}) is None)
+    check("a short form with no target is not", bind_source_target("./only") is None)
+
+    # shutil.which first: with no docker binary at all, subprocess.run raises
+    # FileNotFoundError rather than returning non-zero, and the self-test
+    # crashed where it should have skipped (self-tests.sh on a host with no
+    # Docker reported it as a failure).
+    if (
+        shutil.which("docker") is None
+        or subprocess.run(["docker", "info"], capture_output=True, check=False).returncode != 0
+    ):
+        print(f"{YELLOW}  SKIP{RESET} the container half of --self-test needs a docker daemon")
+        return 1 if failures else 0
 
     work = pathlib.Path(tempfile.mkdtemp(prefix="mounted-config-selftest."))
     container = f"mounted-config-selftest-{os.getpid()}"
