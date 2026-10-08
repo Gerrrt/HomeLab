@@ -97,6 +97,7 @@ for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 | `homelab-pve-firewall-state` | every 5 min | `Saruman` | Whether the Proxmox firewall is on |
 | `homelab-guest-state` | every 10 min | `Saruman` | Which guests are running |
 | `homelab-guest-disk-state` | every 10 min | `Saruman` | How full the guests' filesystems are |
+| `homelab-wazuh-manager-state` | every 5 min | `odin` | The Wazuh manager's agents, queues and dropped events ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
 | `homelab-guest-service-state` | every 5 min | `Saruman` | Whether the named lab services are healthy ([#858](https://github.com/Gerrrt/HomeLab/issues/858)) |
 | `homelab-thin-pool-state` | every 10 min | `Saruman` | How full the LVM-thin pools are |
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
