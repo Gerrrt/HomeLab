@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **Postgres re-pinned again, a day after #966.** Upstream rebuilt
+  `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
+  digests #966 pinned already drifted:
+  - `18.6` in sensitive (two services) and bloodhound: `fc973eb` to `74935e7`
+  - `17.11` in wiki: `ae69c45` to `2d2b899`
+
+  The tags have not moved. Merging this restarts sensitive's two Postgres
+  services on the rebuilt image, the same release, so there is no data
+  migration.
+
 - **`ZeekConnLogStopped` also fires when the conn.log series disappears**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
   #1066).
