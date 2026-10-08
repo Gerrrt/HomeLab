@@ -108,10 +108,14 @@
   <!-- Windows PowerShell writes __PSScriptPolicyTest_<random>.ps1 to the
        starting user's temp folder whenever it starts, to probe the execution
        policy, and deletes it. 92213 (level 15), 92205 and 92200 match it, so
-       every Ansible task raised a "malware dropped" alert. The exact name is
-       PowerShell's; any other file there still alerts. -->
+       every Ansible task raised a "malware dropped" alert. Both conditions:
+       the name alone would let any process hide a dropped script by choosing
+       it (92213 and 92200 do not constrain the creator), so the creator must
+       be Windows PowerShell itself, which writes this file on every start
+       anyway. Any other file, or this name from another process, still alerts. -->
   <rule id="100110" level="0">
     <if_sid>92213, 92205, 92200</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)^[c-z]:\\+windows\\+(system32|syswow64)\\+windowspowershell\\+v1\.0\\+powershell\.exe$</field>
     <field name="win.eventdata.targetFilename" type="pcre2">\\__PSScriptPolicyTest_[a-z0-9]{8}\.[a-z0-9]{3}\.ps1$</field>
     <description>PowerShell's own execution-policy probe file: not a dropped script</description>
   </rule>

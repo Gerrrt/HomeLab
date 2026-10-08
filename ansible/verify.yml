@@ -241,7 +241,9 @@
             $r['File Share is audited'] = ((& $audited '0CCE9224-69AE-11D9-BED3-505054503030') -match 'Success')
           }
           if ([bool]::Parse($IsPrimary)) {
-            # roles/ds_audit's four inherited entries, by attribute name.
+            # roles/ds_audit's four inherited entries, by attribute name, matched
+            # as exactly as the role writes them: an entry for another principal,
+            # for ReadProperty, or that does not reach descendants audits nothing.
             $schema = (Get-ADRootDSE).schemaNamingContext
             $guid = { param($n) [guid](Get-ADObject -SearchBase $schema -Filter "lDAPDisplayName -eq '$n'" `
               -Properties schemaIDGUID).schemaIDGUID }
@@ -251,6 +253,9 @@
                              @('msDS-AllowedToActOnBehalfOfOtherIdentity','computer'))) {
               $a = & $guid $w[0]; $c = & $guid $w[1]
               $r["the domain head audits writes to $($w[0]) on $($w[1])s"] = [bool]($sacl | Where-Object {
+                $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]).Value -eq 'S-1-1-0' -and
+                ($_.ActiveDirectoryRights -band [System.DirectoryServices.ActiveDirectoryRights]::WriteProperty) -and
+                $_.InheritanceType -eq 'Descendents' -and
                 $_.ObjectType -eq $a -and $_.InheritedObjectType -eq $c -and $_.AuditFlags -eq 'Success' })
             }
           }
