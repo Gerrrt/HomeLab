@@ -215,7 +215,9 @@ groups:
           severity: warning
           category: availability
         annotations:
-          summary: "{{ if $labels.instance }}{{ $labels.instance }} is{{ else }}{{ $value }} lab guest(s) are{{ end }} running without a connected Wazuh agent"
+          summary: >-
+            {{ if $labels.instance }}{{ $labels.instance }} is{{ else }}{{ $value }} lab
+            guest(s) are{{ end }} running without a connected Wazuh agent
           description: >-
             windows_exporter answers on a domain guest that the manager has no
             Active agent for, so the guest is invisible to the SOC. On odin:
