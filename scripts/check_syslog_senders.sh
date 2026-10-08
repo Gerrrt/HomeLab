@@ -2,22 +2,20 @@
 #
 # Prove that the network syslog listener stores only what its senders send (#844).
 #
-# syslog.alloy publishes a UDP listener that morpheus writes filterlog and
+# syslog.alloy publishes a TLS listener that morpheus writes filterlog and
 # Suricata lines to, and the Loki security rules read those lines by
 # {host="morpheus"}. Before #844 any host that could reach the port could
 # write such lines, and a message's own hostname field overrode the label.
-# This boots the pinned Loki and the pinned Alloy, loading syslog.alloy and
-# nothing else, on a scratch Docker network where every sender has a fixed
-# address. It then sends three lines over UDP:
+# Before #1049 the port was UDP, whose source address any host on VLAN 99 can
+# forge. This boots the pinned Loki and the pinned Alloy, loading syslog.alloy
+# and nothing else, on a scratch Docker network where every sender has a
+# fixed address. It sends one line over UDP:
 #
-#   1. from the allowed address, shaped as pfSense sends (no hostname)
-#      -> stored, host="morpheus"
-#   2. from another address, claiming hostname `morpheus`
-#      -> absent, and the drop counter has counted it
-#   3. from the allowed address, claiming hostname `evil`
-#      -> stored, host="morpheus": the message hostname is not trusted
+#   1. from the ALLOWED address, shaped as pfSense's syslogd sends it
+#      -> absent: there is no UDP listener any more, so not even morpheus's
+#         address gets a line in that way, forged or not
 #
-# and seven over TLS to the 6514 listener (#1049), which pins morpheus's own
+# and seven over TLS to the 6514 listener, which pins morpheus's own
 # certificate, with certificates made for this run by a throwaway CA standing
 # in for the estate's:
 #
@@ -31,11 +29,13 @@
 #  10. morpheus's certificate from another address
 #      -> the handshake completes, the allowlist drops it, and it is counted
 #
-# Each refusal (2, 6-10) is checked for absence only after the accepted lines,
+# Each refusal (1, 6-10) is checked for absence only after the accepted lines,
 # which were sent after it, have arrived. "Absent" therefore means refused,
-# not slow. The counter shows 2 and 10 reached Alloy at all, and Alloy's own
-# log names the reason for 6 and for each of 7, 8 and 9. Case 7 is the one
-# that fails if the listener trusts the CA rather than pinning the leaf.
+# not slow. The counter shows 10 reached Alloy at all, and Alloy's own log
+# names the reason for 6 and for each of 7, 8 and 9. Case 7 is the one that
+# fails if the listener trusts the CA rather than pinning the leaf. Case 1 is
+# the one that fails if a UDP listener comes back (cases 2 and 3, the UDP
+# allowlist cases, went with it).
 #
 # The one change made to syslog.alloy: the scratch network cannot be
 # 10.0.99.0/24 without taking the monitoring host's real route to VLAN 99, so
@@ -202,8 +202,8 @@ done
 # A listener whose tls_config was lost would still listen, in plain TCP, and
 # every refusal below would then fail for the wrong reason. Alloy says which
 # it started. Matched on the port, not the address: Alloy logs 0.0.0.0 as
-# `[::]` inside the container. And waited for, not read once: the UDP
-# listener's metric can appear before this line is written.
+# `[::]` inside the container. And waited for, not read once: the syslog
+# metric can appear before this line is written.
 tls_up=0
 if ((alloy_up)); then
   for ((i = 0; i < 30; i++)); do
@@ -229,7 +229,7 @@ dropped() {
     | awk '/^loki_process_dropped_lines_total\{/ && /reason="syslog_sender_not_allowed"/ {s += $NF} END {print s + 0}'
 }
 
-send() { # from-ip line
+send_udp() { # from-ip line
   docker run --rm --label homelab.logs=off --network "${NET}" --ip "$1" \
     --entrypoint bash "${ALLOY_IMAGE}" \
     -c 'printf "%s\n" "$1" > "/dev/udp/$2/1514"' _ "$2" "${ALLOY_IP}"
@@ -252,9 +252,7 @@ rfc5424() { # hostname token
 }
 
 RUN_ID="$(date +%s)-$$"
-TOK_ALLOWED="allowed-${RUN_ID}"
-TOK_SPOOF="spoofed-${RUN_ID}"
-TOK_EVIL="evilname-${RUN_ID}"
+TOK_UDP="udp-allowed-${RUN_ID}"
 TOK_TLS="tls-allowed-${RUN_ID}"
 TOK_TLS_EVIL="tls-evilname-${RUN_ID}"
 TOK_TLS_NOCERT="tls-nocert-${RUN_ID}"
@@ -265,10 +263,8 @@ TOK_TLS_STRANGER="tls-stranger-${RUN_ID}"
 STAMP="$(LC_ALL=C date -u '+%b %e %H:%M:%S')"
 
 dropped_before="$(dropped)"
-# The spoof goes first. See the header for why the order matters.
-send "${STRANGER_IP}" "<134>${STAMP} morpheus filterlog[4242]: ${TOK_SPOOF},,,1000000103,igc0.20,match,block,in,4"
-send "${ALLOWED_IP}"  "<134>${STAMP} filterlog[4242]: ${TOK_ALLOWED},,,1000000103,igc0.20,match,block,in,4"
-send "${ALLOWED_IP}"  "<134>${STAMP} evil filterlog[4242]: ${TOK_EVIL},,,1000000103,igc0.20,match,block,in,4"
+# Every refusal goes before the accepted lines. See the header for why.
+send_udp "${ALLOWED_IP}" "<134>${STAMP} filterlog[4242]: ${TOK_UDP},,,1000000103,igc0.20,match,block,in,4"
 
 # The TLS refusals first, for the same reason.
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_NOCERT}")"   ""
@@ -306,7 +302,7 @@ wait_streams() { # token seconds -> prints streams once present
 }
 
 FAILED=0
-info "sent three lines over UDP and seven over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
+info "sent one line over UDP and seven over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
 
 # host_is <streams> — every stream carries host="morpheus" and nothing else
 # says `evil`.
@@ -317,36 +313,6 @@ streams = [json.loads(l) for l in sys.stdin if l.strip()]
 ok = streams and all(s.get("host") == "morpheus" and "evil" not in s.values() for s in streams)
 sys.exit(0 if ok else 1)'
 }
-
-if s1="$(wait_streams "${TOK_ALLOWED}" 45)"; then
-  if printf '%s\n' "${s1}" | host_is_morpheus; then
-    pass "allowed sender stored as host=\"morpheus\""
-  else
-    fail "allowed sender stored with the wrong labels: ${s1}"
-  fi
-else
-  fail "allowed sender's line never reached Loki"
-fi
-
-if s3="$(wait_streams "${TOK_EVIL}" 15)"; then
-  if printf '%s\n' "${s3}" | host_is_morpheus; then
-    pass "a message hostname of \"evil\" does not override host=\"morpheus\""
-  else
-    fail "the message hostname set the labels: ${s3}"
-  fi
-else
-  fail "allowed sender's line with a hostname never reached Loki"
-fi
-
-# Absence is only evidence when the query itself succeeded. A timeout or an
-# HTTP error prints nothing too, and must not read as "not stored".
-if ! s2="$(streams_with "${TOK_SPOOF}")"; then
-  fail "the Loki query for the spoofed line failed, so its absence is unproven"
-elif [[ -z "${s2}" ]]; then
-  pass "a line from ${STRANGER_IP} claiming hostname \"morpheus\" is not in Loki"
-else
-  fail "a line from an unlisted sender was stored: ${s2}"
-fi
 
 # --- TLS (#1049) ---------------------------------------------------------------
 
@@ -387,6 +353,7 @@ absent() { # token description
     fail "$2 was stored: ${out}"
   fi
 }
+absent "${TOK_UDP}"          "a UDP line from morpheus's own address"
 absent "${TOK_TLS_NOCERT}"   "a TLS line with no client certificate"
 absent "${TOK_TLS_SIBLING}"  "a TLS line with another client certificate from the same CA"
 absent "${TOK_TLS_SERVER}"   "a TLS line authenticated with a serverAuth leaf"
@@ -410,10 +377,10 @@ else
 fi
 
 dropped_after="$(dropped)"
-if ((dropped_after - dropped_before == 2)); then
-  pass "both lines from ${STRANGER_IP} are counted (reason=\"syslog_sender_not_allowed\"), UDP and TLS"
+if ((dropped_after - dropped_before == 1)); then
+  pass "the TLS line from ${STRANGER_IP} is counted (reason=\"syslog_sender_not_allowed\")"
 else
-  fail "drop counter moved by $((dropped_after - dropped_before)), expected 2"
+  fail "drop counter moved by $((dropped_after - dropped_before)), expected 1"
 fi
 
 exit "${FAILED}"

@@ -13,6 +13,22 @@ rules watching the quietest surface in the estate.
 
 This connects them.
 
+> [!IMPORTANT]
+> **The receiver is TLS-only now ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)).**
+> §1 to §6 are the original build, where pfSense's own syslogd sent UDP to
+> `10.0.99.20:1514`. That UDP listener, and its `1514` and `514` publishes,
+> have been removed. A UDP source address can be forged from VLAN 99.
+>
+> For a fresh build:
+>
+> - follow §1 for the receiver, checking `6514/tcp` where it says `1514/udp`;
+> - follow §7.1 and §7.3 for the certificates and syslog-ng;
+> - in §2, set pfSense's remote log server to `127.0.0.1:5140`, the local
+>   syslog-ng, rather than `10.0.99.20:1514`;
+> - skip §3's UDP tcpdump; §7.2's `openssl s_client` and §7.5's queries are
+>   the check;
+> - §4 to §6 then apply unchanged, because they read `host="morpheus"`.
+
 ---
 
 ## 1. Deploy the receiver first
@@ -363,7 +379,7 @@ volume and little of the signal.
 UDP has no handshake, so any host on VLAN 99 can send a line with a forged
 source of `10.0.99.1` and have it stored as `host="morpheus"`, filterlog and
 Suricata lines included. #844's sender allowlist cannot tell the difference.
-The receiver therefore also listens on **6514/tcp with TLS, and requires
+The receiver therefore listens on **6514/tcp with TLS, and requires
 morpheus's own client certificate**, pinned: no other certificate passes, even
 another client leaf from the same CA. The sender allowlist still applies on
 top. `stacks/observability/alloy/syslog.alloy` says why each
@@ -488,9 +504,11 @@ Remove `10.0.99.20:1514` from the remote log servers, leaving `127.0.0.1:5140`.
 `{host="morpheus", transport="udp"}` should go quiet within a minute, and
 `FirewallLogsStopped` should stay quiet, since `tls` carries the same lines.
 
-The forgeable path is still open until the UDP listener and its `1514` and
-`514` publishes leave `syslog.alloy` and `compose.yaml`. That is the second
-change on #1049, made once this has run for a day.
+The forgeable path stayed open until the UDP listener and its `1514` and
+`514` publishes left `syslog.alloy` and `compose.yaml`. That was the second
+change on #1049, made once this had run for a day. Since then, nothing on the
+monitoring host listens for UDP syslog. A UDP line sent from `10.0.99.1`
+itself is not stored, and `scripts/check_syslog_senders.sh` proves it.
 
 ---
 
@@ -505,10 +523,12 @@ if System Events was. All three are correct — they exist precisely so that a
 silent pipeline is distinguishable from a quiet network. Silence them if the
 stop was deliberate.
 
-**From TLS (§7):** while the UDP listener still exists, put
-`10.0.99.20:1514` back in the remote log servers and remove
-`127.0.0.1:5140`. Lines arrive as `transport="udp"` again at once, and nothing
-on the monitoring host changes.
+**From TLS (§7):** there is no UDP fallback any more. Pointing pfSense at
+`10.0.99.20:1514` reaches nothing, and a UDP sender gets no error for it. If
+syslog-ng on morpheus fails, fix it there (§7.3); `FirewallLogsStopped` says
+it has stopped. Bringing UDP back means reverting the change that removed it
+on #1049, which reopens the forgeable path, so treat it as a decision rather
+than a rollback.
 
 Unticking **DHCP Events** alone is the narrower rollback, and it is the one
 `FirewallLogsStopped` cannot see: filterlog keeps arriving while the lease

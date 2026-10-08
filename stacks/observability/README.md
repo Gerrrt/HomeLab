@@ -37,8 +37,8 @@ itself and over the compose network, and from no VLAN at all. A port is
 published only when something off-host uses it, and nothing off-host uses
 Alertmanager (#70). Prometheus and Loki are used off-host, but only through
 `caddy`, which holds the host's address on the same two ports, serves them
-over TLS (ADR-0086) and wants a token first (ADR-0067). Grafana and the Alloy syslog receiver on 1514/udp bind
-to `BIND_ADDR`. Reasoning in
+over TLS (ADR-0086) and wants a token first (ADR-0067). Grafana binds to `BIND_ADDR`, and the Alloy syslog receiver,
+TLS-only on 6514/tcp since #1049, to `INGEST_BIND_ADDR`. Reasoning in
 [`docs/architecture.md`](../../docs/architecture.md#ports).
 
 ## Layout
