@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **Postgres re-pinned again, a day after #966.** Upstream rebuilt
+  `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
+  digests #966 pinned already drifted:
+  - `18.6` in sensitive (two services) and bloodhound: `fc973eb` to `74935e7`
+  - `17.11` in wiki: `ae69c45` to `2d2b899`
+
+  The tags have not moved. Merging this restarts sensitive's two Postgres
+  services on the rebuilt image, the same release, so there is no data
+  migration.
+
 - **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
   Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
   the `TIMEBASED_EVAL` channel with 179.5 days left, and both rearm counts
