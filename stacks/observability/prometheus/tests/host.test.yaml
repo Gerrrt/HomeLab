@@ -3824,3 +3824,52 @@ tests:
       - eval_time: 3h
         alertname: GuestServiceStateStale
         exp_alerts: []
+
+  # --- NasOomKill: the kernel OOM-killed something on smaug (#1095) ------
+  # Two kills at t=10m. The counter is node_exporter's node_vmstat_oom_kill,
+  # scraped as job="node" with the labels targets/node.yaml gives smaug.
+  - interval: 5m
+    input_series:
+      - series: 'node_vmstat_oom_kill{job="node",instance="smaug",role="nas",vlan="40"}'
+        values: "0 0 2 2 2 2"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: NasOomKill
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: NasOomKill
+        exp_alerts:
+          - exp_labels:
+              job: node
+              instance: smaug
+              role: nas
+              vlan: "40"
+              component: host
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "smaug's kernel OOM-killed 2 process(es) in 15 minutes"
+              description: >-
+                Nothing else here can say which: the NAS ships no logs. On smaug,
+                `dmesg -T | grep -iE 'out of memory|oom-kill'` names the process and
+                the cgroup. A `docker-` cgroup is a media container at its
+                mem_limit; anything else is TrueNAS itself, the middleware or ZFS.
+                HostMemoryPressure says whether memory was short beforehand.
+
+  # --- NasOomKill: a flat counter, a reboot's reset, and another host ------
+  # smaug's counter sits at 7, then a reboot takes it to 0 and it stays there:
+  # a reset, not a kill. prometheus's counter rises, and it is not this rule's
+  # to report: KernelOomKill or ContainerOomKilled owns a host that ships logs.
+  - interval: 5m
+    input_series:
+      - series: 'node_vmstat_oom_kill{job="node",instance="smaug",role="nas",vlan="40"}'
+        values: "7 7 7 0 0 0 0 0 0"
+      - series: 'node_vmstat_oom_kill{job="prometheus-metrics",instance="prometheus"}'
+        values: "0 0 1 1 1 1 1 1 1"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: NasOomKill
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: NasOomKill
+        exp_alerts: []
