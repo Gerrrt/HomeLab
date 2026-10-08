@@ -943,7 +943,10 @@ run.
 > Rebuild the template first (that runbook's §8). Whether a clone of an older
 > template gets a full 180 days depends on the rearms that template has already
 > spent. A fresh install has not spent any, so the rebuild settles it. Read
-> `slmgr /dlv` on the clone and record it below, as before.
+> `slmgr /dlv` on the clone and record it in §11, as before. The 2026-10-08
+> rebuild is the evidence: clones of a template built the day before got 179.5
+> days and a rearm count of **0**. A fresh template gives a full period. The
+> clone cannot extend it.
 
 Install `windows_exporter` on all six. The collector list matters:
 
@@ -1229,6 +1232,14 @@ if you forget:
   expiration read 173 days on the DCs and 174 on the members, which lands
   around 2027-03-23. One rearm is one more 180-day period, not a way to skip
   the rebuild.
+
+  **Read again on 2026-10-08, after #448's rebuild from the pipeline: 0.**
+  Both counts are 0 on all four servers, which are on the `TIMEBASED_EVAL`
+  channel with 179.5 days left. That lands around **2027-04-05**, and
+  `LabWindowsEvaluationExpiring` fires about 2027-03-06. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got the full period but no rearm: generalising
+  the image spends it. So there is no rearm to fall back on this time. The next
+  rebuild starts from a freshly built 912, as the tip in §7 says.
 
 `make check-docs` walks you through the first two.
 
