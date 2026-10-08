@@ -58,6 +58,10 @@ docstring gives: it is a record, not a claim about now.
     - `stacks/soc` mounts seven local rules (100100–100106) that name each
       weakness, and takes PowerShell's own `__PSScriptPolicyTest_*.ps1` probe
       file, which every Ansible task tripped at level 15, down to level 0.
+    - The DCSync rule (100106) leaves out the two DCs by name, `bahamut$` and
+      `leviathan$`, not every machine account. A computer account any user
+      can create, once granted replication rights, would otherwise DCSync
+      unseen.
     - `verify.yml` checks the effective audit subcategories.
   - **Tested before deploy.** A throwaway manager on `odin`, from the
     production image digest, was fed the #449 events through the real Windows

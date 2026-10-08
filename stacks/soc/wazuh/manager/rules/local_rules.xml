@@ -90,15 +90,22 @@
   </rule>
 
   <!-- 4662 using DS-Replication-Get-Changes or -Get-Changes-All by an account
-       that is not a machine: DCSync itself. A DC replicating with its partner
-       is a machine account (name ending in $). Directory Service Access is
-       audited already and the domain head audits extended rights; the stock
-       ruleset has no rule for 4662 at all, so this was dropped until now. -->
+       that is not a domain controller: DCSync itself. A DC replicating with its
+       partner shows as that DC's machine account, so the two DCs in
+       ansible/inventory/hosts.yaml (bahamut, leviathan) are the only accounts
+       left out. NOT every name ending in $: granting replication rights to a
+       computer account an ordinary user can create (ms-DS-MachineAccountQuota
+       is 10 by default) and DCSyncing as it is a known persistence path, and a
+       `\$$` exclusion would never see it. 100105 sees the grant; this sees each
+       use. Add a DC here when the inventory gains one, or this fires on its
+       replication. Directory Service Access is audited already and the domain
+       head audits extended rights; the stock ruleset has no rule for 4662 at
+       all, so this was dropped until now. -->
   <rule id="100106" level="14">
     <if_sid>60103</if_sid>
     <field name="win.system.eventID">^4662$</field>
     <field name="win.eventdata.properties" type="pcre2">(?i)1131f6a[ad]-9c07-11d1-f79f-00c04fc2dcd2</field>
-    <field name="win.eventdata.subjectUserName" type="pcre2" negate="yes">\$$</field>
+    <field name="win.eventdata.subjectUserName" type="pcre2" negate="yes">(?i)^(BAHAMUT|LEVIATHAN)\$$</field>
     <description>Directory replication requested by $(win.eventdata.subjectUserName), not a domain controller: DCSync</description>
     <mitre>
       <id>T1003.006</id>
