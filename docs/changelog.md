@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **The Wazuh manager collector installs on odin.** Its requirement in
+  `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
+  installer checks requirements with `test -x` as the SSH user, and that
+  directory is `0750 root:systemd-journal` by design
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)), so
+  `barnabas` could not enter it. The install refused odin, the one host it was
+  for, as "missing". The requirement is now `/srv/soc-data`, which passes on
+  odin and fails on fenrir and alexander.
+
 - **`check_mounted_config.py` reads long-form bind mounts too.**
   - **What it missed.** It compared only short-form `./src:/dst` mounts, so a
     mount written in compose's long form, as a mapping with
