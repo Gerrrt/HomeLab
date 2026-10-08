@@ -377,7 +377,7 @@ services:
   # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
   # comment in stacks/observability/compose.yaml is the reasoning. `:ro` on
   # the socket does not stop POST /containers/create, so a collector holding the
-  # socket holds root on the host, and alexander holds the lab's only age key (#671).
+  # socket holds root on the host, and alexander holds the lab's age key (#671).
   # Alloy now reaches the API here, GET-only, and the socket stops at this
   # container. Not published.
   # ---------------------------------------------------------------------------

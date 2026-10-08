@@ -186,10 +186,10 @@ built by hand on 2026-09-24 and 25, and
 its authentication generator running and §10 read from Hicks. The SOC followed:
 Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 
-- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
-  the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
-  encrypted to one key that lives only on `alexander`; a second recipient or
-  a proved off-box copy, run on that guest.
+- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) Prove the lab's
+  second key.** `secrets/lab.sops.yaml` is encrypted to the offline technical
+  second as well as `alexander`'s key since 2026-10-07. What remains is
+  `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
