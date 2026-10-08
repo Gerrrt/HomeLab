@@ -70,7 +70,8 @@ for id in 191 192 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {n
 ## 3. First boot, then the `clean` snapshot
 
 Boot each guest once, so that cloud-init (or Windows' OOBE) does its
-per-machine work. That work is the user, the key, the host keys and the
+per-machine work. The apply already did: the provider starts a guest when it
+creates it, so after §2 all three are running their first boot. That work is the user, the key, the host keys and the
 machine-id. Then shut the guest down and snapshot it **stopped**:
 
 ```bash
@@ -94,15 +95,38 @@ needs a standard user with `phoenix`'s key. As `Administrator`
 (`ssh Administrator@10.0.30.98`):
 
 ```powershell
+$ErrorActionPreference = 'Stop'
 $pw = -join ((48..57 + 65..90 + 97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
 New-LocalUser -Name tester -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -PasswordNeverExpires | Out-Null
+Add-LocalGroupMember -Group Users -Member tester -ErrorAction SilentlyContinue
+# The profile, made now: an account that has never logged on has none, and
+# sshd finds no home, so no authorized_keys, for it.
+Add-Type -Namespace W -Name U -MemberDefinition '[DllImport("userenv.dll", CharSet=CharSet.Unicode)] public static extern int CreateProfile(string sid, string name, System.Text.StringBuilder path, uint len);'
+$sb = New-Object System.Text.StringBuilder 260
+[W.U]::CreateProfile((Get-LocalUser tester).SID.Value, 'tester', $sb, 260)   # 0, and C:\Users\tester
 New-Item -ItemType Directory -Force C:\Users\tester\.ssh | Out-Null
 Copy-Item C:\ProgramData\ssh\administrators_authorized_keys C:\Users\tester\.ssh\authorized_keys
 icacls C:\Users\tester\.ssh\authorized_keys /inheritance:r /grant 'tester:F' /grant 'SYSTEM:F' | Out-Null
+icacls C:\Users\tester\.ssh /setowner tester /T /C | Out-Null
 ```
 
-The password is never written down. The account logs in by key alone, as
-`sshd` allows nothing else here.
+Run it as one `powershell -NoProfile -EncodedCommand`, so that no quoting
+has to survive the SSH hop. Two things here are not optional, and each cost
+the first build an attempt (2026-10-08):
+
+- **The profile.** Without `CreateProfile`, `tester` has no entry under
+  `ProfileList` until its first interactive logon. sshd then refuses the key
+  without saying why. Do not create `C:\Users\tester` by hand first, or
+  Windows makes the profile at `C:\Users\tester.<machine>` instead.
+- **The owner.** Win32-OpenSSH refuses an `authorized_keys` owned by anyone
+  but the user, SYSTEM or the Administrators group. A file copied by
+  `Administrator` is owned by that account, which is none of them.
+
+Check from `phoenix`: `ssh tester@10.0.30.98 'whoami /groups | findstr Mandatory'`
+must show `Medium Mandatory Level`, which means not elevated. The password
+is never written down. The account logs in by key alone, as `sshd` allows
+nothing else here. Its default shell is PowerShell, so chain commands with
+`;`, not `&`.
 
 ## 4. A run
 
@@ -192,3 +216,8 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 
 | Date | What | Result |
 | --- | --- | --- |
+| 2026-10-08 | Templates 903 and 904, `build-the-lab-templates.md` §2b–§8 | Both ISOs placed and `state="match"`. Fedora failed twice before it built: `services --enabled=cloud-init` names no unit since cloud-init 24.3 (Anaconda stopped), and f44's presets leave `cloud-init-network` off, so it is named. Debian's first build missed GRUB at `boot_wait` 10s and was typed in from the console; 20s then built unaided. Second `-force` builds: Debian 8 min, Fedora 10 min. Smoke: all PASS, both builds of each |
+| 2026-10-08 | §2 apply, `-target`ed at the pool and the three guests | Plan 4 to add, 0 to change. The untargeted plan also showed `+ "lab-domain"` on 150–153, state catching up with tags root set by hand; left for an untargeted apply. All three on their reservations (.91, .92, .98), `dotfiles;on-demand`, `onboot 0` |
+| 2026-10-08 | First boot, Linux | No login: cloud-init's `useradd operator` exited 9 on Debian (system group `operator`, gid 37); Fedora has a system user of that name. `username = "tester"` in `tofu/guests.tf`, then `-replace` of 191 and 192: 2 destroyed, 2 added. `tester` logs in by key with `sudo` on both |
+| 2026-10-08 | First boot, Windows; §3's `tester` | `tester` was refused its key twice: no profile (fixed by `CreateProfile`), and the key file owned by `Administrator` (fixed by `/setowner`). Then `Medium Mandatory Level`, `C:\Users\tester` |
+| 2026-10-08 | §3 `clean` snapshots | All three stopped, then `qm snapshot <id> clean`. `large_data` 36.7% used |
