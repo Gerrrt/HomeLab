@@ -482,6 +482,10 @@ jobs:
           for stack in $(./scripts/stacks.sh); do
             python3 scripts/check_dashboards.py --stack "$stack" || fail=1
           done
+          # A captured dashboard taller than the renderer's ceiling would be
+          # cropped by `make screenshots` while it reports success. Fail the PR
+          # that grows it, not the monitoring host later.
+          ./scripts/capture-screenshots.sh --check || fail=1
           exit $fail
 
       # Dashboard queries are as easy to typo as alert rules, and a broken one

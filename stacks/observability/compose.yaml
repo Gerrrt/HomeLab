@@ -792,7 +792,8 @@ services:
     # not to the median: there is no excursion here to discount.
     #
     # 1280M rather than 1024M leaves room for a path this window did not
-    # exercise. `make screenshots` asks Grafana to serve a 4582px render, and
+    # exercise. `make screenshots` asks Grafana to serve renders up to
+    # MAX_HEIGHT (7000px) tall, and
     # the `capture` profile was never up for long enough to measure it — the
     # renderer's own working set peaked at 24 MiB over the fourteen days, which
     # is a container that started and stopped, not one that rendered. The
@@ -1367,10 +1368,14 @@ services:
       # A render taller than this is silently clamped to it, and the dashboard
       # is cropped rather than refused — the same truncation the height
       # derivation in capture-screenshots.sh exists to avoid, reintroduced one
-      # layer down. The default is 3000 and `homelab-stack` is 4582px, so the
-      # whole Alloy row fell off the bottom of a capture that reported success.
-      # Keep this and MAX_HEIGHT in capture-screenshots.sh in step.
-      BROWSER_MAX_HEIGHT: 5000
+      # layer down. The default 3000 cut `homelab-stack`'s whole Alloy row off a
+      # capture that reported success. It was 5000 until 2026-10-08, when
+      # homelab-stack reached 4886px. 7000 is measured: this pinned digest,
+      # hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at about
+      # 22 MiB RSS. It must equal MAX_HEIGHT in capture-screenshots.sh, and
+      # `capture-screenshots.sh --check` (in CI) fails if it does not, or if a
+      # captured dashboard has outgrown it.
+      BROWSER_MAX_HEIGHT: 7000
       LOG_LEVEL: info
     # Deliberately not published. The only client is Grafana, on this network.
     expose:
@@ -1402,9 +1407,10 @@ services:
     # bridge rendering the lab Grafana: a control run and this hardened run
     # returned byte-identical outputs (a 559,214-byte PNG and a 53,256-byte
     # PDF), and the hardened one rendered 1600x4600 three times over in
-    # 1 GiB of /dev/shm, with no error in its log — homelab-stack, the tallest
-    # dashboard captured, is 4582px. The end-to-end proof is `make screenshots` on this
-    # host, which cannot be reached from VLAN 30.
+    # 1 GiB of /dev/shm, with no error in its log. The end-to-end proof followed
+    # on 2026-10-08: `make screenshots` on this host, with the renderer
+    # inspected as capdrop=[ALL] and no-new-privileges, rendered all five
+    # dashboards, the tallest (homelab-stack) at 1600x4886 (#954).
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

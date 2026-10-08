@@ -44,6 +44,15 @@ docstring gives: it is a record, not a claim about now.
     the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
     templates' descriptions. The table now says so.
 
+- **The Wazuh manager collector installs on odin.** Its requirement in
+  `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
+  installer checks requirements with `test -x` as the SSH user, and that
+  directory is `0750 root:systemd-journal` by design
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)), so
+  `barnabas` could not enter it. The install refused odin, the one host it was
+  for, as "missing". The requirement is now `/srv/soc-data`, which passes on
+  odin and fails on fenrir and alexander.
+
 - **`WazuhAgentsNotConnected` joins each running guest to its own agent**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
   #1066).
