@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
+  Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
+  the `TIMEBASED_EVAL` channel with 179.5 days left, and both rearm counts
+  (Windows and SKU) are **0**. The hand build had 1. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got a full period, but generalising the image
+  spends the rearm, so the next rebuild
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)'s clock) has to start
+  from a freshly built template. `LabWindowsEvaluationExpiring` fires around
+  2027-03-06. Recorded in `build-the-lab-domain.md` §11.
 - **The Packer build no longer puts the Proxmox token on a command line.**
   The Windows builds' `shell-local` step passed `PROXMOX_TOKEN_SECRET` in
   `environment_vars`, and shell-local writes those inline into its
