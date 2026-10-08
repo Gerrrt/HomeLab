@@ -562,7 +562,7 @@ jobs:
           key: >-
             boot-proofs-${{ hashFiles('stacks/sensitive/compose.yaml',
             'stacks/sensitive/home-assistant/**', 'stacks/sensitive/ntfy/**',
-            'stacks/sensitive/stirling-pdf/**',
+            'stacks/sensitive/stirling-pdf/**', 'stacks/soc/compose.yaml',
             'scripts/seed-validation-env.sh', 'scripts/check_hardened_boot.sh') }}
           restore-keys: boot-proofs-
 
@@ -605,6 +605,19 @@ jobs:
         run: >-
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service actual --proof-cache .boot-proofs/proofs.txt
+
+      # The SOC stack's MSI server (#1068) is a numeric user, read-only, with
+      # every capability dropped but NET_BIND_SERVICE. Its first deploy on odin
+      # crash-looped on "exec caddy failed: Operation not permitted": the
+      # image's binary carries that capability as a file capability, and
+      # #1071's compose dropped it. Nothing here booted it, so odin was the
+      # first place that showed. This is where a Caddy bump, or a cap_add
+      # tidied away, would show next. Its Caddyfile is Validate configs' (the
+      # Caddyfile check); this proves the container starts and is healthy.
+      - name: Boot the SOC MSI server under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack soc
+          --service caddy --proof-cache .boot-proofs/proofs.txt
 
   # ---------------------------------------------------------------------------
   secret-scan:
