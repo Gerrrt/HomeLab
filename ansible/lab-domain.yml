@@ -112,6 +112,24 @@
     - role: shares
       tags: [shares]
 
+# #450: what each guest records. sysmon-modular's balanced config, vendored at
+# one release (ADR-0080). It records, it does not harden: nothing it does changes
+# what an exercise can reach.
+#
+# Before the SOC agents, not after. The Wazuh agent subscribes to
+# Microsoft-Windows-Sysmon/Operational once, at start (#1035), and an agent
+# started before the channel existed never read it: on the #448 rebuild, five
+# of the six sent no Sysmon alert at all. Installed first, the channel is there
+# when the agent starts. roles/sysmon also restarts the agent whenever it
+# installs or upgrades Sysmon, which covers the guest that already has one.
+- name: Sysmon, so the endpoints record what fired
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: sysmon
+      tags: [sysmon]
+
 - name: The SOC agents, installed not deployed by GPO
   hosts: lab_domain
   serial: 1
@@ -127,17 +145,6 @@
   roles:
     - role: exporter
       tags: [exporter]
-
-# #450: what each guest records. sysmon-modular's balanced config, vendored at
-# one release (ADR-0080). It records, it does not harden: nothing it does changes
-# what an exercise can reach.
-- name: Sysmon, so the endpoints record what fired
-  hosts: lab_domain
-  serial: 1
-  gather_facts: false
-  roles:
-    - role: sysmon
-      tags: [sysmon]
 
 - name: The evaluation clock, as a metric
   hosts: servers
