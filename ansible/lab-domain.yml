@@ -98,12 +98,37 @@
     - role: tiers
       tags: [tiers]
 
-- name: The Tier 0 logon denial and the file-share audit
+- name: The Tier 0 logon denial, and the audit policies
   hosts: dc_primary
   gather_facts: false
   roles:
     - role: gpos
       tags: [gpos]
+
+# #1077: apply a GPO change now rather than at the next refresh. DCs refresh
+# within about 5 minutes and members about 90, and verify.yml reads the audit
+# policy as auditpol sees it, so without this a rebuild's verify fails on
+# titan and ramuh for no fault. Only when the gpos role changed something.
+- name: Group Policy refreshed where a GPO changed
+  hosts: lab_domain
+  gather_facts: false
+  tasks:
+    - name: Refresh computer policy
+      ansible.windows.win_command: gpupdate /target:computer /force
+      changed_when: true
+      when:
+        - not ansible_check_mode
+        - hostvars[groups['dc_primary'][0]].gpos_result.changed | default(false)
+      tags: [gpos]
+
+# #1077: which attribute writes the DCs record. The GPO above turns 5136 on;
+# this says which writes on users and computers count.
+- name: The domain head audits the writes the weaknesses make
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: ds_audit
+      tags: [audit]
 
 - name: Titan's shares, with the decoy
   hosts: titan

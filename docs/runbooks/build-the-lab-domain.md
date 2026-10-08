@@ -271,6 +271,8 @@ build, preview one stage at a time and apply it before previewing the next:
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
 | `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
 | `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
+| `gpos` | §5 | *Deny Tier 0 Logon on Members*, and the two audit policies: the member servers' (Windows defaults plus File Share) and the DCs' (their 17 subcategories plus Directory Service Changes), #1077 |
+| `audit` | §5 | Inherited audit entries on the domain head, so SPN and delegation writes on users and computers log a 5136 (#1077) |
 | `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
 | `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
 | `kerberoast` | §5a | `svc-sql`, an SPN on a crackable account, `ramuh`'s target |
@@ -432,7 +434,7 @@ skips step 4.
 
    ```bash
    cd ansible
-   for t in base forest replica join endpoint_admin tiers gpos shares sysmon soc exporter licence population authgen; do
+   for t in base forest replica join endpoint_admin tiers gpos audit shares sysmon soc exporter licence population authgen; do
      ansible-playbook lab-domain.yml --tags "$t" || break
    done
    ansible-playbook lab-domain.yml        # again: must report changed=0

@@ -80,9 +80,15 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
     name, and removes none.
   - `tiers`: the five tier OUs, the three tier admins, the `Tier 0 Admins`
     group, and the members placed in `Servers`/`Workstations` (#448).
-  - `gpos`: the two hand-built GPOs, *Deny Tier 0 Logon on Members* and *Lab -
-    Audit File Share*, ensured on `bahamut` compare-first, so a second run
-    against the hand-built domain writes nothing.
+  - `gpos`: the GPOs, ensured on `bahamut` compare-first, so a second run
+    writes nothing.
+    - *Deny Tier 0 Logon on Members*, as #414 built it by hand.
+    - *Lab - Audit File Share*: the member servers' audit policy, the Windows
+      default set plus File Share (#1077).
+    - *Lab - Audit Domain Controllers*: the DCs' 17 subcategories plus
+      Directory Service Changes (#1077).
+  - `ds_audit`: inherited audit entries on the domain head, so a write to an
+    SPN or a delegation attribute on a user or computer logs a 5136 (#1077).
   - `shares`: `titan`'s `Public` and `Finance` shares, with the decoy (#448).
   - `soc_agents`: Wazuh and Velociraptor installed directly, by product code,
     in place of the deploy GPOs (#448).
@@ -119,6 +125,8 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `population` | The people: OUs, groups, users | §5 |
 | `authgen` | The generator on the endpoints, as `authgen` | §6 |
 | `tiers` | The tier OUs, admins, `Tier 0 Admins`, member placement | §5 |
+| `gpos` | Deny Tier 0 logon, and the audit policies of servers and DCs | §5 |
+| `audit` | The domain head's audit entries for attribute writes (`ds_audit`) | §5 |
 | `shares` | `titan`'s `Public` and `Finance`, with the decoy | §5 |
 | `soc` | Wazuh and Velociraptor, in place of the deploy GPOs | §11 |
 | `kerberoast` | An SPN on a crackable account, `ramuh`'s target | §5a |
@@ -180,7 +188,9 @@ guest.
 - **Nothing here hardens anything.** No role touches LLMNR, NetBIOS over
   TCP/IP, IPv6, WPAD or the DNS `GlobalQueryBlockList`, and `verify.yml` fails
   if any of them has changed. Do not add a hardening role, from a collection
-  or by reflex. It deletes the exercises the segment exists for.
+  or by reflex. It deletes the exercises the segment exists for. Auditing is
+  not hardening: `gpos` and `ds_audit` make the DCs and servers record more,
+  and change nothing an exercise can reach (#1077).
 - **The lab domain, and only the lab domain.** No host outside
   `ad.matrix.elysium` goes in the inventory. Compose stacks converge on their
   own timer (ADR-0021), and `phoenix` never pushes to them (ADR-0043).

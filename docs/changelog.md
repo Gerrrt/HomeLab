@@ -44,6 +44,16 @@ docstring gives: it is a record, not a claim about now.
     the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
     templates' descriptions. The table now says so.
 
+- **Postgres re-pinned again, a day after #966.** Upstream rebuilt
+  `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
+  digests #966 pinned already drifted:
+  - `18.6` in sensitive (two services) and bloodhound: `fc973eb` to `74935e7`
+  - `17.11` in wiki: `ae69c45` to `2d2b899`
+
+  The tags have not moved. Merging this restarts sensitive's two Postgres
+  services on the rebuilt image, the same release, so there is no data
+  migration.
+
 - **`ZeekConnLogStopped` also fires when the conn.log series disappears**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
   #1066).
@@ -61,6 +71,38 @@ docstring gives: it is a record, not a claim about now.
     than the window (an Alloy redeploy) does not. The merged rule, run
     against the new tests, fails the first. `make check-rules STACK=lab`
     passes on promtool 3.15.0.
+
+- **What the SOC could not see of #449's weaknesses, written as a fix, not yet applied**
+  ([#1077](https://github.com/Gerrrt/HomeLab/issues/1077)).
+  - **What #449's config-only loop showed.** Of the six weaknesses switched
+    on, DCSync's replication grant left no event at all. Kerberoast's SPN and
+    RBCD's attribute never appeared. The rest arrived only as generic "user or
+    computer account changed" alerts at levels 5 and 8.
+  - **Why, read from the domain:**
+    - The DCs don't audit Directory Service Changes, so there is no 5136.
+    - The domain head's SACL covers only the domain object itself.
+    - Wazuh has no rule for 4662.
+    - titan and ramuh audited File Share and nothing else. #414's one-line
+      advanced audit GPO had replaced their whole basic policy, logons included.
+  - **The fix:**
+    - `gpos` gives the member servers the Windows default set plus File Share,
+      and adds a DC audit GPO carrying their 17 subcategories plus Directory
+      Service Changes.
+    - The new `ds_audit` role audits writes to SPNs and the delegation
+      attributes on users and computers.
+    - `stacks/soc` mounts seven local rules (100100–100106) that name each
+      weakness, and takes PowerShell's own `__PSScriptPolicyTest_*.ps1` probe
+      file, which every Ansible task tripped at level 15, down to level 0.
+    - The DCSync rule (100106) leaves out the two DCs by name, `bahamut$` and
+      `leviathan$`, not every machine account. A computer account any user
+      can create, once granted replication rights, would otherwise DCSync
+      unseen.
+    - `verify.yml` checks the effective audit subcategories.
+  - **Tested before deploy.** A throwaway manager on `odin`, from the
+    production image digest, was fed the #449 events through the real Windows
+    decoder. All eight positives raised the new rules. The five negatives (a
+    cleared flag, an unchanged field, an SPN on a computer, a DC's own
+    replication, and a script that is not the probe file) did not.
 
 - **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
   Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
