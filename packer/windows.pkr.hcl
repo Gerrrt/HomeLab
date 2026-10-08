@@ -311,12 +311,20 @@ build {
 
   # Then, on phoenix: wait through the API for the guest to power itself off,
   # which is sysprep saying it has finished. The builder converts it after.
+  #
+  # The token secret is NOT in environment_vars. shell-local writes those inline
+  # into its `/bin/sh -c '<vars> <script>'` command line, so the secret sat in
+  # /proc/<pid>/cmdline, readable by any user on phoenix, for the whole sysprep
+  # wait (seen in `ps` during the #448 rebuild's 912 build). The script inherits
+  # PROXMOX_TOKEN_SECRET from packer's own environment instead, which is where
+  # var.proxmox_token_secret's default reads it from: phoenix.env, exported.
+  # Proved on phoenix with a null build: with it listed, the value was on one
+  # process's argv; without it, on none, and the script still received it.
   provisioner "shell-local" {
     script = "${abspath(path.root)}/windows/scripts/wait-for-sysprep.sh"
     environment_vars = [
       "PROXMOX_URL=${var.proxmox_url}",
       "PROXMOX_TOKEN_ID=${var.proxmox_token_id}",
-      "PROXMOX_TOKEN_SECRET=${var.proxmox_token_secret}",
       "NODE=${var.node}",
       "VMID=${local.vmids[source.name]}",
     ]
