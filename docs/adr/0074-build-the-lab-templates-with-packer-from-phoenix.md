@@ -2,6 +2,15 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> 2026-10-08: [ADR-0090](0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+> adds templates 903–909 for the dotfiles OS layers
+> ([#920](https://github.com/Gerrrt/HomeLab/issues/920)). Debian's (903) joins
+> Kali under decision 1's HTTP-preseed exception, which is now the Debian
+> installer's rather than Kali's alone. Alpine, Gentoo and NixOS are built
+> from their publishers' images, not from installer ISOs, because none has an
+> installer to drive. The text here is left as written, per ADR-0001.
+
 ## Context
 
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

@@ -13,8 +13,10 @@ page is the map.
 | --- | --- | --- | --- | --- |
 | 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, built and usable |
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
-| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
-| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built; needs a rebuild to carry the `SetupComplete.cmd` fix |
+| 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
+| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a
@@ -32,6 +34,10 @@ scripts/packer-smoke.sh 912
 - `ubuntu/user-data.pkrtpl`: autoinstall. The `packer` build user is
   key-only and deleted at the end of the build.
 - `kali/preseed.cfg.pkrtpl`: the same shape for Debian's installer.
+- `debian/preseed.cfg.pkrtpl`: Kali's preseed with Debian trixie's mirror,
+  for the dotfiles-Debian VM ([ADR-0090]). Served over HTTP, as Kali's is.
+- `fedora/ks.cfg.pkrtpl`: the kickstart for Fedora Server, on a disc
+  labelled `OEMDRV`, which Anaconda reads with no boot argument.
 - `windows/autounattend.xml.pkrtpl`: one file for both editions, rendered
   with the image name, the VirtIO driver folder and the product key.
 - `windows/unattend-oobe.xml.pkrtpl`: the answer file a clone's OOBE reads
@@ -78,6 +84,7 @@ scripts/packer-smoke.sh 912
   passed against a real build.
 
 [ADR-0074]: ../docs/adr/0074-build-the-lab-templates-with-packer-from-phoenix.md
+[ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448

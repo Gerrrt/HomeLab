@@ -1,0 +1,44 @@
+# Rendered by packer/fedora.pkr.hcl with templatefile(). Kickstart for Fedora
+# Server's netinst, read from the disc labelled OEMDRV, which Anaconda loads
+# with no boot argument (#920, ADR-0090).
+#
+# The `packer` user exists for the length of the build: key-only, password
+# locked, deleted by the build's last provisioner. A clone's user comes from
+# the Proxmox cloud-init drive.
+
+text
+lang en_US.UTF-8
+keyboard us
+timezone Etc/UTC --utc
+network --bootproto=dhcp --hostname=tpl-fedora-server --activate
+
+rootpw --lock
+user --name=packer --groups=wheel --lock
+sshkey --username=packer "${ssh_public_key}"
+
+zerombr
+clearpart --all --initlabel
+# Plain partitions, not autopart: Server's autopart caps an LVM root at 15 GiB,
+# which a bootstrap that installs a toolchain would fill.
+reqpart
+part /boot --fstype=xfs --size=1024
+part / --fstype=xfs --grow
+bootloader --timeout=1
+
+services --enabled=sshd,qemu-guest-agent,cloud-init
+
+%packages
+@^server-product-environment
+cloud-init
+qemu-guest-agent
+# dotfiles-Fedora's bootstrap clones with git and checks for curl.
+git
+curl
+%end
+
+%post
+echo 'packer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-packer
+chmod 0440 /etc/sudoers.d/90-packer
+%end
+
+reboot --eject

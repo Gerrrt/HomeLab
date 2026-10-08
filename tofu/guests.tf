@@ -6,6 +6,9 @@
 # remove them, and are then rebuilt from the templates (build-the-lab-domain.md,
 # "Rebuild from the pipeline").
 #
+# #920's on-demand dotfiles VMs (191-198), one per dotfiles OS layer, in the
+# `dotfiles` pool (ADR-0090).
+#
 # Beside them is the proof guest, declared only under -var proof=true. It
 # exists to put a real secret, a cloud-init password, into real state, so the
 # runbook can grep for it and find nothing.
@@ -77,7 +80,31 @@ locals {
     })
   }
 
-  guests = merge(local.lab_domain, local.proof_guests)
+  # #920's on-demand VMs, one per dotfiles OS layer (ADR-0090). Standalone,
+  # not domain members: they test the dotfiles, not the domain. Each is booted
+  # from its `clean` snapshot for a run and shut down after it, so `on-demand`
+  # keeps HypervisorGuestStopped quiet (ADR-0079), and none boots with the
+  # host. The MACs are fixed for morpheus's reservations, .91-.98, as the
+  # domain's are. No SMBIOS UUID: dot-windows is an unactivated Windows 11, so
+  # there is no activation to carry. Phases 2-4 add openSUSE (193), Arch
+  # (194), Alpine (195), Gentoo (196) and NixOS (197).
+  dotfiles = {
+    for name, g in {
+      dot-debian  = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:D0:51:9D" }
+      dot-fedora  = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:81:DB:CC" }
+      dot-windows = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A" }
+    } :
+    name => merge(g, {
+      pool        = "dotfiles"
+      smbios_uuid = null
+      startup     = null
+      on_boot     = false
+      tags        = ["dotfiles", "on-demand"]
+      password    = null
+    })
+  }
+
+  guests = merge(local.lab_domain, local.dotfiles, local.proof_guests)
 
   # A pool exists exactly while it groups a guest: it is derived from the
   # guests, not listed beside them, so the last guest leaving a pool takes the

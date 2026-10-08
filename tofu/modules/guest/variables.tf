@@ -14,11 +14,11 @@ variable "vm_id" {
 
 variable "template" {
   type        = number
-  description = "Template VMID: 901 Ubuntu, 902 Kali, 911 Windows 11, 912 Server 2025 (ADR-0074 §2)."
+  description = "Template VMID: 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 911 Windows 11, 912 Server 2025 (ADR-0074 §2, ADR-0090)."
 
   validation {
-    condition     = contains([901, 902, 911, 912], var.template)
-    error_message = "template must be one of packer/'s VMIDs: 901, 902, 911, 912."
+    condition     = contains([901, 902, 903, 904, 911, 912], var.template)
+    error_message = "template must be one of packer/'s VMIDs: 901, 902, 903, 904, 911, 912."
   }
 }
 
@@ -80,15 +80,15 @@ variable "memory_mib" {
 
 variable "disk_gib" {
   type        = number
-  description = "At least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
+  description = "At least the template's own disk: 32 for Ubuntu (901), Debian (903) and Fedora (904), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
 
   # A clone cannot be smaller than its template. Without this, a disk that is
   # too small fails only at apply, against Proxmox, with the guest half made.
   # By template, not by var.linux: Kali is Linux and its disk is 64G, and
   # Server 2025's is 60G, not 64 (packer/*.pkr.hcl, disk_size).
   validation {
-    condition     = var.disk_gib >= lookup({ 901 = 32, 902 = 64, 911 = 64, 912 = 60 }, var.template, 64) && floor(var.disk_gib) == var.disk_gib
-    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Ubuntu (901), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
+    condition     = var.disk_gib >= lookup({ 901 = 32, 902 = 64, 903 = 32, 904 = 32, 911 = 64, 912 = 60 }, var.template, 64) && floor(var.disk_gib) == var.disk_gib
+    error_message = "disk_gib must be a whole number, at least the template's own disk: 32 for Ubuntu (901), Debian (903) and Fedora (904), 64 for Kali (902) and Windows 11 (911), 60 for Server 2025 (912)."
   }
 }
 

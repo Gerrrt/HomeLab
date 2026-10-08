@@ -19,6 +19,31 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **The dotfiles OS-layer VMs, phase 1, written**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 903 `tpl-debian-13` (preseed over HTTP, as Kali's) and
+    904 `tpl-fedora-server` (kickstart on an `OEMDRV` disc). Three on-demand
+    guests in a `dotfiles` pool: `dot-debian` (191), `dot-fedora` (192) and
+    `dot-windows` (198, an unactivated clone of 911). A new runbook,
+    [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md),
+    covers the `clean` snapshot, taken stopped, and the rollback,
+    bootstrap and read loop.
+  - **The installers.** Debian 13.7.0 netinst and Fedora Server 44-1.7
+    netinst went into the ISO store's list from their publishers' signed
+    hashes. The Debian CD signing key `DF9B 9C49 … 6294 BE9B` and Fedora 44's
+    primary key `36F6 12DC … 6D9F 90A6` both gave a good signature over the
+    checksum files on 2026-10-07.
+  - **Checked so far.** `packer fmt` and `packer validate -syntax-only`, and
+    `tofu fmt` and `tofu validate` (1.16.1 and 1.13.1, checksum-verified
+    binaries) all pass, and `check_docs.py` is clean. Nothing is built yet:
+    the ISOs, the builds, the smoke tests, the apply and the first run are
+    the runbooks' and are recorded there.
+  - **Found on the way.** `packer/README.md` still called 911 "first build
+    pending" and 912 "needs a rebuild". Both were rebuilt on 2026-10-07 after
+    the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
+    templates' descriptions. The table now says so.
+
 - **`ZeekConnLogStopped` also fires when the conn.log series disappears**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
   #1066).

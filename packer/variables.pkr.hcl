@@ -121,6 +121,17 @@ variable "ubuntu_iso_file" {
   default = "smaug-iso:iso/ubuntu-26.04.1-live-server-amd64.iso"
 }
 
+# The dotfiles OS layers' installers (#920, ADR-0090).
+variable "debian_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/debian-13.7.0-amd64-netinst.iso"
+}
+
+variable "fedora_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/Fedora-Server-netinst-x86_64-44-1.7.iso"
+}
+
 # A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
 # the first build on ifrit sets this to the ISO it actually has. It stays on
 # local: the ISO store's export and pass admit Saruman alone (ADR-0072), so
