@@ -171,16 +171,20 @@ groups:
       # against the agents the manager calls Active is what stays quiet when
       # the guests are off and fires when one is on and silent to the SOC.
       # Thirty minutes covers a booting guest's agent catching up.
+      #
+      # The difference is computed first and compared with zero, so $value is
+      # the number of guests without an agent. A bare `a > b` returns a, the
+      # count of guests up, which read "4 more" for one missing agent.
       - alert: WazuhAgentsNotConnected
         expr: |
-          count(up{job="windows"} == 1) > sum(homelab_wazuh_agents{status="active"})
+          (count(up{job="windows"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0
         for: 30m
         labels:
           component: soc
           severity: warning
           category: availability
         annotations:
-          summary: "{{ $value }} more lab guests are up than Wazuh agents are connected"
+          summary: "{{ $value }} running lab guest(s) without a connected Wazuh agent"
           description: >-
             windows_exporter answers on more domain guests than the manager has
             Active agents, so at least one running guest is invisible to the

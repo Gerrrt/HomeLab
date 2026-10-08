@@ -88,10 +88,22 @@ def num(v):
     return f if f == f and abs(f) != float("inf") else None
 
 
+def count(v):
+    """A non-negative number, or None. 0 is a count, not a missing value."""
+    f = num(v)
+    return f if f is not None and f >= 0 else None
+
+
 ok, lines = {}, []
 
 a = state(read("analysisd"))
-ok["analysisd"] = int("event_queue_usage" in a)
+# Readable means the values this reads are numbers in range, not merely that
+# the keys exist: a file of 'nan's is as unreadable as no file.
+event_usage = num(a.get("event_queue_usage"))
+ok["analysisd"] = int(
+    event_usage is not None and 0 <= event_usage <= 1
+    and all(count(a.get(k)) is not None for k in ("events_received", "events_dropped"))
+)
 if ok["analysisd"]:
     for key, value in sorted(a.items()):
         if key.endswith("_queue_usage"):
@@ -105,11 +117,10 @@ if ok["analysisd"]:
             lines.append(f"homelab_wazuh_analysisd_events_{metric}_total {int(v)}")
 
 r = state(read("remoted"))
-ok["remoted"] = int("queue_size" in r and "total_queue_size" in r)
+used, size = num(r.get("queue_size")), num(r.get("total_queue_size"))
+ok["remoted"] = int(used is not None and used >= 0 and size is not None and size > 0)
 if ok["remoted"]:
-    used, size = num(r["queue_size"]), num(r["total_queue_size"])
-    if used is not None and size and size > 0:
-        lines.append(f"homelab_wazuh_remoted_queue_usage_ratio {used / size}")
+    lines.append(f"homelab_wazuh_remoted_queue_usage_ratio {used / size}")
     for key, metric in (("tcp_sessions", "homelab_wazuh_remoted_tcp_sessions"),
                         ("discarded_count", "homelab_wazuh_remoted_discarded_total")):
         v = num(r.get(key))
@@ -204,11 +215,23 @@ discarded_count='12'
 
   # Garbage and oversize.
   put agents 0 'not json'
-  put analysisd 0 "event_queue_usage='nan'"
+  put analysisd 0 "event_queue_usage='nan'
+events_received='10'
+events_dropped='0'"
+  put remoted 0 "queue_size='12'
+total_queue_size='0'"
   out="$(render "${WORK_DIR}")"
   has "agent_control output that is not JSON is a 0" 'homelab_wazuh_manager_source_ok{source="agents"} 0'
   lacks "a NaN usage is not reported" 'queue="event"'
-  put analysisd 0 "event_queue_usage='0.50'"
+  has "and a NaN event queue makes analysisd unreadable" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
+  has "a zero total queue size makes remoted unreadable" 'homelab_wazuh_manager_source_ok{source="remoted"} 0'
+  put analysisd 0 "event_queue_usage='0.10'
+events_received='10'"
+  out="$(render "${WORK_DIR}")"
+  has "a missing events_dropped makes analysisd unreadable" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
+  put analysisd 0 "event_queue_usage='0.50'
+events_received='1'
+events_dropped='0'"
   out="$(MAX_BYTES=5 render "${WORK_DIR}")"
   has "an answer over the byte cap is a 0" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
   exit $fail

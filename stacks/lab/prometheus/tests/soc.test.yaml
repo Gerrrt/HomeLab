@@ -243,7 +243,7 @@ tests:
               severity: warning
               category: availability
             exp_annotations:
-              summary: "4 more lab guests are up than Wazuh agents are connected"
+              summary: "1 running lab guest(s) without a connected Wazuh agent"
               description: >-
                 windows_exporter answers on more domain guests than the manager has
                 Active agents, so at least one running guest is invisible to the
