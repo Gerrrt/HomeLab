@@ -82,6 +82,38 @@ groups:
         annotations:
           summary: "{{ $labels.instance }} has less than 10% memory available"
 
+      - alert: NasOomKill
+        # The kernel OOM-killed something on smaug (#1095). The estate's other
+        # three OOM rules cannot see the NAS: KernelOomKill and UnitOomKilled
+        # read logs, and smaug ships none (ADR-0016); ContainerOomKilled reads
+        # cAdvisor, and smaug runs none. node_exporter's vmstat collector, on
+        # by default and not disabled in stacks/media/compose.yaml, exports
+        # the kernel's own count of OOM kills, machine-wide and memory-cgroup
+        # alike, so the scrape already carries it (#910 read it as 0).
+        #
+        # SMAUG ONLY, by instance, not every host with the counter. Everywhere
+        # else that ships logs, a kill would alert twice, here and as
+        # KernelOomKill, UnitOomKilled or ContainerOomKilled.
+        #
+        # It says THAT something was killed, not what: only smaug's own
+        # `dmesg` knows. increase() reads a reboot's reset to 0 as a reset,
+        # not a kill. No `for`: the counter only moves when a kill happened,
+        # and the 15m window holds the alert long enough to be noticed.
+        expr: |
+          increase(node_vmstat_oom_kill{job="node", instance="smaug"}[15m]) > 0
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "smaug's kernel OOM-killed {{ $value | printf \"%.0f\" }} process(es) in 15 minutes"
+          description: >-
+            Nothing else here can say which: the NAS ships no logs. On smaug,
+            `dmesg -T | grep -iE 'out of memory|oom-kill'` names the process and
+            the cgroup. A `docker-` cgroup is a media container at its
+            mem_limit; anything else is TrueNAS itself, the middleware or ZFS.
+            HostMemoryPressure says whether memory was short beforehand.
+
       - alert: HostHighLoad
         # Normalised by core count so the same rule works on the 2012 MacBook
         # and the DL360 without tuning.
