@@ -85,11 +85,14 @@ drift:
 | `observability-stack.png` | Observability Stack |
 
 Height is derived per dashboard from its own JSON, so adding a panel makes the
-screenshot taller instead of pushing the new panel out of frame — up to
-`BROWSER_MAX_HEIGHT` on the renderer, above which the request is silently
-clamped and the crop comes back. `homelab-stack` is 4582px against a default of
-3000, which is why `compose.yaml` raises it and `MAX_HEIGHT` in the script
-matches. A dashboard that outgrows 5000 needs both moved again.
+screenshot taller instead of pushing the new panel out of frame. The ceiling is
+`BROWSER_MAX_HEIGHT` on the renderer (7000 in `compose.yaml`), above which a
+request is silently clamped and the crop comes back. `MAX_HEIGHT` in the script
+must equal it. A dashboard taller than that is refused rather than cropped:
+the script stops before rendering anything, and `capture-screenshots.sh
+--check`, run in CI, fails the PR that grows it. To move the ceiling, raise
+both numbers together, after measuring the pinned renderer at the new height
+([#954](https://github.com/Gerrrt/HomeLab/issues/954) has how).
 
 Overwrite the existing files in place. The root `README.md` references them
 by name, so a re-shoot needs no edit there — but it does need the checklist
