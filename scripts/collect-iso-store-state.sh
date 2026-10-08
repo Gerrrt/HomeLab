@@ -58,6 +58,12 @@ cc8a95cde20f6ced61a322420de00f10cc3c90ced545daa46cb9c1a117f1d927  ubuntu-26.04.1
 # microsoft.com/software-download/windows11, read 2026-10-01. Listed from the
 # publisher rather than from a download, so the file placed must be this one.
 bd4307df32bc8af33b39ccecb1174aeb345386630f89a2b86c7a4e36b55ea650  windows-11-26h2.iso
+# Kali 2026.2 installer, for #790's template. cdimage.kali.org/current
+# SHA256SUMS, with a good signature from the Kali Linux Archive Automatic
+# Signing Key (2025), 827C 8569 F251 8CC6 77FE CA1A ED65 462E C8D5 E4C5: the
+# fingerprint kali.org's download docs and its new-signing-key post publish.
+# Matches Saruman's copy, 2026-10-08.
+6dbefacc95e3b556c19c48e8bae39b8b505e2d3a1aba0bfb7ab62b036c3d2ba3  kali-linux-2026.2-installer-amd64.iso
 # Windows Server 2025 evaluation. Microsoft publishes no hash for evaluation
 # media, so this is trusted from its download (build-the-lab-domain.md §1),
 # not from a publisher. Matches Saruman's local copy, 2026-10-01.
