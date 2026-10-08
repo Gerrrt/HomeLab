@@ -52,7 +52,7 @@
 // not enough from another address.
 //
 // pfSense's own syslogd sends UDP only, so morpheus sends TLS through the
-// syslog-ng package (docs/runbooks/ship-firewall-logs.md §7). syslog-ng's
+// syslog-ng package (docs/runbooks/ship-firewall-logs.md §3). syslog-ng's
 // syslog() driver speaks RFC 5424 with octet-counted framing, hence that
 // format here; Alloy's TCP reader takes either framing.
 //

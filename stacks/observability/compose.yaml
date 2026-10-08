@@ -1203,7 +1203,7 @@ services:
       # with 10.0.99.20 as an IP SAN, whose key is mounted into nothing else,
       # and morpheus's client certificate, which syslog.alloy pins as the only
       # one it accepts. Both are issued on this host before the first `make
-      # up` that carries these lines (ship-firewall-logs.md §7.1).
+      # up` that carries these lines (ship-firewall-logs.md §1).
       #
       # Long form so that create_host_path can be off, as stacks/sensitive
       # does. Short form would have Docker create a DIRECTORY at a missing
