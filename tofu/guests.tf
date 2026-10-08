@@ -37,6 +37,7 @@ locals {
       # guest left behind is exactly what that alert is for.
       tags     = ["disposable", "tofu"]
       password = random_password.proof[0].result
+      username = "operator"
     }
   } : {}
 
@@ -77,6 +78,7 @@ locals {
       # found by.
       tags     = concat(["lab-domain"], g.startup == null ? ["on-demand"] : [])
       password = null
+      username = "operator" # unused: a Windows clone takes no cloud-init user
     })
   }
 
@@ -101,6 +103,11 @@ locals {
       on_boot     = false
       tags        = ["dotfiles", "on-demand"]
       password    = null
+      # Not the module's `operator`: Debian ships a system group of that name
+      # and Fedora a system user, so cloud-init's useradd failed on the first
+      # apply (2026-10-08) and the guest had no login. `tester` is also the
+      # Windows guest's bootstrap user (test-the-dotfiles-layers.md §3).
+      username = "tester"
     })
   }
 
@@ -138,6 +145,7 @@ module "guest" {
   on_boot    = each.value.on_boot
   tags       = each.value.tags
   password   = each.value.password
+  username   = each.value.username
   ssh_keys   = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
   mac_address = each.value.mac_address

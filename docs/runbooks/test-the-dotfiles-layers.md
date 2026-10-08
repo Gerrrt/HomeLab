@@ -76,7 +76,7 @@ machine-id. Then shut the guest down and snapshot it **stopped**:
 ```bash
 id=191
 post /nodes/Saruman/qemu/$id/status/start
-# Linux: wait until `ssh operator@10.0.30.91 true` succeeds, then:
+# Linux: wait until `ssh tester@10.0.30.91 true` succeeds, then:
 post /nodes/Saruman/qemu/$id/status/shutdown
 # when api /nodes/Saruman/qemu/$id/status/current says "stopped":
 post /nodes/Saruman/qemu/$id/snapshot -d snapname=clean -d 'description=first boot, before any dotfiles (#920)'
@@ -116,7 +116,7 @@ post /nodes/Saruman/qemu/$id/status/start
 
 Then, per layer:
 
-- **Debian:** `ssh operator@10.0.30.91`, then:
+- **Debian:** `ssh tester@10.0.30.91`, then:
 
   ```bash
   git clone https://github.com/dotgibson/dotfiles-Debian ~/dotfiles-Debian
@@ -126,7 +126,7 @@ Then, per layer:
   ```
 
   `curl`, `git` and `sudo` are in the template, so the preflight passes.
-- **Fedora:** `ssh operator@10.0.30.92`, then the same with
+- **Fedora:** `ssh tester@10.0.30.92`, then the same with
   `dotfiles-Fedora`, and `./bootstrap.sh --no-flatpak`. It is a headless
   Server.
 - **Windows:** `ssh tester@10.0.30.98`, then:

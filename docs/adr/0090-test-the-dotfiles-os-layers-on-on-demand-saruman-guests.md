@@ -94,8 +94,10 @@ so it keeps to the rule.
 members, take no Ansible role and get no lab-domain weakness.
 
 - **Resolution.** They resolve at `10.0.30.1`.
-- **Login.** The Linux guests' only login is cloud-init's `operator` with
-  `phoenix`'s key.
+- **Login.** The Linux guests' only login is cloud-init's `tester`, with
+  `phoenix`'s key: the same name as the Windows guest's bootstrap user. Not
+  the module's default `operator`, which Debian ships as a system group and
+  Fedora as a system user, so cloud-init cannot create it.
 - **Monitoring.** No Alloy, no scrape and no backup: each is rebuilt from its
   template, as `diabolos` is.
 - **Tags.** Every guest is tagged `dotfiles` and
