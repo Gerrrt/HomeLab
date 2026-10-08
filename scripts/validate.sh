@@ -479,6 +479,16 @@ if have python3; then
       fail "${stack}: dashboard JSON and datasource references"
     fi
   done
+  # The screenshots render each dashboard at a height derived from its JSON,
+  # under a ceiling the renderer silently clamps to. A dashboard that outgrows
+  # it would be cropped on the monitoring host while the capture reports
+  # success, so the PR that grows it fails here instead (#954).
+  if heights_out="$(./scripts/capture-screenshots.sh --check 2>&1)"; then
+    pass "screenshot heights fit under the renderer's BROWSER_MAX_HEIGHT"
+  else
+    printf '%s\n' "${heights_out}"
+    fail "screenshot heights: a captured dashboard outgrew the renderer, or MAX_HEIGHT and BROWSER_MAX_HEIGHT disagree"
+  fi
 
   # A panel query that does not parse shows as an empty panel, not an error, so
   # nothing about a broken dashboard is loud. This was CI-only until #175.
