@@ -26,8 +26,12 @@ docstring gives: it is a record, not a claim about now.
     `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
     like the other eight.
   - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
-    covers a host that turns it on later, because its kills end in the same
-    systemd verdict.
+    covers a journal-shipping host that turns it on later, because its kills
+    end in the same systemd verdict.
+  - **Correction to the entry below:** it says `smaug` ships its journal. It
+    does not. The NAS ships no logs and runs no Alloy (`observability.md`), so
+    no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
+    Its check is an inventory fact, not coverage.
 
 - **`WazuhAgentsNotConnected` joins each running guest to its own agent**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
