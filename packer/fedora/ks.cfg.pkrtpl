@@ -28,8 +28,14 @@ bootloader --timeout=1
 # Not cloud-init: since 24.3 its units are cloud-init-main and
 # cloud-init-network, there is no cloud-init.service to name, and Anaconda
 # stops the install with "Error enabling service cloud-init: 1" if it is
-# listed. Fedora's presets enable its units when the package is installed.
-services --enabled=sshd,qemu-guest-agent
+# listed. Fedora's presets enable the rest when the package is installed —
+# but f44's 90-default.preset names cloud-config, cloud-final,
+# cloud-init-main and cloud-init-local, and not cloud-init-network. That one
+# is WantedBy=cloud-init.target only, so nothing else starts it, and
+# cloud-init-main waits on each stage's unit to signal it; the network stage
+# is the one that applies the Proxmox drive's network config and SSH keys.
+# So it is named here.
+services --enabled=sshd,qemu-guest-agent,cloud-init-network
 
 %packages
 @^server-product-environment
