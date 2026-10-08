@@ -25,7 +25,7 @@ make up        # from the repository root
 | `alertmanager` | `prom/alertmanager` | 9093 (localhost) | Alert routing, grouping, inhibition |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
 | `caddy` | `caddy` | 9090, 3100 (`INGEST_BIND_ADDR`, https) | The ingest proxy: TLS on a lab-CA leaf (#764), a bearer token per agent to push, a reader token to query, the admin and delete APIs to nobody (#182) |
-| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards — the main published UI |
+| `grafana` | `grafana/grafana` | 3000 (https) | Dashboards — the main published UI |
 | `snmp-exporter` | `prom/snmp-exporter` | *internal* | SNMP polling proxy |
 | `blackbox-exporter` | `prom/blackbox-exporter` | *internal* | Probes from outside a service: is it reachable, and what did the resolver answer |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |

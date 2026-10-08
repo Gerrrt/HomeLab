@@ -25,7 +25,7 @@ make up STACK=lab        # from the repository root
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
 | `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix, fenrir, golem and eden push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
-| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards, the one service a human opens |
+| `grafana` | `grafana/grafana` | 3000 (https) | Dashboards, the one service a human opens |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
