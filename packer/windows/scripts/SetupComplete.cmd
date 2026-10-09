@@ -101,6 +101,14 @@ sc.exe config sshd start= auto>> "%LOG%" 2>&1
 sc.exe start sshd>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
+rem Readiness invariant (#1099): the Panther answer files MUST be gone before
+rem the agent signals ready. If either survived the delete above, do NOT start
+rem QEMU-GA: packer-smoke.sh then times out and the rebuild fails loudly rather
+rem than shipping a clone whose plaintext build/AutoLogon password is readable
+rem by BUILTIN\Users. The smoke test also asserts their absence over SSH.
+if exist "%WINDIR%\Panther\unattend.xml" goto scrubfail
+if exist "%WINDIR%\Panther\unattend-original.xml" goto scrubfail
+
 rem Last: the guest agent, which sysprep.ps1 disabled so that it could not
 rem answer before this script had run, sshd included. Its first answer is the
 rem readiness signal scripts/packer-smoke.sh waits for.
@@ -109,3 +117,8 @@ sc.exe config QEMU-GA start= auto>> "%LOG%" 2>&1
 sc.exe start QEMU-GA>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 echo %DATE% %TIME% done>> "%LOG%"
+goto :eof
+
+:scrubfail
+echo %DATE% %TIME% ABORT: a Panther answer file survived the scrub (#1099); refusing to start QEMU-GA>> "%LOG%"
+exit /b 1
