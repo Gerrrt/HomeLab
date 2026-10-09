@@ -298,6 +298,8 @@ def self_test() -> int:
         ),
         ("one weekly Gentoo build behind is not stale", gentoo_behind("20261004T164559Z", "20261011T170000Z"), False),
         ("five weekly Gentoo builds behind is stale", gentoo_behind("20261004T164559Z", "20261108T170000Z"), True),
+        ("exactly 28 days behind is not yet stale", gentoo_behind("20261004T164559Z", "20261101T164559Z"), False),
+        ("one second over 28 days is stale", gentoo_behind("20261004T164559Z", "20261101T164600Z"), True),
     ]
     failed = 0
     for name, got, want in cases:
