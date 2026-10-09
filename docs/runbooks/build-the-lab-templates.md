@@ -1,11 +1,14 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
-**Target:** templates 901, 903–906, 911 and 912 on `Saruman`, built from
+**Target:** templates 901, 903–908, 911 and 912 on `Saruman`, built from
 `phoenix` through the Proxmox API. 902, Kali, is written here and built on
 `ifrit` once that host exists. 903 (Debian), 904 (Fedora), 905 (openSUSE
-Tumbleweed) and 906 (Arch) are the dotfiles OS layers' templates
+Tumbleweed), 906 (Arch), 907 (Alpine) and 908 (Gentoo) are the dotfiles OS
+layers' templates
 ([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
-[#920](https://github.com/Gerrrt/HomeLab/issues/920)), four of the seven new Linux templates.
+[#920](https://github.com/Gerrrt/HomeLab/issues/920)), six of the seven new
+Linux templates. 907 and 908 start from their projects' cloud images, not an
+ISO: §4b.
 
 **Time:** an evening the first time, most of it Windows Setup running
 unattended. After that, a rebuild is one command per template and about forty
@@ -45,7 +48,7 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Where it runs | `phoenix`, through the API on 8006 | It is the only host admitted to the hypervisor's API, and the only one meant to build machines (ADR-0043). There is no SSH to `Saruman` from here, and nothing in this runbook needs it |
-| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 911 Windows 11 Pro, 912 Server 2025 eval. 905–909 are the rest of ADR-0090's dotfiles layers | The 900s hold no address. Guests keep "VMID is the last octet" |
+| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 is NixOS, to come. 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
 | Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora and openSUSE, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
@@ -377,6 +380,8 @@ What each one does, so a stall can be placed:
   `packer/arch/install.sh` partitions, pacstraps and configures the disk.
   There is no build user to delete, because the build never ran in the
   installed system.
+- **Alpine and Gentoo** are not in this list. They start from cloud images,
+  not ISOs: §4b.
 - **Windows** presses a key at "Press any key to boot from CD". Setup loads
   `vioscsi` and `NetKVM` from the VirtIO disc, installs, and logs in once as
   Administrator. `bootstrap.ps1` from the answer disc installs the guest
@@ -407,6 +412,60 @@ in the Proxmox UI from Hicks:
 **If sysprep fails,** `C:\Windows\System32\Sysprep\Panther\setuperr.log` names
 the culprit. On Windows 11 it is almost always a Store app updated for
 Administrator during the build, which `bootstrap.ps1` exists to prevent.
+
+## 4b. Alpine and Gentoo, from their projects' cloud images
+
+Neither has an installer to answer: Alpine's is typed at a console, and
+Gentoo's is a stage3 compiled by hand. Both publish signed cloud-init images,
+so the image is the install
+([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+decision 2).
+
+1. **Import, as root on `Saruman`.** It downloads the image, refuses one whose
+   SHA-256 differs from the pin in the script, and imports it unchanged as a
+   staging template, 917 or 918:
+
+   ```bash
+   scripts/import-cloud-template.sh alpine --force
+   scripts/import-cloud-template.sh gentoo --force
+   ```
+
+   A newer image is a new pin. Verify its signature first, against a key
+   found off the image. The script's header names both keys and where to
+   find them.
+
+2. **Build, on `phoenix`, one at a time.** Both builds give their clone the
+   same fixed address, `cloud_image_build_address` (`.99`), because neither
+   image carries a guest agent to report one:
+
+   ```bash
+   packer build -force -only='alpine.*' packer/
+   packer build -force -only='gentoo.*' packer/
+   ```
+
+   Packer generates a key for the session and puts it on the clone's
+   cloud-init drive for the image's own default user (`alpine`, `gentoo`).
+   It installs the agent and what the layer needs, deletes that user, and
+   converts the result. Alpine takes about a minute. Gentoo takes about
+   twelve: `emerge-webrsync`, then `git` and the agent from Gentoo's binary
+   host.
+
+What the first builds found (2026-10-09), so a stall can be placed:
+
+- **The clone does not boot** ("No bootable option"): the builder's default
+  SCSI controller is `lsi`, which OVMF cannot boot. The sources set
+  `virtio-scsi-single`.
+- **The smoke test treats it as Windows**: the builder writes `ostype other`
+  unless told otherwise. The sources set `os = "l26"`.
+- **`apk` or `emerge` cannot lock its database**: cloud-init is upgrading
+  packages at first boot. The sources turn that off and wait for cloud-init.
+- **Alpine: `DNS: transient error`**: with a static address, Alpine writes no
+  `resolv.conf`. The build writes it.
+- **Alpine: a `limine-efi-updater` trigger fails**: that is `apk upgrade` on
+  this image. The build does not upgrade; a newer image is a new pin.
+- **Gentoo is systemd**: its only cloud image uses the 23.0 systemd profile,
+  while dotfiles-Gentoo defaults to OpenRC. `dot-gentoo` tests the layer on
+  systemd.
 
 ## 5. Kali, once `ifrit` exists (and Debian's port, now)
 
@@ -454,6 +513,8 @@ scripts/packer-smoke.sh 903
 scripts/packer-smoke.sh 904
 scripts/packer-smoke.sh 905
 scripts/packer-smoke.sh 906
+scripts/packer-smoke.sh 907
+scripts/packer-smoke.sh 908
 ```
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
@@ -522,8 +583,9 @@ On the day of the first successful build:
 
 ## 10. Take it out
 
-In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903–906, 911 and
-912, after the dotfiles guests cloned from 903–906 if they go too
+In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903–908, 911 and
+912, and the staging templates 917 and 918, after the dotfiles guests
+cloned from 903–908 if they go too
 ([`test-the-dotfiles-layers.md`](test-the-dotfiles-layers.md)). No guest
 depends on a template once cloned, because every clone is full. Then remove
 the `large_data` ACL and `VM.GuestAgent.Audit` from §2 if nothing else uses

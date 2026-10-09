@@ -437,6 +437,8 @@ Where things get broken on purpose.
 | dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
 | dot-opensuse | `10.0.30.93` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | openSUSE Tumbleweed | Rack U3 | Dotfiles test VM, on demand |
 | dot-arch | `10.0.30.94` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Arch Linux | Rack U3 | Dotfiles test VM, on demand |
+| dot-alpine | `10.0.30.95` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Alpine Linux 3.24 | Rack U3 | Dotfiles test VM, on demand |
+| dot-gentoo | `10.0.30.96` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Gentoo Linux (systemd) | Rack U3 | Dotfiles test VM, on demand |
 | dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
@@ -508,7 +510,7 @@ Where things get broken on purpose.
   per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
   `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
   `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
-  on 2026-10-08 and `.93` and `.94` on 2026-10-09, and are in the table above; the
+  on 2026-10-08 and `.93`–`.96` on 2026-10-09, and are in the table above; the
   others join it as each
   is built. They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
@@ -517,6 +519,11 @@ Where things get broken on purpose.
   they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
   the internet for packages and `git clone`, and `phoenix` reaches them
   within the segment.
+- `10.0.30.99` is held only while template 907 or 908 builds: the
+  cloud-image builds (`packer/alpine.pkr.hcl`, `packer/gentoo.pkr.hcl`) give
+  their clone this fixed address, because the images carry no guest agent to
+  report a DHCP one. It is otherwise unused. Give it to nothing else, or those
+  builds collide with it (#920 phase 3).
 - `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built
   2026-10-07** as a full clone of template 901

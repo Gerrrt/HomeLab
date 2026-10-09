@@ -17,6 +17,8 @@ page is the map.
 | 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 907 | `tpl-alpine` | `alpine.pkr.hcl` | Alpine's cloud image, imported as 917 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 908 | `tpl-gentoo` | `gentoo.pkr.hcl` | Gentoo's cloud image, imported as 918 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 
@@ -42,6 +44,12 @@ scripts/packer-smoke.sh 912
   labelled `OEMDRV`, which Anaconda reads with no boot argument.
 - `opensuse/autoinst.xml.pkrtpl`: the AutoYaST profile for Tumbleweed's
   NET installer, on a disc labelled `OEMDRV` named on the kernel line.
+- `alpine.pkr.hcl` and `gentoo.pkr.hcl`: not ISO installs. Each clones a
+  staging template that `scripts/import-cloud-template.sh` imported, as root
+  on `Saruman`, from the project's signed cloud image (917, 918). It adds the
+  guest agent and what the dotfiles layer needs, and deletes the image's
+  default user. The images carry no agent, so the build gives its clone a
+  fixed address, `cloud_image_build_address`, and the two builds take turns.
 - `arch/user-data.pkrtpl` and `arch/install.sh`: Arch has no installer to
   answer. The first lets Packer into the live ISO, and the second installs
   the disk over that session. Secure Boot is off for Arch, the one template

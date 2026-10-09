@@ -16,7 +16,7 @@ needed for Kea.
 
 - the templates, from
   [`build-the-lab-templates.md`](build-the-lab-templates.md) §2b, §4 and §6:
-  903–906 for the guests you are creating, and the existing 911;
+  903–908 for the guests you are creating, and the existing 911;
 - the pool grant, from
   [`provision-lab-guests.md`](provision-lab-guests.md) §2 (`/pool/dotfiles`).
 
@@ -24,8 +24,8 @@ This runs
 [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
 (191), Fedora (192) and Windows (198) in phase 1, openSUSE Tumbleweed (193)
-and Arch (194) in phase 2. Alpine, Gentoo and NixOS join in later phases,
-and each phase adds its guests' rows below.
+and Arch (194) in phase 2, Alpine (195) and Gentoo (196) in phase 3. NixOS
+joins in phase 4.
 
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
@@ -33,6 +33,8 @@ and each phase adds its guests' rows below.
 | `dot-fedora` | 192 | `10.0.30.92` | 904 `tpl-fedora-server` | `dotgibson/dotfiles-Fedora` |
 | `dot-opensuse` | 193 | `10.0.30.93` | 905 `tpl-opensuse-tw` | `dotgibson/dotfiles-openSUSE` |
 | `dot-arch` | 194 | `10.0.30.94` | 906 `tpl-arch` | `dotgibson/dotfiles-Arch` |
+| `dot-alpine` | 195 | `10.0.30.95` | 907 `tpl-alpine` | `dotgibson/dotfiles-Alpine` |
+| `dot-gentoo` | 196 | `10.0.30.96` | 908 `tpl-gentoo` | `dotgibson/dotfiles-Gentoo` |
 | `dot-windows` | 198 | `10.0.30.98` | 911 `tpl-win11-pro` | `dotgibson/dotfiles-Windows` |
 
 The helpers below are used in every section. They call the API with the
@@ -74,10 +76,10 @@ else. Anything that says `must be replaced` on a lab-domain guest is a stop.
 Check each one:
 
 ```bash
-for id in 191 192 193 194 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
+for id in 191 192 193 194 195 196 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
 ```
 
-**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s `efidisk0` must show `pre-enrolled-keys=0`: Arch boots without Secure Boot. Without `on-demand`,
+**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s, `dot-alpine`'s and `dot-gentoo`'s `efidisk0` must show `pre-enrolled-keys=0`: they boot without Secure Boot. Without `on-demand`,
 `HypervisorGuestStopped` fires an hour after the first shutdown.
 
 ## 3. First boot, then the `clean` snapshot
@@ -172,6 +174,16 @@ Then, per layer:
   The template has `sudo`, `git` and an `en_US.UTF-8` locale, which the
   layer's README asks for. It installs no AUR helper; paru stays the
   README's manual step.
+- **Alpine:** `ssh tester@10.0.30.95`, then the same with
+  `dotfiles-Alpine`. `bash` and `git` are in the template, which is the
+  README's first step. Privilege is `doas`, not `sudo`. The template has no
+  `sudo` on purpose: the bootstrap would pick it first, and the clone's user
+  has no rule for it.
+- **Gentoo:** `ssh tester@10.0.30.96`, then the same with
+  `dotfiles-Gentoo`, and afterwards `make assert-provisioned` in the
+  checkout. The template is Gentoo's systemd cloud image, so the layer runs
+  on systemd, not its OpenRC default. Expect a long run: the bootstrap emerges
+  from the binary host where it can, and builds the rest.
 - **Windows: from the console, not over SSH.** The first run (2026-10-08)
   showed that the layer cannot be tested in an SSH session:
   - **`winget`.** It is not registered for an account that has never had an
@@ -294,3 +306,7 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | Phase 2: templates 905 (openSUSE Tumbleweed) and 906 (Arch) | Both built twice and smoke-tested, in about 11 min and 2.5 min. **openSUSE:** three builds stopped at "a profile for this machine could not be found or retrieved", which looked like a location problem but wasn't. YaST's schema check had rejected `install_recommends` (it is `install_recommended`); y2log on tty2 showed it. Then the profile had to name the `openSUSE` base product, and the default user needed a sudo drop-in (openSUSE's `cloud.cfg` gives it none). **Arch:** the live ISO's cloud-init wrapped root's key in a forced command until `disable_root: false`; `ln` of resolv.conf fails inside `arch-chroot`; `inetutils` is needed for `hostname` |
 | 2026-10-09 | Phase 2 guests, `-target`ed one at a time | `dot-arch` (194, .94, Secure Boot off) and `dot-opensuse` (193, .93). `tester` logs in with `sudo`, DNS works, `clean` taken stopped |
 | 2026-10-09 | First runs, Arch and openSUSE (dotfiles v7.14.0) | Arch: `bootstrap.sh` exit 1, `core doctor` exit 0. The one failure is the Flathub remote: it is added system-wide without `$BLIB_SU`, and polkit refuses it with no agent (`EnsureRepo not allowed for user`); filed as [dotgibson/dotfiles-Arch#199](https://github.com/dotgibson/dotfiles-Arch/issues/199). Six AUR-only tools are missing, as the layer says. openSUSE: exit 2 for the same Flathub step (`ConfigureRemote not allowed for user`); doctor exit 0, `jj` and `difft` missing |
+| 2026-10-09 | Phase 3: templates 907 (Alpine) and 908 (Gentoo), from cloud images | `scripts/import-cloud-template.sh` imported Alpine 3.24.2-r2 and Gentoo `di-amd64-cloudinit-20261004T164559Z` as staging templates 917 and 918. Both images verified against keys found off the image, then pinned by SHA-256. Packer's `proxmox-clone` built each twice, and each passed its smoke test both times: Alpine in about 1 min, Gentoo in about 11. The first builds found the builder's `lsi` controller (no boot under OVMF), its `ostype other`, cloud-init's first-boot upgrade holding the package lock, Alpine's missing `resolv.conf` on a static address, and `apk upgrade` tripping a `limine-efi-updater` trigger. `build-the-lab-templates.md` §4b has each |
+| 2026-10-09 | Phase 3 guests, `-target`ed together | `dot-alpine` (195, .95) and `dot-gentoo` (196, .96), Secure Boot off. `tester` logs in with `doas` (Alpine) or `sudo` (Gentoo), DNS works, and Gentoo's root grew to 60G. `clean` taken stopped |
+| 2026-10-09 | First runs, Alpine and Gentoo (dotfiles v7.14.0) | Alpine: `bootstrap.sh` exit 0 in 26 min (mostly cargo builds), `core doctor` exit 0 with nothing missing, opt-in tools included; the first layer to run clean end to end. Gentoo: exit 0 in 2 h (`emerge --sync`, then 98 packages, most as binaries), doctor exit 0 with only `gum` missing, which `install/packages.txt` leaves out on purpose; `make assert-provisioned` OK, 39 required and 0 best-effort absent. On systemd, not the layer's OpenRC default |
+| 2026-10-09 | 907 rebuilt for review (`cloud-init clean --machine-id`) | Built twice and smoke-tested again, then `dot-alpine` re-cloned with `-target`ed `-replace` and `clean` retaken. Alpine (OpenRC) has no `/etc/machine-id` at all, so the flag is for parity with the other templates, not a fix |

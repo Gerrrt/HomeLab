@@ -2,6 +2,22 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> 2026-10-09, phase 3: Alpine and Gentoo are built as decision 2 says.
+> `scripts/import-cloud-template.sh` (root on `Saruman`) imports each
+> project's signed cloud image, pinned by SHA-256, as a staging template, 917
+> or 918. Packer's `proxmox-clone` builder then finishes it into 907 or 908.
+>
+> - **Build address.** The images carry no guest agent, so each build gives
+>   its clone the fixed address `10.0.30.99`, and the two builds take turns.
+> - **Gentoo's profile.** Gentoo publishes its cloud image only with the 23.0
+>   systemd profile, so `dot-gentoo` tests dotfiles-Gentoo on systemd, not on
+>   its OpenRC default.
+> - **Staleness checks.** The pins are not yet checked for staleness the way
+>   the toolchain pins are. That is still to do.
+>
+> The text here is left as written, per ADR-0001.
+
 ## Context
 
 The [dotgibson dotfiles](https://github.com/dotgibson/dotfiles-core) have one

@@ -46,6 +46,40 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **The dotfiles OS-layer VMs, phase 3: Alpine and Gentoo, from their
+  projects' cloud images**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Import.** `scripts/import-cloud-template.sh` runs as root on
+      `Saruman`. It imports each project's signed cloud image, pinned by
+      SHA-256, as staging template 917 or 918: Alpine 3.24.2-r2, signed by
+      the key alpinelinux.org/cloud names; Gentoo's weekly
+      `di-amd64-cloudinit` image, signed by its Automated Weekly Release Key,
+      refreshed by WKD because the keyserver copy showed expired.
+    - **Templates.** Packer's `proxmox-clone` builder finishes them into 907
+      `tpl-alpine` and 908 `tpl-gentoo`, each built twice and smoke-tested.
+      The images carry no guest agent, so each build gives its clone the
+      fixed address `.99`, and the two builds take turns.
+    - **Guests.** `dot-alpine` (195, `.95`) and `dot-gentoo` (196, `.96`),
+      both with Secure Boot off.
+  - **What the builds found.**
+    - **The builder's defaults.** Its `lsi` controller doesn't boot under
+      OVMF, and its `ostype other` made the smoke test take 908 for Windows.
+    - **First boot.** cloud-init's first-boot package upgrade held the
+      package lock.
+    - **Alpine.** A static address leaves no `resolv.conf`, and `apk
+      upgrade` trips a `limine-efi-updater` trigger on the image, so the
+      build doesn't upgrade.
+    - **Gentoo.** It ships only a systemd cloud image, so `dot-gentoo` tests
+      the layer on systemd, not on its OpenRC default.
+  - **First runs** (dotfiles v7.14.0).
+    - **Alpine** is the first layer clean end to end: `bootstrap.sh` exit 0,
+      and `core doctor` exit 0 with nothing missing.
+    - **Gentoo**: exit 0 after two hours of emerge, `core doctor` missing
+      only `gum` (left out on purpose by the layer), and `make
+      assert-provisioned` OK.
+
 - **The dotfiles OS-layer VMs, phase 2: openSUSE Tumbleweed and Arch**
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
