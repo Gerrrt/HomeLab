@@ -46,6 +46,19 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **`dot-windows`'s slowness was its display and its first sign-in, not
+  Saruman** ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)).
+  - **The display.** It ran on the Basic Display Adapter, because Proxmox's
+    default VGA has no Windows driver, so every frame was drawn on the CPU.
+    The guest module now takes a `vga` input, and `dot-windows` uses VirtIO
+    GPU. Its driver was already in the template.
+  - **The first sign-in.** `tester`'s first sign-in ran the CPU at 30–100%
+    for 3½–7½ minutes (OneDrive setup, Defender, search indexing). It is now
+    done once before `clean`, so a sign-in from `clean` settles in about 2
+    minutes.
+  - **Not the cause:** Saruman's load, the disk, memory, VBS and Defender
+    scans.
+
 - **`dot-windows` now starts a run with the layer's prerequisites in place**
   ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)). It was re-cloned
   from 911, rebuilt with the OOBE fix (#1093). Its `clean` snapshot now

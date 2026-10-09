@@ -102,6 +102,16 @@ variable "secure_boot" {
   description = "Pre-enrol the Microsoft Secure Boot keys in the EFI disk, as every template so far has. False for a template whose OS ships no Microsoft-signed shim (Arch, ADR-0090), or its clone will not boot."
 }
 
+variable "vga" {
+  type        = string
+  default     = null
+  description = "The display adapter. Null leaves Proxmox's default, which every guest had before dot-windows. \"virtio\" is VirtIO GPU: Windows has no driver for the default VGA and draws it on the CPU as the Basic Display Adapter, which made dot-windows' console slow (#1108). The guest needs virtio-win's viogpudo driver for it."
+  validation {
+    condition     = var.vga == null || contains(["std", "virtio", "qxl"], var.vga)
+    error_message = "vga is null, \"std\", \"virtio\" or \"qxl\"."
+  }
+}
+
 variable "on_boot" {
   type    = bool
   default = false
