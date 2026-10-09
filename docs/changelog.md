@@ -46,6 +46,17 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **`eden` is on the network diagram**
+  ([#1098](https://github.com/Gerrrt/HomeLab/issues/1098)). It was built on
+  2026-10-08 and was in `network.md`, but not in `current/network.svg`.
+  - Its card sits in VLAN 30's guest row, beside `golem` and the planned
+    `diabolos`, so that row now holds three cards like the dot row.
+  - Every other host in `network.md` was already drawn, either by name or as
+    part of a group.
+  - The PNG was re-rendered at 1.5× with cairosvg rather than `rsvg-convert`,
+    which is not installed on `Saruman`. Rendering the previous SVG that way
+    produced a PNG visually identical to the committed one.
+
 ## 2026-10-08
 
 - **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
