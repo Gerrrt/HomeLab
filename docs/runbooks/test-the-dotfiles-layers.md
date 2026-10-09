@@ -143,6 +143,61 @@ is never written down. The account logs in by key alone, as `sshd` allows
 nothing else here. Its default shell is PowerShell, so chain commands with
 `;`, not `&`.
 
+**Then bake in what the layer's `configuration.dsc.yaml` installs, still
+before the shutdown** (#1108). `tester` is a standard user, so at the console
+every machine-wide install asks for the `Administrator` password, and the
+first run (2026-10-08) was mostly UAC prompts. Installed here, machine-wide,
+`winget configure` finds each package present and skips it. Run it as
+`Administrator` over SSH, or as SYSTEM through the guest agent
+(`qm guest exec 198 -- powershell -NoProfile -EncodedCommand …` as root on
+`Saruman`):
+
+```powershell
+$ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
+$d = Join-Path $env:WINDIR 'Temp\bake'; New-Item -ItemType Directory -Force $d | Out-Null
+# Each from its publisher, with the SHA-256 the publisher states (GitHub's
+# release digest; Wireshark's SIGNATURES file). Current on 2026-10-09.
+$items = @(
+  @{ n='PowerShell-7.6.6-win-x64.msi'; u='https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-x64.msi'; h='958838ff55091e1c8705d89efed0cc7e8245a3a6ef6c0ccfae20015227108ad8' },
+  @{ n='Git-2.56.0.2-64-bit.exe'; u='https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/Git-2.56.0.2-64-bit.exe'; h='52188f917b378f00c70ec136bcf090005f30d44fbc4eba0bce759cc6592d60f6' },
+  @{ n='wsl.3.0.1.0.x64.msi'; u='https://github.com/microsoft/WSL/releases/download/3.0.1/wsl.3.0.1.0.x64.msi'; h='28b1a0d013640a2ac95898ea705fa186e5b4ff767a1c1b49257161bc106599c6' },
+  @{ n='Wireshark-4.6.9-x64.exe'; u='https://www.wireshark.org/download/win64/Wireshark-4.6.9-x64.exe'; h='bf9b5ce8a89f244c376a9b1a946276eaa06463dde3e33069a34d7f102f5878cf' }
+)
+foreach ($i in $items) {
+  $f = Join-Path $d $i.n
+  Invoke-WebRequest -UseBasicParsing -Uri $i.u -OutFile $f
+  if ((Get-FileHash -Algorithm SHA256 $f).Hash.ToLower() -ne $i.h) { throw "hash mismatch: $($i.n)" }
+}
+# Not $args: that name is PowerShell's own, and a parameter called it is empty.
+function Run($exe, $argv) { $p = Start-Process -FilePath $exe -ArgumentList $argv -Wait -PassThru; if ($p.ExitCode -notin 0, 3010) { throw "$exe exited $($p.ExitCode)" } }
+Run msiexec.exe "/i `"$d\PowerShell-7.6.6-win-x64.msi`" /qn /norestart ADD_PATH=1 ENABLE_PSREMOTING=0 REGISTER_MANIFEST=1 USE_MU=1 ENABLE_MU=1"
+Run "$d\Git-2.56.0.2-64-bit.exe" "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /NOCANCEL /SP- /COMPONENTS=gitlfs,assoc,assoc_sh"
+Run msiexec.exe "/i `"$d\wsl.3.0.1.0.x64.msi`" /qn /norestart"
+Run "$d\Wireshark-4.6.9-x64.exe" "/S /desktopicon=no /quicklaunchicon=no"
+# Developer Mode: what the layer's DeveloperMode resource sets.
+New-Item -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Force | Out-Null
+Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Name AllowDevelopmentWithoutDevLicense -Type DWord -Value 1
+Remove-Item -Recurse -Force $d
+# winget configure is off on a fresh install, and turning it on is elevated.
+$wg = Get-ChildItem 'C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe' | Sort-Object FullName | Select-Object -Last 1
+& $wg.FullName configure --enable
+```
+
+What it leaves out, on purpose:
+
+- **Windows Terminal** ships with Windows 11 and is registered at each
+  user's first logon.
+- **GNU Wget2** installs per user, so it asks for nothing.
+- **Npcap.** Wireshark's silent install skips it, because Npcap's free
+  edition has no silent install. Capture is not part of the test.
+- **WSL** is installed but cannot start, because the guest has no nested
+  virtualization (§4).
+
+The versions are the current ones on 2026-10-09. At a re-clone, take the
+current release of each and its publisher's SHA-256. winget's `configure`
+only asks for each package to be present, not for a version, so an older
+pin is still skipped.
+
 ## 4. A run
 
 Every run starts from `clean`:
@@ -237,37 +292,36 @@ Then, per layer:
   ```
 
   The password is a run-time change, and the next rollback discards it.
-  Then, at the console, in Windows PowerShell:
+  Then, at the console, in PowerShell 7 (`pwsh`). `clean` already has Git,
+  PowerShell 7, the configuration's other packages, Developer Mode and
+  `winget configure` switched on (§3):
 
   ```powershell
-  winget configure --enable
-  winget install Git.Git Microsoft.PowerShell
   git clone https://github.com/dotgibson/dotfiles-Windows.git ~/dotfiles-Windows
   cd ~/dotfiles-Windows
   (Get-Content configuration.dsc.yaml) -replace 'allowPrerequisites','allowPrerelease' | Set-Content configuration.dsc.yaml
   winget configure -f configuration.dsc.yaml --accept-configuration-agreements
   ```
 
-  Two lines here are not in the layer's README
-  ([dotgibson/dotfiles-Windows#285](https://github.com/dotgibson/dotfiles-Windows/issues/285)):
+  One line here is not in the layer's README
+  ([dotgibson/dotfiles-Windows#285](https://github.com/dotgibson/dotfiles-Windows/issues/285)).
+  It is the `-replace` on `configuration.dsc.yaml`:
+  - On 2026-10-08 the file's directives read `allowPrerequisites`, which
+    winget does not know.
+  - `Microsoft.Windows.Developer` (`OsVersion`, `DeveloperMode`) is published
+    only as prereleases.
+  - So without `allowPrerelease` the configure stops at "OsVersion
+    [os-version] The configuration unit could not be found".
 
-  - **`winget configure --enable`.** A fresh install has configuration
-    switched off.
-  - **The `-replace` on `configuration.dsc.yaml`.** On 2026-10-08 the file's
-    directives read `allowPrerequisites`, which winget does not know.
-    `Microsoft.Windows.Developer` (`OsVersion`, `DeveloperMode`) is
-    published only as prereleases, so without `allowPrerelease` the
-    configure stops at "OsVersion [os-version] The configuration unit could
-    not be found". Drop the line once the layer is fixed.
+  Drop the line once the layer is fixed.
 
-  **The console opens at OOBE's "Who's going to use this device?"**, because
-  911's answer file declares no local account (a template bug, tracked
-  separately). Create a throwaway account there, which the rollback
-  discards. Then sign out and sign in as `tester` under *Other user*, because
-  OOBE's account is an administrator.
+  The console opens at the sign-in screen (#1092, fixed by #1093 and 911's
+  2026-10-09 rebuild). Sign in as `tester` under *Other user*.
 
-  Approve the UAC prompts with the `Administrator` password, which is the
-  template's build password from `phoenix.env`. Then, in a new `pwsh`:
+  The configure should ask for no UAC approval. If it does, that package is
+  one the bake in §3 does not cover: approve it with the `Administrator`
+  password (the template's build password, from `phoenix.env`) and add it to
+  the bake. Then, in a new `pwsh`:
   `cd ~/dotfiles-Windows; .\install.ps1`. After that, in another new `pwsh`,
   run the layer's doctor (`powershell/os/45-doctor`).
 
@@ -341,3 +395,4 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | 907 rebuilt for review (`cloud-init clean --machine-id`) | Built twice and smoke-tested again, then `dot-alpine` re-cloned with `-target`ed `-replace` and `clean` retaken. Alpine (OpenRC) has no `/etc/machine-id` at all, so the flag is for parity with the other templates, not a fix |
 | 2026-10-09 | Phase 4: template 909 (NixOS) and `dot-nixos` | 909 built twice from the NixOS 26.05 minimal ISO and smoke-tested both times, about 5 min a build. The first two builds stopped at mounting the new root: once on a `/dev/disk/by-label` link udev had not made yet, and once because the ISO had not loaded ext4, so `mount` tried the partition as FAT. Both are fixed by mounting by device, with the type named. `dot-nixos` (197, .97) was applied with `-target`. `tester` has `sudo`, the `nixos-26.05` channel is present, root grew to 39G, and `clean` was taken stopped |
 | 2026-10-09 | First run, NixOS (dotfiles v7.14.0) | In the layer's order: the `home-manager` channel (release-26.05), `nix/nixos.nix` with `tester` and the home-manager module, then `nixos-rebuild switch`, which took about 1 min and activated `home-manager-tester.service`. Then `./bootstrap.sh`, exit 0 in 1 s (links only, no escalation), and `core doctor` exit 0, with nine missing: `viddy gron sd xh doggo op ast-grep uv difft`. None of them is in `nix/home.nix`'s `home.packages`, so the layer's package set lags what Core expects |
+| 2026-10-09 | `dot-windows` re-cloned from the rebuilt 911 (#1093), §3 again, then the new prerequisite bake (#1108) | First boot rested at the sign-in screen: `AutoAdminLogon=0`, no `DefaultPassword`, no `Panther\unattend-original.xml`. `tester` logs in by key at Medium Mandatory Level. The bake ran as SYSTEM through the guest agent: all four downloads matched their published SHA-256, and every installer exited 0. Afterwards winget (as SYSTEM) lists Git.Git 2.56.0.2, Microsoft.PowerShell 7.6.6, Microsoft.WSL 3.0.1 and WiresharkFoundation.Wireshark 4.6.9. `configure --enable` exited 0. `clean` retaken stopped. The console run has not been done yet |
