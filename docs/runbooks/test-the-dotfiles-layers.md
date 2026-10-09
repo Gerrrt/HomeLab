@@ -16,7 +16,7 @@ needed for Kea.
 
 - the templates, from
   [`build-the-lab-templates.md`](build-the-lab-templates.md) §2b, §4 and §6:
-  903–906 for the guests you are creating, and the existing 911;
+  903–908 for the guests you are creating, and the existing 911;
 - the pool grant, from
   [`provision-lab-guests.md`](provision-lab-guests.md) §2 (`/pool/dotfiles`).
 
@@ -24,8 +24,8 @@ This runs
 [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
 (191), Fedora (192) and Windows (198) in phase 1, openSUSE Tumbleweed (193)
-and Arch (194) in phase 2. Alpine, Gentoo and NixOS join in later phases,
-and each phase adds its guests' rows below.
+and Arch (194) in phase 2, Alpine (195) and Gentoo (196) in phase 3. NixOS
+joins in phase 4.
 
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
@@ -33,6 +33,8 @@ and each phase adds its guests' rows below.
 | `dot-fedora` | 192 | `10.0.30.92` | 904 `tpl-fedora-server` | `dotgibson/dotfiles-Fedora` |
 | `dot-opensuse` | 193 | `10.0.30.93` | 905 `tpl-opensuse-tw` | `dotgibson/dotfiles-openSUSE` |
 | `dot-arch` | 194 | `10.0.30.94` | 906 `tpl-arch` | `dotgibson/dotfiles-Arch` |
+| `dot-alpine` | 195 | `10.0.30.95` | 907 `tpl-alpine` | `dotgibson/dotfiles-Alpine` |
+| `dot-gentoo` | 196 | `10.0.30.96` | 908 `tpl-gentoo` | `dotgibson/dotfiles-Gentoo` |
 | `dot-windows` | 198 | `10.0.30.98` | 911 `tpl-win11-pro` | `dotgibson/dotfiles-Windows` |
 
 The helpers below are used in every section. They call the API with the
@@ -74,10 +76,10 @@ else. Anything that says `must be replaced` on a lab-domain guest is a stop.
 Check each one:
 
 ```bash
-for id in 191 192 193 194 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
+for id in 191 192 193 194 195 196 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
 ```
 
-**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s `efidisk0` must show `pre-enrolled-keys=0`: Arch boots without Secure Boot. Without `on-demand`,
+**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s, `dot-alpine`'s and `dot-gentoo`'s `efidisk0` must show `pre-enrolled-keys=0`: they boot without Secure Boot. Without `on-demand`,
 `HypervisorGuestStopped` fires an hour after the first shutdown.
 
 ## 3. First boot, then the `clean` snapshot
@@ -172,6 +174,16 @@ Then, per layer:
   The template has `sudo`, `git` and an `en_US.UTF-8` locale, which the
   layer's README asks for. It installs no AUR helper; paru stays the
   README's manual step.
+- **Alpine:** `ssh tester@10.0.30.95`, then the same with
+  `dotfiles-Alpine`. `bash` and `git` are in the template, which is the
+  README's first step. Privilege is `doas`, not `sudo`. The template has no
+  `sudo` on purpose: the bootstrap would pick it first, and the clone's user
+  has no rule for it.
+- **Gentoo:** `ssh tester@10.0.30.96`, then the same with
+  `dotfiles-Gentoo`, and afterwards `make assert-provisioned` in the
+  checkout. The template is Gentoo's systemd cloud image, so the layer runs
+  on systemd, not its OpenRC default. Expect a long run: the bootstrap emerges
+  from the binary host where it can, and builds the rest.
 - **Windows: from the console, not over SSH.** The first run (2026-10-08)
   showed that the layer cannot be tested in an SSH session:
   - **`winget`.** It is not registered for an account that has never had an

@@ -517,6 +517,11 @@ Where things get broken on purpose.
   they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
   the internet for packages and `git clone`, and `phoenix` reaches them
   within the segment.
+- `10.0.30.99` is held only while template 907 or 908 builds: the
+  cloud-image builds (`packer/alpine.pkr.hcl`, `packer/gentoo.pkr.hcl`) give
+  their clone this fixed address, because the images carry no guest agent to
+  report a DHCP one. It is otherwise unused. Give it to nothing else, or those
+  builds collide with it (#920 phase 3).
 - `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built
   2026-10-07** as a full clone of template 901
