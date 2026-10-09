@@ -26,7 +26,9 @@ udevadm settle
 mkfs.fat -F 32 -n ESP "${disk}1"
 mkfs.ext4 -q -F -L root "${disk}2"
 mount "${disk}2" /mnt
-mount --mkdir "${disk}1" /mnt/boot
+# 0077 so the random seed bootctl writes is not world-readable; genfstab
+# carries the options into the installed fstab.
+mount --mkdir -o fmask=0077,dmask=0077 "${disk}1" /mnt/boot
 
 # What dotfiles-Arch's bootstrap expects to find (its README): sudo, git and
 # a UTF-8 locale. curl for the dotfiles' other preflights.
@@ -60,8 +62,8 @@ L
 
 # Networking by systemd-networkd, which cloud-init's network stage writes
 # for (it renders the Proxmox drive's ipconfig0 as a .network file).
-systemctl enable systemd-networkd systemd-resolved sshd qemu-guest-agent
-ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
+# qemu-guest-agent has no [Install]: udev starts it when the virtio port appears.
+systemctl enable systemd-networkd systemd-resolved sshd
 # Every cloud-init stage that this release ships. Since 24.3 the unit names
 # changed (cloud-init-main, cloud-init-network), and Fedora 44's presets left
 # one out (#920 phase 1), so each is named rather than trusted to a preset.
@@ -80,6 +82,10 @@ rm -f /etc/ssh/ssh_host_*
 : > /etc/machine-id
 cloud-init clean --logs || true
 CHROOT
+
+# From outside the chroot: arch-chroot bind-mounts the live system's
+# resolv.conf over the target's, so `ln` inside it fails with "same file".
+ln -sf ../run/systemd/resolve/stub-resolv.conf /mnt/etc/resolv.conf
 
 sync
 umount -R /mnt
