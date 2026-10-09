@@ -39,6 +39,14 @@ token in `phoenix.env`, as `provision-lab-guests.md` §4 does:
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 api()  { printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" | curl -K - -fsS "${PROXMOX_URL}$1"; }
 post() { printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" | curl -K - -fsS -X POST "${PROXMOX_URL}$1" "${@:2}"; }
+# Power, snapshot and rollback calls return a task's UPID and finish later.
+# `task` waits for it and fails unless it ended OK, so the next call never
+# meets a guest that is still locked (scripts/packer-smoke.sh does the same).
+task() {
+  upid=$(post "$@" | jq -r .data)
+  while [ "$(api "/nodes/Saruman/tasks/$upid/status" | jq -r .data.status)" = running ]; do sleep 2; done
+  api "/nodes/Saruman/tasks/$upid/status" | jq -e '.data.exitstatus == "OK"' >/dev/null || { echo "task failed: $upid" >&2; return 1; }
+}
 ```
 
 ---
@@ -76,11 +84,10 @@ machine-id. Then shut the guest down and snapshot it **stopped**:
 
 ```bash
 id=191
-post /nodes/Saruman/qemu/$id/status/start
+task /nodes/Saruman/qemu/$id/status/start
 # Linux: wait until `ssh tester@10.0.30.91 true` succeeds, then:
-post /nodes/Saruman/qemu/$id/status/shutdown
-# when api /nodes/Saruman/qemu/$id/status/current says "stopped":
-post /nodes/Saruman/qemu/$id/snapshot -d snapname=clean -d 'description=first boot, before any dotfiles (#920)'
+task /nodes/Saruman/qemu/$id/status/shutdown
+task /nodes/Saruman/qemu/$id/snapshot -d snapname=clean -d 'description=first boot, before any dotfiles (#920)'
 ```
 
 **Stopped, never live.** A live snapshot freezes the guest's filesystems
@@ -134,8 +141,8 @@ Every run starts from `clean`:
 
 ```bash
 id=191
-post /nodes/Saruman/qemu/$id/snapshot/clean/rollback
-post /nodes/Saruman/qemu/$id/status/start
+task /nodes/Saruman/qemu/$id/snapshot/clean/rollback
+task /nodes/Saruman/qemu/$id/status/start
 ```
 
 Then, per layer:
@@ -184,20 +191,21 @@ Then, per layer:
   winget install Git.Git Microsoft.PowerShell
   git clone https://github.com/dotgibson/dotfiles-Windows.git ~/dotfiles-Windows
   cd ~/dotfiles-Windows
+  (Get-Content configuration.dsc.yaml) -replace 'allowPrerequisites','allowPrerelease' | Set-Content configuration.dsc.yaml
   winget configure -f configuration.dsc.yaml --accept-configuration-agreements
   ```
 
-  A fresh install has `winget configure` switched off, and the README does
-  not say to turn it on. On 2026-10-08 the file's directives read
-  `allowPrerequisites`, which winget does not know. `Microsoft.Windows.Developer`
-  (`OsVersion`, `DeveloperMode`) is published only as prereleases, so
-  without `allowPrerelease` the run stops at "OsVersion [os-version] The
-  configuration unit could not be found". Until the layer fixes it, fix the
-  local copy before `winget configure`:
+  Two lines here are not in the layer's README
+  ([dotgibson/dotfiles-Windows#285](https://github.com/dotgibson/dotfiles-Windows/issues/285)):
 
-  ```powershell
-  (Get-Content configuration.dsc.yaml) -replace 'allowPrerequisites','allowPrerelease' | Set-Content configuration.dsc.yaml
-  ```
+  - **`winget configure --enable`.** A fresh install has configuration
+    switched off.
+  - **The `-replace` on `configuration.dsc.yaml`.** On 2026-10-08 the file's
+    directives read `allowPrerequisites`, which winget does not know.
+    `Microsoft.Windows.Developer` (`OsVersion`, `DeveloperMode`) is
+    published only as prereleases, so without `allowPrerelease` the
+    configure stops at "OsVersion [os-version] The configuration unit could
+    not be found". Drop the line once the layer is fixed.
 
   **The console opens at OOBE's "Who's going to use this device?"**, because
   911's answer file declares no local account (a template bug, tracked
@@ -228,7 +236,7 @@ guest, the template's build date (in the template's description) and the
 output. Then shut down:
 
 ```bash
-post /nodes/Saruman/qemu/$id/status/shutdown
+task /nodes/Saruman/qemu/$id/status/shutdown
 ```
 
 The guest is left stopped at whatever state the run reached. The next run
@@ -240,8 +248,14 @@ When a template is rebuilt (`build-the-lab-templates.md` §8), its guests still
 hold the old install, because every clone is full. Re-clone one:
 
 ```bash
-tofu -chdir=tofu apply -replace='module.guest["dot-debian"].proxmox_virtual_environment_vm.this'
+tofu -chdir=tofu apply \
+  -target='module.guest["dot-debian"]' \
+  -replace='module.guest["dot-debian"].proxmox_virtual_environment_vm.this'
 ```
+
+`-target` as well as `-replace`: `-replace` does not narrow the plan, so on
+its own it would also apply anything else pending in the state, as
+`provision-lab-guests.md`'s rebuild rule says.
 
 Then repeat §3: first boot, shut down, `clean`. Replacing a guest deletes its
 snapshots with it.

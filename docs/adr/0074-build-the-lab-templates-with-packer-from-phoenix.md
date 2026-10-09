@@ -7,9 +7,11 @@
 > adds templates 903–909 for the dotfiles OS layers
 > ([#920](https://github.com/Gerrrt/HomeLab/issues/920)). Debian's (903) joins
 > Kali under decision 1's HTTP-preseed exception, which is now the Debian
-> installer's rather than Kali's alone. Alpine, Gentoo and NixOS are built
-> from their publishers' images, not from installer ISOs, because none has an
-> installer to drive. The text here is left as written, per ADR-0001.
+> installer's rather than Kali's alone. Alpine and Gentoo are built from
+> their publishers' cloud images, and NixOS by its own image builder
+> (`nixos-rebuild build-image`) from a committed `configuration.nix`, not from
+> installer ISOs, because none of the three has an installer to drive. The
+> text here is left as written, per ADR-0001.
 
 ## Context
 

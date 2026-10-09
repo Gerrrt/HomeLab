@@ -5,7 +5,7 @@
 `ifrit` once that host exists. 903 (Debian) and 904 (Fedora) are the dotfiles
 OS layers' templates
 ([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
-[#920](https://github.com/Gerrrt/HomeLab/issues/920)), the first of seven.
+[#920](https://github.com/Gerrrt/HomeLab/issues/920)), the first two of the seven new Linux templates.
 
 **Time:** an evening the first time, most of it Windows Setup running
 unattended. After that, a rebuild is one command per template and about forty
@@ -47,7 +47,7 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 911 Windows 11 Pro, 912 Server 2025 eval. 905–909 are the rest of ADR-0090's dotfiles layers | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
-| Answer files | On a generated CD (`cidata` for Ubuntu, `OEMDRV` for Fedora, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. Debian's installer, Kali's and Debian's own, is the exception, see §5 |
+| Answer files | On a generated CD (`cidata` for Ubuntu, `OEMDRV` for Fedora, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
 | Credential | `phoenix.env`, mode 600, not in git | `phoenix` holds no age key (ADR-0043), so a SOPS file is one it could not read |
 | What a template holds | OS, VirtIO drivers, guest agent, cloud-init (Linux) | Addresses, names, joins and the licence gauge belong to the guest. They are #448's |
 

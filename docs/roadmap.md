@@ -193,9 +193,8 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 - **[#920](https://github.com/Gerrrt/HomeLab/issues/920) One on-demand VM
   per dotfiles OS layer.** It ships in four phases
   ([ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)):
-  1. Debian, Fedora and Windows, built and first run 2026-10-08
-     ([`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md)).
-     A Windows run at the console is still owed;
+  1. Debian, Fedora and Windows
+     ([`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md));
   2. openSUSE and Arch;
   3. Alpine and Gentoo, from their published images;
   4. NixOS.
