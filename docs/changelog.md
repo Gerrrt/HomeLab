@@ -46,6 +46,13 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **The replacement rack is bought, at 32U rather than the planned 27U**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). It is due
+  2026-10-16. Nothing else about the plan changed. The five extra units are
+  spare at the top (U28–U32), and every planned device keeps its unit. The
+  runbook is now
+  [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md).
+
 - **The Alpine and Gentoo cloud-image pins are checked for staleness**
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920), ADR-0090). The weekly
   `tools` job in `digests.yml` now reads the two `url=` lines in
