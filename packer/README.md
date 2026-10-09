@@ -19,6 +19,7 @@ page is the map.
 | 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 907 | `tpl-alpine` | `alpine.pkr.hcl` | Alpine's cloud image, imported as 917 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 908 | `tpl-gentoo` | `gentoo.pkr.hcl` | Gentoo's cloud image, imported as 918 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 909 | `tpl-nixos` | `nixos.pkr.hcl` | the minimal ISO, a typed boot command, then `nixos/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 
@@ -44,6 +45,11 @@ scripts/packer-smoke.sh 912
   labelled `OEMDRV`, which Anaconda reads with no boot argument.
 - `opensuse/autoinst.xml.pkrtpl`: the AutoYaST profile for Tumbleweed's
   NET installer, on a disc labelled `OEMDRV` named on the kernel line.
+- `nixos.pkr.hcl`, `nixos/install.sh` and `nixos/configuration.nix`: NixOS
+  is installed by evaluating a configuration, not by answering questions.
+  The build types its way into the ISO's root shell, then installs with the
+  committed configuration: systemd-boot without Secure Boot, cloud-init on
+  networkd, the agent, key-only sshd, and sudo for cloud-init's user.
 - `alpine.pkr.hcl` and `gentoo.pkr.hcl`: not ISO installs. Each clones a
   staging template that `scripts/import-cloud-template.sh` imported, as root
   on `Saruman`, from the project's signed cloud image (917, 918). It adds the

@@ -46,6 +46,32 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **The dotfiles OS-layer VMs, phase 4: NixOS, and all eight layers have a
+  VM** ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Template.** 909 `tpl-nixos`, built twice and smoke-tested. Packer
+      boots the NixOS 26.05 minimal ISO, types `phoenix`'s key, the fixed
+      build address and sshd at its console shell, and runs `nixos-install`
+      with a committed `packer/nixos/configuration.nix`.
+    - **Not as planned.** ADR-0090 planned `nixos-rebuild build-image` in a
+      container, but `phoenix` runs no Docker; a NOTE on the ADR records
+      this.
+    - **ISO.** NixOS signs no ISOs, so the pin is the SHA-256 that both
+      `channels.nixos.org` and `releases.nixos.org` publish.
+    - **Guest.** `dot-nixos` (197, `.97`).
+  - **What the builds found.** Mounting the new root by label raced udev, and
+    the minimal ISO had not loaded ext4, so `mount` tried the partition as
+    FAT. The install now mounts by device, with the type named.
+  - **First run** (dotfiles v7.14.0).
+    - **The README's order works:** `nixos-rebuild switch` with
+      `nix/nixos.nix` and the home-manager module, then `./bootstrap.sh`.
+      Both exited 0, as did `core doctor`.
+    - **Nine tools missing,** because `nix/home.nix` doesn't declare them:
+      `viddy gron sd xh doggo op ast-grep uv difft`.
+  - **Where #920 stands.** Eight VMs, one per layer, each with a `clean`
+    snapshot and a first run. Windows still owes a run at the console.
+
 - **The dotfiles OS-layer VMs, phase 3: Alpine and Gentoo, from their
   projects' cloud images**
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920),

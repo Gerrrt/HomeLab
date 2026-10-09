@@ -16,7 +16,7 @@ needed for Kea.
 
 - the templates, from
   [`build-the-lab-templates.md`](build-the-lab-templates.md) §2b, §4 and §6:
-  903–908 for the guests you are creating, and the existing 911;
+  903–909 for the guests you are creating, and the existing 911;
 - the pool grant, from
   [`provision-lab-guests.md`](provision-lab-guests.md) §2 (`/pool/dotfiles`).
 
@@ -24,8 +24,8 @@ This runs
 [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
 (191), Fedora (192) and Windows (198) in phase 1, openSUSE Tumbleweed (193)
-and Arch (194) in phase 2, Alpine (195) and Gentoo (196) in phase 3. NixOS
-joins in phase 4.
+and Arch (194) in phase 2, Alpine (195) and Gentoo (196) in phase 3, and
+NixOS (197) in phase 4: all eight layers.
 
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
@@ -35,6 +35,7 @@ joins in phase 4.
 | `dot-arch` | 194 | `10.0.30.94` | 906 `tpl-arch` | `dotgibson/dotfiles-Arch` |
 | `dot-alpine` | 195 | `10.0.30.95` | 907 `tpl-alpine` | `dotgibson/dotfiles-Alpine` |
 | `dot-gentoo` | 196 | `10.0.30.96` | 908 `tpl-gentoo` | `dotgibson/dotfiles-Gentoo` |
+| `dot-nixos` | 197 | `10.0.30.97` | 909 `tpl-nixos` | `dotgibson/dotfiles-NixOS` |
 | `dot-windows` | 198 | `10.0.30.98` | 911 `tpl-win11-pro` | `dotgibson/dotfiles-Windows` |
 
 The helpers below are used in every section. They call the API with the
@@ -76,10 +77,10 @@ else. Anything that says `must be replaced` on a lab-domain guest is a stop.
 Check each one:
 
 ```bash
-for id in 191 192 193 194 195 196 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
+for id in 191 192 193 194 195 196 197 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
 ```
 
-**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s, `dot-alpine`'s and `dot-gentoo`'s `efidisk0` must show `pre-enrolled-keys=0`: they boot without Secure Boot. Without `on-demand`,
+**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s, `dot-alpine`'s, `dot-gentoo`'s and `dot-nixos`'s `efidisk0` must show `pre-enrolled-keys=0`: they boot without Secure Boot. Without `on-demand`,
 `HypervisorGuestStopped` fires an hour after the first shutdown.
 
 ## 3. First boot, then the `clean` snapshot
@@ -184,6 +185,34 @@ Then, per layer:
   checkout. The template is Gentoo's systemd cloud image, so the layer runs
   on systemd, not its OpenRC default. Expect a long run: the bootstrap emerges
   from the binary host where it can, and builds the rest.
+- **NixOS:** `ssh tester@10.0.30.97`, in the layer's own order, which is
+  `nix` first. Its README names the 25.05 channels; take the release that
+  matches the guest, 26.05:
+
+  ```bash
+  git clone https://github.com/dotgibson/dotfiles-NixOS ~/dotfiles-NixOS
+  sudo nix-channel --add https://github.com/nix-community/home-manager/archive/release-26.05.tar.gz home-manager
+  sudo nix-channel --update
+  # nix/nixos.nix: set username = "tester" and uncomment users.users.${username}.shell
+  ```
+
+  Then add a `/etc/nixos/dotfiles.nix`, and `./dotfiles.nix` to the imports
+  in `/etc/nixos/configuration.nix`. It imports `nix/nixos.nix` and
+  `<home-manager/nixos>`, the README's recommended way, and declares
+  `users.users.tester.isNormalUser = true`, because the module needs the user
+  declared. Its home is `home-manager.users.tester = import …/nix/home.nix`.
+  Then:
+
+  ```bash
+  sudo nixos-rebuild switch
+  cd ~/dotfiles-NixOS && ./bootstrap.sh
+  exec zsh
+  core doctor
+  ```
+
+  `bootstrap.sh` here links and never escalates. home-manager activates
+  inside `nixos-rebuild switch`, so there is no separate `home-manager
+  switch`.
 - **Windows: from the console, not over SSH.** The first run (2026-10-08)
   showed that the layer cannot be tested in an SSH session:
   - **`winget`.** It is not registered for an account that has never had an
@@ -310,3 +339,5 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | Phase 3 guests, `-target`ed together | `dot-alpine` (195, .95) and `dot-gentoo` (196, .96), Secure Boot off. `tester` logs in with `doas` (Alpine) or `sudo` (Gentoo), DNS works, and Gentoo's root grew to 60G. `clean` taken stopped |
 | 2026-10-09 | First runs, Alpine and Gentoo (dotfiles v7.14.0) | Alpine: `bootstrap.sh` exit 0 in 26 min (mostly cargo builds), `core doctor` exit 0 with nothing missing, opt-in tools included; the first layer to run clean end to end. Gentoo: exit 0 in 2 h (`emerge --sync`, then 98 packages, most as binaries), doctor exit 0 with only `gum` missing, which `install/packages.txt` leaves out on purpose; `make assert-provisioned` OK, 39 required and 0 best-effort absent. On systemd, not the layer's OpenRC default |
 | 2026-10-09 | 907 rebuilt for review (`cloud-init clean --machine-id`) | Built twice and smoke-tested again, then `dot-alpine` re-cloned with `-target`ed `-replace` and `clean` retaken. Alpine (OpenRC) has no `/etc/machine-id` at all, so the flag is for parity with the other templates, not a fix |
+| 2026-10-09 | Phase 4: template 909 (NixOS) and `dot-nixos` | 909 built twice from the NixOS 26.05 minimal ISO and smoke-tested both times, about 5 min a build. The first two builds stopped at mounting the new root: once on a `/dev/disk/by-label` link udev had not made yet, and once because the ISO had not loaded ext4, so `mount` tried the partition as FAT. Both are fixed by mounting by device, with the type named. `dot-nixos` (197, .97) was applied with `-target`. `tester` has `sudo`, the `nixos-26.05` channel is present, root grew to 39G, and `clean` was taken stopped |
+| 2026-10-09 | First run, NixOS (dotfiles v7.14.0) | In the layer's order: the `home-manager` channel (release-26.05), `nix/nixos.nix` with `tester` and the home-manager module, then `nixos-rebuild switch`, which took about 1 min and activated `home-manager-tester.service`. Then `./bootstrap.sh`, exit 0 in 1 s (links only, no escalation), and `core doctor` exit 0, with nine missing: `viddy gron sd xh doggo op ast-grep uv difft`. None of them is in `nix/home.nix`'s `home.packages`, so the layer's package set lags what Core expects |

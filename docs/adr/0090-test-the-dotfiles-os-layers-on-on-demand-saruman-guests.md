@@ -3,6 +3,16 @@
 **Status:** Accepted · 2026-10
 
 > [!NOTE]
+> 2026-10-09, phase 4: NixOS is not built with `nixos-rebuild build-image`
+> in a `nixos/nix` container, as decision 2 says. `phoenix` runs no Docker,
+> by design. Instead it is built the ISO way, like decision 2's first four
+> layers: Packer boots the NixOS 26.05 minimal ISO, types phoenix's key and
+> the fixed build address at its console shell, and runs `nixos-install`
+> over SSH with a committed `configuration.nix` (`packer/nixos/`). That is a
+> real install, and it adds no toolchain to `phoenix`. NixOS publishes no
+> signature for its ISOs, so the pin is the SHA-256 that `channels.nixos.org`
+> and `releases.nixos.org` both publish over HTTPS.
+>
 > 2026-10-09, phase 3: Alpine and Gentoo are built as decision 2 says.
 > `scripts/import-cloud-template.sh` (root on `Saruman`) imports each
 > project's signed cloud image, pinned by SHA-256, as a staging template, 917

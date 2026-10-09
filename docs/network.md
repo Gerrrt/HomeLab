@@ -439,6 +439,7 @@ Where things get broken on purpose.
 | dot-arch | `10.0.30.94` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Arch Linux | Rack U3 | Dotfiles test VM, on demand |
 | dot-alpine | `10.0.30.95` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Alpine Linux 3.24 | Rack U3 | Dotfiles test VM, on demand |
 | dot-gentoo | `10.0.30.96` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Gentoo Linux (systemd) | Rack U3 | Dotfiles test VM, on demand |
+| dot-nixos | `10.0.30.97` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | NixOS 26.05 | Rack U3 | Dotfiles test VM, on demand |
 | dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
@@ -510,19 +511,19 @@ Where things get broken on purpose.
   per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
   `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
   `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
-  on 2026-10-08 and `.93`–`.96` on 2026-10-09, and are in the table above; the
-  others join it as each
-  is built. They are off-decade for `diabolos`'s reason,
+  on 2026-10-08 and `.93`–`.97` on 2026-10-09, and are in the table above.
+  They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
   is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
   between runs and tagged `on-demand`, and are not lab-domain members, so
   they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
   the internet for packages and `git clone`, and `phoenix` reaches them
   within the segment.
-- `10.0.30.99` is held only while template 907 or 908 builds: the
-  cloud-image builds (`packer/alpine.pkr.hcl`, `packer/gentoo.pkr.hcl`) give
-  their clone this fixed address, because the images carry no guest agent to
-  report a DHCP one. It is otherwise unused. Give it to nothing else, or those
+- `10.0.30.99` is held only while template 907, 908 or 909 builds: those
+  builds (`packer/alpine.pkr.hcl`, `packer/gentoo.pkr.hcl`,
+  `packer/nixos.pkr.hcl`) give their machine this fixed address, because
+  neither the cloud images nor the NixOS ISO carry a guest agent to report a
+  DHCP one. It is otherwise unused. Give it to nothing else, or those
   builds collide with it (#920 phase 3).
 - `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built

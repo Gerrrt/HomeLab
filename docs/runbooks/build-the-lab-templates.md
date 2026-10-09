@@ -1,13 +1,13 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
-**Target:** templates 901, 903–908, 911 and 912 on `Saruman`, built from
+**Target:** templates 901, 903–909, 911 and 912 on `Saruman`, built from
 `phoenix` through the Proxmox API. 902, Kali, is written here and built on
 `ifrit` once that host exists. 903 (Debian), 904 (Fedora), 905 (openSUSE
-Tumbleweed), 906 (Arch), 907 (Alpine) and 908 (Gentoo) are the dotfiles OS
-layers' templates
+Tumbleweed), 906 (Arch), 907 (Alpine), 908 (Gentoo) and 909 (NixOS) are the
+dotfiles OS layers' templates
 ([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
-[#920](https://github.com/Gerrrt/HomeLab/issues/920)), six of the seven new
-Linux templates. 907 and 908 start from their projects' cloud images, not an
+[#920](https://github.com/Gerrrt/HomeLab/issues/920)), all seven new Linux
+templates. 907 and 908 start from their projects' cloud images, not an
 ISO: §4b.
 
 **Time:** an evening the first time, most of it Windows Setup running
@@ -48,7 +48,7 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Where it runs | `phoenix`, through the API on 8006 | It is the only host admitted to the hypervisor's API, and the only one meant to build machines (ADR-0043). There is no SSH to `Saruman` from here, and nothing in this runbook needs it |
-| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 is NixOS, to come. 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
+| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 NixOS. 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
 | Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora and openSUSE, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
@@ -233,7 +233,8 @@ as trustworthy as that list, so the list is written here, once, with care.
      wget -nc https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso && \
      wget -nc https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-netinst-x86_64-44-1.7.iso && \
      wget -nc https://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso && \
-     wget -nc https://geo.mirror.pkgbuild.com/iso/2026.10.01/archlinux-2026.10.01-x86_64.iso
+     wget -nc https://geo.mirror.pkgbuild.com/iso/2026.10.01/archlinux-2026.10.01-x86_64.iso && \
+     wget -nc https://releases.nixos.org/nixos/26.05/nixos-26.05.11576.7c8764b7c7b0/nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso
    ```
 
    Tumbleweed's snapshot ISOs leave the mirror within days, so the copy on
@@ -267,6 +268,7 @@ as trustworthy as that list, so the list is written here, once, with care.
    | `Fedora-Server-netinst-x86_64-44-1.7.iso` | The release's `CHECKSUM` file beside it, clearsigned by Fedora 44's primary key `36F6 12DC F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6` |
    | `openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso` | The `.sha256` beside it, with its `.sha256.asc` signed by the openSUSE Project Signing Key `AD48 5664 … 29B7 00A4`. Check that fingerprint against the key `build.opensuse.org` publishes for `openSUSE:Factory`, not only against the keys on the ISO |
    | `archlinux-2026.10.01-x86_64.iso` | `sha256sums.txt`, and the ISO's own detached `.sig` from the release key `3E80 CA1A … 5444 9A5C`, which is the fingerprint `archlinux.org/download` publishes. Fetch the key by WKD (`gpg --locate-external-key pierre@archlinux.org`) |
+   | `nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso` | NixOS publishes no signature for its ISOs, only a SHA-256 over HTTPS. Check that `channels.nixos.org`'s `latest-…iso.sha256` and the release's own `.sha256` on `releases.nixos.org` agree, and that the download matches both |
 
    **A hash that disagrees with its source does not go in the list.**
    Download the ISO again instead. Each line's comment in the list names
@@ -351,6 +353,7 @@ packer build -only='fedora.*' packer/
 packer build -only='debian.*' packer/   # after §5 step 1 admits port 8800
 packer build -only='opensuse.*' packer/
 packer build -only='arch.*' packer/
+packer build -only='nixos.*' packer/
 ```
 
 One at a time. Two Windows installers at once is the IOPS burst ADR-0029
@@ -380,6 +383,16 @@ What each one does, so a stall can be placed:
   `packer/arch/install.sh` partitions, pacstraps and configures the disk.
   There is no build user to delete, because the build never ran in the
   installed system.
+- **NixOS** boots the minimal ISO, which logs in at the console by itself.
+  After 90 s the boot command types three things at that shell: `phoenix`'s
+  key for root, the fixed `cloud_image_build_address` (the ISO runs no
+  guest agent), and `systemctl start sshd`. Packer then runs
+  `packer/nixos/install.sh`: partitioning, `nixos-generate-config` and
+  `nixos-install` with `packer/nixos/configuration.nix`. The ISO's `nixos`
+  channel is kept, because dotfiles-NixOS rebuilds from channels. It
+  mounts with each filesystem's type named: the ISO had not loaded ext4, and
+  `mount`'s own detection tried the root partition as FAT. It shares `.99`
+  with §4b's builds, so do not run it beside them.
 - **Alpine and Gentoo** are not in this list. They start from cloud images,
   not ISOs: §4b.
 - **Windows** presses a key at "Press any key to boot from CD". Setup loads
@@ -515,6 +528,7 @@ scripts/packer-smoke.sh 905
 scripts/packer-smoke.sh 906
 scripts/packer-smoke.sh 907
 scripts/packer-smoke.sh 908
+scripts/packer-smoke.sh 909
 ```
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
@@ -583,9 +597,9 @@ On the day of the first successful build:
 
 ## 10. Take it out
 
-In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903–908, 911 and
+In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903–909, 911 and
 912, and the staging templates 917 and 918, after the dotfiles guests
-cloned from 903–908 if they go too
+cloned from 903–909 if they go too
 ([`test-the-dotfiles-layers.md`](test-the-dotfiles-layers.md)). No guest
 depends on a template once cloned, because every clone is full. Then remove
 the `large_data` ACL and `VM.GuestAgent.Audit` from §2 if nothing else uses
