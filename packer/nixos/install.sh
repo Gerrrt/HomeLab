@@ -13,10 +13,13 @@ parted -s "$disk" -- mklabel gpt \
 udevadm settle
 mkfs.fat -F 32 -n BOOT "${disk}1"
 mkfs.ext4 -q -F -L nixos "${disk}2"
-mount /dev/disk/by-label/nixos /mnt
+# By device, not /dev/disk/by-label: udev had not made the label's link yet
+# when the first build mounted it (2026-10-09). hardware-configuration.nix
+# still names the filesystems by UUID.
+mount "${disk}2" /mnt
 # 0077, so the random seed systemd-boot writes is not world-readable.
 mkdir -p /mnt/boot
-mount -o fmask=0077,dmask=0077 /dev/disk/by-label/BOOT /mnt/boot
+mount -o fmask=0077,dmask=0077 "${disk}1" /mnt/boot
 
 nixos-generate-config --root /mnt
 install -m 0644 /tmp/configuration.nix /mnt/etc/nixos/configuration.nix
