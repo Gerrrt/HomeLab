@@ -2,15 +2,6 @@
 
 **Status:** Accepted · 2026-10
 
-> [!NOTE]
-> 2026-10-09, phase 2: openSUSE's profile is served over HTTP, not from a
-> disc. Its Tumbleweed NET installer is still linuxrc and YaST. linuxrc reads a
-> profile from a second CD (`label://OEMDRV` or `device://sr0`), but YaST
-> then fetches it again from a `/dev/disk/by-id/` path that it mangles, and it
-> does not accept `cd:`. So openSUSE joins the Debian installer under
-> decision 3's exception: Packer's HTTP server on `phoenix`'s port 8800, for
-> the length of the build. The text here is left as written, per ADR-0001.
-
 ## Context
 
 The [dotgibson dotfiles](https://github.com/dotgibson/dotfiles-core) have one
