@@ -73,6 +73,11 @@
           <Description>Drop the plaintext credential Setup wrote to Winlogon</Description>
           <CommandLine>reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /f</CommandLine>
         </SynchronousCommand>
+        <SynchronousCommand wcm:action="add">
+          <Order>3</Order>
+          <Description>Log the one-shot autologon session off, so the clone lands at the lock screen rather than an unlocked Administrator desktop</Description>
+          <CommandLine>shutdown /l /f</CommandLine>
+        </SynchronousCommand>
       </FirstLogonCommands>
     </component>
   </settings>
