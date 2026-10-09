@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-09
+
+- **Windows clones no longer keep the build password in plaintext**
+  ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
+  to the running guests.
+  - **What was there.** All seven running Windows guests (the six domain
+    guests and dot-windows) had `C:\Windows\Panther\unattend-original.xml`,
+    readable by `BUILTIN\Users`. It held two password elements, both
+    `<PlainText>true</PlainText>`: the build's Administrator and AutoLogon.
+    The check counted elements and printed no value. `Panther\unattend.xml`
+    beside it has its password scrubbed by Setup.
+  - **Where it came from.** It was created during the template build, half an
+    hour before each clone's first boot, so it was baked into 911 and 912 and
+    inherited by every clone.
+  - **The fix, in three places:**
+    - the sysprep task deletes it as its last step before generalising, so a
+      rebuilt template no longer carries it;
+    - on each clone's first boot, #1103's `SetupComplete.cmd` deletes it and
+      `unattend.xml`, and refuses to start the guest agent if either survives;
+    - `roles/base` removes it and `unattend-oobe.xml`, which also carries the
+      build password, on every run, and `verify.yml` holds every guest to
+      having neither.
+  - **Checked on carbuncle without touching Panther.** PowerShell's own parser
+    reads `sysprep.ps1` with 0 errors, and `verify.yml`'s new check evaluates
+    True there.
+  - **The running guests were cleaned the same day.** The file was deleted
+    through the guest agent on all seven, and confirmed gone on each. 911 and
+    912 lose it at their next rebuild.
+
 ## 2026-10-08
 
 - **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
