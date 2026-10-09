@@ -146,11 +146,16 @@
 # a 911 or 912 built before #1099 inherited it. The password stops opening
 # the local Administrator once the task above has run, but the template reuses
 # it, so it is still worth reading on any guest this has not touched yet.
-# Panther\unattend.xml stays: Setup scrubbed its password.
-- name: Remove Setup's plaintext copy of the build answer file
+# Panther\unattend.xml stays: Setup scrubbed its password. unattend-oobe.xml,
+# the answer sysprep uses on a clone's first boot, carries the build password
+# in plaintext too; SetupComplete.cmd deletes it, and this backs that up.
+- name: Remove Setup's plaintext copies of the build answer files
   ansible.windows.win_file:
-    path: C:\Windows\Panther\unattend-original.xml
+    path: "{{ item }}"
     state: absent
+  loop:
+    - C:\Windows\Panther\unattend-original.xml
+    - C:\Windows\Panther\unattend-oobe.xml
 
 # What the template's build left behind (#846). Packer's WinRM ran over HTTPS on
 # a self-signed certificate, FriendlyName packer-winrm, made in bootstrap.ps1.
