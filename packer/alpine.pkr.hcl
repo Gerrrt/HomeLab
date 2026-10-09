@@ -35,6 +35,10 @@ source "proxmox-clone" "alpine" {
   cores      = 1
   memory     = 1024
   qemu_agent = true
+  # Said, not inherited: the clone builder writes its own default, `other`,
+  # and scripts/packer-smoke.sh (rightly) treats a template that is not l26 as
+  # Windows (2026-10-09).
+  os = "l26"
   # Said, not inherited: the clone builder sets its own default, lsi, which
   # OVMF has no driver for, and the clone then finds no disk to boot
   # (2026-10-09).
@@ -79,7 +83,11 @@ build {
       # apk fails on "DNS: transient error". The clone's own boot rewrites it.
       "printf 'nameserver 10.0.30.1\\n' > /etc/resolv.conf",
       "apk update",
-      "apk upgrade --no-interactive",
+      # No `apk upgrade`: the image is a point release two days old when
+      # pinned, and upgrading it pulls a limine-efi-updater whose trigger
+      # fails, because the image sets no efi_system_partition for it
+      # (2026-10-09). A newer image is a new pin
+      # (scripts/import-cloud-template.sh).
       # What dotfiles-Alpine's README asks for first (bash, git; the
       # community repository is already enabled), curl for the dotfiles'
       # preflights, and the guest agent for Packer, tofu and the smoke test.

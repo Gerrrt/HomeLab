@@ -33,6 +33,10 @@ source "proxmox-clone" "gentoo" {
   cores      = 4
   memory     = 8192
   qemu_agent = true
+  # Said, not inherited: the clone builder writes its own default, `other`,
+  # and scripts/packer-smoke.sh (rightly) treats a template that is not l26 as
+  # Windows (2026-10-09).
+  os = "l26"
   # Said, not inherited: the clone builder sets its own default, lsi, which
   # OVMF has no driver for, and the clone then finds no disk to boot
   # (2026-10-09).
