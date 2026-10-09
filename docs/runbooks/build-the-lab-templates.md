@@ -48,7 +48,7 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 911 Windows 11 Pro, 912 Server 2025 eval. 905–909 are the rest of ADR-0090's dotfiles layers | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
-| Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora and openSUSE, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
+| Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. Two installers are the exception and are served over HTTP on port 8800 (§5): the Debian installer, which Kali and Debian use and which cannot read a second disc, and openSUSE's YaST, which can be told of one but then fails to fetch it |
 | Credential | `phoenix.env`, mode 600, not in git | `phoenix` holds no age key (ADR-0043), so a SOPS file is one it could not read |
 | What a template holds | OS, VirtIO drivers, guest agent, cloud-init (Linux) | Addresses, names, joins and the licence gauge belong to the guest. They are #448's |
 
@@ -368,7 +368,10 @@ What each one does, so a stall can be placed:
   wipe. It needs §5 step 1's firewall rule for the length of the build, and
   nothing else in §5, because it builds on `Saruman` from `smaug-iso`.
 - **openSUSE** drops to the installer's GRUB prompt and boots linuxrc with
-  `autoyast=device://sr0/autoinst.xml` (not `label://`, which YaST rewrites to a path it then cannot read). YaST installs from the mirror
+  `autoyast=http://…:8800/autoinst.xml`, served by Packer on `phoenix`, so it
+  needs §5 step 1's rule, as Debian does. A profile on a second CD does not
+  work: linuxrc reads it, but YaST fetches it again from a `/dev//by-id/…`
+  path it mangles itself. YaST installs from the mirror
   unattended and reboots, and the rest is Ubuntu's. Tumbleweed's NET ISO is
   still YaST, not Agama; if a later snapshot switches, the profile and the
   boot line both change.
@@ -417,7 +420,7 @@ not from a second disc.
 
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
-   and delete the rule afterwards. Debian's build (§4) needs this step and
+   and delete the rule afterwards. Debian's and openSUSE's builds (§4) need this step and
    no other here.
 2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, and trust
    `ifrit`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `ifrit` joins

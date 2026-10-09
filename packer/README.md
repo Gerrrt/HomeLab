@@ -15,7 +15,7 @@ page is the map.
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
 | 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
-| 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, Packer HTTP | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
@@ -41,7 +41,8 @@ scripts/packer-smoke.sh 912
 - `fedora/ks.cfg.pkrtpl`: the kickstart for Fedora Server, on a disc
   labelled `OEMDRV`, which Anaconda reads with no boot argument.
 - `opensuse/autoinst.xml.pkrtpl`: the AutoYaST profile for Tumbleweed's
-  NET installer, on a generated disc named on the kernel line as `device://sr0`.
+  NET installer, served over Packer's HTTP server as Debian's preseed is. YaST
+  cannot be pointed at a second CD reliably (`opensuse.pkr.hcl` says why).
 - `arch/user-data.pkrtpl` and `arch/install.sh`: Arch has no installer to
   answer. The first lets Packer into the live ISO, and the second installs
   the disk over that session. Secure Boot is off for Arch, the one template
