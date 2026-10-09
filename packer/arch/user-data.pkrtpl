@@ -1,0 +1,11 @@
+#cloud-config
+# Rendered by packer/arch.pkr.hcl with templatefile(). Read by the Arch ISO's
+# own cloud-init from the disc labelled `cidata` (NoCloud), in the LIVE
+# system: it lets Packer in as root with phoenix's key, and nothing else.
+# The installed system is written by arch/install.sh over that session.
+ssh_authorized_keys:
+  - ${ssh_public_key}
+runcmd:
+  - [mkdir, -p, -m, "0700", /root/.ssh]
+  - [sh, -c, "printf '%s\n' '${ssh_public_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"]
+  - [systemctl, start, sshd, qemu-guest-agent]

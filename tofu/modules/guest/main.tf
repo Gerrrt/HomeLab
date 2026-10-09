@@ -48,7 +48,7 @@ resource "proxmox_virtual_environment_vm" "this" {
     datastore_id      = var.datastore
     file_format       = "raw"
     type              = "4m"
-    pre_enrolled_keys = true
+    pre_enrolled_keys = var.secure_boot
   }
 
   dynamic "tpm_state" {

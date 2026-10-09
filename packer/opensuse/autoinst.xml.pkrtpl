@@ -1,0 +1,108 @@
+<?xml version="1.0"?>
+<!DOCTYPE profile>
+<!--
+  Rendered by packer/opensuse.pkr.hcl with templatefile(). AutoYaST profile
+  for the Tumbleweed NET installer, read from the disc labelled OEMDRV
+  (#920 phase 2, ADR-0090).
+
+  The `packer` user lives for the length of the build: key-only, no password,
+  deleted by the build's last provisioner. A clone's user comes from the
+  Proxmox cloud-init drive.
+-->
+<profile xmlns="http://www.suse.com/1.0/yast2ns" xmlns:config="http://www.suse.com/1.0/configns">
+  <general>
+    <mode>
+      <confirm config:type="boolean">false</confirm>
+      <final_reboot config:type="boolean">true</final_reboot>
+    </mode>
+  </general>
+  <language>
+    <language>en_US</language>
+  </language>
+  <keyboard>
+    <keymap>english-us</keymap>
+  </keyboard>
+  <timezone>
+    <timezone>Etc/UTC</timezone>
+    <hwclock>UTC</hwclock>
+  </timezone>
+  <networking>
+    <keep_install_network config:type="boolean">true</keep_install_network>
+  </networking>
+  <bootloader>
+    <loader_type>grub2-efi</loader_type>
+    <global>
+      <timeout config:type="integer">1</timeout>
+      <secure_boot>true</secure_boot>
+    </global>
+  </bootloader>
+  <partitioning config:type="list">
+    <drive>
+      <device>/dev/sda</device>
+      <initialize config:type="boolean">true</initialize>
+      <use>all</use>
+    </drive>
+  </partitioning>
+  <software>
+    <install_recommends config:type="boolean">false</install_recommends>
+    <patterns config:type="list">
+      <pattern>base</pattern>
+      <pattern>enhanced_base</pattern>
+    </patterns>
+    <packages config:type="list">
+      <package>openssh</package>
+      <package>sudo</package>
+      <package>git</package>
+      <package>curl</package>
+      <package>cloud-init</package>
+      <package>qemu-guest-agent</package>
+    </packages>
+  </software>
+  <services-manager>
+    <services>
+      <enable config:type="list">
+        <service>sshd</service>
+        <service>qemu-guest-agent</service>
+      </enable>
+    </services>
+  </services-manager>
+  <firewall>
+    <enable_firewall config:type="boolean">true</enable_firewall>
+    <zones config:type="list">
+      <zone>
+        <name>public</name>
+        <services config:type="list">
+          <service>ssh</service>
+        </services>
+      </zone>
+    </zones>
+  </firewall>
+  <users config:type="list">
+    <user>
+      <username>root</username>
+      <user_password>!</user_password>
+      <encrypted config:type="boolean">true</encrypted>
+    </user>
+    <user>
+      <username>packer</username>
+      <fullname>packer</fullname>
+      <user_password>!</user_password>
+      <encrypted config:type="boolean">true</encrypted>
+      <authorized_keys config:type="list">
+        <listentry>${ssh_public_key}</listentry>
+      </authorized_keys>
+    </user>
+  </users>
+  <scripts>
+    <chroot-scripts config:type="list">
+      <script>
+        <chrooted config:type="boolean">true</chrooted>
+        <filename>packer-sudo.sh</filename>
+        <source><![CDATA[
+echo 'packer ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/90-packer
+chmod 0440 /etc/sudoers.d/90-packer
+]]></source>
+      </script>
+    </chroot-scripts>
+  </scripts>
+</profile>
