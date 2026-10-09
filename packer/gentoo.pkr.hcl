@@ -34,6 +34,14 @@ source "proxmox-clone" "gentoo" {
   memory     = 8192
   qemu_agent = true
 
+  # net0 as every template has it. The clone builder pairs each ipconfig with
+  # an adapter declared here, not with the one the staging template carries.
+  network_adapters {
+    model    = "virtio"
+    bridge   = var.bridge
+    firewall = false
+  }
+
   cloud_init              = true
   cloud_init_storage_pool = var.disk_storage
   ipconfig {
