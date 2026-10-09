@@ -206,6 +206,8 @@ Then, per layer:
   ```bash
   sudo nixos-rebuild switch
   cd ~/dotfiles-NixOS && ./bootstrap.sh
+  exec zsh
+  core doctor
   ```
 
   `bootstrap.sh` here links and never escalates. home-manager activates

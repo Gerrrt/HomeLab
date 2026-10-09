@@ -137,9 +137,11 @@ variable "opensuse_iso_file" {
   default = "smaug-iso:iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso"
 }
 
-# The address the cloud-image builds (alpine, gentoo) give their clone for
-# the length of the build. The images carry no guest agent to report one.
-# Below the DHCP pool and in no table (docs/network.md).
+# The fixed address three builds give their machine for the length of the
+# build, because none of them has a guest agent to report a DHCP one: the
+# cloud-image builds (alpine, gentoo) and the NixOS ISO build (nixos). One
+# address for three, so the three never run at once. Below the DHCP pool and
+# recorded in docs/network.md.
 variable "cloud_image_build_address" {
   type    = string
   default = "10.0.30.99"

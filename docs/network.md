@@ -511,9 +511,8 @@ Where things get broken on purpose.
   per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
   `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
   `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
-  on 2026-10-08 and `.93`–`.97` on 2026-10-09, and are in the table above; the
-  others join it as each
-  is built. They are off-decade for `diabolos`'s reason,
+  on 2026-10-08 and `.93`–`.97` on 2026-10-09, and are in the table above.
+  They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
   is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
   between runs and tagged `on-demand`, and are not lab-domain members, so

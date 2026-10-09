@@ -12,8 +12,7 @@
 > real install, and it adds no toolchain to `phoenix`. NixOS publishes no
 > signature for its ISOs, so the pin is the SHA-256 that `channels.nixos.org`
 > and `releases.nixos.org` both publish over HTTPS.
-
-> [!NOTE]
+>
 > 2026-10-09, phase 3: Alpine and Gentoo are built as decision 2 says.
 > `scripts/import-cloud-template.sh` (root on `Saruman`) imports each
 > project's signed cloud image, pinned by SHA-256, as a staging template, 917

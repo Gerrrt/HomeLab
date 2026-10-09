@@ -18,7 +18,7 @@ variable "template" {
 
   validation {
     condition     = contains([901, 902, 903, 904, 905, 906, 907, 908, 909, 911, 912], var.template)
-    error_message = "template must be one of packer/'s VMIDs: 901, 902, 903, 904, 905, 906, 907, 908, 909, 911, 912."
+    error_message = "template must be one of the packer/ template VMIDs: 901, 902, 903, 904, 905, 906, 907, 908, 909, 911, 912."
   }
 }
 
