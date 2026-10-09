@@ -46,6 +46,19 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **`dot-windows` now starts a run with the layer's prerequisites in place**
+  ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)). It was re-cloned
+  from 911, rebuilt with the OOBE fix (#1093). Its `clean` snapshot now
+  includes, machine-wide:
+  - PowerShell 7.6.6, Git 2.56.0.2, WSL 3.0.1 and Wireshark 4.6.9, each
+    checked against its publisher's SHA-256;
+  - Developer Mode;
+  - `winget configure`, switched on.
+
+  The layer's `winget configure` finds each package present and skips it, so
+  the UAC prompts that stalled the 2026-10-08 console run should not appear.
+  The bake is in `test-the-dotfiles-layers.md` §3, for the next re-clone.
+
 - **The replacement rack is bought, at 32U rather than the planned 27U**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). It is due
   2026-10-16. Nothing else about the plan changed. The five extra units are
