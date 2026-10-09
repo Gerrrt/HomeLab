@@ -147,10 +147,20 @@ nothing else here. Its default shell is PowerShell, so chain commands with
 before the shutdown** (#1108). `tester` is a standard user, so at the console
 every machine-wide install asks for the `Administrator` password, and the
 first run (2026-10-08) was mostly UAC prompts. Installed here, machine-wide,
-`winget configure` finds each package present and skips it. Run it as
-`Administrator` over SSH, or as SYSTEM through the guest agent
-(`qm guest exec 198 -- powershell -NoProfile -EncodedCommand …` as root on
-`Saruman`):
+`winget configure` finds each package present and skips it.
+
+Run it as SYSTEM through the guest agent, as root on `Saruman`, and **not**
+as `Administrator` over SSH. The last line, `winget configure --enable`,
+fails from an SSH network logon (`0x80070520`, §4), and SYSTEM is the route
+that was verified (2026-10-09). Save the block below as `bake.ps1`, then:
+
+```bash
+qm guest exec 198 --timeout 1780 -- powershell -NoProfile \
+  -EncodedCommand "$(iconv -t UTF-16LE bake.ps1 | base64 -w0)"
+```
+
+`exitcode` 0 means every step ran. Anything else names the step in
+`err-data`.
 
 ```powershell
 $ErrorActionPreference = 'Stop'; $ProgressPreference = 'SilentlyContinue'
@@ -179,6 +189,7 @@ New-Item -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -F
 Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Name AllowDevelopmentWithoutDevLicense -Type DWord -Value 1
 Remove-Item -Recurse -Force $d
 # winget configure is off on a fresh install, and turning it on is elevated.
+# As SYSTEM this works; from an SSH logon it fails (0x80070520).
 $wg = Get-ChildItem 'C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe' | Sort-Object FullName | Select-Object -Last 1
 & $wg.FullName configure --enable
 ```
