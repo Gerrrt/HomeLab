@@ -92,6 +92,11 @@ ada2a1e85a797140e2207e85cd0331017863c3b3aebb37d41875630610e0418d  openSUSE-Tumbl
 # key 3E80 CA1A 8B89 F69C BA57 D98A 76A5 EF90 5444 9A5C, the fingerprint
 # archlinux.org/download publishes (key fetched by WKD); read 2026-10-09.
 684ded26c63240ff4a41e8c25ee84ea6da233f557364821f13d12c2b0a9059a5  archlinux-2026.10.01-x86_64.iso
+# NixOS 26.05 minimal ISO, for tpl-nixos (#920 phase 4). NixOS publishes no
+# signature for its ISOs, only a SHA-256 over HTTPS: this one agreed on
+# channels.nixos.org (latest-nixos-minimal .sha256) and on releases.nixos.org
+# (the release's own .sha256), and with the download, 2026-10-09.
+164e0cc603ce61a603672a9ea93efff9b47bc8711c902f6036d208d5e9fee9a0  nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso
 LIST
 )"
 

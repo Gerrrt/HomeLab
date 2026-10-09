@@ -145,6 +145,11 @@ variable "cloud_image_build_address" {
   default = "10.0.30.99"
 }
 
+variable "nixos_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso"
+}
+
 variable "arch_iso_file" {
   type    = string
   default = "smaug-iso:iso/archlinux-2026.10.01-x86_64.iso"
