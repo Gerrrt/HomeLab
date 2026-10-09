@@ -34,17 +34,17 @@ docstring gives: it is a record, not a claim about now.
   - **The fix, in three places:**
     - the sysprep task deletes it as its last step before generalising, so a
       rebuilt template no longer carries it;
-    - `SetupComplete.cmd` deletes it again before a clone's first logon,
-      logging whether it went;
-    - `roles/base` removes it on every run, and `verify.yml` holds every guest
-      to not having it.
+    - on each clone's first boot, #1103's `SetupComplete.cmd` deletes it and
+      `unattend.xml`, and refuses to start the guest agent if either survives;
+    - `roles/base` removes it and `unattend-oobe.xml`, which also carries the
+      build password, on every run, and `verify.yml` holds every guest to
+      having neither.
   - **Checked on carbuncle without touching Panther.** PowerShell's own parser
-    reads `sysprep.ps1` with 0 errors. The new `SetupComplete.cmd` lines, run
-    against a temp folder, delete a present file, and log a second run on an
-    absent one without failing.
-  - **Still to do.** Apply `roles/base` to the six, and remove it on
-    dot-windows, which is not in the Ansible inventory. 911 and 912 lose it
-    at their next rebuild.
+    reads `sysprep.ps1` with 0 errors, and `verify.yml`'s new check evaluates
+    True there.
+  - **The running guests were cleaned the same day.** The file was deleted
+    through the guest agent on all seven, and confirmed gone on each. 911 and
+    912 lose it at their next rebuild.
 
 ## 2026-10-08
 
