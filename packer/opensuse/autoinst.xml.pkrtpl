@@ -44,6 +44,12 @@
     </drive>
   </partitioning>
   <software>
+    <!-- The NET media offers several base products (Aeon, Kalpa, MicroOS,
+         Tumbleweed...), and an unattended install must name one. openSUSE
+         is Tumbleweed's product name. -->
+    <products config:type="list">
+      <product>openSUSE</product>
+    </products>
     <install_recommended config:type="boolean">false</install_recommended>
     <patterns config:type="list">
       <pattern>base</pattern>
