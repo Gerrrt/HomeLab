@@ -143,17 +143,20 @@ statistics:
 #                        a filter the household never sees and cannot bypass.
 #   HaGeZi Threat        malware, phishing, scam and command-and-control
 #   Intelligence Feeds   domains, not ads. Safe Browsing is off below because
-#                        it sends every name to AdGuard's servers; this list
-#                        covers the same threat with a list downloaded once a
-#                        day. It is 1.56M rules, nearly four times the other
-#                        two combined, and is the reason compose.yaml's
-#                        mem_limit is 1g (measured 2026-10-09).
+#                        it looks names up remotely at AdGuard's service (a
+#                        hash prefix, for names not in its cache), a third
+#                        party ADR-0010 did not name; this list covers the
+#                        same threat with a download once a day and no
+#                        per-query lookup. It is 1.56M rules, nearly four
+#                        times the other two combined, and is the reason
+#                        compose.yaml's mem_limit is 1536m (measured
+#                        2026-10-09).
 #
 # More ad lists (HaGeZi Pro, say) were left out on purpose: OISD Big already
 # covers that ground, and every extra list is another chance to break a site
 # for everyone at once.
 #
-# Both are served from AdGuard's own hostlists registry rather than their
+# All three are served from AdGuard's own hostlists registry rather than their
 # upstream URLs, so one host is contacted for updates and a moved upstream
 # does not silently stop the list refreshing. `id` is local to this file.
 # Update interval is 24h (`filters_update_interval` below); the probe's
@@ -188,8 +191,9 @@ filtering:
   blocking_mode: default
   protection_enabled: true
   filtering_enabled: true
-  # Both would send every queried name to AdGuard's own service for a verdict.
-  # The blocklists are the whole of what this filter does.
+  # Both look names up remotely at AdGuard's own service — a SHA-256 hash
+  # prefix of each name not already in their cache — which adds a per-query
+  # third party. The blocklists are the whole of what this filter does.
   safebrowsing_enabled: false
   parental_enabled: false
   # Blocked services and safe search are left at AdGuard's defaults (off and

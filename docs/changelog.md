@@ -23,12 +23,16 @@ docstring gives: it is a record, not a claim about now.
   ([#135](https://github.com/Gerrrt/HomeLab/issues/135)).
   - **What changed.** HaGeZi's Threat Intelligence Feeds (registry
     `filter_44`, 1.56M rules) is the third blocklist. It stands in for Safe
-    Browsing, which stays off because it sends every name to AdGuard's
-    servers. No more ad lists were added; OISD Big already covers that.
-  - **Memory.** A scratch boot of the pinned image peaked at 437 MiB loading
-    all three lists, against 154 MiB with two. Production already sat at
-    207 MiB at its 7-day peak, so the 512m limit would have been hit at the
-    daily refresh. `mem_limit` is now 1g.
+    Browsing, which stays off because it looks names up remotely at
+    AdGuard's service (a hash prefix for each name not in its cache). No
+    more ad lists were added; OISD Big already covers that.
+  - **Memory.** Measured on the pinned image as cgroup `memory.peak`: a fresh
+    boot loading all three lists peaked at ~440 MiB (154 MiB with two); a
+    boot on day-old lists followed by the refresh replacing all three, which
+    is the daily refresh, peaked at 772 MiB. Production ran ~53 MiB above a
+    fresh boot with two lists, so ~830 MiB is the expected worst case.
+    `mem_limit` is now 1536m. The first draft of this change said 1g, sized
+    from the fresh-boot figure alone; review caught it before merge.
   - **Left off on purpose.** Blocked services and safe search. Every query
     reaches AdGuard from `morpheus`, so either would apply to the whole house;
     `AdGuardHome.yaml` now says so in place of leaving them unexplained.

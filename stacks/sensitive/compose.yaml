@@ -476,14 +476,18 @@ services:
     image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
     container_name: sensitive-adguard
     # Was 512m: 5x the measured 95 MiB RSS with two blocklists (433k rules,
-    # 2026-09-09). The threat-intelligence list adds 1.56M rules; a scratch
-    # boot of the pinned image on 2026-10-09 peaked at 437 MiB loading all
-    # three (154 MiB with two), and production already runs ~140 MiB above a
-    # fresh boot in cache and query log. A list refresh briefly holds the old
-    # and new copies, so 512m would OOM at the daily refresh. The bound is for
-    # a leak, not a budget, and trinity has 32 GB.
-    mem_limit: 1g
-    memswap_limit: 1g
+    # 2026-09-09). The threat-intelligence list adds 1.56M rules. Measured on
+    # the pinned image, 2026-10-09, cgroup memory.peak:
+    #   fresh boot, three lists downloaded and loaded      ~440 MiB
+    #   boot on day-old lists, then the refresh replacing
+    #   all three while the old copies still serve          772 MiB
+    # The second is the daily refresh, and the number to size for. Production
+    # ran ~53 MiB above a fresh boot's peak with two lists (207 against 154
+    # MiB, cache and query log), so ~830 MiB is the expected worst case.
+    # 1.5g is ~1.8x that: the bound is for a leak, not a budget, this is the
+    # house's only forwarder, and trinity has 32 GB.
+    mem_limit: 1536m
+    memswap_limit: 1536m
     user: "65534:65534"
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
