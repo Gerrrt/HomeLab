@@ -33,6 +33,10 @@ source "proxmox-clone" "gentoo" {
   cores      = 4
   memory     = 8192
   qemu_agent = true
+  # Said, not inherited: the clone builder sets its own default, lsi, which
+  # OVMF has no driver for, and the clone then finds no disk to boot
+  # (2026-10-09).
+  scsi_controller = "virtio-scsi-single"
 
   # net0 as every template has it. The clone builder pairs each ipconfig with
   # an adapter declared here, not with the one the staging template carries.
