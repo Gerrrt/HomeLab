@@ -16,7 +16,7 @@ needed for Kea.
 
 - the templates, from
   [`build-the-lab-templates.md`](build-the-lab-templates.md) §2b, §4 and §6:
-  903 and 904, and the existing 911;
+  903–906 for the guests you are creating, and the existing 911;
 - the pool grant, from
   [`provision-lab-guests.md`](provision-lab-guests.md) §2 (`/pool/dotfiles`).
 
@@ -65,24 +65,26 @@ them their address, so do this before the first boot, not after.
 ## 2. Create them, from `phoenix`
 
 [`provision-lab-guests.md`](provision-lab-guests.md) §4, unchanged:
-`umask 077`, then `plan -out` and `apply`. The plan for the first phase is
-four to add: the `dotfiles` pool and three guests. Anything that says
-`must be replaced` on a lab-domain guest is a stop.
+`umask 077`, then `plan -out` and `apply`. A guest whose template does not
+exist yet cannot be cloned, so apply with `-target='module.guest["dot-…"]'`
+for the ones whose templates are built, one at a time if you like; the pool
+comes with the first. The plan should add exactly those, and change nothing
+else. Anything that says `must be replaced` on a lab-domain guest is a stop.
 
 Check each one:
 
 ```bash
-for id in 191 192 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot}'; done
+for id in 191 192 193 194 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
 ```
 
-**Each must show `tags` as `dotfiles;on-demand`.** Without `on-demand`,
+**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s `efidisk0` must show `pre-enrolled-keys=0`: Arch boots without Secure Boot. Without `on-demand`,
 `HypervisorGuestStopped` fires an hour after the first shutdown.
 
 ## 3. First boot, then the `clean` snapshot
 
 Boot each guest once, so that cloud-init (or Windows' OOBE) does its
 per-machine work. The apply already did: the provider starts a guest when it
-creates it, so after §2 all three are running their first boot. That work is the user, the key, the host keys and the
+creates it, so after §2 each new guest is running its first boot. That work is the user, the key, the host keys and the
 machine-id. Then shut the guest down and snapshot it **stopped**:
 
 ```bash
