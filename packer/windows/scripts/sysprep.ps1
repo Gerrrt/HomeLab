@@ -104,11 +104,20 @@ if ($left) { exit 1 }
 # The 30-second wait is ping, not timeout.exe, which fails without a console.
 # SetupComplete.cmd deletes this file and the task on every clone, and the
 # script above once it has run it.
+#
+# Panther\unattend-original.xml is Setup's untouched copy of the BUILD's answer
+# file, written while the template was installed: AdministratorPassword and
+# the build AutoLogon, both <PlainText>true</PlainText>, readable by Users
+# (#1099). Generalising keeps it, so every clone inherited it. It goes in the
+# last step before sysprep, once nothing else will run on the template.
+# Panther\unattend.xml stays: Setup scrubs its passwords, and sysprep reads
+# its own answer from unattend-oobe.xml, not from either.
 $cmd = Join-Path $env:WINDIR 'Temp\packer-sysprep.cmd'
 Set-Content -Path $cmd -Encoding ascii -Value @(
   '@echo off'
   'ping -n 31 127.0.0.1 >nul'
   ('powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + $close + '"')
+  'del /f /q "%WINDIR%\Panther\unattend-original.xml"'
   ('"%WINDIR%\System32\Sysprep\sysprep.exe" /generalize /oobe /shutdown /quiet /unattend:' + $answer)
 )
 

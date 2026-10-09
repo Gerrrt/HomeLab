@@ -139,6 +139,19 @@
   when: not domain_role_is_dc
   no_log: true
 
+# What the template's build left behind (#1099): Setup's untouched copy of the
+# build's answer file, with the build password in plaintext, twice, readable by
+# BUILTIN\Users. It was on all seven Windows guests on 2026-10-09 (six domain
+# guests and dot-windows), created at template build time, so every clone of
+# a 911 or 912 built before #1099 inherited it. The password stops opening
+# the local Administrator once the task above has run, but the template reuses
+# it, so it is still worth reading on any guest this has not touched yet.
+# Panther\unattend.xml stays: Setup scrubbed its password.
+- name: Remove Setup's plaintext copy of the build answer file
+  ansible.windows.win_file:
+    path: C:\Windows\Panther\unattend-original.xml
+    state: absent
+
 # What the template's build left behind (#846). Packer's WinRM ran over HTTPS on
 # a self-signed certificate, FriendlyName packer-winrm, made in bootstrap.ps1.
 # Templates built before #1031 left it on every clone, the same one on each

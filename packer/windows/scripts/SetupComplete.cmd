@@ -67,6 +67,15 @@ sc.exe stop WinRM>> "%LOG%" 2>&1
 
 del /q "%WINDIR%\Panther\unattend-oobe.xml">> "%LOG%" 2>&1
 
+rem Setup's untouched copy of an answer file, with its passwords in plaintext
+rem and readable by Users (#1099). The sysprep task deletes the build's before
+rem generalising; this is the backstop for a template built before that, and
+rem for any copy Setup writes on the clone itself. It runs before the first
+rem logon, so no user ever sees one.
+echo %TIME% Panther: delete unattend-original.xml>> "%LOG%"
+del /f /q "%WINDIR%\Panther\unattend-original.xml">> "%LOG%" 2>&1
+if exist "%WINDIR%\Panther\unattend-original.xml" (>> "%LOG%" echo %TIME%   STILL PRESENT) else (>> "%LOG%" echo %TIME%   gone)
+
 rem What sysprep.ps1 left to run sysprep outside the build's WinRM session.
 rem The task has no trigger and cannot run again, but it has no business in
 rem a guest. packer-close-winrm.log stays: it is what the sysprep task did to

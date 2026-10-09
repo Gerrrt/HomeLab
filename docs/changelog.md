@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-09
+
+- **Windows clones no longer keep the build password in plaintext**
+  ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
+  to the running guests.
+  - **What was there.** All seven running Windows guests (the six domain
+    guests and dot-windows) had `C:\Windows\Panther\unattend-original.xml`,
+    readable by `BUILTIN\Users`. It held two password elements, both
+    `<PlainText>true</PlainText>`: the build's Administrator and AutoLogon.
+    The check counted elements and printed no value. `Panther\unattend.xml`
+    beside it has its password scrubbed by Setup.
+  - **Where it came from.** It was created during the template build, half an
+    hour before each clone's first boot, so it was baked into 911 and 912 and
+    inherited by every clone.
+  - **The fix, in three places:**
+    - the sysprep task deletes it as its last step before generalising, so a
+      rebuilt template no longer carries it;
+    - `SetupComplete.cmd` deletes it again before a clone's first logon,
+      logging whether it went;
+    - `roles/base` removes it on every run, and `verify.yml` holds every guest
+      to not having it.
+  - **Checked on carbuncle without touching Panther.** PowerShell's own parser
+    reads `sysprep.ps1` with 0 errors. The new `SetupComplete.cmd` lines, run
+    against a temp folder, delete a present file, and log a second run on an
+    absent one without failing.
+  - **Still to do.** Apply `roles/base` to the six, and remove it on
+    dot-windows, which is not in the Ansible inventory. 911 and 912 lose it
+    at their next rebuild.
+
 ## 2026-10-08
 
 - **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
