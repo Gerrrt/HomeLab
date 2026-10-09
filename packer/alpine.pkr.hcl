@@ -101,7 +101,7 @@ build {
       # `tester` in.
       "printf 'UsePAM yes\\n' > /etc/ssh/sshd_config.d/10-pam.conf",
       "rm -f /etc/ssh/ssh_host_*",
-      "cloud-init clean --logs",
+      "cloud-init clean --logs --machine-id",
     ]
   }
 

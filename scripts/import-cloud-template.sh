@@ -41,8 +41,15 @@ usage() { sed -n '/^# Usage/,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; exit
 
 [[ $# -ge 1 ]] || usage
 distro=$1
+shift
 force=0
-[[ ${2:-} == --force ]] && force=1
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    --force) force=1 ;;
+    *) echo "error: unknown argument: $1" >&2; usage ;;
+  esac
+  shift
+done
 
 case $distro in
   alpine)
@@ -70,10 +77,11 @@ esac
 
 storage=large_data
 bridge=vmbr0
-work=/var/tmp/import-cloud-template
-file="$work/${url##*/}"
 
+# Root, and on Saruman: --force destroys a VMID, and 917 and 918 mean
+# something else on any other node.
 [[ $(id -u) -eq 0 ]] || { echo "error: run as root on Saruman" >&2; exit 1; }
+[[ $(hostname -s) == Saruman ]] || { echo "error: run on Saruman, not $(hostname -s)" >&2; exit 1; }
 
 if qm status "$vmid" >/dev/null 2>&1; then
   if ((force)); then
@@ -84,8 +92,12 @@ if qm status "$vmid" >/dev/null 2>&1; then
   fi
 fi
 
-mkdir -p "$work"
-trap 'rm -f "$file"' EXIT
+# A private directory made now, not a fixed path under /var/tmp: a root
+# download into a name another account could create first is a symlink away
+# from overwriting any file on the host.
+work=$(mktemp -d /var/tmp/import-cloud-template.XXXXXX)
+trap 'rm -rf "$work"' EXIT
+file="$work/${url##*/}"
 curl -fsSL --retry 3 -o "$file" "$url"
 echo "$sha256  $file" | sha256sum -c --quiet - || {
   echo "error: $file does not match its pin; refusing to import it" >&2
