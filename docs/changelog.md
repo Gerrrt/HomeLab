@@ -48,7 +48,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **`eden` is on the network diagram**
   ([#1098](https://github.com/Gerrrt/HomeLab/issues/1098)). It was built on
-  2026-10-08 and was in `network.md`, but not in `current/network.svg`.
+  2026-10-07 and was in `network.md`, but not in `current/network.svg`.
   - Its card sits in VLAN 30's guest row, beside `golem` and the planned
     `diabolos`, so that row now holds three cards like the dot row.
   - Every other host in `network.md` was already drawn, either by name or as
