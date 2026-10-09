@@ -74,6 +74,10 @@ build {
     execute_command = "doas sh -eu '{{ .Path }}'"
     inline = [
       "cloud-init status --wait || true",
+      # With a static address from cloud-init, Alpine's ifupdown does not
+      # write the nameserver to resolv.conf (udhcpc does, on a DHCP clone), and
+      # apk fails on "DNS: transient error". The clone's own boot rewrites it.
+      "printf 'nameserver 10.0.30.1\\n' > /etc/resolv.conf",
       "apk update",
       "apk upgrade --no-interactive",
       # What dotfiles-Alpine's README asks for first (bash, git; the
