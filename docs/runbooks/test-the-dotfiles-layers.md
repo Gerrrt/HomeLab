@@ -212,6 +212,46 @@ current release of each and its publisher's SHA-256. winget's `configure`
 only asks for each package to be present, not for a version, so an older
 pin is still skipped.
 
+**Then sign `tester` in once, still before the shutdown** (#1108). A first
+interactive sign-in sets up the profile, and on this guest that takes minutes:
+measured on 2026-10-09, the desktop came up in 37 s, then the CPU ran at
+30–100% for 3½–7½ minutes. The work was OneDrive's first-run setup, Defender
+checking the new files, and search indexing the profile. If `clean` has
+never had that sign-in, every run starts by paying for it. Done once here, a
+sign-in from `clean` settles in about 2 minutes. As SYSTEM through the guest
+agent, as above:
+
+```powershell
+# One autologon as tester, with a throwaway password nobody keeps.
+$pw = -join ((48..57 + 65..90 + 97..122) | Get-Random -Count 24 | ForEach-Object { [char]$_ })
+Set-LocalUser tester -Password (ConvertTo-SecureString $pw -AsPlainText -Force)
+$w = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+Set-ItemProperty $w AutoAdminLogon '1'; Set-ItemProperty $w DefaultUserName 'tester'
+Set-ItemProperty $w DefaultDomainName '.'; Set-ItemProperty $w DefaultPassword $pw
+Set-ItemProperty $w AutoLogonCount 1 -Type DWord
+```
+
+Then `qm reboot 198`. Wait until the guest's CPU
+(`\Processor(_Total)\% Processor Time`) stays under 10%, which took about
+7½ minutes. Then end the session and take the autologon out again:
+
+```powershell
+$w = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+Set-ItemProperty $w AutoAdminLogon '0'; Set-ItemProperty $w DefaultUserName 'Administrator'
+Remove-ItemProperty $w DefaultPassword, AutoLogonCount -ErrorAction SilentlyContinue
+logoff (Get-Process explorer -IncludeUserName | Where-Object UserName -match tester | Select-Object -First 1).SessionId
+```
+
+Check that `AutoAdminLogon` is `0`, that there is no `DefaultPassword`, and
+that LogonUI is running with no explorer. Then shut down and take `clean`.
+
+**The display is VirtIO GPU.** `tofu/guests.tf` gives `dot-windows`
+`vga = "virtio"`. Proxmox's default VGA has no Windows driver, so Windows
+falls back to the Basic Display Adapter and draws every frame on the CPU,
+which is most of why the 2026-10-08 console felt slow. The template build
+already installed virtio-win's `viogpudo` driver, so the clone comes up on
+the Red Hat VirtIO GPU DOD controller with no further step.
+
 ## 4. A run
 
 Every run starts from `clean`:
@@ -410,3 +450,4 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | Phase 4: template 909 (NixOS) and `dot-nixos` | 909 built twice from the NixOS 26.05 minimal ISO and smoke-tested both times, about 5 min a build. The first two builds stopped at mounting the new root: once on a `/dev/disk/by-label` link udev had not made yet, and once because the ISO had not loaded ext4, so `mount` tried the partition as FAT. Both are fixed by mounting by device, with the type named. `dot-nixos` (197, .97) was applied with `-target`. `tester` has `sudo`, the `nixos-26.05` channel is present, root grew to 39G, and `clean` was taken stopped |
 | 2026-10-09 | First run, NixOS (dotfiles v7.14.0) | In the layer's order: the `home-manager` channel (release-26.05), `nix/nixos.nix` with `tester` and the home-manager module, then `nixos-rebuild switch`, which took about 1 min and activated `home-manager-tester.service`. Then `./bootstrap.sh`, exit 0 in 1 s (links only, no escalation), and `core doctor` exit 0, with nine missing: `viddy gron sd xh doggo op ast-grep uv difft`. None of them is in `nix/home.nix`'s `home.packages`, so the layer's package set lags what Core expects |
 | 2026-10-09 | `dot-windows` re-cloned from the rebuilt 911 (#1093), §3 again, then the new prerequisite bake (#1108) | First boot rested at the sign-in screen: `AutoAdminLogon=0`, no `DefaultPassword`, no `Panther\unattend-original.xml`. `tester` logs in by key at Medium Mandatory Level. The bake ran as SYSTEM through the guest agent: all four downloads matched their published SHA-256, and every installer exited 0. Afterwards winget (as SYSTEM) lists Git.Git 2.56.0.2, Microsoft.PowerShell 7.6.6, Microsoft.WSL 3.0.1 and WiresharkFoundation.Wireshark 4.6.9. `configure --enable` exited 0. `clean` retaken stopped. The console run has not been done yet |
+| 2026-10-09 | `dot-windows` slowness (#1108) | Ruled out: Saruman (no CPU, IO or memory pressure), the disk (under 2 ms), memory (6.6 of 8 GiB free), VBS/HVCI (off) and Defender (no scans). Found: the Basic Display Adapter, because Proxmox's default VGA has no Windows driver, and a first sign-in that ran the CPU at 30–100% for 3½–7½ minutes (OneDriveSetup, MsMpEng, SearchIndexer). Fixed by `vga = "virtio"` (the guest came up on the Red Hat VirtIO GPU DOD controller at 1280×800, with the driver already in the template) and by one `tester` sign-in baked into `clean`. A sign-in from the new `clean` settles in about 2 minutes. How the console feels is still to be judged at the console |
