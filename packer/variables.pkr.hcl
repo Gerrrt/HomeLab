@@ -137,6 +137,14 @@ variable "opensuse_iso_file" {
   default = "smaug-iso:iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso"
 }
 
+# The address the cloud-image builds (alpine, gentoo) give their clone for
+# the length of the build. The images carry no guest agent to report one.
+# Below the DHCP pool and in no table (docs/network.md).
+variable "cloud_image_build_address" {
+  type    = string
+  default = "10.0.30.99"
+}
+
 variable "arch_iso_file" {
   type    = string
   default = "smaug-iso:iso/archlinux-2026.10.01-x86_64.iso"
