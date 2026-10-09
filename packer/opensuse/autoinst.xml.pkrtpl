@@ -2,7 +2,7 @@
 <!DOCTYPE profile>
 <!--
   Rendered by packer/opensuse.pkr.hcl with templatefile(). AutoYaST profile
-  for the Tumbleweed NET installer, read from the disc labelled OEMDRV
+  for the Tumbleweed NET installer, read from the generated disc, sr0
   (#920 phase 2, ADR-0090).
 
   The `packer` user lives for the length of the build: key-only, no password,

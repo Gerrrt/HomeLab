@@ -41,7 +41,7 @@ scripts/packer-smoke.sh 912
 - `fedora/ks.cfg.pkrtpl`: the kickstart for Fedora Server, on a disc
   labelled `OEMDRV`, which Anaconda reads with no boot argument.
 - `opensuse/autoinst.xml.pkrtpl`: the AutoYaST profile for Tumbleweed's
-  NET installer, on a disc labelled `OEMDRV` named on the kernel line.
+  NET installer, on a generated disc named on the kernel line as `device://sr0`.
 - `arch/user-data.pkrtpl` and `arch/install.sh`: Arch has no installer to
   answer. The first lets Packer into the live ISO, and the second installs
   the disk over that session. Secure Boot is off for Arch, the one template

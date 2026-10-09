@@ -2,7 +2,7 @@
 # dotfiles-openSUSE's bootstrap is tested on (#920 phase 2, ADR-0090).
 #
 # The Tumbleweed NET installer is still linuxrc and YaST, so AutoYaST drives
-# it, from a disc labelled OEMDRV named on the kernel line. Nothing listens
+# it, from the generated disc named on the kernel line. Nothing listens
 # on phoenix. NET, not the DVD: it installs today's packages from the
 # mirror, which is what a fresh Tumbleweed box gets, and it is a tenth of
 # the size on the ISO store.
@@ -82,10 +82,15 @@ source "proxmox-iso" "opensuse" {
   # The installer's GRUB finds its own files by searching for them, so the
   # prompt can boot the kernel directly with the profile's location, as
   # Debian's does, rather than drive the graphical menu.
+  #
+  # device://sr0, not label://OEMDRV. linuxrc reads a label:// profile, but
+  # YaST then fetches it again itself, rewrites it to
+  # device://disk/by-id/ata-QEMU_DVD-ROM_QM00001/… and fails on that path
+  # (2026-10-09). The answer disc is ide0, the first CD, so it is sr0.
   boot_wait = "20s"
   boot_command = [
     "c<wait3s>",
-    "linux /boot/x86_64/loader/linux autoyast=label://OEMDRV/autoinst.xml textmode=1<enter><wait3s>",
+    "linux /boot/x86_64/loader/linux autoyast=device://sr0/autoinst.xml textmode=1<enter><wait3s>",
     "initrd /boot/x86_64/loader/initrd<enter><wait3s>",
     "boot<enter>",
   ]
