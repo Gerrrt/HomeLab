@@ -191,7 +191,10 @@ Remove-Item -Recurse -Force $d
 # winget configure is off on a fresh install, and turning it on is elevated.
 # As SYSTEM this works; from an SSH logon it fails (0x80070520).
 $wg = Get-ChildItem 'C:\Program Files\WindowsApps\Microsoft.DesktopAppInstaller_*_x64__8wekyb3d8bbwe\winget.exe' | Sort-Object FullName | Select-Object -Last 1
+if (-not $wg) { throw 'winget.exe not found: App Installer is not provisioned' }
+# A native command's exit code is not an error to $ErrorActionPreference.
 & $wg.FullName configure --enable
+if ($LASTEXITCODE -ne 0) { throw "winget configure --enable exited $LASTEXITCODE" }
 ```
 
 What it leaves out, on purpose:
