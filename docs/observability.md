@@ -49,7 +49,7 @@ it is not closed by anything in this document.
 | `/var/log/auth.log` | Alloy | 60s poll | sshd, sudo, PAM |
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else. The `*.log` source skips `auth.log` and the facility files rsyslog also writes to `syslog` (`kern`, `user`, `mail`, `cron`, `daemon`), so a line is not stored once per copy ([#909](https://github.com/Gerrrt/HomeLab/issues/909)) |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
-| pfSense logs | syslog → Alloy on 1514 | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
+| pfSense logs | syslog-ng → Alloy on 6514, TLS with a client certificate ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)) | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
 | MokerLink switch | snmp-exporter | 60s | Interface status and 64-bit octet counters |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-175 rules in total: 155 metric-based in `prometheus/rules/`, and 20 log-based in
+176 rules in total: 156 metric-based in `prometheus/rules/`, and 20 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -355,7 +355,7 @@ covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
 
-**OOM kills have three owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903)):
+**OOM kills have four owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903), [#1095](https://github.com/Gerrrt/HomeLab/issues/1095)):
 
 - `KernelOomKill`: the machine-wide killer, read from the kernel's line.
 - `ContainerOomKilled`: a Docker container at its `mem_limit`, read from cAdvisor.
@@ -365,10 +365,14 @@ errors.
   manager's own stream counts: PID 1 or a `user@<uid>.service`, over the
   journal's native transport. So `logger` or a service's stdout cannot raise
   it, and the alert keeps `unit` to say which manager reported it.
+- `NasOomKill`: any OOM kill on `smaug`, which ships no logs, so none of the
+  three above can see it. It reads node_exporter's `node_vmstat_oom_kill`, the
+  kernel's own count, from the scrape Prometheus already makes. It says that
+  something was killed, not what: the NAS's `dmesg` knows that.
 
 `UnitOomKilled` can fire today on a unit killed by the machine-wide killer or
 by `systemd-oomd`. Only a unit's own cap is latent: no unit is given
-`MemoryMax=` yet. A kill inside any other cgroup is still nobody's. Where
+`MemoryMax=` yet. On a host other than `smaug`, a kill inside any other cgroup is still nobody's. Where
 `systemd-oomd` runs, its kills also end in that systemd verdict, so this rule
 sees them. Where it was checked, it does not run
 (`systemctl is-enabled`/`is-active systemd-oomd`: `not-found`/`inactive`):
@@ -376,11 +380,19 @@ sees them. Where it was checked, it does not run
 - `trinity`, Ubuntu 26.04.1, checked 2026-10-07;
 - `Saruman` and `golem`, Debian 13, checked 2026-10-08;
 - `alexander`, `odin`, `fenrir`, `phoenix` and `eden`, Ubuntu 26.04.1,
-  checked 2026-10-08.
+  checked 2026-10-08;
+- `prometheus` and `oracle`, Ubuntu 24.04 LTS, checked 2026-10-08 by the
+  operator from Winterfell, since `Saruman` cannot reach VLAN 99.
 
-**Not yet checked:** `prometheus`, `oracle` (VLAN 99) and `smaug` (VLAN 40).
-All three ship their journals, but none can be reached from `Saruman`, where
-the other checks ran.
+That is every host that ships its journal, so there is no `systemd-oomd` kill
+to show. A journal-shipping host that later turns it on is covered by
+`UnitOomKilled` without a change, because its kills end in the same verdict.
+
+`smaug` was checked too (TrueNAS 25.10, `not-found`/`inactive`), but it is the
+exception: it ships no logs and runs no Alloy (the table at the top of this
+page), so no journal verdict from it can reach Loki. An OOM kill on the NAS,
+of any kind, is not seen by `UnitOomKilled` or `KernelOomKill`. `NasOomKill`
+covers it instead, from the kernel's own counter.
 
 The five authentication rules read a **three-branch union** — `authlog`, then
 `journal`, then `syslog` constrained to the `sshd`/`sudo` apps — joined with
@@ -493,7 +505,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-155 rules across twelve files in `prometheus/rules/`:
+156 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -529,7 +541,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 155 rules of 155 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
+against the broken rule too. Coverage is 156 rules of 156 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from

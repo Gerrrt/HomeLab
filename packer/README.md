@@ -13,8 +13,15 @@ page is the map.
 | --- | --- | --- | --- | --- |
 | 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, built and usable |
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
-| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, first build pending |
-| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built; needs a rebuild to carry the `SetupComplete.cmd` fix |
+| 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 907 | `tpl-alpine` | `alpine.pkr.hcl` | Alpine's cloud image, imported as 917 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 908 | `tpl-gentoo` | `gentoo.pkr.hcl` | Gentoo's cloud image, imported as 918 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 909 | `tpl-nixos` | `nixos.pkr.hcl` | the minimal ISO, a typed boot command, then `nixos/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
+| 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 
 ```bash
 set -a; . ~/.config/proxmox/phoenix.env; set +a
@@ -32,6 +39,27 @@ scripts/packer-smoke.sh 912
 - `ubuntu/user-data.pkrtpl`: autoinstall. The `packer` build user is
   key-only and deleted at the end of the build.
 - `kali/preseed.cfg.pkrtpl`: the same shape for Debian's installer.
+- `debian/preseed.cfg.pkrtpl`: Kali's preseed with Debian trixie's mirror,
+  for the dotfiles-Debian VM ([ADR-0090]). Served over HTTP, as Kali's is.
+- `fedora/ks.cfg.pkrtpl`: the kickstart for Fedora Server, on a disc
+  labelled `OEMDRV`, which Anaconda reads with no boot argument.
+- `opensuse/autoinst.xml.pkrtpl`: the AutoYaST profile for Tumbleweed's
+  NET installer, on a disc labelled `OEMDRV` named on the kernel line.
+- `nixos.pkr.hcl`, `nixos/install.sh` and `nixos/configuration.nix`: NixOS
+  is installed by evaluating a configuration, not by answering questions.
+  The build types its way into the ISO's root shell, then installs with the
+  committed configuration: systemd-boot without Secure Boot, cloud-init on
+  networkd, the agent, key-only sshd, and sudo for cloud-init's user.
+- `alpine.pkr.hcl` and `gentoo.pkr.hcl`: not ISO installs. Each clones a
+  staging template that `scripts/import-cloud-template.sh` imported, as root
+  on `Saruman`, from the project's signed cloud image (917, 918). It adds the
+  guest agent and what the dotfiles layer needs, and deletes the image's
+  default user. The images carry no agent, so the build gives its clone a
+  fixed address, `cloud_image_build_address`, and the two builds take turns.
+- `arch/user-data.pkrtpl` and `arch/install.sh`: Arch has no installer to
+  answer. The first lets Packer into the live ISO, and the second installs
+  the disk over that session. Secure Boot is off for Arch, the one template
+  so far without a Microsoft-signed shim.
 - `windows/autounattend.xml.pkrtpl`: one file for both editions, rendered
   with the image name, the VirtIO driver folder and the product key.
 - `windows/unattend-oobe.xml.pkrtpl`: the answer file a clone's OOBE reads
@@ -78,6 +106,7 @@ scripts/packer-smoke.sh 912
   passed against a real build.
 
 [ADR-0074]: ../docs/adr/0074-build-the-lab-templates-with-packer-from-phoenix.md
+[ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [runbook]: ../docs/runbooks/build-the-lab-templates.md
 [#448]: https://github.com/Gerrrt/HomeLab/issues/448

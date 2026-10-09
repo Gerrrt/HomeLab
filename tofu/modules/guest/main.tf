@@ -48,7 +48,7 @@ resource "proxmox_virtual_environment_vm" "this" {
     datastore_id      = var.datastore
     file_format       = "raw"
     type              = "4m"
-    pre_enrolled_keys = true
+    pre_enrolled_keys = var.secure_boot
   }
 
   dynamic "tpm_state" {
@@ -135,7 +135,14 @@ resource "proxmox_virtual_environment_vm" "this" {
   # with 403 on exactly this. Root on Saruman sets the order after an apply
   # (build-the-lab-domain.md, "Rebuild from the pipeline"); the guests.tf
   # output `startup_orders` says what to set.
+  #
+  # `started` is ignored too. The provider's default is true, so a guest is
+  # started when it is created (its first boot) and then never touched again
+  # from here. Without this, every plan that met a stopped on-demand guest
+  # (ADR-0079: carbuncle, siren, and the dotfiles VMs of ADR-0090) proposed
+  # `started = false -> true`, and an untargeted apply would boot it. Whether a
+  # guest is up is the operator's, and HypervisorGuestStopped's, not tofu's.
   lifecycle {
-    ignore_changes = [startup]
+    ignore_changes = [startup, started]
   }
 }

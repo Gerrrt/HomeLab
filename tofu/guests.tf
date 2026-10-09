@@ -6,6 +6,9 @@
 # remove them, and are then rebuilt from the templates (build-the-lab-domain.md,
 # "Rebuild from the pipeline").
 #
+# #920's on-demand dotfiles VMs (191-198), one per dotfiles OS layer, in the
+# `dotfiles` pool (ADR-0090).
+#
 # Beside them is the proof guest, declared only under -var proof=true. It
 # exists to put a real secret, a cloud-init password, into real state, so the
 # runbook can grep for it and find nothing.
@@ -34,6 +37,7 @@ locals {
       # guest left behind is exactly what that alert is for.
       tags     = ["disposable", "tofu"]
       password = random_password.proof[0].result
+      username = "operator"
     }
   } : {}
 
@@ -74,10 +78,46 @@ locals {
       # found by.
       tags     = concat(["lab-domain"], g.startup == null ? ["on-demand"] : [])
       password = null
+      username = "operator" # unused: a Windows clone takes no cloud-init user
     })
   }
 
-  guests = merge(local.lab_domain, local.proof_guests)
+  # #920's on-demand VMs, one per dotfiles OS layer (ADR-0090). Standalone,
+  # not domain members: they test the dotfiles, not the domain. Each is booted
+  # from its `clean` snapshot for a run and shut down after it, so `on-demand`
+  # keeps HypervisorGuestStopped quiet (ADR-0079), and none boots with the
+  # host. The MACs are fixed for morpheus's reservations, .91-.98, as the
+  # domain's are. No SMBIOS UUID: dot-windows is an unactivated Windows 11, so
+  # there is no activation to carry. Arch's Secure Boot is off, as its
+  # template's is: Arch ships no Microsoft-signed shim, and Alpine's and
+  # Gentoo's cloud images and NixOS boot without one too.
+  dotfiles = {
+    for name, g in {
+      dot-debian   = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:D0:51:9D" }
+      dot-fedora   = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:81:DB:CC" }
+      dot-opensuse = { vm_id = 193, template = 905, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:E9:5A:7B" }
+      dot-arch     = { vm_id = 194, template = 906, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:9A:27:EC", secure_boot = false }
+      dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 8, linux = true, mac_address = "BC:24:11:B9:94:6A", secure_boot = false }
+      dot-gentoo   = { vm_id = 196, template = 908, cores = 4, memory_mib = 8192, disk_gib = 60, linux = true, mac_address = "BC:24:11:CB:16:C3", secure_boot = false }
+      dot-nixos    = { vm_id = 197, template = 909, cores = 2, memory_mib = 4096, disk_gib = 40, linux = true, mac_address = "BC:24:11:69:5A:40", secure_boot = false }
+      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A" }
+    } :
+    name => merge(g, {
+      pool        = "dotfiles"
+      smbios_uuid = null
+      startup     = null
+      on_boot     = false
+      tags        = ["dotfiles", "on-demand"]
+      password    = null
+      # Not the module's `operator`: Debian ships a system group of that name
+      # and Fedora a system user, so cloud-init's useradd failed on the first
+      # apply (2026-10-08) and the guest had no login. `tester` is also the
+      # Windows guest's bootstrap user (test-the-dotfiles-layers.md §3).
+      username = "tester"
+    })
+  }
+
+  guests = merge(local.lab_domain, local.dotfiles, local.proof_guests)
 
   # A pool exists exactly while it groups a guest: it is derived from the
   # guests, not listed beside them, so the last guest leaving a pool takes the
@@ -111,7 +151,11 @@ module "guest" {
   on_boot    = each.value.on_boot
   tags       = each.value.tags
   password   = each.value.password
-  ssh_keys   = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
+  username   = each.value.username
+  # Absent means on: only a guest whose template has no Microsoft-signed shim
+  # sets it.
+  secure_boot = lookup(each.value, "secure_boot", true)
+  ssh_keys    = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
   mac_address = each.value.mac_address
   smbios_uuid = each.value.smbios_uuid

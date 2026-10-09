@@ -1,5 +1,7 @@
-# Rendered by packer/kali.pkr.hcl with templatefile() and served once over
-# Packer's HTTP server. Debian preseed for the Kali installer.
+# Rendered by packer/debian.pkr.hcl with templatefile() and served once over
+# Packer's HTTP server. Debian trixie preseed for the dotfiles-Debian VM's
+# template (#920, ADR-0090). Kali's (kali/preseed.cfg.pkrtpl) with Debian's
+# mirror and suite, and without the Kali metapackage.
 #
 # The `packer` user lives for the length of the build: key-only, password
 # disabled, deleted by the build's last provisioner. A clone's user comes from
@@ -12,16 +14,16 @@ d-i clock-setup/utc boolean true
 d-i clock-setup/ntp boolean true
 
 d-i netcfg/choose_interface select auto
-d-i netcfg/get_hostname string tpl-kali
+d-i netcfg/get_hostname string tpl-debian-13
 d-i netcfg/get_domain string
 d-i hw-detect/load_firmware boolean false
 
 d-i mirror/country string manual
-d-i mirror/http/hostname string http.kali.org
-d-i mirror/http/directory string /kali
+d-i mirror/http/hostname string deb.debian.org
+d-i mirror/http/directory string /debian
 d-i mirror/http/proxy string
-d-i mirror/suite string kali-rolling
-d-i mirror/codename string kali-rolling
+d-i mirror/suite string trixie
+d-i mirror/codename string trixie
 
 d-i passwd/root-login boolean false
 d-i passwd/user-fullname string packer
@@ -31,7 +33,6 @@ d-i user-setup/allow-password-weak boolean false
 
 d-i partman-auto/method string regular
 d-i partman-auto/choose_recipe select atomic
-d-i partman-efi/non_efi_system boolean true
 d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
@@ -39,24 +40,21 @@ d-i partman/confirm_nooverwrite boolean true
 
 d-i apt-setup/use_mirror boolean true
 d-i apt-setup/non-free-firmware boolean true
-tasksel tasksel/first multiselect standard
-d-i pkgsel/include string openssh-server sudo qemu-guest-agent cloud-init kali-linux-default
+d-i apt-setup/services-select multiselect security, updates
+tasksel tasksel/first multiselect standard, ssh-server
+# curl and git because dotfiles-Debian's bootstrap needs the first and clones
+# with the second; sudo because the clone's cloud-init user is given it.
+d-i pkgsel/include string openssh-server sudo qemu-guest-agent cloud-init curl git
 d-i pkgsel/upgrade select full-upgrade
 popularity-contest popularity-contest/participate boolean false
 
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string default
+# Also to the removable path, EFI/BOOT/BOOTX64.EFI, so a clone whose EFI vars
+# lost the installer's boot entry still finds the shim.
+d-i grub-installer/force-efi-extra-removable boolean true
 
-# DHCP on eth0 as well as on the name the installer saw. The installer runs with
-# predictable interface names, so it configures ens18. kali-defaults, which
-# kali-linux-default pulls in, links /etc/systemd/network/99-default.link to
-# /dev/null, so the installed system calls the same NIC eth0: Kali's tools expect
-# it. With only an ens18 stanza, eth0 never came up, the guest had no address, and
-# Packer timed out waiting for SSH (#790, two proof builds on Saruman, 2026-10-08).
-# interfaces sources interfaces.d, so this adds eth0 without editing the
-# installer's file. A clone's cloud-init configures its own network on top.
 d-i preseed/late_command string \
-  printf 'allow-hotplug eth0\niface eth0 inet dhcp\n' > /target/etc/network/interfaces.d/eth0; \
   in-target mkdir -p /home/packer/.ssh; \
   echo '${ssh_public_key}' > /target/home/packer/.ssh/authorized_keys; \
   in-target chown -R packer:packer /home/packer/.ssh; \

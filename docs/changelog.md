@@ -17,7 +17,256 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-09
+
+- **Windows clones no longer keep the build password in plaintext**
+  ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
+  to the running guests.
+  - **What was there.** All seven running Windows guests (the six domain
+    guests and dot-windows) had `C:\Windows\Panther\unattend-original.xml`,
+    readable by `BUILTIN\Users`. It held two password elements, both
+    `<PlainText>true</PlainText>`: the build's Administrator and AutoLogon.
+    The check counted elements and printed no value. `Panther\unattend.xml`
+    beside it has its password scrubbed by Setup.
+  - **Where it came from.** It was created during the template build, half an
+    hour before each clone's first boot, so it was baked into 911 and 912 and
+    inherited by every clone.
+  - **The fix, in three places:**
+    - the sysprep task deletes it as its last step before generalising, so a
+      rebuilt template no longer carries it;
+    - on each clone's first boot, #1103's `SetupComplete.cmd` deletes it and
+      `unattend.xml`, and refuses to start the guest agent if either survives;
+    - `roles/base` removes it and `unattend-oobe.xml`, which also carries the
+      build password, on every run, and `verify.yml` holds every guest to
+      having neither.
+  - **Checked on carbuncle without touching Panther.** PowerShell's own parser
+    reads `sysprep.ps1` with 0 errors, and `verify.yml`'s new check evaluates
+    True there.
+  - **The running guests were cleaned the same day.** The file was deleted
+    through the guest agent on all seven, and confirmed gone on each. 911 and
+    912 lose it at their next rebuild.
+
+- **The dotfiles OS-layer VMs, phase 4: NixOS, and all eight layers have a
+  VM** ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Template.** 909 `tpl-nixos`, built twice and smoke-tested. Packer
+      boots the NixOS 26.05 minimal ISO, types `phoenix`'s key, the fixed
+      build address and sshd at its console shell, and runs `nixos-install`
+      with a committed `packer/nixos/configuration.nix`.
+    - **Not as planned.** ADR-0090 planned `nixos-rebuild build-image` in a
+      container, but `phoenix` runs no Docker; a NOTE on the ADR records
+      this.
+    - **ISO.** NixOS signs no ISOs, so the pin is the SHA-256 that both
+      `channels.nixos.org` and `releases.nixos.org` publish.
+    - **Guest.** `dot-nixos` (197, `.97`).
+  - **What the builds found.** Mounting the new root by label raced udev, and
+    the minimal ISO had not loaded ext4, so `mount` tried the partition as
+    FAT. The install now mounts by device, with the type named.
+  - **First run** (dotfiles v7.14.0).
+    - **The README's order works:** `nixos-rebuild switch` with
+      `nix/nixos.nix` and the home-manager module, then `./bootstrap.sh`.
+      Both exited 0, as did `core doctor`.
+    - **Nine tools missing,** because `nix/home.nix` doesn't declare them:
+      `viddy gron sd xh doggo op ast-grep uv difft`.
+  - **Where #920 stands.** Eight VMs, one per layer, each with a `clean`
+    snapshot and a first run. Windows still owes a run at the console.
+
+- **The dotfiles OS-layer VMs, phase 3: Alpine and Gentoo, from their
+  projects' cloud images**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Import.** `scripts/import-cloud-template.sh` runs as root on
+      `Saruman`. It imports each project's signed cloud image, pinned by
+      SHA-256, as staging template 917 or 918: Alpine 3.24.2-r2, signed by
+      the key alpinelinux.org/cloud names; Gentoo's weekly
+      `di-amd64-cloudinit` image, signed by its Automated Weekly Release Key,
+      refreshed by WKD because the keyserver copy showed expired.
+    - **Templates.** Packer's `proxmox-clone` builder finishes them into 907
+      `tpl-alpine` and 908 `tpl-gentoo`, each built twice and smoke-tested.
+      The images carry no guest agent, so each build gives its clone the
+      fixed address `.99`, and the two builds take turns.
+    - **Guests.** `dot-alpine` (195, `.95`) and `dot-gentoo` (196, `.96`),
+      both with Secure Boot off.
+  - **What the builds found.**
+    - **The builder's defaults.** Its `lsi` controller doesn't boot under
+      OVMF, and its `ostype other` made the smoke test take 908 for Windows.
+    - **First boot.** cloud-init's first-boot package upgrade held the
+      package lock.
+    - **Alpine.** A static address leaves no `resolv.conf`, and `apk
+      upgrade` trips a `limine-efi-updater` trigger on the image, so the
+      build doesn't upgrade.
+    - **Gentoo.** It ships only a systemd cloud image, so `dot-gentoo` tests
+      the layer on systemd, not on its OpenRC default.
+  - **First runs** (dotfiles v7.14.0).
+    - **Alpine** is the first layer clean end to end: `bootstrap.sh` exit 0,
+      and `core doctor` exit 0 with nothing missing.
+    - **Gentoo**: exit 0 after two hours of emerge, `core doctor` missing
+      only `gum` (left out on purpose by the layer), and `make
+      assert-provisioned` OK.
+
+- **The dotfiles OS-layer VMs, phase 2: openSUSE Tumbleweed and Arch**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 905 `tpl-opensuse-tw` and 906 `tpl-arch`, each built
+    twice and smoke-tested:
+    - openSUSE: the NET installer, with an AutoYaST profile on an `OEMDRV`
+      disc.
+    - Arch: the live ISO's own cloud-init lets Packer in, and
+      `packer/arch/install.sh` pacstraps the disk.
+
+    Guests `dot-opensuse` (193, `.93`) and `dot-arch` (194, `.94`), each with
+    a `clean` snapshot. The guest module gains `secure_boot` (default on);
+    `dot-arch` sets it off, because Arch ships no Microsoft-signed shim.
+  - **The installers.** Tumbleweed snapshot 20261007's NET ISO, checked
+    against the openSUSE Project key `AD48 5664 … 29B7 00A4` as
+    build.opensuse.org publishes it, not only as the ISO carries it. Arch
+    2026.10.01, checked against the release key `3E80 CA1A … 5444 9A5C` that
+    archlinux.org/download publishes. Both read `state="match"`.
+  - **What the builds found.**
+    - **A schema error that looked like a path error.** YaST reports a
+      schema-invalid AutoYaST profile as "a profile for this machine could
+      not be found or retrieved", next to a mangled `/dev//by-id/…` path.
+      Three builds and two detours (`device://sr0`, then HTTP) chased the
+      location, before y2log on the installer's tty2 showed
+      `install_recommends` (it is `install_recommended`). The profile is now
+      validated against `yast2-schema-default`'s `profile.rng` before a
+      build, and the disc route stands; no ADR exception was needed.
+    - **No sudo by default.** openSUSE's `cloud.cfg` gives the default user
+      no sudo rule, so a clone's user could not sudo at all. The smoke test
+      only checks SSH, so it passed regardless.
+    - **cloud-init's `disable_root` on Arch.** It wraps root's key in a
+      forced command on the live ISO, which hung the first Arch build.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Both layers fail at Flathub over SSH.** The remote is added
+      system-wide without the escalator, and polkit refuses it with no
+      agent. Filed for Arch as
+      [dotgibson/dotfiles-Arch#199](https://github.com/dotgibson/dotfiles-Arch/issues/199).
+    - **Arch** is otherwise six AUR tools short, as its layer says.
+    - **openSUSE** is otherwise short only `jj` and `difft`.
+
+- **`eden` is on the network diagram**
+  ([#1098](https://github.com/Gerrrt/HomeLab/issues/1098)). It was built on
+  2026-10-07 and was in `network.md`, but not in `current/network.svg`.
+  - Its card sits in VLAN 30's guest row, beside `golem` and the planned
+    `diabolos`, so that row now holds three cards like the dot row.
+  - Every other host in `network.md` was already drawn, either by name or as
+    part of a group.
+  - The PNG was re-rendered at 1.5× with cairosvg rather than `rsvg-convert`,
+    which is not installed on `Saruman`. Rendering the previous SVG that way
+    produced a PNG visually identical to the committed one.
+
 ## 2026-10-08
+
+- **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
+  [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  The guest closes the automation milestone and the estate's last attack-path
+  gap.
+  - **Built from the template, not an installer.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, 4 vCPU, 8 GiB, `onboot 0`, tag `on-demand`, with a
+    32 GiB data disk on `large_data`. `large_data`'s allocation went from 920
+    to 952 GiB of 876, the overcommit ADR-0081 accepts; what is written grew by
+    megabytes.
+  - **§6, the three things reasoned and not booted when the stack was written,
+    checked on the first `make up`:**
+    - **The graph is in Postgres**, not a Neo4j: BloodHound opened the `pg`
+      driver, wrote its graph schema and ran its first analysis. One database
+      on the guest, as ADR-0081 decided.
+    - **The app runs as root with no capabilities.** It began as `nobody`, and
+      that was the one thing the first boot corrected: the image ships
+      SharpHound's zip and `.sha256` `0600 root:root`, so `nobody` could not
+      serve the collector and logged an error each start ([#1025](https://github.com/Gerrrt/HomeLab/pull/1025)).
+      Root keeps `cap_drop: [ALL]`, a read-only root and `no-new-privileges`;
+      without `CAP_DAC_OVERRIDE` it reads only what it owns, so the TLS key
+      still arrives through `RENDER_GID`.
+    - **The metrics scrape is up**, `up{job="bloodhound"}` on `alexander`, over
+      TLS verified against the estate CA by the leaf's `bloodhound` SAN.
+  - **The UI** on `:8443` verifies against the estate CA, and the first admin
+    logs in with no reset pending.
+  - **The token path works:** without a token the lab proxy returns 401; with
+    `INGEST_TOKEN_EDEN` the push is accepted.
+  - **First collection (§7), 2026-10-08.** A SharpHound v2.16.0 run from
+    `carbuncle` against `ad.matrix.elysium`, uploaded through the UI, ingested
+    and analysed clean (`ad_post_processing:success`). The graph holds the
+    baseline domain: **373 nodes, 3,922 edges** — one Domain
+    (`AD.MATRIX.ELYSIUM`), 6 Computers, 49 Users, 73 Groups, 14 OUs, 5 GPOs,
+    31 nodes tagged Tier Zero. Weaknesses are off (#449), so this is the clean
+    baseline; their tags add the interesting paths later. The collector ran on
+    `carbuncle` over a temporary RDP enablement (backed out after), because the
+    Win11 endpoints' console is parked at OOBE (#1092).
+  - **Two fixes the first real ingest forced.** BloodHound wrote its upload
+    temp file relative to the container's working directory `/`, which
+    `read_only: true` makes unwritable; `working_dir` now points at the
+    `/opt/bloodhound/work` volume. And the work subdirectories, created as
+    `nobody` on the first boot before #1025 switched the app to root, were
+    chowned to root on `eden` so the capability-less root user can write them
+    (a fresh build creates them as root and needs no repair).
+
+- **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
+  entry below, "`systemd-oomd` runs on none of the eight hosts checked".
+  - The operator ran the two `systemctl` lines from Winterfell on
+    `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
+    like the other eight.
+  - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
+    covers a journal-shipping host that turns it on later, because its kills
+    end in the same systemd verdict.
+  - **Correction to the entry below:** it says `smaug` ships its journal. It
+    does not. The NAS ships no logs and runs no Alloy (`observability.md`), so
+    no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
+    Its check is an inventory fact, not coverage.
+
+- **The dotfiles OS-layer VMs, phase 1: built, and first runs**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 903 `tpl-debian-13` (preseed over HTTP, as Kali's)
+    and 904 `tpl-fedora-server` (kickstart on an `OEMDRV` disc), each built
+    twice and smoke-tested. Three on-demand guests in a `dotfiles` pool, on
+    their reservations, each with a `clean` snapshot taken stopped:
+    `dot-debian` (191), `dot-fedora` (192) and `dot-windows` (198, an
+    unactivated clone of 911). The runbook is
+    [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md).
+  - **The installers.** Debian 13.7.0 netinst and Fedora Server 44-1.7
+    netinst, listed from their publishers' signed hashes. The Debian CD
+    signing key `DF9B 9C49 … 6294 BE9B` and Fedora 44's primary key
+    `36F6 12DC … 6D9F 90A6` both gave a good signature. Both read
+    `state="match"` on the share.
+  - **What the builds found.**
+    - **Fedora's kickstart.** Anaconda stops on
+      `services --enabled=cloud-init`, because there is no such unit since
+      cloud-init 24.3. Fedora 44's presets also leave `cloud-init-network`
+      off, so the kickstart names it.
+    - **Debian's boot command.** Kali's 10s `boot_wait` typed into Debian's
+      GRUB before its menu was drawn. 20s works.
+    - **The guest user.** The module's default `operator` cannot be
+      created: Debian ships a system group of that name and Fedora a system
+      user. The dotfiles guests use `tester`.
+    - **The Windows `tester` user.** It needs a profile made with
+      `CreateProfile`, and its `authorized_keys` must be owned by the user,
+      before sshd will take its key.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Debian:** clean.
+    - **Fedora:** exits 0 with 14 tools missing. yazi's cargo build fills
+      the per-user quota on Fedora's tmpfs `/tmp`, and the downloads after
+      it fail.
+    - **Windows:** cannot be tested over SSH at all. `winget`, MSIX
+      installs, `winget configure` and scoop's junctions each fail in a
+      network logon, so its runs are at the console.
+  - **Found on the way.** `packer/README.md` still called 911 "first build
+    pending" and 912 "needs a rebuild". Both were rebuilt on 2026-10-07 after
+    the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
+    templates' descriptions. The table now says so.
+
+- **The Wazuh manager collector installs on odin.** Its requirement in
+  `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
+  installer checks requirements with `test -x` as the SSH user, and that
+  directory is `0750 root:systemd-journal` by design
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)), so
+  `barnabas` could not enter it. The install refused odin, the one host it was
+  for, as "missing". The requirement is now `/srv/soc-data`, which passes on
+  odin and fails on fenrir and alexander.
 
 - **`WazuhAgentsNotConnected` joins each running guest to its own agent**
   ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of

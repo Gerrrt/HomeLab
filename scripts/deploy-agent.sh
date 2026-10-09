@@ -407,7 +407,7 @@ docker)
   # before changing anything here; each line below has a measured reason there.
   # No --hostname: ALLOY_HOSTNAME does the labelling, and a container hostname
   # registers a DNS name (config.alloy header). No /var/lib/docker/containers:
-  # nothing reads it (#188). 1514/udp is not published: syslog.alloy is not
+  # nothing reads it (#188). No syslog port is published: syslog.alloy is not
   # shipped, so there is nothing listening. /rootfs/run is masked, for the
   # reason compose.yaml's alloy gives: /:/rootfs:ro otherwise carries
   # /rootfs/run/docker.sock, a read-only mount does not stop connect(), and
@@ -534,8 +534,8 @@ DEFAULTS
   pass "alloy.service active as $(systemctl show -p User --value alloy 2>/dev/null || echo '?')"
   require_quiet "journalctl -u alloy --since '60 seconds ago' --no-pager -o cat"
 
-  info "listening sockets (expect 12345 on loopback only, and no 1514):"
-  ss -ltnup 2>/dev/null | grep -E ':(12345|1514)\b' >&2 || true
+  info "listening sockets (expect 12345 on loopback only, and no 1514 or 6514):"
+  ss -ltnup 2>/dev/null | grep -E ':(12345|1514|6514)\b' >&2 || true
   ;;
 esac
 REMOTE

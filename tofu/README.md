@@ -28,8 +28,9 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   neither is ever written to state.
 - `guests.tf` lists the guests. The pools are derived from them, so a pool
   lives exactly as long as a guest in it does. It holds ADR-0029's six domain
-  guests (150–155), in the `lab-domain` pool, and the proof guest, 998, only
-  under `-var proof=true`.
+  guests (150–155), in the `lab-domain` pool, #920's on-demand dotfiles
+  VMs (191–198, [ADR-0090]), in the `dotfiles` pool, and the proof guest,
+  998, only under `-var proof=true`.
 - `modules/guest/` makes one full clone, with the flags the hand-built guests
   have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC and SMBIOS UUID
   each guest is given. It leaves `startup` alone: setting it takes
@@ -55,5 +56,6 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   the image `stacks/observability/compose.yaml` pins. A change here is only
   finished once the runbook's §4 has passed against a real apply.
 
+[ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
 [ADR-0076]: ../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
 [runbook]: ../docs/runbooks/provision-lab-guests.md

@@ -211,6 +211,14 @@ else
   got="$(ssh_hostname Administrator)" || die "Administrator@${addr} admitted no SSH login in three minutes"
   [[ "${got,,}" == "${host,,}" ]] || die "ssh Administrator@${addr} printed ${got}, expected ${host}"
   ok "phoenix's key opens Administrator@${addr}"
+  # #1099: Setup caches the answer files (with the build/AutoLogon password in
+  # plaintext) in Panther, readable by Users. SetupComplete.cmd deletes them and
+  # refuses to start the agent if either survives, so reaching here already means
+  # they are gone; assert it over SSH anyway, so a scrub regression cannot ship a
+  # usable template silently.
+  leak="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no "Administrator@${addr}" 'powershell -NoProfile -Command "if ((Test-Path C:\Windows\Panther\unattend.xml) -or (Test-Path C:\Windows\Panther\unattend-original.xml)) { Write-Output LEAK }"' 2>/dev/null | tr -d '\r')"
+  [[ -z "${leak}" ]] || die "Panther answer files still present on ${addr} (#1099): the plaintext build password is readable by Users"
+  ok "Panther answer files scrubbed (#1099)"
 fi
 
 printf '\n\033[0;32mtemplate %s is usable\033[0m\n' "${TEMPLATE}"

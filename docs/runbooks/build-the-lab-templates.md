@@ -1,8 +1,14 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
-**Target:** templates 901, 911 and 912 on `Saruman`, built from `phoenix`
-through the Proxmox API. 902, Kali, is written here and built on `ifrit` once
-that host exists.
+**Target:** templates 901, 903–909, 911 and 912 on `Saruman`, built from
+`phoenix` through the Proxmox API. 902, Kali, is written here and built on
+`ifrit` once that host exists. 903 (Debian), 904 (Fedora), 905 (openSUSE
+Tumbleweed), 906 (Arch), 907 (Alpine), 908 (Gentoo) and 909 (NixOS) are the
+dotfiles OS layers' templates
+([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
+[#920](https://github.com/Gerrrt/HomeLab/issues/920)), all seven new Linux
+templates. 907 and 908 start from their projects' cloud images, not an
+ISO: §4b.
 
 **Time:** an evening the first time, most of it Windows Setup running
 unattended. After that, a rebuild is one command per template and about forty
@@ -16,7 +22,9 @@ minutes of waiting for each Windows one.
   §1 uploaded to `local:iso/`, which §2b copies onto `smaug-iso` and lists:
   `windows-server-2025-eval.iso`, the VirtIO disc, and the Ubuntu 26.04
   live-server ISO. Windows 11 is downloaded again as 26H2, because the
-  March ISO's hash is no longer published;
+  March ISO's hash is no longer published. The Debian 13 netinst, the
+  Fedora Server 44 netinst, the Tumbleweed NET ISO and the Arch ISO are
+  fetched from their publishers in §2b;
 - a machine that can SSH to `Saruman` as root, for §2b's install of the daily
   checksum run. `phoenix` cannot.
 
@@ -40,10 +48,10 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Where it runs | `phoenix`, through the API on 8006 | It is the only host admitted to the hypervisor's API, and the only one meant to build machines (ADR-0043). There is no SSH to `Saruman` from here, and nothing in this runbook needs it |
-| VMIDs | 901 Ubuntu, 902 Kali, 911 Windows 11 Pro, 912 Server 2025 eval | The 900s hold no address. Guests keep "VMID is the last octet" |
+| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 NixOS. 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
-| Answer files | On a generated CD (`cidata` for Ubuntu, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. Kali is the exception, see §5 |
+| Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora and openSUSE, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
 | Credential | `phoenix.env`, mode 600, not in git | `phoenix` holds no age key (ADR-0043), so a SOPS file is one it could not read |
 | What a template holds | OS, VirtIO drivers, guest agent, cloud-init (Linux) | Addresses, names, joins and the licence gauge belong to the guest. They are #448's |
 
@@ -216,6 +224,28 @@ as trustworthy as that list, so the list is written here, once, with care.
    which were built from the March ISO. That is expected, and it resolves
    when #448 rebuilds them from the templates.
 
+   **The dotfiles installers are fetched straight onto the share** (#920).
+   Nothing on `local` holds them, and the list carries the publishers' own
+   hashes, so the file placed must be the published one:
+
+   ```bash
+   cd /mnt/smaug-iso/template/iso && \
+     wget -nc https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso && \
+     wget -nc https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-netinst-x86_64-44-1.7.iso && \
+     wget -nc https://download.opensuse.org/tumbleweed/iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso && \
+     wget -nc https://geo.mirror.pkgbuild.com/iso/2026.10.01/archlinux-2026.10.01-x86_64.iso && \
+     wget -nc https://releases.nixos.org/nixos/26.05/nixos-26.05.11576.7c8764b7c7b0/nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso
+   ```
+
+   Tumbleweed's snapshot ISOs leave the mirror within days, so the copy on
+   the share is the only one of that snapshot. A rebuild that wants it again
+   takes a newer snapshot under its own name ("Changing an ISO later",
+   below), with its own signed `.sha256`.
+
+   Once Debian's `current` moves past 13.7.0, the file is under
+   `cdimage.debian.org/cdimage/archive/13.7.0/` instead, or take the new
+   point release under its own name ("Changing an ISO later", below).
+
    The VirtIO disc is already there as `virtio-win-0.1.302.iso`, from
    `build-the-nas.md` §5b's test upload. If `local` holds a `virtio-win.iso`,
    compare the two with `sha256sum`. If they differ, the domain was built with
@@ -234,6 +264,11 @@ as trustworthy as that list, so the list is written here, once, with care.
    | `virtio-win-0.1.302.iso` | Fedora publishes no ISO hash, only MD5s of its RPMs. Download the same ISO from `fedorapeople.org` over HTTPS **on another host**, hash it there, and compare. That vouches for the copy through a second network path |
    | `windows-11-26h2.iso` | The SHA-256 table on Microsoft's Windows 11 download page, English 64-bit. The list carries Microsoft's value itself, so a download that differs reads `mismatch` |
    | `windows-server-2025-eval.iso` | Microsoft publishes none for the evaluation media. Compare it with the copy on `local`, and record that it is trusted from its download, not from a published hash |
+   | `debian-13.7.0-amd64-netinst.iso` | `SHA256SUMS` beside it on `cdimage.debian.org`, signed by the Debian CD signing key `DF9B 9C49 EAA9 2984 3258 9D76 DA87 E80D 6294 BE9B` |
+   | `Fedora-Server-netinst-x86_64-44-1.7.iso` | The release's `CHECKSUM` file beside it, clearsigned by Fedora 44's primary key `36F6 12DC F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6` |
+   | `openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso` | The `.sha256` beside it, with its `.sha256.asc` signed by the openSUSE Project Signing Key `AD48 5664 … 29B7 00A4`. Check that fingerprint against the key `build.opensuse.org` publishes for `openSUSE:Factory`, not only against the keys on the ISO |
+   | `archlinux-2026.10.01-x86_64.iso` | `sha256sums.txt`, and the ISO's own detached `.sig` from the release key `3E80 CA1A … 5444 9A5C`, which is the fingerprint `archlinux.org/download` publishes. Fetch the key by WKD (`gpg --locate-external-key pierre@archlinux.org`) |
+   | `nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso` | NixOS publishes no signature for its ISOs, only a SHA-256 over HTTPS. Check that `channels.nixos.org`'s `latest-…iso.sha256` and the release's own `.sha256` on `releases.nixos.org` agree, and that the download matches both |
 
    **A hash that disagrees with its source does not go in the list.**
    Download the ISO again instead. Each line's comment in the list names
@@ -314,6 +349,11 @@ set -a; . ~/.config/proxmox/phoenix.env; set +a
 packer build -only='ubuntu.*' packer/
 packer build -only='windows.proxmox-iso.ws2025-eval' packer/
 packer build -only='windows.proxmox-iso.win11-pro' packer/
+packer build -only='fedora.*' packer/
+packer build -only='debian.*' packer/   # after §5 step 1 admits port 8800
+packer build -only='opensuse.*' packer/
+packer build -only='arch.*' packer/
+packer build -only='nixos.*' packer/
 ```
 
 One at a time. Two Windows installers at once is the IOPS burst ADR-0029
@@ -325,6 +365,36 @@ What each one does, so a stall can be placed:
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
   `packer` with `phoenix`'s key, upgrades, and wipes cloud-init's state,
   machine-id and host keys. It then deletes the `packer` user.
+- **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
+  the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
+  installs Server unattended in text mode, and reboots. The rest is
+  Ubuntu's: upgrade, wipe, delete `packer`.
+- **Debian** is Kali's build with Debian's netinst (§5): GRUB's prompt, the
+  kernel line with the preseed URL on `phoenix`'s port 8800, then the same
+  wipe. It needs §5 step 1's firewall rule for the length of the build, and
+  nothing else in §5, because it builds on `Saruman` from `smaug-iso`.
+- **openSUSE** drops to the installer's GRUB prompt and boots linuxrc with
+  `autoyast=label://OEMDRV/autoinst.xml`. YaST installs from the mirror
+  unattended and reboots, and the rest is Ubuntu's. Tumbleweed's NET ISO is
+  still YaST, not Agama; if a later snapshot switches, the profile and the
+  boot line both change.
+- **Arch** boots the live ISO with no boot command. The ISO's own cloud-init
+  reads `cidata` and lets Packer in as root with `phoenix`'s key, and
+  `packer/arch/install.sh` partitions, pacstraps and configures the disk.
+  There is no build user to delete, because the build never ran in the
+  installed system.
+- **NixOS** boots the minimal ISO, which logs in at the console by itself.
+  After 90 s the boot command types three things at that shell: `phoenix`'s
+  key for root, the fixed `cloud_image_build_address` (the ISO runs no
+  guest agent), and `systemctl start sshd`. Packer then runs
+  `packer/nixos/install.sh`: partitioning, `nixos-generate-config` and
+  `nixos-install` with `packer/nixos/configuration.nix`. The ISO's `nixos`
+  channel is kept, because dotfiles-NixOS rebuilds from channels. It
+  mounts with each filesystem's type named: the ISO had not loaded ext4, and
+  `mount`'s own detection tried the root partition as FAT. It shares `.99`
+  with §4b's builds, so do not run it beside them.
+- **Alpine and Gentoo** are not in this list. They start from cloud images,
+  not ISOs: §4b.
 - **Windows** presses a key at "Press any key to boot from CD". Setup loads
   `vioscsi` and `NetKVM` from the VirtIO disc, installs, and logs in once as
   Administrator. `bootstrap.ps1` from the answer disc installs the guest
@@ -356,7 +426,61 @@ in the Proxmox UI from Hicks:
 the culprit. On Windows 11 it is almost always a Store app updated for
 Administrator during the build, which `bootstrap.ps1` exists to prevent.
 
-## 5. Kali, once `ifrit` exists
+## 4b. Alpine and Gentoo, from their projects' cloud images
+
+Neither has an installer to answer: Alpine's is typed at a console, and
+Gentoo's is a stage3 compiled by hand. Both publish signed cloud-init images,
+so the image is the install
+([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+decision 2).
+
+1. **Import, as root on `Saruman`.** It downloads the image, refuses one whose
+   SHA-256 differs from the pin in the script, and imports it unchanged as a
+   staging template, 917 or 918:
+
+   ```bash
+   scripts/import-cloud-template.sh alpine --force
+   scripts/import-cloud-template.sh gentoo --force
+   ```
+
+   A newer image is a new pin. Verify its signature first, against a key
+   found off the image. The script's header names both keys and where to
+   find them.
+
+2. **Build, on `phoenix`, one at a time.** Both builds give their clone the
+   same fixed address, `cloud_image_build_address` (`.99`), because neither
+   image carries a guest agent to report one:
+
+   ```bash
+   packer build -force -only='alpine.*' packer/
+   packer build -force -only='gentoo.*' packer/
+   ```
+
+   Packer generates a key for the session and puts it on the clone's
+   cloud-init drive for the image's own default user (`alpine`, `gentoo`).
+   It installs the agent and what the layer needs, deletes that user, and
+   converts the result. Alpine takes about a minute. Gentoo takes about
+   twelve: `emerge-webrsync`, then `git` and the agent from Gentoo's binary
+   host.
+
+What the first builds found (2026-10-09), so a stall can be placed:
+
+- **The clone does not boot** ("No bootable option"): the builder's default
+  SCSI controller is `lsi`, which OVMF cannot boot. The sources set
+  `virtio-scsi-single`.
+- **The smoke test treats it as Windows**: the builder writes `ostype other`
+  unless told otherwise. The sources set `os = "l26"`.
+- **`apk` or `emerge` cannot lock its database**: cloud-init is upgrading
+  packages at first boot. The sources turn that off and wait for cloud-init.
+- **Alpine: `DNS: transient error`**: with a static address, Alpine writes no
+  `resolv.conf`. The build writes it.
+- **Alpine: a `limine-efi-updater` trigger fails**: that is `apk upgrade` on
+  this image. The build does not upgrade; a newer image is a new pin.
+- **Gentoo is systemd**: its only cloud image uses the 23.0 systemd profile,
+  while dotfiles-Gentoo defaults to OpenRC. `dot-gentoo` tests the layer on
+  systemd.
+
+## 5. Kali, once `ifrit` exists (and Debian's port, now)
 
 Tracked as [#790](https://github.com/Gerrrt/HomeLab/issues/790). Not on `Saruman`: the attack VM lives on `ifrit`, and a template belongs to one
 node. The preseed is served over Packer's HTTP server on port 8800 of
@@ -365,7 +489,8 @@ not from a second disc.
 
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
-   and delete the rule afterwards.
+   and delete the rule afterwards. Debian's build (§4) needs this step and
+   no other here.
 2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, and trust
    `ifrit`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `ifrit` joins
    `Saruman` in a cluster, it is its own API. Point `PROXMOX_URL` at it for
@@ -397,6 +522,13 @@ not from a second disc.
 scripts/packer-smoke.sh 901
 scripts/packer-smoke.sh 912
 scripts/packer-smoke.sh 911
+scripts/packer-smoke.sh 903
+scripts/packer-smoke.sh 904
+scripts/packer-smoke.sh 905
+scripts/packer-smoke.sh 906
+scripts/packer-smoke.sh 907
+scripts/packer-smoke.sh 908
+scripts/packer-smoke.sh 909
 ```
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
@@ -465,7 +597,10 @@ On the day of the first successful build:
 
 ## 10. Take it out
 
-In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 911 and 912. No guest
+In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903–909, 911 and
+912, and the staging templates 917 and 918, after the dotfiles guests
+cloned from 903–909 if they go too
+([`test-the-dotfiles-layers.md`](test-the-dotfiles-layers.md)). No guest
 depends on a template once cloned, because every clone is full. Then remove
 the `large_data` ACL and `VM.GuestAgent.Audit` from §2 if nothing else uses
 them, the `smaug-iso` ACL from §2b, and `PKR_VAR_build_password` from
