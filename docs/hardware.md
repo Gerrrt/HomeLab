@@ -59,9 +59,12 @@ Nothing in this repository depended on the order, but the wiki's rack page had
 it right and this table did not, so the correction is recorded rather than
 quietly swapped.
 
-### Planned: a 27U rack
+### Planned: a 32U rack
 
-**Not bought, not built.** The 9U frame has no free unit. `trinity` and both
+**Bought 2026-10-09, due 2026-10-16; not built.** It was planned at 27U
+(#918) and bought at 32U. Nothing else about it changed: the extra five
+units are spare, at the top (U28–U32), so the screen and keyboard stay at
+the heights chosen below. The 9U frame has no free unit. `trinity` and both
 laptops sit on a shelf beside it, the console's screen, keyboard and mouse
 are loose, and there is no room for a cable manager or for an air gap over
 the CRS326. This plan, drafted on 2026-10-06, sizes the replacement. It
@@ -71,7 +74,7 @@ becomes the table above on the day the rack is moved.
 The DL360 Gen9 is about 70 cm deep and its rails need four posts. The UPS
 needs rear support. Open frame suits a fanless switch.
 
-**Why 27U and not 18U:** the existing ViewSonic N1700W goes into the rack
+**Why not 18U:** the existing ViewSonic N1700W goes into the rack
 rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
 for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
 sliding shelf.
@@ -87,10 +90,11 @@ opening, about 450 mm between the rails.
 screws are out. So it takes a standard VESA rack mount with the stand off.
 The spec sheet's 414 mm includes the stand. **The bare panel's height has
 not been measured.** At 355 mm or less it fits the 8U mount tabled below.
-If it is taller, use a 9U mount, and the frame keeps 3 spare units, not 4.
+If it is taller, use a 9U mount at U20–U28, and U28 is no longer spare.
 
 | U | Device | Why here |
 | --- | --- | --- |
+| U28–U32 | *spare* | The five units 32U adds over the 27U plan. Above the screen, out of reach of the standing heights below |
 | U20–U27 | ViewSonic N1700W on an 8U VESA rack mount | Top of the rack, at standing eye height. Light, so high is fine |
 | U19 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 90 cm up, a standing-desk height |
 | U18 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6 |
@@ -111,8 +115,7 @@ If it is taller, use a 9U mount, and the frame keeps 3 spare units, not 4.
 | U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
 | U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
 
-Twenty-four units are used and three are spare (U11, U16, U17). A 25U frame
-also fits, with one spare. `smaug` stays in the media room on its long cord. A TS150 laid on
+Twenty-four units are used and eight are spare (U11, U16, U17, U28–U32). `smaug` stays in the media room on its long cord. A TS150 laid on
 its side would need about 4–5U more.
 
 **`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo

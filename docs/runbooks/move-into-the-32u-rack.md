@@ -1,9 +1,9 @@
-# Runbook: Move the estate into the 27U rack
+# Runbook: Move the estate into the 32U rack
 
 **Target:** everything in the 9U rack, plus `trinity`, `prometheus` and
 `oracle` from the shelf beside it, the KVM console, `ifrit` (new), and the
-CRS326 that replaces `neo` — into the four-post 27U frame planned in
-[`hardware.md`](../hardware.md#planned-a-27u-rack)
+CRS326 that replaces `neo` — into the four-post 32U frame planned in
+[`hardware.md`](../hardware.md#planned-a-32u-rack)
 **Time:** two or three evenings at the bench beforehand, then one window of
 about four hours with the house offline, then an hour on the documents
 **You will need:** a second person for the UPS and the DL360, a Mac on Hicks,
@@ -15,6 +15,10 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > frame and most parts are not bought yet. `ifrit` was bought on 2026-10-05
 > and has not arrived ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
 > The move is tracked in [#919](https://github.com/Gerrrt/HomeLab/issues/919).
+>
+> **2026-10-09:** the frame is bought, at 32U rather than the 27U this was
+> written for, and is due 2026-10-16. Only the height changed. The layout
+> keeps every unit where it was, and U28–U32 are spare above the screen.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -59,7 +63,7 @@ Every part below must be in the house before the window is booked.
 
 | Part | Qty | For |
 | --- | --- | --- |
-| 27U four-post open frame, adjustable depth to at least 30" | 1 | The frame. A 25U frame leaves one spare unit and is not recommended |
+| 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09 |
 | VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U20–U27 |
 | 1U sliding keyboard drawer, front-rail mount | 1 | U19 |
 | 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U10 |
@@ -228,7 +232,7 @@ END=$(date -u -d '+6 hours' +%Y-%m-%dT%H:%M:%SZ)
 ```
 
 ```bash
-curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"Watchdog","isRegex":false,"isEqual":false}],"startsAt":"%s","endsAt":"%s","createdBy":"#919 move into the 27U rack","comment":"#919 Planned whole-estate outage for the rack move and #444 Phase 2. Everything except Watchdog is suppressed. Delete at 7.1, not on expiry."}' "$START" "$END")" | python3 -m json.tool
+curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"alertname","value":"Watchdog","isRegex":false,"isEqual":false}],"startsAt":"%s","endsAt":"%s","createdBy":"#919 move into the 32U rack","comment":"#919 Planned whole-estate outage for the rack move and #444 Phase 2. Everything except Watchdog is suppressed. Delete at 7.1, not on expiry."}' "$START" "$END")" | python3 -m json.tool
 ```
 
 **Record the UUID it returns.** §7.1 deletes it.
@@ -413,8 +417,8 @@ sudo sed -i '/^HOMELAB_CONVERGE_APPLY=0$/d' /etc/default/homelab-timers
 
 In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 
-- [`hardware.md`](../hardware.md): the Rack table becomes the 27U layout as
-  built, and "Planned: a 27U rack" is removed or marked done. Include the
+- [`hardware.md`](../hardware.md): the Rack table becomes the 32U layout as
+  built, and "Planned: a 32U rack" is removed or marked done. Include the
   bare panel's measured height from §1.5.
 - [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)'s
   *What is on the UPS* records: `trinity` and `ifrit` are now on the PDU, and
@@ -452,11 +456,11 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 - **Bottom up and heaviest first** keeps the frame's centre of gravity low
   while it is being loaded, and leaves the light, fiddly units for last, when
   the frame is already stable.
-- **Why 27U and not 30U or more for airflow.** An open frame has no sides, so
+- **Height does not matter for airflow.** An open frame has no sides, so
   height does not trap air. Each device draws from its own front and exhausts
   out its own back. What decides how hot things run is the room's temperature
   and the space behind the frame (§1.2), not its height. The one place that
   needs a gap — over the fanless CRS326, especially with two S+RJ10 modules —
-  has one at U15. A taller frame would only add spare units: 27U already
-  leaves three. The total heat is modest: one DL360, three small PCs, two
-  laptops and a passive switch.
+  has one at U15. A taller frame only adds spare units: the 32U bought
+  leaves eight, where the 27U plan left three. The total heat is modest:
+  one DL360, three small PCs, two laptops and a passive switch.
