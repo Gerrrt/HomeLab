@@ -433,6 +433,9 @@ Where things get broken on purpose.
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
 | eden | `10.0.30.41` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | BloodHound CE (on demand) |
+| dot-debian | `10.0.30.91` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Debian 13 | Rack U3 | Dotfiles test VM, on demand |
+| dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
+| dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
 
@@ -496,6 +499,21 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
+- `10.0.30.91`–`.98`, VMIDs 191–198, are the dotfiles test VMs of
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md)), one
+  per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
+  `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
+  `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
+  on 2026-10-08 and are in the table above; the other five join it as each
+  is built. They are off-decade for `diabolos`'s reason,
+  in `fenrir`'s decade because it is the one with eight free addresses. Each
+  is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
+  between runs and tagged `on-demand`, and are not lab-domain members, so
+  they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
+  the internet for packages and `git clone`, and `phoenix` reaches them
+  within the segment.
 - `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
   [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built
   2026-10-07** as a full clone of template 901

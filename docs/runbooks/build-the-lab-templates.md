@@ -1,8 +1,11 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
-**Target:** templates 901, 911 and 912 on `Saruman`, built from `phoenix`
-through the Proxmox API. 902, Kali, is written here and built on `ifrit` once
-that host exists.
+**Target:** templates 901, 903, 904, 911 and 912 on `Saruman`, built from
+`phoenix` through the Proxmox API. 902, Kali, is written here and built on
+`ifrit` once that host exists. 903 (Debian) and 904 (Fedora) are the dotfiles
+OS layers' templates
+([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
+[#920](https://github.com/Gerrrt/HomeLab/issues/920)), the first two of the seven new Linux templates.
 
 **Time:** an evening the first time, most of it Windows Setup running
 unattended. After that, a rebuild is one command per template and about forty
@@ -16,7 +19,8 @@ minutes of waiting for each Windows one.
   §1 uploaded to `local:iso/`, which §2b copies onto `smaug-iso` and lists:
   `windows-server-2025-eval.iso`, the VirtIO disc, and the Ubuntu 26.04
   live-server ISO. Windows 11 is downloaded again as 26H2, because the
-  March ISO's hash is no longer published;
+  March ISO's hash is no longer published. The Debian 13 netinst and the
+  Fedora Server 44 netinst are fetched from their publishers in §2b;
 - a machine that can SSH to `Saruman` as root, for §2b's install of the daily
   checksum run. `phoenix` cannot.
 
@@ -40,10 +44,10 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Where it runs | `phoenix`, through the API on 8006 | It is the only host admitted to the hypervisor's API, and the only one meant to build machines (ADR-0043). There is no SSH to `Saruman` from here, and nothing in this runbook needs it |
-| VMIDs | 901 Ubuntu, 902 Kali, 911 Windows 11 Pro, 912 Server 2025 eval | The 900s hold no address. Guests keep "VMID is the last octet" |
+| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 911 Windows 11 Pro, 912 Server 2025 eval. 905–909 are the rest of ADR-0090's dotfiles layers | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
-| Answer files | On a generated CD (`cidata` for Ubuntu, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. Kali is the exception, see §5 |
+| Answer files | On a generated CD (`cidata` for Ubuntu, `OEMDRV` for Fedora, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
 | Credential | `phoenix.env`, mode 600, not in git | `phoenix` holds no age key (ADR-0043), so a SOPS file is one it could not read |
 | What a template holds | OS, VirtIO drivers, guest agent, cloud-init (Linux) | Addresses, names, joins and the licence gauge belong to the guest. They are #448's |
 
@@ -216,6 +220,20 @@ as trustworthy as that list, so the list is written here, once, with care.
    which were built from the March ISO. That is expected, and it resolves
    when #448 rebuilds them from the templates.
 
+   **The dotfiles installers are fetched straight onto the share** (#920).
+   Nothing on `local` holds them, and the list carries the publishers' own
+   hashes, so the file placed must be the published one:
+
+   ```bash
+   cd /mnt/smaug-iso/template/iso && \
+     wget -nc https://cdimage.debian.org/debian-cd/current/amd64/iso-cd/debian-13.7.0-amd64-netinst.iso && \
+     wget -nc https://dl.fedoraproject.org/pub/fedora/linux/releases/44/Server/x86_64/iso/Fedora-Server-netinst-x86_64-44-1.7.iso
+   ```
+
+   Once Debian's `current` moves past 13.7.0, the file is under
+   `cdimage.debian.org/cdimage/archive/13.7.0/` instead, or take the new
+   point release under its own name ("Changing an ISO later", below).
+
    The VirtIO disc is already there as `virtio-win-0.1.302.iso`, from
    `build-the-nas.md` §5b's test upload. If `local` holds a `virtio-win.iso`,
    compare the two with `sha256sum`. If they differ, the domain was built with
@@ -234,6 +252,8 @@ as trustworthy as that list, so the list is written here, once, with care.
    | `virtio-win-0.1.302.iso` | Fedora publishes no ISO hash, only MD5s of its RPMs. Download the same ISO from `fedorapeople.org` over HTTPS **on another host**, hash it there, and compare. That vouches for the copy through a second network path |
    | `windows-11-26h2.iso` | The SHA-256 table on Microsoft's Windows 11 download page, English 64-bit. The list carries Microsoft's value itself, so a download that differs reads `mismatch` |
    | `windows-server-2025-eval.iso` | Microsoft publishes none for the evaluation media. Compare it with the copy on `local`, and record that it is trusted from its download, not from a published hash |
+   | `debian-13.7.0-amd64-netinst.iso` | `SHA256SUMS` beside it on `cdimage.debian.org`, signed by the Debian CD signing key `DF9B 9C49 EAA9 2984 3258 9D76 DA87 E80D 6294 BE9B` |
+   | `Fedora-Server-netinst-x86_64-44-1.7.iso` | The release's `CHECKSUM` file beside it, clearsigned by Fedora 44's primary key `36F6 12DC F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6` |
 
    **A hash that disagrees with its source does not go in the list.**
    Download the ISO again instead. Each line's comment in the list names
@@ -314,6 +334,8 @@ set -a; . ~/.config/proxmox/phoenix.env; set +a
 packer build -only='ubuntu.*' packer/
 packer build -only='windows.proxmox-iso.ws2025-eval' packer/
 packer build -only='windows.proxmox-iso.win11-pro' packer/
+packer build -only='fedora.*' packer/
+packer build -only='debian.*' packer/   # after §5 step 1 admits port 8800
 ```
 
 One at a time. Two Windows installers at once is the IOPS burst ADR-0029
@@ -325,6 +347,14 @@ What each one does, so a stall can be placed:
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
   `packer` with `phoenix`'s key, upgrades, and wipes cloud-init's state,
   machine-id and host keys. It then deletes the `packer` user.
+- **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
+  the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
+  installs Server unattended in text mode, and reboots. The rest is
+  Ubuntu's: upgrade, wipe, delete `packer`.
+- **Debian** is Kali's build with Debian's netinst (§5): GRUB's prompt, the
+  kernel line with the preseed URL on `phoenix`'s port 8800, then the same
+  wipe. It needs §5 step 1's firewall rule for the length of the build, and
+  nothing else in §5, because it builds on `Saruman` from `smaug-iso`.
 - **Windows** presses a key at "Press any key to boot from CD". Setup loads
   `vioscsi` and `NetKVM` from the VirtIO disc, installs, and logs in once as
   Administrator. `bootstrap.ps1` from the answer disc installs the guest
@@ -356,7 +386,7 @@ in the Proxmox UI from Hicks:
 the culprit. On Windows 11 it is almost always a Store app updated for
 Administrator during the build, which `bootstrap.ps1` exists to prevent.
 
-## 5. Kali, once `ifrit` exists
+## 5. Kali, once `ifrit` exists (and Debian's port, now)
 
 Tracked as [#790](https://github.com/Gerrrt/HomeLab/issues/790). Not on `Saruman`: the attack VM lives on `ifrit`, and a template belongs to one
 node. The preseed is served over Packer's HTTP server on port 8800 of
@@ -365,7 +395,8 @@ not from a second disc.
 
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
-   and delete the rule afterwards.
+   and delete the rule afterwards. Debian's build (§4) needs this step and
+   no other here.
 2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, and trust
    `ifrit`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `ifrit` joins
    `Saruman` in a cluster, it is its own API. Point `PROXMOX_URL` at it for
@@ -397,6 +428,8 @@ not from a second disc.
 scripts/packer-smoke.sh 901
 scripts/packer-smoke.sh 912
 scripts/packer-smoke.sh 911
+scripts/packer-smoke.sh 903
+scripts/packer-smoke.sh 904
 ```
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
@@ -465,7 +498,9 @@ On the day of the first successful build:
 
 ## 10. Take it out
 
-In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 911 and 912. No guest
+In the Proxmox UI, or from `phoenix`, destroy VMIDs 901, 903, 904, 911 and
+912, after the dotfiles guests cloned from 903 and 904 if they go too
+([`test-the-dotfiles-layers.md`](test-the-dotfiles-layers.md)). No guest
 depends on a template once cloned, because every clone is full. Then remove
 the `large_data` ACL and `VM.GuestAgent.Audit` from §2 if nothing else uses
 them, the `smaug-iso` ACL from §2b, and `PKR_VAR_build_password` from

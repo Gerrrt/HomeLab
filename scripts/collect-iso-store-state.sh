@@ -31,8 +31,9 @@
 #
 # THE WHOLE FILE, EVERY DAY. A tamperer can restore an mtime and a size, so
 # caching by either would let a replaced ISO through until something else
-# changed. Four installers are about 15 GB, read once a day over NFS from the
-# mirror at idle priority: minutes, not hours.
+# changed. The first four installers were about 15 GB, and #920's Debian and
+# Fedora netinsts add under 2 GB, read once a day over NFS from the mirror at
+# idle priority: minutes, not hours.
 #
 # Usage: scripts/collect-iso-store-state.sh [--print]
 #        scripts/collect-iso-store-state.sh --self-test
@@ -42,7 +43,7 @@ set -uo pipefail
 # the file's name as it sits in template/iso. A line is added when an ISO is
 # placed on the share, from `sha256sum` on `Saruman`, cross-checked against
 # the vendor's published hash where one exists (build-the-lab-templates.md
-# §1). Changing it means re-running `make install-agent-collectors
+# §2b). Changing it means re-running `make install-agent-collectors
 # AGENT=root@10.0.30.110 ARGS='--only iso-store-state'`, because the host has
 # no checkout of this repository.
 EXPECTED="$(cat <<'LIST'
@@ -68,6 +69,16 @@ bd4307df32bc8af33b39ccecb1174aeb345386630f89a2b86c7a4e36b55ea650  windows-11-26h
 # media, so this is trusted from its download (build-the-lab-domain.md §1),
 # not from a publisher. Matches Saruman's local copy, 2026-10-01.
 7b052573ba7894c9924e3e87ba732ccd354d18cb75a883efa9b900ea125bfd51  windows-server-2025-eval.iso
+# Debian 13.7.0 netinst, for tpl-debian-13 (#920). cdimage.debian.org
+# SHA256SUMS, with a good signature from the Debian CD signing key DF9B 9C49
+# EAA9 2984 3258 9D76 DA87 E80D 6294 BE9B, read 2026-10-07. Listed from the
+# publisher, so the file placed must be this one.
+a7ef94ac2fb9a7fec454552abd629b7cc9d5155c886165a45649f5ce6167e355  debian-13.7.0-amd64-netinst.iso
+# Fedora Server 44 netinst, for tpl-fedora-server (#920). The release's
+# CHECKSUM file, with a good signature from Fedora 44's primary key 36F6 12DC
+# F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6, read 2026-10-07. Listed from the
+# publisher, so the file placed must be this one.
+ae20c06bea746913cadea7d80463e13f4bf55bee4df2918111c921c674b70283  Fedora-Server-netinst-x86_64-44-1.7.iso
 LIST
 )"
 
