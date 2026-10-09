@@ -100,7 +100,7 @@ locals {
       dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 8, linux = true, mac_address = "BC:24:11:B9:94:6A", secure_boot = false }
       dot-gentoo   = { vm_id = 196, template = 908, cores = 4, memory_mib = 8192, disk_gib = 60, linux = true, mac_address = "BC:24:11:CB:16:C3", secure_boot = false }
       dot-nixos    = { vm_id = 197, template = 909, cores = 2, memory_mib = 4096, disk_gib = 40, linux = true, mac_address = "BC:24:11:69:5A:40", secure_boot = false }
-      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A" }
+      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A", vga = "virtio" }
     } :
     name => merge(g, {
       pool        = "dotfiles"
@@ -155,6 +155,8 @@ module "guest" {
   # Absent means on: only a guest whose template has no Microsoft-signed shim
   # sets it.
   secure_boot = lookup(each.value, "secure_boot", true)
+  # Absent means Proxmox's default. dot-windows runs VirtIO GPU (#1108).
+  vga = lookup(each.value, "vga", null)
   ssh_keys    = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
   mac_address = each.value.mac_address

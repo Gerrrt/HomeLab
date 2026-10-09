@@ -105,6 +105,15 @@ resource "proxmox_virtual_environment_vm" "this" {
     enabled = true
   }
 
+  # Only where a guest asks: leaving the block out keeps Proxmox's default and
+  # every other guest's plan unchanged.
+  dynamic "vga" {
+    for_each = var.vga == null ? [] : [var.vga]
+    content {
+      type = vga.value
+    }
+  }
+
   # A Linux clone takes its user, key, password and address from the cloud-init
   # drive the template left empty. Windows clones take theirs from the
   # sysprep answer file, so this block is Linux-only.
