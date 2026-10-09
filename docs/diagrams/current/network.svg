@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-10-03</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-10-09</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
@@ -556,19 +556,23 @@
 <text x="1672.0" y="1190" class="ip" text-anchor="end" fill="#2ea043">.55</text>
 <text x="1467.0" y="1208" class="sub">Windows 11 · endpoint</text>
 </g>
-<text x="1457" y="1244" class="pill" fill="#6e7681">PLANNED</text>
-<g class="host" data-host="golem">
-<rect x="1212.0" y="1254" width="231.0" height="50" rx="8" class="card"/>
+<text x="1536" y="1244" class="pill" fill="#6e7681">PLANNED</text>
+<g class="host" data-host="eden">
+<rect x="1212.0" y="1254" width="152.0" height="50" rx="8" class="card"/>
 <rect x="1212.0" y="1260" width="4" height="38" rx="2" fill="#2ea043"/>
-<text x="1226.0" y="1276" class="hn">golem</text>
-<text x="1431.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.80</text>
-<text x="1226.0" y="1294" class="sub">PBS · datastore on erebor</text>
+<text x="1226.0" y="1276" class="hn">eden</text>
+<text x="1226.0" y="1294" class="sub">BloodHound CE · .41</text>
+</g>
+<g class="host" data-host="golem">
+<rect x="1372.0" y="1254" width="152.0" height="50" rx="8" class="card"/>
+<rect x="1372.0" y="1260" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1276" class="hn">golem</text>
+<text x="1386.0" y="1294" class="sub">PBS on erebor · .80</text>
 </g>
 <g class="host" data-host="diabolos">
-<rect x="1453.0" y="1254" width="231.0" height="50" rx="8" class="card planned"/>
-<text x="1467.0" y="1276" class="hn planned-t">diabolos</text>
-<text x="1672.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.61</text>
-<text x="1467.0" y="1294" class="sub planned-t">disposable (ADR-0071)</text>
+<rect x="1532.0" y="1254" width="152.0" height="50" rx="8" class="card planned"/>
+<text x="1546.0" y="1276" class="hn planned-t">diabolos</text>
+<text x="1546.0" y="1294" class="sub planned-t">disposable · .61</text>
 </g>
 <g class="host" data-host="dot-debian">
 <rect x="1212.0" y="1312" width="152.0" height="50" rx="8" class="card"/>

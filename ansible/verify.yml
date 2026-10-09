@@ -91,6 +91,11 @@
           # sysprep. None on any guest either way.
           $r['no packer-winrm certificate from the build'] = (@(Get-ChildItem -Path Cert:\LocalMachine\My |
             Where-Object FriendlyName -eq 'packer-winrm').Count -eq 0)
+          # The build password's two plaintext answer files (#1099): Setup's
+          # copy of the build answer, and the first-boot answer SetupComplete.cmd
+          # deletes. roles/base removes both; neither may be on any guest.
+          $r['no plaintext answer file in Panther'] = -not ((Test-Path C:\Windows\Panther\unattend-original.xml) -or
+            (Test-Path C:\Windows\Panther\unattend-oobe.xml))
           # --- #450: Sysmon, recording with the vendored config ----------------
           # The driver as well as the service: Sysmon64 running over an unloaded
           # SysmonDrv records nothing. ConfigHash is what the driver last loaded,
