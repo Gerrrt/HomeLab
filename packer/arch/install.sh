@@ -31,9 +31,11 @@ mount "${disk}2" /mnt
 mount --mkdir -o fmask=0077,dmask=0077 "${disk}1" /mnt/boot
 
 # What dotfiles-Arch's bootstrap expects to find (its README): sudo, git and
-# a UTF-8 locale. curl for the dotfiles' other preflights.
-pacstrap -K /mnt base linux openssh sudo git curl cloud-init qemu-guest-agent \
-  cloud-guest-utils gptfdisk
+# a UTF-8 locale. curl for the dotfiles' other preflights, and inetutils for
+# `hostname`, which `base` leaves out and the smoke test (and most people)
+# run.
+pacstrap -K /mnt base linux openssh sudo git curl inetutils cloud-init \
+  qemu-guest-agent cloud-guest-utils gptfdisk
 genfstab -U /mnt >> /mnt/etc/fstab
 
 arch-chroot /mnt sh -eu <<'CHROOT'
