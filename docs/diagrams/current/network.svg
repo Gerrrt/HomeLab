@@ -575,34 +575,46 @@
 <text x="1546.0" y="1294" class="sub planned-t">disposable · .61</text>
 </g>
 <g class="host" data-host="dot-debian">
-<rect x="1212.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
-<rect x="1212.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
-<text x="1226.0" y="1331" class="hn">dot-debian</text>
-<text x="1226.0" y="1348" class="sub">Debian 13 · .91</text>
+<rect x="1212.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1332" class="hn" style="font-size:13px">dot-debian</text>
+<text x="1352.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.91</text>
 </g>
 <g class="host" data-host="dot-fedora">
-<rect x="1372.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
-<rect x="1372.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
-<text x="1386.0" y="1331" class="hn">dot-fedora</text>
-<text x="1386.0" y="1348" class="sub">Fedora 44 · .92</text>
+<rect x="1372.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1372.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1332" class="hn" style="font-size:13px">dot-fedora</text>
+<text x="1512.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.92</text>
 </g>
 <g class="host" data-host="dot-opensuse">
-<rect x="1532.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
-<rect x="1532.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
-<text x="1546.0" y="1331" class="hn">dot-opensuse</text>
-<text x="1546.0" y="1348" class="sub">Tumbleweed · .93</text>
+<rect x="1532.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1532.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1332" class="hn" style="font-size:13px">dot-opensuse</text>
+<text x="1672.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.93</text>
 </g>
 <g class="host" data-host="dot-arch">
-<rect x="1212.0" y="1362" width="152.0" height="44" rx="8" class="card"/>
-<rect x="1212.0" y="1368" width="4" height="32" rx="2" fill="#2ea043"/>
-<text x="1226.0" y="1381" class="hn">dot-arch</text>
-<text x="1226.0" y="1398" class="sub">Arch · .94</text>
+<rect x="1212.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1368" class="hn" style="font-size:13px">dot-arch</text>
+<text x="1352.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.94</text>
+</g>
+<g class="host" data-host="dot-alpine">
+<rect x="1372.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1372.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1368" class="hn" style="font-size:13px">dot-alpine</text>
+<text x="1512.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.95</text>
+</g>
+<g class="host" data-host="dot-gentoo">
+<rect x="1532.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1532.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1368" class="hn" style="font-size:13px">dot-gentoo</text>
+<text x="1672.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.96</text>
 </g>
 <g class="host" data-host="dot-windows">
-<rect x="1372.0" y="1362" width="152.0" height="44" rx="8" class="card"/>
-<rect x="1372.0" y="1368" width="4" height="32" rx="2" fill="#2ea043"/>
-<text x="1386.0" y="1381" class="hn">dot-windows</text>
-<text x="1386.0" y="1398" class="sub">Win 11 · .98</text>
+<rect x="1212.0" y="1384" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1389" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1404" class="hn" style="font-size:13px">dot-windows</text>
+<text x="1352.0" y="1404" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.98</text>
 </g>
 <g class="host" data-host="ifrit">
 <rect x="1202" y="1420" width="492" height="26" rx="8" class="card planned"/>
