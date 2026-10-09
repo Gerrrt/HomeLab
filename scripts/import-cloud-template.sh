@@ -27,7 +27,8 @@
 #           B1BA BB57 2E0E 2D18 2910, which gentoo.org/downloads/signatures
 #           lists, refreshed by WKD (the keyserver copy showed it expired).
 # A download whose hash differs is refused. A newer image is a new pin, a new
-# name, and the same check by hand first.
+# name, and the same check by hand first. scripts/check_tool_versions.py
+# reads the two url= lines below weekly and says when upstream has moved on.
 #
 # Usage (as root on Saruman):
 #   scripts/import-cloud-template.sh alpine|gentoo [--force]
