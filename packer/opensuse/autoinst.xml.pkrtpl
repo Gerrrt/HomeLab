@@ -44,7 +44,7 @@
     </drive>
   </partitioning>
   <software>
-    <install_recommends config:type="boolean">false</install_recommends>
+    <install_recommended config:type="boolean">false</install_recommended>
     <patterns config:type="list">
       <pattern>base</pattern>
       <pattern>enhanced_base</pattern>
