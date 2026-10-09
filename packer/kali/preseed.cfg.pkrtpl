@@ -47,7 +47,16 @@ popularity-contest popularity-contest/participate boolean false
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string default
 
+# DHCP on eth0 as well as on the name the installer saw. The installer runs with
+# predictable interface names, so it configures ens18. kali-defaults, which
+# kali-linux-default pulls in, links /etc/systemd/network/99-default.link to
+# /dev/null, so the installed system calls the same NIC eth0: Kali's tools expect
+# it. With only an ens18 stanza, eth0 never came up, the guest had no address, and
+# Packer timed out waiting for SSH (#790, two proof builds on Saruman, 2026-10-08).
+# interfaces sources interfaces.d, so this adds eth0 without editing the
+# installer's file. A clone's cloud-init configures its own network on top.
 d-i preseed/late_command string \
+  printf 'allow-hotplug eth0\niface eth0 inet dhcp\n' > /target/etc/network/interfaces.d/eth0; \
   in-target mkdir -p /home/packer/.ssh; \
   echo '${ssh_public_key}' > /target/home/packer/.ssh/authorized_keys; \
   in-target chown -R packer:packer /home/packer/.ssh; \

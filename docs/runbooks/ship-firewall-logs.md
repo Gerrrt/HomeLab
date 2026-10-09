@@ -1,9 +1,10 @@
 # Runbook: Ship the firewall's logs to Loki
 
-**Target:** `morpheus` (pfSense) → Alloy on `prometheus`
-**Time:** ten minutes, plus a careful first restart of Alloy
-**You will need:** the pfSense web UI, and a shell on the monitoring host with
-`sudo` for tcpdump
+**Target:** `morpheus` (pfSense) → Alloy on `prometheus`, over TLS
+**Time:** about an hour, most of it the syslog-ng setup on morpheus, plus a
+careful first restart of Alloy
+**You will need:** the pfSense web UI and its console or shell, and a shell on
+the monitoring host with `sudo` for tcpdump
 
 Every VLAN in this lab terminates on `morpheus`, which makes it the only device
 that sees inter-VLAN and egress traffic for the whole house. It is also a
@@ -11,14 +12,49 @@ FreeBSD appliance that cannot run Alloy. So the log store held `auth.log` from
 two Linux hosts and nothing at all from the firewall — eight LogQL security
 rules watching the quietest surface in the estate.
 
-This connects them.
+This connects them, along this path:
+
+```text
+pfSense syslogd ──udp──▶ 127.0.0.1:5140 syslog-ng (on morpheus)
+                                   │
+                                   └──TLS, morpheus's client certificate──▶ 10.0.99.20:6514 Alloy ──▶ Loki
+```
+
+pfSense's own syslogd sends UDP only, and only to a remote server. So it sends
+to a **syslog-ng** on the firewall itself, on loopback, and syslog-ng relays
+every line over TLS. The receiver requires morpheus's own client certificate,
+pinned, and drops any sender address `syslog.alloy` does not name. A UDP
+receiver would accept a forged `10.0.99.1` from anywhere on VLAN 99; §9 says why
+there is not one any more.
 
 ---
 
-## 1. Deploy the receiver first
+## 1. Issue both certificates, before the receiver is deployed
 
-The listener has to exist before pfSense starts sending, or the first packets
-are silently dropped.
+The listener mounts two files that do not exist until this step: its own
+server leaf and morpheus's client certificate. compose refuses to start Alloy
+without them, and that Alloy is the one collecting **everything** on this
+host. So run this on the monitoring host, which holds the estate CA, before
+the first `make up` that carries the listener:
+
+```bash
+scripts/gen-certs.sh --host syslog.matrix.elysium --ip 10.0.99.20
+scripts/gen-certs.sh --host morpheus.matrix.elysium --ip 10.0.99.1 --client
+```
+
+The first is the listener's own leaf. Its key is mounted into nothing else,
+so it is not the ingest proxy's. The second reports `EKU clientAuth`, and
+`syslog.alloy` pins that exact certificate. Re-issuing it later means
+restarting Alloy, which reads the pin at start, and copying the new files to
+morpheus (§3).
+
+---
+
+## 2. Deploy the receiver
+
+The listener has to exist before morpheus starts sending, or the first lines
+are lost: syslog-ng retries, but pfSense's syslogd does not, and nothing can be
+replayed.
 
 > [!CAUTION]
 > The listener lives in `alloy/syslog.alloy`, which only the monitoring host
@@ -48,15 +84,21 @@ docker compose up -d alloy
 docker compose logs --tail=50 alloy
 ```
 
-What you want to see: no `Error` lines, and the component registering. What
-tells you it failed: Alloy exiting immediately, or complaining about an unknown
-argument in `loki.source.syslog`.
-
-Confirm the port is actually listening on the management address:
+What you want to see: no `Error` lines, and the listener starting with TLS. What
+tells you it failed: Alloy exiting immediately, complaining about an unknown
+argument in `loki.source.syslog`, or naming a certificate file it cannot open.
 
 ```bash
-docker compose ps alloy          # expect 10.0.99.20:1514->1514/udp
-ss -ulnp | grep 1514
+docker logs alloy 2>&1 | grep 'protocol=tcp tls=true'     # the 6514 listener, with TLS
+docker compose ps alloy                                    # expect 10.0.99.20:6514->6514/tcp
+ss -ltn | grep ':6514 '                                    # 10.0.99.20:6514, not 0.0.0.0
+```
+
+A connection with no client certificate has to be refused. This one should
+end in `alert certificate required`:
+
+```bash
+openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null 2>&1 | tail -3
 ```
 
 > [!IMPORTANT]
@@ -82,14 +124,54 @@ ss -ulnp | grep 1514
 
 ---
 
-## 2. Point pfSense at it
+## 3. Install and configure syslog-ng on morpheus
+
+1. **System → Package Manager → Available Packages**, install `syslog-ng`.
+2. Copy `certificates/ca.pem`, `certificates/morpheus.matrix.elysium.pem` and
+   `certificates/morpheus.matrix.elysium-key.pem` to
+   `/usr/local/etc/syslog-ng/tls/` on morpheus, as `ca.pem`, `morpheus.pem`
+   and `morpheus-key.pem`. The key must be `0600`, owned by root.
+3. In **Services → Syslog-ng**, under Advanced, add these objects. They
+   receive pfSense's own syslog on loopback and relay it over TLS. Check the
+   field names against the package's form on the box, since this was written
+   before the first install:
+
+   ```text
+   source s_pfsense {
+     network(ip("127.0.0.1") port(5140) transport("udp") flags(no-hostname));
+   };
+   destination d_alloy_tls {
+     syslog("10.0.99.20" port(6514) transport("tls")
+       tls(ca-file("/usr/local/etc/syslog-ng/tls/ca.pem")
+           cert-file("/usr/local/etc/syslog-ng/tls/morpheus.pem")
+           key-file("/usr/local/etc/syslog-ng/tls/morpheus-key.pem")
+           peer-verify(required-trusted)));
+   };
+   log { source(s_pfsense); destination(d_alloy_tls); };
+   ```
+
+   `flags(no-hostname)` matters. pfSense's lines carry no hostname
+   (`<134>Oct  7 18:00:00 filterlog[4242]: …`), and without the flag syslog-ng
+   can read the tag as one. `peer-verify(required-trusted)` makes morpheus
+   check the listener's certificate as well, against the same CA.
+
+The loopback hop is UDP, and that is fine: `127.0.0.1` cannot be reached, let
+alone forged, from another host. The TLS hop is the one that crosses VLAN 99.
+
+The certificate files sit outside `config.xml`, so a config restore does not
+bring them back. After [`restore-the-firewall.md`](restore-the-firewall.md),
+repeat step 2.
+
+---
+
+## 4. Point pfSense at syslog-ng
 
 **Status → System Logs → Settings**, then:
 
 | Field | Value |
 | --- | --- |
 | Enable Remote Logging | ✔ |
-| Remote log servers | `10.0.99.20:1514` |
+| Remote log servers | `127.0.0.1:5140` |
 | Remote Syslog Contents | **Firewall Events** |
 
 Leave the other content classes off to begin with. Firewall events alone are
@@ -149,54 +231,34 @@ No firewall rule is needed. `morpheus` already has an interface on VLAN 99
 > Prompt** → *Execute PHP Command* → `system_syslogd_start();` restarts it
 > directly.
 >
-> The consequence for debugging is the reason §3 exists: a correct-looking
+> The consequence for debugging is the reason §5 exists: a correct-looking
 > settings page is not evidence that the daemon is sending, and an empty Loki
 > query cannot tell you which of the two it is.
 
-Use the **full `host:port`** form. A bare `10.0.99.20` sends to syslog's default
-port 514, where nothing is listening — the packets are simply discarded and the
+Use the **full `host:port`** form. A bare `127.0.0.1` sends to syslog's default
+port 514, where nothing listens — the packets are simply discarded and the
 symptom is identical to not sending at all.
 
 ---
 
-## 3. Confirm it is actually sending
+## 5. Confirm it is actually sending
 
 Do this **before** querying Loki. It reads the wire rather than a UI, and it is
-the only step that separates *pfSense is not sending* from *the packets arrive
-and something downstream drops them*. Those two faults look the same from
-Loki and have completely different fixes.
+the only step that separates *pfSense is not sending*, *syslog-ng is not
+relaying*, and *the lines arrive and something downstream drops them*. Those
+faults look the same from Loki and have completely different fixes. There are
+two hops, so look at both.
+
+**The loopback hop, on morpheus** (its shell, or **Diagnostics → Command
+Prompt**). This is the one place the payload is still readable, since the next
+hop is encrypted:
 
 ```bash
-sudo tcpdump -ni any 'udp port 1514 or udp port 514' -c 10
+tcpdump -ni lo0 -A -c 3 'udp port 5140'
 ```
 
 Generate something the firewall will log while this runs — browsing from a phone
 on the IoT VLAN is enough.
-
-| What you see | What it means |
-| --- | --- |
-| Nothing on either port | pfSense is not sending. Go back to §2 and save a second time. |
-| Traffic to port **514** | A bare IP was entered in the server list. Nothing listens there. Fix it to `10.0.99.20:1514`. |
-| Traffic to **1514** on the physical NIC only | It is arriving but not reaching the container. Recheck the port publish in §1. |
-| Traffic to **1514** on both the NIC and a `br-`/`veth` interface | Correct. Docker is forwarding it to Alloy. Continue to §4. |
-| Forwarded to the container, never in Loki, and `loki_process_dropped_lines_total{reason="syslog_sender_not_allowed"}` rising on Alloy's `:12345/metrics` | The sender's address is not in the allowlist. Add a rule for it to `loki.relabel "network_syslog"` in `alloy/syslog.alloy` (#844). |
-
-That last case looks like this — the same packet twice, once inbound on the NIC
-and once outbound to the container's address on the bridge:
-
-```text
-enx0005…    In  IP 10.0.99.1.514 > 10.0.99.20.1514: SYSLOG local0.info, length: 166
-br-faa4ed…  Out IP 10.0.99.1.514 > 172.18.0.7.1514: SYSLOG local0.info, length: 166
-```
-
-Source port 514 is normal and not a misconfiguration — that is syslogd's
-outbound port. Only the **destination** port matters.
-
-Then read the payload, not just the headers. `-A` prints it as ASCII:
-
-```bash
-sudo tcpdump -ni any -A -c 3 'udp port 1514'
-```
 
 ```text
 <134>Aug 20 20:25:28 filterlog[97178]: 4,,,1000000103,em0,match,block,in,4,...
@@ -205,18 +267,38 @@ sudo tcpdump -ni any -A -c 3 'udp port 1514'
 Two things in that line cost an evening, and both are invisible from Loki:
 
 **There is no hostname.** RFC 3164 is `<PRI>TIMESTAMP HOSTNAME TAG:` — pfSense
-goes straight from timestamp to tag. `__syslog_message_hostname` is therefore
-empty, Loki drops empty labels, and the streams carry no `host` at all. This is
-why `config.alloy` derives `host` from the connection address instead.
+goes straight from timestamp to tag. That is why syslog-ng needs
+`flags(no-hostname)` (§3), and why `syslog.alloy` derives `host` from the
+connection address rather than from anything in the line.
 
 **The timestamp is local, and says so nowhere.** Compare it against the capture
-time in the left column. Above, `20:25:28` was captured at `03:25:28` UTC —
-morpheus runs seven hours behind and RFC 3164 has no timezone field. This is why
-`use_incoming_timestamp` is `false`; see the comment in `config.alloy` for what
-happens when it is not.
+time. Above, `20:25:28` was captured at `03:25:28` UTC — morpheus runs seven
+hours behind and RFC 3164 has no timezone field. That is why the listener
+stamps receive time (`use_incoming_timestamp = false`); the comment in
+`syslog.alloy` says what happened the one time it did not.
 
-If packets are arriving but nothing lands in Loki, Alloy's own counters settle it
-in one command:
+| What you see on `lo0` | What it means |
+| --- | --- |
+| Nothing | pfSense is not sending. Go back to §4 and save the reliable way. |
+| Lines to port **514** | A bare `127.0.0.1` was entered in the server list. Fix it to `127.0.0.1:5140`. |
+| Lines to **5140** | pfSense is sending. Check the TLS hop next. |
+
+**The TLS hop, on the monitoring host:**
+
+```bash
+sudo tcpdump -ni any 'tcp port 6514' -c 10
+```
+
+| What you see | What it means |
+| --- | --- |
+| Nothing | syslog-ng is not relaying. Read its log on morpheus, and check the certificate paths in §3. |
+| A handshake, then a reset | The TLS handshake failed. `docker logs alloy` names the reason: no client certificate, or one that is not the pinned `morpheus.pem`. |
+| Traffic on the physical NIC only | It is arriving but not reaching the container. Recheck the port publish in §2. |
+| Traffic on both the NIC and a `br-`/`veth` interface | Docker is forwarding it to Alloy. Continue below. |
+| Forwarded to the container, never in Loki, and `loki_process_dropped_lines_total{reason="syslog_sender_not_allowed"}` rising on Alloy's `:12345/metrics` | The sender's address is not in the allowlist. Add a rule for it to `loki.relabel "network_syslog"` in `alloy/syslog.alloy` (#844). |
+
+If lines arrive but nothing lands in Loki, Alloy's own counters settle it in
+one command:
 
 ```bash
 curl -s localhost:12345/metrics | grep -E \
@@ -225,8 +307,8 @@ curl -s localhost:12345/metrics | grep -E \
 
 | Reading | Fault |
 | --- | --- |
-| `entries_total` 0 | Nothing reached the listener. Not an Alloy problem — go back to tcpdump. |
-| `entries_total` climbing, `parsing_errors_total` climbing | Received but unparseable. The sender is not emitting RFC 3164. |
+| `entries_total` 0 | Nothing reached the listener. Not an Alloy problem — go back to the TLS hop. |
+| `entries_total` climbing, `parsing_errors_total` climbing | Received but unparseable. syslog-ng is not sending RFC 5424 with octet-counted framing, which its `syslog()` driver does by default. |
 | `entries_total` climbing, `write_sent_entries_total` flat | Parsed but not shipped. Check `loki_write_dropped_entries_total` for the reason label, and that Loki is up. |
 | Both climbing together | Working. The problem is your query, not the pipeline. |
 
@@ -239,7 +321,7 @@ curl -s localhost:12345/metrics | grep -E \
 
 ---
 
-## 4. Verify
+## 6. Verify
 
 From the monitoring host, a minute or so after the reload — not instantly:
 
@@ -255,34 +337,40 @@ From the monitoring host, a minute or so after the reload — not instantly:
 # Which hosts is Loki seeing at all? morpheus should appear once logs arrive.
 curl -s 'http://localhost:3100/loki/api/v1/label/host/values' | jq -r '.data[]'
 
-# Is it labelled with the SENDER's hostname, and which apps are arriving?
+# Is it labelled with the SENDER's hostname, over TLS, and which apps are arriving?
 curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (host,app) (count_over_time({host="morpheus"}[10m]))' \
-  | jq -r '.data.result[] | "\(.metric.host)\t\(.metric.app)\t\(.value[1])"'
+  --data-urlencode 'query=sum by (host,transport,app) (count_over_time({host="morpheus"}[10m]))' \
+  | jq -r '.data.result[] | "\(.metric.host)\t\(.metric.transport)\t\(.metric.app)\t\(.value[1])"'
 
 # Are filterlog lines being parsed into labels? Empty action/interface here
 # means the regex did not match your log format.
 curl -sG http://localhost:3100/loki/api/v1/query \
   --data-urlencode 'query=sum by (action,direction,interface) (count_over_time({app="filterlog"}[10m]))' \
   | jq -r '.data.result[] | "\(.metric.action)\t\(.metric.direction)\t\(.metric.interface)\t\(.value[1])"'
+
+# Suricata's per-interface label, which comes from the syslog facility, survived
+# the relay through syslog-ng.
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (interface) (count_over_time({host="morpheus", app="suricata"}[30m]))' \
+  | jq '.data.result'
 ```
 
-You should see `host="morpheus"`, and `action` as `pass`/`block`.
+You should see `host="morpheus"`, `transport="tls"`, and `action` as
+`pass`/`block`.
 
-That name does not come from the log line. pfSense sends no hostname (§3), so
-`config.alloy` maps it from the connection address `10.0.99.1`. A second syslog
-sender needs its own rule, or it arrives with no `host` label at all — and a
-stream with no `host` is invisible to every `{host="..."}` query, which reads
-exactly like nothing being sent.
+That name does not come from the log line. pfSense sends no hostname (§5), so
+`syslog.alloy` maps it from the connection address `10.0.99.1`. A second syslog
+sender needs its own rule, or it is dropped and counted — and a sender that is
+dropped reads exactly like nothing being sent.
 
 > [!CAUTION]
 > **An empty result is not evidence of absence.** Check
-> `loki_source_syslog_entries_total` from §3 before believing one. Alloy
+> `loki_source_syslog_entries_total` from §5 before believing one. Alloy
 > receiving and Loki storing are not the same thing as a query matching: entries
 > written with a bad timestamp are accepted with a `204`, are never counted in
 > `loki_discarded_samples_total`, and cannot be reached by any range you would
 > think to try. That combination — every counter green, every query empty — is
-> what the `use_incoming_timestamp` comment in `config.alloy` exists to prevent
+> what the `use_incoming_timestamp` comment in `syslog.alloy` exists to prevent
 > recurring.
 
 One more label trap, on the other path:
@@ -323,7 +411,7 @@ curl -s http://localhost:3100/loki/api/v1/rules | grep -o 'name: dhcp' || echo "
 
 ---
 
-## 5. Prove the segmentation rules mean something
+## 7. Prove the segmentation rules mean something
 
 `TerminalSegmentReachedInternalNetwork` fires on a PASS from VLAN 10, 20 or 40
 toward 30, 50 or 99. It should never fire. Confirm the *inverse* is being
@@ -343,7 +431,7 @@ by that distinction before; see the header of
 
 ---
 
-## 6. Watch the volume for a day
+## 8. Watch the volume for a day
 
 ```bash
 curl -sG http://localhost:3100/loki/api/v1/query \
@@ -358,139 +446,28 @@ volume and little of the signal.
 
 ---
 
-## 7. Move morpheus to TLS (#1049)
+## 9. Why TLS, and not UDP (#1049)
 
-UDP has no handshake, so any host on VLAN 99 can send a line with a forged
-source of `10.0.99.1` and have it stored as `host="morpheus"`, filterlog and
-Suricata lines included. #844's sender allowlist cannot tell the difference.
-The receiver therefore also listens on **6514/tcp with TLS, and requires
-morpheus's own client certificate**, pinned: no other certificate passes, even
-another client leaf from the same CA. The sender allowlist still applies on
-top. `stacks/observability/alloy/syslog.alloy` says why each
+The first build of this runbook had pfSense's syslogd send UDP straight to
+`10.0.99.20:1514`, with the standard `514` published beside it. UDP has no
+handshake, so any host on VLAN 99 could send a line with a forged source of
+`10.0.99.1` and have it stored as `host="morpheus"`, filterlog and Suricata lines
+included. #844's sender allowlist could not tell the difference, and the Loki
+security rules read those lines.
+
+So the receiver moved to **6514/tcp with TLS, requiring morpheus's own client
+certificate**, pinned: no other certificate passes, even another client leaf
+from the same CA. The allowlist still applies on top, so taking over
+`10.0.99.1` is not enough without morpheus's key, and the key is not enough
+from another address. `stacks/observability/alloy/syslog.alloy` says why each
 part is needed.
 
-pfSense's own syslog daemon sends UDP only, so morpheus sends TLS through the
-**syslog-ng package**. That is a change to the firewall, made at its console.
-The order below keeps UDP flowing until TLS is proven, because a gap in
-firewall logs cannot be replayed.
-
-> [!WARNING]
-> While morpheus sends both ways, every line is stored twice, once per
-> `transport`. Count-based Loki rules (the lateral-movement and brute-force
-> thresholds) read double for that window and can fire on half the real
-> volume. Keep the overlap to the minutes §7.5 needs, and remove the UDP
-> server in §7.6 the same sitting.
-
-### 7.1 Issue both certificates, before the change is deployed
-
-The listener mounts two files that do not exist until this step: its own
-server leaf and morpheus's client certificate. compose refuses to start Alloy
-without them, and that Alloy is the one collecting **everything** on this
-host. So run this on the monitoring host, which holds the estate CA, **before**
-the change that adds the listener reaches `main`, since converge deploys it
-within the hour:
-
-```bash
-scripts/gen-certs.sh --host syslog.matrix.elysium --ip 10.0.99.20
-scripts/gen-certs.sh --host morpheus.matrix.elysium --ip 10.0.99.1 --client
-```
-
-The first is the listener's own leaf. Its key is mounted into nothing else,
-so it is not the ingest proxy's. The second reports `EKU clientAuth`, and
-`syslog.alloy` pins that exact certificate. Re-issuing it later means
-restarting Alloy, which reads the pin at start.
-
-### 7.2 Deploy the receiver and check it refuses strangers
-
-On the monitoring host, once the change is on `main`:
-
-```bash
-make up
-docker logs alloy 2>&1 | grep 'protocol=tcp tls=true'     # the 6514 listener, with TLS
-ss -ltn | grep ':6514 '                                    # 10.0.99.20:6514, not 0.0.0.0
-```
-
-A connection with no client certificate has to be refused. This one should
-end in `alert certificate required`:
-
-```bash
-openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null 2>&1 | tail -3
-```
-
-### 7.3 Install and configure syslog-ng on morpheus
-
-1. **System → Package Manager → Available Packages**, install `syslog-ng`.
-2. Copy `certificates/ca.pem`, `certificates/morpheus.matrix.elysium.pem` and
-   `certificates/morpheus.matrix.elysium-key.pem` to
-   `/usr/local/etc/syslog-ng/tls/` on morpheus, as `ca.pem`, `morpheus.pem`
-   and `morpheus-key.pem`. The key must be `0600`, owned by root.
-3. In **Services → Syslog-ng**, under Advanced, add these objects. They
-   receive pfSense's own syslog on loopback and relay it over TLS. Check the
-   field names against the package's form on the box, since this runbook was
-   written before the first install:
-
-   ```text
-   source s_pfsense {
-     network(ip("127.0.0.1") port(5140) transport("udp") flags(no-hostname));
-   };
-   destination d_alloy_tls {
-     syslog("10.0.99.20" port(6514) transport("tls")
-       tls(ca-file("/usr/local/etc/syslog-ng/tls/ca.pem")
-           cert-file("/usr/local/etc/syslog-ng/tls/morpheus.pem")
-           key-file("/usr/local/etc/syslog-ng/tls/morpheus-key.pem")
-           peer-verify(required-trusted)));
-   };
-   log { source(s_pfsense); destination(d_alloy_tls); };
-   ```
-
-   `flags(no-hostname)` matters. pfSense's lines carry no hostname
-   (`<134>Oct  7 18:00:00 filterlog[4242]: …`), and without the flag syslog-ng
-   can read the tag as one. `peer-verify(required-trusted)` makes morpheus
-   check the listener's certificate as well, against the same CA.
-
-The certificate files sit outside `config.xml`, so a config restore does not
-bring them back. After [`restore-the-firewall.md`](restore-the-firewall.md),
-repeat step 2.
-
-### 7.4 Send to both
-
-**Status → System Logs → Settings**, Remote Logging: add `127.0.0.1:5140` as a
-second remote log server, beside `10.0.99.20:1514`. Save. The overlap in the
-warning above starts now.
-
-### 7.5 Prove TLS carries what UDP did
-
-```bash
-curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (transport, app) (count_over_time({host="morpheus"}[5m]))' \
-  | jq -r '.data.result[] | "\(.metric.transport) \(.metric.app) \(.value[1])"' | sort
-```
-
-Each `app` should show about the same count under `udp` and `tls`. Then check
-that the labels the rules read survived the relay. Each query below should
-return the same series under both transports:
-
-```bash
-# filterlog parsed into action and interface
-curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (transport, action) (count_over_time({host="morpheus", app="filterlog"}[5m]))' | jq '.data.result'
-# Suricata's per-interface label, which comes from the syslog facility
-curl -sG http://localhost:3100/loki/api/v1/query \
-  --data-urlencode 'query=sum by (transport, interface) (count_over_time({host="morpheus", app="suricata"}[30m]))' | jq '.data.result'
-```
-
-If `tls` is missing or short, remove `127.0.0.1:5140` (UDP alone carries on)
-and read syslog-ng's log on morpheus before trying again.
-
-### 7.6 Stop sending UDP
-
-Remove `10.0.99.20:1514` from the remote log servers, leaving `127.0.0.1:5140`.
-`{host="morpheus", transport="udp"}` should go quiet within a minute, and
-`FirewallLogsStopped` should stay quiet, since `tls` carries the same lines.
-
-The forgeable path is still open until the UDP listener and its `1514` and
-`514` publishes leave `syslog.alloy` and `compose.yaml`. That is the second
-change on #1049, made once this has run for a day.
+The switch-over ran both transports side by side for a day, labelled
+`transport="udp"` and `transport="tls"`, because a gap in firewall logs cannot be
+replayed. Then pfSense stopped sending UDP, and the UDP listener and its `1514`
+and `514` publishes were removed. Nothing on the monitoring host listens for
+UDP syslog now. A UDP line sent from `10.0.99.1` itself is not stored, and
+`scripts/check_syslog_senders.sh` proves it.
 
 ---
 
@@ -505,10 +482,12 @@ if System Events was. All three are correct — they exist precisely so that a
 silent pipeline is distinguishable from a quiet network. Silence them if the
 stop was deliberate.
 
-**From TLS (§7):** while the UDP listener still exists, put
-`10.0.99.20:1514` back in the remote log servers and remove
-`127.0.0.1:5140`. Lines arrive as `transport="udp"` again at once, and nothing
-on the monitoring host changes.
+**There is no UDP fallback.** Pointing pfSense at `10.0.99.20:1514` reaches
+nothing, and a UDP sender gets no error for it. If syslog-ng on morpheus fails,
+fix it there (§3), and read §5's two hops to find which side broke;
+`FirewallLogsStopped` says the logs have stopped. Bringing UDP back means
+reverting the change that removed it on #1049, which reopens the forgeable
+path, so treat it as a decision rather than a rollback.
 
 Unticking **DHCP Events** alone is the narrower rollback, and it is the one
 `FirewallLogsStopped` cannot see: filterlog keeps arriving while the lease

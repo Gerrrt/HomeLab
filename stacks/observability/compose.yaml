@@ -1207,7 +1207,7 @@ services:
       # with 10.0.99.20 as an IP SAN, whose key is mounted into nothing else,
       # and morpheus's client certificate, which syslog.alloy pins as the only
       # one it accepts. Both are issued on this host before the first `make
-      # up` that carries these lines (ship-firewall-logs.md §7.1).
+      # up` that carries these lines (ship-firewall-logs.md §1).
       #
       # Long form so that create_host_path can be off, as stacks/sensitive
       # does. Short form would have Docker create a DIRECTORY at a missing
@@ -1234,56 +1234,25 @@ services:
           create_host_path: false
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
-      # Network syslog for devices that cannot run an agent — morpheus today.
+      # Network syslog for devices that cannot run an agent: morpheus today.
       # Unlike the debug UI above this must be reachable off-host, so it binds
       # to INGEST_BIND_ADDR, the management address senders already reach. It
       # used to be BIND_ADDR, which is 0.0.0.0 and so took it to every interface
-      # this host has (#844). pfSense sends UDP by default.
+      # this host has (#844).
       #
       # Which senders are STORED is decided in alloy/syslog.alloy, not here.
       # Its loki.relabel.network_syslog lists them, and every other line is
       # dropped and counted. The binding only narrows who can reach the port.
       #
-      # The container side is 1514, and the reason is NOT that it cannot bind a
-      # privileged port — it can. Measured here 2026-09-05 (Docker 29.8.0, the
-      # pinned alloy digest): uid 0 with CapEff 0000000000000000, and Docker
-      # sets net.ipv4.ip_unprivileged_port_start=0 in the container's network
-      # namespace, so the privileged range inside it is empty and
-      # CAP_NET_BIND_SERVICE is never consulted for any port. The cap_drop above
-      # is doing what #188 intended; it just has no bearing on which ports Alloy
-      # can bind. Two earlier versions of this comment gave a wrong reason —
-      # first "does not run as root" (#188), then the capability (#290).
-      #
-      # 1514 stays anyway, on a reason that does hold: that sysctl is a daemon
-      # *default*. It is settable per container and has not always been what it
-      # is now, so a container-side :514 would rest on something a future
-      # daemon default or a hardening pass could take away — silently, as a bind
-      # failure at start. Nothing needs the container side to be 514.
-      #
-      # The host side is free to be 514, because dockerd binds it as root before
-      # Alloy is involved. Verified end to end on this host 2026-09-05:
-      # 127.0.0.1:514 published to a --cap-drop ALL container, packet delivered.
-      #
-      # TWO HOST PORTS, NOT ONE, AND THE SECOND IS WHY THIS COMMENT CHANGED.
-      # It previously said a device that can only send to the standard port is
-      # "accommodated by SYSLOG_PORT=514 in .env and nothing else". That advice
-      # was wrong in a way that would not have shown up until logs went missing:
-      # SYSLOG_PORT does not ADD a port, it MOVES the only one. pfSense is
-      # already sending to it, and on 2026-09-06 that stream was the busiest in
-      # Loki — filterlog block events at roughly 250-350 per five minutes across
-      # em0, igc0.10 and igc0.20. Repointing SYSLOG_PORT would have taken
-      # morpheus's firewall log off the air silently, since a UDP sender gets no
-      # error from a port nobody is bound to.
-      #
-      # So the standard port is published alongside rather than instead. Both
-      # map to the same container listener, so Alloy needs no config change and
-      # neither sender has to move. Gerrrt/Lemmiwinks#161.
-      - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_PORT:-1514}:1514/udp"
-      - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_STD_PORT:-514}:1514/udp"
-      # Syslog over TLS with a required client certificate, the transport
-      # that cannot be forged from VLAN 99 the way UDP can (#1049). 6514 is
-      # RFC 5425's port. Published alongside the two UDP ports rather than in
-      # place of them: they go when morpheus is proven sending here.
+      # TLS ONLY, with a required client certificate (#1049). 6514 is RFC
+      # 5425's port. It used to sit beside two UDP publishes, 1514 and the
+      # standard 514, both mapped to one UDP listener. Those went once morpheus
+      # had sent here for a day, because a UDP source address can be forged
+      # from VLAN 99 and #844's allowlist could not tell morpheus from
+      # something claiming to be it. Nothing else was ever stored over UDP: the
+      # allowlist named morpheus alone. A device that can only speak UDP
+      # syslog now has no way in, which is the point. Bringing one in needs its
+      # own decision, not a port reopened here.
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_TLS_PORT:-6514}:6514/tcp"
     healthcheck:
       # /-/ready over bash's /dev/tcp (#845). The image is Ubuntu with neither

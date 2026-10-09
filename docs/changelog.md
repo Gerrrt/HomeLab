@@ -19,6 +19,51 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-08
 
+- **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
+  [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  The guest closes the automation milestone and the estate's last attack-path
+  gap.
+  - **Built from the template, not an installer.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, 4 vCPU, 8 GiB, `onboot 0`, tag `on-demand`, with a
+    32 GiB data disk on `large_data`. `large_data`'s allocation went from 920
+    to 952 GiB of 876, the overcommit ADR-0081 accepts; what is written grew by
+    megabytes.
+  - **§6, the three things reasoned and not booted when the stack was written,
+    checked on the first `make up`:**
+    - **The graph is in Postgres**, not a Neo4j: BloodHound opened the `pg`
+      driver, wrote its graph schema and ran its first analysis. One database
+      on the guest, as ADR-0081 decided.
+    - **The app runs as root with no capabilities.** It began as `nobody`, and
+      that was the one thing the first boot corrected: the image ships
+      SharpHound's zip and `.sha256` `0600 root:root`, so `nobody` could not
+      serve the collector and logged an error each start ([#1025](https://github.com/Gerrrt/HomeLab/pull/1025)).
+      Root keeps `cap_drop: [ALL]`, a read-only root and `no-new-privileges`;
+      without `CAP_DAC_OVERRIDE` it reads only what it owns, so the TLS key
+      still arrives through `RENDER_GID`.
+    - **The metrics scrape is up**, `up{job="bloodhound"}` on `alexander`, over
+      TLS verified against the estate CA by the leaf's `bloodhound` SAN.
+  - **The UI** on `:8443` verifies against the estate CA, and the first admin
+    logs in with no reset pending.
+  - **The token path works:** without a token the lab proxy returns 401; with
+    `INGEST_TOKEN_EDEN` the push is accepted.
+  - **First collection (§7), 2026-10-08.** A SharpHound v2.16.0 run from
+    `carbuncle` against `ad.matrix.elysium`, uploaded through the UI, ingested
+    and analysed clean (`ad_post_processing:success`). The graph holds the
+    baseline domain: **373 nodes, 3,922 edges** — one Domain
+    (`AD.MATRIX.ELYSIUM`), 6 Computers, 49 Users, 73 Groups, 14 OUs, 5 GPOs,
+    31 nodes tagged Tier Zero. Weaknesses are off (#449), so this is the clean
+    baseline; their tags add the interesting paths later. The collector ran on
+    `carbuncle` over a temporary RDP enablement (backed out after), because the
+    Win11 endpoints' console is parked at OOBE (#1092).
+  - **Two fixes the first real ingest forced.** BloodHound wrote its upload
+    temp file relative to the container's working directory `/`, which
+    `read_only: true` makes unwritable; `working_dir` now points at the
+    `/opt/bloodhound/work` volume. And the work subdirectories, created as
+    `nobody` on the first boot before #1025 switched the app to root, were
+    chowned to root on `eden` so the capability-less root user can write them
+    (a fresh build creates them as root and needs no repair).
+
 - **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
   ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
   entry below, "`systemd-oomd` runs on none of the eight hosts checked".

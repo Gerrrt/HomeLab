@@ -2,7 +2,7 @@
 
 [![host: eden](https://img.shields.io/badge/host-eden-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
 [![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
-![status: not built](https://img.shields.io/badge/status-not%20built-d29922?style=plastic)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
 [![BloodHound CE](https://img.shields.io/badge/BloodHound%20CE-c0392b?style=plastic)](https://github.com/SpecterOps/BloodHound)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?style=plastic&logo=postgresql&logoColor=white)](https://www.postgresql.org)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
@@ -10,8 +10,8 @@
 Attack-path analysis for the lab domain, `ad.matrix.elysium`: which path to
 Domain Admin exists, so that Wazuh, Zeek and Sysmon can be asked whether they
 saw it ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). It runs on
-`eden` (`10.0.30.41`, ImaginationLAN / VLAN 30), a guest on `Saruman` that is
-**not built yet** and is off between sessions.
+`eden` (`10.0.30.41`, ImaginationLAN / VLAN 30), a guest on `Saruman`, **built
+2026-10-07**, that is off between sessions.
 [ADR-0081] is the decision: why `Saruman` and not `ifrit`, Winterfell or the
 domain, why it is off by default, and why nothing here is backed up.
 [`build-the-bloodhound-guest.md`] is the build.

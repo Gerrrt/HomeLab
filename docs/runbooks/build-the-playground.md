@@ -535,7 +535,7 @@ Addresses are parsed at query time rather than indexed, per
 | Everything on `vmbr1` can reach everything else and nothing outside | Working as designed | — |
 | `Saruman` stops appearing in Loki after §3 | The pass rule still names `.110` | §3, step 2 |
 | Kea hands `10.0.30.30` to something else | The reservation was not added | §2 |
-| The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §5 |
+| The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §7 |
 
 ---
 
