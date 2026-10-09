@@ -50,6 +50,10 @@ source "proxmox-clone" "alpine" {
 
   cloud_init              = true
   cloud_init_storage_pool = var.disk_storage
+  # Proxmox's user-data asks for a package upgrade on first boot, which then
+  # holds the package database while the provisioner wants it. The
+  # provisioner upgrades, after waiting for cloud-init to finish.
+  cloud_init_disable_upgrade_packages = true
   ipconfig {
     ip      = "${var.cloud_image_build_address}/24"
     gateway = "10.0.30.1"
@@ -69,6 +73,7 @@ build {
   provisioner "shell" {
     execute_command = "doas sh -eu '{{ .Path }}'"
     inline = [
+      "cloud-init status --wait || true",
       "apk update",
       "apk upgrade --no-interactive",
       # What dotfiles-Alpine's README asks for first (bash, git; the
