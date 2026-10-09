@@ -68,11 +68,12 @@ dns:
   # Where the queries go next. ADR-0010 accepted, deliberately, that
   # forwarding hands a query stream that today reaches no third party to
   # "AdGuard, Cloudflare and Google" — Cloudflare and Google being the two
-  # public resolvers pfSense already names as its own fallback and the ones
-  # Unbound keeps in its forwarder list beside this service. Using the same two
-  # here, over DNS-over-HTTPS, keeps the set of third parties at exactly the
-  # two the ADR named and encrypts the hop that leaves the house. The bootstrap
-  # addresses resolve the two hostnames and nothing else.
+  # public resolvers pfSense named as its own fallback. Since ADR-0055 this
+  # service is Unbound's only forwarder, so these two are the only resolvers
+  # the house's queries leave by. Using them over DNS-over-HTTPS keeps the set
+  # of third parties at exactly the two the ADR named and encrypts the hop
+  # that leaves the house. The bootstrap addresses resolve the two hostnames
+  # and nothing else.
   upstream_dns:
     - https://dns.cloudflare.com/dns-query
     - https://dns.google/dns-query
@@ -129,7 +130,7 @@ statistics:
 # enabled, a list absent from here is not, and `git log` on this file is the
 # history of what the house filters.
 #
-# Two, chosen for a household rather than for coverage:
+# Three, chosen for a household rather than for coverage:
 #
 #   AdGuard DNS filter   the default, maintained by the same project. The
 #                        blackbox filtering probe's canary (doubleclick.net,
@@ -140,6 +141,17 @@ statistics:
 #                        its stated goal is that nothing on it breaks a site a
 #                        person is trying to use, which is the right bias for
 #                        a filter the household never sees and cannot bypass.
+#   HaGeZi Threat        malware, phishing, scam and command-and-control
+#   Intelligence Feeds   domains, not ads. Safe Browsing is off below because
+#                        it sends every name to AdGuard's servers; this list
+#                        covers the same threat with a list downloaded once a
+#                        day. It is 1.56M rules, nearly four times the other
+#                        two combined, and is the reason compose.yaml's
+#                        mem_limit is 1g (measured 2026-10-09).
+#
+# More ad lists (HaGeZi Pro, say) were left out on purpose: OISD Big already
+# covers that ground, and every extra list is another chance to break a site
+# for everyone at once.
 #
 # Both are served from AdGuard's own hostlists registry rather than their
 # upstream URLs, so one host is contacted for updates and a moved upstream
@@ -155,6 +167,10 @@ filters:
     url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_27.txt
     name: OISD Blocklist Big
     id: 2
+  - enabled: true
+    url: https://adguardteam.github.io/HostlistsRegistry/assets/filter_44.txt
+    name: HaGeZi's Threat Intelligence Feeds
+    id: 3
 whitelist_filters: []
 # Custom rules belong here, as a commit, not in the UI. An exception for a
 # site a list breaks is one `@@||example.com^` line.
@@ -176,6 +192,12 @@ filtering:
   # The blocklists are the whole of what this filter does.
   safebrowsing_enabled: false
   parental_enabled: false
+  # Blocked services and safe search are left at AdGuard's defaults (off and
+  # empty), and that is a decision, not a gap. Every query arrives from
+  # 10.0.99.1, so either one would apply to every person and device in the
+  # house at once: safe search would put every adult's YouTube in Restricted
+  # Mode. A service that should be blocked is a rule in `user_rules` or a
+  # list in `filters`, as a commit.
   filters_update_interval: 24
   # Internal names are answered by Unbound's host overrides on morpheus and
   # stay there (ADR-0010). Nothing is rewritten here.

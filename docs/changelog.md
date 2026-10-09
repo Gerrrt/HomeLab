@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-09
 
+- **AdGuard blocks malware and phishing domains as well as ads**
+  ([#135](https://github.com/Gerrrt/HomeLab/issues/135)).
+  - **What changed.** HaGeZi's Threat Intelligence Feeds (registry
+    `filter_44`, 1.56M rules) is the third blocklist. It stands in for Safe
+    Browsing, which stays off because it sends every name to AdGuard's
+    servers. No more ad lists were added; OISD Big already covers that.
+  - **Memory.** A scratch boot of the pinned image peaked at 437 MiB loading
+    all three lists, against 154 MiB with two. Production already sat at
+    207 MiB at its 7-day peak, so the 512m limit would have been hit at the
+    daily refresh. `mem_limit` is now 1g.
+  - **Left off on purpose.** Blocked services and safe search. Every query
+    reaches AdGuard from `morpheus`, so either would apply to the whole house;
+    `AdGuardHome.yaml` now says so in place of leaving them unexplained.
+  - The upstream comment no longer says Unbound keeps Cloudflare and Google
+    beside AdGuard; ADR-0055 removed them.
+
 - **Windows clones no longer keep the build password in plaintext**
   ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
   to the running guests.
