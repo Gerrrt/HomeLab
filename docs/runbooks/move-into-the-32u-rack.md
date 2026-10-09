@@ -118,7 +118,7 @@ means both carry over unchanged.
 3. **Lock the casters, or lower the levelling feet, before anything heavy
    goes in.** A loaded frame on free casters can roll when a server slides
    out.
-4. Mark U1, U5, U10, U15, U20 and U25 on a front post with tape. Counting
+4. Mark U1, U5, U10, U15, U20, U25 and U30 on a front post with tape. Counting
    holes in the dark is how a device ends up straddling two units.
 
 **One unit is three holes.** Every device sits within its own three, aligned
@@ -186,7 +186,8 @@ series. **If you see a gap,** it suspended: open the lid, and confirm that
    under them. **The VESA 100 × 100 holes are underneath** (from its manual).
 3. **Measure the bare panel's height.** At 355 mm or less it fits the 8U
    reserved for it (U20–U27). If it is taller, it needs 9U: it then covers
-   U19 as well, and the keyboard drawer moves down to U17.
+   U20–U28, taking one of the spare units above it, and the keyboard drawer
+   stays at U19.
 4. Fit the rack mount's bracket to the VESA holes. Do not rack it yet.
 
 ### 1.6 Label everything
