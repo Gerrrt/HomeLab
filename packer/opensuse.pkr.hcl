@@ -3,7 +3,14 @@
 #
 # The Tumbleweed NET installer is still linuxrc and YaST, so AutoYaST drives
 # it, from a disc labelled OEMDRV named on the kernel line. Nothing listens
-# on phoenix. NET, not the DVD: it installs today's packages from the
+# on phoenix.
+#
+# A profile that fails YaST's schema validation is reported as "a profile for
+# this machine could not be found or retrieved", over a by-id path that looks
+# broken (device://disk/by-id/...), which reads like a location problem but
+# is not. The real error is in y2log, on the installer's tty2. Validate a
+# changed profile first against profile.rng from yast2-schema-default
+# (2026-10-09: `install_recommends` cost three builds). NET, not the DVD: it installs today's packages from the
 # mirror, which is what a fresh Tumbleweed box gets, and it is a tenth of
 # the size on the ISO store.
 
