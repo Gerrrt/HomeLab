@@ -156,8 +156,8 @@ module "guest" {
   # sets it.
   secure_boot = lookup(each.value, "secure_boot", true)
   # Absent means Proxmox's default. dot-windows runs VirtIO GPU (#1108).
-  vga = lookup(each.value, "vga", null)
-  ssh_keys    = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
+  vga      = lookup(each.value, "vga", null)
+  ssh_keys = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
   mac_address = each.value.mac_address
   smbios_uuid = each.value.smbios_uuid
