@@ -16,20 +16,23 @@ needed for Kea.
 
 - the templates, from
   [`build-the-lab-templates.md`](build-the-lab-templates.md) §2b, §4 and §6:
-  903 and 904, and the existing 911;
+  903–906 for the guests you are creating, and the existing 911;
 - the pool grant, from
   [`provision-lab-guests.md`](provision-lab-guests.md) §2 (`/pool/dotfiles`).
 
 This runs
 [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
-(191), Fedora (192) and Windows (198). The other five layers join in later
-phases, and each phase adds its guests' rows below.
+(191), Fedora (192) and Windows (198) in phase 1, openSUSE Tumbleweed (193)
+and Arch (194) in phase 2. Alpine, Gentoo and NixOS join in later phases,
+and each phase adds its guests' rows below.
 
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
 | `dot-debian` | 191 | `10.0.30.91` | 903 `tpl-debian-13` | `dotgibson/dotfiles-Debian` |
 | `dot-fedora` | 192 | `10.0.30.92` | 904 `tpl-fedora-server` | `dotgibson/dotfiles-Fedora` |
+| `dot-opensuse` | 193 | `10.0.30.93` | 905 `tpl-opensuse-tw` | `dotgibson/dotfiles-openSUSE` |
+| `dot-arch` | 194 | `10.0.30.94` | 906 `tpl-arch` | `dotgibson/dotfiles-Arch` |
 | `dot-windows` | 198 | `10.0.30.98` | 911 `tpl-win11-pro` | `dotgibson/dotfiles-Windows` |
 
 The helpers below are used in every section. They call the API with the
@@ -62,24 +65,26 @@ them their address, so do this before the first boot, not after.
 ## 2. Create them, from `phoenix`
 
 [`provision-lab-guests.md`](provision-lab-guests.md) §4, unchanged:
-`umask 077`, then `plan -out` and `apply`. The plan for the first phase is
-four to add: the `dotfiles` pool and three guests. Anything that says
-`must be replaced` on a lab-domain guest is a stop.
+`umask 077`, then `plan -out` and `apply`. A guest whose template does not
+exist yet cannot be cloned, so apply with `-target='module.guest["dot-…"]'`
+for the ones whose templates are built, one at a time if you like; the pool
+comes with the first. The plan should add exactly those, and change nothing
+else. Anything that says `must be replaced` on a lab-domain guest is a stop.
 
 Check each one:
 
 ```bash
-for id in 191 192 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot}'; done
+for id in 191 192 193 194 198; do api /nodes/Saruman/qemu/$id/config | jq -c '.data | {name, tags, net0, onboot, efidisk0}'; done
 ```
 
-**Each must show `tags` as `dotfiles;on-demand`.** Without `on-demand`,
+**Each must show `tags` as `dotfiles;on-demand`.** `dot-arch`'s `efidisk0` must show `pre-enrolled-keys=0`: Arch boots without Secure Boot. Without `on-demand`,
 `HypervisorGuestStopped` fires an hour after the first shutdown.
 
 ## 3. First boot, then the `clean` snapshot
 
 Boot each guest once, so that cloud-init (or Windows' OOBE) does its
 per-machine work. The apply already did: the provider starts a guest when it
-creates it, so after §2 all three are running their first boot. That work is the user, the key, the host keys and the
+creates it, so after §2 each new guest is running its first boot. That work is the user, the key, the host keys and the
 machine-id. Then shut the guest down and snapshot it **stopped**:
 
 ```bash
@@ -160,6 +165,13 @@ Then, per layer:
 - **Fedora:** `ssh tester@10.0.30.92`, then the same with
   `dotfiles-Fedora`, and `./bootstrap.sh --no-flatpak`. It is a headless
   Server.
+- **openSUSE:** `ssh tester@10.0.30.93`, then the same with
+  `dotfiles-openSUSE`. Tumbleweed, not Leap or a transactional edition, so
+  one run with no reboot.
+- **Arch:** `ssh tester@10.0.30.94`, then the same with `dotfiles-Arch`.
+  The template has `sudo`, `git` and an `en_US.UTF-8` locale, which the
+  layer's README asks for. It installs no AUR helper; paru stays the
+  README's manual step.
 - **Windows: from the console, not over SSH.** The first run (2026-10-08)
   showed that the layer cannot be tested in an SSH session:
   - **`winget`.** It is not registered for an account that has never had an
@@ -279,3 +291,6 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-08 | First runs, Debian and Fedora (dotfiles v7.14.0) | Debian: `bootstrap.sh` exit 0 in 1m44s, `core doctor` exit 0, "install missing" `sesh yq doggo`. Fedora (`--no-flatpak`): exit 0 in 8m20s, doctor exit 0, but 14 missing, `atuin mise uv jj` among them. Its `/tmp` is a 1.9 GiB tmpfs with `usrquota`. yazi's cargo build there hit `Disk quota exceeded`, and the downloads after it failed on the full `/tmp`. About 1.5 GiB of `cargo-install*` was left behind. `atuin`'s installer exited 1 before that, cause not shown. These are layer findings, not test-bed ones. Filed as [dotgibson/dotfiles-Fedora#208](https://github.com/dotgibson/dotfiles-Fedora/issues/208) |
 | 2026-10-08 | First run, Windows, over SSH | Not a valid test. `winget`, MSIX, `winget configure` and scoop's junctions all fail in an SSH session (§4). PowerShell 7.6.6 went in by MSI as `Administrator`, and Developer Mode by registry. `install.ps1` as `tester` stopped at scoop's second package, "untrusted mount point", exit 1, nothing linked. Windows runs are at the console from now on |
 | 2026-10-08 | Second run, Windows, at the console (Garrett) | Not finished. The console opened at OOBE's account page (911's answer file; [#1092](https://github.com/Gerrrt/HomeLab/issues/1092), PR #1093). `winget configure` needed `--enable` first, then stopped at `OsVersion`: the layer's `configuration.dsc.yaml` says `allowPrerequisites` where winget wants `allowPrerelease`. UAC asked for the Administrator password at every machine-wide install, PowerShell 7 could not be found after its install, and the guest was slow throughout. `install.ps1` never ran. The Windows run needs the prerequisites baked in, or a faster path, before it is worth repeating |
+| 2026-10-09 | Phase 2: templates 905 (openSUSE Tumbleweed) and 906 (Arch) | Both built twice and smoke-tested, in about 11 min and 2.5 min. **openSUSE:** three builds stopped at "a profile for this machine could not be found or retrieved", which looked like a location problem but wasn't. YaST's schema check had rejected `install_recommends` (it is `install_recommended`); y2log on tty2 showed it. Then the profile had to name the `openSUSE` base product, and the default user needed a sudo drop-in (openSUSE's `cloud.cfg` gives it none). **Arch:** the live ISO's cloud-init wrapped root's key in a forced command until `disable_root: false`; `ln` of resolv.conf fails inside `arch-chroot`; `inetutils` is needed for `hostname` |
+| 2026-10-09 | Phase 2 guests, `-target`ed one at a time | `dot-arch` (194, .94, Secure Boot off) and `dot-opensuse` (193, .93). `tester` logs in with `sudo`, DNS works, `clean` taken stopped |
+| 2026-10-09 | First runs, Arch and openSUSE (dotfiles v7.14.0) | Arch: `bootstrap.sh` exit 1, `core doctor` exit 0. The one failure is the Flathub remote: it is added system-wide without `$BLIB_SU`, and polkit refuses it with no agent (`EnsureRepo not allowed for user`); filed as [dotgibson/dotfiles-Arch#199](https://github.com/dotgibson/dotfiles-Arch/issues/199). Six AUR-only tools are missing, as the layer says. openSUSE: exit 2 for the same Flathub step (`ConfigureRemote not allowed for user`); doctor exit 0, `jj` and `difft` missing |

@@ -46,6 +46,46 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **The dotfiles OS-layer VMs, phase 2: openSUSE Tumbleweed and Arch**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 905 `tpl-opensuse-tw` and 906 `tpl-arch`, each built
+    twice and smoke-tested:
+    - openSUSE: the NET installer, with an AutoYaST profile on an `OEMDRV`
+      disc.
+    - Arch: the live ISO's own cloud-init lets Packer in, and
+      `packer/arch/install.sh` pacstraps the disk.
+
+    Guests `dot-opensuse` (193, `.93`) and `dot-arch` (194, `.94`), each with
+    a `clean` snapshot. The guest module gains `secure_boot` (default on);
+    `dot-arch` sets it off, because Arch ships no Microsoft-signed shim.
+  - **The installers.** Tumbleweed snapshot 20261007's NET ISO, checked
+    against the openSUSE Project key `AD48 5664 … 29B7 00A4` as
+    build.opensuse.org publishes it, not only as the ISO carries it. Arch
+    2026.10.01, checked against the release key `3E80 CA1A … 5444 9A5C` that
+    archlinux.org/download publishes. Both read `state="match"`.
+  - **What the builds found.**
+    - **A schema error that looked like a path error.** YaST reports a
+      schema-invalid AutoYaST profile as "a profile for this machine could
+      not be found or retrieved", next to a mangled `/dev//by-id/…` path.
+      Three builds and two detours (`device://sr0`, then HTTP) chased the
+      location, before y2log on the installer's tty2 showed
+      `install_recommends` (it is `install_recommended`). The profile is now
+      validated against `yast2-schema-default`'s `profile.rng` before a
+      build, and the disc route stands; no ADR exception was needed.
+    - **No sudo by default.** openSUSE's `cloud.cfg` gives the default user
+      no sudo rule, so a clone's user could not sudo at all. The smoke test
+      only checks SSH, so it passed regardless.
+    - **cloud-init's `disable_root` on Arch.** It wraps root's key in a
+      forced command on the live ISO, which hung the first Arch build.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Both layers fail at Flathub over SSH.** The remote is added
+      system-wide without the escalator, and polkit refuses it with no
+      agent. Filed for Arch as
+      [dotgibson/dotfiles-Arch#199](https://github.com/dotgibson/dotfiles-Arch/issues/199).
+    - **Arch** is otherwise six AUR tools short, as its layer says.
+    - **openSUSE** is otherwise short only `jj` and `difft`.
+
 - **`eden` is on the network diagram**
   ([#1098](https://github.com/Gerrrt/HomeLab/issues/1098)). It was built on
   2026-10-07 and was in `network.md`, but not in `current/network.svg`.

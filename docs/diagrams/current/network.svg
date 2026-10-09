@@ -460,10 +460,10 @@
 <text x="1282" y="709" class="pname" fill="#2ea043">ImaginationLAN</text>
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
-<text x="1204" y="1452" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
-<text x="1204" y="1468" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
-<text x="1204" y="1484" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
-<rect x="1202" y="772" width="492" height="598" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
+<text x="1204" y="1460" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
+<text x="1204" y="1476" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
+<text x="1204" y="1492" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
+<rect x="1202" y="772" width="492" height="642" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
 <g class="host" data-host="Saruman">
 <rect x="1212" y="806" width="231.0" height="62" rx="8" class="card"/>
@@ -575,29 +575,40 @@
 <text x="1546.0" y="1294" class="sub planned-t">disposable · .61</text>
 </g>
 <g class="host" data-host="dot-debian">
-<rect x="1212.0" y="1312" width="152.0" height="50" rx="8" class="card"/>
-<rect x="1212.0" y="1318" width="4" height="38" rx="2" fill="#2ea043"/>
-<text x="1226.0" y="1334" class="hn">dot-debian</text>
-<text x="1226.0" y="1352" class="sub">Debian 13 · .91</text>
+<rect x="1212.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
+<rect x="1212.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1331" class="hn">dot-debian</text>
+<text x="1226.0" y="1348" class="sub">Debian 13 · .91</text>
 </g>
 <g class="host" data-host="dot-fedora">
-<rect x="1372.0" y="1312" width="152.0" height="50" rx="8" class="card"/>
-<rect x="1372.0" y="1318" width="4" height="38" rx="2" fill="#2ea043"/>
-<text x="1386.0" y="1334" class="hn">dot-fedora</text>
-<text x="1386.0" y="1352" class="sub">Fedora 44 · .92</text>
+<rect x="1372.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
+<rect x="1372.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1331" class="hn">dot-fedora</text>
+<text x="1386.0" y="1348" class="sub">Fedora 44 · .92</text>
+</g>
+<g class="host" data-host="dot-opensuse">
+<rect x="1532.0" y="1312" width="152.0" height="44" rx="8" class="card"/>
+<rect x="1532.0" y="1318" width="4" height="32" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1331" class="hn">dot-opensuse</text>
+<text x="1546.0" y="1348" class="sub">Tumbleweed · .93</text>
+</g>
+<g class="host" data-host="dot-arch">
+<rect x="1212.0" y="1362" width="152.0" height="44" rx="8" class="card"/>
+<rect x="1212.0" y="1368" width="4" height="32" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1381" class="hn">dot-arch</text>
+<text x="1226.0" y="1398" class="sub">Arch · .94</text>
 </g>
 <g class="host" data-host="dot-windows">
-<rect x="1532.0" y="1312" width="152.0" height="50" rx="8" class="card"/>
-<rect x="1532.0" y="1318" width="4" height="38" rx="2" fill="#2ea043"/>
-<text x="1546.0" y="1334" class="hn">dot-windows</text>
-<text x="1546.0" y="1352" class="sub">Win 11 · .98</text>
+<rect x="1372.0" y="1362" width="152.0" height="44" rx="8" class="card"/>
+<rect x="1372.0" y="1368" width="4" height="32" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1381" class="hn">dot-windows</text>
+<text x="1386.0" y="1398" class="sub">Win 11 · .98</text>
 </g>
 <g class="host" data-host="ifrit">
-<rect x="1202" y="1378" width="492" height="56" rx="8" class="card planned"/>
-<text x="1216" y="1396" class="hn planned-t">ifrit</text>
-<text x="1682" y="1396" class="ip" text-anchor="end" fill="#2ea043">.30</text>
-<text x="1216" y="1412" class="sub planned-t">second server for the range, not yet bought;</text>
-<text x="1216" y="1427" class="sub planned-t">range bridge 172.30.30.0/24 · Saruman moves to .20</text>
+<rect x="1202" y="1420" width="492" height="26" rx="8" class="card planned"/>
+<text x="1216" y="1438" class="hn planned-t">ifrit</text>
+<text x="1262" y="1438" class="sub planned-t">range server, not yet bought · Saruman moves to .20</text>
+<text x="1682" y="1438" class="ip" text-anchor="end" fill="#2ea043">.30</text>
 </g>
 </g>
 <g id="vlan-20">

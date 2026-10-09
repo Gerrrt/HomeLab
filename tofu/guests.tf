@@ -88,13 +88,16 @@ locals {
   # keeps HypervisorGuestStopped quiet (ADR-0079), and none boots with the
   # host. The MACs are fixed for morpheus's reservations, .91-.98, as the
   # domain's are. No SMBIOS UUID: dot-windows is an unactivated Windows 11, so
-  # there is no activation to carry. Phases 2-4 add openSUSE (193), Arch
-  # (194), Alpine (195), Gentoo (196) and NixOS (197).
+  # there is no activation to carry. Arch's Secure Boot is off, as its
+  # template's is: Arch ships no Microsoft-signed shim. Phases 3-4 add Alpine
+  # (195), Gentoo (196) and NixOS (197).
   dotfiles = {
     for name, g in {
-      dot-debian  = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:D0:51:9D" }
-      dot-fedora  = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:81:DB:CC" }
-      dot-windows = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A" }
+      dot-debian   = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:D0:51:9D" }
+      dot-fedora   = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:81:DB:CC" }
+      dot-opensuse = { vm_id = 193, template = 905, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:E9:5A:7B" }
+      dot-arch     = { vm_id = 194, template = 906, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:9A:27:EC", secure_boot = false }
+      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A" }
     } :
     name => merge(g, {
       pool        = "dotfiles"
@@ -146,7 +149,10 @@ module "guest" {
   tags       = each.value.tags
   password   = each.value.password
   username   = each.value.username
-  ssh_keys   = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
+  # Absent means on: only a guest whose template has no Microsoft-signed shim
+  # sets it.
+  secure_boot = lookup(each.value, "secure_boot", true)
+  ssh_keys    = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
 
   mac_address = each.value.mac_address
   smbios_uuid = each.value.smbios_uuid

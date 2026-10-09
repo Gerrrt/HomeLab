@@ -132,6 +132,16 @@ variable "fedora_iso_file" {
   default = "smaug-iso:iso/Fedora-Server-netinst-x86_64-44-1.7.iso"
 }
 
+variable "opensuse_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso"
+}
+
+variable "arch_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/archlinux-2026.10.01-x86_64.iso"
+}
+
 # A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
 # the first build on ifrit sets this to the ISO it actually has. It stays on
 # local: the ISO store's export and pass admit Saruman alone (ADR-0072), so

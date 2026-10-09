@@ -31,8 +31,9 @@
 #
 # THE WHOLE FILE, EVERY DAY. A tamperer can restore an mtime and a size, so
 # caching by either would let a replaced ISO through until something else
-# changed. The first four installers were about 15 GB, and #920's Debian and
-# Fedora netinsts add under 2 GB, read once a day over NFS from the mirror at
+# changed. The first four installers were about 15 GB, #920's Debian and
+# Fedora netinsts add under 2 GB and its Tumbleweed NET and Arch ISOs about
+# 2 GB more, read once a day over NFS from the mirror at
 # idle priority: minutes, not hours.
 #
 # Usage: scripts/collect-iso-store-state.sh [--print]
@@ -79,6 +80,18 @@ a7ef94ac2fb9a7fec454552abd629b7cc9d5155c886165a45649f5ce6167e355  debian-13.7.0-
 # F27F 7D1A 48A8 35E4 DBFC F71C 6D9F 90A6, read 2026-10-07. Listed from the
 # publisher, so the file placed must be this one.
 ae20c06bea746913cadea7d80463e13f4bf55bee4df2918111c921c674b70283  Fedora-Server-netinst-x86_64-44-1.7.iso
+# openSUSE Tumbleweed NET installer, snapshot 20261007, for tpl-opensuse-tw
+# (#920 phase 2). The .sha256 beside it on download.opensuse.org, with a good
+# signature from the openSUSE Project Signing Key AD48 5664 E901 B867 051A
+# B15F 35A2 F86E 29B7 00A4, the key build.opensuse.org publishes for
+# openSUSE:Factory; read 2026-10-09. Tumbleweed's snapshot ISOs leave the
+# mirror within days, so this file is the only copy of this snapshot.
+ada2a1e85a797140e2207e85cd0331017863c3b3aebb37d41875630610e0418d  openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso
+# Arch Linux 2026.10.01, for tpl-arch (#920 phase 2). sha256sums.txt beside
+# it, and a good detached signature on the ISO from Pierre Schmitz's release
+# key 3E80 CA1A 8B89 F69C BA57 D98A 76A5 EF90 5444 9A5C, the fingerprint
+# archlinux.org/download publishes (key fetched by WKD); read 2026-10-09.
+684ded26c63240ff4a41e8c25ee84ea6da233f557364821f13d12c2b0a9059a5  archlinux-2026.10.01-x86_64.iso
 LIST
 )"
 
