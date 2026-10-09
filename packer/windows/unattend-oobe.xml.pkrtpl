@@ -41,6 +41,43 @@
           <PlainText>true</PlainText>
         </AdministratorPassword>
       </UserAccounts>
+      <!--
+        AutoLogon ONCE, then off (#1092). Without it a Windows 11 clone parks
+        forever on the OOBE "create a user account" page: HideLocalAccountScreen
+        with only the built-in Administrator does not finish that page on client
+        SKUs, only on Server. The generalised image still never autologins -
+        scripts/sysprep.ps1 strips the build's autologon, and this file re-adds
+        it for the clone's single OOBE pass alone. LogonCount 1 spends it, and
+        the FirstLogonCommand below turns it off, deletes the plaintext
+        DefaultPassword that Setup writes to Winlogon and logs off, so nothing
+        persists past that first logon. The built-in Administrator stays
+        enabled with the build password (above) until ansible/'s base role
+        rotates it (#448).
+      -->
+      <AutoLogon>
+        <Enabled>true</Enabled>
+        <LogonCount>1</LogonCount>
+        <Username>Administrator</Username>
+        <Password>
+          <Value>${build_password}</Value>
+          <PlainText>true</PlainText>
+        </Password>
+      </AutoLogon>
+      <!--
+        One command, not three. Windows 10 and 11 do not wait for one
+        SynchronousCommand to finish before starting the next, so a separate
+        logoff could end the session before the two reg commands ran, leaving
+        the autologon on and the password in Winlogon. Chained in one cmd, the
+        logoff can only come after both. & rather than &&: the session ends
+        even if a reg command fails, since LogonCount 1 is already spent.
+      -->
+      <FirstLogonCommands>
+        <SynchronousCommand wcm:action="add">
+          <Order>1</Order>
+          <Description>Turn the one-shot autologon off, drop the plaintext credential Setup wrote to Winlogon, then log the session off so the clone rests at the sign-in screen</Description>
+          <CommandLine>cmd /c "reg add "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v AutoAdminLogon /t REG_SZ /d 0 /f &amp; reg delete "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon" /v DefaultPassword /f &amp; shutdown /l /f"</CommandLine>
+        </SynchronousCommand>
+      </FirstLogonCommands>
     </component>
   </settings>
 </unattend>
