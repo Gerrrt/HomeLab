@@ -368,7 +368,7 @@ What each one does, so a stall can be placed:
   wipe. It needs §5 step 1's firewall rule for the length of the build, and
   nothing else in §5, because it builds on `Saruman` from `smaug-iso`.
 - **openSUSE** drops to the installer's GRUB prompt and boots linuxrc with
-  `autoyast=device://sr0/autoinst.xml` (not `label://`, which YaST rewrites to a path it then cannot read). YaST installs from the mirror
+  `autoyast=label://OEMDRV/autoinst.xml`. YaST installs from the mirror
   unattended and reboots, and the rest is Ubuntu's. Tumbleweed's NET ISO is
   still YaST, not Agama; if a later snapshot switches, the profile and the
   boot line both change.
