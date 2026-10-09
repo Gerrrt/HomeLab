@@ -3,6 +3,13 @@
 **Status:** Accepted · 2026-10
 
 > [!NOTE]
+> 2026-10-09, staleness checks: the two image pins are now checked weekly with
+> the toolchain pins, by `scripts/check_tool_versions.py` from the `tools` job
+> of `.github/workflows/digests.yml`. Any newer Alpine release or image
+> revision fails it. Gentoo builds weekly, so its pin fails only when it is
+> more than 28 days older than the newest build, or when Gentoo has pruned
+> it. This settles the "still to do" in the phase 3 entry below.
+>
 > 2026-10-09, phase 4: NixOS is not built with `nixos-rebuild build-image`
 > in a `nixos/nix` container, as decision 2 says. `phoenix` runs no Docker,
 > by design. Instead it is built the ISO way, like decision 2's first four

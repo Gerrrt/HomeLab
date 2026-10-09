@@ -72,8 +72,9 @@ jobs:
       - name: Check digests
         run: make check-digests
 
-  # The pins Dependabot has no ecosystem for: the Packer plugin and the
-  # ansible-galaxy collections (#848). Each stays an exact pin and a deliberate
+  # The pins Dependabot has no ecosystem for: the Packer plugin, the
+  # ansible-galaxy collections (#848), and the Alpine and Gentoo cloud images
+  # scripts/import-cloud-template.sh imports (ADR-0090). Each stays an exact pin and a deliberate
   # edit; this only says when upstream has a newer release, which until now
   # nothing did. Same contract as the digests job: the failing run is the
   # notification. The token only lifts the GitHub API's anonymous rate limit.
@@ -86,7 +87,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Check the Packer plugin and Galaxy collection pins
+      - name: Check the Packer plugin, Galaxy collection and cloud image pins
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/check_tool_versions.py

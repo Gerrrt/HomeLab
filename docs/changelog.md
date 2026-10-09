@@ -46,6 +46,19 @@ docstring gives: it is a record, not a claim about now.
     through the guest agent on all seven, and confirmed gone on each. 911 and
     912 lose it at their next rebuild.
 
+- **The Alpine and Gentoo cloud-image pins are checked for staleness**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920), ADR-0090). The weekly
+  `tools` job in `digests.yml` now reads the two `url=` lines in
+  `scripts/import-cloud-template.sh`, alongside the Packer plugin and Galaxy
+  pins.
+  - **Alpine** fails on any newer release or image revision in
+    `latest-stable/releases/cloud/`.
+  - **Gentoo** builds a new image every week, so it fails only when the pin is
+    more than 28 days older than the newest build, or when Gentoo has pruned
+    the pinned build.
+  - Both pins were current on the first run: Alpine 3.24.2-r2, Gentoo
+    20261004T164559Z.
+
 - **The dotfiles OS-layer VMs, phase 4: NixOS, and all eight layers have a
   VM** ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
