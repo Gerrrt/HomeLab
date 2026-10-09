@@ -435,6 +435,8 @@ Where things get broken on purpose.
 | eden | `10.0.30.41` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | BloodHound CE (on demand) |
 | dot-debian | `10.0.30.91` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Debian 13 | Rack U3 | Dotfiles test VM, on demand |
 | dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
+| dot-opensuse | `10.0.30.93` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | openSUSE Tumbleweed | Rack U3 | Dotfiles test VM, on demand |
+| dot-arch | `10.0.30.94` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Arch Linux | Rack U3 | Dotfiles test VM, on demand |
 | dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
@@ -506,7 +508,8 @@ Where things get broken on purpose.
   per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
   `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
   `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
-  on 2026-10-08 and are in the table above; the other five join it as each
+  on 2026-10-08 and `.93` and `.94` on 2026-10-09, and are in the table above; the
+  others join it as each
   is built. They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
   is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off

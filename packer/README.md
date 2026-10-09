@@ -15,8 +15,8 @@ page is the map.
 | 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `ifrit`, waits for the host ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
 | 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
-| 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
-| 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, first build pending ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 906 | `tpl-arch` | `arch.pkr.hcl` | the live ISO's cloud-init on `cidata`, then `arch/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 
