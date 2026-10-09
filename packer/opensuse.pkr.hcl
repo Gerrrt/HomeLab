@@ -116,6 +116,10 @@ build {
       # Every cloud-init stage this release ships, named rather than left to
       # a preset (#920 phase 1: Fedora 44's left one out).
       "for u in cloud-init-local cloud-init-main cloud-init-network cloud-init cloud-config cloud-final; do if systemctl list-unit-files \"$u.service\" | grep -q \"^$u.service\"; then systemctl enable \"$u.service\"; fi; done",
+      # openSUSE's cloud.cfg gives the default user no sudo rule, unlike
+      # Debian's, Fedora's and Arch's, so a clone's cloud-init user could not
+      # sudo at all (2026-10-09), and the dotfiles bootstrap needs it.
+      "printf 'system_info:\\n  default_user:\\n    lock_passwd: true\\n    sudo: [\"ALL=(ALL) NOPASSWD:ALL\"]\\n    shell: /bin/bash\\n' > /etc/cloud/cloud.cfg.d/90-default-user-sudo.cfg",
       "rm -f /etc/ssh/ssh_host_*",
       "cloud-init clean --logs --machine-id",
     ]
