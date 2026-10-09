@@ -23,13 +23,16 @@ needed for Kea.
 This runs
 [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
-(191), Fedora (192) and Windows (198). The other five layers join in later
-phases, and each phase adds its guests' rows below.
+(191), Fedora (192) and Windows (198) in phase 1, openSUSE Tumbleweed (193)
+and Arch (194) in phase 2. Alpine, Gentoo and NixOS join in later phases,
+and each phase adds its guests' rows below.
 
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
 | `dot-debian` | 191 | `10.0.30.91` | 903 `tpl-debian-13` | `dotgibson/dotfiles-Debian` |
 | `dot-fedora` | 192 | `10.0.30.92` | 904 `tpl-fedora-server` | `dotgibson/dotfiles-Fedora` |
+| `dot-opensuse` | 193 | `10.0.30.93` | 905 `tpl-opensuse-tw` | `dotgibson/dotfiles-openSUSE` |
+| `dot-arch` | 194 | `10.0.30.94` | 906 `tpl-arch` | `dotgibson/dotfiles-Arch` |
 | `dot-windows` | 198 | `10.0.30.98` | 911 `tpl-win11-pro` | `dotgibson/dotfiles-Windows` |
 
 The helpers below are used in every section. They call the API with the
@@ -160,6 +163,13 @@ Then, per layer:
 - **Fedora:** `ssh tester@10.0.30.92`, then the same with
   `dotfiles-Fedora`, and `./bootstrap.sh --no-flatpak`. It is a headless
   Server.
+- **openSUSE:** `ssh tester@10.0.30.93`, then the same with
+  `dotfiles-openSUSE`. Tumbleweed, not Leap or a transactional edition, so
+  one run with no reboot.
+- **Arch:** `ssh tester@10.0.30.94`, then the same with `dotfiles-Arch`.
+  The template has `sudo`, `git` and an `en_US.UTF-8` locale, which the
+  layer's README asks for. It installs no AUR helper; paru stays the
+  README's manual step.
 - **Windows: from the console, not over SSH.** The first run (2026-10-08)
   showed that the layer cannot be tested in an SSH session:
   - **`winget`.** It is not registered for an account that has never had an

@@ -3,9 +3,15 @@
 # own cloud-init from the disc labelled `cidata` (NoCloud), in the LIVE
 # system: it lets Packer in as root with phoenix's key, and nothing else.
 # The installed system is written by arch/install.sh over that session.
-ssh_authorized_keys:
-  - ${ssh_public_key}
+#
+# disable_root false, and the key given to root by name: with cloud-init's
+# defaults the key goes to the ISO's default user, `arch`, and root's is
+# wrapped in a command that prints "Please login as the user arch" and exits
+# 142, which is how the first build hung (2026-10-09).
+disable_root: false
+users:
+  - name: root
+    ssh_authorized_keys:
+      - ${ssh_public_key}
 runcmd:
-  - [mkdir, -p, -m, "0700", /root/.ssh]
-  - [sh, -c, "printf '%s\n' '${ssh_public_key}' > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys"]
   - [systemctl, start, sshd, qemu-guest-agent]
