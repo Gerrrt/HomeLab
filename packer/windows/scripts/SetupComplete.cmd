@@ -66,6 +66,12 @@ sc.exe stop WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 del /q "%WINDIR%\Panther\unattend-oobe.xml">> "%LOG%" 2>&1
+rem The specialize/oobe answer files Setup copies into Panther carry the
+rem build password (and, since #1093, the AutoLogon password) in plaintext,
+rem and are readable by BUILTIN\Users (#1099). Setup is done by now, so they
+rem are vestigial; delete them before any user can log on.
+del /q "%WINDIR%\Panther\unattend.xml">> "%LOG%" 2>&1
+del /q "%WINDIR%\Panther\unattend-original.xml">> "%LOG%" 2>&1
 
 rem What sysprep.ps1 left to run sysprep outside the build's WinRM session.
 rem The task has no trigger and cannot run again, but it has no business in
