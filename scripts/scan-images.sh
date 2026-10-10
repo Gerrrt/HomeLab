@@ -32,7 +32,10 @@
 #
 # --ignore-unfixed is the only filter, and it is the point: a finding with a
 # fixed version is one a bump closes. There is deliberately no ignore file —
-# see the .gitleaksignore argument in scripts/check_docs.py.
+# see the .gitleaksignore argument in scripts/check_docs.py. The one thing
+# cve_report.py drops is a shape of version, not a list of IDs: a Go main
+# module's `+dirty` VCS stamp, which trivy cannot order against a release
+# (#985). Its docstring says why that cannot grow into one.
 #
 # An image that fails to scan is recorded and the loop carries on, and the
 # script exits non-zero at the end. A skipped image must not read as a clean
