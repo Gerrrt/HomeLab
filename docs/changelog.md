@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` is enrolled in `odin`'s Wazuh and Velociraptor**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
+  [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11). It is the first Linux guest in either.
+  - **Wazuh.** Agent 4.14.8, enrolled as agent 009, Active. The password went
+    in on standard input, and its hash matched `odin`'s.
+  - **Velociraptor.** Client 0.77.3, from a `.deb` the server built. It is
+    connected, and the server counts 7 client connections.
+  - **The lab.** `WazuhAgentsNotConnected` now expects `garuda` and is
+    quiet.
+
 - **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
   [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
