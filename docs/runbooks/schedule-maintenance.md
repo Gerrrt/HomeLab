@@ -601,6 +601,30 @@ an advisory affects the pin or an ADR-0089 trigger has fired. That is what
 starts the 30-day clock for an advisory nobody fixes. Run it locally with
 `python3 scripts/wiki_watch.py`.
 
+Some of the scan's issues stay open because there is nothing to bump to. The
+pinned digest is already upstream's newest, and the fix waits on a rebuild
+only upstream can make. Each one of these is triaged on its issue, and the
+issue closes itself on the first clean scan. It is never closed by hand.
+There is no ignore list, as for the secret scan in
+[`security.md`](../security.md).
+
+- **`postgres`, [#995](https://github.com/Gerrrt/HomeLab/issues/995).** Every
+  finding in both `17.11` and `18.6` is Go's `stdlib` 1.24.6 in
+  `/usr/local/bin/gosu`, measured with the pinned trivy on 2026-10-10.
+  Postgres and the Debian packages scan clean. On that date `17` and `18`
+  resolved to the pinned digests. gosu is the entrypoint's
+  root-to-`postgres` step, and it runs only when the container starts as
+  uid 0. All four Postgres services (two in `sensitive`, one each in
+  `bloodhound` and `wiki`) start as `999:999` with `cap_drop: [ALL]`, so it
+  is never executed. If one of them ever drops `user:`, that stops being
+  true.
+- **`ghcr.io/requarks/wiki`,
+  [#984](https://github.com/Gerrrt/HomeLab/issues/984).** The findings are in
+  the npm packages that Wiki.js 2.x bundles. Why they are not a reason to
+  leave 2.x is
+  [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
+  second note.
+
 ---
 
 ## Install
