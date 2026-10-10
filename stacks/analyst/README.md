@@ -2,7 +2,7 @@
 
 [![host: garuda](https://img.shields.io/badge/host-garuda-30363d?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
 [![VLAN 30: ImaginationLAN](https://img.shields.io/badge/VLAN%2030-ImaginationLAN-2ea043?style=plastic)](../../docs/network.md#imaginationlan--vlan-30--lab)
-![status: not built](https://img.shields.io/badge/status-not%20built-d29922?style=plastic)
+![status: live](https://img.shields.io/badge/status-live-2ea043?style=plastic)
 [![Alloy](https://img.shields.io/badge/Alloy-F46800?style=plastic&logo=grafana&logoColor=white)](https://grafana.com/oss/alloy-opentelemetry-collector/)
 [![Docker Compose](https://img.shields.io/badge/Docker%20Compose-2496ED?style=plastic&logo=docker&logoColor=white)](https://docs.docker.com/compose/)
 

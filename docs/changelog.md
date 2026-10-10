@@ -28,8 +28,31 @@ docstring gives: it is a record, not a claim about now.
   - **Why.** All 25 rows in both pins were Go stdlib in gosu. Upstream won't
     release for scanner-only CVEs, and gosu never runs here: every Postgres
     service starts as `999:999`.
+  - **Guarded.** `check_compose_health.py` fails any `postgres:*` service
+    that doesn't start as `999:999`, because the skip is honest only while
+    gosu can't run.
   - **Checked.** The pinned trivy on `postgres:18.6`: 25 findings without the
     skip, 0 with it. The next scan closes #995.
+
+- **`garuda` reports to the lab, is backed up, and passed §9 apart from its
+  desktop check, which was not run**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11).
+  - **Its ingest token** was set on `alexander` and `garuda` from stdin, so
+    it never appeared as an argument
+    ([#1144](https://github.com/Gerrrt/HomeLab/pull/1144)).
+  - **`stacks/analyst` is up.**
+  - **patch-state** reports 0 pending.
+  - **Backup:** `162` is in `golem-nightly`, and a test backup took 9m03s.
+  - **§9:**
+    - the estate sees it running and not `on-demand`;
+    - the lab Prometheus and Loki both have it;
+    - only Alloy and its proxy run;
+    - `core doctor` exits 0;
+    - a reboot brings all of this back unaided.
+  - **What is left:** the desktop check from Hicks and the console password
+    are Garrett's. Then phases 2 and 3.
 
 - **`garuda` was built, as far as its desktop and dotfiles**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
