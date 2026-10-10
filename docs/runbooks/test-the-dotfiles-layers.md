@@ -399,7 +399,9 @@ Then, per layer:
   - The layer pins PSReadLine 2.3.6, which is older than pwsh 7.6's in-box
     2.4.5, and the profile loads both.
   - To work around it, close Windows Terminal, then delete
-    `$env:LOCALAPPDATA\PowerShell\Modules\PSReadLine\2.3.6` as SYSTEM.
+    `C:\Users\tester\AppData\Local\PowerShell\Modules\PSReadLine\2.3.6`
+    as SYSTEM. Spell the path out: as SYSTEM, `$env:LOCALAPPDATA` is SYSTEM's
+    own profile, not `tester`'s.
   - Stop the psmux servers and their `pwsh` panes first. They outlive the
     terminal and hold the DLL, so the delete is refused until they are gone.
   - Then open a new terminal.
