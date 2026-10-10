@@ -1349,9 +1349,11 @@ services:
       # derivation in capture-screenshots.sh exists to avoid, reintroduced one
       # layer down. The default 3000 cut `homelab-stack`'s whole Alloy row off a
       # capture that reported success. It was 5000 until 2026-10-08, when
-      # homelab-stack reached 4886px. 7000 is measured: this pinned digest,
-      # hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at about
-      # 22 MiB RSS. It must equal MAX_HEIGHT in capture-screenshots.sh, and
+      # homelab-stack reached 4886px. 7000 is measured, on v5.12.5: that
+      # digest, hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at
+      # about 22 MiB RSS. v5.12.6 (#987's security rebuild, a Chromium patch
+      # bump) has not been re-measured; the next `make screenshots` run is its
+      # proof. It must equal MAX_HEIGHT in capture-screenshots.sh, and
       # `capture-screenshots.sh --check` (in CI) fails if it does not, or if a
       # captured dashboard has outgrown it.
       BROWSER_MAX_HEIGHT: 7000
@@ -1382,14 +1384,16 @@ services:
     # chrome-sandbox helper is never used either way, and its namespaced mode
     # (which would want SYS_ADMIN) is off too.
     #
-    # Measured 2026-10-07 on alexander, with the pinned digest on the lab's
+    # Measured 2026-10-07 on alexander, with v5.12.5's digest on the lab's
     # bridge rendering the lab Grafana: a control run and this hardened run
     # returned byte-identical outputs (a 559,214-byte PNG and a 53,256-byte
     # PDF), and the hardened one rendered 1600x4600 three times over in
     # 1 GiB of /dev/shm, with no error in its log. The end-to-end proof followed
     # on 2026-10-08: `make screenshots` on this host, with the renderer
     # inspected as capdrop=[ALL] and no-new-privileges, rendered all five
-    # dashboards, the tallest (homelab-stack) at 1600x4886 (#954).
+    # dashboards, the tallest (homelab-stack) at 1600x4886 (#954). v5.12.6
+    # keeps the same user (65532), entrypoint and port, read from its image
+    # config, but these runs have not been repeated on it.
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
