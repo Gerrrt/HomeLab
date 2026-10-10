@@ -195,7 +195,7 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
+    labels: ["dependencies", "analyst"]
 
   # ansible/ (ADR-0077): ansible-core in requirements.txt, ansible-lint in
   # requirements-lint.txt, both exact. The collections in requirements.yml are
