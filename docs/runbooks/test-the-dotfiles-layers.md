@@ -261,6 +261,36 @@ which is most of why the 2026-10-08 console felt slow. The template build
 already installed virtio-win's `viogpudo` driver, so the clone comes up on
 the Red Hat VirtIO GPU DOD controller with no further step.
 
+**Then turn on Remote Desktop for the Hicks workstations, still before the
+shutdown** (#1108). Every noVNC console on `Saruman` is slow, and RDP is
+both faster and a real interactive sign-in, so winget, MSIX and scoop
+junctions all work over it, as they do not over SSH. This guest is the one
+lab Windows machine with RDP. It is an exception to ADR-0077's key-only SSH,
+recorded in ADR-0090's NOTE. As SYSTEM through the guest agent, as above:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0 -Type DWord
+# Network Level Authentication: no sign-in screen before the credential.
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' UserAuthentication 1 -Type DWord
+# Windows' own Remote Desktop rules admit any address; keep them off.
+Get-NetFirewallRule -Group '@FirewallAPI.dll,-28752' | Disable-NetFirewallRule
+# The Hicks workstations only: laptop-02 (wired and Wi-Fi) and desktop-02.
+$from = '10.0.50.80', '10.0.50.90', '10.0.50.102'
+New-NetFirewallRule -Name 'dotfiles-rdp-tcp' -DisplayName 'dotfiles: RDP from Hicks workstations (TCP)' -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
+New-NetFirewallRule -Name 'dotfiles-rdp-udp' -DisplayName 'dotfiles: RDP from Hicks workstations (UDP)' -Direction Inbound -Protocol UDP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
+Add-LocalGroupMember -Group 'Remote Desktop Users' -Member tester
+Restart-Service TermService -Force
+```
+
+pfSense already passes Hicks to the lab VLAN over TCP (ADR-0031), so nothing
+changes there. `10.0.50.102` is a DHCP lease, not a reservation. If RDP from
+that machine stops working, its address has moved: reserve it, or change
+`$from` and the bake. Check from `Saruman` that 3389 is refused
+(`timeout 5 bash -c '</dev/tcp/10.0.30.98/3389'` fails). Then sign in from a
+workstation, set `tester`'s password to a random one nobody keeps, shut down
+and take `clean`.
+
 ## 4. A run
 
 Every run starts from `clean`:
@@ -345,9 +375,14 @@ Then, per layer:
     from a network logon ("untrusted mount point"). `install.ps1` stopped
     at its second package with nothing linked.
 
-  None of these is a dotfiles bug. Run it as the README says, at the
-  console in the Proxmox UI (*dot-windows → Console*), logged in as
-  `tester`. Its password is not known, so set one first over SSH as
+  None of these is a dotfiles bug. Run it as the README says, in an
+  interactive session as `tester`:
+  - **Remote Desktop** from a Hicks workstation (§3) to `10.0.30.98` as
+    `.\tester`: the Windows App on the Mac, or `mstsc`.
+  - **The Proxmox console** (*dot-windows → Console*) works too, but it is
+    slower.
+
+  `tester`'s password is not known, so set one first over SSH as
   `Administrator`:
 
   ```powershell
@@ -355,7 +390,7 @@ Then, per layer:
   ```
 
   The password is a run-time change, and the next rollback discards it.
-  Then, at the console, in PowerShell 7 (`pwsh`). `clean` already has Git,
+  Then, in that session, in PowerShell 7 (`pwsh`). `clean` already has Git,
   PowerShell 7, the configuration's other packages, Developer Mode and
   `winget configure` switched on (§3):
 
@@ -411,7 +446,7 @@ Then, per layer:
   [#287](https://github.com/dotgibson/dotfiles-Windows/issues/287), and it is
   harmless.
 
-  **Read the doctor at the console, not over SSH.** Over SSH, scoop's
+  **Read the doctor in that session, not over SSH.** Over SSH, scoop's
   `current` junctions are untrusted, so `mise` and `starship` look missing
   and `10-tools.ps1` fails on `mise.exe`.
 
@@ -423,8 +458,7 @@ Then, per layer:
   the layer's.
 
   **Every noVNC console on `Saruman` is slow, not only this guest's**
-  (2026-10-09). Judge the guest by the doctor and by timings, not by how the
-  console feels.
+  (2026-10-09). That is why §3 gives this guest RDP.
 
 To test a release rather than `main`, clone with `--branch <tag>`.
 
@@ -494,3 +528,4 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | `dot-windows` slowness (#1108) | Ruled out: Saruman (no CPU, IO or memory pressure), the disk (under 2 ms), memory (6.6 of 8 GiB free), VBS/HVCI (off) and Defender (no scans). Found: the Basic Display Adapter, because Proxmox's default VGA has no Windows driver, and a first sign-in that ran the CPU at 30–100% for 3½–7½ minutes (OneDriveSetup, MsMpEng, SearchIndexer). Fixed by `vga = "virtio"` (the guest came up on the Red Hat VirtIO GPU DOD controller at 1280×800, with the driver already in the template) and by one `tester` sign-in baked into `clean`. A sign-in from the new `clean` settles in about 2 minutes. How the console feels is still to be judged at the console |
 | 2026-10-09 | First run, Windows (dotfiles-Windows 229e09d), at the console as `tester`, from the new `clean` | Signed in at the sign-in screen with no OOBE detour. The `allowPrerelease` workaround (#285) was applied, then `winget configure` and `install.ps1`. Only **GlazeWM** asked for UAC, from the optional desktop group; the baked prerequisites asked nothing. The first `pwsh` failed to load `10-tools.ps1`: two PSReadLines were loaded, the layer's 2.3.6 pin and pwsh 7.6.6's in-box 2.4.5 ([dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)). After stopping psmux and deleting 2.3.6, the next terminal printed a one-off `mise-shims.ps1` cache race ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)), and a new pane was clean. **`dotfiles-doctor` at the console: 28 ok, 1 warn (git identity placeholder), 0 fail.** Over SSH the same doctor shows 25/3/1 because of the network-logon junction limit. WSL: "virtualization is not enabled". The console was slow, but so is noVNC to every guest on `Saruman` |
 | 2026-10-09 | GlazeWM added to the §3 bake | Rolled back to `clean`, then installed as SYSTEM: VC++ 14.51.36247 and GlazeWM 3.10.1, each matching winget's manifest SHA-256, and both exited 0. The GlazeWM bundle also installed Zebar 3.3.1. winget lists all three. `clean` retaken stopped |
+| 2026-10-09 | RDP added to the §3 bake | Applied from `clean` as SYSTEM: `fDenyTSConnections=0` and NLA on. Windows' own Remote Desktop rules are disabled, and one rule admits 3389 TCP and UDP from `10.0.50.80`, `.90` and `.102` only. `tester` is in Remote Desktop Users. Port 3389 from `Saruman` (`10.0.30.110`) is refused. From the Mac, RDP as `.\tester` reached the desktop (logon type 10, from `10.0.50.102`). Password reset to random, then `clean` retaken stopped |

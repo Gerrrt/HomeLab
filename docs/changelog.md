@@ -39,6 +39,19 @@ docstring gives: it is a record, not a claim about now.
   - The upstream comment no longer says Unbound keeps Cloudflare and Google
     beside AdGuard; ADR-0055 removed them.
 
+- **`dot-windows` takes Remote Desktop from the Hicks workstations**
+  ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108), ADR-0090 NOTE).
+  - **Why.** noVNC is slow to every guest on `Saruman`. RDP is faster, and
+    it is an interactive sign-in the layer can be run over.
+  - **Who it admits.** Network Level Authentication is required, and the
+    guest's firewall admits 3389 from `10.0.50.80`, `.90` and `.102` only.
+    `Saruman` itself is refused.
+  - **Verified.** RDP from the Mac reached the desktop.
+  - **The exception.** It is the one lab Windows guest with anything but
+    key-only SSH.
+  - **Also in the bake.** GlazeWM, the run's one UAC prompt, so a run should
+    now ask for nothing.
+
 - **The Windows dotfiles layer passed its first complete run on
   `dot-windows`** ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)).
   - **Result.** `dotfiles-doctor` at the console reads 28 ok, 1 warn (a
