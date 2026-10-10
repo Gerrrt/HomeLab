@@ -27,6 +27,16 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
+    # Grafana below 13.2.4 is skipped (#1122). By the pinned trivy, 13.2.3
+    # carries one more fixable HIGH/CRITICAL than the 13.0.10 pin: it adds
+    # two grpc findings in the bundled Prometheus and Loki datasource plugins,
+    # which we use. 13.1.7 clears only one of the seven findings. The 13.x patch
+    # releases already being prepared carry the Go and x/net fixes, so wait
+    # for 13.2.4 and scan it before merging. Drop this entry once the pin is
+    # at 13.2.4 or later.
+    ignore:
+      - dependency-name: grafana/grafana
+        versions: ["< 13.2.4"]
 
   # The lab stack. A second entry rather than a second directory on the one
   # above, because Dependabot takes a single directory per entry — and without
@@ -49,6 +59,11 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
+    # Skips Grafana below 13.2.4 for the reason given on the observability
+    # entry (#1122).
+    ignore:
+      - dependency-name: grafana/grafana
+        versions: ["< 13.2.4"]
 
   # The sensitive tier. Its images share nothing with the other stacks, so
   # no groups; each bump is its own PR, and each merge is a deploy: trinity's
