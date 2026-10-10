@@ -623,6 +623,68 @@ def socket_mount_problems(services: dict) -> list[str]:
     return problems
 
 
+# Where every socket proxy reads its HAProxy config from, and how it is told to
+# (Tecnativa/docker-socket-proxy#182). The image's own template allows the
+# whole /containers prefix whenever CONTAINERS=1, which includes the GET
+# endpoints that copy files out of a container. The repository's copy allows
+# three paths instead. That copy only applies if haproxy is pointed at it, so a
+# proxy that drops either line below runs the image's template again, still
+# looks healthy, and still serves every request Alloy makes.
+SOCKET_PROXY_CONFIG_DIR = REPO / "stacks/observability/docker-socket-proxy"
+SOCKET_PROXY_CONFIG_TARGET = "/usr/local/etc/socket-proxy"
+SOCKET_PROXY_COMMAND = ["haproxy", "-f", f"{SOCKET_PROXY_CONFIG_TARGET}/haproxy.cfg"]
+
+
+def socket_proxy_config_problems(compose_path: pathlib.Path, services: dict) -> list[str]:
+    """A socket proxy that is not running the repository's HAProxy config.
+
+    Both halves are needed. The mount alone changes nothing, because the image
+    starts haproxy on the /tmp copy of its own template. The command alone
+    fails at start, which at least is loud. The mount is a directory, not the
+    file, so a `git checkout` that replaces the file is seen at once instead of
+    leaving the container on the old inode (check_mounted_config.py's #355).
+    Read-only, because nothing in the proxy should be able to rewrite its own
+    rules.
+
+    Keyed on the image, like socket_mount_problems, so a renamed proxy is still
+    checked.
+    """
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        if not str(svc.get("image", "")).startswith(SOCKET_PROXY_IMAGE):
+            continue
+        at_target = False
+        for volume in svc.get("volumes") or []:
+            if not isinstance(volume, str):
+                continue
+            parts = volume.split(":")
+            if len(parts) < 2 or parts[1].rstrip("/") != SOCKET_PROXY_CONFIG_TARGET:
+                continue
+            at_target = True
+            source = (compose_path.resolve().parent / parts[0]).resolve()
+            if source != SOCKET_PROXY_CONFIG_DIR.resolve():
+                problems.append(
+                    f"{name} mounts {parts[0]} at {SOCKET_PROXY_CONFIG_TARGET}, but the "
+                    f"socket proxies' config is {SOCKET_PROXY_CONFIG_DIR.relative_to(REPO)}"
+                )
+            elif "ro" not in (parts[2].split(",") if len(parts) > 2 else []):
+                problems.append(f"{name} mounts its HAProxy config read-write; add :ro")
+        if not at_target:
+            problems.append(
+                f"{name} does not mount {SOCKET_PROXY_CONFIG_DIR.relative_to(REPO)} at "
+                f"{SOCKET_PROXY_CONFIG_TARGET}, so it runs the image's own template, "
+                f"where CONTAINERS=1 also allows /containers/{{id}}/archive and /export "
+                f"(Tecnativa/docker-socket-proxy#182)"
+            )
+        if svc.get("command") != SOCKET_PROXY_COMMAND:
+            problems.append(
+                f"{name} has command {svc.get('command')!r}, not {SOCKET_PROXY_COMMAND!r}. "
+                f"Without it haproxy reads the image's template, whatever is mounted"
+            )
+    return problems
+
+
 # Every long-running service carries `no-new-privileges` (#845). The estate
 # put it on every service in #186, the sensitive tier on every one of its own,
 # and then three stacks on VLAN 30 — the segment that exists to hold attackers —
@@ -1091,6 +1153,49 @@ def self_test() -> int:
         len(socket_mount_problems({"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/run:size=64k"]}})),
     )
 
+    # 22a-22e. The proxy runs the repository's HAProxy config, not the image's
+    #          (Tecnativa/docker-socket-proxy#182). Both the directory mount,
+    #          read-only, and the command are required.
+    here = REPO / "stacks/lab/compose.yaml"
+    good = {
+        "image": proxy,
+        "volumes": [
+            "/var/run/docker.sock:/var/run/docker.sock:ro",
+            f"../observability/docker-socket-proxy:{SOCKET_PROXY_CONFIG_TARGET}:ro",
+        ],
+        "command": list(SOCKET_PROXY_COMMAND),
+    }
+    check("a proxy on the repository's config passes", [], socket_proxy_config_problems(here, {"p": good}))
+    check(
+        "a proxy without the mount runs the image's template",
+        1,
+        len(socket_proxy_config_problems(here, {"p": {**good, "volumes": good["volumes"][:1]}})),
+    )
+    check(
+        "a proxy without the command ignores the mount",
+        1,
+        len(socket_proxy_config_problems(here, {"p": {k: v for k, v in good.items() if k != "command"}})),
+    )
+    check(
+        "a read-write config mount fails",
+        1,
+        len(
+            socket_proxy_config_problems(
+                here,
+                {"p": {**good, "volumes": [good["volumes"][0], good["volumes"][1].removesuffix(":ro")]}},
+            )
+        ),
+    )
+    check(
+        "the config from anywhere else fails",
+        1,
+        len(
+            socket_proxy_config_problems(
+                here, {"p": {**good, "volumes": [good["volumes"][0], f"./proxy:{SOCKET_PROXY_CONFIG_TARGET}:ro"]}}
+            )
+        ),
+    )
+
     # 23-28. The no-new-privileges guard (#845). Keyed on the restart policy,
     #        so a profile is no way past it and a one-shot tool is not caught.
     nnp = ["no-new-privileges:true"]
@@ -1220,6 +1325,7 @@ def main() -> int:
 
     problems += bind_source_problems(path, services)
     problems += socket_mount_problems(services)
+    problems += socket_proxy_config_problems(path, services)
     problems += privilege_problems(services, path.resolve().parent.name)
     problems += postgres_user_problems(services)
 
