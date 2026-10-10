@@ -19,7 +19,8 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
-- **`garuda` reports to the lab, is backed up, and passed §9**
+- **`garuda` reports to the lab, is backed up, and passed §9 apart from its
+  desktop check, which was not run**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
   [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
   §11).
