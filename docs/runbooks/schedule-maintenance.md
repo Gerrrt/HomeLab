@@ -608,22 +608,24 @@ issue closes itself on the first clean scan. It is never closed by hand.
 There is no ignore list, as for the secret scan in
 [`security.md`](../security.md).
 
-- **`postgres`, [#995](https://github.com/Gerrrt/HomeLab/issues/995).** Every
-  finding in both `17.11` and `18.6` is Go's `stdlib` 1.24.6 in
-  `/usr/local/bin/gosu`, measured with the pinned trivy on 2026-10-10.
-  Postgres and the Debian packages scan clean. On that date `17` and `18`
-  resolved to the pinned digests. gosu is the entrypoint's
-  root-to-`postgres` step, and it runs only when the container starts as
-  uid 0. All four Postgres services (two in `sensitive`, one each in
-  `bloodhound` and `wiki`) start as `999:999` with `cap_drop: [ALL]`, so it
-  is never executed. If one of them ever drops `user:`, that stops being
-  true.
 - **`ghcr.io/requarks/wiki`,
   [#984](https://github.com/Gerrrt/HomeLab/issues/984).** The findings are in
   the npm packages that Wiki.js 2.x bundles. Why they are not a reason to
   leave 2.x is
   [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
   second note.
+
+The scan skips one file, and only in one image: `/usr/local/bin/gosu` in
+`postgres:*` ([#995](https://github.com/Gerrrt/HomeLab/issues/995)). On
+2026-10-10 every finding in both `17.11` and `18.6` was Go's `stdlib` 1.24.6
+in that binary, and Postgres and the Debian packages scanned clean. No bump
+will clear it, because gosu's maintainers don't release for scanner-only
+CVEs. gosu is the entrypoint's root-to-`postgres` step, and it runs only when
+the container starts as uid 0. All four Postgres services start as `999:999`,
+so here it never runs. `check_compose_health.py` fails any `postgres:*`
+service that doesn't, because that would make the skip hide something
+reachable. The reason is written inline in `scripts/scan-images.sh`, and a
+second exception needs a rule both can cite, not another case there.
 
 ---
 

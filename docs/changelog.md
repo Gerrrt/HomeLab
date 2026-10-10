@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **The CVE scan skips one file: gosu in `postgres`**
+  ([#995](https://github.com/Gerrrt/HomeLab/issues/995)). This reverses the
+  same day's decision on #995 to keep the issue open with no ignore entry.
+  - **What it skips.** `scripts/scan-images.sh` passes
+    `--skip-files usr/local/bin/gosu` for `postgres:*` references only. gosu in
+    any other image is still reported.
+  - **Why.** All 25 rows in both pins were Go stdlib in gosu. Upstream won't
+    release for scanner-only CVEs, and gosu never runs here: every Postgres
+    service starts as `999:999`.
+  - **Guarded.** `check_compose_health.py` fails any `postgres:*` service
+    that doesn't start as `999:999`, because the skip is honest only while
+    gosu can't run.
+  - **Checked.** The pinned trivy on `postgres:18.6`: 25 findings without the
+    skip, 0 with it. The next scan closes #995.
+
 - **`garuda` reports to the lab, is backed up, and passed §9 apart from its
   desktop check, which was not run**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
