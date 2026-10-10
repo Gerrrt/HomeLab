@@ -414,6 +414,13 @@ jobs:
       - name: Check the syslog sender allowlist
         run: ./scripts/check_syslog_senders.sh
 
+      # The Docker socket proxies' HAProxy config: Alloy's three /containers
+      # paths answer, and archive, export, top and the rest are refused by the
+      # proxy itself (Tecnativa/docker-socket-proxy#182). It also fails when an
+      # image bump changes upstream's template under the committed copy.
+      - name: Check the socket proxy allowlist
+        run: ./scripts/check_socket_proxy.sh
+
       # Same shape for the reverse proxy's config: `caddy validate` and
       # `caddy fmt --diff` in the pinned image, per stack, so a Caddyfile that
       # would fail at container start fails here instead (#129). Stacks with

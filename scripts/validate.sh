@@ -450,6 +450,19 @@ SKIPPED=$((SKIPPED + $(wc -l < "${SYSLOG_SKIPS}")))
 rm -f "${SYSLOG_SKIPS}"
 
 # ---------------------------------------------------------------------------
+head_ "Docker socket proxy"
+# ---------------------------------------------------------------------------
+# CONTAINERS=1 must allow what Alloy reads and not archive, export or top,
+# which copy files out of any container as root (Tecnativa/docker-socket-proxy
+# #182). Boots the pinned proxy on its committed config. Same skips contract.
+PROXY_SKIPS="$(mktemp)"
+if ! ./scripts/check_socket_proxy.sh --skips-file "${PROXY_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${PROXY_SKIPS}")))
+rm -f "${PROXY_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Caddyfiles"
 # ---------------------------------------------------------------------------
 # A stack that fronts its services with Caddy carries a Caddyfile, and a

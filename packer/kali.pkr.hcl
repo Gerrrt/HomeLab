@@ -213,6 +213,32 @@ build {
       "apt-get update",
       "DEBIAN_FRONTEND=noninteractive apt-get -y install cloud-init qemu-guest-agent",
       "systemctl enable qemu-guest-agent",
+      # #1127: a clone's first boot can come up with no cloud-init at all,
+      # so no user, no key and the template's hostname. cloud-init is started
+      # by its own generator, which links cloud-init.target into
+      # multi-user.target at boot, and on garuda's first boot that generator
+      # was cut off after ds-identify had found the NoCloud drive. Measured
+      # on 2026-10-10, before this change: cloud-init did not run on 2 of 7
+      # first boots of 910. On garuda's, sslh's generator (sslh comes with
+      # kali-linux-headless) aborted beside it, with no /etc/sslh, and on
+      # its second boot did not. What cuts the generator off is not proved,
+      # so the fix is the two changes together, and they were proved together
+      # (12 of 12 first boots with cloud-init after the rebuild); neither has
+      # been shown to close it alone:
+      #   - link cloud-init.target into multi-user.target here. This is the
+      #     part that makes cloud-init start whatever cuts the generator off,
+      #     because cloud-init no longer depends on the generator finishing.
+      #     ds-identify then cannot switch cloud-init off, which nothing here
+      #     needs: every clone gets a NoCloud drive (tofu/modules/guest,
+      #     packer-smoke.sh);
+      #   - mask sslh's generator, as systemd allows: a /dev/null link of the
+      #     same name in /etc. It removes the abort seen beside the cut, which
+      #     helps only if that abort is the cause; it is kept because nothing
+      #     here uses sslh. The package stays, so the metapackages keep their
+      #     dependency and nothing is autoremoved.
+      "mkdir -p /etc/systemd/system-generators /etc/systemd/system/multi-user.target.wants",
+      "ln -sf /dev/null /etc/systemd/system-generators/systemd-sslh-generator",
+      "ln -sf /usr/lib/systemd/system/cloud-init.target /etc/systemd/system/multi-user.target.wants/cloud-init.target",
       "apt-get clean",
       "rm -f /etc/ssh/ssh_host_*",
       "cloud-init clean --logs --machine-id",

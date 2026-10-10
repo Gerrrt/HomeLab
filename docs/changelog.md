@@ -31,6 +31,23 @@ docstring gives: it is a record, not a claim about now.
   gitleaks image's CVEs
   ([#1013](https://github.com/Gerrrt/HomeLab/issues/1013)).
 
+- **Kali clones come up with cloud-init again**
+  ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **The fault.** On a clone's first boot, cloud-init's generator could be
+    cut off before it enabled `cloud-init.target`, so the guest got no user,
+    no key and kept the template's hostname. It happened on 2 of 7 first
+    boots of template 910: `garuda`, and one of four reproduction clones.
+    On `garuda`'s first boot sslh's generator (from `kali-linux-headless`)
+    aborted beside it, and did not on its second boot.
+  - **The fix.** `packer/kali.pkr.hcl` links `cloud-init.target` into
+    `multi-user.target`, so cloud-init no longer depends on its generator. It
+    also masks sslh's generator, keeping the package.
+  - **Proved.** 910 was rebuilt with the fix, and 12 of 12 first boots of
+    disposable clones ran cloud-init. On the last 4, checked properly, sslh's
+    generator no longer aborts. An earlier version of the check matched its
+    own command in the journal, so it counted an abort on every boot; the
+    baseline's sslh figures were void, its cloud-init ones were not.
+
 - **The domain's six had fallen out of `golem-nightly`, and were put back.**
   - **What was found.** The job selected only `odin` (160). Each tofu destroy
     of a domain guest had used the provider's default purge, which removes
@@ -59,6 +76,30 @@ docstring gives: it is a record, not a claim about now.
     gosu can't run.
   - **Checked.** The pinned trivy on `postgres:18.6`: 25 findings without the
     skip, 0 with it. The next scan closes #995.
+
+- **The Docker socket proxies stop serving `archive`, `export`, `top` and
+  `changes`**
+  ([Tecnativa/docker-socket-proxy#182](https://github.com/Tecnativa/docker-socket-proxy/issues/182)).
+  - **What was open:** with `CONTAINERS=1`, the image's template allows the
+    whole `/containers` prefix. On `prometheus` all four GETs answered 200
+    through the estate's proxy, served by the daemon as root. A HEAD on
+    `archive` was enough to show that: it returns a stat header and no file.
+  - **What the clients use,** from the proxy's request log since its 10-07
+    start: `/containers/json`, `/containers/{id}/json`,
+    `/containers/{id}/logs`, `/networks`, `/version`, `/info`, `/_ping` and
+    `/events`. Nothing else.
+  - **The fix:** the six compose proxies and `deploy-agent.sh`'s
+    `alloy-socket-proxy` run
+    [`stacks/observability/docker-socket-proxy/haproxy.cfg`](../stacks/observability/docker-socket-proxy/haproxy.cfg).
+    It is upstream's v0.5.0 template with the prefix rule replaced by those
+    three paths. The image pin is unchanged.
+  - **The proof:** `check_socket_proxy.sh` runs it in CI. On upstream's
+    template the same check fails: every refused path reaches the daemon,
+    `export` streams 43 MB, and `%2Farchive` and `json/../archive` get there
+    too, because the daemon decodes and redirects.
+  - **Deploying it:** `make up` on each Docker host, and `deploy-agent.sh` for
+    `oracle` and `trinity`. `reload-config.sh` now restarts the proxy, so a
+    later change to `haproxy.cfg` alone also lands.
 
 - **`garuda` reports to the lab, is backed up, and passed §9 apart from its
   desktop check, which was not run**
