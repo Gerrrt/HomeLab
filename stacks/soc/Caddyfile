@@ -70,6 +70,9 @@
 	@hicks remote_ip 10.0.50.0/24
 	handle @hicks {
 		reverse_proxy https://wazuh.dashboard:5601 {
+			# The Host the browser sent, which is what the dashboard saw when it
+			# was published itself. An HTTPS upstream otherwise gets its own name.
+			header_up Host {hostport}
 			transport http {
 				tls_trust_pool file /etc/caddy/tls/ca.pem
 				tls_server_name wazuh.dashboard
@@ -87,6 +90,10 @@
 	@hicks remote_ip 10.0.50.0/24
 	handle @hicks {
 		reverse_proxy https://velociraptor:8889 {
+			# As above, and likelier to matter here: Go servers commonly refuse a
+			# request whose Origin and Host disagree, and the browser's Origin is
+			# 10.0.30.60:8889, the public_url init.vql gives the GUI.
+			header_up Host {hostport}
 			transport http {
 				tls_insecure_skip_verify
 			}

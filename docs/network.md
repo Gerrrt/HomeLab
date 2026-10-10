@@ -565,7 +565,11 @@ Where things get broken on purpose.
   covers it — and ADR-0029's six machines enrol to it as agents by GPO, the
   step that closes [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
   [#267](https://github.com/Gerrrt/HomeLab/issues/267). Every path it needs is
-  intra-segment, so it adds no firewall rule.
+  intra-segment, so it adds no firewall rule. The same fact cuts the other
+  way: no firewall stands between it and the rest of the lab either. So its
+  two web UIs, the Wazuh dashboard on `443` and Velociraptor on `8889`, are
+  published by its Caddy, which answers Hicks only
+  ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139)).
 - A third guest, `phoenix`, is at `10.0.30.70` — the next decade — as
   the deployment host: the Proxmox API token, the SSH key and the checkout
   that the Packer, OpenTofu and Ansible work after
