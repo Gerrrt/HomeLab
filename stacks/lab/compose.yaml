@@ -292,7 +292,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.0.10@sha256:c8f326efdb7be9be52047edaab34cf8dadb5152c1244af102eb0a517a7797068
+    image: grafana/grafana:13.2.3@sha256:b28bae15e219c998fb0e0424ed724930cc61b1f61fb404d47c862f9a23f9e572
     container_name: lab-grafana
     # The estate's block, as on prometheus above (#845), including the one
     # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
