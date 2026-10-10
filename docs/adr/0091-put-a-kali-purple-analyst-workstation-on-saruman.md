@@ -2,6 +2,11 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> 2026-10-10: decision 6's first deferred phase, enrolling `garuda` in Wazuh
+> and Velociraptor, is
+> [ADR-0092](0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md).
+
 ## Context
 
 The lab has a SOC, but no seat for an analyst to sit at. Wazuh and

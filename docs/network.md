@@ -515,7 +515,10 @@ Where things get broken on purpose.
   always on and not tagged `on-demand`. It is not a lab-domain member, so it
   resolves at `10.0.30.1`. It needs no rule of its own: Hicks reaches its
   console through `Saruman`, its Alloy pushes to `alexander` within the
-  segment, and it reaches the internet for packages. #921's OpenVAS phase
+  segment, its Wazuh agent and Velociraptor client report to `odin` within
+  the segment
+  ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)),
+  and it reaches the internet for packages. #921's OpenVAS phase
   will scan VLAN 30 from here, and only VLAN 30. A scan that reaches another
   segment is a `LabSegmentReachedInternalNetwork`, as it should be.
 - `10.0.30.91`–`.98`, VMIDs 191–198, are the dotfiles test VMs of

@@ -257,10 +257,76 @@ tests:
             exp_annotations:
               summary: "ramuh is running without a connected Wazuh agent"
               description: >-
-                windows_exporter answers on a domain guest that the manager has no
-                Active agent for, so the guest is invisible to the SOC. On odin:
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
                 `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
-                gives each agent's status; on the guest, `Get-Service WazuhSvc`.
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: garuda up, its agent not Active (ADR-0092) --
+  # garuda has no windows_exporter; its Alloy's `up` stands in, and the join
+  # by name still holds. bahamut's agent is Active, so only garuda fires.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="garuda-alloy",instance="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="garuda"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              job: garuda-alloy
+              instance: garuda
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "garuda is running without a connected Wazuh agent"
+              description: >-
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
+                `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: garuda up and Active is quiet ---------------
+  - interval: 5m
+    input_series:
+      - series: 'up{job="garuda-alloy",instance="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: another lab host's Alloy is not expected ----
+  # eden reports through Alloy and enrols in nothing; it must not fire.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="eden-alloy",instance="eden"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
 
   # --- WazuhAgentsNotConnected: another Active agent does not hide one ------
   # The case the count-based rule could not see: two guests up and two Active
@@ -293,10 +359,12 @@ tests:
             exp_annotations:
               summary: "leviathan is running without a connected Wazuh agent"
               description: >-
-                windows_exporter answers on a domain guest that the manager has no
-                Active agent for, so the guest is invisible to the SOC. On odin:
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
                 `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
-                gives each agent's status; on the guest, `Get-Service WazuhSvc`.
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
 
   # --- WazuhAgentsNotConnected: guests off between sessions -----------------
   # ADR-0079's on-demand guests: every one down, every agent Disconnected.
@@ -362,10 +430,12 @@ tests:
             exp_annotations:
               summary: "1 lab guest(s) are running without a connected Wazuh agent"
               description: >-
-                windows_exporter answers on a domain guest that the manager has no
-                Active agent for, so the guest is invisible to the SOC. On odin:
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
                 `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
-                gives each agent's status; on the guest, `Get-Service WazuhSvc`.
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
 
   # --- WazuhAgentsNotConnected: no per-agent series, all guests reporting ---
   - interval: 5m

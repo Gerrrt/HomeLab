@@ -205,7 +205,8 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   It ships in three phases:
   1. Template 910, the guest, its tools and dotfiles
      ([`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
-  2. Enrolling it in Wazuh and Velociraptor, which no Linux guest is yet.
+  2. Enrolling it in Wazuh and Velociraptor, the first Linux guest in either
+     ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
   3. OpenVAS, with VLAN 30 as its written scope and a #921 silence for each
      scan.
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),

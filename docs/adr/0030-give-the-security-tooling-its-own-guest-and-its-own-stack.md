@@ -254,14 +254,14 @@ port only where something off the host uses it.
 
 | Port | Off-host consumer | Published |
 | --- | --- | --- |
-| Velociraptor `8000` — client frontend | The six domain endpoints | Yes |
+| Velociraptor `8000` — client frontend | The six domain endpoints, and `garuda` since [ADR-0092](0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md) | Yes |
 | Velociraptor `8889` — GUI | A browser on Hicks, over the 50→30 rule that already exists | Yes — the same call `stacks/lab` made for Grafana, and it authenticates |
 | Velociraptor `8001` — gRPC API | Nothing | No |
 | Velociraptor `8003` — metrics | The lab's Prometheus, on `alexander` — genuinely off-host | Yes, and it is a residual rather than a solved problem |
-| Wazuh `1514`, `1515` — agent comms and enrolment | The six endpoints | Yes |
+| Wazuh `1514`, `1515` — agent comms and enrolment | The six endpoints, and `garuda` (ADR-0092) | Yes |
 | Wazuh `443` — dashboard | A browser on Hicks | Yes |
 | Wazuh `9200` — indexer | This guest's own Alloy | No |
-| Caddy `8448` — the two agent MSIs (added 2026-10-08, #1068) | The six domain guests, during `ansible-playbook --tags soc` | Yes. The Caddyfile answers `.50`–`.55` and gives everyone else 403 |
+| Caddy `8448` — the two agent MSIs (added 2026-10-08, #1068), and two `.deb`s for `garuda` (ADR-0092) | The six domain guests, during `ansible-playbook --tags soc`; `garuda`, by its runbook | Yes. The Caddyfile answers `.50`–`.55` and `.62`, and gives everyone else 403 |
 
 **None of this needs a firewall rule.** `odin` and `alexander` are both on VLAN
 30, and so are the endpoints, so every one of these paths is intra-segment.
