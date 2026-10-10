@@ -9,6 +9,9 @@
 # #920's on-demand dotfiles VMs (191-198), one per dotfiles OS layer, in the
 # `dotfiles` pool (ADR-0090).
 #
+# #921's garuda (162), Defense's always-on analyst workstation, in the
+# `analyst` pool (ADR-0091).
+#
 # Beside them is the proof guest, declared only under -var proof=true. It
 # exists to put a real secret, a cloud-init password, into real state, so the
 # runbook can grep for it and find nothing.
@@ -117,7 +120,31 @@ locals {
     })
   }
 
-  guests = merge(local.lab_domain, local.dotfiles, local.proof_guests)
+  # #921's analyst workstation (ADR-0091): Kali Purple without its SOC, and
+  # the home of the dotfiles-Defense layer. Always on, so not `on-demand`:
+  # HypervisorGuestStopped is meant to find it stopped (ADR-0079). Standalone,
+  # not a domain member, so that whoever takes the domain does not also take
+  # the case notes. No startup order: nothing waits for it, as it waits for
+  # nothing. Secure Boot is off, as its template's is. `analyst`, not the
+  # module's `operator`, for the reason the dotfiles VMs give below.
+  analyst = {
+    for name, g in {
+      garuda = { vm_id = 162, template = 910, cores = 4, memory_mib = 8192, disk_gib = 80, mac_address = "BC:24:11:ED:98:3F" }
+    } :
+    name => merge(g, {
+      pool        = "analyst"
+      smbios_uuid = null
+      startup     = null
+      linux       = true
+      on_boot     = true
+      secure_boot = false
+      tags        = ["analyst"]
+      password    = null
+      username    = "analyst"
+    })
+  }
+
+  guests = merge(local.lab_domain, local.dotfiles, local.analyst, local.proof_guests)
 
   # A pool exists exactly while it groups a guest: it is derived from the
   # guests, not listed beside them, so the last guest leaving a pool takes the

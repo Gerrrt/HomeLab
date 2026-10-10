@@ -504,6 +504,20 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
+- `10.0.30.62` and VMID 162 are reserved for `garuda`, Defense's analyst
+  workstation of
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
+  It is not in the table above because it is **not built yet**. It is
+  off-decade for `diabolos`'s reason, in `odin`'s decade beside the SOC it
+  works from. It is a Kea reservation by the MAC pinned in `tofu/guests.tf`,
+  always on and not tagged `on-demand`. It is not a lab-domain member, so it
+  resolves at `10.0.30.1`. It needs no rule of its own: Hicks reaches its
+  console through `Saruman`, its Alloy pushes to `alexander` within the
+  segment, and it reaches the internet for packages. #921's OpenVAS phase
+  will scan VLAN 30 from here, and only VLAN 30. A scan that reaches another
+  segment is a `LabSegmentReachedInternalNetwork`, as it should be.
 - `10.0.30.91`–`.98`, VMIDs 191–198, are the dotfiles test VMs of
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920),

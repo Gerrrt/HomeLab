@@ -19,6 +19,48 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` was built, as far as its desktop and dotfiles**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11). This corrects the "written, not built" entry below.
+  - **Template 910** was built twice and passed `packer-smoke.sh` both times.
+  - **The guest** came from a targeted apply: 2 added, 0 changed, 0
+    destroyed. It is VMID 162 at `10.0.30.62`.
+  - **Its first boot ran no cloud-init**, so there was no user; a reboot fixed
+    it ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **`/` is 59.7 GB of 80** ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
+  - **Purple's desktop and tools** are in, with Suricata's daemon disabled.
+    Kali's `zeek` package cannot be installed (`libc6 (< 2.38)`), so it is
+    left out.
+  - **dotfiles:** `dotfiles-Debian` v0.1.59, then `dotfiles-Defense` v1.0.132.
+    Both bootstraps exited 0, and `core doctor` exited 0 with nothing expected
+    missing. Defense's probe lists seven optional forensics tools as missing,
+    Zeek among them.
+  - **Not yet done:** the lab ingest token and `stacks/analyst`, the backup
+    job, patch-state, the console password, and the Wazuh/Velociraptor and
+    OpenVAS phases.
+
+- **`garuda` was written, not built**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+  It is Defense's analyst workstation, Kali Purple without its SOC, and the
+  home of `dotfiles-Defense`.
+  - **Template 910,** `tpl-kali-saruman`: a second source in
+    `packer/kali.pkr.hcl`, so that 902 stays `ifrit`'s. 902's build line is
+    now `-only='kali.proxmox-iso.kali'`, since `kali.*` would build both.
+  - **The guest,** VMID 162 at `10.0.30.62`, in `tofu/guests.tf`'s new
+    `analyst` pool. It is always on, not `on-demand`, and not a domain member.
+  - **`stacks/analyst`:** Alloy and its socket proxy, nothing else, with a
+    Dependabot entry from the first commit.
+  - **The runbook,**
+    [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md).
+    It covers Purple's tools with the sensor daemons off, and Defense on
+    `dotfiles-Debian` at release tags.
+  - **Left for the build:** the lab token `INGEST_TOKEN_GARUDA`, and
+    `garuda`'s key in the `analyst` sops rule, which is a placeholder until
+    then. They need `alexander` and `garuda` themselves, as `eden`'s did.
+  - **The network diagram** has `garuda` as a planned card at `.62`.
+
 - **`carbuncle` and `siren` were re-cloned from the rebuilt 911**
   ([#1092](https://github.com/Gerrrt/HomeLab/issues/1092)'s fix), so the two
   endpoints no longer park at OOBE's account page.

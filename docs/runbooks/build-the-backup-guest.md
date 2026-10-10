@@ -316,7 +316,7 @@ Print it, and keep it where the age key's own backup lives
 | --- | --- |
 | Storage | `golem` |
 | Schedule | `21:00` |
-| Selection | `odin` (160) and the domain's six, as each is built |
+| Selection | `odin` (160), `garuda` (162) and the domain's six, as each is built |
 | Mode | Snapshot |
 | Retention | *Keep all backups* — PBS's prune job in §6 decides |
 
@@ -325,8 +325,10 @@ backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
 when it was built, both did**, and the job took all seven from that night. `alexander`,
 `phoenix`, `ifrit` and `golem` itself are rebuilt from this repository and
 stay out. So does `eden` (141), whose graph is one collection run from rebuilt
-([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). The job
-selects VMIDs, so a new guest stays out unless someone adds it.
+([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). `garuda`
+is in, because its case notes are in no repository
+([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+The job selects VMIDs, so a new guest stays out unless someone adds it.
 
 ## 9. Prove it: one backup, one restore, then delete both
 

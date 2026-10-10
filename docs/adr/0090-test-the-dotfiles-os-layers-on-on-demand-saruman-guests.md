@@ -208,3 +208,6 @@ snapshotted and run once before the next starts.
 - **macOS and the two role layers are not here.** Apple's licence allows macOS
   guests only on Apple hardware. Offense belongs on `ifrit`'s Kali (#790) and
   Defense on `garuda`'s Kali Purple (#921).
+  [ADR-0091](0091-put-a-kali-purple-analyst-workstation-on-saruman.md)
+  (2026-10-09) builds `garuda`, and Defense is run there on top of
+  `dotfiles-Debian`, not on a `dot-*` guest.

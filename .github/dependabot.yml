@@ -6,13 +6,13 @@ updates:
   # sustainable — without it, pinned tags simply rot.
   #
   # grafana/alloy is the exception to "one PR per directory is fine". lab,
-  # sensor, soc and bloodhound all mount this stack's alloy/config.alloy, so
-  # their Alloy has to be this one, digest for digest, and check_image_pins.py
-  # fails a pull request that moves one without the others (#848). Those five
-  # entries cannot be merged the way soc and scratch were, because here and in
-  # lab Alloy rides in the grafana-stack group. So when an Alloy bump arrives,
-  # push the same bump to the other four stacks onto that PR and close the
-  # rest.
+  # sensor, soc, bloodhound and analyst all mount this stack's
+  # alloy/config.alloy, so their Alloy has to be this one, digest for digest,
+  # and check_image_pins.py fails a pull request that moves one without the
+  # others (#848). Those six entries cannot be merged the way soc and scratch
+  # were, because here and in lab Alloy rides in the grafana-stack group. So
+  # when an Alloy bump arrives, push the same bump to the other five stacks
+  # onto that PR and close the rest.
   - package-ecosystem: docker-compose
     directory: /stacks/observability
     schedule:
@@ -166,6 +166,18 @@ updates:
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "soc"]
+
+  # stacks/analyst (#921, ADR-0091): Alloy and its socket proxy on garuda,
+  # and nothing else. An entry from the first commit, by sensor's lesson.
+  - package-ecosystem: docker-compose
+    directory: /stacks/analyst
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc"]
