@@ -166,7 +166,7 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
+    labels: ["dependencies", "sensor"]
 
   # stacks/bloodhound (#451, ADR-0081): BloodHound CE and the one Postgres
   # that holds its state and its graph, on eden. Postgres majors are held, by
