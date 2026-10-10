@@ -13,7 +13,11 @@
 # WHAT THIS READS, from inside soc-wazuh-manager by `docker exec`:
 #   /var/ossec/var/run/wazuh-analysisd.state   queue usage per queue (a 0..1
 #       fraction, elements / (size - 1), queue_op.c), events received and
-#       dropped. Rewritten every 5 s (analysisd.state_interval).
+#       dropped, and alerts written to disk. Rewritten every 5 s
+#       (analysisd.state_interval). Alerts written is the manager's side of
+#       WazuhAlertsNotIndexed: alerts it produced, set against the alerts the
+#       indexer took, because nothing else on the indexer tells a dead filebeat
+#       from a quiet SIEM.
 #   /var/ossec/var/run/wazuh-remoted.state     its queue, TCP sessions,
 #       discarded messages. Also every 5 s.
 #   /var/ossec/bin/agent_control -l -j         every agent and its status:
@@ -106,7 +110,7 @@ a = state(read("analysisd"))
 event_usage = num(a.get("event_queue_usage"))
 ok["analysisd"] = int(
     event_usage is not None and 0 <= event_usage <= 1
-    and all(count(a.get(k)) is not None for k in ("events_received", "events_dropped"))
+    and all(count(a.get(k)) is not None for k in ("events_received", "events_dropped", "alerts_written"))
 )
 if ok["analysisd"]:
     for key, value in sorted(a.items()):
@@ -115,10 +119,12 @@ if ok["analysisd"]:
             if v is not None and 0 <= v <= 1:  # -1 is "no such queue"
                 q = key[: -len("_queue_usage")]
                 lines.append(f'homelab_wazuh_analysisd_queue_usage_ratio{{queue="{q}"}} {v}')
-    for key, metric in (("events_received", "received"), ("events_dropped", "dropped")):
+    for key, metric in (("events_received", "homelab_wazuh_analysisd_events_received_total"),
+                        ("events_dropped", "homelab_wazuh_analysisd_events_dropped_total"),
+                        ("alerts_written", "homelab_wazuh_analysisd_alerts_written_total")):
         v = num(a.get(key))
         if v is not None and v >= 0:
-            lines.append(f"homelab_wazuh_analysisd_events_{metric}_total {int(v)}")
+            lines.append(f"{metric} {int(v)}")
 
 r = state(read("remoted"))
 used, size = num(r.get("queue_size")), num(r.get("total_queue_size"))
@@ -189,6 +195,9 @@ events_received='48211'
 # Events dropped
 events_dropped='0'
 
+# Alerts written to disk
+alerts_written='5120'
+
 # Event queue
 event_queue_usage='0.12'
 event_queue_size='16384'
@@ -210,6 +219,8 @@ discarded_count='12'
   lacks "a -1, no such queue, is not a ratio" 'queue="syscheck"'
   has "events received is a counter" 'homelab_wazuh_analysisd_events_received_total 48211'
   has "events dropped is a counter" 'homelab_wazuh_analysisd_events_dropped_total 0'
+  has "alerts written is a counter" 'homelab_wazuh_analysisd_alerts_written_total 5120'
+  lacks "firewall alerts are not alerts written" 'firewall'
   has "remoted's queue as used over total" 'homelab_wazuh_remoted_queue_usage_ratio 0.015625'
   has "remoted's TCP sessions" 'homelab_wazuh_remoted_tcp_sessions 6'
   has "remoted's discarded messages" 'homelab_wazuh_remoted_discarded_total 12'
@@ -252,9 +263,19 @@ total_queue_size='0'"
 events_received='10'"
   out="$(render "${WORK_DIR}")"
   has "a missing events_dropped makes analysisd unreadable" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
+  # A version that stops writing alerts_written would otherwise starve
+  # WazuhAlertsNotIndexed of its left-hand side, which reads as "no alerts" and
+  # never fires. Unreadable is the loud way to say it.
+  put analysisd 0 "event_queue_usage='0.10'
+events_received='10'
+events_dropped='0'"
+  out="$(render "${WORK_DIR}")"
+  has "a missing alerts_written makes analysisd unreadable" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
+  lacks "and reports no alerts count" 'alerts_written'
   put analysisd 0 "event_queue_usage='0.50'
 events_received='1'
-events_dropped='0'"
+events_dropped='0'
+alerts_written='1'"
   out="$(MAX_BYTES=5 render "${WORK_DIR}")"
   has "an answer over the byte cap is a 0" 'homelab_wazuh_manager_source_ok{source="analysisd"} 0'
   exit $fail

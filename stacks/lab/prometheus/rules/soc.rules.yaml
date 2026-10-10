@@ -4,8 +4,8 @@
 # These rules live HERE, in the lab's Prometheus on alexander, and not in
 # stacks/soc: the series they read are produced by odin's Alloy
 # (stacks/soc/alloy/opensearch.alloy) and remote-written to this Prometheus,
-# which is the only thing on the segment that evaluates rules. Six rules, and
-# the reason there are six rather than the estate's forty-odd is the same as
+# which is the only thing on the segment that evaluates rules. Seven rules, and
+# the reason there are seven rather than the estate's forty-odd is the same as
 # lab.rules.yaml's: an alert nobody is paged for is only useful to someone
 # already looking, so these are scoped to "the SIEM is not doing its one job"
 # — the #62/#63 shape, a store that quietly stops — and to the two numbers
@@ -131,14 +131,21 @@ groups:
             deleting; if it is, the fix is rollover indices, not a larger
             number in the policy.
 
-      # The one the whole crossing exists for. Wazuh indexes continuously
-      # while the four servers run — agent status into wazuh-monitoring every
-      # fifteen minutes, statistics on a schedule, and the servers' own
-      # events — so an hour with no index calls is the SIEM having stopped
-      # ingesting while everything about it still reports healthy. The
-      # window is an hour rather than the lab Loki's thirty minutes because
-      # the endpoints run per session and a quiet domain is quieter than a
-      # quiet guest.
+      # The indexer taking no writes from ANY writer. Wazuh indexes
+      # continuously while the four servers run — agent status into
+      # wazuh-monitoring every fifteen minutes, statistics on a schedule, and
+      # the servers' own events — so an hour with no index calls is the SIEM
+      # having stopped ingesting while everything about it still reports
+      # healthy. The window is an hour rather than the lab Loki's thirty
+      # minutes because the endpoints run per session and a quiet domain is
+      # quieter than a quiet guest.
+      #
+      # What this CANNOT see is filebeat alone stopping. The dashboard, not
+      # filebeat, writes wazuh-monitoring (every 900 s) and wazuh-statistics
+      # (every 5 minutes), and the manager writes vulnerability state through
+      # its own indexer connector. Any of those keeps this sum above zero
+      # while no alert reaches the indexer. WazuhAlertsNotIndexed, below, is
+      # the alert for that.
       - alert: WazuhIngestionStalled
         expr: |
           sum by (cluster) (increase(elasticsearch_indices_indexing_index_total{job="wazuh-indexer"}[1h])) == 0
@@ -151,8 +158,45 @@ groups:
           summary: "The Wazuh indexer has indexed nothing for an hour"
           description: >-
             The cluster answers and its health is fine; it is simply not being
-            written to. Check the manager first — filebeat on it is what
-            writes — then whether any agent is connected at all.
+            written to by anything: not filebeat, not the dashboard's
+            monitoring and statistics jobs. Check that the indexer accepts
+            writes (disk watermarks, a read-only block) before any one writer.
+
+      # Alerts produced and not indexed: the SIEM's one job, failing while the
+      # indexer is still busy with everything else. The manager says how many
+      # alerts it wrote to disk (collect-wazuh-manager-state.sh); the indexer
+      # says how many documents its wazuh-alerts-* indices took
+      # (opensearch.alloy keeps that one per-index series). Alerts written and
+      # none indexed is filebeat dead, wedged, or refused.
+      #
+      # The left side is what keeps a quiet SIEM quiet. An hour with no alerts
+      # written is not a failure, and the right side alone would call it one.
+      # The right side is `unless`, not a comparison, so an alerts-index series
+      # that is missing entirely (the exporter's per-index stats off, or the
+      # relabel dropping too much) also fires. That is loud on purpose: it is
+      # the one way this rule could otherwise go blind.
+      - alert: WazuhAlertsNotIndexed
+        expr: |
+          sum by (instance) (increase(homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics"}[1h])) > 0
+          unless on ()
+          sum(increase(
+            elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer", index=~"wazuh-alerts-.+"}[1h]
+          )) > 0
+        for: 30m
+        labels:
+          component: soc
+          severity: warning
+          category: availability
+        annotations:
+          summary: "The Wazuh manager wrote alerts and none reached the indexer"
+          description: >-
+            {{ $labels.instance }}'s analysisd wrote alerts in the last hour
+            and no wazuh-alerts-* index took a document. That is filebeat in
+            soc-wazuh-manager: stopped, wedged, or refused by the indexer.
+            WazuhIngestionStalled stays quiet through this, because the
+            dashboard keeps writing its own indices. Look at filebeat's log in
+            the manager container, then its certificate against
+            wazuh.indexer.
 
   # --- The manager, read off its own state (#1038) ------------------------
   #

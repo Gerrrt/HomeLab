@@ -31,11 +31,23 @@ prometheus.exporter.elasticsearch "wazuh_indexer" {
 	// ssl_skip_verify is deliberately absent.
 	ca = "/etc/alloy/tls/root-ca.pem"
 
-	// Cluster health and node stats only. `indices = true` would add a series
-	// per index per metric — ninety daily alert indices times a few dozen
-	// metrics — for a question (which index is how big) that ADR-0030 answers
-	// with one _cat/indices call a fortnight in. Turn it on if the
-	// re-derivation ever needs a time series rather than a snapshot.
+	// Per-index stats are on for ONE series family: how many documents the
+	// alerts indices took. Node stats sum every writer, and filebeat is not the
+	// only one. The dashboard bulk-writes wazuh-monitoring every 15 minutes and
+	// wazuh-statistics every 5 (the pinned plugin's defaults), so a dead
+	// filebeat never brought the node-wide count to zero, and
+	// WazuhIngestionStalled could not see it. WazuhAlertsNotIndexed reads the
+	// alerts indices alone.
+	//
+	// `indices = true` exposes about 78 families per index (exporter v1.5.0),
+	// which is the cardinality this used to refuse: a question (which index is
+	// how big) that ADR-0030 answers with one _cat/indices call. So
+	// prometheus.relabel below drops every per-index series except
+	// elasticsearch_index_stats_indexing_index_total on wazuh-alerts-*, about
+	// thirty series at the 30-day retention. The cost of the exporter reading
+	// _all/_stats each minute stays on odin.
+	indices = true
+
 	basic_auth {
 		username = "admin"
 		password = sys.env("INDEXER_PASSWORD")
@@ -62,5 +74,34 @@ discovery.relabel "wazuh_indexer" {
 prometheus.scrape "wazuh_indexer" {
 	scrape_interval = "60s"
 	targets         = discovery.relabel.wazuh_indexer.output
-	forward_to      = [prometheus.remote_write.metrics_service.receiver]
+	forward_to      = [prometheus.relabel.wazuh_indexer.receiver]
+}
+
+// Every per-index series carries an `index` label. Node and cluster series
+// don't, so they pass untouched, including the node-wide
+// elasticsearch_indices_indexing_index_total that WazuhIngestionStalled reads.
+// RE2 has no negative lookahead, so the one series to keep is marked first,
+// every other series with an `index` label is dropped, and the mark goes.
+prometheus.relabel "wazuh_indexer" {
+	forward_to = [prometheus.remote_write.metrics_service.receiver]
+
+	rule {
+		source_labels = ["__name__", "index"]
+		separator     = "@"
+		regex         = "elasticsearch_index_stats_indexing_index_total@wazuh-alerts-.+"
+		target_label  = "__keep_alerts_index"
+		replacement   = "1"
+	}
+
+	rule {
+		source_labels = ["index", "__keep_alerts_index"]
+		separator     = "@"
+		regex         = ".+@"
+		action        = "drop"
+	}
+
+	rule {
+		regex  = "__keep_alerts_index"
+		action = "labeldrop"
+	}
 }

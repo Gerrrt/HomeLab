@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`WazuhIngestionStalled` could not see a dead filebeat, so
+  `WazuhAlertsNotIndexed` now does**
+  ([#1011](https://github.com/Gerrrt/HomeLab/issues/1011)).
+  - **The gap.** The rule sums index calls across every index. The pinned
+    dashboard bulk-writes `wazuh-monitoring` every 900 s and
+    `wazuh-statistics` every 5 minutes (the plugin's defaults, read from the
+    4.14.8 image), and the manager writes vulnerability state through its own
+    indexer connector. With filebeat dead, alerts stop reaching the indexer
+    and the sum never reaches zero. The SOC runbook's §10 check had the same
+    blind spot.
+  - **The fix.** The manager-state collector exports analysisd's
+    `alerts_written`, and `opensearch.alloy` turns on per-index stats but
+    keeps only the indexing counter for `wazuh-alerts-*`. The new rule fires
+    when alerts were written and none indexed. A quiet SIEM writes no alerts,
+    so it stays quiet. A missing alerts-index series also fires, so the rule
+    can't go blind.
+  - **Proved.** promtool covers the gap, a quiet SIEM, healthy traffic, the
+    midnight index rollover and a missing series. The relabel ran in the
+    pinned Alloy against fixture series: it kept exactly the alerts-index
+    counters and the node and cluster series. Who writes what was read from
+    the images' code; the lab was not reachable to watch it live.
+  - **Not deployed yet.** The collector and Alloy run on `odin`, the rules on
+    `alexander`, both on VLAN 30.
+
 - **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
   [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
