@@ -171,7 +171,11 @@ $items = @(
   @{ n='PowerShell-7.6.6-win-x64.msi'; u='https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-x64.msi'; h='958838ff55091e1c8705d89efed0cc7e8245a3a6ef6c0ccfae20015227108ad8' },
   @{ n='Git-2.56.0.2-64-bit.exe'; u='https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/Git-2.56.0.2-64-bit.exe'; h='52188f917b378f00c70ec136bcf090005f30d44fbc4eba0bce759cc6592d60f6' },
   @{ n='wsl.3.0.1.0.x64.msi'; u='https://github.com/microsoft/WSL/releases/download/3.0.1/wsl.3.0.1.0.x64.msi'; h='28b1a0d013640a2ac95898ea705fa186e5b4ff767a1c1b49257161bc106599c6' },
-  @{ n='Wireshark-4.6.9-x64.exe'; u='https://www.wireshark.org/download/win64/Wireshark-4.6.9-x64.exe'; h='bf9b5ce8a89f244c376a9b1a946276eaa06463dde3e33069a34d7f102f5878cf' }
+  @{ n='Wireshark-4.6.9-x64.exe'; u='https://www.wireshark.org/download/win64/Wireshark-4.6.9-x64.exe'; h='bf9b5ce8a89f244c376a9b1a946276eaa06463dde3e33069a34d7f102f5878cf' },
+  # GlazeWM and the runtime it depends on, from winget's own manifests
+  # (glzr-io.glazewm 3.10.1, Microsoft.VCRedist.2015+.x64 14.51.36247.0).
+  @{ n='VC_redist.x64.exe'; u='https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe'; h='843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c' },
+  @{ n='glazewm-v3.10.1.exe'; u='https://github.com/glzr-io/glazewm/releases/download/v3.10.1/glazewm-v3.10.1.exe'; h='469f8675f5ad1353bda9cede7cbb0e320e1b9a1d5657da709b60a51d86e95020' }
 )
 foreach ($i in $items) {
   $f = Join-Path $d $i.n
@@ -184,6 +188,8 @@ Run msiexec.exe "/i `"$d\PowerShell-7.6.6-win-x64.msi`" /qn /norestart ADD_PATH=
 Run "$d\Git-2.56.0.2-64-bit.exe" "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /NOCANCEL /SP- /COMPONENTS=gitlfs,assoc,assoc_sh"
 Run msiexec.exe "/i `"$d\wsl.3.0.1.0.x64.msi`" /qn /norestart"
 Run "$d\Wireshark-4.6.9-x64.exe" "/S /desktopicon=no /quicklaunchicon=no"
+Run "$d\VC_redist.x64.exe" "/install /quiet /norestart"
+Run "$d\glazewm-v3.10.1.exe" "/quiet /norestart"
 # Developer Mode: what the layer's DeveloperMode resource sets.
 New-Item -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Force | Out-Null
 Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Name AllowDevelopmentWithoutDevLicense -Type DWord -Value 1
@@ -202,6 +208,9 @@ What it leaves out, on purpose:
 - **Windows Terminal** ships with Windows 11 and is registered at each
   user's first logon.
 - **GNU Wget2** installs per user, so it asks for nothing.
+- **The rest of `install.ps1`'s optional groups.** GlazeWM is baked because
+  it was the one UAC prompt on 2026-10-09. Its bundle brings Zebar too. The
+  other packages in the *gui* and *desktop* groups asked for nothing.
 - **Npcap.** Wireshark's silent install skips it, because Npcap's free
   edition has no silent install. Capture is not part of the test.
 - **WSL** is installed but cannot start, because the guest has no nested
@@ -380,9 +389,8 @@ Then, per layer:
   run the layer's doctor (`dotfiles-doctor`).
 
   `install.ps1` also installs the layer's optional *gui* and *desktop*
-  groups. Of those, only **GlazeWM** asked for UAC on 2026-10-09. Approve it
-  with the `Administrator` password, or decline it to skip the tiling window
-  manager.
+  groups. On 2026-10-09 only **GlazeWM** asked for UAC, and §3's bake now
+  installs it, so the run should ask for nothing.
 
   Until
   [dotgibson/dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)
@@ -483,3 +491,4 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | `dot-windows` re-cloned from the rebuilt 911 (#1093), §3 again, then the new prerequisite bake (#1108) | First boot rested at the sign-in screen: `AutoAdminLogon=0`, no `DefaultPassword`, no `Panther\unattend-original.xml`. `tester` logs in by key at Medium Mandatory Level. The bake ran as SYSTEM through the guest agent: all four downloads matched their published SHA-256, and every installer exited 0. Afterwards winget (as SYSTEM) lists Git.Git 2.56.0.2, Microsoft.PowerShell 7.6.6, Microsoft.WSL 3.0.1 and WiresharkFoundation.Wireshark 4.6.9. `configure --enable` exited 0. `clean` retaken stopped. The console run has not been done yet |
 | 2026-10-09 | `dot-windows` slowness (#1108) | Ruled out: Saruman (no CPU, IO or memory pressure), the disk (under 2 ms), memory (6.6 of 8 GiB free), VBS/HVCI (off) and Defender (no scans). Found: the Basic Display Adapter, because Proxmox's default VGA has no Windows driver, and a first sign-in that ran the CPU at 30–100% for 3½–7½ minutes (OneDriveSetup, MsMpEng, SearchIndexer). Fixed by `vga = "virtio"` (the guest came up on the Red Hat VirtIO GPU DOD controller at 1280×800, with the driver already in the template) and by one `tester` sign-in baked into `clean`. A sign-in from the new `clean` settles in about 2 minutes. How the console feels is still to be judged at the console |
 | 2026-10-09 | First run, Windows (dotfiles-Windows 229e09d), at the console as `tester`, from the new `clean` | Signed in at the sign-in screen with no OOBE detour. The `allowPrerelease` workaround (#285) was applied, then `winget configure` and `install.ps1`. Only **GlazeWM** asked for UAC, from the optional desktop group; the baked prerequisites asked nothing. The first `pwsh` failed to load `10-tools.ps1`: two PSReadLines were loaded, the layer's 2.3.6 pin and pwsh 7.6.6's in-box 2.4.5 ([dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)). After stopping psmux and deleting 2.3.6, the next terminal printed a one-off `mise-shims.ps1` cache race ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)), and a new pane was clean. **`dotfiles-doctor` at the console: 28 ok, 1 warn (git identity placeholder), 0 fail.** Over SSH the same doctor shows 25/3/1 because of the network-logon junction limit. WSL: "virtualization is not enabled". The console was slow, but so is noVNC to every guest on `Saruman` |
+| 2026-10-09 | GlazeWM added to the §3 bake | Rolled back to `clean`, then installed as SYSTEM: VC++ 14.51.36247 and GlazeWM 3.10.1, each matching winget's manifest SHA-256, and both exited 0. The GlazeWM bundle also installed Zebar 3.3.1. winget lists all three. `clean` retaken stopped |
