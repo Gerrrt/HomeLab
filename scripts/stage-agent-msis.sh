@@ -154,10 +154,16 @@ else
     [ "$#" -eq 1 ] && [ -f "$1" ]
     cat "$1"' > "${stage}/${velo_deb}" \
     || die "the Velociraptor server could not build its Debian client"
-  [[ -s "${stage}/${velo_deb}" ]] || die "the Velociraptor Debian client came back empty"
-  dpkg-deb --field "${stage}/${velo_deb}" Package Version >/dev/null 2>&1 \
-    || die "what came back is not a Debian package"
 fi
+# Kept or built, the same checks before it is served and its hash printed: an
+# empty or corrupt file kept from an earlier run must not be republished as
+# the one garuda checks against. A failure here leaves the staged one in place;
+# delete it from ${OUT} to have the next run rebuild it.
+[[ -s "${stage}/${velo_deb}" ]] || die "${velo_deb} is empty"
+dpkg-deb --field "${stage}/${velo_deb}" Package Version >/dev/null 2>&1 \
+  || die "${velo_deb} is not a Debian package"
+[[ "$(dpkg-deb --field "${stage}/${velo_deb}" Version)" == "${velo_server_version}" ]] \
+  || die "${velo_deb} is not version ${velo_server_version} inside"
 velo_deb_sha="$(sha256sum "${stage}/${velo_deb}" | cut -d' ' -f1)"
 ok "${velo_deb}, sha256 ${velo_deb_sha}"
 
