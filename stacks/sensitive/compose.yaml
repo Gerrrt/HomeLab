@@ -845,7 +845,7 @@ services:
   # — and move the number and this paragraph together.
   immich-server:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
+    image: ghcr.io/immich-app/immich-server:v3.3.1@sha256:db996e352359771c6a3db121a0ed8761516b22f727fc092a0f46dcfef82c1bc1
     container_name: sensitive-immich-server
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
@@ -910,7 +910,7 @@ services:
 
   immich-machine-learning:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.1@sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed
     container_name: sensitive-immich-machine-learning
     # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
     # switch (#132: "consider disabling the machine-learning container
