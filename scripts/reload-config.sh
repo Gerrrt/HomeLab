@@ -328,6 +328,38 @@ restart_alloy() {
   ok "alloy (restarted)"
 }
 
+# The socket proxy is restarted too, for the same reason as Alloy and one more.
+# HAProxy reads stacks/observability/docker-socket-proxy/haproxy.cfg only at
+# start, and that file is mounted as a directory, so a config-only change
+# reaches the container's view at once and its process never. The master does
+# reload on SIGUSR2, but a rejected config leaves the old workers serving and
+# says so only in the log: Alloy's SIGHUP problem again. A restart exits on a
+# bad config, which is_running sees.
+#
+# Before Alloy, because Alloy is its only client. A restart of the proxy cuts
+# Alloy's /events stream and its log follows, and the Alloy restart that comes
+# next reopens them against the proxy's new config, rather than leaving Alloy
+# to reconnect on its own backoff.
+restart_socket_proxy() {
+  local stable=0 deadline
+
+  is_running docker-socket-proxy || die \
+    "docker-socket-proxy is not running, so there is nothing to reload. Check 'make ps', then 'make up'."
+
+  "${COMPOSE[@]}" restart docker-socket-proxy >/dev/null 2>&1 || die "could not restart docker-socket-proxy"
+
+  deadline=$((SECONDS + TIMEOUT))
+  while ((stable < 3)); do
+    if is_running docker-socket-proxy; then stable=$((stable + 1)); else stable=0; fi
+    if ((SECONDS >= deadline)); then
+      die "docker-socket-proxy did not stay up within ${TIMEOUT}s. Its haproxy.cfg probably does not parse — check 'make logs SERVICE=docker-socket-proxy'."
+    fi
+    sleep 1
+  done
+
+  ok "docker-socket-proxy (restarted)"
+}
+
 # SERVICES above is the union across every stack, not the contents of this one.
 # `stacks/lab` runs Prometheus, Loki, Grafana and Alloy and no Alertmanager,
 # snmp-exporter or blackbox-exporter (ADR-0020), so reloading the array as
@@ -367,6 +399,9 @@ done
 # deploy-agent.sh like oracle's. So its first `make up` (2026-09-28) died here,
 # after every container had started. The same rule as above applies: skip it
 # only when the stack does not declare it.
+if [[ -z "${declared}" ]] || grep -qx docker-socket-proxy <<<"${declared}"; then
+  restart_socket_proxy
+fi
 if [[ -z "${declared}" ]] || grep -qx alloy <<<"${declared}"; then
   restart_alloy
 fi

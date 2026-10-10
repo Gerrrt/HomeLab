@@ -48,6 +48,30 @@ docstring gives: it is a record, not a claim about now.
   - **Checked.** The pinned trivy on `postgres:18.6`: 25 findings without the
     skip, 0 with it. The next scan closes #995.
 
+- **The Docker socket proxies stop serving `archive`, `export`, `top` and
+  `changes`**
+  ([Tecnativa/docker-socket-proxy#182](https://github.com/Tecnativa/docker-socket-proxy/issues/182)).
+  - **What was open:** with `CONTAINERS=1`, the image's template allows the
+    whole `/containers` prefix. On `prometheus` all four GETs answered 200
+    through the estate's proxy, served by the daemon as root. A HEAD on
+    `archive` was enough to show that: it returns a stat header and no file.
+  - **What the clients use,** from the proxy's request log since its 10-07
+    start: `/containers/json`, `/containers/{id}/json`,
+    `/containers/{id}/logs`, `/networks`, `/version`, `/info`, `/_ping` and
+    `/events`. Nothing else.
+  - **The fix:** the six compose proxies and `deploy-agent.sh`'s
+    `alloy-socket-proxy` run
+    [`stacks/observability/docker-socket-proxy/haproxy.cfg`](../stacks/observability/docker-socket-proxy/haproxy.cfg).
+    It is upstream's v0.5.0 template with the prefix rule replaced by those
+    three paths. The image pin is unchanged.
+  - **The proof:** `check_socket_proxy.sh` runs it in CI. On upstream's
+    template the same check fails: every refused path reaches the daemon,
+    `export` streams 43 MB, and `%2Farchive` and `json/../archive` get there
+    too, because the daemon decodes and redirects.
+  - **Deploying it:** `make up` on each Docker host, and `deploy-agent.sh` for
+    `oracle` and `trinity`. `reload-config.sh` now restarts the proxy, so a
+    later change to `haproxy.cfg` alone also lands.
+
 - **`garuda` reports to the lab, is backed up, and passed §9 apart from its
   desktop check, which was not run**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),

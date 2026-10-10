@@ -389,6 +389,10 @@ services:
     <<: *service-defaults
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: lab-docker-socket-proxy
+    # stacks/observability's HAProxy config, not the image's template, which
+    # with CONTAINERS=1 also allows /containers/{id}/archive and /export
+    # (Tecnativa/docker-socket-proxy#182). The estate's proxy has the reasoning.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # The estate's allowlist exactly: what docker.alloy's three components
       # were measured to need (#193). NETWORKS is the one that is not obvious;
@@ -417,6 +421,7 @@ services:
       VOLUMES: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../observability/docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     expose:
       - "2375"
     mem_limit: 64m
