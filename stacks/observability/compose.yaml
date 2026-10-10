@@ -1351,11 +1351,12 @@ services:
       # capture that reported success. It was 5000 until 2026-10-08, when
       # homelab-stack reached 4886px. 7000 is measured, on v5.12.5: that
       # digest, hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at
-      # about 22 MiB RSS. v5.12.6 (#987's security rebuild, a Chromium patch
-      # bump) has not been re-measured; the next `make screenshots` run is its
-      # proof. It must equal MAX_HEIGHT in capture-screenshots.sh, and
-      # `capture-screenshots.sh --check` (in CI) fails if it does not, or if a
-      # captured dashboard has outgrown it.
+      # about 22 MiB RSS. v5.12.6 (#987's security rebuild: Chromium, Go,
+      # golang.org/x/net and the Debian base) has not been re-measured at 7000.
+      # On 2026-10-10 it rendered all six dashboards at full height, the
+      # tallest homelab-stack at 1600x4926. It must equal MAX_HEIGHT in
+      # capture-screenshots.sh, and `capture-screenshots.sh --check` (in CI)
+      # fails if it does not, or if a captured dashboard has outgrown it.
       BROWSER_MAX_HEIGHT: 7000
       LOG_LEVEL: info
     # Deliberately not published. The only client is Grafana, on this network.
