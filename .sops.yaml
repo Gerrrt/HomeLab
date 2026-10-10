@@ -138,14 +138,14 @@ creation_rules:
 
   # The analyst workstation, garuda (#921, ADR-0091), for soc's reason: it
   # holds the case notes on what the lab's attackers did. Its key opens
-  # secrets/analyst.sops.yaml, its ingest token, and nothing else. Placeholder
-  # until `make secrets-init STACK=analyst`, run ON garuda, fills it in
-  # (build-the-analyst-workstation.md §6). Without this rule, that init would
-  # fall through to the catch-all and encrypt garuda's file to the estate's
-  # key, which garuda cannot open.
+  # secrets/analyst.sops.yaml, its ingest token, and nothing else. garuda's
+  # own key, written by `make secrets-init STACK=analyst` on garuda on
+  # 2026-10-10 (build-the-analyst-workstation.md §6). One recipient, by eden's
+  # reasoning: the file holds a regenerable token, so a lost key is replaced
+  # and the token re-issued, not recovered.
   - path_regex: secrets/analyst(\..+)?\.sops\.ya?ml$
     age: >-
-      REPLACE_WITH_ANALYST_AGE_PUBLIC_KEY
+      age1pd3d7kka62z2mjd3ecshxuvyqw4jrkdwt5qevnua6hgrsymahasseu9c9v
 
   # The disposable investigation guest (ADR-0071), for soc's reason: a guest
   # that holds a detonation's output must not be able to open the estate's
