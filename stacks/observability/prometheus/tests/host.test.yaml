@@ -1276,6 +1276,89 @@ tests:
         alertname: SystemUpdateAvailable
         exp_alerts: []
 
+  # --- GuestNotInBackupJob: a tagged guest dropped from the job ------------
+  # The 2026-10-10 shape: titan is tagged `backup`, and a purged replace took
+  # its VMID out of golem-nightly. After an hour, it is news.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_backup_expected{host="Saruman",guest="titan",vmid="152",type="qemu"}'
+        values: "1x150"
+      - series: 'homelab_guest_backup_selected{host="Saruman",guest="titan",vmid="152",type="qemu"}'
+        values: "1x30 0x120"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: GuestNotInBackupJob
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              guest: titan
+              vmid: "152"
+              type: qemu
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Saruman: guest titan is tagged backup but no backup job selects it"
+              description: >-
+                This guest carries the Proxmox tag `backup`, so golem is meant to
+                hold it (ADR-0053), but no enabled vzdump job on the hypervisor
+                selects it. Add its VMID back to the job (`pvesh set
+                /cluster/backup/golem-nightly --vmid <list>`), or remove the tag if
+                it is no longer meant to be backed up. A guest destroyed and
+                re-created with a purge drops out of every job this way.
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-backup-guest.md#8-the-backup-job"
+
+  # --- GuestNotInBackupJob: quiet for a tagged guest the job selects -------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_backup_expected{host="Saruman",guest="odin",vmid="160",type="qemu"}'
+        values: "1x150"
+      - series: 'homelab_guest_backup_selected{host="Saruman",guest="odin",vmid="160",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: GuestNotInBackupJob
+        exp_alerts: []
+
+  # --- GuestNotInBackupJob: quiet for an untagged guest out of every job ---
+  # alexander is rebuilt from the repository and backed up by nothing
+  # (ADR-0053). No tag, no expectation, no alert.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_backup_expected{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x150"
+      - series: 'homelab_guest_backup_selected{host="Saruman",guest="alexander",vmid="140",type="qemu"}'
+        values: "0x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: GuestNotInBackupJob
+        exp_alerts: []
+
+  # --- GuestNotInBackupJob: quiet when jobs.cfg could not be read ----------
+  # The collector writes no selected series rather than a guessed 0.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_backup_expected{host="Saruman",guest="titan",vmid="152",type="qemu"}'
+        values: "1x150"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: GuestNotInBackupJob
+        exp_alerts: []
+
+  # --- GuestNotInBackupJob: quiet for a job edit inside the hour -----------
+  # A VMID taken out and put back within the hour, as while a job is edited
+  # or a guest is replaced, must not page. This keeps `for: 1h` honest.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_guest_backup_expected{host="Saruman",guest="titan",vmid="152",type="qemu"}'
+        values: "1x150"
+      - series: 'homelab_guest_backup_selected{host="Saruman",guest="titan",vmid="152",type="qemu"}'
+        values: "1x30 0x20 1x100"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: GuestNotInBackupJob
+        exp_alerts: []
+
   # --- HypervisorGuestStopped: fires an hour after a guest goes down --------
   - interval: 1m
     input_series:

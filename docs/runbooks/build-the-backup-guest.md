@@ -330,6 +330,23 @@ is in, because its case notes are in no repository
 ([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
 The job selects VMIDs, so a new guest stays out unless someone adds it.
 
+**Every guest in the job carries the Proxmox tag `backup`.** For the domain's
+six and `garuda` it comes from `tofu/guests.tf`. `odin` is hand-built, so
+`qm set 160 --tags` gives it the tag, keeping its existing ones.
+`scripts/collect-guest-state.sh` reads the tag, and reads which guests an
+enabled job selects from `/etc/pve/jobs.cfg`. `GuestNotInBackupJob` fires
+when a tagged guest has been out of every job for an hour. So adding a guest
+here means two things, the VMID and the tag, and taking one out means
+removing both.
+
+**A destroy must not purge.** Proxmox's `qm destroy --purge`, which the tofu
+provider does by default, removes the VMID from every backup job. On
+2026-10-10 that had left the job holding only `odin`: the #448 rebuild and a
+`-replace` of the endpoints had each dropped guests from it. The guest module
+sets `purge_on_destroy = false`, so a replaced guest keeps its place. A guest
+destroyed for good keeps its VMID in the job too, and vzdump's nightly error
+names it until its teardown takes it out.
+
 ## 9. Prove it: one backup, one restore, then delete both
 
 Nothing is proved by a datastore that has never held a backup. Use `phoenix`

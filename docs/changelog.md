@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **The domain's six had fallen out of `golem-nightly`, and were put back.**
+  - **What was found.** The job selected only `odin` (160). Each tofu destroy
+    of a domain guest had used the provider's default purge, which removes
+    the VMID from every backup job. That covered the #448 rebuild and the
+    endpoints' `-replace` (#1092). Nothing said so.
+  - **The fix.** The six are back in the job, beside `odin` and `garuda`.
+    The guest module now sets `purge_on_destroy = false`.
+  - **The check.**
+    - Guests golem must hold carry the Proxmox tag `backup`.
+    - `collect-guest-state.sh` exports `homelab_guest_backup_expected` and
+      `homelab_guest_backup_selected`, the second read from
+      `/etc/pve/jobs.cfg`.
+    - `GuestNotInBackupJob` fires after an hour.
+
 - **The CVE scan skips one file: gosu in `postgres`**
   ([#995](https://github.com/Gerrrt/HomeLab/issues/995)). This reverses the
   same day's decision on #995 to keep the issue open with no ignore entry.

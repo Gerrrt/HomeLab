@@ -814,6 +814,53 @@ groups:
             it can. If it was not, the guest is down and anything inside it,
             including the lab stack on `alexander`, is down with it.
 
+      - alert: GuestNotInBackupJob
+        # A guest golem must hold is not selected by any enabled backup job on
+        # its hypervisor.
+        #
+        # WHY IT EXISTS. On 2026-10-10 `golem-nightly` was found holding only
+        # `odin`: the domain's six had fallen out. tofu destroyed them with the
+        # provider's default purge, which removes a VMID from every backup
+        # job, so the #448 rebuild and a `-replace` of the endpoints each
+        # dropped guests from the job, and every indicator stayed green. The
+        # module no longer purges (tofu/modules/guest/main.tf). This catches
+        # the rest: a job edited by hand, a guest re-created another way.
+        #
+        # THE TAG, NOT A TABLE, as ADR-0079 argues for `on-demand`. `backup`
+        # is set where the guest is made: tofu/guests.tf for the domain and
+        # `garuda`, `qm set` for `odin`. A guest that is rebuilt from the
+        # repository and backed up by nothing (ADR-0053's alexander, phoenix,
+        # golem; ADR-0081's eden) carries no tag and is never news here.
+        #
+        # SELECTED IS READ FROM /etc/pve/jobs.cfg by
+        # scripts/collect-guest-state.sh: an enabled vzdump job's `vmid`
+        # list, `all` less its `exclude`, or `pool`. Absent when jobs.cfg
+        # cannot be read, so `== 0` stays quiet rather than guess; and absent
+        # with the whole collector, which GuestStateStopped covers.
+        #
+        # AN HOUR, so a job being edited, or a guest being replaced, does not
+        # page. A nightly job missed by an hour's delay is still caught before
+        # the next run. Warning: a guest out of the job loses nothing yet; it
+        # loses the next backup, and then the one after.
+        expr: >-
+          homelab_guest_backup_expected == 1
+          and on (host, vmid) homelab_guest_backup_selected == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }} is tagged backup but no backup job selects it"
+          description: >-
+            This guest carries the Proxmox tag `backup`, so golem is meant to
+            hold it (ADR-0053), but no enabled vzdump job on the hypervisor
+            selects it. Add its VMID back to the job (`pvesh set
+            /cluster/backup/golem-nightly --vmid <list>`), or remove the tag if
+            it is no longer meant to be backed up. A guest destroyed and
+            re-created with a purge drops out of every job this way.
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-backup-guest.md#8-the-backup-job"
+
       - alert: DisposableGuestOutlived
         # The inverted liveness check #438 asked for: for a guest the hypervisor
         # marks `disposable`, STILL EXISTING is the thing that gets noticed. A

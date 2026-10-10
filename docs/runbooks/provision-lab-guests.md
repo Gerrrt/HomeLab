@@ -246,6 +246,12 @@ first, then run plan and apply as in §4. The module refuses:
 - a VMID inside the template range;
 - a template that is not one of `packer/`'s.
 
+A guest `golem` must hold gets the tag `backup` beside its others, and its
+VMID added to `golem-nightly`
+([`build-the-backup-guest.md`](build-the-backup-guest.md) §8). The module does
+not purge on destroy, so a replace keeps the VMID in the job. A destroy for
+good leaves it there, to be removed by hand.
+
 A Windows guest takes no `initialization` block, because its first-boot answers
 come from the template's sysprep answer file (ADR-0074 §3).
 
