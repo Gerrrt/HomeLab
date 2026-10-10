@@ -1317,7 +1317,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.5@sha256:76542ccc4c045e5ff9f80f87b25de6fcc71b31222172de5031a8ceba33772ee1
+    image: grafana/grafana-image-renderer:v5.12.6@sha256:4b3d29a66c1dd11d513f8378907953b3c2c0c0535cbf5cf8fe83f7f398ae8b4c
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
