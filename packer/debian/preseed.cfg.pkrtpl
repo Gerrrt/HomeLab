@@ -31,8 +31,27 @@ d-i passwd/username string packer
 d-i passwd/user-password-crypted password !
 d-i user-setup/allow-password-weak boolean false
 
+# #1128: the ESP, then / over the rest of the disk, and no swap partition.
+# partman's `atomic` put swap after /, so a clone given a bigger disk than the
+# template's could not grow / into it: cloud-init's growpart found swap in the
+# way and changed nothing (garuda, 2026-10-10, 59.7 GB of 80). With / last,
+# growpart reaches the end of whatever disk the clone has. A guest that wants
+# swap gets a swapfile, as garuda's runbook does.
 d-i partman-auto/method string regular
-d-i partman-auto/choose_recipe select atomic
+d-i partman-auto/expert_recipe string \
+  esp-root :: \
+    1024 1024 1024 free \
+      $iflabel{ gpt } $reusemethod{ } \
+      method{ efi } format{ } \
+    . \
+    4096 8192 -1 ext4 \
+      $primary{ } $bootable{ } \
+      method{ format } format{ } \
+      use_filesystem{ } filesystem{ ext4 } \
+      mountpoint{ / } \
+    .
+d-i partman-auto/choose_recipe select esp-root
+d-i partman-basicfilesystems/no_swap boolean false
 d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
 d-i partman/confirm boolean true
