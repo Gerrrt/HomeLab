@@ -332,44 +332,48 @@ tags: backup;lab-domain"
   }
   check_jobs "the job as Saruman has it, by vmid" "150 160 162 " \
 "vzdump: golem-nightly
-	comment ADR-0053%3A the domain and odin to golem; PBS prunes (#485)
-	schedule 21:00
-	enabled 1
-	mode snapshot
-	storage golem
-	vmid 150,160,162" "150 160 162 170" ""
+    comment ADR-0053%3A the domain and odin to golem; PBS prunes (#485)
+    schedule 21:00
+    enabled 1
+    mode snapshot
+    storage golem
+    vmid 150,160,162" "150 160 162 170" ""
   check_jobs "a disabled job selects nothing" "" \
 "vzdump: golem-nightly
-	enabled 0
-	vmid 150,160" "150 160" ""
+    enabled 0
+    vmid 150,160" "150 160" ""
   check_jobs "no enabled line means enabled" "160 " \
 "vzdump: nightly
-	storage golem
-	vmid 160" "160" ""
+    storage golem
+    vmid 160" "160" ""
   check_jobs "all, less its exclude" "150 162 " \
 "vzdump: everything
-	all 1
-	exclude 160,170
-	storage golem" "150 160 162 170" ""
+    all 1
+    exclude 160,170
+    storage golem" "150 160 162 170" ""
   check_jobs "a pool, from user.cfg" "150 151 " \
 "vzdump: domain
-	pool lab-domain
-	storage golem" "150 151 162" \
+    pool lab-domain
+    storage golem" "150 151 162" \
 "user:root@pam:1:0:::::
 pool:lab-domain:Managed by tofu/:150,151::
 pool:analyst:Managed by tofu/:162::"
   check_jobs "other job types are not backups" "" \
 "realm-sync: ad
-	enabled 1
+    enabled 1
 replication: 162-0
-	vmid 162" "162" ""
+    vmid 162" "162" ""
   check_jobs "two jobs, both counted" "160 162 " \
 "vzdump: a
-	vmid 160
+    vmid 160
 
 vzdump: b
-	vmid 162" "160 162" ""
+    vmid 162" "160 162" ""
   check_jobs "no jobs at all" "" "" "160" ""
+  # Proxmox writes the keys tab-indented; the samples above use spaces only
+  # because this file is indented with spaces (.editorconfig).
+  check_jobs "tab-indented, as Proxmox writes it" "160 " \
+"$(printf 'vzdump: nightly\n\tenabled 1\n\tvmid 160')" "160" ""
   exit $fail
 fi
 
