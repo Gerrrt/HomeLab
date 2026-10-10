@@ -3,6 +3,22 @@
 **Status:** Accepted · 2026-10
 
 > [!NOTE]
+> 2026-10-09, Remote Desktop on `dot-windows` (#1108): every noVNC console on
+> `Saruman` is slow, so `dot-windows` takes RDP, with Network Level
+> Authentication.
+>
+> - **Who it admits.** Its Windows Firewall admits 3389 from three Hicks
+>   workstation addresses only (`10.0.50.80`, `.90` and `.102`). Windows'
+>   own any-address Remote Desktop rules are off.
+> - **The exception.** It is the one lab Windows guest reachable by anything
+>   but [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md)'s
+>   key-only OpenSSH. That is acceptable here because the guest is
+>   standalone, holds no domain credential, is rebuilt from `clean` for every
+>   run, and its `tester` password is set per run and discarded.
+> - **Why it helps the test.** RDP is an interactive sign-in, so the layer can
+>   be run over it, which SSH cannot do (decision 6's note on the run).
+> - **Where the steps are.** The bake is in `test-the-dotfiles-layers.md` §3.
+>
 > 2026-10-09, staleness checks: the two image pins are now checked weekly with
 > the toolchain pins, by `scripts/check_tool_versions.py` from the `tools` job
 > of `.github/workflows/digests.yml`. Any newer Alpine release or image

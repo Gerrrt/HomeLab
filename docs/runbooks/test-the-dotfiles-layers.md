@@ -171,7 +171,11 @@ $items = @(
   @{ n='PowerShell-7.6.6-win-x64.msi'; u='https://github.com/PowerShell/PowerShell/releases/download/v7.6.6/PowerShell-7.6.6-win-x64.msi'; h='958838ff55091e1c8705d89efed0cc7e8245a3a6ef6c0ccfae20015227108ad8' },
   @{ n='Git-2.56.0.2-64-bit.exe'; u='https://github.com/git-for-windows/git/releases/download/v2.56.0.windows.2/Git-2.56.0.2-64-bit.exe'; h='52188f917b378f00c70ec136bcf090005f30d44fbc4eba0bce759cc6592d60f6' },
   @{ n='wsl.3.0.1.0.x64.msi'; u='https://github.com/microsoft/WSL/releases/download/3.0.1/wsl.3.0.1.0.x64.msi'; h='28b1a0d013640a2ac95898ea705fa186e5b4ff767a1c1b49257161bc106599c6' },
-  @{ n='Wireshark-4.6.9-x64.exe'; u='https://www.wireshark.org/download/win64/Wireshark-4.6.9-x64.exe'; h='bf9b5ce8a89f244c376a9b1a946276eaa06463dde3e33069a34d7f102f5878cf' }
+  @{ n='Wireshark-4.6.9-x64.exe'; u='https://www.wireshark.org/download/win64/Wireshark-4.6.9-x64.exe'; h='bf9b5ce8a89f244c376a9b1a946276eaa06463dde3e33069a34d7f102f5878cf' },
+  # GlazeWM and the runtime it depends on, from winget's own manifests
+  # (glzr-io.glazewm 3.10.1, Microsoft.VCRedist.2015+.x64 14.51.36247.0).
+  @{ n='VC_redist.x64.exe'; u='https://download.visualstudio.microsoft.com/download/pr/ebdab8e5-1d7b-4d9f-a11b-cbb1720c3b12/843068991DAAA1F73AD9F6239BCE4D0F6A07A51F18C37EA2A867E9BECA71295C/VC_redist.x64.exe'; h='843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c' },
+  @{ n='glazewm-v3.10.1.exe'; u='https://github.com/glzr-io/glazewm/releases/download/v3.10.1/glazewm-v3.10.1.exe'; h='469f8675f5ad1353bda9cede7cbb0e320e1b9a1d5657da709b60a51d86e95020' }
 )
 foreach ($i in $items) {
   $f = Join-Path $d $i.n
@@ -184,6 +188,8 @@ Run msiexec.exe "/i `"$d\PowerShell-7.6.6-win-x64.msi`" /qn /norestart ADD_PATH=
 Run "$d\Git-2.56.0.2-64-bit.exe" "/VERYSILENT /NORESTART /SUPPRESSMSGBOXES /NOCANCEL /SP- /COMPONENTS=gitlfs,assoc,assoc_sh"
 Run msiexec.exe "/i `"$d\wsl.3.0.1.0.x64.msi`" /qn /norestart"
 Run "$d\Wireshark-4.6.9-x64.exe" "/S /desktopicon=no /quicklaunchicon=no"
+Run "$d\VC_redist.x64.exe" "/install /quiet /norestart"
+Run "$d\glazewm-v3.10.1.exe" "/quiet /norestart"
 # Developer Mode: what the layer's DeveloperMode resource sets.
 New-Item -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Force | Out-Null
 Set-ItemProperty -Path HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\AppModelUnlock -Name AllowDevelopmentWithoutDevLicense -Type DWord -Value 1
@@ -202,6 +208,9 @@ What it leaves out, on purpose:
 - **Windows Terminal** ships with Windows 11 and is registered at each
   user's first logon.
 - **GNU Wget2** installs per user, so it asks for nothing.
+- **The rest of `install.ps1`'s optional groups.** GlazeWM is baked because
+  it was the one UAC prompt on 2026-10-09. Its bundle brings Zebar too. The
+  other packages in the *gui* and *desktop* groups asked for nothing.
 - **Npcap.** Wireshark's silent install skips it, because Npcap's free
   edition has no silent install. Capture is not part of the test.
 - **WSL** is installed but cannot start, because the guest has no nested
@@ -251,6 +260,36 @@ falls back to the Basic Display Adapter and draws every frame on the CPU,
 which is most of why the 2026-10-08 console felt slow. The template build
 already installed virtio-win's `viogpudo` driver, so the clone comes up on
 the Red Hat VirtIO GPU DOD controller with no further step.
+
+**Then turn on Remote Desktop for the Hicks workstations, still before the
+shutdown** (#1108). Every noVNC console on `Saruman` is slow, and RDP is
+both faster and a real interactive sign-in, so winget, MSIX and scoop
+junctions all work over it, as they do not over SSH. This guest is the one
+lab Windows machine with RDP. It is an exception to ADR-0077's key-only SSH,
+recorded in ADR-0090's NOTE. As SYSTEM through the guest agent, as above:
+
+```powershell
+$ErrorActionPreference = 'Stop'
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server' fDenyTSConnections 0 -Type DWord
+# Network Level Authentication: no sign-in screen before the credential.
+Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' UserAuthentication 1 -Type DWord
+# Windows' own Remote Desktop rules admit any address; keep them off.
+Get-NetFirewallRule -Group '@FirewallAPI.dll,-28752' | Disable-NetFirewallRule
+# The Hicks workstations only: laptop-02 (wired and Wi-Fi) and desktop-02.
+$from = '10.0.50.80', '10.0.50.90', '10.0.50.102'
+New-NetFirewallRule -Name 'dotfiles-rdp-tcp' -DisplayName 'dotfiles: RDP from Hicks workstations (TCP)' -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
+New-NetFirewallRule -Name 'dotfiles-rdp-udp' -DisplayName 'dotfiles: RDP from Hicks workstations (UDP)' -Direction Inbound -Protocol UDP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
+Add-LocalGroupMember -Group 'Remote Desktop Users' -Member tester
+Restart-Service TermService -Force
+```
+
+pfSense already passes Hicks to the lab VLAN over TCP (ADR-0031), so nothing
+changes there. `10.0.50.102` is a DHCP lease, not a reservation. If RDP from
+that machine stops working, its address has moved: reserve it, or change
+`$from` and the bake. Check from `Saruman` that 3389 is refused
+(`timeout 5 bash -c '</dev/tcp/10.0.30.98/3389'` fails). Then sign in from a
+workstation, set `tester`'s password to a random one nobody keeps, shut down
+and take `clean`.
 
 ## 4. A run
 
@@ -336,9 +375,14 @@ Then, per layer:
     from a network logon ("untrusted mount point"). `install.ps1` stopped
     at its second package with nothing linked.
 
-  None of these is a dotfiles bug. Run it as the README says, at the
-  console in the Proxmox UI (*dot-windows → Console*), logged in as
-  `tester`. Its password is not known, so set one first over SSH as
+  None of these is a dotfiles bug. Run it as the README says, in an
+  interactive session as `tester`:
+  - **Remote Desktop** from a Hicks workstation (§3) to `10.0.30.98` as
+    `.\tester`: the Windows App on the Mac, or `mstsc`.
+  - **The Proxmox console** (*dot-windows → Console*) works too, but it is
+    slower.
+
+  `tester`'s password is not known, so set one first over SSH as
   `Administrator`:
 
   ```powershell
@@ -346,7 +390,7 @@ Then, per layer:
   ```
 
   The password is a run-time change, and the next rollback discards it.
-  Then, at the console, in PowerShell 7 (`pwsh`). `clean` already has Git,
+  Then, in that session, in PowerShell 7 (`pwsh`). `clean` already has Git,
   PowerShell 7, the configuration's other packages, Developer Mode and
   `winget configure` switched on (§3):
 
@@ -377,13 +421,44 @@ Then, per layer:
   password (the template's build password, from `phoenix.env`) and add it to
   the bake. Then, in a new `pwsh`:
   `cd ~/dotfiles-Windows; .\install.ps1`. After that, in another new `pwsh`,
-  run the layer's doctor (`powershell/os/45-doctor`).
+  run the layer's doctor (`dotfiles-doctor`).
+
+  `install.ps1` also installs the layer's optional *gui* and *desktop*
+  groups. On 2026-10-09 only **GlazeWM** asked for UAC, and §3's bake now
+  installs it, so the run should ask for nothing.
+
+  Until
+  [dotgibson/dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)
+  is fixed, the next `pwsh` warns that `10-tools.ps1` failed to load ("A
+  cmdlet named 'Get-PSReadLineKeyHandler' already exists"):
+  - The layer pins PSReadLine 2.3.6, which is older than pwsh 7.6's in-box
+    2.4.5, and the profile loads both.
+  - To work around it, close Windows Terminal, then delete
+    `C:\Users\tester\AppData\Local\PowerShell\Modules\PSReadLine\2.3.6`
+    as SYSTEM. Spell the path out: as SYSTEM, `$env:LOCALAPPDATA` is SYSTEM's
+    own profile, not `tester`'s.
+  - Stop the psmux servers and their `pwsh` panes first. They outlive the
+    terminal and hold the DLL, so the delete is refused until they are gone.
+  - Then open a new terminal.
+
+  The first terminal after that may print a `Set-Content … mise-shims.ps1 …
+  being used by another process` error once. That is
+  [#287](https://github.com/dotgibson/dotfiles-Windows/issues/287), and it is
+  harmless.
+
+  **Read the doctor in that session, not over SSH.** Over SSH, scoop's
+  `current` junctions are untrusted, so `mise` and `starship` look missing
+  and `10-tools.ps1` fails on `mise.exe`.
 
   **The guest is unactivated (ADR-0090 §6).** A step that fails on a
   Personalization setting is that, not a dotfiles bug. **WSL** is in
   `configuration.dsc.yaml`, and it needs nested virtualization, which this
-  guest is not given. A WSL failure here is the test bed's, not the
-  layer's.
+  guest is not given. On 2026-10-09 it refused to start because
+  virtualization is not enabled. A WSL failure here is the test bed's, not
+  the layer's.
+
+  **Every noVNC console on `Saruman` is slow, not only this guest's**
+  (2026-10-09). That is why §3 gives this guest RDP.
 
 To test a release rather than `main`, clone with `--branch <tag>`.
 
@@ -451,3 +526,6 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | First run, NixOS (dotfiles v7.14.0) | In the layer's order: the `home-manager` channel (release-26.05), `nix/nixos.nix` with `tester` and the home-manager module, then `nixos-rebuild switch`, which took about 1 min and activated `home-manager-tester.service`. Then `./bootstrap.sh`, exit 0 in 1 s (links only, no escalation), and `core doctor` exit 0, with nine missing: `viddy gron sd xh doggo op ast-grep uv difft`. None of them is in `nix/home.nix`'s `home.packages`, so the layer's package set lags what Core expects |
 | 2026-10-09 | `dot-windows` re-cloned from the rebuilt 911 (#1093), §3 again, then the new prerequisite bake (#1108) | First boot rested at the sign-in screen: `AutoAdminLogon=0`, no `DefaultPassword`, no `Panther\unattend-original.xml`. `tester` logs in by key at Medium Mandatory Level. The bake ran as SYSTEM through the guest agent: all four downloads matched their published SHA-256, and every installer exited 0. Afterwards winget (as SYSTEM) lists Git.Git 2.56.0.2, Microsoft.PowerShell 7.6.6, Microsoft.WSL 3.0.1 and WiresharkFoundation.Wireshark 4.6.9. `configure --enable` exited 0. `clean` retaken stopped. The console run has not been done yet |
 | 2026-10-09 | `dot-windows` slowness (#1108) | Ruled out: Saruman (no CPU, IO or memory pressure), the disk (under 2 ms), memory (6.6 of 8 GiB free), VBS/HVCI (off) and Defender (no scans). Found: the Basic Display Adapter, because Proxmox's default VGA has no Windows driver, and a first sign-in that ran the CPU at 30–100% for 3½–7½ minutes (OneDriveSetup, MsMpEng, SearchIndexer). Fixed by `vga = "virtio"` (the guest came up on the Red Hat VirtIO GPU DOD controller at 1280×800, with the driver already in the template) and by one `tester` sign-in baked into `clean`. A sign-in from the new `clean` settles in about 2 minutes. How the console feels is still to be judged at the console |
+| 2026-10-09 | First run, Windows (dotfiles-Windows 229e09d), at the console as `tester`, from the new `clean` | Signed in at the sign-in screen with no OOBE detour. The `allowPrerelease` workaround (#285) was applied, then `winget configure` and `install.ps1`. Only **GlazeWM** asked for UAC, from the optional desktop group; the baked prerequisites asked nothing. The first `pwsh` failed to load `10-tools.ps1`: two PSReadLines were loaded, the layer's 2.3.6 pin and pwsh 7.6.6's in-box 2.4.5 ([dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)). After stopping psmux and deleting 2.3.6, the next terminal printed a one-off `mise-shims.ps1` cache race ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)), and a new pane was clean. **`dotfiles-doctor` at the console: 28 ok, 1 warn (git identity placeholder), 0 fail.** Over SSH the same doctor shows 25/3/1 because of the network-logon junction limit. WSL: "virtualization is not enabled". The console was slow, but so is noVNC to every guest on `Saruman` |
+| 2026-10-09 | GlazeWM added to the §3 bake | Rolled back to `clean`, then installed as SYSTEM: VC++ 14.51.36247 and GlazeWM 3.10.1, each matching winget's manifest SHA-256, and both exited 0. The GlazeWM bundle also installed Zebar 3.3.1. winget lists all three. `clean` retaken stopped |
+| 2026-10-09 | RDP added to the §3 bake | Applied from `clean` as SYSTEM: `fDenyTSConnections=0` and NLA on. Windows' own Remote Desktop rules are disabled, and one rule admits 3389 TCP and UDP from `10.0.50.80`, `.90` and `.102` only. `tester` is in Remote Desktop Users. Port 3389 from `Saruman` (`10.0.30.110`) is refused. From the Mac, RDP as `.\tester` reached the desktop (logon type 10, from `10.0.50.102`). Password reset to random, then `clean` retaken stopped |

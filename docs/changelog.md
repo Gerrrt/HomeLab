@@ -39,6 +39,33 @@ docstring gives: it is a record, not a claim about now.
   - The upstream comment no longer says Unbound keeps Cloudflare and Google
     beside AdGuard; ADR-0055 removed them.
 
+- **`dot-windows` takes Remote Desktop from the Hicks workstations**
+  ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108), ADR-0090 NOTE).
+  - **Why.** noVNC is slow to every guest on `Saruman`. RDP is faster, and
+    it is an interactive sign-in the layer can be run over.
+  - **Who it admits.** Network Level Authentication is required, and the
+    guest's firewall admits 3389 from `10.0.50.80`, `.90` and `.102` only.
+    `Saruman` itself is refused.
+  - **Verified.** RDP from the Mac reached the desktop.
+  - **The exception.** It is the one lab Windows guest with anything but
+    key-only SSH.
+  - **Also in the bake.** GlazeWM, the run's one UAC prompt, so a run should
+    now ask for nothing.
+
+- **The Windows dotfiles layer passed its first complete run on
+  `dot-windows`** ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)).
+  - **Result.** `dotfiles-doctor` at the console reads 28 ok, 1 warn (a
+    placeholder git identity) and 0 fail.
+  - **One workaround.** This needed one upstream bug worked around by hand
+    ([dotgibson/dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)):
+    the PSReadLine 2.3.6 pin is older than pwsh 7.6's in-box 2.4.5.
+  - **Another finding.** It turned up a harmless cache race
+    ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)).
+  - **UAC.** The baked prerequisites asked for nothing. Only GlazeWM, from
+    the optional desktop group, asked.
+  - **Test bed's limits, not the layer's.** WSL cannot start without
+    virtualization in the guest. noVNC is slow to every guest on `Saruman`.
+
 - **Windows clones no longer keep the build password in plaintext**
   ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
   to the running guests.
