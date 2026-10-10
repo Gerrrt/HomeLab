@@ -664,11 +664,14 @@ jobs:
             "$GITLEAKS_IMAGE" \
             detect --no-git --no-banner --redact -c .gitleaks.toml -v
 
+      # Through the script validate.sh also calls. gitleaks exits 0 when git
+      # cannot read the repository, so the script also fails a scan of zero
+      # commits. The full clone above makes that impossible today. The check is
+      # there for the day the checkout changes.
       - name: gitleaks — full history
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo \
-            "$GITLEAKS_IMAGE" \
-            detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" -v
+          ./scripts/gitleaks-history.sh docker run --rm -v "$PWD:/repo" -w /repo \
+            "$GITLEAKS_IMAGE"
 
       # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so
       # the filesystem scan skips it, and its contents are bare literals with no
