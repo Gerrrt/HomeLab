@@ -55,6 +55,9 @@
 #                             tree. /dev/shm is a refusal FIXTURE here, not a
 #                             destination: a different filesystem that is still
 #                             this host's RAM, which is the #596 regression (#610)
+#   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
+#                             clone never shows the zero-commit scan that the
+#                             fixture for the worktree regression stages
 #   collect_silences.py       `issue` is read only from a comment that BEGINS with
 #                             #NNN, and the fixture that fails otherwise is the
 #                             point (#575)

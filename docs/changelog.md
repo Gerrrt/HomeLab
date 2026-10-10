@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`make validate` had passed the history secret scan in every worktree
+  without reading a commit.** gitleaks is not installed on the monitoring
+  host, so `validate.sh` ran it in docker with only the checkout mounted. A
+  worktree's `.git` names a directory outside that mount. gitleaks then exits 0
+  with "0 commits scanned" and "no leaks found", and validate printed PASS.
+  The docker fallback now mounts the common git directory too. The scan moved
+  into `scripts/gitleaks-history.sh`, which CI's *Secret scan* job also calls.
+  It fails a scan of zero commits. CI's full clone was never affected: its
+  last run on `main` scanned 944 commits. This was found while triaging the
+  gitleaks image's CVEs
+  ([#1013](https://github.com/Gerrrt/HomeLab/issues/1013)).
+
 - **A bigger clone of a Debian-installer template now grows its `/`**
   ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
   - **The fault.** Both preseeds used partman's `atomic` recipe, which puts
