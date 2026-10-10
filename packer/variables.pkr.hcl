@@ -166,6 +166,14 @@ variable "kali_iso_file" {
   default = "local:iso/kali-linux-installer-amd64.iso"
 }
 
+# 910's ISO, for garuda (#921). Saruman mounts smaug-iso, so this one sits
+# with the other templates' ISOs: the pinned 2026.2 installer, hashed in
+# scripts/collect-iso-store-state.sh.
+variable "kali_saruman_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/kali-linux-2026.2-installer-amd64.iso"
+}
+
 variable "kali_node" {
   type        = string
   description = "ifrit, once it exists. Saruman only to prove the preseed."

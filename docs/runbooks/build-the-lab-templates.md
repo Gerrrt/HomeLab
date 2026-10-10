@@ -1,8 +1,9 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
-**Target:** templates 901, 903–909, 911 and 912 on `Saruman`, built from
+**Target:** templates 901, 903–912 on `Saruman`, built from
 `phoenix` through the Proxmox API. 902, Kali, is written here and built on
-`ifrit` once that host exists. 903 (Debian), 904 (Fedora), 905 (openSUSE
+`ifrit` once that host exists. 910 is the same Kali build on `Saruman`, for
+`garuda` (§5b, [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)). 903 (Debian), 904 (Fedora), 905 (openSUSE
 Tumbleweed), 906 (Arch), 907 (Alpine), 908 (Gentoo) and 909 (NixOS) are the
 dotfiles OS layers' templates
 ([ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md),
@@ -48,7 +49,7 @@ decided for [#440](https://github.com/Gerrrt/HomeLab/issues/440). The HCL is in
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
 | Where it runs | `phoenix`, through the API on 8006 | It is the only host admitted to the hypervisor's API, and the only one meant to build machines (ADR-0043). There is no SSH to `Saruman` from here, and nothing in this runbook needs it |
-| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 NixOS. 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
+| VMIDs | 901 Ubuntu, 902 Kali, 903 Debian, 904 Fedora, 905 openSUSE, 906 Arch, 907 Alpine, 908 Gentoo, 911 Windows 11 Pro, 912 Server 2025 eval. 909 NixOS. 910 Kali on `Saruman`, for `garuda` (§5b). 917 and 918 are 907's and 908's staging templates (§4b) | The 900s hold no address. Guests keep "VMID is the last octet" |
 | Clones | **Full, never linked** | A rebuild runs `packer build -force`, which destroys the template at the same VMID. A linked clone would stop that, or break |
 | Windows SID | `sysprep /generalize` as each build's last step | Every clone takes a new machine SID at first boot. Two DCs cloned from one template would otherwise share one, and a member whose SID matches a DC's cannot join |
 | Answer files | On a generated CD (`cidata` for Ubuntu and Arch, `OEMDRV` for Fedora and openSUSE, `ANSWERS` for Windows) | Nothing has to listen on `phoenix`. The Debian installer, which both Kali and Debian use, is the exception: it cannot read a second disc, so its preseed is served over HTTP (§5) |
@@ -501,7 +502,7 @@ not from a second disc.
    the disk creation fails without the override:
 
    ```bash
-   packer build -only='kali.*' \
+   packer build -only='kali.proxmox-iso.kali' \
      -var kali_iso_file=local:iso/<the iso> \
      -var disk_storage=<ifrit's guest storage> \
      packer/
@@ -516,6 +517,34 @@ not from a second disc.
    Then run §8's second `-force` build and smoke test, which is #790's
    acceptance.
 
+## 5b. Kali on `Saruman`, for `garuda`
+
+910 is §5's build with three things changed, all in `kali.pkr.hcl`'s
+`kali-saruman` source: the node is `Saruman`, the ISO is on `smaug-iso`, and
+the boot waits 20s, as Debian's does. The preseed is the same file. It is
+[#921](https://github.com/Gerrrt/HomeLab/issues/921)'s template, and a
+template belongs to one node, so 902 stays `ifrit`'s
+([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+
+1. Open port 8800 on `phoenix` for the build, as §5 step 1 says. Delete the
+   rule afterwards.
+2. Build, then prove it:
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; set +a
+   packer init packer/
+   packer build -force -only='kali.proxmox-iso.kali-saruman' packer/
+   scripts/packer-smoke.sh 910
+   ```
+
+   The ISO is `kali-linux-2026.2-installer-amd64.iso`, the file
+   `scripts/collect-iso-store-state.sh` already hashes. A newer Kali is a
+   new file name there and in `kali_saruman_iso_file`, never an overwrite.
+3. Run §8's second `-force` build and smoke test.
+
+`garuda` is then cloned from it by
+[`build-the-analyst-workstation.md`](build-the-analyst-workstation.md).
+
 ## 6. Prove each template
 
 ```bash
@@ -529,6 +558,7 @@ scripts/packer-smoke.sh 906
 scripts/packer-smoke.sh 907
 scripts/packer-smoke.sh 908
 scripts/packer-smoke.sh 909
+scripts/packer-smoke.sh 910
 ```
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user

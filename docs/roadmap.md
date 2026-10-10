@@ -198,6 +198,17 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   2. openSUSE and Arch;
   3. Alpine and Gentoo, from their published images;
   4. NixOS.
+- **[#921](https://github.com/Gerrrt/HomeLab/issues/921) `garuda`, an
+  analyst workstation.** Kali Purple without its SOC, always on beside `odin`,
+  and the home of `dotfiles-Defense`
+  ([ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+  It ships in three phases:
+  1. Template 910, the guest, its tools and dotfiles
+     ([`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
+     Written, not built.
+  2. Enrolling it in Wazuh and Velociraptor, which no Linux guest is yet.
+  3. OpenVAS, with VLAN 30 as its written scope and a #921 silence for each
+     scan.
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and

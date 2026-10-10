@@ -20,6 +20,7 @@ page is the map.
 | 907 | `tpl-alpine` | `alpine.pkr.hcl` | Alpine's cloud image, imported as 917 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 908 | `tpl-gentoo` | `gentoo.pkr.hcl` | Gentoo's cloud image, imported as 918 and cloned (`proxmox-clone`) | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 909 | `tpl-nixos` | `nixos.pkr.hcl` | the minimal ISO, a typed boot command, then `nixos/install.sh` over SSH | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
+| 910 | `tpl-kali-saruman` | `kali.pkr.hcl` (`kali-saruman`) | Debian preseed, Packer HTTP: 902's build on `Saruman` | `Saruman`, written; garuda's base ([#921](https://github.com/Gerrrt/HomeLab/issues/921), [ADR-0091](../docs/adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)) |
 | 911 | `tpl-win11-pro` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07, #846); also the base for `dot-windows` |
 | 912 | `tpl-ws2025-eval` | `windows.pkr.hcl` | Autounattend, `ANSWERS` disc | `Saruman`, built and smoke-tested (rebuilt 2026-10-07 with the `SetupComplete.cmd` fix, #846) |
 

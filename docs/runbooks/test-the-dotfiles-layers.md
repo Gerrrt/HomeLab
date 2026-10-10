@@ -27,6 +27,13 @@ for [#920](https://github.com/Gerrrt/HomeLab/issues/920). Built so far: Debian
 and Arch (194) in phase 2, Alpine (195) and Gentoo (196) in phase 3, and
 NixOS (197) in phase 4: all eight layers.
 
+The two role layers are not run here. `dotfiles-Defense` lives on `garuda`,
+over `dotfiles-Debian`
+([`build-the-analyst-workstation.md`](build-the-analyst-workstation.md) §7,
+[ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)),
+and `dotfiles-Offense` on `ifrit`'s Kali
+([#790](https://github.com/Gerrrt/HomeLab/issues/790)).
+
 | Guest | VMID | Address | Template | Layer repo |
 | --- | --- | --- | --- | --- |
 | `dot-debian` | 191 | `10.0.30.91` | 903 `tpl-debian-13` | `dotgibson/dotfiles-Debian` |

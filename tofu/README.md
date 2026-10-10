@@ -29,8 +29,9 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
 - `guests.tf` lists the guests. The pools are derived from them, so a pool
   lives exactly as long as a guest in it does. It holds ADR-0029's six domain
   guests (150–155), in the `lab-domain` pool, #920's on-demand dotfiles
-  VMs (191–198, [ADR-0090]), in the `dotfiles` pool, and the proof guest,
-  998, only under `-var proof=true`.
+  VMs (191–198, [ADR-0090]), in the `dotfiles` pool, #921's always-on
+  analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool, and
+  the proof guest, 998, only under `-var proof=true`.
 - `modules/guest/` makes one full clone, with the flags the hand-built guests
   have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC and SMBIOS UUID
   each guest is given. It leaves `startup` alone: setting it takes

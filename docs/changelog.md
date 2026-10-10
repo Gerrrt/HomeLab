@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` was written, not built**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+  It is Defense's analyst workstation, Kali Purple without its SOC, and the
+  home of `dotfiles-Defense`.
+  - **Template 910,** `tpl-kali-saruman`: a second source in
+    `packer/kali.pkr.hcl`, so that 902 stays `ifrit`'s. 902's build line is
+    now `-only='kali.proxmox-iso.kali'`, since `kali.*` would build both.
+  - **The guest,** VMID 162 at `10.0.30.62`, in `tofu/guests.tf`'s new
+    `analyst` pool. It is always on, not `on-demand`, and not a domain member.
+  - **`stacks/analyst`:** Alloy and its socket proxy, nothing else, with a
+    Dependabot entry from the first commit.
+  - **The runbook,**
+    [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md).
+    It covers Purple's tools with the sensor daemons off, and Defense on
+    `dotfiles-Debian` at release tags.
+  - **Left for the build:** the lab token `INGEST_TOKEN_GARUDA` and the
+    `analyst` sops rule. They need `alexander` and `garuda` themselves, as
+    `eden`'s did.
+
 - **`carbuncle` and `siren` were re-cloned from the rebuilt 911**
   ([#1092](https://github.com/Gerrrt/HomeLab/issues/1092)'s fix), so the two
   endpoints no longer park at OOBE's account page.
