@@ -377,13 +377,44 @@ Then, per layer:
   password (the template's build password, from `phoenix.env`) and add it to
   the bake. Then, in a new `pwsh`:
   `cd ~/dotfiles-Windows; .\install.ps1`. After that, in another new `pwsh`,
-  run the layer's doctor (`powershell/os/45-doctor`).
+  run the layer's doctor (`dotfiles-doctor`).
+
+  `install.ps1` also installs the layer's optional *gui* and *desktop*
+  groups. Of those, only **GlazeWM** asked for UAC on 2026-10-09. Approve it
+  with the `Administrator` password, or decline it to skip the tiling window
+  manager.
+
+  Until
+  [dotgibson/dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)
+  is fixed, the next `pwsh` warns that `10-tools.ps1` failed to load ("A
+  cmdlet named 'Get-PSReadLineKeyHandler' already exists"):
+  - The layer pins PSReadLine 2.3.6, which is older than pwsh 7.6's in-box
+    2.4.5, and the profile loads both.
+  - To work around it, close Windows Terminal, then delete
+    `$env:LOCALAPPDATA\PowerShell\Modules\PSReadLine\2.3.6` as SYSTEM.
+  - Stop the psmux servers and their `pwsh` panes first. They outlive the
+    terminal and hold the DLL, so the delete is refused until they are gone.
+  - Then open a new terminal.
+
+  The first terminal after that may print a `Set-Content … mise-shims.ps1 …
+  being used by another process` error once. That is
+  [#287](https://github.com/dotgibson/dotfiles-Windows/issues/287), and it is
+  harmless.
+
+  **Read the doctor at the console, not over SSH.** Over SSH, scoop's
+  `current` junctions are untrusted, so `mise` and `starship` look missing
+  and `10-tools.ps1` fails on `mise.exe`.
 
   **The guest is unactivated (ADR-0090 §6).** A step that fails on a
   Personalization setting is that, not a dotfiles bug. **WSL** is in
   `configuration.dsc.yaml`, and it needs nested virtualization, which this
-  guest is not given. A WSL failure here is the test bed's, not the
-  layer's.
+  guest is not given. On 2026-10-09 it refused to start because
+  virtualization is not enabled. A WSL failure here is the test bed's, not
+  the layer's.
+
+  **Every noVNC console on `Saruman` is slow, not only this guest's**
+  (2026-10-09). Judge the guest by the doctor and by timings, not by how the
+  console feels.
 
 To test a release rather than `main`, clone with `--branch <tag>`.
 
@@ -451,3 +482,4 @@ reservations. The templates are `build-the-lab-templates.md` §10's.
 | 2026-10-09 | First run, NixOS (dotfiles v7.14.0) | In the layer's order: the `home-manager` channel (release-26.05), `nix/nixos.nix` with `tester` and the home-manager module, then `nixos-rebuild switch`, which took about 1 min and activated `home-manager-tester.service`. Then `./bootstrap.sh`, exit 0 in 1 s (links only, no escalation), and `core doctor` exit 0, with nine missing: `viddy gron sd xh doggo op ast-grep uv difft`. None of them is in `nix/home.nix`'s `home.packages`, so the layer's package set lags what Core expects |
 | 2026-10-09 | `dot-windows` re-cloned from the rebuilt 911 (#1093), §3 again, then the new prerequisite bake (#1108) | First boot rested at the sign-in screen: `AutoAdminLogon=0`, no `DefaultPassword`, no `Panther\unattend-original.xml`. `tester` logs in by key at Medium Mandatory Level. The bake ran as SYSTEM through the guest agent: all four downloads matched their published SHA-256, and every installer exited 0. Afterwards winget (as SYSTEM) lists Git.Git 2.56.0.2, Microsoft.PowerShell 7.6.6, Microsoft.WSL 3.0.1 and WiresharkFoundation.Wireshark 4.6.9. `configure --enable` exited 0. `clean` retaken stopped. The console run has not been done yet |
 | 2026-10-09 | `dot-windows` slowness (#1108) | Ruled out: Saruman (no CPU, IO or memory pressure), the disk (under 2 ms), memory (6.6 of 8 GiB free), VBS/HVCI (off) and Defender (no scans). Found: the Basic Display Adapter, because Proxmox's default VGA has no Windows driver, and a first sign-in that ran the CPU at 30–100% for 3½–7½ minutes (OneDriveSetup, MsMpEng, SearchIndexer). Fixed by `vga = "virtio"` (the guest came up on the Red Hat VirtIO GPU DOD controller at 1280×800, with the driver already in the template) and by one `tester` sign-in baked into `clean`. A sign-in from the new `clean` settles in about 2 minutes. How the console feels is still to be judged at the console |
+| 2026-10-09 | First run, Windows (dotfiles-Windows 229e09d), at the console as `tester`, from the new `clean` | Signed in at the sign-in screen with no OOBE detour. The `allowPrerelease` workaround (#285) was applied, then `winget configure` and `install.ps1`. Only **GlazeWM** asked for UAC, from the optional desktop group; the baked prerequisites asked nothing. The first `pwsh` failed to load `10-tools.ps1`: two PSReadLines were loaded, the layer's 2.3.6 pin and pwsh 7.6.6's in-box 2.4.5 ([dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)). After stopping psmux and deleting 2.3.6, the next terminal printed a one-off `mise-shims.ps1` cache race ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)), and a new pane was clean. **`dotfiles-doctor` at the console: 28 ok, 1 warn (git identity placeholder), 0 fail.** Over SSH the same doctor shows 25/3/1 because of the network-logon junction limit. WSL: "virtualization is not enabled". The console was slow, but so is noVNC to every guest on `Saruman` |
