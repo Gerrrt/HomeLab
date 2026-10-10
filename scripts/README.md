@@ -46,6 +46,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
+| `gitleaks-history.sh` | — | The full-history secret scan CI and `validate.sh` both run, which fails a scan of zero commits because gitleaks exits 0 when git cannot read the repository |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
 | `self-tests.sh` | — | Every fixture suite embedded in the scripts above |
 | `volume-selftest-fixture.sh` | — | Sourced, not run: the throwaway repository, volumes and age keys that `backup-volumes.sh` and `restore-volumes.sh` round-trip in their fixtures |

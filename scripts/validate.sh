@@ -724,10 +724,18 @@ fi
 # and its absence here meant both scans skipped on a host with docker running
 # and the pinned image one `docker run` away — while CI ran them every push.
 # Silently, because a skip was all it printed (#68).
+#
+# In a git worktree, .git is a file naming a directory under the main
+# checkout's .git, outside REPO_ROOT. Mounting REPO_ROOT alone left git in the
+# container with nothing to read, and gitleaks exits 0 when git fails: it logs
+# the error, reports "0 commits scanned" and "no leaks found". So the common
+# git directory is mounted at its own absolute path, which is where the .git
+# file points. In the main checkout that mount goes unused.
 if have gitleaks; then
   GITLEAKS=(gitleaks)
 elif have_docker; then
-  GITLEAKS=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo "${GITLEAKS_IMAGE}")
+  GIT_COMMON="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir)"
+  GITLEAKS=(docker run --rm -v "${REPO_ROOT}:/repo" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
 else
   GITLEAKS=()
 fi
@@ -740,10 +748,11 @@ if ((${#GITLEAKS[@]})); then
     fail "gitleaks (working tree)"
   fi
 
-  if "${GITLEAKS[@]}" detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" >/dev/null 2>&1; then
-    pass "gitleaks (full history)"
+  # The same script CI runs, which also refuses a scan of zero commits.
+  if HISTORY_OUT="$(./scripts/gitleaks-history.sh "${GITLEAKS[@]}")"; then
+    pass "gitleaks (full history): ${HISTORY_OUT##*$'\n'}"
   else
-    "${GITLEAKS[@]}" detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
+    printf '%s\n' "${HISTORY_OUT}"
     fail "gitleaks (full history)"
   fi
 else
