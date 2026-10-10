@@ -221,14 +221,18 @@ build {
       # on 2026-10-10, before this change: cloud-init did not run on 2 of 7
       # first boots of 910. On garuda's, sslh's generator (sslh comes with
       # kali-linux-headless) aborted beside it, with no /etc/sslh, and on
-      # its second boot did not. Two changes, either of which closes it:
-      #   - mask sslh's generator, as systemd allows: a /dev/null link of the
-      #     same name in /etc. The package stays, so the metapackages keep
-      #     their dependency and nothing is autoremoved;
+      # its second boot did not. What cuts the generator off is not proved,
+      # so the fix is the two changes together, and they were proved together
+      # (12 of 12 first boots with cloud-init after the rebuild); neither has
+      # been shown to close it alone:
       #   - link cloud-init.target into multi-user.target here, so cloud-init
       #     no longer depends on its generator finishing. ds-identify then
       #     cannot switch cloud-init off, which nothing here needs: every
-      #     clone gets a NoCloud drive (tofu/modules/guest, packer-smoke.sh).
+      #     clone gets a NoCloud drive (tofu/modules/guest, packer-smoke.sh);
+      #   - mask sslh's generator, as systemd allows: a /dev/null link of the
+      #     same name in /etc, which removes the abort seen beside the cut.
+      #     The package stays, so the metapackages keep their dependency and
+      #     nothing is autoremoved.
       "mkdir -p /etc/systemd/system-generators /etc/systemd/system/multi-user.target.wants",
       "ln -sf /dev/null /etc/systemd/system-generators/systemd-sslh-generator",
       "ln -sf /usr/lib/systemd/system/cloud-init.target /etc/systemd/system/multi-user.target.wants/cloud-init.target",
