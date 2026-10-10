@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` was built, as far as its desktop and dotfiles**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11). This corrects the "written, not built" entry below.
+  - **Template 910** was built twice and passed `packer-smoke.sh` both times.
+  - **The guest** came from a targeted apply: 2 added, 0 changed, 0
+    destroyed. It is VMID 162 at `10.0.30.62`.
+  - **Its first boot ran no cloud-init**, so there was no user; a reboot fixed
+    it ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **`/` is 59.7 GB of 80** ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
+  - **Purple's desktop and tools** are in, with Suricata's daemon disabled.
+    Kali's `zeek` package cannot be installed (`libc6 (< 2.38)`), so it is
+    left out.
+  - **dotfiles:** `dotfiles-Debian` v0.1.59, then `dotfiles-Defense` v1.0.132.
+    Both bootstraps exited 0, and `core doctor` exited 0 with nothing expected
+    missing. Defense's probe lists seven optional forensics tools as missing,
+    Zeek among them.
+  - **Not yet done:** the lab ingest token and `stacks/analyst`, the backup
+    job, patch-state, the console password, and the Wazuh/Velociraptor and
+    OpenVAS phases.
+
 - **`garuda` was written, not built**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
   [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).

@@ -120,6 +120,27 @@ ssh analyst@10.0.30.62 'hostname; ip -br addr; id; systemctl is-active qemu-gues
 Expect `garuda`, `10.0.30.62/24` on `eth0`, and `active`. If the address is not
 `.62`, the reservation in §2 is wrong. Fix it there, not on the guest.
 
+**If the login is refused,** check cloud-init through the agent before
+anything else:
+
+```bash
+qm guest exec 162 -- cloud-init status
+```
+
+`not started` (with the hostname still `tpl-kali-saruman`) is
+[#1127](https://github.com/Gerrrt/HomeLab/issues/1127): on a first boot,
+cloud-init's generator can be killed before it enables `cloud-init.target`.
+`qm reboot 162` once, and it runs. **Pin the host key only after
+`cloud-init status` says `done`.** The first boot's sshd made keys of its own,
+and cloud-init replaces them. Read the key through the agent
+(`qm guest exec 162 -- cat /etc/ssh/ssh_host_ed25519_key.pub`), not on first
+use.
+
+**`/` is about 60 GB, not 80** until
+[#1128](https://github.com/Gerrrt/HomeLab/issues/1128) is fixed: the template's
+swap partition sits after `/`, so growpart cannot reach the clone's extra
+16 GB.
+
 **Give `analyst` a console password.** cloud-init made the account key-only,
 which is enough for SSH but not for the desktop's login screen in §9. Set it
 over SSH, at the prompt, never as an argument: a password on a command line
@@ -151,10 +172,18 @@ sudo apt-get -y install kali-desktop-xfce kali-themes-purple
 **The analyst's tools.** These are host tools, not services:
 
 ```bash
+echo 'wireshark-common wireshark-common/install-setuid boolean true' | sudo debconf-set-selections
 sudo apt-get -y install cyberchef wireshark tshark jq yara \
-  docker.io docker-compose zeek suricata
+  docker.io docker-compose suricata
 sudo usermod -aG docker,wireshark analyst
 ```
+
+The `debconf` line answers Wireshark's install question so that members of
+`wireshark` may capture without root. **No `zeek`:** Kali's package (5.1.1 on
+2026-10-10) depends on `libc6 (< 2.38)`, which Kali Rolling no longer has, and
+one uninstallable name makes `apt` refuse the whole line. Zeek on `fenrir` is
+the sensor. For offline work on a capture, run the `zeek/zeek` image pinned in
+`stacks/sensor` against the file.
 
 **Log out and reconnect** before going on. `usermod` does not change the
 groups of a session that is already open, and §6's `make up` needs the
@@ -170,9 +199,9 @@ rest), and **no Elastic.** Those metapackages bring in the SOC that ADR-0091
 leaves out. Add a single tool by name when it earns a place, and add it to the
 list above.
 
-**Turn the sensors' daemons off.** `zeek` and `suricata` are installed for
-offline work on a capture (`zeek -r`, `suricata -r`), which is what
-`dotfiles-Defense` uses them for. They must never listen on the segment, where
+**Turn the sensors' daemons off.** `suricata` is installed for offline work
+on a capture (`suricata -r`), which is what `dotfiles-Defense` uses it for,
+as it would `zeek` if Kali's package installed. They must never listen on the segment, where
 they would duplicate `fenrir` and `morpheus`:
 
 ```bash
@@ -264,8 +293,8 @@ A good run is:
 - Defense's host-tool probe finds `docker compose`, and lists what it found
   missing.
 
-Its missing list is expected to include tools Kali does not package:
-`chainsaw`, `hayabusa`, `sigma-cli`, `velociraptor`, `vol` and
+Its missing list is expected to include `zeek` (§5) and the tools Kali does
+not package: `chainsaw`, `hayabusa`, `sigma-cli`, `velociraptor`, `vol` and
 `log2timeline.py`. Record that list in §11. A failure is filed on the layer's
 own repository with the guest, template 910's build date and the output, as
 [`test-the-dotfiles-layers.md`](test-the-dotfiles-layers.md) §4 does.
@@ -333,7 +362,84 @@ In the same pull request as §6, or one after it:
 
 ## 11. As run
 
-Not run yet.
+**2026-10-10, phase 1** (§1–§5 and §7), from
+[#1116](https://github.com/Gerrrt/HomeLab/pull/1116)'s branch on `phoenix`.
+§6, §8 and §9's telemetry, backup and desktop lines are not run yet, nor is
+the console password.
+
+- **§1, template 910.** Built from a worktree of the branch, since the shared
+  checkout stayed on `main`, with port 8800 free and nothing else building.
+  - `packer validate`/`fmt -check` passed.
+  - The first build took 26m25s and `packer-smoke.sh 910` passed (agent
+    address, hostname `smoke-910`, SSH as `smoke`).
+  - The `-force` rebuild took 26m11s and its smoke test passed again.
+  - Both builds print `userdel: user packer is currently used by process …`.
+    `-f` removes it anyway.
+- **§2.** `.62` was reserved on `morpheus` by Garrett. `large_data` was 44.17%
+  written. `/pool/analyst` was granted to `phoenix@pve` as `PhoenixBuilder`.
+- **§3.** The worktree was initialised against the shared state
+  (`-backend-config=path=…/HomeLab/tofu/state/lab.tfstate`). The plan
+  targeted `module.guest["garuda"]` and the `analyst` pool: **2 to add, 0 to
+  change, 0 to destroy**. The apply created 162 in 3m45s.
+  - `qm config 162`: tag `analyst`, `onboot: 1`, no `startup`,
+    `pre-enrolled-keys=0`, 4 cores, 8192 MiB, balloon 0.
+- **§4.** The first boot came up **without cloud-init**: status `not
+  started`, hostname `tpl-kali-saruman`, no `analyst`, so SSH was refused.
+  - The generator's log stopped after `checking for datasource`, though
+    `ds-identify` found NoCloud and returned 0. Filed as
+    [#1127](https://github.com/Gerrrt/HomeLab/issues/1127).
+  - `qm reboot 162` fixed it: the hostname became `garuda`, `analyst`
+    (uid 1000, sudo) was created and cloud-init reported `done`.
+  - The host key changed across the reboot. It was re-pinned on `phoenix`
+    after the fingerprint read through the agent matched
+    (`SHA256:pj4KrgprKwxNxkrm1ZTXjT6o8UVinYYoMx0RdaI97f4`).
+  - SSH as `analyst`: `10.0.30.62/24` on `eth0`, agent `active`, Kali
+    GNU/Linux Rolling.
+  - `/` is 59.7 GB of the 80 GB disk. Filed as
+    [#1128](https://github.com/Gerrrt/HomeLab/issues/1128).
+- **§5.** Every name resolved with `apt-cache policy`, but `zeek` (5.1.1-0kali3)
+  could not be installed (`libc6 (< 2.38)`), and `apt` refused the tools line
+  for it. That line was re-run without it.
+  - Installed: `kali-desktop-xfce` 2026.3.9 and `kali-themes-purple` 2026.3.0
+    (430 packages), then 49 more:
+    - CyberChef 11.3.0
+    - Wireshark and tshark 4.6.6
+    - Suricata 8.0.7
+    - YARA 4.5.8
+    - jq 1.8.2
+    - Docker 28.5.2 with Compose 2.40.3
+  - `dumpcap` is `root:wireshark` with `cap_net_admin,cap_net_raw`.
+    `analyst` is in `docker` and `wireshark`.
+  - `suricata.service` is `disabled`, and `zeek.service` does not exist.
+    `ss -lntup` shows no Suricata, Zeek, Elastic, Kibana or Wazuh listener.
+    `docker ps` is empty.
+  - **A stale group list after `usermod`** came from `phoenix`'s SSH
+    multiplexing (`ControlPersist 10m`), not from the guest. A connection with
+    `-o ControlPath=none` showed both groups.
+- **§7.** `dotfiles-Debian` **v0.1.59** and `dotfiles-Defense` **v1.0.132**,
+  under `~/code/dotgibson/`, run as `analyst`.
+  - Both `git clone`s warn `refs/tags/… is not a commit`. These are
+    annotated tags, and the checkout is correct.
+  - Debian `bootstrap.sh` exited **0**:
+    - 35 linked, 3 seeded, 1 backed up, 1 relinked;
+    - it used the Kali tier's capabilities;
+    - it set zsh as the login shell and enabled `unattended-upgrades`
+      (security pocket only).
+  - Defense `bootstrap.sh` exited **0**: 32 linked and 29 relinked over
+    Debian's Core links.
+    - The host-tool probe found `zsh docker jq tshark suricata yara`, and
+      `docker compose available`.
+    - It reported **7 missing**: `zeek chainsaw hayabusa sigma-cli
+      velociraptor vol log2timeline.py`.
+  - `core doctor` (dotfiles-core 7.14.0) exited **0**, with **nothing
+    expected missing**. All of modern CLI, integrations, data/net and
+    dev/repo's expected tools are present, including `sesh`, `yq` and
+    `doggo`, which `dot-debian` lacked. Thirteen opt-in tools are not
+    installed, by design.
+- **Agents.** `guest-exec` timed out on both `garuda` (162) and `phoenix`
+  (170) after commands carrying non-ASCII text or heredocs.
+  `scripts/qga-resync.py` fixed each at once. Keep agent commands ASCII, and
+  prefer SSH from `phoenix` for anything with a heredoc.
 
 ## 12. Take it out
 
