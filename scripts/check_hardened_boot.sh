@@ -139,6 +139,44 @@ if [[ -n "${missing}" ]]; then
   done <<<"${missing}"
 fi
 
+# Certificates and keys the service mounts from a gitignored directory, which a
+# CI checkout does not have either: the SOC caddy serves the Wazuh generator's
+# dashboard leaf and verifies against its root (#1139), and the generator only
+# ever runs on odin. Docker would make a directory at each, and Caddy then
+# crash-loops on "read /etc/caddy/tls/cert.pem: is a directory". One throwaway
+# pair, a day long and unrelated to any CA this estate runs, stands in for all
+# of them: a source whose name says key gets the key, anything else the
+# certificate, so a `tls cert key` pair always matches. It proves the paths and
+# that the service boots on PEMs of that shape, not the real leaf — the same
+# claim scripts/check_caddyfile.sh makes with its own throwaway pair.
+pems="$(docker compose --env-file "${ENV_FILE}" -f "${COMPOSE}" config --format json \
+  | python3 -c '
+import json, os, sys
+svc = json.load(sys.stdin)["services"][sys.argv[1]]
+for v in svc.get("volumes") or []:
+    src = v.get("source") or ""
+    if (v.get("type") == "bind" and src.endswith(".pem")
+            and "/.rendered/" not in src and not os.path.exists(src)):
+        kind = "key" if "key" in os.path.basename(src) else "cert"
+        print(kind + " " + v["target"])
+' "${SERVICE}")" || die "could not read ${SERVICE}'s mounts"
+if [[ -n "${pems}" ]]; then
+  mkdir -p "${WORK}/pem"
+  openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
+    -subj '/CN=hardened-boot' \
+    -keyout "${WORK}/pem/key.pem" -out "${WORK}/pem/cert.pem" >/dev/null 2>&1 \
+    || die "could not generate a throwaway certificate for the boot"
+  # World-readable on purpose: the service may run as any uid, and the real
+  # files' 0400 ownership is odin's to get right, not this check's.
+  chmod 755 "${WORK}/pem" && chmod 644 "${WORK}/pem"/*.pem
+  grep -q '^services:' "${OVERRIDE}" \
+    || printf 'services:\n  %s:\n    volumes:\n' "${SERVICE}" >> "${OVERRIDE}"
+  while read -r kind target; do
+    printf '      - type: bind\n        source: %s\n        target: %s\n        read_only: true\n' \
+      "${WORK}/pem/${kind}.pem" "${target}" >> "${OVERRIDE}"
+  done <<<"${pems}"
+fi
+
 # The proof key. `--no-path-resolution` keeps the checkout's absolute path out
 # of it, so a runner and a laptop agree on the same inputs. `--no-interpolate`
 # is deliberately NOT used: the digest arrives through the image line either
