@@ -225,14 +225,17 @@ build {
       # so the fix is the two changes together, and they were proved together
       # (12 of 12 first boots with cloud-init after the rebuild); neither has
       # been shown to close it alone:
-      #   - link cloud-init.target into multi-user.target here, so cloud-init
-      #     no longer depends on its generator finishing. ds-identify then
-      #     cannot switch cloud-init off, which nothing here needs: every
-      #     clone gets a NoCloud drive (tofu/modules/guest, packer-smoke.sh);
+      #   - link cloud-init.target into multi-user.target here. This is the
+      #     part that makes cloud-init start whatever cuts the generator off,
+      #     because cloud-init no longer depends on the generator finishing.
+      #     ds-identify then cannot switch cloud-init off, which nothing here
+      #     needs: every clone gets a NoCloud drive (tofu/modules/guest,
+      #     packer-smoke.sh);
       #   - mask sslh's generator, as systemd allows: a /dev/null link of the
-      #     same name in /etc, which removes the abort seen beside the cut.
-      #     The package stays, so the metapackages keep their dependency and
-      #     nothing is autoremoved.
+      #     same name in /etc. It removes the abort seen beside the cut, which
+      #     helps only if that abort is the cause; it is kept because nothing
+      #     here uses sslh. The package stays, so the metapackages keep their
+      #     dependency and nothing is autoremoved.
       "mkdir -p /etc/systemd/system-generators /etc/systemd/system/multi-user.target.wants",
       "ln -sf /dev/null /etc/systemd/system-generators/systemd-sslh-generator",
       "ln -sf /usr/lib/systemd/system/cloud-init.target /etc/systemd/system/multi-user.target.wants/cloud-init.target",
