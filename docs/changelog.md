@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **Kali clones come up with cloud-init again**
+  ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **The fault.** On a clone's first boot, cloud-init's generator could be
+    cut off before it enabled `cloud-init.target`, so the guest got no user,
+    no key and kept the template's hostname. It happened on 2 of 7 first
+    boots of template 910: `garuda`, and one of four reproduction clones.
+    On `garuda`'s first boot sslh's generator (from `kali-linux-headless`)
+    aborted beside it, and did not on its second boot.
+  - **The fix.** `packer/kali.pkr.hcl` links `cloud-init.target` into
+    `multi-user.target`, so cloud-init no longer depends on its generator. It
+    also masks sslh's generator, keeping the package.
+  - **Proved.** 910 was rebuilt with the fix, and 12 of 12 first boots of
+    disposable clones ran cloud-init. On the last 4, checked properly, sslh's
+    generator no longer aborts. An earlier version of the check matched its
+    own command in the journal, so it counted an abort on every boot; the
+    baseline's sslh figures were void, its cloud-init ones were not.
+
 - **The domain's six had fallen out of `golem-nightly`, and were put back.**
   - **What was found.** The job selected only `odin` (160). Each tofu destroy
     of a domain guest had used the provider's default purge, which removes
