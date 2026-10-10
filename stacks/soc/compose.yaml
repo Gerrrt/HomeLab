@@ -4,10 +4,10 @@
 # something that reports what happened to it.
 #
 # Deployed on: odin (10.0.30.60, VLAN 30 / ImaginationLAN) — a SECOND guest on
-#              `Saruman`, beside `alexander`. NOT BUILT YET. Authored ahead of
-#              the guest the way stacks/lab was ahead of alexander (#264 landed
-#              a day before #262) and stacks/sensitive ahead of trinity (#415).
-#              The build is docs/runbooks/build-the-soc-guest.md.
+#              `Saruman`, beside `alexander`. Built 2026-09-27 by
+#              docs/runbooks/build-the-soc-guest.md; authored ahead of the
+#              guest, the way stacks/lab was ahead of alexander (#264 landed a
+#              day before #262) and stacks/sensitive ahead of trinity (#415).
 # Decided by:  docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
 #              — why a second guest and not alexander (Wazuh's stated minimums
 #              are six gigabytes before the dashboard, on an 8 GiB guest already
