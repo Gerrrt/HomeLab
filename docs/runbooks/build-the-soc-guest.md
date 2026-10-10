@@ -492,7 +492,17 @@ things `make validate` cannot see:
 because the value in SOPS is inert from here on). Both are self-signed and
 both browsers will warn; the two leaves from the lab CA are the named
 follow-up in ADR-0030. The existing 50 → 30 rule carries both; no firewall
-change anywhere.
+change anywhere. Both pass through the stack's `caddy`, which serves the
+dashboard's generator leaf on both ports and answers Hicks's `10.0.50.0/24`
+only (#1139). Prove the other half from any VLAN 30 host but `odin` — a
+dotfiles VM, or `alexander`:
+
+```bash
+for p in 443 8889; do curl -sk -o /dev/null -w "$p %{http_code}\n" https://10.0.30.60:$p/; done
+```
+
+Both `403`. A `200` or a `302` there means the UI answers the lab segment
+again: a `ports:` line has come back on `wazuh.dashboard` or `velociraptor`.
 
 **The crossing, in the lab's Grafana** — Explore, Prometheus datasource:
 
@@ -741,7 +751,12 @@ sudo rm -rf /srv/soc-data/velociraptor
   for p in 8000 8889 8003; do nc -z -w 3 10.0.30.60 $p && echo "$p OPEN" || echo "$p closed"; done
   ```
 
-  All three `closed`.
+  Since #1139, `8889` is published by the stack's `caddy`, not by
+  Velociraptor, so with Velociraptor gone the first run still shows
+  `8889 OPEN`: that is Caddy's listener, with nothing behind it. Remove
+  the `:8889` site from `stacks/soc/Caddyfile` and the `8889` line from
+  `caddy`'s `ports:`, `make up STACK=soc`, and run the loop again. Now all
+  three `closed`.
 - The MSI on SYSVOL: delete it. It carries the client config inside it.
 - `docs/network.md`, `stacks/soc/README.md` and ADR-0030's port table stop
   listing 8000, 8889 and 8003 on `odin`. If the service leaves the

@@ -387,12 +387,13 @@ services:
       - ./wazuh/dashboard/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml:ro
       - dashboard-config:/usr/share/wazuh-dashboard/data/wazuh/config
       - dashboard-custom:/usr/share/wazuh-dashboard/plugins/wazuh/public/assets/custom
-    ports:
-      # A browser on Hicks, over the 50 -> 30 rule that already exists — the
-      # same call stacks/lab made for its Grafana. Self-signed from the
-      # generator for now; a leaf from the lab CA is the named follow-up in
-      # ADR-0030, not a prerequisite.
-      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:5601"
+    # NOT published (#1139). Its consumer is a browser on Hicks, but a port
+    # published here answered all of VLAN 30, the six the SOC watches
+    # included, and pfSense never sees that traffic to filter it. The stack's
+    # caddy publishes odin's :443 instead, answers Hicks's /24 only, and
+    # proxies to this over the soc network. See the Caddyfile.
+    expose:
+      - "5601"
     depends_on:
       wazuh.indexer:
         condition: service_healthy
@@ -468,14 +469,16 @@ services:
       - ./velociraptor/etc:/etc/velociraptor
       - velociraptor-datastore:/datastore
     ports:
-      # 8000: the client frontend — the six endpoints. 8889: the GUI — a
-      # browser on Hicks; it authenticates. 8003: metrics — the lab's
-      # Prometheus on alexander, genuinely off-host, and "a residual rather
-      # than a solved problem" in ADR-0030's words: /metrics is unauthenticated
-      # and so is everything else on that listener. 8001, the gRPC API, has no
-      # consumer and stays on the container's loopback.
+      # 8000: the client frontend — the six endpoints. 8003: metrics — the
+      # lab's Prometheus on alexander, genuinely off-host, and "a residual
+      # rather than a solved problem" in ADR-0030's words: /metrics is
+      # unauthenticated and so is everything else on that listener. 8001, the
+      # gRPC API, has no consumer and stays on the container's loopback.
+      #
+      # 8889, the GUI, is NOT published from here (#1139): the stack's caddy
+      # publishes odin's :8889, answers Hicks's /24 only, and proxies to this
+      # over the soc network — the dashboard's reason, in its ports comment.
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_FRONTEND_PORT:-8000}:8000"
-      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_METRICS_PORT:-8003}:8003"
     healthcheck:
       # The same endpoint the lab scrapes, over plain http, from the busybox
@@ -508,32 +511,57 @@ services:
   # kept, as the ingest proxy keeps it, for the exec rather than the bind. The service is `caddy`,
   # as in stacks/lab, because scripts/check_caddyfile.sh validates a stack's
   # Caddyfile against the image of the service by that name.
+  #
+  # Since #1139 it is also the front door to the two web UIs, the Wazuh
+  # dashboard on odin's :443 and the Velociraptor GUI on :8889, answering
+  # Hicks's /24 and nothing else; the Caddyfile says why the filter has to be
+  # here. The container keeps its name: four files call it soc-agent-msi.
   # ---------------------------------------------------------------------------
   caddy:
     <<: *service-defaults
     image: caddy:2.11.7@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
     container_name: soc-agent-msi
-    user: "65534:65534"
+    # 1000, not 65534, since #1139: the browser-facing leaf is the dashboard's
+    # own from the Wazuh generator, which writes its key 0400 owned by 1000,
+    # the uid the dashboard runs as (build-the-soc-guest.md §6). The MSIs are
+    # 0644 (stage-agent-msis.sh), so 1000 reads them as 65534 did.
+    user: "1000:1000"
     pids_limit: 64
-    mem_limit: 64m
-    memswap_limit: 64m
+    # 64m served two static files. Proxying two UIs streams rather than
+    # buffers, but a ceiling picked for a file server is not one for a proxy
+    # carrying the dashboard's bundles, so double it until measured.
+    mem_limit: 128m
+    memswap_limit: 128m
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
     security_opt:
       - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /data:size=1m,uid=65534,gid=65534
-      - /config:size=1m,uid=65534,gid=65534
+      - /data:size=1m,uid=1000,gid=1000
+      - /config:size=1m,uid=1000,gid=1000
       - /tmp:size=1m
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - ${SOC_DATA_DIR:-/srv/soc-data}/agent-msi:/srv/agent-msi:ro
+      # The browser-facing leaf on :443 and :8889, and the root the dashboard
+      # upstream is verified against. Mounted where scripts/check_caddyfile.sh
+      # mounts its throwaway pair, so the check proves these paths.
+      - ./wazuh/certs/wazuh.dashboard.pem:/etc/caddy/tls/cert.pem:ro
+      - ./wazuh/certs/wazuh.dashboard-key.pem:/etc/caddy/tls/key.pem:ro
+      - ./wazuh/certs/root-ca.pem:/etc/caddy/tls/ca.pem:ro
     ports:
       # The six domain guests fetch from here during `--tags soc`. Fixed, not
       # a tunable: ansible/inventory/group_vars/all.yaml names this port in
       # both URLs, and a second copy of a number is how they drift apart.
       - "${BIND_ADDR:-0.0.0.0}:8448:8448"
+      # The two UIs (#1139), on the host ports they were published on before,
+      # so a bookmark on Hicks and the homepage links still work. 8443 inside,
+      # so nothing below 1024 is bound in the container.
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:8443"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
+    # No depends_on on either UI: Caddy resolves an upstream per request, and
+    # the MSIs must not wait on the indexer's two-minute start.
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8448/healthz"]
       interval: 30s

@@ -20,6 +20,22 @@
 > fortnight re-derivation is where to revisit it. The binding constraint was
 > heap-per-shard, which no disk changes, so the 30-day delete stands. The
 > text here is left as written, per ADR-0001.
+>
+> **2026-10-10: "reachable only from Hicks" was not true, and now is.** The
+> port table below names a browser on Hicks as the one consumer of the
+> dashboard (`443`) and the Velociraptor GUI (`8889`), and the Consequences
+> call them "reachable only from Hicks over a rule that already exists". That
+> holds for every *other* segment. It did not hold for VLAN 30 itself: both
+> were published from their containers on `0.0.0.0`, `odin` is single-homed on
+> VLAN 30, and traffic between VLAN 30 hosts never reaches pfSense — as this
+> ADR says under the table. So every lab host, the six the SOC watches among
+> them, reached both login pages
+> ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139), found triaging
+> [#1009](https://github.com/Gerrrt/HomeLab/issues/1009)). Both are now
+> published by the stack's Caddy, the `:8448` pattern, which answers
+> `10.0.50.0/24` and gives everyone else 403; WireGuard peers are not
+> included. The rows below are left as written, per ADR-0001;
+> `stacks/soc/Caddyfile` is the current statement.
 
 ## Context
 

@@ -1,17 +1,46 @@
-# The two installers roles/soc_agents fetches onto the lab domain (#1068):
-# the Wazuh agent MSI and the Velociraptor client MSI, staged on odin by
-# scripts/stage-agent-msis.sh and checked there against the role's pins.
+# Two jobs on odin, each answering a named set of addresses and refusing
+# everyone else with 403.
 #
-# Served to ADR-0029's six and nothing else. odin is single-homed on VLAN 30,
-# but Hicks reaches it over the 50 -> 30 rule, so the bind address alone would
-# not hold the line. And the Velociraptor MSI carries the client config: the
-# server URL, its CA and the enrolment nonce, which #864 took out of SYSVOL for
-# exactly this reason. An address on VLAN 30 can be spoofed, so this narrows
-# who can fetch it; it does not make the file a secret (docs/security.md).
+# 1. :8448 — the two installers roles/soc_agents fetches onto the lab domain
+#    (#1068): the Wazuh agent MSI and the Velociraptor client MSI, staged on
+#    odin by scripts/stage-agent-msis.sh and checked there against the role's
+#    pins.
 #
-# Plain http, like the Velociraptor frontend's own enrolment path: the role
-# checks every file against a pinned sha256 before installing it, so a
-# tampered byte fails the run rather than reaching a guest.
+#    Served to ADR-0029's six and nothing else. odin is single-homed on VLAN
+#    30, but Hicks reaches it over the 50 -> 30 rule, so the bind address alone
+#    would not hold the line. And the Velociraptor MSI carries the client
+#    config: the server URL, its CA and the enrolment nonce, which #864 took
+#    out of SYSVOL for exactly this reason. An address on VLAN 30 can be
+#    spoofed, so this narrows who can fetch it; it does not make the file a
+#    secret (docs/security.md).
+#
+#    Plain http, like the Velociraptor frontend's own enrolment path: the role
+#    checks every file against a pinned sha256 before installing it, so a
+#    tampered byte fails the run rather than reaching a guest.
+#
+# 2. :8443 and :8889 — the Wazuh dashboard and the Velociraptor GUI, to Hicks
+#    and nothing else (#1139). ADR-0030 named "a browser on Hicks" as the one
+#    consumer of each, but both were published straight from their containers
+#    on every address odin has, and odin is single-homed on VLAN 30. Traffic
+#    between VLAN 30 hosts never crosses pfSense, so every lab host — the six
+#    the SOC watches among them — reached both login pages, and no firewall
+#    rule could say otherwise. The filter has to be on odin, and this is it.
+#    WireGuard peers (172.31.0.0/24) are not in the list, by decision: the
+#    consumer is Hicks.
+#
+#    The same spoofing caveat applies: Hicks is a whole /24 (ADR-0031), and an
+#    address on VLAN 30 can claim to be one of them. This narrows who reaches
+#    the login pages. It does not replace the logins.
+#
+#    TLS. The browser gets the dashboard's own leaf from the Wazuh generator,
+#    on both ports — on :443 the same certificate it was given before, and on
+#    :8889 one it already had to click through, since Velociraptor's is
+#    self-signed too. The lab-CA leaves are still ADR-0030's follow-up (#267).
+#    Behind Caddy, the dashboard is verified against the generator's root, by
+#    the name its leaf carries. Velociraptor's GUI certificate is signed by
+#    the CA inside its gitignored server.config.yaml, which exists only on
+#    odin, so that one hop — container to container on the soc bridge — skips
+#    verification. That is the residual, and docs/security.md records it.
 {
 	admin off
 	auto_https off
@@ -29,6 +58,46 @@
 	handle @six {
 		root * /srv/agent-msi
 		file_server
+	}
+
+	respond 403
+}
+
+# The Wazuh dashboard. compose.yaml publishes this as odin's :443.
+:8443 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+
+	@hicks remote_ip 10.0.50.0/24
+	handle @hicks {
+		reverse_proxy https://wazuh.dashboard:5601 {
+			# The Host the browser sent, which is what the dashboard saw when it
+			# was published itself. An HTTPS upstream otherwise gets its own name.
+			header_up Host {hostport}
+			transport http {
+				tls_trust_pool file /etc/caddy/tls/ca.pem
+				tls_server_name wazuh.dashboard
+			}
+		}
+	}
+
+	respond 403
+}
+
+# The Velociraptor GUI, on the port its public_url already names (init.vql).
+:8889 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+
+	@hicks remote_ip 10.0.50.0/24
+	handle @hicks {
+		reverse_proxy https://velociraptor:8889 {
+			# As above, and likelier to matter here: Go servers commonly refuse a
+			# request whose Origin and Host disagree, and the browser's Origin is
+			# 10.0.30.60:8889, the public_url init.vql gives the GUI.
+			header_up Host {hostport}
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
 	}
 
 	respond 403

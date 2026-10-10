@@ -25,11 +25,11 @@ make up STACK=soc        # from the repository root, on odin
 | --- | --- | --- | --- |
 | `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch — the store for the estate's security events. 2 GiB heap, 30-day retention, and both numbers are bounds ([ADR-0030]) |
 | `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | The analysis engine the six domain agents report to and enrol with; enrolment needs a password |
-| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | 443 (https) | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
-| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8889 (https), 8003 | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
+| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | *internal* (5601), on 443 through `caddy` | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
+| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8003; the GUI on 8889 through `caddy` | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector, pushing to the lab's stores on `alexander` — and the indexer-health exporter |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
-| `caddy` | `caddy` | 8448 | The two agent MSIs `ansible/roles/soc_agents` installs on the six, staged by `scripts/stage-agent-msis.sh` and served to the six domain addresses only ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)) |
+| `caddy` | `caddy` | 8448, 443, 8889 | The two agent MSIs `ansible/roles/soc_agents` installs on the six, staged by `scripts/stage-agent-msis.sh` and served to the six domain addresses only ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)); and the front door to the Wazuh dashboard (443) and the Velociraptor GUI (8889), answering Hicks's `10.0.50.0/24` only ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139)) |
 | `wazuh.certs-generator` | `wazuh/wazuh-certs-generator` | — | Behind the `certs` profile: run once, before the first start, to issue the indexer/manager/dashboard mTLS material |
 
 Seven services, and what is absent is as deliberate as what is here:
