@@ -139,11 +139,14 @@ and cloud-init replaces them. Read the key through the agent
 (`qm guest exec 162 -- cat /etc/ssh/ssh_host_ed25519_key.pub`), not on first
 use.
 
-**`/` is about 60 GB, not 80** until
-[#1128](https://github.com/Gerrrt/HomeLab/issues/1128) is fixed: the template's
-swap partition sits after `/`, so growpart cannot reach the clone's extra
-16 GB. §11 has the in-place fix as run on 2026-10-10. Snapshot the guest,
-stopped, before using it.
+**`/` should be about 79 GB of the 80.** A 910 built before
+[#1128](https://github.com/Gerrrt/HomeLab/issues/1128)'s fix put its swap
+partition after `/`, so growpart could not reach the clone's extra 16 GB, and
+`/` stopped at about 60. A 910 built since lays out the ESP and then `/` to the
+end of the disk, with no swap partition, and growpart takes the rest. On a
+clone of an older 910, §11 has the in-place fix as run on 2026-10-10: snapshot
+the guest, stopped, before using it. There is no swap unless one is added; a
+4 GB `/swapfile`, as §11 made, suits an 8 GiB desktop.
 
 **Give `analyst` a console password.** cloud-init made the account key-only,
 which is enough for SSH but not for the desktop's login screen in §9. Set it
