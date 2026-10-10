@@ -15,7 +15,7 @@
 > [!NOTE]
 > **The image's own packages are not a trigger (2026-10-10).** The weekly
 > CVE scan opened [#984](https://github.com/Gerrrt/HomeLab/issues/984) on
-> 2026-10-08. It lists 9 critical and 104 high findings, all in the npm
+> 2026-10-07. It lists 9 critical and 104 high findings, all in the npm
 > dependencies that Wiki.js 2.x bundles (tar, form-data, simple-git, multer,
 > axios, `@xmldom/xmldom` and others). Each has a fixed version upstream of
 > the package. None has a fixed Wiki.js image: on 2026-10-10, ghcr's `2`,
