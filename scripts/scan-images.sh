@@ -30,12 +30,13 @@
 # public.ecr.aws as the fallback, and every scan then runs with
 # --skip-db-update, so fifty scans do not mean fifty downloads.
 #
-# --ignore-unfixed is the only filter, and it is the point: a finding with a
-# fixed version is one a bump closes. There is deliberately no ignore file —
+# --ignore-unfixed is the filter, and it is the point: a finding with a fixed
+# version is one a bump closes. There is deliberately no ignore file —
 # see the .gitleaksignore argument in scripts/check_docs.py. The one thing
 # cve_report.py drops is a shape of version, not a list of IDs: a Go main
 # module's `+dirty` VCS stamp, which trivy cannot order against a release
-# (#985). Its docstring says why that cannot grow into one.
+# (#985). Its docstring says why that cannot grow into one. The one file
+# skipped is gosu in postgres, named in the loop below with why (#995).
 #
 # An image that fails to scan is recorded and the loop carries on, and the
 # script exits non-zero at the end. A skipped image must not read as a clean
@@ -67,7 +68,7 @@ while (($#)); do
     --out) OUT="${2:?--out needs a directory}"; shift 2 ;;
     --cache) CACHE="${2:?--cache needs a directory}"; shift 2 ;;
     --extra) EXTRA="${2:-}"; shift 2 ;;
-    -h | --help) sed -n '41,50p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h | --help) sed -n '45,54p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -154,8 +155,17 @@ for ref in "${order[@]}"; do
   n="$(printf '%03d' "${i}")"
   printf '%s\t%s\t%s\n' "${n}" "${ref}" "${stacks_of[${ref}]}" >>"${OUT}/images.tsv"
   info "[${i}/${#order[@]}] ${ref%%@*}"
+  # The one exception (#995): gosu in the official postgres image. Its Go
+  # stdlib rows have no fix to take: gosu's maintainers don't release for
+  # scanner-only CVEs, and docker-library changes gosu only when gosu releases.
+  # It can't be reached here either: every postgres service starts as
+  # 999:999, and the entrypoint runs gosu only when started as root. Skipped
+  # for postgres alone, so gosu anywhere else is still reported. A second
+  # exception means a rule both can cite, not another case here.
+  skip=()
+  [[ "${ref}" == postgres:* ]] && skip=(--skip-files usr/local/bin/gosu)
   if ! trivy image --quiet --image-src remote --platform linux/amd64 \
-      --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed \
+      --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed "${skip[@]}" \
       --skip-db-update --skip-java-db-update --format json "${ref}" \
       >"${OUT}/${n}.json" 2>"${OUT}/${n}.err"; then
     rm -f "${OUT}/${n}.json"
