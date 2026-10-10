@@ -155,13 +155,14 @@ for ref in "${order[@]}"; do
   n="$(printf '%03d' "${i}")"
   printf '%s\t%s\t%s\n' "${n}" "${ref}" "${stacks_of[${ref}]}" >>"${OUT}/images.tsv"
   info "[${i}/${#order[@]}] ${ref%%@*}"
-  # The one exception (#995): gosu in the official postgres image. Its Go
+  # The one skipped file (#995): gosu in the official postgres image. Its Go
   # stdlib rows have no fix to take: gosu's maintainers don't release for
   # scanner-only CVEs, and docker-library changes gosu only when gosu releases.
   # It can't be reached here either: every postgres service starts as
-  # 999:999, and the entrypoint runs gosu only when started as root. Skipped
-  # for postgres alone, so gosu anywhere else is still reported. A second
-  # exception means a rule both can cite, not another case here.
+  # 999:999, which check_compose_health.py enforces, and the entrypoint runs
+  # gosu only when started as root. Skipped for postgres alone, so gosu
+  # anywhere else is still reported. A second exception means a rule both
+  # can cite, not another case here.
   skip=()
   [[ "${ref}" == postgres:* ]] && skip=(--skip-files usr/local/bin/gosu)
   if ! trivy image --quiet --image-src remote --platform linux/amd64 \
