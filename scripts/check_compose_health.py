@@ -45,10 +45,12 @@ and the pair is strictly stronger than the single check it replaces:
     That is what still catches an array naming a service nothing has, which is
     the case the old "not defined" message existed for.
 
-Two checks here are about hardening rather than health, because this is the
+Three checks here are about hardening rather than health, because this is the
 script that already parses every service: no path to the Docker socket except
-through the proxy (#836), and no long-running service without
-`no-new-privileges` unless NNP_EXEMPT records why (#845).
+through the proxy (#836), no long-running service without
+`no-new-privileges` unless NNP_EXEMPT records why (#845), and no official
+postgres that starts as anyone but 999:999, which the CVE scan's gosu skip
+stands on (#995).
 
 The completeness half is only claimed when this script discovered the stacks
 itself, which it does when given no paths. Explicit paths mean the caller chose
@@ -678,6 +680,34 @@ def privilege_problems(services: dict, stack: str, exempt: dict[tuple[str, str],
     return problems
 
 
+# scripts/scan-images.sh skips /usr/local/bin/gosu in every `postgres:*`
+# reference (#995), on the grounds that gosu never runs here: the entrypoint
+# calls it only when the container starts as root. That holds only while every
+# such service starts as this user, so it is asserted rather than assumed. The
+# prefix is the shell's own `postgres:*` match, so the two select the same refs.
+POSTGRES_PREFIX = "postgres:"
+POSTGRES_USER = "999:999"
+
+
+def postgres_user_problems(services: dict) -> list[str]:
+    """An official-postgres service that would start as root and run gosu."""
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        if not str(svc.get("image", "")).startswith(POSTGRES_PREFIX):
+            continue
+        user = str(svc.get("user", "")).strip()
+        if user != POSTGRES_USER:
+            problems.append(
+                f"{name} runs {POSTGRES_PREFIX}* as {user or 'the image default, root'}, "
+                f'not `user: "{POSTGRES_USER}"`. scripts/scan-images.sh skips gosu in '
+                f"postgres because gosu never runs when the container starts as "
+                f"{POSTGRES_USER}; started any other way it does, and its CVEs would be "
+                f"hidden. Set the user, or drop the skip (#995)"
+            )
+    return problems
+
+
 def nnp_exempt_problems(exempt: dict[tuple[str, str], str], by_stack: dict[tuple[str, str], dict]) -> list[str]:
     """NNP_EXEMPT entries that no longer hold, given every stack's services.
 
@@ -1122,6 +1152,18 @@ def self_test() -> int:
         len(nnp_exempt_problems({("s", "a"): "why"}, {("s", "a"): {**long_runner, "security_opt": nnp}})),
     )
     check("the real NNP_EXEMPT has a reason for every entry", True, all(str(r).strip() for r in NNP_EXEMPT.values()))
+
+    # 34-37. Postgres starts as 999:999, the condition scan-images.sh's gosu
+    #        skip stands on (#995).
+    pg = "postgres:18.6@sha256:" + "0" * 64
+    check("postgres as 999:999 passes", 0, len(postgres_user_problems({"db": {"image": pg, "user": "999:999"}})))
+    check("postgres with no user starts as root", 1, len(postgres_user_problems({"db": {"image": pg}})))
+    check("postgres as another user fails", 1, len(postgres_user_problems({"db": {"image": pg, "user": "70:70"}})))
+    check(
+        "an image that only contains the word is not postgres",
+        0,
+        len(postgres_user_problems({"db": {"image": "ghcr.io/immich-app/postgres:17"}})),
+    )
     return failed
 
 
@@ -1179,6 +1221,7 @@ def main() -> int:
     problems += bind_source_problems(path, services)
     problems += socket_mount_problems(services)
     problems += privilege_problems(services, path.resolve().parent.name)
+    problems += postgres_user_problems(services)
 
     for name, svc in services.items():
         svc = svc or {}
