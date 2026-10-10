@@ -42,8 +42,9 @@ release, so velociraptor-server:0.77.3 was flagged for CVE-2023-0242, fixed in
 close itself. `+dirty` only ever appears on the module `go build` was run in.
 Dependencies come from the module cache and are never dirty, so the rule cannot
 hide a vulnerable library. It is a property of the version string, not a list
-of IDs, so it cannot grow. The summary counts what it dropped per image; the
-issue body does not carry it.
+of IDs, so it cannot grow. It trusts the version's shape, not the build's
+provenance, so it is never silent: the summary, the issue body and the
+closing comment all count what it dropped.
 
 LABELS. `security` plus one per stack the image is pinned in. Stack labels are
 the scanner's to manage, so an edit also removes a stack label the image no
@@ -170,7 +171,7 @@ def reportable(doc: dict) -> list[dict]:
 def uncompared(doc: dict) -> int:
     return len(
         {
-            (v.get("VulnerabilityID"), v.get("PkgName"))
+            (v.get("VulnerabilityID"), v.get("PkgName"), v.get("InstalledVersion"))
             for v in reportable(doc)
             if UNCOMPARABLE.match(v.get("InstalledVersion", ""))
         }
@@ -309,6 +310,18 @@ def previous_ids(body: str) -> set[str]:
     return set(FINDING_ID.findall(body))
 
 
+def uncompared_note(images: list[Image]) -> str:
+    """Said wherever the scan's verdict reaches a person, so a dropped finding
+    is never silent: the rule trusts a version shape, not provenance."""
+    n = sum(i.uncompared for i in images)
+    return (
+        f" {n} finding(s) against a Go main module's `+dirty` VCS version were not compared;"
+        " see WHAT IS NOT REPORTED in `scripts/cve_report.py`."
+        if n
+        else ""
+    )
+
+
 def issue_body(repo: str, images: list[Image], url: str) -> str:
     ids = {f.id for i in images for f in i.findings or []}
     head = [
@@ -325,7 +338,12 @@ def issue_body(repo: str, images: list[Image], url: str) -> str:
             "not released one, the fixed versions below say what to wait for."
         ),
     ]
-    foot = ["", "---", "Written by `.github/workflows/cve-scan.yml`" + (f" in [this run]({url})." if url else ".")]
+    note = uncompared_note(images).strip()
+    foot = (["", note] if note else []) + [
+        "",
+        "---",
+        "Written by `.github/workflows/cve-scan.yml`" + (f" in [this run]({url})." if url else "."),
+    ]
     sections = []
     for i in sorted(images, key=lambda i: i.name):
         if not i.findings:
@@ -391,6 +409,7 @@ def plan(
                         repo,
                         issue["number"],
                         comment=f"Clean at {clean}: no fixable HIGH or CRITICAL findings."
+                        + uncompared_note(imgs)
                         + (f" ([scan]({url}))" if url else ""),
                     )
                 )
@@ -608,8 +627,18 @@ def self_test() -> int:
     check("parse: a +dirty main-module version is not compared", [f.id for f in parse_trivy(go)] == ["CVE-2026-0005"])
     check("parse: a dependency's plain pseudo-version still is", parse_trivy(go)[0].package == "golang.org/x/crypto")
     check("uncompared counts the fixable +dirty finding only", uncompared(go) == 1)
+    twin = dict(go["Results"][0]["Vulnerabilities"][0], InstalledVersion="v0.0.0-20250101000000-0123456789ab+dirty")
+    two = {"Results": [*go["Results"], {"Vulnerabilities": [twin]}]}
+    check("uncompared counts two dirty builds of one module twice", uncompared(two) == 2)
     velo = Image("ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:ff", ["soc"], parse_trivy(go), "", 1)
     check("summary names what was not compared", "`ghcr.io/velocidex/velociraptor-server:0.77.3`: 1" in summary([velo]))
+    check("the issue body counts what was not compared", "1 finding(s)" in issue_body(velo.repo, [velo], ""))
+    dropped_only = Image(velo.ref, ["soc"], [], "", 1)
+    closed, _ = plan([dropped_only], [{"number": 985, "body": f"<!-- cve-scan: {velo.repo} -->"}], {"soc"})
+    check(
+        "a close that dropped findings says so",
+        closed[0].kind == "close" and "1 finding(s)" in closed[0].comment,
+    )
     check(
         "summary says nothing when nothing was dropped",
         "+dirty" not in summary([Image("caddy:2@sha256:aa", ["lab"], [])]),
