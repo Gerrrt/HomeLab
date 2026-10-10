@@ -17,6 +17,31 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-10
+
+- **`carbuncle` and `siren` were re-cloned from the rebuilt 911**
+  ([#1092](https://github.com/Gerrrt/HomeLab/issues/1092)'s fix), so the two
+  endpoints no longer park at OOBE's account page.
+  - **Before.** Both were backed up to `golem` in stop mode.
+  - **The rebuild.** `tofu -replace`, targeted at the two. Their old Wazuh
+    agents were removed and the host keys re-pinned. Every
+    `lab-domain.yml` tag then ran with `--limit carbuncle,siren`, and a final
+    pass reported `changed=0`.
+  - **Checks.** `verify.yml` passes on all six. It read `0x41303` until
+    `Lab-AuthGenerator`'s first 15-minute run. Wazuh and Velociraptor
+    re-enrolled both, and `up{job="windows"}` is 1 for all six.
+  - **Activation.** The pinned SMBIOS UUID did **not** carry it, contrary
+    to `build-the-lab-domain.md`. Both came up on the generic Pro key, and
+    activation returned `0x803F7001`. The two retail keys were installed
+    through the guest agent, and both now read *permanently activated*:
+    `…DGPKG` on `carbuncle`, `…4GDGT` on `siren`. The runbook now says so.
+  - **The keys reached the SOC's logs.** They were installed with
+    `slmgr /ipk <key>`, so Sysmon recorded each full key in a process
+    command line on its endpoint, and Wazuh raised alerts on `odin` that
+    carry them. Step 9 now passes the key on the guest agent's stdin to
+    Windows' licensing API, so no command line holds it. That was tested on
+    `carbuncle`.
+
 ## 2026-10-09
 
 - **AdGuard blocks malware and phishing domains as well as ads**

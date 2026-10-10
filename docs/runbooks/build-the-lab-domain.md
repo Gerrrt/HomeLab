@@ -353,9 +353,13 @@ replaces §1 and the install half of §2. The rest of this page is still the
 `tofu/guests.tf` declares the six with the values the hand-built ones had:
 VMID, template, memory, disk, MAC and SMBIOS UUID, and records the startup
 order that root on `Saruman` sets after the apply (step 7). The MAC
-keeps `morpheus`'s reservations true. The SMBIOS UUID is what the endpoints'
-bought Windows 11 Pro activation is tied to, so a clone with the same UUID
-should reactivate by itself.
+keeps `morpheus`'s reservations true. The SMBIOS UUID is kept as well, but
+it does **not** carry the endpoints' bought Windows 11 Pro activation.
+On 2026-10-10, `carbuncle` and `siren` were re-cloned from 911 with their
+UUIDs. Both came up on the generic Pro key (`…3V66T`), and `slmgr /ato`
+returned `0x803F7001`: Microsoft has no digital licence for the clone. A
+full clone changes more of the virtual hardware than the UUID. Step 9
+installs the keys.
 
 **Before the first destroy, the six exist and the state does not know them.**
 They were built by hand, so `tofu destroy` alone would remove nothing. Step 4
@@ -449,8 +453,41 @@ skips step 4.
    - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
      labels;
    - Wazuh and Velociraptor list all six;
-   - each endpoint reads *activated* (enter its key at the console if the
-     UUID did not carry it);
+   - each endpoint reads *activated*. Install its retail key and activate it
+     as below. **Never put the key on a command line.** Sysmon records every
+     process's command line and Wazuh forwards it, so `slmgr /ipk <key>`
+     writes the key into the endpoint's Sysmon log and `odin`'s alerts.
+     That happened on 2026-10-10. Instead, the key travels on the guest
+     agent's stdin, typed without echo, and Windows' licensing API installs
+     it. As root on `Saruman`, with `ipk.ps1` holding:
+
+     ```powershell
+     $ErrorActionPreference = 'Stop'
+     $key = [Console]::In.ReadLine().Trim()
+     if ($key -notmatch '^[0-9A-Z]{5}(-[0-9A-Z]{5}){4}$') { throw 'that is not a product key' }
+     $svc = Get-CimInstance SoftwareLicensingService
+     Invoke-CimMethod -InputObject $svc -MethodName InstallProductKey -Arguments @{ ProductKey = $key } | Out-Null
+     Invoke-CimMethod -InputObject $svc -MethodName RefreshLicenseStatus | Out-Null
+     $key = $null
+     $f = "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL"
+     Invoke-CimMethod -InputObject (Get-CimInstance SoftwareLicensingProduct -Filter $f) -MethodName Activate | Out-Null
+     $p = Get-CimInstance SoftwareLicensingProduct -Filter $f
+     "$env:COMPUTERNAME key ending $($p.PartialProductKey), LicenseStatus $($p.LicenseStatus) (1 = licensed)"
+     ```
+
+     ```bash
+     read -rsp 'key: ' KEY; echo
+     printf '%s\n' "$KEY" | qm guest exec 154 --timeout 290 --pass-stdin 1 -- \
+       powershell -NoProfile -NonInteractive -EncodedCommand "$(iconv -t UTF-16LE ipk.ps1 | base64 -w0)"
+     unset KEY
+     ```
+
+     Neither command line carries the key: `qm`'s holds only the encoded
+     script, and so does the guest's `powershell`. Tested on `carbuncle` on
+     2026-10-10: it activated, and Sysmon logged no event containing the key.
+     Since 2026-10-10 the key ending `DGPKG` is on `carbuncle` and the one
+     ending `4GDGT` is on `siren`. The keys themselves are never written into
+     this repository; keep them where you keep the other secrets.
    - `slmgr /dlv` on the four servers gives a new expiry. Record it in §11 and
      in the changelog, as before.
 
