@@ -1317,7 +1317,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.5@sha256:76542ccc4c045e5ff9f80f87b25de6fcc71b31222172de5031a8ceba33772ee1
+    image: grafana/grafana-image-renderer:v5.12.6@sha256:4b3d29a66c1dd11d513f8378907953b3c2c0c0535cbf5cf8fe83f7f398ae8b4c
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
@@ -1349,9 +1349,11 @@ services:
       # derivation in capture-screenshots.sh exists to avoid, reintroduced one
       # layer down. The default 3000 cut `homelab-stack`'s whole Alloy row off a
       # capture that reported success. It was 5000 until 2026-10-08, when
-      # homelab-stack reached 4886px. 7000 is measured: this pinned digest,
-      # hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at about
-      # 22 MiB RSS. It must equal MAX_HEIGHT in capture-screenshots.sh, and
+      # homelab-stack reached 4886px. 7000 is measured: v5.12.5, hardened as
+      # below, rendered 1600x7000 in its 1 GB /dev/shm at about 22 MiB RSS.
+      # v5.12.6 changes only Go, Debian and Chromium (#987); on 2026-10-10 it
+      # rendered all six dashboards at full height, the tallest homelab-stack
+      # at 1600x4926, but 7000 itself was not re-run. It must equal MAX_HEIGHT in capture-screenshots.sh, and
       # `capture-screenshots.sh --check` (in CI) fails if it does not, or if a
       # captured dashboard has outgrown it.
       BROWSER_MAX_HEIGHT: 7000
