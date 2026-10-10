@@ -127,10 +127,13 @@ anything else:
 qm guest exec 162 -- cloud-init status
 ```
 
-`not started` (with the hostname still `tpl-kali-saruman`) is
+`not started` (with the hostname still `tpl-kali-saruman`) was
 [#1127](https://github.com/Gerrrt/HomeLab/issues/1127): on a first boot,
-cloud-init's generator can be killed before it enables `cloud-init.target`.
-`qm reboot 162` once, and it runs. **Pin the host key only after
+cloud-init's generator could be cut off before it enabled
+`cloud-init.target`. A template 910 built from `packer/kali.pkr.hcl` since
+the fix for #1127 enables that target itself and masks the sslh generator that
+aborted beside it, so a clone of it should not show this. On an older 910,
+`qm reboot 162` once, and cloud-init runs. **Pin the host key only after
 `cloud-init status` says `done`.** The first boot's sshd made keys of its own,
 and cloud-init replaces them. Read the key through the agent
 (`qm guest exec 162 -- cat /etc/ssh/ssh_host_ed25519_key.pub`), not on first
