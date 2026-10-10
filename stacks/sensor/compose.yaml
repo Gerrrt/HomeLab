@@ -4,8 +4,9 @@
 #
 # Deployed on: fenrir (10.0.30.90, VLAN 30 / ImaginationLAN) — a guest on
 #              `Saruman`, VMID 190. Built 2026-09-30 by
-#              docs/runbooks/build-the-sensor-guest.md, which also holds
-#              #437's reboot proof.
+#              docs/runbooks/build-the-sensor-guest.md, which also has the
+#              reboot test for #437. The result, run that day, is under
+#              2026-09-30 in docs/changelog.md.
 # Decided by:  docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
 #              — why a `tc` mirror on the Linux bridge rather than Open vSwitch,
 #              why a guest of its own, and why the check that the mirror is up
