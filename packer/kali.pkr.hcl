@@ -218,10 +218,10 @@ build {
       # by its own generator, which links cloud-init.target into
       # multi-user.target at boot, and on garuda's first boot that generator
       # was cut off after ds-identify had found the NoCloud drive. Measured
-      # on 2026-10-10: cloud-init failed on 2 of 7 first boots, and on every
-      # first boot inspected (5 of 5) sslh's generator (sslh comes with
-      # kali-linux-headless) aborted beside it, with no /etc/sslh; on a
-      # second boot it does not. Two changes, either of which closes it:
+      # on 2026-10-10, before this change: cloud-init did not run on 2 of 7
+      # first boots of 910. On garuda's, sslh's generator (sslh comes with
+      # kali-linux-headless) aborted beside it, with no /etc/sslh, and on
+      # its second boot did not. Two changes, either of which closes it:
       #   - mask sslh's generator, as systemd allows: a /dev/null link of the
       #     same name in /etc. The package stays, so the metapackages keep
       #     their dependency and nothing is autoremoved;
