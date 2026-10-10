@@ -312,7 +312,7 @@ a ninety-day deadline and an alert instead. See
 
 ## Dashboards
 
-Rendered from the running stack by `make screenshots` on 2026-10-04, over a
+Rendered from the running stack by `make screenshots` on 2026-10-10, over a
 24-hour window. Every dashboard but Logs and Security is here;
 `docs/images/README.md` explains why those two are deliberately left out, and
 what in these renders is a known fault rather than the steady state.
@@ -336,6 +336,10 @@ was fitted and proven.](docs/images/ups-power.png)
 ![Observability Stack dashboard: every scrape target with its staleness, then
 Prometheus, Loki, Alertmanager and the Alloy agents — the collection path
 watching itself.](docs/images/observability-stack.png)
+
+![Internet dashboard: scheduled speed tests against the link's ceiling, WAN
+throughput and errors from the firewall, round-trip time, latency under load,
+and dpinger's uplink loss and delay.](docs/images/internet.png)
 
 ## What runs it
 
