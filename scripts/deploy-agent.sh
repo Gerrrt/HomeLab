@@ -135,6 +135,8 @@ case "$RUNTIME" in ""|docker|native) ;; *) die "--runtime must be docker or nati
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALLOY_DIR="${REPO_ROOT}/stacks/observability/alloy"
 [[ -f "${ALLOY_DIR}/config.alloy" ]] || die "no config.alloy under ${ALLOY_DIR}"
+PROXY_DIR="${REPO_ROOT}/stacks/observability/docker-socket-proxy"
+[[ -f "${PROXY_DIR}/haproxy.cfg" ]] || die "no haproxy.cfg under ${PROXY_DIR}"
 
 # The one place a version lives is compose.yaml; both runtimes read it from
 # there. `--tag-only` strips the digest for the .deb URL; the docker runtime
@@ -248,10 +250,16 @@ pass "agent token ${TOKEN_KEY} loaded (${#INGEST_TOKEN} characters)"
 # ---------------------------------------------------------------------------
 STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy.XXXXXX')"
 [[ "$STAGE" == /tmp/alloy-deploy.* ]] || die "unexpected stage directory '${STAGE}'"
-cleanup() { "${SSH[@]}" "rm -rf '${STAGE}'" >/dev/null 2>&1 || true; }
+# The socket proxy's HAProxy config, in a stage of its own because the Alloy
+# step below copies everything in STAGE into alloy-config. Staged whatever the
+# runtime, like PROXY_IMAGE, because a native host simply never uses it.
+PROXY_STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy-proxy.XXXXXX')"
+[[ "$PROXY_STAGE" == /tmp/alloy-deploy-proxy.* ]] || die "unexpected stage directory '${PROXY_STAGE}'"
+cleanup() { "${SSH[@]}" "rm -rf '${STAGE}' '${PROXY_STAGE}'" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 tar -C "$ALLOY_DIR" -cf - "${FILES[@]}" | "${SSH[@]}" "tar -C '${STAGE}' -xf -"
+tar -C "$PROXY_DIR" -cf - haproxy.cfg | "${SSH[@]}" "tar -C '${PROXY_STAGE}' -xf -"
 
 # A truncated config does not fail loudly — Alloy starts and collects less —
 # so the copy is checked, not assumed. cksum is POSIX and prints the same on
@@ -262,7 +270,10 @@ for f in "${FILES[@]}"; do
   remote_sum="$("${SSH[@]}" "cksum < '${STAGE}/${f}'")"
   [[ "$local_sum" == "$remote_sum" ]] || die "${f} differs after copy (local ${local_sum}, remote ${remote_sum})"
 done
-pass "staged ${FILES[*]} in ${STAGE}"
+local_sum="$(cksum < "${PROXY_DIR}/haproxy.cfg")"
+remote_sum="$("${SSH[@]}" "cksum < '${PROXY_STAGE}/haproxy.cfg'")"
+[[ "$local_sum" == "$remote_sum" ]] || die "haproxy.cfg differs after copy (local ${local_sum}, remote ${remote_sum})"
+pass "staged ${FILES[*]} in ${STAGE}, and haproxy.cfg in ${PROXY_STAGE}"
 
 # ---------------------------------------------------------------------------
 # Everything host-side, in one shell on the host
@@ -385,6 +396,13 @@ docker)
   docker pull "$PROXY_IMAGE" >/dev/null
   docker network inspect alloy >/dev/null 2>&1 || docker network create alloy >/dev/null
   docker rm -f alloy alloy-socket-proxy >/dev/null 2>&1 || true
+  # compose.yaml's HAProxy config, which allows three /containers paths where
+  # the image's template allows the whole prefix, archive and export included
+  # (Tecnativa/docker-socket-proxy#182). A volume for the alloy-config reason:
+  # no root-owned bind mount, and the running config is the shipped one.
+  docker volume create alloy-socket-proxy-config >/dev/null
+  docker run --rm -v alloy-socket-proxy-config:/dst -v "${PROXY_STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
+    -c 'rm -f /dst/* && cp /src/haproxy.cfg /dst/ && chmod 0644 /dst/haproxy.cfg'
   docker run -d --name alloy-socket-proxy \
     --network alloy \
     --restart unless-stopped \
@@ -397,7 +415,8 @@ docker)
     -e NODES=0 -e PLUGINS=0 -e SECRETS=0 -e SERVICES=0 -e SESSION=0 -e SWARM=0 \
     -e SYSTEM=0 -e TASKS=0 -e VOLUMES=0 \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
-    "$PROXY_IMAGE" >/dev/null
+    -v alloy-socket-proxy-config:/usr/local/etc/socket-proxy:ro \
+    "$PROXY_IMAGE" haproxy -f /usr/local/etc/socket-proxy/haproxy.cfg >/dev/null
   require_stable "[[ \$(docker inspect -f '{{.State.Running}}' alloy-socket-proxy 2>/dev/null) == true ]]"
   pass "alloy-socket-proxy running"
 
@@ -539,7 +558,7 @@ DEFAULTS
   ;;
 esac
 REMOTE
-} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' INGEST_CA_FILE='${INGEST_CA_FILE}' bash -s"
+} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' PROXY_STAGE='${PROXY_STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' INGEST_CA_FILE='${INGEST_CA_FILE}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.

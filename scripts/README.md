@@ -41,6 +41,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
 | `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
+| `check_socket_proxy.sh` | `check-socket-proxy` | The Docker socket proxies allow what Alloy reads and refuse `archive`, `export` and `top`, and upstream's template is unchanged under the committed config (Tecnativa/docker-socket-proxy#182) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |

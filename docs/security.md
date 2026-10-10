@@ -1022,6 +1022,30 @@ this closes on.
   `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
   an agent deployed before this keeps working until its next `deploy-agent.sh`
   run.
+
+  **"Refuses everything else" was not true of `/containers` until
+  2026-10-10.** The image's rule for `CONTAINERS=1` is a prefix match on
+  `/containers`, so it also allowed four GETs that `POST=0` does not touch:
+  `archive`, which returns any file from any container, `export`, which returns
+  a whole container filesystem, `top` and `changes`
+  ([Tecnativa/docker-socket-proxy#182](https://github.com/Tecnativa/docker-socket-proxy/issues/182),
+  unfixed upstream). The daemon serves them as root, so a client trusted only
+  to list containers could read through the proxy what `cap_drop` keeps it from
+  reading through `/rootfs`. All four answered 200 on `prometheus`.
+  - **Every proxy now runs the repository's HAProxy config,**
+    [`stacks/observability/docker-socket-proxy/haproxy.cfg`](../stacks/observability/docker-socket-proxy/haproxy.cfg).
+    It is upstream's template with that one rule replaced by the three
+    `/containers` paths the clients send, read from three days of the proxy's
+    own request log. That covers the six compose stacks and `deploy-agent.sh`'s
+    `alloy-socket-proxy`.
+  - **`check_socket_proxy.sh` boots the pinned image on it in CI.** Alloy's
+    paths must answer, and `archive`, `export`, `top`, `changes`, `stats`,
+    `attach` and the `..` and encoded-slash spellings must be refused by the
+    proxy itself. It also fails when an image bump changes upstream's template
+    under the committed copy.
+  - **`check_compose_health.py` fails a proxy that does not mount the config or
+    is not started on it,** because either one alone falls back to the image's
+    template without any visible change.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth

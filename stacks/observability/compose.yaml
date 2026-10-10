@@ -981,9 +981,18 @@ services:
     <<: *service-defaults
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: docker-socket-proxy
+    # The repository's HAProxy config, not the image's template: with
+    # CONTAINERS=1 the template also allows /containers/{id}/archive, /export,
+    # /top and /changes, all GETs, which copy files out of any container as
+    # root (Tecnativa/docker-socket-proxy#182). docker-socket-proxy/haproxy.cfg
+    # allows the three /containers paths the clients use and nothing else under
+    # it; its header has the measurement. The env flags below still decide
+    # everything else, exactly as they did. check_compose_health.py requires
+    # this command and the mount below on every proxy.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # What Alloy reads.
-      CONTAINERS: 1   # /containers/json and /containers/{id}/json — names, labels
+      CONTAINERS: 1   # /containers/json, /containers/{id}/json and /logs, and only those
       IMAGES: 1       # cAdvisor resolves image names for its series
       INFO: 1         # /info, which cAdvisor calls on startup
       VERSION: 1      # /version, the API handshake every client makes first
@@ -1022,6 +1031,9 @@ services:
       # The socket now stops here. This container is the trust boundary, and it
       # is a 4 MB HAProxy with no network listener beyond the compose bridge.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # A directory, not the file, so a git checkout that replaces the file is
+      # not left behind on the old inode (#355).
+      - ./docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     # Not published. The only client is Alloy, on this network.
     expose:
       - "2375"
