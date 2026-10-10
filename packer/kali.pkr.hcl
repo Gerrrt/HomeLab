@@ -213,6 +213,25 @@ build {
       "apt-get update",
       "DEBIAN_FRONTEND=noninteractive apt-get -y install cloud-init qemu-guest-agent",
       "systemctl enable qemu-guest-agent",
+      # #1127: a clone's first boot can come up with no cloud-init at all,
+      # so no user, no key and the template's hostname. cloud-init is started
+      # by its own generator, which links cloud-init.target into
+      # multi-user.target at boot, and on garuda's first boot that generator
+      # was cut off after ds-identify had found the NoCloud drive. Measured
+      # on 2026-10-10: cloud-init failed on 2 of 7 first boots, and on every
+      # first boot inspected (5 of 5) sslh's generator (sslh comes with
+      # kali-linux-headless) aborted beside it, with no /etc/sslh; on a
+      # second boot it does not. Two changes, either of which closes it:
+      #   - mask sslh's generator, as systemd allows: a /dev/null link of the
+      #     same name in /etc. The package stays, so the metapackages keep
+      #     their dependency and nothing is autoremoved;
+      #   - link cloud-init.target into multi-user.target here, so cloud-init
+      #     no longer depends on its generator finishing. ds-identify then
+      #     cannot switch cloud-init off, which nothing here needs: every
+      #     clone gets a NoCloud drive (tofu/modules/guest, packer-smoke.sh).
+      "mkdir -p /etc/systemd/system-generators /etc/systemd/system/multi-user.target.wants",
+      "ln -sf /dev/null /etc/systemd/system-generators/systemd-sslh-generator",
+      "ln -sf /usr/lib/systemd/system/cloud-init.target /etc/systemd/system/multi-user.target.wants/cloud-init.target",
       "apt-get clean",
       "rm -f /etc/ssh/ssh_host_*",
       "cloud-init clean --logs --machine-id",
