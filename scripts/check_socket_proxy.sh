@@ -167,6 +167,13 @@ if ((up == 0)); then
   die "the scratch proxy never answered /version"
 fi
 ID="$(docker inspect -f '{{.Id}}' "${TAG}")"
+# The versioned spelling Alloy's clients send (/v1.NN/...), at whatever API
+# version this daemon speaks. A version newer than the daemon's is a 400 from
+# the daemon, not a proxy decision, and CI's runner is older than prometheus.
+API="$(docker exec "${TAG}" wget -q -O - -T 5 http://127.0.0.1:2375/version 2>/dev/null \
+  | grep -oE '"ApiVersion":"[0-9.]+"' | head -1 | grep -oE '[0-9]+\.[0-9]+')" \
+  || die "could not read the daemon's API version through the scratch proxy"
+V="/v${API}"
 
 # One request from inside the container. Prints the status: busybox wget
 # exits 0 on a 2xx and names the code in its error otherwise.
@@ -184,19 +191,19 @@ info "allowed: what docker.alloy's components send"
 # ---------------------------------------------------------------------------
 ALLOWED=(
   "/version"
-  "/v1.56/version"
+  "${V}/version"
   "/_ping"
   "/info"
   "/networks"
   "/images/json"
   "/containers/json"
   "/containers/json?all=1"
-  "/v1.56/containers/json"
+  "${V}/containers/json"
   "/containers/${ID}/json"
-  "/v1.56/containers/${ID}/json"
+  "${V}/containers/${ID}/json"
   "/containers/${TAG}/json"
   "/containers/${ID}/logs?stdout=1&stderr=1&tail=1"
-  "/v1.56/containers/${ID}/logs?stdout=1&tail=1&timestamps=1"
+  "${V}/containers/${ID}/logs?stdout=1&tail=1&timestamps=1"
 )
 for path in "${ALLOWED[@]}"; do
   got="$(status "${path}")"
@@ -209,7 +216,7 @@ info "refused: everything else under /containers, by the proxy"
 # ---------------------------------------------------------------------------
 REFUSED=(
   "/containers/${ID}/archive?path=/etc/hostname"
-  "/v1.56/containers/${ID}/archive?path=/etc/hostname"
+  "${V}/containers/${ID}/archive?path=/etc/hostname"
   "/containers/${ID}/export"
   "/containers/${ID}/top"
   "/containers/${ID}/changes"
