@@ -188,7 +188,9 @@ parse_backup_jobs() {
       }
       type = ""; enabled = ""; all = ""; exclude = ""; pool = ""; vmid = ""
     }
-    /^[a-z]+: / { flush(); type = substr($1, 1, length($1) - 1); next }
+    # A type may carry a hyphen or a digit (`realm-sync:`). Without them such
+    # a header is read as a key line, and its fields fold into the job above.
+    /^[a-z][a-z0-9-]*: / { flush(); type = substr($1, 1, length($1) - 1); next }
     /^[ \t]+[a-z-]+/ {
       k = $1; v = $2
       if (k == "enabled") enabled = v
@@ -363,6 +365,14 @@ pool:analyst:Managed by tofu/:162::"
     enabled 1
 replication: 162-0
     vmid 162" "162" ""
+  # The order matters: a realm-sync AFTER the backup job, whose `enabled 0`
+  # must close its own section and not disable the job above it.
+  check_jobs "a hyphenated section after the job is its own section" "160 " \
+"vzdump: golem-nightly
+    vmid 160
+realm-sync: ad
+    enabled 0
+    scope users" "160" ""
   check_jobs "two jobs, both counted" "160 162 " \
 "vzdump: a
     vmid 160
