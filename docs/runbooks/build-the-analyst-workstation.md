@@ -235,18 +235,21 @@ procedure, with `GARUDA` for `EDEN`, `garuda agent` in the Caddyfile and
 Defense is a role layer: it installs no packages and stacks on an OS layer.
 On Kali that layer is `dotfiles-Debian`, which targets Kali rolling. Install
 the OS layer first, as `analyst`, and take each repository at its **latest
-release tag**, not `main`:
+release tag**, not `main`. Both live under `~/code/dotgibson/`, named as on
+GitHub. Each bootstrap links from wherever it is cloned, so moving a clone
+means re-running its bootstrap:
 
 ```bash
 deb=$(gh api repos/dotgibson/dotfiles-Debian/releases/latest --jq .tag_name)
 def=$(gh api repos/dotgibson/dotfiles-Defense/releases/latest --jq .tag_name)
 echo "Debian $deb, Defense $def"    # into §11
 
-git clone --branch "$deb" https://github.com/dotgibson/dotfiles-Debian ~/dotfiles-Debian
-cd ~/dotfiles-Debian && ./bootstrap.sh; echo "bootstrap exit $?"
+mkdir -p ~/code/dotgibson
+git clone --branch "$deb" https://github.com/dotgibson/dotfiles-Debian ~/code/dotgibson/dotfiles-Debian
+cd ~/code/dotgibson/dotfiles-Debian && ./bootstrap.sh; echo "bootstrap exit $?"
 
-git clone --branch "$def" https://github.com/dotgibson/dotfiles-Defense ~/dotfiles-Defense
-cd ~/dotfiles-Defense && ./bootstrap.sh; echo "bootstrap exit $?"
+git clone --branch "$def" https://github.com/dotgibson/dotfiles-Defense ~/code/dotgibson/dotfiles-Defense
+cd ~/code/dotgibson/dotfiles-Defense && ./bootstrap.sh; echo "bootstrap exit $?"
 
 exec zsh
 core doctor; echo "doctor exit $?"
