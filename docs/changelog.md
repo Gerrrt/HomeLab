@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **A bigger clone of a Debian-installer template now grows its `/`**
+  ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
+  - **The fault.** Both preseeds used partman's `atomic` recipe, which puts
+    swap after `/`. A clone given a larger disk than its template kept `/` at
+    the template's size: `garuda` got 59.7 GB of 80.
+  - **The fix.** An expert recipe: the ESP, then `/` to the end of the disk,
+    and no swap partition. It is in `packer/kali/preseed.cfg.pkrtpl` (910, and
+    902 when `ifrit` builds it) and `packer/debian/preseed.cfg.pkrtpl` (903).
+  - **Proved.**
+    - 910 and 903 were rebuilt with `-force`, in 25m58s and 8m20s, and both
+      passed `packer-smoke.sh`.
+    - A clone of each with 16 GB added came up with `/` last and grown, no
+      swap, and cloud-init `done`:
+      - 910 at 80 GB: `/` 79 GB.
+      - 903 at 48 GB: `/` 47 GB.
+  - **Existing clones keep their layout.** `garuda` was already fixed in place;
+    `dot-debian` is the template's own size, so there is nothing to grow.
+
 - **Kali clones come up with cloud-init again**
   ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
   - **The fault.** On a clone's first boot, cloud-init's generator could be
