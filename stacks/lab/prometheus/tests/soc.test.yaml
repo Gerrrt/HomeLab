@@ -205,14 +205,126 @@ tests:
               summary: "The Wazuh indexer has indexed nothing for an hour"
               description: >-
                 The cluster answers and its health is fine; it is simply not being
-                written to. Check the manager first — filebeat on it is what
-                writes — then whether any agent is connected at all.
+                written to by anything: not filebeat, not the dashboard's
+                monitoring and statistics jobs. Check that the indexer accepts
+                writes (disk watermarks, a read-only block) before any one writer.
       - eval_time: 50m
         alertname: WazuhIngestionStalled
         exp_alerts: []
       - eval_time: 100m
         alertname: WazuhIngestionStalled
         exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: filebeat dead, the dashboard still writing -----
+  # The case WazuhIngestionStalled could not see. The node-wide counter keeps
+  # climbing (the dashboard's monitoring and statistics jobs), analysisd keeps
+  # writing alerts, and the alerts index stops at 60m. Its hour-long increase
+  # reaches zero at about 121m, so with `for: 30m` the alert fires from about
+  # 151m. WazuhIngestionStalled stays quiet throughout, which is the gap.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x200"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "0+4x60 240+0x140"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x200"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 160m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhAlertsNotIndexed
+              instance: odin
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh manager wrote alerts and none reached the indexer"
+              description: >-
+                odin's analysisd wrote alerts in the last hour
+                and no wazuh-alerts-* index took a document. That is filebeat in
+                soc-wazuh-manager: stopped, wedged, or refused by the indexer.
+                WazuhIngestionStalled stays quiet through this, because the
+                dashboard keeps writing its own indices. Look at filebeat's log in
+                the manager container, then its certificate against
+                wazuh.indexer.
+      - eval_time: 160m
+        alertname: WazuhIngestionStalled
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: a quiet SIEM is not a failure ------------------
+  # No alerts written, so an alerts index that takes nothing is correct.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x200"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "240+0x200"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "240+0x200"
+    alert_rule_test:
+      - eval_time: 160m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: healthy, and across the midnight rollover -----
+  # Alerts written and indexed. At 100m the daily index changes: the old one
+  # stops and the new one starts from zero. The sum over wazuh-alerts-* keeps
+  # seeing documents, so nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "0+4x100 _x100"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.11"}'
+        values: "_x100 0+4x100"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x200"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 190m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: the alerts-index series missing entirely ------
+  # The exporter's per-index stats off, or the relabel dropping too much. With
+  # alerts written and no series to compare them against, the rule fires
+  # rather than going blind: the left side is above zero from the second
+  # sample, so after `for: 30m` it fires by 35m.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x60"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhAlertsNotIndexed
+              instance: odin
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh manager wrote alerts and none reached the indexer"
+              description: >-
+                odin's analysisd wrote alerts in the last hour
+                and no wazuh-alerts-* index took a document. That is filebeat in
+                soc-wazuh-manager: stopped, wedged, or refused by the indexer.
+                WazuhIngestionStalled stays quiet through this, because the
+                dashboard keeps writing its own indices. Look at filebeat's log in
+                the manager container, then its certificate against
+                wazuh.indexer.
 
   # --- WazuhAgentsNotConnected: a running guest the SOC cannot see (#1038) --
   # Four domain guests answer; ramuh's agent is not Active. carbuncle is off.
