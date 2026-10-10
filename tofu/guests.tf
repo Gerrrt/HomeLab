@@ -79,7 +79,9 @@ locals {
       # `template;windows` (modules/guest/variables.tf). `on-demand` is what
       # the hand-built endpoints carry, and what an endpoint left running is
       # found by.
-      tags     = concat(["lab-domain"], g.startup == null ? ["on-demand"] : [])
+      # `backup` because golem holds all six (ADR-0053), and
+      # GuestNotInBackupJob reads the tag.
+      tags     = concat(["lab-domain", "backup"], g.startup == null ? ["on-demand"] : [])
       password = null
       username = "operator" # unused: a Windows clone takes no cloud-init user
     })
@@ -138,7 +140,7 @@ locals {
       linux       = true
       on_boot     = true
       secure_boot = false
-      tags        = ["analyst"]
+      tags        = ["analyst", "backup"] # golem holds it: the case notes are in no repository
       password    = null
       username    = "analyst"
     })

@@ -138,6 +138,16 @@ resource "proxmox_virtual_environment_vm" "this" {
   # waits out its timeout. A guest being destroyed has nothing to save.
   stop_on_destroy = true
 
+  # Not purged on destroy, against the provider's default. A purge removes the
+  # VMID from every backup job (and replication and HA), so the #448 rebuild
+  # and a `-replace` of the endpoints each took guests out of `golem-nightly`
+  # with nothing saying so; on 2026-10-10 the job held only odin. A replaced
+  # guest comes back at the same VMID and stays selected. A guest destroyed for
+  # good leaves its VMID in the job, where vzdump's nightly error names it,
+  # until its teardown takes it out (build-the-backup-guest.md §8).
+  # GuestNotInBackupJob catches what this cannot.
+  purge_on_destroy = false
+
   # Not set here, and never changed from here. Proxmox asks for Sys.Modify on
   # `/` to set a guest's `startup` (PVE::API2::Qemu), a host-wide privilege
   # ADR-0043 keeps from phoenix. The #448 rebuild's first apply was refused
