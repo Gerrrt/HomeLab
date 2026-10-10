@@ -139,7 +139,8 @@ use.
 **`/` is about 60 GB, not 80** until
 [#1128](https://github.com/Gerrrt/HomeLab/issues/1128) is fixed: the template's
 swap partition sits after `/`, so growpart cannot reach the clone's extra
-16 GB.
+16 GB. §11 has the in-place fix as run on 2026-10-10. Snapshot the guest,
+stopped, before using it.
 
 **Give `analyst` a console password.** cloud-init made the account key-only,
 which is enough for SSH but not for the desktop's login screen in §9. Set it
@@ -436,6 +437,26 @@ the console password.
     dev/repo's expected tools are present, including `sesh`, `yq` and
     `doggo`, which `dot-debian` lacked. Thirteen opt-in tools are not
     installed, by design.
+- **#1128, fixed in place on `garuda`** (the template is unchanged).
+  - **Snapshot first.** `garuda` was stopped and snapshotted as `pre-1128`.
+    Stopped, not live: an fs-freeze has hung guests here before.
+  - **The fix.** As root:
+    - `swapoff /dev/sda3`, then comment out its `fstab` line;
+    - `sfdisk --delete /dev/sda 3`;
+    - `growpart /dev/sda 2`, then `resize2fs /dev/sda2` online;
+    - a 4 GB `/swapfile` in place of the 3.3 GB partition;
+    - `RESUME=none`, then `update-initramfs -u`.
+  - **After a reboot:**
+    - `/` is 79 GB, with 52 GB free;
+    - swap is `/swapfile` (4 GB);
+    - cloud-init reports `done`;
+    - SSH and `core doctor` work (exit 0).
+  - **One failed unit, on every boot before and after the fix:**
+    `user@968.service`, for `lightdm`.
+    - The package creates that account with an expiry of 1970-01-02, so PAM
+      refuses its user manager, and the system reads `degraded`.
+    - `lightdm` itself is `active`.
+    - §9's desktop check from Hicks decides whether it matters.
 - **Agents.** `guest-exec` timed out on both `garuda` (162) and `phoenix`
   (170) after commands carrying non-ASCII text or heredocs.
   `scripts/qga-resync.py` fixed each at once. Keep agent commands ASCII, and
