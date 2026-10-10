@@ -3,20 +3,19 @@
 # carries its logs to the lab's Loki (#437).
 #
 # Deployed on: fenrir (10.0.30.90, VLAN 30 / ImaginationLAN) — a guest on
-#              `Saruman`, VMID 190. NOT BUILT YET. Authored ahead of the guest
-#              the way stacks/soc was ahead of odin. The build, and the reboot
-#              proof that closes #437, is docs/runbooks/build-the-sensor-guest.md.
+#              `Saruman`, VMID 190. Built 2026-09-30 by
+#              docs/runbooks/build-the-sensor-guest.md, which also holds
+#              #437's reboot proof.
 # Decided by:  docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
 #              — why a `tc` mirror on the Linux bridge rather than Open vSwitch,
 #              why a guest of its own, and why the check that the mirror is up
 #              lives on the hypervisor and not here.
-# Deploy with: NOT `make up STACK=sensor`. That target renders a secrets file,
-#              and this stack has none — no service here takes a credential.
-#              On fenrir, from the repository root:
-#                cp stacks/sensor/.env.example stacks/sensor/.env
-#                docker compose -f stacks/sensor/compose.yaml up -d
-#              stacks/media is the other stack deployed this way, for a
-#              different reason (#528); README.md has the procedure.
+# Deploy with: `make up STACK=sensor`, on fenrir, from the repository root.
+#              Since #834 the stack has one secret, Alloy's token for the
+#              lab's ingest proxy, and `make up` renders it from
+#              secrets/sensor.sops.yaml. Before that it had none and was
+#              brought up with plain `docker compose`; README.md has the
+#              one-time secrets-init and secrets-edit steps.
 #
 # WHAT THIS SEES AND WHY. `fenrir` has two NICs. `net0` is on vmbr0 like every
 # other guest and carries this stack's own traffic to alexander. `net1` sits
