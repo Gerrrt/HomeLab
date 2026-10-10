@@ -82,6 +82,7 @@ DASHBOARDS=(
   "homelab-network:network-snmp.png"
   "homelab-ups:ups-power.png"
   "homelab-stack:observability-stack.png"
+  "homelab-internet:internet.png"
 )
 
 # shellcheck source=secrets-env.sh
@@ -94,7 +95,9 @@ ok() { printf '\033[0;32m  ok\033[0m %s\n' "$*"; }
 # dashboard_height <uid>
 #
 # The tallest point of the dashboard, in pixels, from its own JSON. Grafana's
-# grid row is 30px with 8px of padding, and kiosk mode still draws a top bar.
+# grid row is 30px with 8px of padding, kiosk mode still draws a top bar, and
+# it pins a "Powered by Grafana" footer over the bottom ~40px. With 60 here
+# instead of 100 that footer covered the last legend row of every capture.
 # Unclamped on purpose: check_heights decides what too tall means, out loud.
 dashboard_height() {
   python3 - "$1" "${STACK_DIR}/grafana/dashboards" <<'DASHBOARD_HEIGHT_PY'
@@ -113,7 +116,7 @@ for path in sorted(dashboard_dir.glob("*.json")):
         continue
     rows = max(p["gridPos"]["y"] + p["gridPos"]["h"]
                for p in panels(dashboard["panels"]) if "gridPos" in p)
-    print(rows * 38 + 60)
+    print(rows * 38 + 100)
     break
 else:
     sys.exit("no dashboard with uid " + uid + " in " + str(dashboard_dir))
