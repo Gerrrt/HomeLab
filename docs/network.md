@@ -518,9 +518,11 @@ Where things get broken on purpose.
   segment, its Wazuh agent and Velociraptor client report to `odin` within
   the segment
   ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)),
-  and it reaches the internet for packages. #921's OpenVAS phase
-  will scan VLAN 30 from here, and only VLAN 30. A scan that reaches another
-  segment is a `LabSegmentReachedInternalNetwork`, as it should be.
+  and it reaches the internet for packages. OpenVAS scans the lab domain's six,
+  `.50`–`.55`, from here and nothing else: an nftables table on `garuda`
+  drops the scanner's traffic to any other address
+  ([ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md)). A scan that reached another segment would be a
+  `LabSegmentReachedInternalNetwork`, which is never silenced for a scan.
 - `10.0.30.91`–`.98`, VMIDs 191–198, are the dotfiles test VMs of
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
   ([#920](https://github.com/Gerrrt/HomeLab/issues/920),

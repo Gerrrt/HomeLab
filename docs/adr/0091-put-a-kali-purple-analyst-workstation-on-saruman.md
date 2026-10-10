@@ -6,6 +6,10 @@
 > 2026-10-10: decision 6's first deferred phase, enrolling `garuda` in Wazuh
 > and Velociraptor, is
 > [ADR-0092](0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md).
+> The second, OpenVAS, is [ADR-0093](0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md). Its scope is narrower than
+> "VLAN 30" here: the domain's six, enforced by nftables. And it needs no
+> estate silence, because a scan of the six crosses no router and no estate
+> alert sees it.
 
 ## Context
 
