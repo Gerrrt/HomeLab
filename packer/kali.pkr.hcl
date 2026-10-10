@@ -102,9 +102,11 @@ source "proxmox-iso" "kali" {
 
 
 # tpl-kali-saruman, VMID 910: the base for garuda, Defense's analyst
-# workstation (#921, ADR-0091). The same Kali, preseed and pinned ISO as 902,
-# built on Saruman instead: a template belongs to the node it was built on, and
-# 902 stays ifrit's. On smaug-iso, as every other Saruman template's ISO is.
+# workstation (#921, ADR-0091). The same Kali and preseed as 902, built on
+# Saruman instead: a template belongs to the node it was built on, and 902
+# stays ifrit's. Its ISO is pinned by name, the 2026.2 installer on smaug-iso
+# that scripts/collect-iso-store-state.sh hashes; 902's is still chosen when
+# ifrit is built, because ifrit cannot mount smaug-iso.
 
 source "proxmox-iso" "kali-saruman" {
   proxmox_url              = var.proxmox_url

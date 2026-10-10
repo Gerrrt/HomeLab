@@ -205,7 +205,6 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   It ships in three phases:
   1. Template 910, the guest, its tools and dotfiles
      ([`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
-     Written, not built.
   2. Enrolling it in Wazuh and Velociraptor, which no Linux guest is yet.
   3. OpenVAS, with VLAN 30 as its written scope and a #921 silence for each
      scan.

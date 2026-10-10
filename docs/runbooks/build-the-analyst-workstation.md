@@ -120,6 +120,16 @@ ssh analyst@10.0.30.62 'hostname; ip -br addr; id; systemctl is-active qemu-gues
 Expect `garuda`, `10.0.30.62/24` on `eth0`, and `active`. If the address is not
 `.62`, the reservation in §2 is wrong. Fix it there, not on the guest.
 
+**Give `analyst` a console password.** cloud-init made the account key-only,
+which is enough for SSH but not for the desktop's login screen in §9. Set it
+over SSH, at the prompt, never as an argument: a password on a command line
+lands in shell history and process listings. Keep it in Garrett's password
+manager, not in this repository or in OpenTofu's state:
+
+```bash
+ssh -t analyst@10.0.30.62 sudo passwd analyst
+```
+
 ## 5. Kali Purple, without its SOC
 
 On `garuda`:
@@ -144,6 +154,15 @@ sudo apt-get -y install kali-desktop-xfce kali-themes-purple
 sudo apt-get -y install cyberchef wireshark tshark jq yara \
   docker.io docker-compose zeek suricata
 sudo usermod -aG docker,wireshark analyst
+```
+
+**Log out and reconnect** before going on. `usermod` does not change the
+groups of a session that is already open, and §6's `make up` needs the
+`docker` group:
+
+```bash
+exit
+ssh analyst@10.0.30.62 id    # must list docker and wireshark
 ```
 
 **Not Purple's tool metapackages** (`kali-tools-detect`, `-respond` and the
@@ -181,10 +200,13 @@ procedure, with `GARUDA` for `EDEN`, `garuda agent` in the Caddyfile and
    make secrets-edit STACK=analyst    # INGEST_TOKEN, the same value
    ```
 
-   `secrets-init` writes an `analyst` rule into `.sops.yaml`, above the
-   catch-all.
+   `secrets-init` replaces `REPLACE_WITH_ANALYST_AGE_PUBLIC_KEY` in the
+   `analyst` rule of `.sops.yaml` with `garuda`'s key. The rule sits above the
+   catch-all, so `garuda` can open its own file and nothing else. If the
+   placeholder is gone, stop: the file would fall through to the estate's
+   rule, and `garuda` could not decrypt it.
 3. **One branch, one pull request,** holding:
-   - that rule;
+   - the `analyst` rule, with `garuda`'s key in place of the placeholder;
    - `secrets/analyst.sops.yaml`;
    - `INGEST_TOKEN_GARUDA` in the five lab places eden's went:
      - the `ingest_auth` map and header comment in `stacks/lab/Caddyfile`
@@ -316,14 +338,19 @@ Not run yet.
 2. On `phoenix`:
 
    ```bash
-   tofu -chdir=tofu destroy -target='module.guest["garuda"]'
+   tofu -chdir=tofu destroy -target='module.guest["garuda"]' \
+     -target='proxmox_virtual_environment_pool.this["analyst"]'
    ```
 
-   That takes the `analyst` pool and its grant with it
-   ([`provision-lab-guests.md`](provision-lab-guests.md) §2).
+   Both targets, because the pool is its own resource: destroying the guest
+   alone leaves it. Destroying the pool deletes its grant with it
+   ([`provision-lab-guests.md`](provision-lab-guests.md) §2), so a rebuild
+   needs that grant again. Then remove `garuda` from `tofu/guests.tf`, or the
+   next untargeted apply recreates both.
 3. Remove these and their lines, in one pull request:
    - `162` from `golem`'s job
    - the `.62` reservation on `morpheus`
    - `INGEST_TOKEN_GARUDA` from `alexander`
-   - the `analyst` rule in `.sops.yaml`
+   - `garuda`'s key in the `analyst` rule of `.sops.yaml`, back to the
+     placeholder or the rule removed with the stack
 4. Destroy template 910 only if nothing else clones it.

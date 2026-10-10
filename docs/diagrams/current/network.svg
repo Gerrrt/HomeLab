@@ -622,6 +622,11 @@
 <text x="1386.0" y="1404" class="hn" style="font-size:13px">dot-windows</text>
 <text x="1512.0" y="1404" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.98</text>
 </g>
+<g class="host" data-host="garuda">
+<rect x="1532.0" y="1384" width="152.0" height="30" rx="7" class="card planned"/>
+<text x="1546.0" y="1404" class="hn planned-t" style="font-size:13px">garuda</text>
+<text x="1672.0" y="1404" class="ip planned-t" style="font-size:12px" text-anchor="end">.62</text>
+</g>
 <g class="host" data-host="ifrit">
 <rect x="1202" y="1420" width="492" height="26" rx="8" class="card planned"/>
 <text x="1216" y="1438" class="hn planned-t">ifrit</text>

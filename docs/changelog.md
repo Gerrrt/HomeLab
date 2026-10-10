@@ -35,9 +35,10 @@ docstring gives: it is a record, not a claim about now.
     [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md).
     It covers Purple's tools with the sensor daemons off, and Defense on
     `dotfiles-Debian` at release tags.
-  - **Left for the build:** the lab token `INGEST_TOKEN_GARUDA` and the
-    `analyst` sops rule. They need `alexander` and `garuda` themselves, as
-    `eden`'s did.
+  - **Left for the build:** the lab token `INGEST_TOKEN_GARUDA`, and
+    `garuda`'s key in the `analyst` sops rule, which is a placeholder until
+    then. They need `alexander` and `garuda` themselves, as `eden`'s did.
+  - **The network diagram** has `garuda` as a planned card at `.62`.
 
 - **`carbuncle` and `siren` were re-cloned from the rebuilt 911**
   ([#1092](https://github.com/Gerrrt/HomeLab/issues/1092)'s fix), so the two

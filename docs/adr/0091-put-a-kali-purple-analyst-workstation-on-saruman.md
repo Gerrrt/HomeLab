@@ -78,8 +78,8 @@ and it boots with the host. That has four consequences:
 - It is backed up, because its case notes are not in git.
 
 **5. Template 910, not 902.** `garuda` is a full clone of `tpl-kali-saruman`,
-VMID 910. That is the same `packer/kali.pkr.hcl`, preseed and pinned 2026.2
-ISO as 902, built on `Saruman`
+VMID 910. That is the same `packer/kali.pkr.hcl` and preseed as 902, built
+on `Saruman` from the pinned 2026.2 installer on `smaug-iso`
 ([ADR-0074](0074-build-the-lab-templates-with-packer-from-phoenix.md)). 902
 stays `ifrit`'s: a template belongs to the node it was built on, and the attack
 VM's template should not be the defender's. The guest itself is declared in
@@ -106,8 +106,10 @@ TheHive waits until it earns its keep.
 - **A Kali guest now runs on the defended host.** It holds no offensive role:
   no range NIC, and no `dotfiles-Offense`. ADR-0017's "a Kali VM" on `ifrit` is
   unchanged.
-- **Another template to build and keep.** 910 shares 902's file, preseed and
-  ISO pin, so Kali's next ISO is one change for both. A Kali build needs
+- **Another template to build and keep.** 910 shares 902's file and preseed,
+  so a preseed fix is one change for both. The ISOs are not shared: 910 names
+  the 2026.2 file on `smaug-iso`, and 902's is chosen on `ifrit`, which cannot
+  mount that share. A Kali build needs
   `phoenix`'s port 8800 open for its length, as Debian's does.
 - **Another agent on the lab's ingest proxy.** `INGEST_TOKEN_GARUDA` is added to
   `stacks/lab` at build time, in the same change as `garuda`'s own age key,

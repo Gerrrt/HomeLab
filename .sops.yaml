@@ -136,6 +136,17 @@ creation_rules:
     age: >-
       age189dyp4ug4s3xujzuvrm8gp8mpvcg7rge8qdv6ctdw9pcss2wacjsj0sxt9
 
+  # The analyst workstation, garuda (#921, ADR-0091), for soc's reason: it
+  # holds the case notes on what the lab's attackers did. Its key opens
+  # secrets/analyst.sops.yaml, its ingest token, and nothing else. Placeholder
+  # until `make secrets-init STACK=analyst`, run ON garuda, fills it in
+  # (build-the-analyst-workstation.md §6). Without this rule, that init would
+  # fall through to the catch-all and encrypt garuda's file to the estate's
+  # key, which garuda cannot open.
+  - path_regex: secrets/analyst(\..+)?\.sops\.ya?ml$
+    age: >-
+      REPLACE_WITH_ANALYST_AGE_PUBLIC_KEY
+
   # The disposable investigation guest (ADR-0071), for soc's reason: a guest
   # that holds a detonation's output must not be able to open the estate's
   # credentials, or odin's. THE PLACEHOLDER IS PERMANENT IN GIT. diabolos is
