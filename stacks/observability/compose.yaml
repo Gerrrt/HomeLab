@@ -740,7 +740,7 @@ services:
     # RSS peaked at 58 over every test since 2026-10-06. Full rate stayed
     # under the 130 MiB RSS the 2026-10-05 scratch boots recorded at 2 Mbit/s.
     #
-    # The term SIZED FROM RSS above does not cover is shmem. php-fpm maps a
+    # SIZED FROM RSS above leaves out one term here: shmem. php-fpm maps a
     # 128 MiB shared /dev/zero segment (opcache.memory_consumption), 90 MiB of
     # it touched so far. It is charged to this cgroup as file memory, so
     # cAdvisor's RSS misses it, and with no swap (memswap_limit below) the
