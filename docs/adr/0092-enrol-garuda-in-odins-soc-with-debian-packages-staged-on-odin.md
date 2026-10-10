@@ -34,6 +34,7 @@ adds `10.0.30.62/32` to the addresses that may fetch. Nothing else changes in
 who is served.
 
 **2. The Wazuh agent is the vendor's `.deb`, pinned.**
+
 - **Version:** 4.14.8, the manager's. An agent may not be newer than its
   manager, and garuda starts level with it. The six keep their own pin, which
   moves when they are upgraded in step.
@@ -46,6 +47,7 @@ who is served.
   one that does not match.
 
 **3. The Velociraptor client `.deb` is built by the server.**
+
 - **What goes in:** its client config (`config client`), packaged with the
   server's own binary (`debian client`), so the client is 0.77.3, the server's
   version.
@@ -56,6 +58,7 @@ who is served.
   from `odin` over SSH rather than from the same unauthenticated HTTP origin.
 
 **4. Enrolment is by runbook, not by `ansible/`.**
+
 - **Where:** garuda's runbook §12 holds the steps.
 - **The Wazuh enrolment password** is `odin`'s `authd.pass`, the six's
   `LAB_WAZUH_REGISTRATION_PASSWORD`. It reaches garuda on standard input only,
@@ -65,6 +68,7 @@ who is served.
   collection applies.
 
 **5. `WazuhAgentsNotConnected` expects garuda's agent while garuda is up.**
+
 - **How:** garuda's own Alloy job, `up{job="garuda-alloy"}` with
   `instance="garuda"`, stands in for the missing `windows_exporter`, and the
   by-name join is unchanged.
