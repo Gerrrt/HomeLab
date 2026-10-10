@@ -35,6 +35,12 @@ docstring gives: it is a record, not a claim about now.
     activation returned `0x803F7001`. The two retail keys were installed
     through the guest agent, and both now read *permanently activated*:
     `…DGPKG` on `carbuncle`, `…4GDGT` on `siren`. The runbook now says so.
+  - **The keys reached the SOC's logs.** They were installed with
+    `slmgr /ipk <key>`, so Sysmon recorded each full key in a process
+    command line on its endpoint, and Wazuh raised alerts on `odin` that
+    carry them. Step 9 now passes the key on the guest agent's stdin to
+    Windows' licensing API, so no command line holds it. That was tested on
+    `carbuncle`.
 
 ## 2026-10-09
 

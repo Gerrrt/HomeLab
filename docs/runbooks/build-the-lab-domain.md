@@ -453,13 +453,41 @@ skips step 4.
    - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
      labels;
    - Wazuh and Velociraptor list all six;
-   - each endpoint reads *activated*. Install its retail key and activate it,
-     as root on `Saruman` through the guest agent:
-     `qm guest exec <id> -- cmd /c "cscript //nologo %WINDIR%\System32\slmgr.vbs /ipk <key> & cscript //nologo %WINDIR%\System32\slmgr.vbs /ato"`.
-     Then `slmgr /xpr` reads *permanently activated*. Since 2026-10-10 the
-     key ending `DGPKG` is on `carbuncle` and the one ending `4GDGT` is on
-     `siren`. The keys themselves are never written into this repository;
-     keep them where you keep the other secrets.
+   - each endpoint reads *activated*. Install its retail key and activate it
+     as below. **Never put the key on a command line.** Sysmon records every
+     process's command line and Wazuh forwards it, so `slmgr /ipk <key>`
+     writes the key into the endpoint's Sysmon log and `odin`'s alerts.
+     That happened on 2026-10-10. Instead, the key travels on the guest
+     agent's stdin, typed without echo, and Windows' licensing API installs
+     it. As root on `Saruman`, with `ipk.ps1` holding:
+
+     ```powershell
+     $ErrorActionPreference = 'Stop'
+     $key = [Console]::In.ReadLine().Trim()
+     if ($key -notmatch '^[0-9A-Z]{5}(-[0-9A-Z]{5}){4}$') { throw 'that is not a product key' }
+     $svc = Get-CimInstance SoftwareLicensingService
+     Invoke-CimMethod -InputObject $svc -MethodName InstallProductKey -Arguments @{ ProductKey = $key } | Out-Null
+     Invoke-CimMethod -InputObject $svc -MethodName RefreshLicenseStatus | Out-Null
+     $key = $null
+     $f = "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL"
+     Invoke-CimMethod -InputObject (Get-CimInstance SoftwareLicensingProduct -Filter $f) -MethodName Activate | Out-Null
+     $p = Get-CimInstance SoftwareLicensingProduct -Filter $f
+     "$env:COMPUTERNAME key ending $($p.PartialProductKey), LicenseStatus $($p.LicenseStatus) (1 = licensed)"
+     ```
+
+     ```bash
+     read -rsp 'key: ' KEY; echo
+     printf '%s\n' "$KEY" | qm guest exec 154 --timeout 290 --pass-stdin 1 -- \
+       powershell -NoProfile -NonInteractive -EncodedCommand "$(iconv -t UTF-16LE ipk.ps1 | base64 -w0)"
+     unset KEY
+     ```
+
+     Neither command line carries the key: `qm`'s holds only the encoded
+     script, and so does the guest's `powershell`. Tested on `carbuncle` on
+     2026-10-10: it activated, and Sysmon logged no event containing the key.
+     Since 2026-10-10 the key ending `DGPKG` is on `carbuncle` and the one
+     ending `4GDGT` is on `siren`. The keys themselves are never written into
+     this repository; keep them where you keep the other secrets.
    - `slmgr /dlv` on the four servers gives a new expiry. Record it in §11 and
      in the changelog, as before.
 
