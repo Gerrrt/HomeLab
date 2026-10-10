@@ -12,12 +12,12 @@
 # requests: the evidence store for the segment's incidents, editable by the
 # segment.
 #
-# THE CLIENTS are the five guests with no scrape alternative: odin (stacks/soc,
-# ADR-0030), phoenix (ADR-0043), fenrir (stacks/sensor), golem (ADR-0053) and
-# eden (stacks/bloodhound, ADR-0081). Each has its own token, in
-# secrets/lab.sops.yaml for this proxy and in its own secrets for itself:
-# soc.sops.yaml on odin, sensor.sops.yaml on fenrir, bloodhound.sops.yaml on
-# eden, and exported on the Mac when deploy-agent.sh ships phoenix's or golem's
+# THE CLIENTS are the six guests with no scrape alternative: odin (stacks/soc,
+# ADR-0030), phoenix (ADR-0043), fenrir (stacks/sensor), golem (ADR-0053),
+# eden (stacks/bloodhound, ADR-0081) and garuda (stacks/analyst, ADR-0091).
+# Each has its own token, in secrets/lab.sops.yaml for this proxy and in its
+# own secrets for itself: soc.sops.yaml on odin, sensor.sops.yaml on fenrir,
+# bloodhound.sops.yaml on eden, analyst.sops.yaml on garuda, and exported on the Mac when deploy-agent.sh ships phoenix's or golem's
 # agent. The reader token is for that script's arrival check. None of these is an estate token, and none may be:
 # a lab host holding an estate credential is the inversion ADR-0007 forbids.
 {
@@ -32,6 +32,7 @@
 		"Bearer {$INGEST_TOKEN_FENRIR}" fenrir agent
 		"Bearer {$INGEST_TOKEN_GOLEM}" golem agent
 		"Bearer {$INGEST_TOKEN_EDEN}" eden agent
+		"Bearer {$INGEST_TOKEN_GARUDA}" garuda agent
 		"Bearer {$INGEST_TOKEN_READER}" reader reader
 		default - -
 	}
