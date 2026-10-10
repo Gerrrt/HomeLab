@@ -28,9 +28,10 @@ drifts.
 
 **Not here, and each is a change of its own on #921:**
 
-- enrolling `garuda` in Wazuh and Velociraptor;
 - OpenVAS, with its scope and its silence;
 - TheHive.
+
+Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2.
 
 ---
 
@@ -526,7 +527,73 @@ the console password.
   `scripts/qga-resync.py` fixed each at once. Keep agent commands ASCII, and
   prefer SSH from `phoenix` for anything with a heredoc.
 
-## 12. Take it out
+## 12. Phase 2: enrol it in odin's SOC
+
+[ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md):
+the Wazuh agent and the Velociraptor client, as Debian packages staged on
+`odin` and served on its `8448`, which answers `garuda` since then.
+
+1. **On `odin`,** as `barnabas`, with the change merged:
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab && git pull --ff-only
+   make up STACK=soc                  # reloads Caddy with garuda in the 8448 allowlist
+   sudo scripts/stage-agent-msis.sh   # adds the two .debs beside the MSIs
+   ```
+
+   The script checks the Wazuh `.deb` against `stacks/soc/linux-agents.yaml`
+   and prints the Velociraptor `.deb`'s sha256. Note that hash.
+
+2. **On `garuda`,** fetch both from `8448` and check each one. The Wazuh hash
+   is the pin; the Velociraptor hash is the one staging printed, read again
+   from `odin` over SSH, not from the HTTP origin the file came from:
+
+   ```bash
+   d=$(mktemp -d) && cd "$d"
+   curl -fsSO http://10.0.30.60:8448/wazuh-agent_4.14.8_amd64.deb
+   curl -fsSO http://10.0.30.60:8448/velociraptor-client_0.77.3_amd64.deb
+   echo "6ed202e211fd8c544d1906c9b94dcd4b503d1829eef7d0a82ce4bcf4a1688967  wazuh-agent_4.14.8_amd64.deb" | sha256sum -c -
+   sha256sum velociraptor-client_0.77.3_amd64.deb   # must equal staging's hash
+   ```
+
+3. **The Wazuh agent.** Install it pointed at `odin`, without the password.
+   Then write the password to the agent's `authd.pass` from standard input,
+   never as an argument, and restart it so that it enrols. The password is
+   `odin`'s `authd.pass`, the six's `LAB_WAZUH_REGISTRATION_PASSWORD`
+   (`phoenix.env`):
+
+   ```bash
+   sudo WAZUH_MANAGER=10.0.30.60 WAZUH_AGENT_NAME=garuda WAZUH_AGENT_GROUP=default \
+     dpkg -i wazuh-agent_4.14.8_amd64.deb
+   sudo sh -c 'umask 027; cat > /var/ossec/etc/authd.pass && chgrp wazuh /var/ossec/etc/authd.pass'   # paste, Enter, Ctrl-D
+   sudo systemctl enable --now wazuh-agent && sudo systemctl restart wazuh-agent
+   ```
+
+   Once `odin` lists it as Active, remove the file:
+   `sudo rm /var/ossec/etc/authd.pass`. The agent keeps its own key in
+   `client.keys`. A re-enrolment writes the file again.
+
+4. **The Velociraptor client.** The package carries `odin`'s server URL, CA and
+   nonce, and installs and starts its own service:
+
+   ```bash
+   sudo dpkg -i velociraptor-client_0.77.3_amd64.deb
+   systemctl is-active velociraptor_client
+   ```
+
+5. **Check from `odin`:**
+   - `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l` lists
+     `garuda` as Active.
+   - The Velociraptor GUI, from Hicks, lists a client with hostname `garuda`.
+   - In the lab's Prometheus, `homelab_wazuh_agent_active{agent="garuda"}` is
+     1 after the collector's next run, every five minutes.
+     `WazuhAgentsNotConnected` now expects it while garuda's Alloy is up.
+
+6. **Not tuned.** `local_rules.xml` is the domain's Windows rules, and garuda
+   gets Wazuh's stock Linux ruleset. An analyst's own tools will make some
+   noise. Tune it in `local_rules.xml` when it matters, not before.
+
+## 13. Take it out
 
 1. Run `siemdown` if it is up, and copy anything in `~/cases/` that is wanted.
 2. On `phoenix`:

@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
+  [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
+  It is the first Linux guest in either.
+  - **Packages.** Two Debian packages, staged on `odin` beside the six's MSIs
+    and served on `8448`, which now also answers `.62`:
+    - the Wazuh agent 4.14.8, pinned in `stacks/soc/linux-agents.yaml`. Its
+      hash agrees with Wazuh's apt index, which is covered by a good
+      signature on `InRelease`;
+    - a Velociraptor 0.77.3 client `.deb`, built by the server with its
+      config inside. A trial build in the server container succeeded.
+  - **Alerting.** `WazuhAgentsNotConnected` expects garuda's agent while
+    garuda's Alloy is up, with three new promtool cases.
+  - **Install.** Garuda's runbook §12 has the steps. The enrolment password
+    goes in on standard input only.
+
 - **`make validate` had passed the history secret scan in every worktree
   without reading a commit.** gitleaks is not installed on the monitoring
   host, so `validate.sh` ran it in docker with only the checkout mounted. A

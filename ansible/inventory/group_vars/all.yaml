@@ -91,7 +91,8 @@ lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSW
 # as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
 lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"
 # Where the six fetch the two agent MSIs: the SOC stack's caddy service on odin
-# (container soc-agent-msi), which answers these six addresses only (#1068). It serves what
+# (container soc-agent-msi), which answers these six addresses and garuda's
+# (#1068, ADR-0092; garuda takes two .debs by its runbook, not from here). It serves what
 # scripts/stage-agent-msis.sh put there, named by the pinned versions in
 # roles/soc_agents/defaults/main.yml, so a bump there needs that script re-run
 # on odin and nothing here.

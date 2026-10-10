@@ -36,6 +36,14 @@
 > `10.0.50.0/24` and gives everyone else 403; WireGuard peers are not
 > included. The rows below are left as written, per ADR-0001;
 > `stacks/soc/Caddyfile` is the current statement.
+>
+> **2026-10-10: `garuda` is a consumer too**
+> ([ADR-0092](0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
+> The analyst workstation at `10.0.30.62` enrols a Wazuh agent on `1514`/`1515`
+> and a Velociraptor client on `8000`. It fetches two Debian packages from
+> Caddy's `8448`, which answers `.62` as well as `.50`–`.55`. The port table
+> below is left as accepted; the living account is `stacks/soc/README.md` and
+> `docs/security.md`.
 
 ## Context
 

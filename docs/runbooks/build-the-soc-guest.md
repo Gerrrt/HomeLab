@@ -373,8 +373,9 @@ The indexer initialises its security index from the rendered user database
 (about a minute), the manager waits for the indexer to be healthy and then
 starts fifteen daemons and filebeat (another minute), and the dashboard waits
 for both. Velociraptor generates its config, creates the `admin` account and
-then **downloads the client release from GitHub to build the MSI, deb and
-rpm** — that is the outbound connection you will see, and it is why
+then **downloads the client release from GitHub to build client packages** —
+on `odin` a Windows MSI and a Linux RPM, with no Debian package (read from the
+datastore on 2026-10-10) — that is the outbound connection you will see, and it is why
 `start_period` on that service is two minutes. Three to five minutes to all
 healthy is normal.
 
@@ -559,8 +560,10 @@ visible.
 
 **The pipeline's MSIs come from this guest (#1068).** The stack's `caddy`
 service (container `soc-agent-msi`) serves `${SOC_DATA_DIR}/agent-msi` on port 8448, to the six domain
-addresses (`.50`–`.55`) and nobody else. What it serves is staged by one
-script, run as root on `odin` from the checkout:
+addresses (`.50`–`.55`) and `garuda` (`.62`,
+[ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)),
+and nobody else. What it serves is staged by one script, run as root on `odin`
+from the checkout:
 
 ```bash
 sudo scripts/stage-agent-msis.sh
@@ -570,7 +573,10 @@ It reads the versions and sha256s from
 [`roles/soc_agents/defaults/main.yml`](../../ansible/roles/soc_agents/defaults/main.yml).
 It fetches the Wazuh MSI from the vendor, and finds the Velociraptor MSI this
 server repacked by its hash in the datastore. It refuses either if the hash is
-not the pinned one. Run it once after the first `make up`, and again after any
+not the pinned one. For `garuda` it also stages the Wazuh agent `.deb`, pinned
+in `stacks/soc/linux-agents.yaml`, and a Velociraptor client `.deb` this server
+builds with its config inside, whose sha256 it prints for `garuda`'s install to
+check against. Run it once after the first `make up`, and again after any
 bump of either pin. A Velociraptor upgrade that means a new client MSI is two
 steps: run *Server.Utils.CreateMSI*, then move the role's pins to what it
 built. The script never decides that for you. Check from a guest with

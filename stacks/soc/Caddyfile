@@ -1,22 +1,23 @@
 # Two jobs on odin, each answering a named set of addresses and refusing
 # everyone else with 403.
 #
-# 1. :8448 — the two installers roles/soc_agents fetches onto the lab domain
-#    (#1068): the Wazuh agent MSI and the Velociraptor client MSI, staged on
-#    odin by scripts/stage-agent-msis.sh and checked there against the role's
-#    pins.
+# 1. :8448 — the agent installers: the two MSIs roles/soc_agents fetches onto
+#    the lab domain (#1068), and the two Debian packages garuda installs
+#    (ADR-0092): the Wazuh agent and the Velociraptor client of each. All four
+#    are staged on odin by scripts/stage-agent-msis.sh.
 #
-#    Served to ADR-0029's six and nothing else. odin is single-homed on VLAN
+#    Served to ADR-0029's six and garuda (.62), and nothing else. odin is single-homed on VLAN
 #    30, but Hicks reaches it over the 50 -> 30 rule, so the bind address alone
-#    would not hold the line. And the Velociraptor MSI carries the client
-#    config: the server URL, its CA and the enrolment nonce, which #864 took
+#    would not hold the line. And each Velociraptor package carries the
+#    client config: the server URL, its CA and the enrolment nonce, which #864 took
 #    out of SYSVOL for exactly this reason. An address on VLAN 30 can be
 #    spoofed, so this narrows who can fetch it; it does not make the file a
 #    secret (docs/security.md).
 #
 #    Plain http, like the Velociraptor frontend's own enrolment path: the role
-#    checks every file against a pinned sha256 before installing it, so a
-#    tampered byte fails the run rather than reaching a guest.
+#    checks every MSI against a pinned sha256 before installing it, and
+#    garuda's runbook checks each .deb against the hash staging recorded, so a
+#    tampered byte fails the install rather than reaching a guest.
 #
 # 2. :8443 and :8889 — the Wazuh dashboard and the Velociraptor GUI, to Hicks
 #    and nothing else (#1139). ADR-0030 named "a browser on Hicks" as the one
@@ -53,9 +54,10 @@
 		respond "ok" 200
 	}
 
-	# bahamut .50 through siren .55, as ansible/inventory/hosts.yaml has them.
-	@six remote_ip 10.0.30.50/31 10.0.30.52/31 10.0.30.54/31
-	handle @six {
+	# bahamut .50 through siren .55, as ansible/inventory/hosts.yaml has them,
+	# and garuda (ADR-0092).
+	@agents remote_ip 10.0.30.50/31 10.0.30.52/31 10.0.30.54/31 10.0.30.62/32
+	handle @agents {
 		root * /srv/agent-msi
 		file_server
 	}

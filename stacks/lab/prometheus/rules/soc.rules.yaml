@@ -190,12 +190,19 @@ groups:
       # An unreadable agents source fires neither half: the collector then
       # writes no per-agent series and no per-status counts, so both are
       # empty. WazuhManagerStateUnreadable is the alert for that.
+      #
+      # AND GARUDA (ADR-0092), the one Linux guest enrolled. It has no
+      # windows_exporter, so its own Alloy stands in: `up{job="garuda-alloy"}`
+      # carries instance="garuda", the agent's name, and the same join holds.
+      # Another Linux guest enrolled later adds its own `<host>-alloy` job
+      # here. Not every Alloy job: alexander, eden and fenrir report through
+      # Alloy too, and enrol in nothing.
       - alert: WazuhAgentsNotConnected
         expr: |
           (
             (
               (
-                up{job="windows"} == 1
+                up{job=~"windows|garuda-alloy"} == 1
                 unless on (instance)
                 label_replace(homelab_wazuh_agent_active == 1, "instance", "$1", "agent", "(.+)")
               )
@@ -204,7 +211,7 @@ groups:
             )
             or
             (
-              ((count(up{job="windows"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0)
+              ((count(up{job=~"windows|garuda-alloy"} == 1) - sum(homelab_wazuh_agents{status="active"})) > 0)
               unless on ()
               (count(homelab_wazuh_agent_active) > 0)
             )
@@ -219,10 +226,12 @@ groups:
             {{ if $labels.instance }}{{ $labels.instance }} is{{ else }}{{ $value }} lab
             guest(s) are{{ end }} running without a connected Wazuh agent
           description: >-
-            windows_exporter answers on a domain guest that the manager has no
-            Active agent for, so the guest is invisible to the SOC. On odin:
+            A guest is up (windows_exporter answers on a domain guest, or
+            garuda's Alloy reports) and the manager has no Active agent for it,
+            so the guest is invisible to the SOC. On odin:
             `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
-            gives each agent's status; on the guest, `Get-Service WazuhSvc`.
+            gives each agent's status; on a domain guest, `Get-Service
+            WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
 
       # A queue inside analysisd nearly full. The value is a 0..1 fraction
       # (queue_op.c: elements / (size - 1)). A full queue drops events, which

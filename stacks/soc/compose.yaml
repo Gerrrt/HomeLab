@@ -489,17 +489,22 @@ services:
       timeout: 5s
       retries: 3
       # The first start generates the config, creates the admin user and then
-      # builds the client MSI, deb and rpm from the release on GitHub.
+      # builds client packages from the release on GitHub. On odin they were a
+      # Windows MSI and a Linux RPM, with no Debian package among them (read
+      # from the datastore, 2026-10-10); garuda's .deb is built by
+      # scripts/stage-agent-msis.sh instead (ADR-0092).
       start_period: 120s
 
   # ---------------------------------------------------------------------------
-  # The agent installers (#1068). roles/soc_agents installs the Wazuh agent and
-  # the Velociraptor client on the six directly, and needs both MSIs at a URL
-  # they can reach. Nothing in the image builds them: scripts/stage-agent-msis.sh
-  # puts them in ${SOC_DATA_DIR}/agent-msi on this guest, checked against the
-  # role's pinned sha256s, and this serves that directory read-only. The
-  # Caddyfile answers ADR-0029's six addresses and refuses everyone else,
-  # because the Velociraptor MSI carries the client's enrolment config.
+  # The agent installers (#1068, ADR-0092). roles/soc_agents installs the Wazuh
+  # agent and the Velociraptor client on the six directly, and needs both MSIs
+  # at a URL they can reach; garuda installs the same two as Debian packages by
+  # its runbook. Nothing in the image builds them: scripts/stage-agent-msis.sh
+  # puts all four in ${SOC_DATA_DIR}/agent-msi on this guest, the vendor ones
+  # checked against their pins, and this serves that directory read-only. The
+  # Caddyfile answers ADR-0029's six addresses and garuda's, and refuses
+  # everyone else, because each Velociraptor package carries the client's
+  # enrolment config.
   #
   # The estate's Caddy, at the digest stacks/lab runs, hardened the same way:
   # a numeric user, a read-only root, every capability dropped but one. 8448 is
