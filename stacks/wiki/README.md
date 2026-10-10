@@ -289,6 +289,12 @@ take a set, point `db` at a new empty volume and a new image, and restore
 into it as in (2) above. A dump restores into a newer Postgres, and the
 on-disk cluster does not.
 
+The weekly CVE scan's issue for this image, [#984], is expected to stay
+open. Its findings are in the npm packages that Wiki.js 2.x bundles, and no
+2.x image carries their fixes yet, so Dependabot has nothing to propose. The
+scan count does not decide when the wiki moves off 2.x. [ADR-0089]'s
+triggers do, and its note records why.
+
 The update companion that ran beside the old container is gone on purpose.
 It held the Docker socket and recreated Wiki.js from the floating `2` tag,
 outside any compose file, which would undo every pin here the day it worked.
@@ -343,6 +349,8 @@ to 13:55:36 UTC.
 [ADR-0043]: ../../docs/adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md
 [ADR-0065]: ../../docs/adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md
 [ADR-0082]: ../../docs/adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md
+[ADR-0089]: ../../docs/adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md
 [#251]: https://github.com/Gerrrt/HomeLab/issues/251
 [#833]: https://github.com/Gerrrt/HomeLab/issues/833
 [#847]: https://github.com/Gerrrt/HomeLab/issues/847
+[#984]: https://github.com/Gerrrt/HomeLab/issues/984

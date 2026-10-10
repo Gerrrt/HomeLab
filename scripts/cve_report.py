@@ -34,6 +34,18 @@ The body carries every finding ID of the last scan in a second hidden marker, zl
 compares against that. A body without one (edited by hand, or older) falls
 back to the CVE and GHSA IDs visible in it.
 
+WHAT IS NOT REPORTED (#985). Unfixed findings, which scan-images.sh already
+leaves out, and one shape of version: a Go main module stamped from a dirty
+checkout, `v0.0.0-<timestamp>-<commit>+dirty`. Trivy orders that below every
+release, so velociraptor-server:0.77.3 was flagged for CVE-2023-0242, fixed in
+0.6.7-5 in 2023, and every later release would be too: the issue could never
+close itself. `+dirty` only ever appears on the module `go build` was run in.
+Dependencies come from the module cache and are never dirty, so the rule cannot
+hide a vulnerable library. It is a property of the version string, not a list
+of IDs, so it cannot grow. It trusts the version's shape, not the build's
+provenance, so it is never silent: the summary, the issue body and the
+closing comment all count what it dropped.
+
 LABELS. `security` plus one per stack the image is pinned in. Stack labels are
 the scanner's to manage, so an edit also removes a stack label the image no
 longer has — an image dropped from `sensitive` must not keep claiming it.
@@ -75,6 +87,9 @@ SEVERITIES = ("CRITICAL", "HIGH")
 MARKER = re.compile(r"<!-- cve-scan: (\S+) -->")
 IDS_MARKER = re.compile(r"<!-- cve-scan-ids: ([A-Za-z0-9+/=]*) -->")
 FINDING_ID = re.compile(r"\b(?:CVE-\d{4}-\d{4,}|GHSA(?:-[0-9a-z]{4}){3})\b")
+# A Go main module's VCS stamp from a dirty checkout: not comparable against a
+# release version. See WHAT IS NOT REPORTED above.
+UNCOMPARABLE = re.compile(r"^v0\.0\.0-\d{14}-[0-9a-f]{12}\+dirty$")
 
 # Stacks whose label is not their name. `test` is scan-images.sh --extra.
 LABEL_FOR = {"test": "ci"}
@@ -102,6 +117,7 @@ class Image:
     stacks: list[str]
     findings: list[Finding] | None  # None: the scan failed
     error: str = ""
+    uncompared: int = 0  # findings dropped against an UNCOMPARABLE version
 
     @property
     def repo(self) -> str:
@@ -142,24 +158,41 @@ def repo_of(ref: str) -> str:
     return f"{head}/{last}" if head else last
 
 
+def reportable(doc: dict) -> list[dict]:
+    """Fixable HIGH and CRITICAL vulnerabilities, UNCOMPARABLE ones included."""
+    return [
+        v
+        for result in doc.get("Results") or []
+        for v in result.get("Vulnerabilities") or []
+        if v.get("Severity", "") in SEVERITIES and v.get("FixedVersion", "")
+    ]
+
+
+def uncompared(doc: dict) -> int:
+    return len(
+        {
+            (v.get("VulnerabilityID"), v.get("PkgName"), v.get("InstalledVersion"))
+            for v in reportable(doc)
+            if UNCOMPARABLE.match(v.get("InstalledVersion", ""))
+        }
+    )
+
+
 def parse_trivy(doc: dict) -> list[Finding]:
     seen: dict[tuple[str, str, str], Finding] = {}
-    for result in doc.get("Results") or []:
-        for v in result.get("Vulnerabilities") or []:
-            sev = v.get("Severity", "")
-            fixed = v.get("FixedVersion", "")
-            if sev not in SEVERITIES or not fixed:
-                continue
-            f = Finding(
-                id=v.get("VulnerabilityID", "?"),
-                severity=sev,
-                package=v.get("PkgName", "?"),
-                installed=v.get("InstalledVersion", ""),
-                fixed=fixed,
-                title=" ".join((v.get("Title") or "").split()),
-                url=v.get("PrimaryURL", ""),
-            )
-            seen.setdefault((f.id, f.package, f.installed), f)
+    for v in reportable(doc):
+        if UNCOMPARABLE.match(v.get("InstalledVersion", "")):
+            continue
+        f = Finding(
+            id=v.get("VulnerabilityID", "?"),
+            severity=v["Severity"],
+            package=v.get("PkgName", "?"),
+            installed=v.get("InstalledVersion", ""),
+            fixed=v["FixedVersion"],
+            title=" ".join((v.get("Title") or "").split()),
+            url=v.get("PrimaryURL", ""),
+        )
+        seen.setdefault((f.id, f.package, f.installed), f)
     return sorted(seen.values(), key=lambda f: (SEVERITIES.index(f.severity), f.package, f.id))
 
 
@@ -175,7 +208,8 @@ def load(directory: pathlib.Path) -> list[Image]:
         report, err = directory / f"{n}.json", directory / f"{n}.err"
         image = Image(ref=ref, stacks=stacks.split(","), findings=None)
         if report.is_file():
-            image.findings = parse_trivy(json.loads(report.read_text(encoding="utf-8")))
+            doc = json.loads(report.read_text(encoding="utf-8"))
+            image.findings, image.uncompared = parse_trivy(doc), uncompared(doc)
         else:
             lines = err.read_text(encoding="utf-8").strip().splitlines() if err.is_file() else []
             image.error = lines[-1] if lines else "no report written"
@@ -225,6 +259,10 @@ def summary(images: list[Image]) -> str:
         high = "–" if i.findings is None else str(i.count("HIGH"))
         mark = {"fixable": "⚠️ fixable", "scan error": "❌ scan error", "clean": "✅ clean"}[st]
         out.append(f"| `{i.name}` | {', '.join(i.stacks)} | {crit} | {high} | {mark} |")
+    dropped = [i for i in ordered if i.uncompared]
+    if dropped:
+        out += ["", "Not compared, because the installed version is a Go main module's `+dirty` VCS stamp (#985):", ""]
+        out += [f"- `{i.name}`: {i.uncompared} finding(s)" for i in dropped]
     for i in errors:
         out += ["", f"### ❌ `{i.name}`", "", "```", i.error, "```"]
     for i in fixable:
@@ -272,6 +310,18 @@ def previous_ids(body: str) -> set[str]:
     return set(FINDING_ID.findall(body))
 
 
+def uncompared_note(images: list[Image]) -> str:
+    """Said wherever the scan's verdict reaches a person, so a dropped finding
+    is never silent: the rule trusts a version shape, not provenance."""
+    n = sum(i.uncompared for i in images)
+    return (
+        f" {n} finding(s) against a Go main module's `+dirty` VCS version were not compared;"
+        " see WHAT IS NOT REPORTED in `scripts/cve_report.py`."
+        if n
+        else ""
+    )
+
+
 def issue_body(repo: str, images: list[Image], url: str) -> str:
     ids = {f.id for i in images for f in i.findings or []}
     head = [
@@ -288,7 +338,12 @@ def issue_body(repo: str, images: list[Image], url: str) -> str:
             "not released one, the fixed versions below say what to wait for."
         ),
     ]
-    foot = ["", "---", "Written by `.github/workflows/cve-scan.yml`" + (f" in [this run]({url})." if url else ".")]
+    note = uncompared_note(images).strip()
+    foot = (["", note] if note else []) + [
+        "",
+        "---",
+        "Written by `.github/workflows/cve-scan.yml`" + (f" in [this run]({url})." if url else "."),
+    ]
     sections = []
     for i in sorted(images, key=lambda i: i.name):
         if not i.findings:
@@ -354,6 +409,7 @@ def plan(
                         repo,
                         issue["number"],
                         comment=f"Clean at {clean}: no fixable HIGH or CRITICAL findings."
+                        + uncompared_note(imgs)
                         + (f" ([scan]({url}))" if url else ""),
                     )
                 )
@@ -536,6 +592,57 @@ def self_test() -> int:
         [f.id for f in parsed] == ["CVE-2026-0001", "CVE-2026-0002"],
     )
     check("parse: CRITICAL sorts first", parsed[0].severity == "CRITICAL")
+
+    # #985: velociraptor-server's own module, as trivy reported it, beside a
+    # dependency on a plain pseudo-version that must still be reported.
+    go = {
+        "Results": [
+            {
+                "Vulnerabilities": [
+                    {
+                        "VulnerabilityID": "CVE-2023-0242",
+                        "Severity": "HIGH",
+                        "PkgName": "www.velocidex.com/golang/velociraptor",
+                        "InstalledVersion": "v0.0.0-20261004095043-7d287b0b988b+dirty",
+                        "FixedVersion": "0.6.7-5",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2026-0005",
+                        "Severity": "HIGH",
+                        "PkgName": "golang.org/x/crypto",
+                        "InstalledVersion": "v0.0.0-20240101000000-abcdef123456",
+                        "FixedVersion": "0.31.0",
+                    },
+                    {
+                        "VulnerabilityID": "CVE-2026-0006",
+                        "Severity": "HIGH",
+                        "PkgName": "www.velocidex.com/golang/velociraptor",
+                        "InstalledVersion": "v0.0.0-20261004095043-7d287b0b988b+dirty",
+                        "FixedVersion": "",
+                    },
+                ]
+            }
+        ]
+    }
+    check("parse: a +dirty main-module version is not compared", [f.id for f in parse_trivy(go)] == ["CVE-2026-0005"])
+    check("parse: a dependency's plain pseudo-version still is", parse_trivy(go)[0].package == "golang.org/x/crypto")
+    check("uncompared counts the fixable +dirty finding only", uncompared(go) == 1)
+    twin = dict(go["Results"][0]["Vulnerabilities"][0], InstalledVersion="v0.0.0-20250101000000-0123456789ab+dirty")
+    two = {"Results": [*go["Results"], {"Vulnerabilities": [twin]}]}
+    check("uncompared counts two dirty builds of one module twice", uncompared(two) == 2)
+    velo = Image("ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:ff", ["soc"], parse_trivy(go), "", 1)
+    check("summary names what was not compared", "`ghcr.io/velocidex/velociraptor-server:0.77.3`: 1" in summary([velo]))
+    check("the issue body counts what was not compared", "1 finding(s)" in issue_body(velo.repo, [velo], ""))
+    dropped_only = Image(velo.ref, ["soc"], [], "", 1)
+    closed, _ = plan([dropped_only], [{"number": 985, "body": f"<!-- cve-scan: {velo.repo} -->"}], {"soc"})
+    check(
+        "a close that dropped findings says so",
+        closed[0].kind == "close" and "1 finding(s)" in closed[0].comment,
+    )
+    check(
+        "summary says nothing when nothing was dropped",
+        "+dirty" not in summary([Image("caddy:2@sha256:aa", ["lab"], [])]),
+    )
 
     vuln = parse_trivy(doc)
     labels = {"security", "sensitive", "wiki", "ci", "observability"}

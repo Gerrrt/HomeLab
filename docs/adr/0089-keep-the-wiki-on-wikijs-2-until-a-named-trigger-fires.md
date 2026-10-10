@@ -11,6 +11,29 @@
 > trigger has fired. So the first consequence below, "Trigger 1 is not
 > enforced yet", describes the record as it was written. The same run also
 > reads triggers 2 and 3. The text below is left as written, per ADR-0001.
+>
+> [!NOTE]
+> **The image's own packages are not a trigger (2026-10-10).** The weekly
+> CVE scan opened [#984](https://github.com/Gerrrt/HomeLab/issues/984) on
+> 2026-10-07. It lists 9 critical and 104 high findings, all in the npm
+> dependencies that Wiki.js 2.x bundles (tar, form-data, simple-git, multer,
+> axios, `@xmldom/xmldom` and others). Each has a fixed version upstream of
+> the package. None has a fixed Wiki.js image: on 2026-10-10, ghcr's `2`,
+> `2.5` and `2.5.316` all resolved to the pinned digest, and every release
+> after v2.5.315 is a 3.0 beta. So there is no bump for Dependabot to propose.
+>
+> This is the "different list" that the first consequence below names. It
+> does not start trigger 1's clock. That clock reads `requarks/wiki`'s own
+> advisories, and none of them affects 2.5.316. A dependency CVE becomes a
+> move only if the project publishes it as an advisory and ships no 2.x fix
+> within 30 days, and that is what `wiki_watch.py` already reads.
+>
+> Until then, the exposure is held by how the stack already runs: it is
+> internal-only (ADR-0011), it sits behind Caddy, and the app container is
+> `read_only` with `cap_drop: [ALL]`, `no-new-privileges`, uid 1000 and a
+> 512 MiB limit (`stacks/wiki/compose.yaml`). #984 stays open as the record.
+> The scanner closes it on its own when a scan finds a clean 2.x digest, and
+> it is not closed by hand.
 
 ## Context
 
