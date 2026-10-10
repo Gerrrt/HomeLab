@@ -471,6 +471,50 @@ the console password.
       refuses its user manager, and the system reads `degraded`.
     - `lightdm` itself is `active`.
     - §9's desktop check from Hicks decides whether it matters.
+- **§6, 2026-10-10** ([#1144](https://github.com/Gerrrt/HomeLab/pull/1144)).
+  - **garuda's tools:** `age` 1.3.2 from Kali, and `sops` 3.9.4's release
+    binary (checksum OK) at `alexander`'s version. The repository is at
+    `~/code/Gerrrt/HomeLab`.
+  - **garuda's key:** `make secrets-init STACK=analyst` wrote
+    `age1pd3d…u9c9v` over the placeholder.
+  - **The token:** one token, generated on Saruman. It was set as
+    `INGEST_TOKEN_GARUDA` on `alexander` and `INGEST_TOKEN` on `garuda`
+    through `make secrets-edit`, with `SECRETS_EDITOR` pointed at a script
+    that takes the key and value from the environment. The value came in on
+    each host's stdin and was never an argument. The two SHA-256s matched.
+    The editor scripts were deleted afterwards.
+  - **After the merge:** `alexander` went from 30 commits behind to `main`.
+    The only other change that reached its lab stack was #1080's
+    `syslog.alloy`, which the lab Alloy does not mount. `make up STACK=lab`
+    left every container healthy, with no 401s at the proxy. On `garuda`,
+    `make up STACK=analyst` passed both health checks.
+- **§8, 2026-10-10.**
+  - **patch-state:** installed from `phoenix`, timer enabled,
+    `homelab_apt_upgrades_pending{host="garuda"} 0` in the lab's
+    Prometheus.
+  - **Backup:** `162` joined `golem-nightly` beside `160`. That job held only
+    `odin`; the domain's six were already out of it, and were left so.
+    - The test `vzdump 162 --mode snapshot` ran to `golem` in 9m03s,
+      encrypted, with 60 of 80 GB sparse.
+    - The guest-agent fs-freeze and thaw both went through, and the agent
+      answered afterwards.
+- **§9, 2026-10-10.** Every line passed, except the desktop:
+  - `garuda` at `10.0.30.62`.
+  - **Watched by the estate:** `homelab_guest_running` is 1 and
+    `homelab_guest_on_demand` is 0, from Saruman's guest-state collector.
+  - **Lab Prometheus:** `up{job="garuda-alloy"}` and
+    `up{job="garuda-metrics"}` are both 1.
+  - **Lab Loki:** `{hostname="garuda"}` has journal lines.
+  - **No second SOC:** `docker ps` shows exactly `analyst-alloy` and
+    `analyst-docker-socket-proxy`. The only off-loopback listener is SSH on
+    22; Alloy's 12345 is on loopback, and there are no sensor listeners.
+  - `core doctor` exited 0.
+  - **Reboot:** `qm reboot 162` brought the agent back in 41s. After about
+    2.5 minutes everything above passed again with nothing typed, including
+    500 journal lines in Loki over 3 minutes.
+  - **Not run: the desktop line.** It needs the console from Hicks, and the
+    console password Garrett sets at a prompt (§4). `user@968.service`
+    (`lightdm`) still fails on every boot.
 - **Agents.** `guest-exec` timed out on both `garuda` (162) and `phoenix`
   (170) after commands carrying non-ASCII text or heredocs.
   `scripts/qga-resync.py` fixed each at once. Keep agent commands ASCII, and

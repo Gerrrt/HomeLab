@@ -433,6 +433,7 @@ Where things get broken on purpose.
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
 | eden | `10.0.30.41` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | BloodHound CE (on demand) |
+| garuda | `10.0.30.62` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Kali Linux Rolling | Rack U3 | Analyst workstation (Kali Purple, without its SOC) |
 | dot-debian | `10.0.30.91` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Debian 13 | Rack U3 | Dotfiles test VM, on demand |
 | dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
 | dot-opensuse | `10.0.30.93` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | openSUSE Tumbleweed | Rack U3 | Dotfiles test VM, on demand |
@@ -504,13 +505,12 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
-- `10.0.30.62` and VMID 162 are reserved for `garuda`, Defense's analyst
-  workstation of
-  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)
+- `garuda` is at `10.0.30.62`, VMID 162, Defense's analyst workstation of
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md),
+  **built 2026-10-10** as a full clone of template 910
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
   [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
-  It is not in the table above because it is **not built yet**. It is
-  off-decade for `diabolos`'s reason, in `odin`'s decade beside the SOC it
+  It is off-decade for `diabolos`'s reason, in `odin`'s decade beside the SOC it
   works from. It is a Kea reservation by the MAC pinned in `tofu/guests.tf`,
   always on and not tagged `on-demand`. It is not a lab-domain member, so it
   resolves at `10.0.30.1`. It needs no rule of its own: Hicks reaches its

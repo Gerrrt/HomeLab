@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **`garuda` reports to the lab, is backed up, and passed §9**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11).
+  - **Its ingest token** was set on `alexander` and `garuda` from stdin, so
+    it never appeared as an argument
+    ([#1144](https://github.com/Gerrrt/HomeLab/pull/1144)).
+  - **`stacks/analyst` is up.**
+  - **patch-state** reports 0 pending.
+  - **Backup:** `162` is in `golem-nightly`, and a test backup took 9m03s.
+  - **§9:**
+    - the estate sees it running and not `on-demand`;
+    - the lab Prometheus and Loki both have it;
+    - only Alloy and its proxy run;
+    - `core doctor` exits 0;
+    - a reboot brings all of this back unaided.
+  - **What is left:** the desktop check from Hicks and the console password
+    are Garrett's. Then phases 2 and 3.
+
 - **`garuda` was built, as far as its desktop and dotfiles**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
   [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
