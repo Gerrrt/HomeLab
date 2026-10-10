@@ -353,9 +353,13 @@ replaces §1 and the install half of §2. The rest of this page is still the
 `tofu/guests.tf` declares the six with the values the hand-built ones had:
 VMID, template, memory, disk, MAC and SMBIOS UUID, and records the startup
 order that root on `Saruman` sets after the apply (step 7). The MAC
-keeps `morpheus`'s reservations true. The SMBIOS UUID is what the endpoints'
-bought Windows 11 Pro activation is tied to, so a clone with the same UUID
-should reactivate by itself.
+keeps `morpheus`'s reservations true. The SMBIOS UUID is kept as well, but
+it does **not** carry the endpoints' bought Windows 11 Pro activation.
+On 2026-10-10, `carbuncle` and `siren` were re-cloned from 911 with their
+UUIDs. Both came up on the generic Pro key (`…3V66T`), and `slmgr /ato`
+returned `0x803F7001`: Microsoft has no digital licence for the clone. A
+full clone changes more of the virtual hardware than the UUID. Step 9
+installs the keys.
 
 **Before the first destroy, the six exist and the state does not know them.**
 They were built by hand, so `tofu destroy` alone would remove nothing. Step 4
@@ -449,8 +453,13 @@ skips step 4.
    - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
      labels;
    - Wazuh and Velociraptor list all six;
-   - each endpoint reads *activated* (enter its key at the console if the
-     UUID did not carry it);
+   - each endpoint reads *activated*. Install its retail key and activate it,
+     as root on `Saruman` through the guest agent:
+     `qm guest exec <id> -- cmd /c "cscript //nologo %WINDIR%\System32\slmgr.vbs /ipk <key> & cscript //nologo %WINDIR%\System32\slmgr.vbs /ato"`.
+     Then `slmgr /xpr` reads *permanently activated*. Since 2026-10-10 the
+     key ending `DGPKG` is on `carbuncle` and the one ending `4GDGT` is on
+     `siren`. The keys themselves are never written into this repository;
+     keep them where you keep the other secrets.
    - `slmgr /dlv` on the four servers gives a new expiry. Record it in §11 and
      in the changelog, as before.
 
