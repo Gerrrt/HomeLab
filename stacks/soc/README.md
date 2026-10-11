@@ -55,7 +55,7 @@ Seven services, and what is absent is as deliberate as what is here:
   container logs, the way it holds `alexander`'s. Tailing `alerts.json` into
   Loki would put every alert in two stores with two retentions.
 - **No Alertmanager, here or on `alexander`.** Nothing in the lab pages
-  ([ADR-0020]). The six rules that read this stack's health are visible in the
+  ([ADR-0020]). The seven rules that read this stack's health are visible in the
   lab's Prometheus and Grafana and nowhere else.
 - **No syslog listener, no API port.** Upstream's single-node file publishes
   `514/udp` and `55000`; nothing off this host consumes either
@@ -67,12 +67,14 @@ Seven services, and what is absent is as deliberate as what is here:
 to the two it mounts unchanged from `stacks/observability/alloy/`. It runs
 Alloy's first-party `prometheus.exporter.elasticsearch` against the indexer —
 verified against the indexer's own root CA, signed in as `admin` — and pushes
-cluster status, heap, shard count and indexing rate to the lab's Prometheus.
+cluster status, heap, shard count and indexing rate to the lab's Prometheus,
+plus one per-index series: documents indexed into `wazuh-alerts-*`, so a dead
+filebeat is visible past the dashboard's own writes.
 That is what says *the SIEM stopped ingesting*, which is the #62/#63 failure
 this repository keeps paying for and the one thing worth alerting on across
 the boundary. The rules live where the series arrive:
 [`stacks/lab/prometheus/rules/soc.rules.yaml`](../lab/prometheus/rules/soc.rules.yaml),
-six of them, each with a firing and a quiet promtool case.
+seven of them, each with a firing and a quiet promtool case.
 
 **The manager's own numbers** come from a collector on odin, not from Alloy:
 [`scripts/collect-wazuh-manager-state.sh`](../../scripts/collect-wazuh-manager-state.sh)
@@ -210,7 +212,7 @@ stack is covered by everything the estate's is: `docker compose config`, the
 image-pin and digest checks, `alloy fmt --test` on `opensearch.alloy`,
 `check_compose_health.py --probe` (which execs each healthcheck binary inside
 the pinned image — `curl` in the three Wazuh images, busybox `wget` in
-Velociraptor's), and `check_sops_rules.py` on the `soc` rule. The six rules
+Velociraptor's), and `check_sops_rules.py` on the `soc` rule. The seven rules
 and their tests run under the lab stack's promtool step, because that is
 where they live.
 
