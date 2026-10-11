@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **OpenVAS is set up on `garuda`, and its fence is proved**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 3,
+  [ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md),
+  [`scan-the-lab-with-openvas.md`](runbooks/scan-the-lab-with-openvas.md) §7).
+  - **Setup.** Kali's `gvm` packages, every unit disabled at boot. The feed
+    import took over an hour after `gvm-setup`.
+  - **The fence.** The scanner runs in its own network namespace, `gvmscan`,
+    whose only route to the segment is a macvlan, `scan0` at `10.0.30.63`,
+    behind an nftables `netdev` egress filter. It drops every frame — IP, ARP
+    and raw — to anything but the six, so NASL's `send_frame`/ARP paths are
+    caught, which an IP-only cgroup fence (the first try) could not. No second
+    NIC and no host forwarding; a veth carries only MQTT to the host broker.
+  - **The proof.** From the namespace: `arping` and TCP/ICMP to out-of-scope
+    `10.0.30.40` dropped, the in-scope `10.0.30.50:445` connected, the drop
+    counter rising. A review drove the move from the cgroup form; a veth-NAT
+    form was set aside because garuda's Docker drops forwarding.
+
 - **`WazuhIngestionStalled` could not see a dead filebeat, so
   `WazuhAlertsNotIndexed` now does**
   ([#1011](https://github.com/Gerrrt/HomeLab/issues/1011)).

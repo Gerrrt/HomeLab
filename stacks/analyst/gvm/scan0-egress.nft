@@ -1,0 +1,41 @@
+#!/usr/sbin/nft -f
+#
+# The scanner's egress fence (#921 phase 3, ADR-0093), loaded inside the
+# gvmscan network namespace on scan0, the macvlan the scanner alone owns.
+#
+# A NETDEV EGRESS HOOK, not an IP output hook. It sees every frame scan0
+# sends, ARP and raw frames included, so OpenVAS's NASL send_frame and
+# send_arp_request cannot leave the scanner's scope. An IP output hook could
+# not: those go through AF_PACKET, below it. This measured difference is why
+# the fence moved from the scanner's cgroup to its own interface (ADR-0093).
+#
+# scan0 is the scanner's only route to the segment. The namespace's other
+# interface, the veth gvmn, reaches only garuda's MQTT broker point to point,
+# so it carries no scan traffic and is not filtered here.
+#
+# WHAT IT ALLOWS, outgoing on scan0: ARP to resolve the six, ARP replies (the
+# macvlan answering for its own .63), and IP to the six. Everything else is
+# counted, logged (rate-limited) and dropped. Replies from the six arrive as
+# ingress, which this egress hook does not touch.
+
+table netdev gvm_scan
+delete table netdev gvm_scan
+
+table netdev gvm_scan {
+  set six {
+    type ipv4_addr
+    flags interval
+    # bahamut .50 through siren .55 (ADR-0029).
+    elements = { 10.0.30.50-10.0.30.55 }
+  }
+
+  chain egress {
+    type filter hook egress device "scan0" priority 0; policy drop;
+    arp operation request arp daddr ip @six accept
+    arp operation reply accept
+    ip daddr @six accept
+    counter
+    limit rate 5/second burst 20 packets log prefix "gvm-scan drop: " level warn
+    drop
+  }
+}
