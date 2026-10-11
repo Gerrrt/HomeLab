@@ -141,10 +141,13 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Prometheus"
 # ---------------------------------------------------------------------------
+# The docker fallbacks below (promtool, amtool, alloy, gitleaks) run with
+# --network none, as lint.sh's linters do: each one reads files from the mount
+# and needs nothing else, and on a fork PR those files are the author's.
 if have promtool; then
   PROMTOOL=(promtool)
 elif have_docker; then
-  PROMTOOL=(docker run --rm --entrypoint promtool -v "${REPO_ROOT}:/repo" -w /repo "${PROM_IMAGE}")
+  PROMTOOL=(docker run --rm --network none --entrypoint promtool -v "${REPO_ROOT}:/repo" -w /repo "${PROM_IMAGE}")
 else
   PROMTOOL=()
 fi
@@ -224,7 +227,7 @@ head_ "Alertmanager"
 if have amtool; then
   AMTOOL=(amtool)
 elif have_docker; then
-  AMTOOL=(docker run --rm --entrypoint amtool \
+  AMTOOL=(docker run --rm --network none --entrypoint amtool \
           -v "${REPO_ROOT}:/repo" -w /repo "${AM_IMAGE}")
 else
   AMTOOL=()
@@ -313,7 +316,7 @@ head_ "Alloy"
 if have alloy; then
   ALLOY=(alloy)
 elif have_docker; then
-  ALLOY=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
+  ALLOY=(docker run --rm --network none -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
 else
   ALLOY=()
 fi
@@ -761,7 +764,7 @@ if have gitleaks; then
   GITLEAKS=(gitleaks)
 elif have_docker; then
   GIT_COMMON="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir)"
-  GITLEAKS=(docker run --rm -v "${REPO_ROOT}:/repo" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
+  GITLEAKS=(docker run --rm --network none -v "${REPO_ROOT}:/repo" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
 else
   GITLEAKS=()
 fi
