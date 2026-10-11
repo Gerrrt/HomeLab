@@ -146,6 +146,12 @@ runner_for() {
   return 1
 }
 
+# Every container below runs with --network none except tofu's. A linter reads
+# files and prints, and on a fork PR the files are the author's. A linter with
+# a parsing bug should then have nothing to reach. Triage of the linter images'
+# CVEs had been saying "no network" while every runner had a network (#1001,
+# #1013). tofu keeps one because `init` fetches the providers that `validate`
+# needs, and the three tofu calls share this runner.
 pinned_runner_for() {
   local tool="$1" img
   case "${tool}" in
@@ -162,7 +168,7 @@ pinned_runner_for() {
       # uid matches the checkout's owner; it writes nothing.
       if have_docker; then
         img="$(./scripts/image-for.sh markdownlint-cli2)"
-        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -v "${REPO_ROOT}:/workdir:ro" -w /workdir "${img}")
+        RUNNER=(docker run --rm --network none --user "$(id -u):$(id -g)" -v "${REPO_ROOT}:/workdir:ro" -w /workdir "${img}")
         return 0
       fi ;;
     shellcheck)
@@ -170,7 +176,7 @@ pinned_runner_for() {
       # which is why the working directory is the mount.
       if have_docker; then
         img="$(./scripts/image-for.sh shellcheck)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/mnt:ro" -w /mnt "${img}")
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/mnt:ro" -w /mnt "${img}")
         return 0
       fi ;;
     ansible-lint)
@@ -196,7 +202,7 @@ pinned_runner_for() {
       # directory, which is why the whole repository is mounted.
       if have_docker; then
         img="$(./scripts/image-for.sh actionlint)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
     zizmor)
@@ -205,7 +211,7 @@ pinned_runner_for() {
       # result does not depend on the network (#839).
       if have_docker; then
         img="$(./scripts/image-for.sh zizmor)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo:ro" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/repo:ro" -w /repo "${img}")
         return 0
       fi ;;
     editorconfig-checker)
@@ -224,7 +230,7 @@ pinned_runner_for() {
       # all have to be visible from inside it.
       if have_docker; then
         img="$(./scripts/image-for.sh editorconfig-checker)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
         return 0
       fi ;;
     packer)
@@ -234,14 +240,15 @@ pinned_runner_for() {
       # and `validate -syntax-only` stops before plugins are loaded (ADR-0074).
       if have_docker; then
         img="$(./scripts/image-for.sh packer)"
-        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
     tofu)
-      # Same shape as packer: the entrypoint IS tofu, and --user so that the
-      # provider cache `init` writes under tofu/.terraform/ (gitignored) is not
-      # root-owned on a workstation. That cache outlives the run, so the linters
-      # that walk the tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
+      # Same shape as packer, but with a network: `init` below downloads the
+      # providers. The entrypoint IS tofu, and --user so that the provider cache
+      # `init` writes under tofu/.terraform/ (gitignored) is not root-owned on a
+      # workstation. That cache outlives the run, so the linters that walk the
+      # tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
       if have_docker; then
         img="$(./scripts/image-for.sh tofu)"
         RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")
