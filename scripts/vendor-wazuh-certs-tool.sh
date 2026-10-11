@@ -13,7 +13,7 @@
 # the next upstream edit, which is the day certificates need reissuing and the
 # old bytes may no longer be served. So the tool lives here, and
 # scripts/wazuh-certs-mint.sh runs it offline, refusing unless its sha256 is the
-# one VENDORED records (ADR-0093).
+# one VENDORED records (ADR-0094).
 #
 # THE PIN IS THE SHA256, NOT THE URL. Unlike scripts/vendor-ja4.sh, there is no
 # immutable upstream reference to re-fetch, because a commit SHA names a tree
@@ -101,7 +101,7 @@ cp "${WORK}/${TOOL}" "${DEST}/${TOOL}"
 cp "${WORK}/LICENSE" "${DEST}/LICENSE"
 cat > "${DEST}/VENDORED" <<EOF
 # Vendored by scripts/vendor-wazuh-certs-tool.sh. Do not edit the tool beside
-# this file by hand: re-vendor instead, so the diff is upstream's (ADR-0093).
+# this file by hand: re-vendor instead, so the diff is upstream's (ADR-0094).
 # scripts/wazuh-certs-mint.sh refuses to run a tool whose sha256 is not this one.
 url: ${url}
 sha256: ${sum}

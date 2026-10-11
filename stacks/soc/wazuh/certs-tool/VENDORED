@@ -1,5 +1,5 @@
 # Vendored by scripts/vendor-wazuh-certs-tool.sh. Do not edit the tool beside
-# this file by hand: re-vendor instead, so the diff is upstream's (ADR-0093).
+# this file by hand: re-vendor instead, so the diff is upstream's (ADR-0094).
 # scripts/wazuh-certs-mint.sh refuses to run a tool whose sha256 is not this one.
 url: https://packages.wazuh.com/4.14/wazuh-certs-tool.sh
 sha256: 8c93ed36d7b956a6e97a906aed6b6bc636d7cb55a15a41fd6e9c2aa825164216

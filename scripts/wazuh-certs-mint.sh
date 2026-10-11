@@ -2,7 +2,7 @@
 #
 # The entrypoint of the wazuh.certs-generator service (stacks/soc, stacks/scratch):
 # mint the SOC's mTLS CA and leaves with the VENDORED Wazuh cert tool, offline,
-# and refuse a tool whose sha256 is not the one VENDORED records (#1008, ADR-0093).
+# and refuse a tool whose sha256 is not the one VENDORED records (#1008, ADR-0094).
 #
 # WHAT IT REPLACES. The image's /entrypoint.sh downloads the tool at run time
 # from packages.wazuh.com, with no checksum, falls back silently to

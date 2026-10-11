@@ -198,7 +198,7 @@ the lab CA are a named follow-up rather than a prerequisite.
 - **The vendored cert tool is the one thing Dependabot cannot bump.** The
   certs generator mints offline with `wazuh/certs-tool/wazuh-certs-tool.sh`,
   pinned by its sha256 in `VENDORED`, and never downloads it
-  ([ADR-0093](../../docs/adr/0093-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+  ([ADR-0094](../../docs/adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
   A bump of the `wazuh/*` images to 4.15 runs
   `scripts/vendor-wazuh-certs-tool.sh 4.15` in the same PR.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;

@@ -1,6 +1,6 @@
 This directory is third-party code, vendored unmodified from
 https://packages.wazuh.com/4.14/wazuh-certs-tool.sh at the sha256 named in
-VENDORED, by scripts/vendor-wazuh-certs-tool.sh (ADR-0093, #1008).
+VENDORED, by scripts/vendor-wazuh-certs-tool.sh (ADR-0094, #1008).
 
 This repository's MIT licence does NOT extend to wazuh-certs-tool.sh.
 

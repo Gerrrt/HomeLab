@@ -746,7 +746,7 @@ services:
   # a bare `docker run` in the runbook because every image this repository
   # runs must come from a compose.yaml (check_image_pins.py, #65).
   #
-  # The image's own entrypoint is NOT run (#1008, ADR-0093). It downloads the
+  # The image's own entrypoint is NOT run (#1008, ADR-0094). It downloads the
   # cert tool at run time with no checksum, falls back silently to Wazuh's dev
   # bucket, and sources the result as root over the certificate directory.
   # scripts/wazuh-certs-mint.sh runs the tool vendored in wazuh/certs-tool/

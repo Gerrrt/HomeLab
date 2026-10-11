@@ -1,4 +1,4 @@
-# ADR-0093: Vendor the Wazuh cert tool and mint the SOC's CA offline
+# ADR-0094: Vendor the Wazuh cert tool and mint the SOC's CA offline
 
 **Status:** Accepted · 2026-10
 

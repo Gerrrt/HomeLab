@@ -300,7 +300,7 @@ services:
     container_name: scratch-wazuh-certs-generator
     profiles: ["certs"]
     logging: *default-logging
-    # soc's offline, hash-pinned mint, and its vendored tool (ADR-0093). See
+    # soc's offline, hash-pinned mint, and its vendored tool (ADR-0094). See
     # the same service in stacks/soc/compose.yaml for why.
     network_mode: none
     entrypoint: ["/bin/bash", "/wazuh-certs-mint.sh"]

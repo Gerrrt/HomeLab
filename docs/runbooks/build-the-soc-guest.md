@@ -320,7 +320,7 @@ denied` while every other service is healthy.
 
 > [!NOTE]
 > The generator downloads nothing
-> ([ADR-0093](../adr/0093-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+> ([ADR-0094](../adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
 > It runs with no network, and
 > mints with the cert tool vendored in `stacks/soc/wazuh/certs-tool/`. It
 > refuses to run a tool whose sha256 isn't the one `VENDORED` pins, and says

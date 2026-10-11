@@ -34,7 +34,7 @@
     "ConfigHash with its sha256, so a whitespace fix would fail every guest.",
     "",
     "stacks/soc/wazuh/certs-tool/wazuh-certs-tool.sh is EXCLUDED for the same",
-    "reason: Wazuh's cert tool vendored byte-for-byte (ADR-0093), with trailing",
+    "reason: Wazuh's cert tool vendored byte-for-byte (ADR-0094), with trailing",
     "spaces upstream. scripts/wazuh-certs-mint.sh refuses to run it unless its",
     "sha256 is the one VENDORED pins, so a whitespace fix would refuse every mint."
   ],

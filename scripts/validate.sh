@@ -795,7 +795,7 @@ else
 fi
 
 # The Wazuh cert tool the certs profile mints with is vendored and pinned by its
-# sha256 (ADR-0093). scripts/wazuh-certs-mint.sh refuses a mismatch at mint
+# sha256 (ADR-0094). scripts/wazuh-certs-mint.sh refuses a mismatch at mint
 # time, which is the rare, urgent day. This says so on every validate instead.
 if ./scripts/vendor-wazuh-certs-tool.sh --check >/dev/null; then
   pass "the vendored Wazuh cert tool is the one VENDORED pins"
