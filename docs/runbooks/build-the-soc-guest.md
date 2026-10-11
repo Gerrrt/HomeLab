@@ -540,10 +540,22 @@ increase(elasticsearch_indices_indexing_index_total{job="wazuh-indexer"}[1h])
 
 Non-zero, even with no agents: the manager indexes its own events and the
 dashboard writes `wazuh-monitoring-*` on a schedule. Zero here with the
-cluster green is `WazuhIngestionStalled`, and it means filebeat on the manager
-cannot reach the indexer — its verification mode is `full`, so a certificate
-issued for a name other than `wazuh.indexer` fails exactly here and nowhere
-visible.
+cluster green is `WazuhIngestionStalled`: nothing at all is writing.
+
+That number cannot tell you that **alerts** arrive, because the dashboard's
+own writes keep it above zero with filebeat dead. Ask the alerts indices
+directly:
+
+```promql
+increase(elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer", index=~"wazuh-alerts-.+"}[1h])
+```
+
+Compare it with `increase(homelab_wazuh_analysisd_alerts_written_total[1h])`,
+which is how many alerts the manager wrote. Alerts written and none indexed is
+`WazuhAlertsNotIndexed`, and it means filebeat on the manager is not shipping.
+Its verification mode is `full`, so a certificate issued for a name other than
+`wazuh.indexer` fails exactly here. The node-wide number above stays healthy
+through it.
 
 ## 11. Agents, by GPO — the second evening, and after #414
 

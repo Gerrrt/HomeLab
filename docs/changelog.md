@@ -31,6 +31,47 @@ docstring gives: it is a record, not a claim about now.
   - **The lab.** `WazuhAgentsNotConnected` now expects `garuda` and is
     quiet.
 
+- **OpenVAS is set up on `garuda`, and its fence is proved**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 3,
+  [ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md),
+  [`scan-the-lab-with-openvas.md`](runbooks/scan-the-lab-with-openvas.md) §7).
+  - **Setup.** Kali's `gvm` packages, every unit disabled at boot. The feed
+    import took over an hour after `gvm-setup`.
+  - **The fence.** The scanner runs in its own network namespace, `gvmscan`,
+    whose only route to the segment is a macvlan, `scan0` at `10.0.30.63`,
+    behind an nftables `netdev` egress filter. It drops every frame — IP, ARP
+    and raw — to anything but the six, so NASL's `send_frame`/ARP paths are
+    caught, which an IP-only cgroup fence (the first try) could not. No second
+    NIC and no host forwarding; a veth carries only MQTT to the host broker.
+  - **The proof.** From the namespace: `arping` and TCP/ICMP to out-of-scope
+    `10.0.30.40` dropped, the in-scope `10.0.30.50:445` connected, the drop
+    counter rising. A review drove the move from the cgroup form; a veth-NAT
+    form was set aside because garuda's Docker drops forwarding.
+
+- **`WazuhIngestionStalled` could not see a dead filebeat, so
+  `WazuhAlertsNotIndexed` now does**
+  ([#1011](https://github.com/Gerrrt/HomeLab/issues/1011)).
+  - **The gap.** The rule sums index calls across every index. The pinned
+    dashboard bulk-writes `wazuh-monitoring` every 900 s and
+    `wazuh-statistics` every 5 minutes (the plugin's defaults, read from the
+    4.14.8 image), and the manager writes vulnerability state through its own
+    indexer connector. With filebeat dead, alerts stop reaching the indexer
+    and the sum never reaches zero. The SOC runbook's §10 check had the same
+    blind spot.
+  - **The fix.** The manager-state collector exports analysisd's
+    `alerts_written`, and `opensearch.alloy` turns on per-index stats but
+    keeps only the indexing counter for `wazuh-alerts-*`. The new rule fires
+    when alerts were written and none indexed. A quiet SIEM writes no alerts,
+    so it stays quiet. A missing alerts-index series also fires, so the rule
+    can't go blind.
+  - **Proved.** promtool covers the gap, a quiet SIEM, healthy traffic, the
+    midnight index rollover and a missing series. The relabel ran in the
+    pinned Alloy against fixture series: it kept exactly the alerts-index
+    counters and the node and cluster series. Who writes what was read from
+    the images' code; the lab was not reachable to watch it live.
+  - **Not deployed yet.** The collector and Alloy run on `odin`, the rules on
+    `alexander`, both on VLAN 30.
+
 - **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
   [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
