@@ -666,9 +666,9 @@ jobs:
       # removed what that file used to acknowledge, and deleting it is how a
       # future finding stays visible instead of being masked by a stale entry.
       #
-      # Both run with --network none, as lint.sh's and validate.sh's containers
-      # do: gitleaks reads the checkout and a local `git log`, and on a fork PR
-      # that checkout is the author's.
+      # Both run with --network none, as lint.sh's linters do: gitleaks reads
+      # the checkout and a local `git log`, and on a fork PR that checkout is
+      # the author's.
       - name: gitleaks — working tree
         run: |
           docker run --rm --network none -v "$PWD:/repo" -w /repo \
