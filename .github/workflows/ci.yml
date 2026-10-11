@@ -668,10 +668,14 @@ jobs:
       #
       # Both run with --network none, as lint.sh's linters do: gitleaks reads
       # the checkout and a local `git log`, and on a fork PR that checkout is
-      # the author's.
+      # the author's. For the same reason the checkout is mounted read-only and
+      # gitleaks, whose image runs as root, runs as the runner's user. A
+      # gitleaks that the checkout subverts must not be able to rewrite
+      # scripts/gitleaks-history.sh, which the next step runs on the runner.
       - name: gitleaks — working tree
         run: |
-          docker run --rm --network none -v "$PWD:/repo" -w /repo \
+          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/repo:ro" -w /repo \
             "$GITLEAKS_IMAGE" \
             detect --no-git --no-banner --redact -c .gitleaks.toml -v
 
@@ -681,7 +685,8 @@ jobs:
       # there for the day the checkout changes.
       - name: gitleaks — full history
         run: |
-          ./scripts/gitleaks-history.sh docker run --rm --network none -v "$PWD:/repo" -w /repo \
+          ./scripts/gitleaks-history.sh docker run --rm --network none \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo:ro" -w /repo \
             "$GITLEAKS_IMAGE"
 
       # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so
