@@ -36,7 +36,8 @@
 # cve_report.py drops is a shape of version, not a list of IDs: a Go main
 # module's `+dirty` VCS stamp, which trivy cannot order against a release
 # (#985). Its docstring says why that cannot grow into one. The one file
-# skipped is gosu in postgres, named in the loop below with why (#995).
+# skipped is gosu, and only in the repositories scripts/gosu-skip.txt lists,
+# under the rule that file states and two checks enforce (#995, #980).
 #
 # An image that fails to scan is recorded and the loop carries on, and the
 # script exits non-zero at the end. A skipped image must not read as a clean
@@ -148,6 +149,10 @@ info "updating the vulnerability databases"
 trivy image --quiet --download-db-only --db-repository "${DB_REPOS}"
 trivy image --quiet --download-java-db-only --java-db-repository "${JAVA_DB_REPOS}"
 
+# The repositories whose gosu is skipped, comments and blank lines removed.
+GOSU_SKIP="$(grep -vE '^[[:space:]]*(#|$)' "${REPO_ROOT}/scripts/gosu-skip.txt")" \
+  || die "scripts/gosu-skip.txt lists no repository"
+
 failed=0
 i=0
 for ref in "${order[@]}"; do
@@ -155,16 +160,17 @@ for ref in "${order[@]}"; do
   n="$(printf '%03d' "${i}")"
   printf '%s\t%s\t%s\n' "${n}" "${ref}" "${stacks_of[${ref}]}" >>"${OUT}/images.tsv"
   info "[${i}/${#order[@]}] ${ref%%@*}"
-  # The one skipped file (#995): gosu in the official postgres image. Its Go
-  # stdlib rows have no fix to take: gosu's maintainers don't release for
-  # scanner-only CVEs, and docker-library changes gosu only when gosu releases.
-  # It can't be reached here either: every postgres service starts as
-  # 999:999, which check_compose_health.py enforces, and the entrypoint runs
-  # gosu only when started as root. Skipped for postgres alone, so gosu
-  # anywhere else is still reported. A second exception means a rule both
-  # can cite, not another case here.
+  # The one skipped file: gosu, in a repository scripts/gosu-skip.txt lists
+  # (#995, #980). That file states the rule: gosu runs only when the container
+  # starts as root, and every service runs the image as 999:999.
+  # check_compose_health.py enforces the second half and check_gosu_skip.sh
+  # proves the first, on each pinned image. gosu in any other image is still
+  # reported. The repository is the reference less its digest and its tag.
   skip=()
-  [[ "${ref}" == postgres:* ]] && skip=(--skip-files usr/local/bin/gosu)
+  name="${ref%%@*}"
+  if grep -qxF "${name%:*}" <<<"${GOSU_SKIP}"; then
+    skip=(--skip-files usr/local/bin/gosu)
+  fi
   if ! trivy image --quiet --image-src remote --platform linux/amd64 \
       --scanners vuln --severity HIGH,CRITICAL --ignore-unfixed "${skip[@]}" \
       --skip-db-update --skip-java-db-update --format json "${ref}" \

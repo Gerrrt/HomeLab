@@ -1,0 +1,35 @@
+# Image repositories whose /usr/local/bin/gosu the CVE scan skips (#995, #980).
+#
+# THE RULE. A repository may be listed here only while both of these hold:
+#
+#   1. Its entrypoint runs gosu only when the container starts as root. Every
+#      call is gated on `[ "$(id -u)" = '0' ]`, as in docker-library's postgres
+#      docker-entrypoint.sh and docker-ensure-initdb.sh.
+#   2. Every compose service that runs it starts as `user: "999:999"`, so that
+#      gate is never true and gosu never executes.
+#
+# Under those two, gosu's Go stdlib rows are findings in a file that never
+# runs, and they have no fix to take: gosu's maintainers don't release for
+# scanner-only CVEs, and an image changes gosu only when gosu releases. The
+# scan reports gosu in every image NOT listed here.
+#
+# Both halves are enforced, so neither is taken on trust:
+#   - check_compose_health.py fails a service that runs a listed repository as
+#     anything but 999:999 (half 2).
+#   - check_gosu_skip.sh boots every pinned image of a listed repository as
+#     999:999, with a stand-in gosu that leaves a marker if it ever runs, and
+#     fails if it does (half 1). A root-started control run must leave the
+#     marker, which proves the stand-in is really wired in. An image bump that
+#     starts calling gosu for non-root starts fails CI there.
+#
+# One repository per line, without a tag or digest, exactly as compose.yaml
+# writes it before the `:`. Say why it qualifies on the line above it.
+
+# docker-library's official image; the original exception (#995, #1146).
+postgres
+
+# Immich's VectorChord build of it. Its entrypoint,
+# immich-docker-entrypoint.sh, sets up its config and then execs the official
+# docker-entrypoint.sh unchanged, so both gosu calls carry the same root-only
+# gate (#980). Inside it, uid 999 is `postgres`.
+ghcr.io/immich-app/postgres
