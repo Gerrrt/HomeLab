@@ -794,6 +794,16 @@ else
   fail "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
 fi
 
+# The Wazuh cert tool the certs profile mints with is vendored and pinned by its
+# sha256 (ADR-0094). scripts/wazuh-certs-mint.sh refuses a mismatch at mint
+# time, which is the rare, urgent day. This says so on every validate instead.
+if ./scripts/vendor-wazuh-certs-tool.sh --check >/dev/null; then
+  pass "the vendored Wazuh cert tool is the one VENDORED pins"
+else
+  ./scripts/vendor-wazuh-certs-tool.sh --check || true
+  fail "the vendored Wazuh cert tool is the one VENDORED pins"
+fi
+
 # The one .pem .gitignore lets through (#764): it must be the estate CA's
 # certificate and nothing else, and on the monitoring host the same one as
 # certificates/ca.pem. The self-test first, because a check that has never
