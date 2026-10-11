@@ -51,8 +51,9 @@ case "${1:-}" in
     [[ -s "${DEST}/LICENSE" ]] || die "${DEST}/LICENSE is missing or empty: the GPLv2 text must travel with the tool"
     # The same test the vendoring step applies to what it fetched. Non-empty
     # alone would pass any file, which isn't what the message above claims.
-    grep -q 'GNU GENERAL PUBLIC LICENSE' "${DEST}/LICENSE" && grep -q 'Version 2, June 1991' "${DEST}/LICENSE" \
-      || die "${DEST}/LICENSE is not the GPLv2 text: re-vendor rather than edit"
+    if ! { grep -q 'GNU GENERAL PUBLIC LICENSE' "${DEST}/LICENSE" && grep -q 'Version 2, June 1991' "${DEST}/LICENSE"; }; then
+      die "${DEST}/LICENSE is not the GPLv2 text: re-vendor rather than edit"
+    fi
     want="$(field sha256)"
     [[ "${want}" =~ ^[0-9a-f]{64}$ ]] || die "VENDORED records no sha256"
     have="$(sha256sum "${DEST}/${TOOL}" | cut -d' ' -f1)"
