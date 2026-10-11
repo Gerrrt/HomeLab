@@ -27,7 +27,7 @@ for [#921](https://github.com/Gerrrt/HomeLab/issues/921)'s phase 3. The rules:
 | | Decision | Why |
 | --- | --- | --- |
 | Software | Kali's `gvm` packages | They update with Kali like garuda's other tools, and add no images to pin (ADR-0093) |
-| Running | On demand: `gvm-start`, scan, stop | Kali ships every GVM unit disabled at boot. Stopped, it holds no RAM and can point nowhere |
+| Running | On demand: sync the feeds, `gvm-start`, scan, stop | Kali ships every GVM unit disabled at boot. Stopped, it holds no RAM and can point nowhere |
 | Scope | `10.0.30.50`–`.55` only | The domain is the exercise. The firewall, the iLO, the hypervisor and the lab's own services are out |
 | Fence | nftables, on `ospd-openvas.service`'s cgroup | The scanner runs as root through `sudo`, so only the cgroup holds it. A target outside the six fails closed |
 | UI | gsad on `127.0.0.1:9392`, from garuda's desktop | Nothing is published |
@@ -101,8 +101,17 @@ names. Stop, and don't scan anything until it is understood.
 
 ## 4. A scan
 
-1. **Start.** `sudo gvm-start`. Wait for the UI at `https://127.0.0.1:9392`,
-   and let the feed status (*Administration → Feed Status*) show current.
+1. **Sync, then start.** `gvm-start` only starts the services; it does not
+   fetch new feeds, so a scan days after the last one would use old
+   definitions. Sync first, as `gvm-setup` does, then start:
+
+   ```bash
+   sudo greenbone-feed-sync --type all   # drops to _gvm by /etc/gvm/greenbone-feed-sync.toml
+   sudo gvm-start
+   ```
+
+   Wait for the UI at `https://127.0.0.1:9392`, and for *Administration → Feed
+   Status* to show no feed still updating: gvmd imports what was synced.
 2. **The target is the six:** `10.0.30.50-10.0.30.55`, named *lab domain*,
    created once. Never add an address to it outside the six. The fence would
    drop the traffic, and ADR-0093 would have to change first.
@@ -131,10 +140,12 @@ A `full-upgrade` can move gvmd's database schema or the feed layout. Before
 the next scan:
 
 ```bash
+sudo greenbone-feed-sync --type all
 sudo gvm-check-setup
 ```
 
-Do what it asks, such as a `gvmd --migrate` or a feed resync. Then start
+Do what it asks, such as a `gvmd --migrate`. The sync comes first so that
+the check sees current feeds, not the ones from before the upgrade. Then start
 `ospd-openvas` once, and confirm `nft list table inet gvm_scope` still loads
 (§2). If a packaging change renamed the unit, the rule fails to load and the
 scanner fails to start, which is the safe direction. Rename the path in

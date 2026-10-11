@@ -41,8 +41,10 @@ packets that probe a target are root's.
 **2. On demand.**
 
 - GVM's services do not start at boot.
-- A scan starts with `gvm-start`, which brings the feeds up to date first, and
-  ends with `gvm-stop`, the way `dotfiles-Defense`'s `siemup` is used.
+- A scan starts with a feed sync (`greenbone-feed-sync --type all`, as
+  `gvm-setup` runs it) and then `gvm-start`, which only starts the services.
+  It ends with `gvm-stop`, the way `dotfiles-Defense`'s `siemup` is used.
+  Without the sync, a scan would use the definitions of the last one.
 - When idle, the RAM stays with the desktop, and a scanner that is not running
   cannot be pointed anywhere.
 
