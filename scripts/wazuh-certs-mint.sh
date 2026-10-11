@@ -103,8 +103,14 @@ compgen -G "/wazuh-certificates/*" >/dev/null || die "the tool wrote no certific
 echo "Moving created certificates to the destination directory"
 cp /wazuh-certificates/* /certificates/ || die "could not copy into /certificates"
 echo "Changing certificate permissions"
-chmod -R 500 /certificates
-chmod -R 400 /certificates/*
+# The one departure from upstream's steps. It runs `chmod -R 500 /certificates`
+# and then `chmod -R 400 /certificates/*`. That glob skips dotfiles, so the
+# tracked .gitkeep in stacks/soc/wazuh/certs/ (and stacks/scratch/'s) kept the
+# 500 from the first command: executable, a mode change in the deploy checkout
+# after every mint. The directory and the generated files get the same modes,
+# and .gitkeep keeps its own.
+chmod 500 /certificates
+chmod 400 /certificates/*
 echo "Setting UID indexer and dashboard"
 chown 1000:1000 /certificates/*
 echo "Setting UID for wazuh manager and worker"
