@@ -4,7 +4,7 @@
 #
 # Firing case AND quiet case for every rule, for the reason lab.test.yaml
 # gives: a case that only ever expects silence passes against a rule that can
-# never fire (#63). All twelve are covered; two of the quiet cases prove a rule
+# never fire (#63). All thirteen are covered; two of the quiet cases prove a rule
 # stays quiet for a state that is CORRECT rather than merely absent — a green
 # cluster is not yellow, and a heap that sawtooths under the line is a JVM
 # working as designed.
@@ -243,10 +243,10 @@ tests:
               severity: warning
               category: availability
             exp_annotations:
-              summary: "The Wazuh manager wrote alerts and none reached the indexer"
+              summary: "The Wazuh manager wrote alerts and no indexed alerts were observed"
               description: >-
-                odin's analysisd wrote alerts in the last hour
-                and no wazuh-alerts-* index took a document. That is filebeat in
+                odin's analysisd wrote alerts in the last hour, and no
+                wazuh-alerts-* index took a document. That is filebeat in
                 soc-wazuh-manager: stopped, wedged, or refused by the indexer.
                 WazuhIngestionStalled stays quiet through this, because the
                 dashboard keeps writing its own indices. Look at filebeat's log in
@@ -316,15 +316,15 @@ tests:
               severity: warning
               category: availability
             exp_annotations:
-              summary: "The Wazuh manager wrote alerts and none reached the indexer"
+              summary: "The Wazuh manager wrote alerts and no indexed alerts were observed"
               description: >-
-                odin's analysisd wrote alerts in the last hour
-                and no wazuh-alerts-* index took a document. That is filebeat in
-                soc-wazuh-manager: stopped, wedged, or refused by the indexer.
-                WazuhIngestionStalled stays quiet through this, because the
-                dashboard keeps writing its own indices. Look at filebeat's log in
-                the manager container, then its certificate against
-                wazuh.indexer.
+                odin's analysisd wrote alerts in the last hour, and there is no
+                wazuh-alerts-* per-index series to compare them with. That is a
+                telemetry failure, not yet a delivery one: whether alerts reach
+                the indexer is unknown. Check stacks/soc/alloy/opensearch.alloy
+                first, that `indices = true` and its relabel keeps
+                elasticsearch_index_stats_indexing_index_total on wazuh-alerts-*,
+                then that odin's Alloy is pushing.
 
   # --- WazuhAgentsNotConnected: a running guest the SOC cannot see (#1038) --
   # Four domain guests answer; ramuh's agent is not Active. carbuncle is off.

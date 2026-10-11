@@ -188,15 +188,26 @@ groups:
           severity: warning
           category: availability
         annotations:
-          summary: "The Wazuh manager wrote alerts and none reached the indexer"
+          summary: "The Wazuh manager wrote alerts and no indexed alerts were observed"
+          # Two causes fire this, and the description says which. With the
+          # per-index series present, the alerts indices took nothing, which
+          # is filebeat. With it absent, nothing here can see the alerts
+          # indices at all, and delivery is unknown, not failed.
           description: >-
-            {{ $labels.instance }}'s analysisd wrote alerts in the last hour
-            and no wazuh-alerts-* index took a document. That is filebeat in
+            {{ $labels.instance }}'s analysisd wrote alerts in the last hour,
+            and {{ with query `count(elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",
+            index=~"wazuh-alerts-.+"})` }}no
+            wazuh-alerts-* index took a document. That is filebeat in
             soc-wazuh-manager: stopped, wedged, or refused by the indexer.
             WazuhIngestionStalled stays quiet through this, because the
             dashboard keeps writing its own indices. Look at filebeat's log in
             the manager container, then its certificate against
-            wazuh.indexer.
+            wazuh.indexer.{{ else }}there is no wazuh-alerts-* per-index series
+            to compare them with. That is a telemetry failure, not yet a
+            delivery one: whether alerts reach the indexer is unknown. Check
+            stacks/soc/alloy/opensearch.alloy first, that `indices = true` and
+            its relabel keeps elasticsearch_index_stats_indexing_index_total
+            on wazuh-alerts-*, then that odin's Alloy is pushing.{{ end }}
 
   # --- The manager, read off its own state (#1038) ------------------------
   #
