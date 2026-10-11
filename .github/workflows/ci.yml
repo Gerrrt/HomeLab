@@ -665,9 +665,13 @@ jobs:
       # .gitleaksignore any more. The purge in docs/runbooks/purge-git-history.md
       # removed what that file used to acknowledge, and deleting it is how a
       # future finding stays visible instead of being masked by a stale entry.
+      #
+      # Both run with --network none, as lint.sh's and validate.sh's containers
+      # do: gitleaks reads the checkout and a local `git log`, and on a fork PR
+      # that checkout is the author's.
       - name: gitleaks — working tree
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo \
+          docker run --rm --network none -v "$PWD:/repo" -w /repo \
             "$GITLEAKS_IMAGE" \
             detect --no-git --no-banner --redact -c .gitleaks.toml -v
 
@@ -677,7 +681,7 @@ jobs:
       # there for the day the checkout changes.
       - name: gitleaks — full history
         run: |
-          ./scripts/gitleaks-history.sh docker run --rm -v "$PWD:/repo" -w /repo \
+          ./scripts/gitleaks-history.sh docker run --rm --network none -v "$PWD:/repo" -w /repo \
             "$GITLEAKS_IMAGE"
 
       # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so
