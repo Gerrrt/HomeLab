@@ -742,30 +742,48 @@ def privilege_problems(services: dict, stack: str, exempt: dict[tuple[str, str],
     return problems
 
 
-# scripts/scan-images.sh skips /usr/local/bin/gosu in every `postgres:*`
-# reference (#995), on the grounds that gosu never runs here: the entrypoint
-# calls it only when the container starts as root. That holds only while every
-# such service starts as this user, so it is asserted rather than assumed. The
-# prefix is the shell's own `postgres:*` match, so the two select the same refs.
-POSTGRES_PREFIX = "postgres:"
-POSTGRES_USER = "999:999"
+# scripts/scan-images.sh skips /usr/local/bin/gosu in every repository
+# scripts/gosu-skip.txt lists (#995, #980), on the grounds that gosu never runs
+# here: the entrypoint calls it only when the container starts as root. That
+# holds only while every such service starts as this user, so it is asserted
+# rather than assumed. Both read the same file and take the repository the
+# same way, the reference less its digest and tag, so they select the same refs.
+GOSU_SKIP_FILE = REPO / "scripts/gosu-skip.txt"
+GOSU_SKIP_USER = "999:999"
 
 
-def postgres_user_problems(services: dict) -> list[str]:
-    """An official-postgres service that would start as root and run gosu."""
+def gosu_skip_repos(path: pathlib.Path = GOSU_SKIP_FILE) -> set[str]:
+    """The repositories in scripts/gosu-skip.txt, comments and blanks removed."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return {line.strip() for line in lines if line.strip() and not line.strip().startswith("#")}
+
+
+def image_repository(image: str) -> str:
+    """`repo[:tag][@digest]` to `repo`, as scan-images.sh's `${name%:*}` does."""
+    name = image.split("@", 1)[0]
+    return name.rsplit(":", 1)[0] if ":" in name.rsplit("/", 1)[-1] else name
+
+
+def gosu_skip_user_problems(services: dict, repos: set[str] | None = None) -> list[str]:
+    """A service whose gosu the scan skips that would start as root and run it.
+
+    `repos` is gosu-skip.txt unless --self-test hands it a fixture.
+    """
+    repos = gosu_skip_repos() if repos is None else repos
     problems = []
     for name, svc in services.items():
         svc = svc or {}
-        if not str(svc.get("image", "")).startswith(POSTGRES_PREFIX):
+        repo = image_repository(str(svc.get("image", "")))
+        if repo not in repos:
             continue
         user = str(svc.get("user", "")).strip()
-        if user != POSTGRES_USER:
+        if user != GOSU_SKIP_USER:
             problems.append(
-                f"{name} runs {POSTGRES_PREFIX}* as {user or 'the image default, root'}, "
-                f'not `user: "{POSTGRES_USER}"`. scripts/scan-images.sh skips gosu in '
-                f"postgres because gosu never runs when the container starts as "
-                f"{POSTGRES_USER}; started any other way it does, and its CVEs would be "
-                f"hidden. Set the user, or drop the skip (#995)"
+                f"{name} runs {repo} as {user or 'the image default, root'}, "
+                f'not `user: "{GOSU_SKIP_USER}"`. scripts/scan-images.sh skips gosu in '
+                f"{repo} because gosu never runs when the container starts as "
+                f"{GOSU_SKIP_USER}; started any other way it does, and its CVEs would be "
+                f"hidden. Set the user, or take {repo} out of scripts/gosu-skip.txt (#995)"
             )
     return problems
 
@@ -1258,16 +1276,51 @@ def self_test() -> int:
     )
     check("the real NNP_EXEMPT has a reason for every entry", True, all(str(r).strip() for r in NNP_EXEMPT.values()))
 
-    # 34-37. Postgres starts as 999:999, the condition scan-images.sh's gosu
-    #        skip stands on (#995).
+    # 34-41. A listed repository starts as 999:999, the condition
+    #        scan-images.sh's gosu skip stands on (#995, #980). The fixture list
+    #        stands in for gosu-skip.txt; the last two read the real one.
+    listed = {"postgres", "ghcr.io/immich-app/postgres"}
     pg = "postgres:18.6@sha256:" + "0" * 64
-    check("postgres as 999:999 passes", 0, len(postgres_user_problems({"db": {"image": pg, "user": "999:999"}})))
-    check("postgres with no user starts as root", 1, len(postgres_user_problems({"db": {"image": pg}})))
-    check("postgres as another user fails", 1, len(postgres_user_problems({"db": {"image": pg, "user": "70:70"}})))
+    immich = "ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:" + "0" * 64
     check(
-        "an image that only contains the word is not postgres",
+        "postgres as 999:999 passes", 0, len(gosu_skip_user_problems({"db": {"image": pg, "user": "999:999"}}, listed))
+    )
+    check("postgres with no user starts as root", 1, len(gosu_skip_user_problems({"db": {"image": pg}}, listed)))
+    check(
+        "postgres as another user fails",
+        1,
+        len(gosu_skip_user_problems({"db": {"image": pg, "user": "70:70"}}, listed)),
+    )
+    check(
+        "a second listed repository is held to it too",
+        1,
+        len(gosu_skip_user_problems({"db": {"image": immich}}, listed)),
+    )
+    check(
+        "an unlisted image that only contains the word is not held to it",
         0,
-        len(postgres_user_problems({"db": {"image": "ghcr.io/immich-app/postgres:17"}})),
+        len(gosu_skip_user_problems({"db": {"image": "ghcr.io/example/postgres:17"}}, listed)),
+    )
+    check(
+        "a registry port is not taken for a tag",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres:17"),
+    )
+    check("gosu-skip.txt lists the official image", True, "postgres" in gosu_skip_repos())
+    check(
+        "gosu-skip.txt's entries carry no tag or digest",
+        True,
+        all(image_repository(r) == r and "@" not in r for r in gosu_skip_repos()),
+    )
+    check(
+        "a listed registry with a port is its own repository",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres"),
+    )
+    check(
+        "and so is one pinned by digest alone",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres@sha256:" + "0" * 64),
     )
     return failed
 
@@ -1327,7 +1380,7 @@ def main() -> int:
     problems += socket_mount_problems(services)
     problems += socket_proxy_config_problems(path, services)
     problems += privilege_problems(services, path.resolve().parent.name)
-    problems += postgres_user_problems(services)
+    problems += gosu_skip_user_problems(services)
 
     for name, svc in services.items():
         svc = svc or {}

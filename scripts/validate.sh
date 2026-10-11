@@ -463,6 +463,19 @@ SKIPPED=$((SKIPPED + $(wc -l < "${PROXY_SKIPS}")))
 rm -f "${PROXY_SKIPS}"
 
 # ---------------------------------------------------------------------------
+head_ "gosu skip"
+# ---------------------------------------------------------------------------
+# scan-images.sh skips gosu in the repositories scripts/gosu-skip.txt lists,
+# on the claim that their entrypoints call it only as root. Boots each pinned
+# one as 999:999 with a stand-in gosu, plus a root control (#995, #980).
+GOSU_SKIPS="$(mktemp)"
+if ! ./scripts/check_gosu_skip.sh --skips-file "${GOSU_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${GOSU_SKIPS}")))
+rm -f "${GOSU_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Caddyfiles"
 # ---------------------------------------------------------------------------
 # A stack that fronts its services with Caddy carries a Caddyfile, and a

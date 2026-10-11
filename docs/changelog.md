@@ -40,6 +40,35 @@ docstring gives: it is a record, not a claim about now.
   - **Nothing on `odin` changes** until the next mint. The certificates there
     stay valid; this changes how the next ones are made.
 
+- **The gosu skip becomes a rule, and Immich's Postgres falls under it**
+  ([#980](https://github.com/Gerrrt/HomeLab/issues/980), following
+  [#995](https://github.com/Gerrrt/HomeLab/issues/995)).
+  - **The rule.** [`scripts/gosu-skip.txt`](../scripts/gosu-skip.txt) lists
+    the repositories whose `/usr/local/bin/gosu` the scan skips. An entry
+    must meet two conditions: the image runs gosu only when started as root,
+    and every service runs it as `999:999`. `scan-images.sh` and
+    `check_compose_health.py` both read it, where each had matched
+    `postgres:*` on its own.
+  - **Both halves checked.**
+    - `check_compose_health.py` holds every service of a listed repository
+      to `999:999`.
+    - The new `check_gosu_skip.sh` boots each pinned image of one as
+      `999:999` with a stand-in gosu that leaves a marker: a first start on a
+      scratch volume, then a restart against the cluster it made. Both must
+      come up with no marker. A root-started control must leave it.
+    - It runs in CI and in `validate.sh`. Run with the service-user boot
+      swapped for root, it fails on all three images and names the gosu
+      command line.
+  - **Why Immich qualifies.** `immich-docker-entrypoint.sh` sets up its config
+    and execs the official `docker-entrypoint.sh` unchanged. Both gosu calls
+    keep the `id -u = 0` gate, uid 999 is `postgres` inside it, and
+    `immich-db` already runs as `999:999`.
+  - **Checked.** The pinned trivy on
+    `ghcr.io/immich-app/postgres:17-vectorchord0.4.3`: 20 critical and 122
+    high without the skip, 16 and 67 with it. That is exactly the 59 gosu
+    rows, four of them critical. The other 16 criticals stay. #980's own
+    trace has them unreachable, and the issue stays open on them.
+
 ## 2026-10-10
 
 - **OpenVAS is set up on `garuda`, and its fence is proved**
