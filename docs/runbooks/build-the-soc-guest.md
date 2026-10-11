@@ -319,10 +319,16 @@ Skip this and `alloy` restarts on `Couldn't load root certificate … permission
 denied` while every other service is healthy.
 
 > [!NOTE]
-> The generator downloads its tool for the version in `CERT_TOOL_VERSION`
-> (`compose.yaml`), which is the `wazuh/*` images' major.minor. If the run
-> ends with "does not exist in any bucket", that number and the image tags
-> have drifted apart — Dependabot bumps the tags and cannot bump the number.
+> The generator downloads nothing
+> ([ADR-0093](../adr/0093-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+> It runs with no network, and
+> mints with the cert tool vendored in `stacks/soc/wazuh/certs-tool/`. It
+> refuses to run a tool whose sha256 isn't the one `VENDORED` pins, and says
+> both hashes. That refusal means the tool and `VENDORED` were changed apart:
+> re-vendor rather than edit. When the `wazuh/*` images move to a new
+> major.minor, `scripts/vendor-wazuh-certs-tool.sh <major.minor>` fetches its
+> tool, and `git diff` on that directory is the review. Dependabot bumps the
+> image tags and can't do this part.
 
 ## 7. Open the lab's doors
 

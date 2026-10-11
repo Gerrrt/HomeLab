@@ -195,9 +195,12 @@ the lab CA are a named follow-up rather than a prerequisite.
   repacked MSI by software installation assigned to the computer OU; Wazuh's
   by startup script, because its MSI takes the manager address and the
   enrolment password as properties. The runbook has both.
-- **`CERT_TOOL_VERSION` in `compose.yaml` is the one thing Dependabot cannot
-  bump.** It names the script the certs generator downloads and tracks the
-  `wazuh/*` images' major.minor; a bump to 4.15 changes it in the same PR.
+- **The vendored cert tool is the one thing Dependabot cannot bump.** The
+  certs generator mints offline with `wazuh/certs-tool/wazuh-certs-tool.sh`,
+  pinned by its sha256 in `VENDORED`, and never downloads it
+  ([ADR-0093](../../docs/adr/0093-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+  A bump of the `wazuh/*` images to 4.15 runs
+  `scripts/vendor-wazuh-certs-tool.sh 4.15` in the same PR.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   a merged change reaches `odin` when someone goes and applies it.
 

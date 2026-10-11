@@ -17,6 +17,29 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-11
+
+- **The SOC's CA is minted offline, by a cert tool pinned by its sha256**
+  ([ADR-0093](adr/0093-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md),
+  [#1008](https://github.com/Gerrrt/HomeLab/issues/1008)).
+  - **What was found.** The `wazuh-certs-generator` image's entrypoint
+    downloaded `wazuh-certs-tool.sh` with no checksum, fell back silently to
+    Wazuh's dev bucket, and sourced it as root over the certificate directory.
+    The file at that URL changes in place (last modified 2026-09-23).
+  - **The fix.** The tool is vendored byte for byte in
+    `stacks/soc/wazuh/certs-tool/`, with its GPLv2 text, by
+    `scripts/vendor-wazuh-certs-tool.sh`. `scripts/wazuh-certs-mint.sh` is the
+    `certs` profile's entrypoint in `soc` and `scratch`. It refuses unless the
+    sha256 matches `VENDORED`, and runs with `network_mode: none`.
+    `CERT_TOOL_VERSION` is gone. `validate.sh` checks the pin on every run.
+  - **Proved** on the real service definition, writing to a scratch directory:
+    the pinned tool minted the same 12 files, modes and owners as the image's
+    own entrypoint, and every leaf verifies against the new CA. A tool with
+    one byte added was refused, with nothing written. Inside the container,
+    `curl` could not resolve Wazuh, and only `lo` exists.
+  - **Nothing on `odin` changes** until the next mint. The certificates there
+    stay valid; this changes how the next ones are made.
+
 ## 2026-10-10
 
 - **`WazuhIngestionStalled` could not see a dead filebeat, so

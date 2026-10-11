@@ -300,11 +300,15 @@ services:
     container_name: scratch-wazuh-certs-generator
     profiles: ["certs"]
     logging: *default-logging
-    environment:
-      CERT_TOOL_VERSION: "4.14"
+    # soc's offline, hash-pinned mint, and its vendored tool (ADR-0093). See
+    # the same service in stacks/soc/compose.yaml for why.
+    network_mode: none
+    entrypoint: ["/bin/bash", "/wazuh-certs-mint.sh"]
     volumes:
       - ./wazuh/certs:/certificates
       - ../soc/wazuh/certs.yml:/config/certs.yml:ro
+      - ../soc/wazuh/certs-tool:/certs-tool:ro
+      - ../../scripts/wazuh-certs-mint.sh:/wazuh-certs-mint.sh:ro
 
 networks:
   scratch:

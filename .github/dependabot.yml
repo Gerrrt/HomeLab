@@ -85,9 +85,9 @@ updates:
   # must match to the patch version, and three separate bumps would be three
   # deploys of a half-upgraded SIEM. Velociraptor and Alloy bump alone. Present
   # before the host is, for the reason the entries above give: pins rot from
-  # the day they are written. One thing Dependabot cannot bump is
-  # CERT_TOOL_VERSION in compose.yaml, which tracks the wazuh/* major.minor —
-  # the compose file says so where it is set.
+  # the day they are written. One thing Dependabot cannot bump is the Wazuh
+  # cert tool vendored in stacks/soc/wazuh/certs-tool/ (ADR-0093), which tracks
+  # the wazuh/* major.minor — the compose file says so where it is used.
   #
   # stacks/scratch (#438, ADR-0071), the disposable copy of soc on diabolos,
   # rides in this entry rather than its own. It mounts soc's config

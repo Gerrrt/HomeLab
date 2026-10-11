@@ -746,20 +746,31 @@ services:
   # a bare `docker run` in the runbook because every image this repository
   # runs must come from a compose.yaml (check_image_pins.py, #65).
   #
-  # CERT_TOOL_VERSION is the major.minor of the wazuh/* images above and the
-  # one thing Dependabot cannot keep in step: it names the script the generator
-  # downloads at run time. A bump to 4.15 changes this line in the same PR.
+  # The image's own entrypoint is NOT run (#1008, ADR-0093). It downloads the
+  # cert tool at run time with no checksum, falls back silently to Wazuh's dev
+  # bucket, and sources the result as root over the certificate directory.
+  # scripts/wazuh-certs-mint.sh runs the tool vendored in wazuh/certs-tool/
+  # instead, refuses one whose sha256 isn't the one VENDORED pins, and does the
+  # same copy and chown steps after it. With no network at all, there is no
+  # download to fall back from.
+  #
+  # The vendored tool is the one thing Dependabot cannot keep in step with the
+  # wazuh/* major.minor above: a bump to 4.15 runs
+  # `scripts/vendor-wazuh-certs-tool.sh 4.15` in the same PR, and that diff
+  # is the review.
   # ---------------------------------------------------------------------------
   wazuh.certs-generator:
     image: wazuh/wazuh-certs-generator:0.0.4@sha256:369b4d58509aab074b188596870c81584f7120e653d9ef83c591f0f785dcf325
     container_name: soc-wazuh-certs-generator
     profiles: ["certs"]
     logging: *default-logging
-    environment:
-      CERT_TOOL_VERSION: "4.14"
+    network_mode: none
+    entrypoint: ["/bin/bash", "/wazuh-certs-mint.sh"]
     volumes:
       - ./wazuh/certs:/certificates
       - ./wazuh/certs.yml:/config/certs.yml:ro
+      - ./wazuh/certs-tool:/certs-tool:ro
+      - ../../scripts/wazuh-certs-mint.sh:/wazuh-certs-mint.sh:ro
 
 # One network. Everything that talks to the indexer does so here; the only
 # things published are the ones with a client on the other side of the

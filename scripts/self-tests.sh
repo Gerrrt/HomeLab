@@ -58,6 +58,9 @@
 #   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
 #                             clone never shows the zero-commit scan that the
 #                             fixture for the worktree regression stages
+#   wazuh-certs-mint.sh       runs only inside the cert generator, on the rare day
+#                             the SOC's CA is minted; its refusal of an unpinned
+#                             tool can't wait for that day to be seen (#1008)
 #   collect_silences.py       `issue` is read only from a comment that BEGINS with
 #                             #NNN, and the fixture that fails otherwise is the
 #                             point (#575)

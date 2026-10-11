@@ -1,0 +1,11 @@
+This directory is third-party code, vendored unmodified from
+https://packages.wazuh.com/4.14/wazuh-certs-tool.sh at the sha256 named in
+VENDORED, by scripts/vendor-wazuh-certs-tool.sh (ADR-0093, #1008).
+
+This repository's MIT licence does NOT extend to wazuh-certs-tool.sh.
+
+  - wazuh-certs-tool.sh is Copyright (C) 2015, Wazuh Inc., and is licensed under
+    the GNU General Public License, version 2, as its own header states. The
+    licence text is LICENSE, beside this file.
+
+NOTICE and VENDORED are this repository's own files, under its MIT licence.
