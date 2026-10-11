@@ -26,12 +26,12 @@ defender's seat beside the SOC, not a second SOC. It follows
 is the same, this runbook points there and does not keep a second copy that
 drifts.
 
-**Not here, and each is a change of its own on #921:**
+**Not here:**
 
-- OpenVAS, with its scope and its silence;
-- TheHive.
+- TheHive, a change of its own on #921 if it earns its keep.
 
-Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2.
+Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
+3, is [`scan-the-lab-with-openvas.md`](scan-the-lab-with-openvas.md).
 
 ---
 

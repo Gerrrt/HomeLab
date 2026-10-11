@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-10
 
+- **OpenVAS is set up on `garuda`, and its fence is proved**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 3,
+  [ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md),
+  [`scan-the-lab-with-openvas.md`](runbooks/scan-the-lab-with-openvas.md) §7).
+  - **Setup.** Kali's `gvm` packages, every unit disabled at boot. The feed
+    import took over an hour after `gvm-setup`.
+  - **The fence.** The nftables table on `ospd-openvas.service`'s cgroup. Its
+    first start failed closed: `nft` ran as `_gvm`. It now loads with
+    `ExecStartPre=+`.
+  - **The proof.** A GVM *Discovery* scan of out-of-scope `10.0.30.40` was
+    dropped 11,681 times and found 0 open ports. The drop log is now
+    rate-limited, and the counter still counts every packet.
+  - **The scope.** A connection to the in-scope `.50` from the same cgroup
+    connected.
+
 - **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
   [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).

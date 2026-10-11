@@ -1,0 +1,58 @@
+#!/usr/sbin/nft -f
+#
+# OpenVAS's scope on garuda (#921 phase 3, ADR-0093): what the scanner may
+# reach, enforced by the kernel rather than by GVM's target list alone.
+#
+# WHAT IT MATCHES. Every packet sent from the cgroup of ospd-openvas.service.
+# The scanner itself, `openvas`, runs as root, started by ospd-openvas through
+# sudo, so matching the _gvm user would miss every scan packet; but a process
+# keeps its cgroup through sudo (Debian's sudo uses the non-interactive PAM
+# session, which opens no systemd session), so the service's cgroup holds the
+# scanner, its plugins and anything they spawn. The proof in
+# scan-the-lab-with-openvas.md scans an out-of-scope host through GVM and
+# reads this table's drop counter.
+#
+# WHAT IT ALLOWS: the domain's six (10.0.30.50-55), loopback (gvmd, notus and
+# the MQTT broker talk to it there), and DNS to morpheus, which resolves a
+# target's name. Everything else is counted, logged at a limited rate, and
+# dropped. IPv6 has no
+# allow at all: the lab domain is IPv4.
+#
+# WHY IT IS LOADED BY THE SERVICE. nftables resolves a cgroup path to an ID
+# when the rule is loaded, so the cgroup must exist then. It does from the
+# moment ospd-openvas starts, and only then; ospd-openvas-scope.conf loads this
+# file as the service's ExecStartPre, inside its own cgroup, so a scanner never
+# starts without its scope, and a failed load fails the start.
+#
+# It deletes and recreates only its own table, never `flush ruleset`, which
+# would also take Docker's rules.
+
+table inet gvm_scope
+delete table inet gvm_scope
+
+table inet gvm_scope {
+  set in_scope_v4 {
+    type ipv4_addr
+    flags interval
+    # bahamut .50 through siren .55 (ADR-0029).
+    elements = { 10.0.30.50-10.0.30.55 }
+  }
+
+  chain output {
+    type filter hook output priority filter; policy accept;
+    socket cgroupv2 level 2 "system.slice/ospd-openvas.service" jump scanner
+  }
+
+  chain scanner {
+    oifname "lo" accept
+    ip daddr @in_scope_v4 accept
+    ip daddr 10.0.30.1 meta l4proto { tcp, udp } th dport 53 accept
+    # Every dropped packet is counted. The log is rate-limited: the proof's
+    # one Discovery scan of an out-of-scope host dropped 11,681 packets, and
+    # a line for each would flood the journal and Wazuh with it. The first
+    # lines name the destination, which is what an investigation needs.
+    counter
+    limit rate 5/second burst 20 packets log prefix "gvm-scope drop: " level warn
+    drop
+  }
+}
