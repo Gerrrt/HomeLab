@@ -29,7 +29,7 @@ for [#921](https://github.com/Gerrrt/HomeLab/issues/921)'s phase 3. The rules:
 | Software | Kali's `gvm` packages | They update with Kali like garuda's other tools, and add no images to pin (ADR-0093) |
 | Running | On demand: sync the feeds, `gvm-start`, scan, stop | Kali ships every GVM unit disabled at boot. Stopped, it holds no RAM and can point nowhere |
 | Scope | `10.0.30.50`–`.55` only | The domain is the exercise. The firewall, the iLO, the hypervisor and the lab's own services are out |
-| Fence | nftables, on `ospd-openvas.service`'s cgroup | The scanner runs as root through `sudo`, so only the cgroup holds it. A target outside the six fails closed |
+| Fence | nftables on `ospd-openvas.service`'s cgroup, at the IP layer | The scanner runs as root through `sudo`, so only the cgroup holds it. An IP scan outside the six fails closed. Layer 2 is a documented residual, immaterial on a flat segment (ADR-0093) |
 | UI | gsad on `127.0.0.1:9392`, from garuda's desktop | Nothing is published |
 | Silences | None | A scan of the six stays inside VLAN 30, where no estate alert looks. `LabSegmentReachedInternalNetwork` would mean the fence failed, so it must page |
 
@@ -119,6 +119,11 @@ names. Stop, and don't scan anything until it is understood.
    otherwise. An authenticated scan takes a domain credential from
    `ansible/population/`'s seed, stored in GVM's credential store. It never
    goes on a command line.
+   - **Alive test: *Consider Alive*, or an ICMP/TCP test — never an ARP
+     one.** The six are known to exist, so *Consider Alive* is simplest. The
+     IP fence (ADR-0093) sees ICMP and TCP but not ARP, so an ARP-based alive
+     test is the one way a probe leaves the scanner's IP scope. The scope note
+     on the target covers the IP scan; this covers discovery.
 4. **Watch the SOC while it runs.** This is the purpose:
    - `odin`'s Wazuh, for what the six's agents and garuda's own raised;
    - Zeek on `fenrir`, in the lab's Grafana.
@@ -205,6 +210,15 @@ Reports go with the database. Copy anything wanted into `~/cases/` first.
     connected.
 - **Stopped afterwards** with `gvm-stop` and §4's extra `systemctl stop`. All
   seven units inactive and disabled; about 850 MB of RAM back.
+- **Layer 2, measured and decided.** A review asked whether the IP fence
+  holds against NASL's raw-frame and ARP paths. It does not — they are
+  `AF_PACKET`, below the hook. A test netns on `garuda` measured what strict
+  containment would buy: an `arping` from it to the out-of-scope `10.0.30.40`
+  put **no** frame on `eth0`. But the clean netns form collides with Docker's
+  `FORWARD` policy here (an in-scope ping through veth+NAT was dropped by
+  Docker's chain), so it would need the scanner's own NIC. On a flat segment
+  that gain is immaterial (ADR-0093's residual), so the cgroup IP fence
+  stands and alive tests are kept off ARP. The test netns was torn down.
 - **For Garrett:** change `admin`'s password in the UI (*My Settings*). The
   generated one is in `/root/gvm-install.log` on `garuda`, root-only. Delete
   that file once it is changed.

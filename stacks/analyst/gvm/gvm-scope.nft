@@ -3,7 +3,12 @@
 # OpenVAS's scope on garuda (#921 phase 3, ADR-0093): what the scanner may
 # reach, enforced by the kernel rather than by GVM's target list alone.
 #
-# WHAT IT MATCHES. Every packet sent from the cgroup of ospd-openvas.service.
+# WHAT IT MATCHES. Every IP packet sent from the cgroup of ospd-openvas.service.
+# This is an IP-layer fence. NASL's send_frame and send_arp_request go through
+# AF_PACKET, below this hook, and are a documented residual (ADR-0093): on a
+# flat segment where every host already reaches every other at L2, a stray
+# frame to a non-target crosses no boundary. A scan is IP, and this holds it;
+# a scan's alive test is set to ICMP/TCP, never ARP, so discovery stays IP.
 # The scanner itself, `openvas`, runs as root, started by ospd-openvas through
 # sudo, so matching the _gvm user would miss every scan packet; but a process
 # keeps its cgroup through sudo (Debian's sudo uses the non-interactive PAM
