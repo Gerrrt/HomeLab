@@ -14,7 +14,8 @@
 #
 # WHAT IT ALLOWS: the domain's six (10.0.30.50-55), loopback (gvmd, notus and
 # the MQTT broker talk to it there), and DNS to morpheus, which resolves a
-# target's name. Everything else is counted, logged and dropped. IPv6 has no
+# target's name. Everything else is counted, logged at a limited rate, and
+# dropped. IPv6 has no
 # allow at all: the lab domain is IPv4.
 #
 # WHY IT IS LOADED BY THE SERVICE. nftables resolves a cgroup path to an ID
@@ -46,6 +47,12 @@ table inet gvm_scope {
     oifname "lo" accept
     ip daddr @in_scope_v4 accept
     ip daddr 10.0.30.1 meta l4proto { tcp, udp } th dport 53 accept
-    counter log prefix "gvm-scope drop: " level warn drop
+    # Every dropped packet is counted. The log is rate-limited: the proof's
+    # one Discovery scan of an out-of-scope host dropped 11,681 packets, and
+    # a line for each would flood the journal and Wazuh with it. The first
+    # lines name the destination, which is what an investigation needs.
+    counter
+    limit rate 5/second burst 20 packets log prefix "gvm-scope drop: " level warn
+    drop
   }
 }
