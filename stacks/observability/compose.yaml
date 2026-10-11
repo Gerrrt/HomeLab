@@ -706,7 +706,7 @@ services:
   # ---------------------------------------------------------------------------
   speedtest-tracker:
     <<: *service-defaults
-    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:3f8a2d06703bde3a6d04dcc8178fcd6251b601ce3b8b52958779d5335b5719d1
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:1eeed2307699c083407bd4c1eb86f14d5179f9e1cd960f57d4cbab6f1f8b8a42
     container_name: speedtest-tracker
     # No docker-init. The linuxserver image is built on s6-overlay, whose
     # suexec refuses to start anywhere but PID 1 — "s6-overlay-suexec: fatal:
