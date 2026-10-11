@@ -53,9 +53,9 @@ docstring gives: it is a record, not a claim about now.
     - `check_compose_health.py` holds every service of a listed repository
       to `999:999`.
     - The new `check_gosu_skip.sh` boots each pinned image of one as
-      `999:999` with a stand-in gosu that leaves a marker. The server must
-      come up and the marker must not appear. A root-started control must
-      leave it.
+      `999:999` with a stand-in gosu that leaves a marker: a first start on a
+      scratch volume, then a restart against the cluster it made. Both must
+      come up with no marker. A root-started control must leave it.
     - It runs in CI and in `validate.sh`. Run with the service-user boot
       swapped for root, it fails on all three images and names the gosu
       command line.

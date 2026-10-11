@@ -1310,7 +1310,17 @@ def self_test() -> int:
     check(
         "gosu-skip.txt's entries carry no tag or digest",
         True,
-        all(":" not in r and "@" not in r for r in gosu_skip_repos()),
+        all(image_repository(r) == r and "@" not in r for r in gosu_skip_repos()),
+    )
+    check(
+        "a listed registry with a port is its own repository",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres"),
+    )
+    check(
+        "and so is one pinned by digest alone",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres@sha256:" + "0" * 64),
     )
     return failed
 

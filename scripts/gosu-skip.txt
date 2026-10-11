@@ -17,8 +17,9 @@
 #   - check_compose_health.py fails a service that runs a listed repository as
 #     anything but 999:999 (half 2).
 #   - check_gosu_skip.sh boots every pinned image of a listed repository as
-#     999:999, with a stand-in gosu that leaves a marker if it ever runs, and
-#     fails if it does (half 1). A root-started control run must leave the
+#     999:999, on a first start and again on a restart against the cluster
+#     that start made, with a stand-in gosu that leaves a marker if it ever
+#     runs, and fails if it does (half 1). A root-started control run must leave the
 #     marker, which proves the stand-in is really wired in. An image bump that
 #     starts calling gosu for non-root starts fails CI there.
 #

@@ -165,10 +165,14 @@ for ref in "${order[@]}"; do
   # starts as root, and every service runs the image as 999:999.
   # check_compose_health.py enforces the second half and check_gosu_skip.sh
   # proves the first, on each pinned image. gosu in any other image is still
-  # reported. The repository is the reference less its digest and its tag.
+  # reported.
   skip=()
   name="${ref%%@*}"
-  if grep -qxF "${name%:*}" <<<"${GOSU_SKIP}"; then
+  # A tag comes off only the last path component, so a registry port stays:
+  # `registry:5000/postgres@sha256:…` is `registry:5000/postgres`, as in
+  # check_compose_health.py's image_repository().
+  [[ "${name##*/}" == *:* ]] && name="${name%:*}"
+  if grep -qxF "${name}" <<<"${GOSU_SKIP}"; then
     skip=(--skip-files usr/local/bin/gosu)
   fi
   if ! trivy image --quiet --image-src remote --platform linux/amd64 \

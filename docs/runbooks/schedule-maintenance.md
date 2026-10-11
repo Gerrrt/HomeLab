@@ -633,7 +633,9 @@ That file states the rule, and two checks hold both halves of it:
   and the skip would hide something reachable.
 - **The image calls gosu only as root.** `check_gosu_skip.sh` boots each
   pinned image of a listed repository as `999:999`, with a stand-in gosu that
-  leaves a marker, and requires the server to come up with no marker. A
+  leaves a marker. It does so twice: a first start on an empty volume, and a
+  restart against the cluster that start made, which is every later start
+  of a deployed service. Both must come up with no marker. A
   root-started control must leave one. It runs in CI, so a bump that changes
   the entrypoint fails there.
 
