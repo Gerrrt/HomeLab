@@ -522,6 +522,48 @@ the console password.
   - **Not run: the desktop line.** It needs the console from Hicks, and the
     console password Garrett sets at a prompt (§4). `user@968.service`
     (`lightdm`) still fails on every boot.
+- **§12, phase 2, 2026-10-10**
+  ([#1163](https://github.com/Gerrrt/HomeLab/pull/1163),
+  [ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
+  - **`odin`:**
+    - The checkout was pulled to `main`, and `make up STACK=soc` left all
+      seven services healthy.
+    - `stage-agent-msis.sh` ran as root through the guest agent, because
+      `barnabas` has no passwordless sudo. It re-verified both MSIs, matched
+      the Wazuh `.deb` to its pin, and built
+      `velociraptor-client_0.77.3_amd64.deb` (sha256
+      `b89a412865058fc6b3025b78791b59215bae087c445ffdd9dd0e05df4ef5b1cc`).
+  - **Fetching.** `8448` answered `garuda` (200; it was 403 before the
+    reload).
+    - Both packages verified on `garuda`: the Wazuh one against the pin, the
+      Velociraptor one against the hash read from `odin` over SSH.
+  - **Wazuh.**
+    - `dpkg -i` with `WAZUH_MANAGER`, `WAZUH_AGENT_NAME=garuda` and
+      `WAZUH_AGENT_GROUP=default`, and no password.
+    - The password, `LAB_WAZUH_REGISTRATION_PASSWORD` from `phoenix.env`, went
+      into `authd.pass` on standard input. Its hash matched `odin`'s
+      `authd.pass` before the agent started.
+    - The agent logged "Valid key received" and connected to `1514`. `odin`
+      listed it as **009, `garuda`, Active**.
+    - `authd.pass` was then removed.
+  - **Velociraptor.**
+    - `dpkg -i` gave `velociraptor_client` enabled and active, with an
+      established connection to `odin:8000`.
+    - The server's `client_comms_current_connections` read 7 (the six and
+      `garuda`), and `frontend_enroll_response` counted 1, `garuda`'s.
+    - A `query` against `clients()` from a second process on the server
+      returned nothing, and was not pursued. The GUI check from Hicks is
+      Garrett's.
+  - **The lab.** `alexander` was pulled to `main` (the rule change), and
+    `make up STACK=lab` reloaded Prometheus.
+    - `homelab_wazuh_agent_active{agent="garuda"}` first read 0: the
+      collector had run six seconds after the agent connected. It read 1 at
+      the next run.
+    - `WazuhAgentsNotConnected` was briefly pending for `garuda`, then
+      inactive.
+  - **Cleanup.** The downloaded packages were deleted from `garuda`, since
+    the Velociraptor `.deb` carries the enrolment nonce. Installed:
+    `wazuh-agent 4.14.8-1` and `velociraptor-client 0.77.3`.
 - **Agents.** `guest-exec` timed out on both `garuda` (162) and `phoenix`
   (170) after commands carrying non-ASCII text or heredocs.
   `scripts/qga-resync.py` fixed each at once. Keep agent commands ASCII, and
