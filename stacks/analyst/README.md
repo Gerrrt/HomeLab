@@ -25,13 +25,15 @@ make up STACK=analyst
 ## OpenVAS, and its fence: `gvm/`
 
 OpenVAS/GVM is Kali's `gvm` packages on the host, run on demand. It is not a
-service in this compose file. `gvm/` holds what fences it to the lab domain's
-six ([ADR-0093]):
+service in this compose file. `gvm/` holds what runs the scanner in its own network namespace, fenced to the
+lab domain's six at layer 2 ([ADR-0093]):
 
 | File | Installed as | Does |
 | --- | --- | --- |
-| `gvm/gvm-scope.nft` | `/etc/nftables.d/gvm-scope.nft` | An nftables table that drops everything `ospd-openvas.service`'s cgroup sends, except to `10.0.30.50`–`.55`, loopback and DNS to `morpheus` |
-| `gvm/ospd-openvas-scope.conf` | `/etc/systemd/system/ospd-openvas.service.d/scope.conf` | Loads that table as the scanner's `ExecStartPre`, so it never starts unscoped |
+| `gvm/gvm-scan-netns.sh`, `gvm/gvm-scan-netns.service` | `/opt/gvm-scan/`, `/etc/systemd/system/` | Build the `gvmscan` network namespace: `scan0`, a macvlan at `10.0.30.63`, and a veth for MQTT |
+| `gvm/scan0-egress.nft` | `/opt/gvm-scan/` | The `netdev` egress filter on `scan0`: drops every frame — IP, ARP, raw — except to `10.0.30.50`–`.55` |
+| `gvm/ospd-openvas-netns.conf` | `/etc/systemd/system/ospd-openvas.service.d/netns.conf` | Runs the scanner in the namespace (`NetworkNamespacePath`), after the namespace exists |
+| `gvm/mosquitto-gvm.conf`, `gvm/mosquitto-netns-order.conf` | `/etc/mosquitto/conf.d/`, `/etc/systemd/system/` | A second MQTT listener on the veth, for the namespaced scanner, ordered after the namespace |
 
 [`scan-the-lab-with-openvas.md`](../../docs/runbooks/scan-the-lab-with-openvas.md)
 installs both, proves the fence and runs a scan.

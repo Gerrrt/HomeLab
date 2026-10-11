@@ -25,14 +25,16 @@ docstring gives: it is a record, not a claim about now.
   [`scan-the-lab-with-openvas.md`](runbooks/scan-the-lab-with-openvas.md) §7).
   - **Setup.** Kali's `gvm` packages, every unit disabled at boot. The feed
     import took over an hour after `gvm-setup`.
-  - **The fence.** The nftables table on `ospd-openvas.service`'s cgroup. Its
-    first start failed closed: `nft` ran as `_gvm`. It now loads with
-    `ExecStartPre=+`.
-  - **The proof.** A GVM *Discovery* scan of out-of-scope `10.0.30.40` was
-    dropped 11,681 times and found 0 open ports. The drop log is now
-    rate-limited, and the counter still counts every packet.
-  - **The scope.** A connection to the in-scope `.50` from the same cgroup
-    connected.
+  - **The fence.** The scanner runs in its own network namespace, `gvmscan`,
+    whose only route to the segment is a macvlan, `scan0` at `10.0.30.63`,
+    behind an nftables `netdev` egress filter. It drops every frame — IP, ARP
+    and raw — to anything but the six, so NASL's `send_frame`/ARP paths are
+    caught, which an IP-only cgroup fence (the first try) could not. No second
+    NIC and no host forwarding; a veth carries only MQTT to the host broker.
+  - **The proof.** From the namespace: `arping` and TCP/ICMP to out-of-scope
+    `10.0.30.40` dropped, the in-scope `10.0.30.50:445` connected, the drop
+    counter rising. A review drove the move from the cgroup form; a veth-NAT
+    form was set aside because garuda's Docker drops forwarding.
 
 - **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,

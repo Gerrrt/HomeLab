@@ -56,61 +56,48 @@ packets that probe a target are root's.
   `fenrir`, `phoenix`, `golem`, the dotfiles VMs and `garuda`). Widening it
   is a change to this ADR.
 
-**4. The kernel enforces the scope at the IP layer, on the scanner's cgroup.**
+**4. The kernel enforces the scope at the scanner's own interface, at
+layer 2.**
 
-- **The rule.** An nftables table on `garuda`, `stacks/analyst/gvm/gvm-scope.nft`,
-  matches every IP packet sent from the cgroup of `ospd-openvas.service`.
-  - **Why the cgroup and not a user.** The cgroup holds the scanner however
-    it was started, because a process keeps its cgroup through `sudo`. A
-    rule on the `_gvm` user would miss every scan packet, since those are
-    root's.
-  - **What it allows:** the six, loopback, and DNS to `morpheus`. Everything
-    else is counted, logged (rate-limited) and dropped. A mistyped or widened
-    target fails closed, and the attempt shows in garuda's journal.
-  - **Alive detection is ICMP/TCP, never ARP.** A scan uses *Consider Alive*
-    or an ICMP/TCP alive test, set in GVM. This matters for the residual
-    below: the IP fence sees ICMP and TCP, so alive probes are scoped, and
-    the scanner never falls back to ARP for discovery.
-
-- **The residual: layer 2 is not fenced, and does not need to be here.** The
-  `output` hook sees IP. OpenVAS's NASL can also send raw frames
-  (`send_frame`) and ARP (`send_arp_request`) through `AF_PACKET`, which leave
-  below that hook. On a flat segment this changes nothing that matters:
-  - VLAN 30 is one broadcast domain. Every host on it — the six, `odin`,
-    `eden`, `fenrir`, `garuda` — already reaches every other at layer 2, and
-    ARP spoofing between them is assumed, which is why Zeek mirrors the bridge
-    (ADR-0068). A stray frame from the scanner to a same-VLAN host crosses no
-    boundary that is not already open to every host there.
-  - The fence's job is to stop a *scan* reaching the wrong target — `odin`,
-    the firewall, the iLO — and a scan is IP: TCP and UDP probes, and the
-    ICMP/TCP alive test above. That traffic is on the cgroup, and the IP fence
-    holds it. What escapes at layer 2 is at most a stray ARP or frame to a
-    non-target, not an IP scan of it.
-  - **Proved both ways** (runbook §7). A GVM scan of an out-of-scope host was
-    dropped at the IP layer (11,681 packets, 0 open ports). Separately, an
-    `arping` from a test netns to an out-of-scope host put no frame on `eth0`
-    — the measurement that shows what layer-2 containment would buy, and that
-    it is not bought here.
-
-- **If strict layer-2 containment is ever wanted,** the measured upgrade is to
-  give the scanner its own NIC in a network namespace and filter that NIC's
-  egress with an nftables `netdev` hook, which sees ARP and raw frames. It was
-  designed and the containment measured (above), then set aside: on `garuda` a
-  veth-and-NAT namespace collides with Docker's `FORWARD` policy, so the clean
-  form needs a second NIC (a `tofu` change and a lab address), for a gain that
-  a flat segment does not make worth the parts. This is the path if `garuda`
-  ever scans across a routed boundary, where layer 2 would be a real edge.
-- **How it loads.** nftables resolves a cgroup when the rule is loaded, so the
-  rule cannot be loaded before the service exists. A drop-in,
-  `ospd-openvas-scope.conf`, loads it as the service's `ExecStartPre`, inside
-  that cgroup. If the load fails, the start fails, so the scanner never runs
-  without its scope.
-- **No `flush ruleset`.** The file replaces only its own table, so Docker's
-  rules on `garuda` are untouched.
-- **The proof.** A GVM task against an out-of-scope host, run through the
-  real `ospd-openvas` → `sudo` → `openvas` path, must reach nothing at the IP
-  layer and must
-  raise the table's drop counter. Its record is in the runbook.
+- **The scanner gets its own interface in its own network namespace.** Only
+  `ospd-openvas`, and the `openvas` it spawns, run in a namespace, `gvmscan`
+  (`NetworkNamespacePath` in `ospd-openvas-netns.conf`). Its one route to the
+  segment is `scan0`, a macvlan on `eth0` with garuda's second address,
+  `10.0.30.63`. `gvmd`, `notus-scanner`, `redis` and `mosquitto` stay on the
+  host, reached over unix sockets that a namespace does not change.
+  - **Why an interface and not the cgroup.** An earlier fence matched the
+    scanner's cgroup at the IP `output` hook. OpenVAS's NASL also sends raw
+    frames (`send_frame`) and ARP (`send_arp_request`) through `AF_PACKET`,
+    below any IP hook, so that fence was IP only. Giving the scanner its own
+    interface lets one rule filter *every* frame it sends.
+  - **Why a macvlan, not a second NIC.** A macvlan gives the namespace its own
+    MAC and address on VLAN 30 over garuda's one NIC — no `tofu` or Proxmox
+    change. `scan0` reaches the six on-link, so nothing is routed and Docker's
+    `FORWARD` policy, which blocked a veth-and-NAT design, never sees it.
+- **The rule.** `stacks/analyst/gvm/scan0-egress.nft`, an nftables `netdev`
+  egress hook on `scan0`, loaded inside the namespace. It allows outgoing ARP
+  to resolve the six, ARP replies, and IP to the six; everything else is
+  counted, logged (rate-limited) and dropped. A mistyped or widened target
+  fails closed at layer 2 and at layer 3, and the attempt shows in garuda's
+  journal.
+- **MQTT crosses on a veth, nothing else.** `openvas` publishes scan state to
+  `notus-scanner` through `mosquitto`. A macvlan cannot reach its own host, so
+  a point-to-point veth carries it to the broker at `10.99.0.1`
+  (`openvas.conf`'s `mqtt_server_uri`, and a second `mosquitto` listener). The
+  veth routes to nothing but the broker, so it is not a scan path and is not
+  filtered.
+- **How it loads.** `gvm-scan-netns.service` builds the namespace, the macvlan,
+  the veth and the rule, and `ospd-openvas` `Requires=` and is ordered
+  `After=` it, so the scanner cannot start without its namespace, and the
+  namespace is torn down when the scan ends.
+- **Alive detection is ICMP/TCP or *Consider Alive*.** The fence passes ARP
+  only for the six, so an ARP-based alive test of a wider range would be
+  dropped like any other out-of-scope frame — the safe direction, and the
+  runbook sets the alive test accordingly.
+- **The proof.** Run through the real `ospd-openvas` -> `sudo` -> `openvas`
+  path (runbook §7): a GVM scan of an out-of-scope host reaches nothing and
+  raises the egress drop counter, and an `arping` from the namespace to an
+  out-of-scope host is dropped too. An in-scope host stays reachable.
 
 **5. No estate silence is needed.**
 
@@ -137,11 +124,16 @@ packets that probe a target are root's.
 - **Kali upgrades GVM underneath this.** A `full-upgrade` can move gvmd's
   database schema. `gvm-check-setup` after an upgrade, and a migration if it
   asks for one, are part of the procedure.
-- **The scope is two files.** The address set is in `gvm-scope.nft`, and the
-  targets are in GVM. Widening means changing this ADR, the set and the
+- **The scope is two places.** The address set is in `scan0-egress.nft`, and
+  the targets are in GVM. Widening means changing this ADR, the set and the
   target, together.
-- **If the cgroup path changes,** for instance because the unit is renamed by
-  a packaging change, the rule stops loading and the scanner stops starting.
-  That is the safe direction, and the runbook's check names it.
+- **If a packaging change renames `ospd-openvas` or `mosquitto`,** the drop-in
+  ordering or the `NetworkNamespacePath` join can break, and the scanner stops
+  starting rather than starting unfenced. That is the safe direction, and the
+  runbook's check after an upgrade names it.
+- **A second MAC and a second address, `.63`, on garuda's NIC.** The macvlan
+  answers ARP for `.63` on VLAN 30 while a scan runs. It is below the DHCP
+  pool and is recorded in `docs/network.md`; morpheus needs no reservation,
+  since the namespace sets it statically.
 - **What the SOC sees is the point.** A scan's noise in Wazuh is expected and
   is not tuned away. Tuning that hides a scan would also hide an attacker's.

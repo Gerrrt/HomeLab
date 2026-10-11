@@ -29,7 +29,7 @@ for [#921](https://github.com/Gerrrt/HomeLab/issues/921)'s phase 3. The rules:
 | Software | Kali's `gvm` packages | They update with Kali like garuda's other tools, and add no images to pin (ADR-0093) |
 | Running | On demand: sync the feeds, `gvm-start`, scan, stop | Kali ships every GVM unit disabled at boot. Stopped, it holds no RAM and can point nowhere |
 | Scope | `10.0.30.50`–`.55` only | The domain is the exercise. The firewall, the iLO, the hypervisor and the lab's own services are out |
-| Fence | nftables on `ospd-openvas.service`'s cgroup, at the IP layer | The scanner runs as root through `sudo`, so only the cgroup holds it. An IP scan outside the six fails closed. Layer 2 is a documented residual, immaterial on a flat segment (ADR-0093) |
+| Fence | scanner in a network namespace; `netdev` egress filter on its macvlan `scan0` (`.63`) | Filters every frame the scanner sends — IP, ARP and raw — so a scan outside the six fails closed at layer 2. No second NIC and no host forwarding (ADR-0093) |
 | UI | gsad on `127.0.0.1:9392`, from garuda's desktop | Nothing is published |
 | Silences | None | A scan of the six stays inside VLAN 30, where no estate alert looks. `LabSegmentReachedInternalNetwork` would mean the fence failed, so it must page |
 
@@ -59,45 +59,70 @@ command line.
 
 ## 2. Install the fence, once
 
-From the repository on `garuda` (`~/code/Gerrrt/HomeLab`):
+The fence runs the scanner in its own network namespace, `gvmscan`, whose
+only route to the segment is a macvlan, `scan0`, behind an nftables `netdev`
+egress filter (ADR-0093). From the repository on `garuda`
+(`~/code/Gerrrt/HomeLab`):
 
 ```bash
-sudo install -D -m 0644 stacks/analyst/gvm/gvm-scope.nft /etc/nftables.d/gvm-scope.nft
-sudo install -D -m 0644 stacks/analyst/gvm/ospd-openvas-scope.conf \
-  /etc/systemd/system/ospd-openvas.service.d/scope.conf
-sudo systemctl daemon-reload
-systemctl cat ospd-openvas | grep -A1 'scope.conf'   # the ExecStartPre must show
+sudo install -D -m 0755 stacks/analyst/gvm/gvm-scan-netns.sh /opt/gvm-scan/gvm-scan-netns.sh
+sudo install -D -m 0644 stacks/analyst/gvm/scan0-egress.nft  /opt/gvm-scan/scan0-egress.nft
+sudo install -D -m 0644 stacks/analyst/gvm/gvm-scan-netns.service /etc/systemd/system/gvm-scan-netns.service
+sudo install -D -m 0644 stacks/analyst/gvm/ospd-openvas-netns.conf /etc/systemd/system/ospd-openvas.service.d/netns.conf
+sudo install -D -m 0644 stacks/analyst/gvm/mosquitto-netns-order.conf /etc/systemd/system/mosquitto.service.d/netns.conf
+sudo install -D -m 0644 stacks/analyst/gvm/mosquitto-gvm.conf /etc/mosquitto/conf.d/gvm.conf
 ```
 
-Every start of `ospd-openvas` now loads the table first. Check that the
-path the rule names is the service's own:
+Point the scanner's MQTT at the veth broker (the scanner is now in the
+namespace, which cannot reach the host's loopback):
 
 ```bash
-sudo systemctl start ospd-openvas
-systemctl show -p ControlGroup ospd-openvas    # /system.slice/ospd-openvas.service
-sudo nft list table inet gvm_scope
+sudo sed -i 's|^mqtt_server_uri = localhost:1883|mqtt_server_uri = 10.99.0.1:1883|' /etc/openvas/openvas.conf
+sudo systemctl daemon-reload
+```
+
+Bring the namespace up on its own and check it:
+
+```bash
+sudo systemctl start gvm-scan-netns
+sudo ip netns exec gvmscan ip -br addr show scan0   # 10.0.30.63/24, up
+sudo ip netns exec gvmscan nft list table netdev gvm_scan
+sudo systemctl stop gvm-scan-netns
 ```
 
 ## 3. Prove the fence, once and after any change to it
 
-The proof uses the real path: a GVM task, through `ospd-openvas` and
-`sudo openvas`, against a host the fence must refuse.
+Bring GVM up (§4 step 1), so `ospd-openvas` pulls the namespace in. First
+confirm the scanner is really in it:
 
-1. `sudo gvm-start`. Then, in the UI, create a target named *fence proof*:
-   one out-of-scope host, `10.0.30.40` (`alexander`). Use the port list
-   *All IANA assigned TCP*, and set *Alive test* to *Consider Alive*, so that
-   the scanner really sends.
-2. Note the counter: `sudo nft list chain inet gvm_scope scanner` (the
-   `counter packets N` on the drop rule).
-3. Create a task with that target and the *Discovery* config, and start it.
-4. When it ends, the counter must have grown by many packets. The log is
-   rate-limited, so `journalctl -k | grep "gvm-scope drop"` shows a sample,
-   naming `DST=10.0.30.40`. The report must show no open port on `.40`.
-5. Delete the task and the target. Record the counter's before and after,
-   and the report's result, in §7.
+```bash
+sudo ip netns identify "$(systemctl show -p MainPID --value ospd-openvas)"   # gvmscan
+```
 
-If the counter did not move, the scanner is not in the cgroup the rule
-names. Stop, and don't scan anything until it is understood.
+Then two checks, one per layer:
+
+1. **Layer 2.** `arping` an out-of-scope host from the namespace. It must be
+   dropped, and an in-scope host must answer:
+
+   ```bash
+   sudo ip netns exec gvmscan arping -c3 -w3 -I scan0 10.0.30.40   # 0 replies
+   sudo ip netns exec gvmscan ping  -c2 -W2 10.0.30.50             # replies
+   ```
+
+2. **The scanner's own path.** A GVM task, through `ospd-openvas` and
+   `sudo openvas`, against the out-of-scope `10.0.30.40` (`alexander`), with
+   *All IANA assigned TCP* and *Consider Alive*.
+   - Note the drop counter first:
+     `sudo ip netns exec gvmscan nft list chain netdev gvm_scan egress`.
+   - Run the task (the *Discovery* config).
+   - When it ends, the counter must have grown by many packets,
+     `journalctl -k | grep "gvm-scan drop"` shows a sample, and the report
+     must show no open port on `.40`.
+   - Delete the task and target, and record before/after in §7.
+
+If the counter did not move, or the `arping` reached `.40`, the scanner is not
+in the namespace or `scan0` is not filtered. Stop, and scan nothing until it
+is understood.
 
 ## 4. A scan
 
@@ -151,17 +176,23 @@ sudo gvm-check-setup
 
 Do what it asks, such as a `gvmd --migrate`. The sync comes first so that
 the check sees current feeds, not the ones from before the upgrade. Then start
-`ospd-openvas` once, and confirm `nft list table inet gvm_scope` still loads
-(§2). If a packaging change renamed the unit, the rule fails to load and the
-scanner fails to start, which is the safe direction. Rename the path in
-`gvm-scope.nft`, then prove the fence again (§3).
+`ospd-openvas` once, and confirm it joined the namespace and the filter is on
+`scan0` (§3's first checks). A packaging change to `ospd-openvas` or
+`mosquitto` can break the drop-in ordering or the namespace join, and the
+scanner then fails to start rather than starting unfenced — the safe
+direction. Re-prove the fence (§3) after any upgrade that touches them.
 
 ## 6. Take it out
 
 ```bash
-sudo gvm-stop; sudo systemctl stop postgresql redis-server@openvas mosquitto
-sudo rm /etc/systemd/system/ospd-openvas.service.d/scope.conf /etc/nftables.d/gvm-scope.nft
-sudo nft delete table inet gvm_scope
+sudo gvm-stop; sudo systemctl stop gvm-scan-netns postgresql redis-server@openvas mosquitto
+sudo rm /etc/systemd/system/ospd-openvas.service.d/netns.conf \
+       /etc/systemd/system/mosquitto.service.d/netns.conf \
+       /etc/mosquitto/conf.d/gvm.conf \
+       /etc/systemd/system/gvm-scan-netns.service
+sudo rm -rf /opt/gvm-scan
+sudo sed -i 's|^mqtt_server_uri = 10.99.0.1:1883|mqtt_server_uri = localhost:1883|' /etc/openvas/openvas.conf
+sudo systemctl daemon-reload
 sudo apt-get -y purge gvm && sudo apt-get -y autoremove
 ```
 
@@ -184,41 +215,39 @@ Reports go with the database. Copy anything wanted into `~/cases/` first.
   - The scan configs were empty for over an hour after setup, while gvmd
     imported SCAP, CERT and GVMD_DATA. The first proof attempt timed out
     waiting for *Discovery*, and the second waited it out.
-- **§2.** `ospd-openvas`'s ControlGroup is
-  `/system.slice/ospd-openvas.service`, as the rule names. Kali's
-  `/etc/pam.d/sudo` includes `common-session-noninteractive`, which has no
-  `pam_systemd`, so `sudo openvas` stays in that cgroup.
-  - **The first start with the drop-in failed closed.** The service runs as
-    `_gvm`, so `nft` ran as `_gvm` and got "Operation not permitted", and the
-    scanner did not start. The drop-in now uses `ExecStartPre=+`, root for
-    that one command only. The table then loaded against the service's
-    cgroup, with its counter at 0.
-- **§3, the proof, through GVM's API (`gvm-cli` on gvmd's socket).** The admin
-  password was in a root-only temporary config, never on a command line.
-  - The task: target `10.0.30.40` (`alexander`), *All IANA assigned TCP*,
-    *Consider Alive*, the *Discovery* config, the default OpenVAS scanner.
-    Ran 01:46:07 to 01:56:26 UTC, *Done*.
-  - **Drop counter 0 → 11,681.** Every logged drop was `DST=10.0.30.40`, a
-    TCP SYN from `eth0`.
-  - **The report:** one host (assumed alive), **0 open ports**, 3 results.
-    The task and the target were deleted.
-  - **Then the log was rate-limited.** 11,681 kernel lines for one scan
-    would flood the journal and Wazuh. The counter still counts every packet,
-    and the log is now 5 a second.
-  - **Re-checked from inside the cgroup.** A connection to `10.0.30.40:22`
-    was refused (counter 0 → 5), and one to `10.0.30.50:135`, in scope,
-    connected.
-- **Stopped afterwards** with `gvm-stop` and §4's extra `systemctl stop`. All
-  seven units inactive and disabled; about 850 MB of RAM back.
-- **Layer 2, measured and decided.** A review asked whether the IP fence
-  holds against NASL's raw-frame and ARP paths. It does not — they are
-  `AF_PACKET`, below the hook. A test netns on `garuda` measured what strict
-  containment would buy: an `arping` from it to the out-of-scope `10.0.30.40`
-  put **no** frame on `eth0`. But the clean netns form collides with Docker's
-  `FORWARD` policy here (an in-scope ping through veth+NAT was dropped by
-  Docker's chain), so it would need the scanner's own NIC. On a flat segment
-  that gain is immaterial (ADR-0093's residual), so the cgroup IP fence
-  stands and alive tests are kept off ARP. The test netns was torn down.
+- **§2, the namespace fence.** First built as a cgroup rule at the IP hook;
+  a review noted that NASL's `send_frame`/`send_arp_request` go through
+  `AF_PACKET`, below it, so that form was IP only. It was rebuilt as the
+  namespace fence this runbook describes, and the layer-2 escape closed.
+  - `ospd-openvas` runs in the `gvmscan` namespace
+    (`ip netns identify $(pidof ospd-openvas)` → `gvmscan`), with `scan0` a
+    macvlan at `10.0.30.63/24` and the `netdev gvm_scan` egress filter on it.
+  - mosquitto listens on `127.0.0.1` (for `notus-scanner`) and `10.99.0.1`
+    (the veth, for the namespaced `openvas`); no MQTT error.
+  - A veth-and-NAT form was tried first and set aside: garuda's Docker sets
+    `FORWARD` to `DROP`, so a routed scanner could not reach the six even with
+    a `DOCKER-USER` accept. The macvlan is on-link and routes nothing, so
+    Docker never sees it.
+- **§3, the proof.** The admin password was in a root-only temporary config,
+  never on a command line.
+  - **Layer 2.** `arping` from the namespace to the out-of-scope `10.0.30.40`
+    was dropped; `ping` to the in-scope `10.0.30.50` answered.
+  - **The scanner's path, over `scan0`.** From inside the namespace:
+    `10.0.30.40:22` (TCP) dropped, `10.0.30.40` (ICMP) dropped, and the
+    in-scope `10.0.30.50:445` **connected**. The `netdev` egress drop counter
+    rose on each out-of-scope attempt. Every layer the scanner sends on — IP,
+    ICMP and ARP — is held to the six.
+  - A full GVM *Discovery* task against `10.0.30.40` was queued behind a VT
+    reload (`ospd` re-uploads NVTs to redis after a restart), so that flood
+    was not re-captured through gvmd; the direct namespace proof above covers
+    the same `scan0` path the scanner uses. (An earlier cgroup-era GVM scan of
+    `.40` had dropped 11,681 packets with 0 open ports, confirming the scanner
+    really floods an out-of-scope target through that path.)
+  - The drop log is rate-limited to 5 a second; the counter counts every
+    packet.
+- **Stopped afterwards:** `gvm-stop`, the namespace, and §6's extra
+  `systemctl stop`. All units inactive and disabled; the namespace and `scan0`
+  gone; RAM back.
 - **For Garrett:** change `admin`'s password in the UI (*My Settings*). The
   generated one is in `/root/gvm-install.log` on `garuda`, root-only. Delete
   that file once it is changed.
