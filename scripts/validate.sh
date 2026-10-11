@@ -463,6 +463,19 @@ SKIPPED=$((SKIPPED + $(wc -l < "${PROXY_SKIPS}")))
 rm -f "${PROXY_SKIPS}"
 
 # ---------------------------------------------------------------------------
+head_ "gosu skip"
+# ---------------------------------------------------------------------------
+# scan-images.sh skips gosu in the repositories scripts/gosu-skip.txt lists,
+# on the claim that their entrypoints call it only as root. Boots each pinned
+# one as 999:999 with a stand-in gosu, plus a root control (#995, #980).
+GOSU_SKIPS="$(mktemp)"
+if ! ./scripts/check_gosu_skip.sh --skips-file "${GOSU_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${GOSU_SKIPS}")))
+rm -f "${GOSU_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Caddyfiles"
 # ---------------------------------------------------------------------------
 # A stack that fronts its services with Caddy carries a Caddyfile, and a
@@ -792,6 +805,16 @@ if ./scripts/check-tracked-artefacts.sh >/dev/null; then
 else
   ./scripts/check-tracked-artefacts.sh || true
   fail "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
+fi
+
+# The Wazuh cert tool the certs profile mints with is vendored and pinned by its
+# sha256 (ADR-0094). scripts/wazuh-certs-mint.sh refuses a mismatch at mint
+# time, which is the rare, urgent day. This says so on every validate instead.
+if ./scripts/vendor-wazuh-certs-tool.sh --check >/dev/null; then
+  pass "the vendored Wazuh cert tool is the one VENDORED pins"
+else
+  ./scripts/vendor-wazuh-certs-tool.sh --check || true
+  fail "the vendored Wazuh cert tool is the one VENDORED pins"
 fi
 
 # The one .pem .gitignore lets through (#764): it must be the estate CA's

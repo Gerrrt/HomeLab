@@ -615,17 +615,32 @@ There is no ignore list, as for the secret scan in
   [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
   second note.
 
-The scan skips one file, and only in one image: `/usr/local/bin/gosu` in
-`postgres:*` ([#995](https://github.com/Gerrrt/HomeLab/issues/995)). On
-2026-10-10 every finding in both `17.11` and `18.6` was Go's `stdlib` 1.24.6
-in that binary, and Postgres and the Debian packages scanned clean. No bump
-will clear it, because gosu's maintainers don't release for scanner-only
-CVEs. gosu is the entrypoint's root-to-`postgres` step, and it runs only when
-the container starts as uid 0. All four Postgres services start as `999:999`,
-so here it never runs. `check_compose_health.py` fails any `postgres:*`
-service that doesn't, because that would make the skip hide something
-reachable. The reason is written inline in `scripts/scan-images.sh`, and a
-second exception needs a rule both can cite, not another case there.
+The scan skips one file, `/usr/local/bin/gosu`, and only in the repositories
+[`scripts/gosu-skip.txt`](../../scripts/gosu-skip.txt) lists: `postgres`
+([#995](https://github.com/Gerrrt/HomeLab/issues/995)) and
+`ghcr.io/immich-app/postgres`
+([#980](https://github.com/Gerrrt/HomeLab/issues/980)). On 2026-10-10 every
+finding in the official `17.11` and `18.6` was Go's `stdlib` 1.24.6 in that
+binary, and 59 of Immich's rows, all four of its stdlib criticals among them,
+were the same. No bump will clear them, because gosu's maintainers don't
+release for scanner-only CVEs. gosu is the entrypoint's root-to-`postgres`
+step, and it runs only when the container starts as uid 0.
+
+That file states the rule, and two checks hold both halves of it:
+
+- **Every service runs a listed image as `999:999`.**
+  `check_compose_health.py` fails one that doesn't, because then gosu runs
+  and the skip would hide something reachable.
+- **The image calls gosu only as root.** `check_gosu_skip.sh` boots each
+  pinned image of a listed repository as `999:999`, with a stand-in gosu that
+  leaves a marker. It does so twice: a first start on an empty volume, and a
+  restart against the cluster that start made, which is every later start
+  of a deployed service. Both must come up with no marker. A
+  root-started control must leave one. It runs in CI, so a bump that changes
+  the entrypoint fails there.
+
+Adding a repository means adding a line to that file with the reason above
+it. Both checks then apply to it, with nothing else to change.
 
 ---
 

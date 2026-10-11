@@ -41,6 +41,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
 | `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
+| `check_gosu_skip.sh` | `check-gosu-skip` | Every image whose gosu the CVE scan skips (`gosu-skip.txt`) never runs gosu when started as `999:999`, with a root control proving the stand-in is on its path (#995, #980) |
 | `check_socket_proxy.sh` | `check-socket-proxy` | The Docker socket proxies allow what Alloy reads and refuse `archive`, `export` and `top`, and upstream's template is unchanged under the committed config (Tecnativa/docker-socket-proxy#182) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
@@ -157,6 +158,8 @@ They need the running estate, so CI cannot run them. Timers do.
 | `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs, and the two Debian packages `garuda` installs, into `${SOC_DATA_DIR}/agent-msi` on `odin`, which the SOC stack's Caddy serves. The vendor packages are checked against their pins; the Velociraptor `.deb` is built by the server and its hash printed ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)) |
 | `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
+| `vendor-wazuh-certs-tool.sh` | — | Vendors Wazuh's cert tool at one sha256, `--check`s it offline (in `validate.sh`), or reports whether `--upstream` has moved ([ADR-0094](../docs/adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)) |
+| `wazuh-certs-mint.sh` | — | The `certs` profile's entrypoint: mints the SOC's mTLS CA with the vendored tool, offline, and refuses a tool VENDORED doesn't pin; its fixtures run in `self-tests.sh` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
 | `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |
 

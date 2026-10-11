@@ -364,6 +364,10 @@ check-syslog-senders: ## Send spoofed and real syslog through a scratch Alloy an
 check-socket-proxy: ## Boot the pinned socket proxy on its config; Alloy's paths answer, archive/export/top are refused
 	./scripts/check_socket_proxy.sh
 
+.PHONY: check-gosu-skip
+check-gosu-skip: ## Boot each image whose gosu the scan skips as 999:999; gosu must never run
+	./scripts/check_gosu_skip.sh
+
 .PHONY: patch-state
 patch-state: ## Collect this host's package patch state into the textfile dir
 	@# Needs no root: apt-check runs unprivileged, /var/run/reboot-required is a
