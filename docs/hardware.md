@@ -869,11 +869,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   runs it on RouterOS, keeps the name `neo` and the address `10.7.7.2`, serves
   `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
   an SNMPv3 authPriv user; the procedure is
-  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It enters the
-  Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
-  carries every VLAN, so the swap is a house-wide outage and shares a rack
-  visit rather than getting its own — and until then `neo` is the switch in
-  every document and every target. **Checked on arrival, not assumed:** which
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It was racked in the
+  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. It enters the
+  Rack table and [`network.md`](network.md) at the cutover, not at the
+  racking — `neo` carries every VLAN, so the swap is a house-wide outage and
+  shares the window of the move into the 32U rack rather than getting its
+  own — and until then `neo` is the MokerLink in every document and every
+  target. **Checked on arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
