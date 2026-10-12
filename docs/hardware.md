@@ -82,8 +82,8 @@ the table below.
 2026-10-12. The DL360's rails and the TP-Link's shelf already fit that
 spacing. The DL360 Gen9 is about 70 cm (27.5") deep, the deepest thing here,
 and its rails need four posts. The UPS needs rear support. Open frame suits a
-fanless switch. Every four-post rail and shelf bought for it must list 29"
-inside its adjustment range.
+fanless switch. Any four-post shelf bought new must fit a 29"-deep rack,
+which its listing states, and bolt to both posts without forcing.
 
 **Why not 18U:** the existing ViewSonic N1700W goes into the rack
 rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
@@ -109,14 +109,14 @@ CRS326 with them.
 | --- | --- | --- |
 | U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
 | U24 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 112 cm up |
-| U23 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6. Its lead set to the DL360 has to reach 20 units down |
+| U23 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12 |
 | U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
 | U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
 | U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
 | U18 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
 | U17 | *gap* | Keeps the range off the sensitive tier's box |
-| U16 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus`. Its 2 TB USB photo disk has no place yet |
+| U16 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus`. Its 2 TB USB photo disk sits on the same tray |
 | U15 | ProDesk Mini tray: `morpheus` | |
 | U14 | Vented shelf: TP-Link 8-port | Feeds the two laptops below it |
 | U13 | *gap* | Air over `oracle` |
@@ -145,8 +145,8 @@ cord to the media room, and its network lead goes straight to the switch
 instead of over the house run that carries it now.
 
 **`trinity`'s USB photo disk** (the 2 TB drive below, which holds Immich's
-originals) has no planned place in the rack. A 1U ProDesk tray probably has
-no room for it. Wherever it goes, it must not hang by its cable.
+originals) sits on `trinity`'s tray beside it, decided 2026-10-12. Strap it
+down so it cannot slide off or hang by its cable.
 
 **`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
 ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a

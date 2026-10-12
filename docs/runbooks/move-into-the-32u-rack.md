@@ -120,10 +120,10 @@ rear posts on the 9U frame. Write it down. The DL360's rails and the TP-Link's
 shelf already fit that spacing, so setting the new frame to the same depth
 means both carry over unchanged.
 
-**Measured 2026-10-12: 29".** Before the window, read the adjustment range
-printed on every four-post rail and shelf (the DL360's rail kit, the UPS's
-rear support, each shelf) and check that 29" sits inside it, not at either
-end.
+**Measured 2026-10-12: 29".** The DL360's rails and the TP-Link's shelf fit
+it already. Any shelf bought new must fit a 29"-deep rack, which its listing
+states. When mounting, each one bolts to front and rear posts without
+forcing; if one will not reach, see the recovery table.
 
 ### 1.2 Build the frame
 
@@ -382,16 +382,14 @@ units (§1.2), then the next one up.
   the MokerLink's port 15 role in the captured map: untagged, VLAN 40
   ([`network.md`](../network.md)). The house run that carried it from the
   media room is then free.
-- **`trinity`'s 2 TB USB photo disk has no planned place yet**
-  ([`hardware.md`](../hardware.md#planned-a-32u-rack)). Wherever it goes, it
-  must not hang by its cable, and it must be plugged back in before `trinity`
-  powers up in §7: it holds Immich's originals.
+- **`trinity`'s 2 TB USB photo disk goes on `trinity`'s tray**, beside it,
+  strapped down with velcro so it cannot slide off or hang by its cable. Plug
+  it back in before `trinity` powers up in §7: it holds Immich's originals.
 - **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
   clicks, in the XB7's striped 2.5 Gbit port.
 - KVM: one lead set each to `morpheus`, `Saruman`, `trinity` and `ifrit`.
   Write down which KVM port is which; the repository has no map of it. The
-  KVM is at U23 and `Saruman` at U3, 20 units apart. Check before the window
-  that a lead set reaches that far once routed down the back.
+  lead sets reach from U23 down to `Saruman` at U3, checked 2026-10-12.
 
 ---
 
