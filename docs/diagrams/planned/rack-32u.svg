@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 900" width="1000" height="900" role="img" aria-labelledby="title desc">
+<title id="title">The planned 32U rack</title>
+<desc id="desc">Front elevation of the planned 32U four-post rack, drawn from the Planned: a 32U rack table in docs/hardware.md: the console at the top, the network group in the middle, the hosts below with single-unit gaps, and smaug, the UPS and the DL360 at the bottom.</desc>
+<style>text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; }</style>
+<rect width="1000" height="900" fill="#0d1117"/>
+<text x="40" y="52" font-size="30" font-weight="700" fill="#f0f6fc">32U rack</text>
+<text x="178" y="52" font-size="30" font-weight="300" fill="#8b949e">· planned</text>
+<text x="40" y="80" font-size="14" fill="#8b949e">Four-post open frame, 29" post to post. Built 2026-10-11, not yet moved into. Drawn from docs/hardware.md.</text>
+<rect x="156" y="104" width="8" height="716" fill="#30363d"/>
+<rect x="596" y="104" width="8" height="716" fill="#30363d"/>
+<rect x="170" y="111" width="420" height="174" rx="3" fill="#21262d" stroke="#8b949e"/>
+<text x="380.0" y="202.6" font-size="13" fill="#f0f6fc" text-anchor="middle">ViewSonic N1700W on an 8U VESA mount</text>
+<text x="146" y="202.2" font-size="12" fill="#8b949e" text-anchor="end">U25–U32</text>
+<rect x="170" y="287" width="420" height="20" rx="3" fill="#21262d" stroke="#8b949e"/>
+<text x="380.0" y="301.6" font-size="13" fill="#f0f6fc" text-anchor="middle">Keyboard and mouse drawer</text>
+<text x="146" y="301.2" font-size="12" fill="#8b949e" text-anchor="end">U24</text>
+<rect x="170" y="309" width="420" height="20" rx="3" fill="#21262d" stroke="#8b949e"/>
+<text x="380.0" y="323.6" font-size="13" fill="#f0f6fc" text-anchor="middle">MT-VIKI 8-port KVM</text>
+<text x="146" y="323.2" font-size="12" fill="#8b949e" text-anchor="end">U23</text>
+<rect x="170" y="331" width="420" height="20" rx="3" fill="#161b22" stroke="#484f58"/>
+<text x="380.0" y="345.6" font-size="13" fill="#c9d1d9" text-anchor="middle">Vented blank: air over the CRS326</text>
+<text x="146" y="345.2" font-size="12" fill="#8b949e" text-anchor="end">U22</text>
+<rect x="170" y="353" width="420" height="20" rx="3" fill="#0f2e26" stroke="#3fb950"/>
+<text x="380.0" y="367.6" font-size="13" fill="#d2f8de" text-anchor="middle">MikroTik CRS326-24G-2S+RM · neo</text>
+<text x="146" y="367.2" font-size="12" fill="#8b949e" text-anchor="end">U21</text>
+<rect x="170" y="375" width="420" height="20" rx="3" fill="#161b22" stroke="#484f58"/>
+<text x="380.0" y="389.6" font-size="13" fill="#c9d1d9" text-anchor="middle">Horizontal cable manager</text>
+<text x="146" y="389.2" font-size="12" fill="#8b949e" text-anchor="end">U20</text>
+<rect x="170" y="397" width="420" height="20" rx="3" fill="#0f2e26" stroke="#3fb950"/>
+<text x="380.0" y="411.6" font-size="13" fill="#d2f8de" text-anchor="middle">Jadol 24-port patch panel</text>
+<text x="146" y="411.2" font-size="12" fill="#8b949e" text-anchor="end">U19</text>
+<rect x="170" y="419" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="433.6" font-size="13" fill="#e8dcff" text-anchor="middle">ThinkCentre M80q · ifrit</text>
+<text x="146" y="433.2" font-size="12" fill="#8b949e" text-anchor="end">U18</text>
+<rect x="170" y="441" width="420" height="20" rx="3" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/>
+<text x="380.0" y="455.2" font-size="12" fill="#6e7681" text-anchor="middle">gap</text>
+<text x="146" y="455.2" font-size="12" fill="#8b949e" text-anchor="end">U17</text>
+<rect x="170" y="463" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="477.6" font-size="13" fill="#e8dcff" text-anchor="middle">ProDesk Mini · trinity</text>
+<text x="146" y="477.2" font-size="12" fill="#8b949e" text-anchor="end">U16</text>
+<rect x="170" y="485" width="420" height="20" rx="3" fill="#0f2e26" stroke="#3fb950"/>
+<text x="380.0" y="499.6" font-size="13" fill="#d2f8de" text-anchor="middle">ProDesk Mini · morpheus</text>
+<text x="146" y="499.2" font-size="12" fill="#8b949e" text-anchor="end">U15</text>
+<rect x="170" y="507" width="420" height="20" rx="3" fill="#0f2e26" stroke="#3fb950"/>
+<text x="380.0" y="521.5" font-size="13" fill="#d2f8de" text-anchor="middle">TP-Link 8-port, on a shelf</text>
+<text x="146" y="521.2" font-size="12" fill="#8b949e" text-anchor="end">U14</text>
+<rect x="170" y="529" width="420" height="20" rx="3" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/>
+<text x="380.0" y="543.2" font-size="12" fill="#6e7681" text-anchor="middle">gap</text>
+<text x="146" y="543.2" font-size="12" fill="#8b949e" text-anchor="end">U13</text>
+<rect x="170" y="551" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="565.5" font-size="13" fill="#e8dcff" text-anchor="middle">oracle, flat on a shelf, lid closed</text>
+<text x="146" y="565.2" font-size="12" fill="#8b949e" text-anchor="end">U12</text>
+<rect x="170" y="573" width="420" height="20" rx="3" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/>
+<text x="380.0" y="587.2" font-size="12" fill="#6e7681" text-anchor="middle">gap</text>
+<text x="146" y="587.2" font-size="12" fill="#8b949e" text-anchor="end">U11</text>
+<rect x="170" y="595" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="609.5" font-size="13" fill="#e8dcff" text-anchor="middle">prometheus, flat on a shelf, lid closed</text>
+<text x="146" y="609.2" font-size="12" fill="#8b949e" text-anchor="end">U10</text>
+<rect x="170" y="617" width="420" height="108" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="675.5" font-size="13" fill="#e8dcff" text-anchor="middle">ThinkServer TS150 · smaug, on its side on a shelf</text>
+<text x="146" y="675.2" font-size="12" fill="#8b949e" text-anchor="end">U5–U9</text>
+<rect x="170" y="727" width="420" height="20" rx="3" fill="#3a1d12" stroke="#f0883e"/>
+<text x="380.0" y="741.5" font-size="13" fill="#ffdfc8" text-anchor="middle">10-outlet PDU</text>
+<text x="146" y="741.2" font-size="12" fill="#8b949e" text-anchor="end">U4</text>
+<rect x="170" y="749" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
+<text x="380.0" y="763.5" font-size="13" fill="#e8dcff" text-anchor="middle">HPE ProLiant DL360 Gen9 · shiva / Saruman</text>
+<text x="146" y="763.2" font-size="12" fill="#8b949e" text-anchor="end">U3</text>
+<rect x="170" y="771" width="420" height="42" rx="3" fill="#3a1d12" stroke="#f0883e"/>
+<text x="380.0" y="796.5" font-size="13" fill="#ffdfc8" text-anchor="middle">APC Smart-UPS X 1500 · mjolnir</text>
+<text x="146" y="796.2" font-size="12" fill="#8b949e" text-anchor="end">U1–U2</text>
+<line x1="610" y1="198.0" x2="630" y2="198.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="194.2" font-size="12" fill="#8b949e" text-anchor="start">Bare panel not yet measured. Over 355 mm it needs 9U</text>
+<text x="638" y="210.2" font-size="12" fill="#8b949e" text-anchor="start">at U24–U32, and U17–U24 each drop one unit</text>
+<line x1="610" y1="297.0" x2="630" y2="297.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="301.2" font-size="12" fill="#8b949e" text-anchor="start">Keyboard about 112 cm up</text>
+<line x1="610" y1="341.0" x2="630" y2="341.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="345.2" font-size="12" fill="#8b949e" text-anchor="start">Two S+RJ10s side by side need extra cooling</text>
+<line x1="610" y1="363.0" x2="630" y2="363.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="367.2" font-size="12" fill="#8b949e" text-anchor="start">Racked 2026-10-12, not cabled</text>
+<line x1="610" y1="473.0" x2="630" y2="473.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="477.2" font-size="12" fill="#8b949e" text-anchor="start">Its 2 TB USB photo disk has no place yet</text>
+<line x1="610" y1="572.0" x2="630" y2="572.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="576.2" font-size="12" fill="#8b949e" text-anchor="start">A unit of air over each closed-lid laptop</text>
+<line x1="610" y1="671.0" x2="630" y2="671.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="667.2" font-size="12" fill="#8b949e" text-anchor="start">7" tall on its side: 5U with its shelf.</text>
+<text x="638" y="683.2" font-size="12" fill="#8b949e" text-anchor="start">About 20 lb; the shelf is rated 50 lb or more</text>
+<line x1="610" y1="737.0" x2="630" y2="737.0" stroke="#6e7681" stroke-dasharray="3 3"/>
+<text x="638" y="741.2" font-size="12" fill="#8b949e" text-anchor="start">Feeds smaug directly; the long cord is retired</text>
+<rect x="40" y="851" width="14" height="14" rx="2" fill="#21262d" stroke="#8b949e"/>
+<text x="62" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Console</text>
+<rect x="205" y="851" width="14" height="14" rx="2" fill="#0f2e26" stroke="#3fb950"/>
+<text x="227" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Network</text>
+<rect x="370" y="851" width="14" height="14" rx="2" fill="#221d45" stroke="#a371f7"/>
+<text x="392" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Hosts</text>
+<rect x="535" y="851" width="14" height="14" rx="2" fill="#3a1d12" stroke="#f0883e"/>
+<text x="557" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Power</text>
+<rect x="700" y="851" width="14" height="14" rx="2" fill="#161b22" stroke="#484f58"/>
+<text x="722" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Blank, cable manager</text>
+<rect x="865" y="851" width="14" height="14" rx="2" fill="none" stroke="#6e7681" stroke-dasharray="3 2"/>
+<text x="887" y="862.2" font-size="12" fill="#c9d1d9" text-anchor="start">Gap, left for air</text>
+</svg>

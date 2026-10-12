@@ -17,6 +17,34 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-12
+
+- **The 32U rack is built, at 29", and laid out again**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The frame was
+  assembled on 2026-10-11 and is set to 29" post to post, the old 9U frame's
+  depth, measured today. No document had recorded a depth until now: the
+  runbook only said to copy the old one. The frame wobbled at first because
+  its screws were not yet tightened; depth had nothing to do with it.
+  - **What changed in the plan.** The console moves to the very top
+    (screen U25–U32, keyboard drawer U24, KVM U23), which puts the keyboard
+    at about 112 cm rather than 90 cm. `smaug` comes into the rack on its
+    side at U5–U9, which retires its long cord to the media room. The spare
+    units become single gaps: one over each closed-lid laptop, and one
+    between `trinity` and `ifrit`. 29 of 32 units are used, with no headroom
+    left.
+  - **What was measured.** The TS150 is 15" × 7" × 17" upright and about
+    20 lb with its drives. On its side it is 7" tall, exactly 4U, so with a
+    shelf it takes 5U. The house's in-wall runs reach the patch panel at
+    U19.
+  - **What is done.** The CRS326 was racked at U21 today, unpowered and
+    uncabled. Its cabling stays in the move window.
+  - **Still open.** The screen panel's height: over 355 mm and U17–U24 each
+    drop one unit. The adjustment range of every four-post rail and shelf
+    against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
+    sets reach the DL360 20 units below. The plan is in
+    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+
 ## 2026-10-11
 
 - **The SOC's CA is minted offline, by a cert tool pinned by its sha256**
