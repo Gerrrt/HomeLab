@@ -206,11 +206,10 @@ series. **If you see a gap,** it suspended: open the lid, and confirm that
 1. Lay the N1700W face down on a towel.
 2. Remove the four screws holding the stand, then the four rubber plugs
    under them. **The VESA 100 × 100 holes are underneath** (from its manual).
-3. **Measure the bare panel's height.** At 355 mm or less it fits the 8U
-   reserved for it (U25–U32). If it is taller, it needs 9U at U24–U32, and
-   everything from U24 down to U17 drops one unit, as
-   [`hardware.md`](../hardware.md#planned-a-32u-rack) sets out. That includes
-   re-racking the CRS326 from U21 to U20, so measure before the window.
+3. **The bare panel's height: measured 2026-10-12, 13" (about 330 mm).**
+   That fits the 8U (355.6 mm) reserved for it at U25–U32, so nothing
+   below it moves. With the stand off, check that the VESA holes sit near
+   the panel's vertical centre: the top edge must not rise above U32.
 4. Fit the rack mount's bracket to the VESA holes. Do not rack it yet.
 
 ### 1.6 Label everything

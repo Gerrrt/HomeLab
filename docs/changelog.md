@@ -19,6 +19,13 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-12
 
+- **The screen fits 8U** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).
+  The N1700W's bare panel measures 13" (about 330 mm) tall, under the 8U
+  mount's 355.6 mm. It stays at U25–U32, and the 9U fallback in the entry
+  below, which would have moved U17–U24 and re-racked the CRS326, is not
+  needed. Three of that entry's open items remain: the rails' ranges,
+  `trinity`'s USB photo disk, and the KVM leads' reach.
+
 - **The 32U rack is built, at 29", and laid out again**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The frame was
   assembled on 2026-10-11 and is set to 29" post to post, the old 9U frame's

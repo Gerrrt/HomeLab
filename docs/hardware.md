@@ -90,7 +90,7 @@ rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
 for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
 sliding shelf.
 
-**The N1700W: what is settled, and the one figure still open.** It is
+**The N1700W: every figure is settled.** It is
 431 × 414 × 172 mm (W × H × D) and 5.6 kg. It takes VGA and DVI inputs, so
 it connects to the VGA KVM directly. It runs from an external 12 V brick
 that needs a PDU outlet and somewhere to sit. 431 mm is inside a 19" rack's
@@ -99,13 +99,11 @@ opening, about 450 mm between the rails.
 **It is VESA 100 × 100 mm**, from its manual's wall-mount section, confirmed
 2026-10-06. The four holes sit under rubber plugs once the stand's four
 screws are out. So it takes a standard VESA rack mount with the stand off.
-The spec sheet's 414 mm includes the stand. **The bare panel's height has
-not been measured.** At 355 mm or less it fits the 8U mount tabled below.
-If it is taller, it needs 9U at U24–U32, and everything from U24 down to
-U17 drops one unit: the drawer to U23, the KVM to U22, the vented blank to
-U21, the CRS326 to U20, the cable manager to U19, the panel to U18 and
-`ifrit` into the U17 gap. That means re-racking the CRS326, and the gap
-between `ifrit` and `trinity` goes.
+The spec sheet's 414 mm includes the stand. **The bare panel is 13" (about
+330 mm) tall, measured 2026-10-12**, so it fits the 8U (355.6 mm) mount
+tabled below with about an inch to spare, and the layout stands as drawn.
+A taller panel would have needed 9U and pushed U17–U24 down a unit, the
+CRS326 with them.
 
 | U | Device | Why here |
 | --- | --- | --- |
