@@ -69,8 +69,8 @@
 <text x="380.0" y="796.5" font-size="13" fill="#ffdfc8" text-anchor="middle">APC Smart-UPS X 1500 · mjolnir</text>
 <text x="146" y="796.2" font-size="12" fill="#8b949e" text-anchor="end">U1–U2</text>
 <line x1="610" y1="198.0" x2="630" y2="198.0" stroke="#6e7681" stroke-dasharray="3 3"/>
-<text x="638" y="194.2" font-size="12" fill="#8b949e" text-anchor="start">Bare panel not yet measured. Over 355 mm it needs 9U</text>
-<text x="638" y="210.2" font-size="12" fill="#8b949e" text-anchor="start">at U24–U32, and U17–U24 each drop one unit</text>
+<text x="638" y="194.2" font-size="12" fill="#8b949e" text-anchor="start">Bare panel 13" (330 mm), measured 2026-10-12:</text>
+<text x="638" y="210.2" font-size="12" fill="#8b949e" text-anchor="start">fits 8U (355.6 mm), about an inch to spare</text>
 <line x1="610" y1="297.0" x2="630" y2="297.0" stroke="#6e7681" stroke-dasharray="3 3"/>
 <text x="638" y="301.2" font-size="12" fill="#8b949e" text-anchor="start">Keyboard about 112 cm up</text>
 <line x1="610" y1="341.0" x2="630" y2="341.0" stroke="#6e7681" stroke-dasharray="3 3"/>
@@ -78,7 +78,7 @@
 <line x1="610" y1="363.0" x2="630" y2="363.0" stroke="#6e7681" stroke-dasharray="3 3"/>
 <text x="638" y="367.2" font-size="12" fill="#8b949e" text-anchor="start">Racked 2026-10-12, not cabled</text>
 <line x1="610" y1="473.0" x2="630" y2="473.0" stroke="#6e7681" stroke-dasharray="3 3"/>
-<text x="638" y="477.2" font-size="12" fill="#8b949e" text-anchor="start">Its 2 TB USB photo disk has no place yet</text>
+<text x="638" y="477.2" font-size="12" fill="#8b949e" text-anchor="start">Its 2 TB USB photo disk shares the tray</text>
 <line x1="610" y1="572.0" x2="630" y2="572.0" stroke="#6e7681" stroke-dasharray="3 3"/>
 <text x="638" y="576.2" font-size="12" fill="#8b949e" text-anchor="start">A unit of air over each closed-lid laptop</text>
 <line x1="610" y1="671.0" x2="630" y2="671.0" stroke="#6e7681" stroke-dasharray="3 3"/>
