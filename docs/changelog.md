@@ -17,6 +17,23 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-13
+
+- **The rack move's parts, `ifrit`'s upgrades and `Saruman`'s memory are on
+  the buy list** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The
+  roadmap's *Everything still to buy* had been empty since 2026-09-25.
+  The 32U move's parts had been listed only in its runbook. #1179 added
+  `smaug`'s shelf there too, against the roadmap's rule that a planned
+  purchase goes in the table. The table now has eleven rows. The VESA mount,
+  `trinity`'s tray and the velcro are on hand.
+  - **`Saruman` gets eight more 16 GB RDIMMs, for headroom** (the operator,
+    today). Its iLO, read today, shows eight 16 GB DDR4 RDIMMs, dual-rank,
+    rated 2400 and third-party, one per channel in slots 1, 4, 9 and 12 of
+    each CPU. Eight more fill every channel's second slot alike, for 256 GB.
+    They go in during the move window, while the DL360 is out of the rack.
+  - **The "one more, later" paragraph about `ifrit` is retired.** `ifrit` was
+    bought on 2026-10-05. README now says eleven items now and none later.
+
 ## 2026-10-12
 
 - **The screen fits 8U, and the plan's open questions are closed** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).

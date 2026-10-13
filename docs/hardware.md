@@ -190,6 +190,18 @@ retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
 
+**`Saruman`'s 128 GB, as its iLO reports it (read 2026-10-13):** eight 16 GB
+DDR4 RDIMMs, dual-rank, rated 2400. The maker reads *UNKNOWN* and HPE
+SmartMemory is not set, so they are third-party. They sit in slots 1, 4, 9
+and 12 of each CPU, one per memory channel, so 16 of 24 slots are empty.
+**Eight more are to buy** ([roadmap](roadmap.md#everything-still-to-buy)),
+which takes it to 256 GB with every channel populated alike. That is
+headroom, decided 2026-10-13. It does not contradict
+[ADR-0007](adr/0007-defensive-estate-and-offensive-range.md)'s finding that
+storage, not compute, is its constraint. Match a fitted stick's label, which
+the iLO does not report. At two per channel, third-party RDIMMs can train a
+step slower, so read the iLO's memory page after fitting.
+
 `morpheus` has two wired interfaces, and the second is not part of the model:
 the onboard Intel I219-LM (`em0`, the WAN) and an Intel I226-V 2.5 GbE card on
 an M.2 B+M-key adapter[^I226] in the G4's second M.2 slot (`igc0`, the
