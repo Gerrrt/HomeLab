@@ -17,6 +17,14 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-14
+
+- **`ifrit` arrived, and a VGA card for it was ordered**
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Its rear has DP
+  and HDMI only, and the KVM is VGA, so Lenovo FRU `01AJ935`, a VGA card for
+  optional port 1, replaces the DisplayPort card in that slot. It is recorded
+  in `hardware.md` beside the RAM and NVMe still to buy.
+
 ## 2026-10-12
 
 - **The screen fits 8U, and the plan's open questions are closed** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).

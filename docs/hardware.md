@@ -156,6 +156,14 @@ asks for 32 GB of socketed RAM and NVMe, and two parts are still to buy:
 - 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
 - a 1 TB NVMe SSD, for the range's snapshot reverts.
 
+**A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
+Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the
+DisplayPort card that `ifrit` shipped with in that slot, so `ifrit` plugs
+straight into the VGA KVM. The listings name the M70q/M80q/M90q, and the
+FRU fits Tinys back to the M720q. Before fitting it, check that its ribbon
+cable and plug match the DP card's. Lenovo's M80q PSREF shows this slot
+with a VGA card fitted.
+
 It runs from an external power brick, like the ProDesks, which needs a PDU
 outlet and somewhere to sit. Its port goes to the switch on ImaginationLAN
 (ADR-0014). The build is #421.
