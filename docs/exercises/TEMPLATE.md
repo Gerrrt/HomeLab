@@ -16,7 +16,7 @@ meant to prove or disprove.
   pulled for exactly this period.
 - **Lab state:** anything switched on for this run, such as which deliberate
   weakness tags were enabled
-  ([ADR-0083](../adr/0083-give-the-lab-domains-deliberate-weaknesses-as-switchable-tags.md)).
+  ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
 
 ## Techniques
 
