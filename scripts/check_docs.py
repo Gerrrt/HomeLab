@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Eleven assertions, each comparing prose against something machine-readable:
+Twelve assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -46,10 +46,17 @@ Eleven assertions, each comparing prose against something machine-readable:
  11. Runbook URLs         every critical alert's runbook_url names a file in
                            docs/runbooks/ and, if it has one, an anchor that is
                            a heading in that file (#842).
+ 12. Relative links       every relative Markdown link, in every tracked file,
+                           resolves to a file in the tree, and its anchor to a
+                           heading. The one check that runs over records too: a
+                           dead link is a structural fault, not a claim.
 
-Only present-tense documents are checked. `docs/changelog.md`, `docs/roadmap.md`
-and `docs/adr/` record what was true when the work landed — `changelog.md`
-still says "(34 rules)" in a 2026-08 entry, and that is correct as written.
+Only present-tense documents are checked for their claims — the relative-link
+assertion (12) is the exception, and scans every tracked file including the
+records, because a dead link is a structural fault, not a claim. `docs/changelog.md`,
+`docs/roadmap.md` and `docs/adr/` record what was true when the work landed —
+`changelog.md` still says "(34 rules)" in a 2026-08 entry, and that is correct
+as written, and its *claims* are not checked here.
 Failing on those would need an
 ignore list, and this repository has already learned where that leads: the
 `.gitleaksignore` deleted in the history purge "was an acknowledgement, not a
@@ -73,6 +80,7 @@ import functools
 import json
 import pathlib
 import re
+import subprocess
 import sys
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
@@ -1364,6 +1372,134 @@ def check_runbook_urls() -> list[str]:
     return problems
 
 
+# Every `](target)` — inline links, images, and the outer target of a linked
+# image `[![alt](img)](target)`, which a `!?\[...\]\(...\)` form misses because
+# it stops at the inner image. Reference definitions are matched separately.
+_INLINE_TARGET = re.compile(r"\]\(([^)]+)\)")
+# A link reference definition at line start: `[label]: target` with only a
+# destination, optionally a quoted title. A footnote (`[^label]:`) or a line
+# whose "target" is followed by unquoted prose is not one — per CommonMark it
+# is a paragraph, so `[^lan]: True in both directions` is not a link.
+_REF_DEF = re.compile(r"""^\s{0,3}\[(?!\^)[^\]]+\]:\s+(\S+)\s*(?:["'(].*)?$""")
+
+
+def markdown_link_targets(text: str) -> list[str]:
+    """Every link target in a Markdown file's prose, skipping fenced code.
+
+    Covers the three forms this repository uses: inline `[text](target)` and
+    `![alt](target)`, the outer target of a linked badge `[![alt](img)](target)`
+    (both the inner image and the outer link are yielded), and reference
+    definitions `[label]: target`. A `](...)` or definition inside a ``` or
+    ~~~ block is an example, not a live link — the same fence rule
+    markdown_anchors uses.
+
+    A reference definition whose target itself opens with `[` is a footnote
+    carrying a nested link (`[^x]: [text](url)`); its real `](url)` is caught by
+    the inline pass, so the `[text` fragment is not treated as a target.
+    """
+    targets: list[str] = []
+    fence = ""
+    for line in text.splitlines():
+        m = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        if m:
+            if not fence:
+                fence = m.group(1)[0]
+            elif m.group(1)[0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        targets.extend(lm.group(1) for lm in _INLINE_TARGET.finditer(line))
+        ref = _REF_DEF.match(line)
+        if ref:
+            targets.append(ref.group(1))
+    return targets
+
+
+def _tracked_markdown() -> list[pathlib.Path]:
+    """Tracked `*.md` paths, from git rather than a walk of the working tree.
+
+    The convention `check_image_pins.py` sets, and for its reasons: a recursive
+    walk descends into the git worktrees this repository keeps under
+    `.claude/worktrees/` and reports another branch's files, and an untracked
+    scratch `.md` is nobody's concern and must not fail a local run.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [REPO / rel for rel in out.stdout.split("\0") if rel]
+
+
+def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]:
+    """The broken relative links in one Markdown file's text (pure; testable).
+
+    `rel` is the file's path for messages, `text` its contents, `root` the
+    repository it lives in. External links (`http(s)`, `mailto`, `tel`) are not
+    reached out to. A target that resolves outside `root` fails: GitHub cannot
+    render a link that leaves the repository, so an absolute path or a `../`
+    that escapes the checkout is as broken as a missing file.
+    """
+    problems: list[str] = []
+    here = (root / rel).parent
+    own_anchors = markdown_anchors(text)
+
+    def anchors_of(path: pathlib.Path) -> set[str]:
+        return markdown_anchors(path.read_text(encoding="utf-8"))
+
+    for raw in markdown_link_targets(text):
+        target = raw.strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1].strip()
+        target = target.split()[0] if target.split() else target  # drop a title
+        if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
+            continue
+        path_part, _, anchor = target.partition("#")
+        if not path_part:  # a same-file anchor, [text](#heading)
+            if anchor and anchor not in own_anchors:
+                problems.append(f"{rel}: #{anchor} is not a heading in this file")
+            continue
+        dest = (here / path_part).resolve()
+        try:
+            dest.relative_to(root.resolve())
+        except ValueError:
+            problems.append(f"{rel}: link to {target} leaves the repository")
+            continue
+        if not dest.exists():
+            problems.append(f"{rel}: link to {target} — {path_part} does not exist")
+            continue
+        if anchor and dest.suffix == ".md" and anchor not in anchors_of(dest):
+            problems.append(f"{rel}: {path_part} has no heading for #{anchor}")
+    return problems
+
+
+def check_relative_links() -> list[str]:
+    """Every relative Markdown link resolves to a file, and its anchor to a heading.
+
+    Two broken links shipped in one week — a template pointing at a mis-typed
+    ADR filename, and an ADR using `../adr/` from `docs/` (which resolves to a
+    repository-root `/adr/` that does not exist). `check_adr_numbers` checks
+    that ADR files are numbered right; nothing checked that a link *to* one
+    lands. This does, the same way `check_runbook_urls` checks a critical
+    alert's `runbook_url`: the target is a file in the tree, inside the
+    repository, and its anchor, if any, is a heading in it.
+
+    Unlike the claim checks, this runs over every tracked Markdown file,
+    records included: a link in `changelog.md` or an ADR that points at a
+    renamed file is broken whether or not the prose around it is a record, so
+    the present-tense scope does not apply to it. The parsing and resolution
+    live in `relative_link_problems`, which `--self-test` exercises directly.
+    """
+    problems: list[str] = []
+    for md in sorted(_tracked_markdown()):
+        rel = str(md.relative_to(REPO))
+        problems += relative_link_problems(rel, md.read_text(encoding="utf-8"), REPO)
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -1378,6 +1514,7 @@ def main() -> int:
         ("guest claims against each other", check_guest_claims),
         ("README's outstanding-purchase count against the roadmap's table", check_buy_list),
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
+        ("relative Markdown links resolve to a file and an anchor", check_relative_links),
     )
 
     # The registry is the source for README's "N assertions", so adding a
@@ -1427,6 +1564,50 @@ def self_test() -> int:
         ("nor inside a ~~~ fence", "also-not-a-heading" not in got),
         ("a heading after a closed fence is one", "after-the-fence" in got),
     ]
+    # The link parser and resolver check_relative_links depends on. Built as a
+    # temp tree so the resolution, not only the parsing, is exercised.
+    import tempfile
+
+    extracted = markdown_link_targets(
+        "[a](one.md) and ![i](img.png)\n"
+        "[![alt](badge.svg)](outer.md#sec)\n"
+        "[ref]: ../two.md\n"
+        "[^note]: True, and not a link at all\n"
+        "[bad]: also not a link, just prose\n"
+        "```\n[x](skipped.md)\n```\n"
+    )
+    cases += [
+        ("an inline link target is found", "one.md" in extracted),
+        ("an image target is found", "img.png" in extracted),
+        ("a linked badge yields its outer target", "outer.md#sec" in extracted),
+        ("and its inner image target", "badge.svg" in extracted),
+        ("a reference definition is found", "../two.md" in extracted),
+        ("a footnote is not a link", "True," not in extracted),
+        ("prose after a label is not a link", "also" not in extracted),
+        ("a target inside a fence is skipped", "skipped.md" not in extracted),
+    ]
+    with tempfile.TemporaryDirectory() as d:
+        root = pathlib.Path(d)
+        (root / "b.md").write_text("# Top\n## A Section\n")
+        (root / "img.png").write_bytes(b"")
+        text = (
+            "[ok](b.md)\n[anchor-ok](b.md#a-section)\n[img-ok](img.png)\n"
+            "[self-ok](#here)\n# Here\n"
+            "[missing](nope.md)\n[anchor-bad](b.md#ghost)\n"
+            "[self-bad](#ghost)\n[escape](../outside.md)\n"
+        )
+        probs = relative_link_problems("a.md", text, root)
+        joined = " | ".join(probs)
+        cases += [
+            ("a valid file link passes", "b.md —" not in joined),
+            ("a valid cross-file anchor passes", "a-section" not in joined),
+            ("a valid same-file anchor passes", "#here" not in joined),
+            ("a missing file is caught", "nope.md does not exist" in joined),
+            ("a missing cross-file anchor is caught", "no heading for #ghost" in joined),
+            ("a missing same-file anchor is caught", "#ghost is not a heading" in joined),
+            ("a target leaving the repository is caught", "leaves the repository" in joined),
+        ]
+
     failed = 0
     for name, ok in cases:
         failed += not ok
