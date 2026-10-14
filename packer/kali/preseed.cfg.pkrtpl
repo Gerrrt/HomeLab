@@ -74,6 +74,15 @@ d-i grub-installer/bootdev string default
 # Packer timed out waiting for SSH (#790, two proof builds on Saruman, 2026-10-08).
 # interfaces sources interfaces.d, so this adds eth0 without editing the
 # installer's file. A clone's cloud-init configures its own network on top.
+#
+# The chage loop clears a bogus account-expiry (shadow field 8 == 1, i.e. the
+# epoch, 1970-01-02) that Kali's package postinsts leave on service accounts
+# (lightdm, _gvm, inetsim, nm-*, dnsmasq, ...). lightdm is the one that bites:
+# systemd starts a user@<uid>.service for it (the greeter lingers a session),
+# PAM's account step sees the expired account and fails 224/PAM, so every clone
+# boots `degraded` (#1194, found on garuda #921). Only accounts actually at the
+# epoch are touched; real users (packer, and a clone's operator) have an empty
+# expiry field and are left alone.
 d-i preseed/late_command string \
   printf 'allow-hotplug eth0\niface eth0 inet dhcp\n' > /target/etc/network/interfaces.d/eth0; \
   in-target mkdir -p /home/packer/.ssh; \
@@ -83,6 +92,7 @@ d-i preseed/late_command string \
   in-target chmod 600 /home/packer/.ssh/authorized_keys; \
   echo 'packer ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-packer; \
   chmod 0440 /target/etc/sudoers.d/90-packer; \
+  in-target sh -c 'while IFS=: read -r n pass lastchg min max warn inactive expire rest; do [ "$expire" = 1 ] && chage -E -1 "$n"; done < /etc/shadow'; \
   in-target systemctl enable ssh qemu-guest-agent
 
 d-i finish-install/reboot_in_progress note
