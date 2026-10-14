@@ -472,12 +472,15 @@ the console password.
     - swap is `/swapfile` (4 GB);
     - cloud-init reports `done`;
     - SSH and `core doctor` work (exit 0).
-  - **One failed unit, on every boot before and after the fix:**
+  - **One failed unit, on every boot (fixed 2026-10-14, see below):**
     `user@968.service`, for `lightdm`.
     - The package creates that account with an expiry of 1970-01-02, so PAM
       refuses its user manager, and the system reads `degraded`.
     - `lightdm` itself is `active`.
-    - §9's desktop check from Hicks decides whether it matters.
+    - Resolved by the template fix dated 2026-10-14 below
+      ([#1194](https://github.com/Gerrrt/HomeLab/issues/1194), PR
+      [#1195](https://github.com/Gerrrt/HomeLab/pull/1195)); it was not
+      lightdm-only, but ~14 Kali service accounts.
 - **§6, 2026-10-10** ([#1144](https://github.com/Gerrrt/HomeLab/pull/1144)).
   - **garuda's tools:** `age` 1.3.2 from Kali, and `sops` 3.9.4's release
     binary (checksum OK) at `alexander`'s version. The repository is at
@@ -520,8 +523,33 @@ the console password.
     2.5 minutes everything above passed again with nothing typed, including
     500 journal lines in Loki over 3 minutes.
   - **Not run: the desktop line.** It needs the console from Hicks, and the
-    console password Garrett sets at a prompt (§4). `user@968.service`
-    (`lightdm`) still fails on every boot.
+    console password Garrett sets at a prompt (§4). At the time, `user@968.service`
+    (`lightdm`) failed on every boot; that `degraded` state was fixed on
+    2026-10-14 (see below).
+- **§9 follow-up — the `degraded` state, 2026-10-14**
+  ([#1194](https://github.com/Gerrrt/HomeLab/issues/1194), PR
+  [#1195](https://github.com/Gerrrt/HomeLab/pull/1195)).
+  - **Root cause:** not lightdm-specific. Kali's package postinsts ship ~14
+    service accounts (`lightdm`, `_gvm`, `inetsim`, `nm-*`, `dnsmasq`,
+    `tcpdump`, `mysql`, `pcscd`, `rtkit`, `Debian-snmp`, `systemd-network`,
+    `systemd-timesync`, `_dhcpcd`) with their shadow account-expiry at the
+    epoch (field 8 == `1`). `lightdm` is the only one `systemd` starts a
+    `user@<uid>.service` for, so it is the only one whose expired account
+    reaches PAM and fails `224/PAM`; the rest are latent. Not from our build
+    (`grep` of `packer/`, `scripts/`, `tofu/`, `stacks/` for
+    `chage`/`usermod -e`/`--expire` finds nothing) — it comes from Kali's
+    install layer.
+  - **Fixed live on garuda:** `chage -E -1` on every UID<1000 account at the
+    epoch, then `systemctl start user@968.service` → `running`, 0 failed units.
+  - **Fixed in the template:** a `late_command` step in
+    `packer/kali/preseed.cfg.pkrtpl` clears the epoch expiry at install time,
+    so fresh clones of 910 (and 902) are not born `degraded`.
+  - **Verified:** 910 rebuilt (`packer build -force`, `BUILD_EXIT=0`),
+    `packer-smoke.sh 910` passed, and a throwaway full-clone booted
+    `system: running` with 0 failed units and 0 accounts at the epoch.
+  - **Still owed:** the same check on 902 (ifrit's Kali, same preseed) when it
+    is next built — [#1196](https://github.com/Gerrrt/HomeLab/issues/1196),
+    tied to [#790](https://github.com/Gerrrt/HomeLab/issues/790).
 - **§12, phase 2, 2026-10-10**
   ([#1163](https://github.com/Gerrrt/HomeLab/pull/1163),
   [ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
