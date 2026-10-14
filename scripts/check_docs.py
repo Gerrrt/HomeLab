@@ -1440,9 +1440,7 @@ def check_relative_links() -> list[str]:
                 target = target[1:-1].strip()
             # Drop a link title: [text](path "Title").
             target = target.split()[0] if target.split() else target
-            if not target or target.startswith(
-                ("http://", "https://", "mailto:", "tel:")
-            ):
+            if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
                 continue
             path_part, _, anchor = target.partition("#")
             if not path_part:
