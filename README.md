@@ -113,7 +113,8 @@ documents for different readers.
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
   file's outstanding-purchase count against the roadmap's buy table, every
-  critical alert's `runbook_url` against the runbook and heading it names, and
+  critical alert's `runbook_url` against the runbook and heading it names,
+  every relative Markdown link against the file and heading it points at, and
   a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
