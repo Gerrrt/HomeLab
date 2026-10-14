@@ -535,15 +535,18 @@ the console password.
     `systemd-timesync`, `_dhcpcd`) with their shadow account-expiry at the
     epoch (field 8 == `1`). `lightdm` is the only one `systemd` starts a
     `user@<uid>.service` for, so it is the only one whose expired account
-    reaches PAM and fails `224/PAM`; the rest are latent. Not from our build
-    (`grep` of `packer/`, `scripts/`, `tofu/`, `stacks/` for
-    `chage`/`usermod -e`/`--expire` finds nothing) — it comes from Kali's
-    install layer.
+    reaches PAM and fails `224/PAM`; the rest are latent. Not from our build:
+    at diagnosis (before this fix) a `grep` of `packer/`, `scripts/`, `tofu/`,
+    `stacks/` for `chage`/`usermod -e`/`--expire` found nothing — it comes from
+    Kali's install layer. (The `late_command` added below now puts a `chage` in
+    the preseed, so that grep matches afterwards.)
   - **Fixed live on garuda:** `chage -E -1` on every UID<1000 account at the
     epoch, then `systemctl start user@968.service` → `running`, 0 failed units.
   - **Fixed in the template:** a `late_command` step in
     `packer/kali/preseed.cfg.pkrtpl` clears the epoch expiry at install time,
-    so fresh clones of 910 (and 902) are not born `degraded`.
+    so fresh clones of a rebuilt 910 are not born `degraded`. 902 (ifrit's
+    Kali) shares the same preseed but keeps the defect until it too is rebuilt
+    ([#1196](https://github.com/Gerrrt/HomeLab/issues/1196)).
   - **Verified:** 910 rebuilt (`packer build -force`, `BUILD_EXIT=0`),
     `packer-smoke.sh 910` passed, and a throwaway full-clone booted
     `system: running` with 0 failed units and 0 accounts at the epoch.
