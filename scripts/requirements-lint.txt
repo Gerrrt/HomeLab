@@ -7,5 +7,5 @@
 #
 # ruff (#853) lints the Python in this tree, when it is not already on PATH.
 # The rules are in ruff.toml at the root.
-ruff==0.16.10
+ruff==0.17.0
 yamllint==1.38.0
