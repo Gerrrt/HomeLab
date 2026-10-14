@@ -5,9 +5,12 @@ this is what a session gets wrong without being told.
 
 ## Before you push
 
-- Run `make validate`, which is every check CI runs. When the change is docs
-  only, run `python3 scripts/check_docs.py` and `./scripts/lint.sh` at least.
-  CI's markdownlint uses `.markdownlint-cli2.yaml`.
+- Run `make validate`, the local validation suite. It is not all of CI: CI
+  also runs the hardened boots, the secret scan and the close-keyword check,
+  and runs lint with `--require-all`, where a local run counts an unavailable
+  tool as a skip. A skipped check has not passed, so say which were skipped.
+  When the change is docs only, run `python3 scripts/check_docs.py` and
+  `./scripts/lint.sh` at least.
 - Start from a fresh `main`. Docs here move daily, and a branch cut from a
   stale checkout fixes lines that are already fixed.
 - Fill in `.github/pull_request_template.md`'s four sections in every PR body.
@@ -30,15 +33,16 @@ Two kinds of document, edited differently:
   accepted ADR in `docs/adr/` is immutable: a changed decision is a new ADR
   that supersedes it. An old ADR that says something has not happened yet
   stays as written.
-- **Current-state documents** must stay true: `README.md`, `docs/hardware.md`,
-  `network.md`, `architecture.md`, `security.md`, `roadmap.md`, the
-  runbooks and `docs/diagrams/`. When a fact changes, grep for every
+- **Current-state documents** must stay true: `README.md`,
+  `docs/hardware.md`, `docs/network.md`, `docs/architecture.md`,
+  `docs/security.md`, `docs/roadmap.md`, `docs/runbooks/` and
+  `docs/diagrams/`. When a fact changes, grep for every
   current-state document that states it and change them all in one PR.
 
 `docs/roadmap.md` states its own rules at the top. Two that bite:
 
 - A purchase enters or leaves only through *Everything still to buy*. README's
-  "N items now, M later" is checked against that table by `check_docs.py`.
+  "N items now, M later" is checked against that table by `scripts/check_docs.py`.
 - When an issue closes, its entry leaves the roadmap and anything worth
   keeping goes to the changelog in the same PR.
 
@@ -50,8 +54,8 @@ Two kinds of document, edited differently:
   re-render the PNG with
   `rsvg-convert --zoom=1.5 docs/diagrams/current/network.svg -o docs/diagrams/current/network.png`
   and commit both.
-- Image versions live only in each stack's `compose.yaml`. Prose never pins a
-  version; `check_docs.py` fails it.
+- Image versions live only in `stacks/<stack>/compose.yaml`. Prose never pins a
+  version; `scripts/check_docs.py` fails it.
 - Counts in prose (alert rules, dashboards, ADRs, runbooks) are checked
   against the files. Adding one means updating the count.
 
@@ -59,7 +63,7 @@ Two kinds of document, edited differently:
 
 - Secrets live only in `secrets/*.sops.yaml`. Never print, commit or paste a
   decrypted value, and never track a rendered `.env` or key file.
-- `docs/security.md`, *What this repository deliberately does not publish*,
-  lists what stays out of every file: the WAN address, the WireGuard endpoint
-  and port, firewall rule bodies, Wi-Fi configuration, full MAC addresses,
-  camera placement, and owner names on personal devices.
+- What stays out of every file is set by `docs/security.md`, *What this
+  repository deliberately does not publish*. Read that section before writing
+  anything about the network or the house; it is the authority, and this
+  file does not restate it.
