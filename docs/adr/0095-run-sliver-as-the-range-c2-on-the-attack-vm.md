@@ -15,8 +15,9 @@ to build against rather than a placeholder.
 The purpose fixes the requirement, and it is not the attacker's. The range
 exists so the defended estate — the Windows domain on `Saruman`, watched by
 Wazuh, Velociraptor and Zeek — **experiences** a real command-and-control
-channel and the SOC gets to catch it ([ADR-0007](0007-defensive-estate-and-offensive-range.md),
-the exercises in [`docs/exercises/`](../exercises)). So the C2 is chosen to be
+channel and the SOC gets to catch it
+([ADR-0007](0007-defensive-estate-and-offensive-range.md), measured in the
+exercise log under `docs/exercises/`). So the C2 is chosen to be
 representative of what the SOC must detect, inspectable while it runs, and
 cheap to stand up and tear down on a box that is powered off between sessions.
 Evasion is explicitly not a goal here: the aim is to generate known, labelled
@@ -52,9 +53,14 @@ workstation.**
   the segment the SOC and Zeek watch, which is the point.
 - **No new firewall rule, and nothing reaches the house.** The C2 listener and
   its implants live within the lab segment and the routeless range bridge. The
-  operator reaches the Sliver console the same way the range is already driven
-  — from the analyst workstation per [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)'s
-  operator path — not from a management host, and the C2 never remote-writes,
+  operator reaches the Sliver console the way the range is already driven —
+  from a Hicks workstation over the existing `50 → 30` path, which
+  [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md)
+  names as carrying "the C2 operator's interface". It is not driven from
+  `garuda`, the analyst workstation, which is defensive-only and watches the
+  attack rather than mounting it
+  ([ADR-0091](0091-put-a-kali-purple-analyst-workstation-on-saruman.md)). The
+  console is not reached from a management host, and the C2 never remote-writes,
   phones home off the estate, or opens a path *into* the house.
 - **Mythic is the named fallback**, not a second standing install. If an
   exercise needs an agent or a transport Sliver does not offer, that exercise's
@@ -62,7 +68,7 @@ workstation.**
   default stays one framework so the baseline the SOC is tuned against does not
   drift.
 - **Describe, do not publish.** Per [`security.md`](../security.md#what-this-repository-deliberately-does-not-publish)
-  and the [`docs/exercises/`](../exercises) rules, exercise files name the
+  and the `docs/exercises/` rules, exercise files name the
   framework, the transport and the technique by ATT&CK ID. They carry no
   profiles, no generated implants, and no operator configuration or keys.
 
