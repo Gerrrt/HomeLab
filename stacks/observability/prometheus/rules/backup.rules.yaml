@@ -97,6 +97,44 @@ groups:
             `journalctl -u homelab-{{ $labels.homelab_job }}.service` on
             {{ $labels.instance }} — docs/runbooks/schedule-maintenance.md.
 
+      - alert: ScheduledJobStaleCritical
+        # The same proof, three allowances stale. ScheduledJobStale is a
+        # warning, and a warning goes to the in-house ntfy and nowhere else
+        # (alertmanager.yaml): a backup that stopped running in week one was a
+        # notification on a phone on the same network, repeated every twelve
+        # hours, for as long as nobody acted on it. The off-network pager is
+        # the `urgent` receiver, which only a critical reaches. So the same
+        # comparison, against three times the job's own allowance — a weekly
+        # backup three weeks stale, a nightly one three nights — pages.
+        #
+        # Three, not two: install-timers.sh sets each allowance with a
+        # margin for a run that lands late, so two allowances is one missed
+        # run and a slow one. Three is a job that has stopped.
+        #
+        # The exclusions are ScheduledJobStale's. The human proofs each have
+        # a rule that says what to do with a medium; a page telling the
+        # operator to read a journal that has nothing in it is the advice
+        # that rule exists to avoid.
+        expr: |
+          (time() - homelab_job_last_success_timestamp_seconds{
+              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
+            > on(homelab_job) group_left() (3 * homelab_job_max_age_seconds)
+        for: 30m
+        labels:
+          component: backup
+          severity: critical
+          category: correctness
+        annotations:
+          summary: "{{ $labels.homelab_job }} has not succeeded in {{ $value | humanizeDuration }} — three allowances"
+          description: >-
+            This job has been stale for three of its own allowances. Either the
+            timer is gone or every run since has failed, and the warning for it
+            has been repeating on the in-house channel unanswered. Check
+            `systemctl list-timers 'homelab-*'` and
+            `journalctl -u homelab-{{ $labels.homelab_job }}.service` on
+            {{ $labels.instance }}.
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/schedule-maintenance.md#if-something-goes-wrong"
+
       - alert: ScheduledJobFailed
         # Separate from staleness so a failure is visible within the hour rather
         # than after the threshold expires. A backup failing every night for
