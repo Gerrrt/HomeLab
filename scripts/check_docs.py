@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Eleven assertions, each comparing prose against something machine-readable:
+Twelve assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -46,6 +46,10 @@ Eleven assertions, each comparing prose against something machine-readable:
  11. Runbook URLs         every critical alert's runbook_url names a file in
                            docs/runbooks/ and, if it has one, an anchor that is
                            a heading in that file (#842).
+ 12. Relative links       every relative Markdown link, in every tracked file,
+                           resolves to a file in the tree, and its anchor to a
+                           heading. The one check that runs over records too: a
+                           dead link is a structural fault, not a claim.
 
 Only present-tense documents are checked. `docs/changelog.md`, `docs/roadmap.md`
 and `docs/adr/` record what was true when the work landed — `changelog.md`
@@ -1364,6 +1368,97 @@ def check_runbook_urls() -> list[str]:
     return problems
 
 
+LINK_SKIP_DIRS = (
+    "node_modules",
+    ".venv",
+    ".git",
+    "ansible/.collections",
+    "ansible/.ansible",
+    "tofu/.terraform",
+    ".claude/worktrees",
+)
+
+# Inline Markdown links and images: [text](target) and ![alt](target). Not
+# reference definitions (`[label]: url`), which are footnote targets here and
+# whose own `(url)` the inline form already catches.
+_LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+
+
+def _links_outside_fences(text: str):
+    """The inline link targets in a Markdown file, skipping fenced code.
+
+    A `](path)` inside a ``` or ~~~ block is an example, not a live link, so
+    it is not resolved — the same fence rule markdown_anchors uses.
+    """
+    fence = ""
+    for line in text.splitlines():
+        m = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        if m:
+            if not fence:
+                fence = m.group(1)[0]
+            elif m.group(1)[0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        for lm in _LINK_RE.finditer(line):
+            yield lm.group(1)
+
+
+def check_relative_links() -> list[str]:
+    """Every relative Markdown link resolves to a file, and its anchor to a heading.
+
+    Two broken links shipped in one week — a template pointing at a mis-typed
+    ADR filename, and an ADR using `../adr/` from `docs/` (which resolves to a
+    repository-root `/adr/` that does not exist). `check_adr_numbers` checks
+    that ADR files are numbered right; nothing checked that a link *to* one
+    lands. This does, the same way `check_runbook_urls` checks a critical
+    alert's `runbook_url`: the target file is in the tree, and the anchor, if
+    any, is a heading in it.
+
+    Unlike the claim checks above, this runs over every tracked Markdown file,
+    records included. A link in `changelog.md` that points at a renamed file is
+    broken whether or not the prose around it is a dated record — a dead link
+    is a structural fault, not a claim about now. External links (`http(s)`,
+    `mailto`) are not reached out to; only relative targets inside the repo.
+    """
+    problems: list[str] = []
+    anchors: dict[pathlib.Path, set[str]] = {}
+
+    def anchors_of(path: pathlib.Path) -> set[str]:
+        if path not in anchors:
+            anchors[path] = markdown_anchors(path.read_text(encoding="utf-8"))
+        return anchors[path]
+
+    for md in sorted(REPO.rglob("*.md")):
+        rel = md.relative_to(REPO)
+        if any(str(rel).startswith(d + "/") for d in LINK_SKIP_DIRS):
+            continue
+        for raw in _links_outside_fences(md.read_text(encoding="utf-8")):
+            target = raw.strip()
+            if target.startswith("<") and target.endswith(">"):
+                target = target[1:-1].strip()
+            # Drop a link title: [text](path "Title").
+            target = target.split()[0] if target.split() else target
+            if not target or target.startswith(
+                ("http://", "https://", "mailto:", "tel:")
+            ):
+                continue
+            path_part, _, anchor = target.partition("#")
+            if not path_part:
+                # A same-file anchor, [text](#heading).
+                if anchor and anchor not in anchors_of(md):
+                    problems.append(f"{rel}: #{anchor} is not a heading in this file")
+                continue
+            dest = (md.parent / path_part).resolve()
+            if not dest.exists():
+                problems.append(f"{rel}: link to {target} — {path_part} does not exist")
+                continue
+            if anchor and dest.suffix == ".md" and anchor not in anchors_of(dest):
+                problems.append(f"{rel}: {path_part} has no heading for #{anchor}")
+    return problems
+
+
 def main() -> int:
     f = facts()
     checks = (
@@ -1378,6 +1473,7 @@ def main() -> int:
         ("guest claims against each other", check_guest_claims),
         ("README's outstanding-purchase count against the roadmap's table", check_buy_list),
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
+        ("relative Markdown links resolve to a file and an anchor", check_relative_links),
     )
 
     # The registry is the source for README's "N assertions", so adding a

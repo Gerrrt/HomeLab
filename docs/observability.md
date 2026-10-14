@@ -676,7 +676,7 @@ VM's qemu-guest-agent for `get-fsinfo` every ten minutes and writes
 (the six-hour extrapolation, under 30% free) are both **critical**: a lab guest
 is not somewhere anyone looks, and `odin`'s root reached 98% on 2026-10-01 with
 nothing to say so ([#778](https://github.com/Gerrrt/HomeLab/issues/778)).
-[ADR-0070](../adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)
+[ADR-0070](adr/0070-let-guest-disk-capacity-cross-read-through-the-hypervisor.md)
 records why this crosses when ADR-0028 kept guest metrics in the lab, and why
 the agent's answer is treated as hostile input. `GuestAgentSilent` warns when a
 guest's agent stops answering, and `GuestDiskStateStale` when the collector
@@ -695,7 +695,7 @@ after fifteen minutes. A blind SOC is serious, and not a 2 a.m. page.
 `GuestServiceUnchecked` warns when the agent has not run the check for an hour,
 and `GuestServiceStateStale` when the collector stops writing
 ([#858](https://github.com/Gerrrt/HomeLab/issues/858),
-[ADR-0088](../adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)).
+[ADR-0088](adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)).
 
 ### Routing
 

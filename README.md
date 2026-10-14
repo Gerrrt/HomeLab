@@ -106,7 +106,7 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Eleven assertions cross-check
+- **CI that validates the documentation too.** Twelve assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
