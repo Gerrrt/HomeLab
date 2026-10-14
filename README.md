@@ -218,6 +218,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 ├── systemd/                  # the timers that back up, verify and converge — see its README
 ├── .github/                  # CI, Dependabot, the ruleset on main — see OVERVIEW.md
 ├── SECURITY.md               # disclosure policy and known exposure
+├── CLAUDE.md                 # working rules for an AI session in this repo
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
