@@ -468,8 +468,6 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 - `hardware.md`'s other mentions of `smaug` in the media room, on its long
   cord.
 - [`swap-the-switch.md`](swap-the-switch.md) Phase 3, and its own documents.
-- [`build-the-playground.md`](build-the-playground.md) §0, which still says
-  `ifrit` is unpurchased.
 
 ---
 
