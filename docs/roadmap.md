@@ -273,10 +273,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met — the domain built
-  2026-09-25, #266 and #267 closed 2026-09-27 — so nothing gates the purchase;
-  a shortlist is on the issue. It is still the last purchase on the estate's
-  list.
+  uninstrumented estate teaches nothing. Both are met. What gates the build
+  now is its RAM kit and NVMe drive, in
+  [*Everything still to buy*](#everything-still-to-buy), and its place in the
+  #919 rack move.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -341,24 +341,36 @@ refund rather than a new drive, and the drive was bought outright on
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)). It is in
 [`hardware.md`](hardware.md).
 
-**Buy these, and the estate as decided is fully bought.** The table is empty
-as of 2026-09-25. It is kept so that the next decided purchase has somewhere
-to go:
+**Buy these, and the estate as decided is fully bought.** The table was empty
+from 2026-09-25 until `ifrit` was bought on 2026-10-05, short of the spec its
+ADR set; its last two rows are what it still needs. On 2026-10-13 the move
+into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
+its parts here, which had been listed only in its runbook's §0.1, and
+`Saruman`'s memory joined them. Already on hand, so not listed: the frame,
+the VESA mount, `trinity`'s ProDesk tray and the velcro.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
+| Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more. StarTech ADJSHELFHDV fits: 19.5–38", 27.5" tray, 330 lb | `smaug` on its side, U5–U9 | [`hardware.md`](hardware.md#planned-a-32u-rack), 2026-10-12 | Before the #919 window |
+| 2 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 1U sliding keyboard drawer, front-rail mount | The console, U24 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 1U mount made for a ThinkCentre Tiny, holding its brick | `ifrit`, U18 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
+| Short factory-made Cat6 patch cables, a pack, in the ADR-0009 VLAN colours | Switch to patch panel in the new rack | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §6.1 | Before the #919 window |
+| Spare M6 cage nuts and screws, a pack | The frame | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §0.1 | Before the #919 window |
+| 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
+| 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| 1 TB NVMe SSD | `ifrit`'s range and its snapshot reverts | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): NVMe | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 
-**One more, later, and it is the last:** `ifrit`, the range host — a quiet
+**The last one, bought 2026-10-05:** `ifrit`, the range host — a quiet
 SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
-and the SOC, and both are built (#266 and #267 closed 2026-09-27), so nothing
-gates it now; it is still the last purchase on this list. 32 GB is a
-spec the candidate machines do not meet as shipped — the SFF boxes in that
-class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
-and not a later contingency. The model, the CPU and the disk are chosen at the
-till and recorded in [`hardware.md`](hardware.md) afterwards; nothing is named
-here before it is bought.
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). The box is a
+refurbished ThinkCentre M80q, and it arrived on 2026-10-14. It shipped with
+8 GB and a 256 GB SSD, so the two rows above are still to buy and fit.
+[`hardware.md`](hardware.md) records the box.
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:

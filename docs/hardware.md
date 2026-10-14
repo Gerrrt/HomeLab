@@ -61,25 +61,36 @@ quietly swapped.
 
 ### Planned: a 32U rack
 
-**Bought 2026-10-09, due 2026-10-16; not built.** It was planned at 27U
-(#918) and bought at 32U. Nothing else about it changed: the extra five
-units are spare, at the top (U28–U32), so the screen and keyboard stay at
-the heights chosen below. The 9U frame has no free unit. `trinity` and both
-laptops sit on a shelf beside it, the console's screen, keyboard and mouse
-are loose, and there is no room for a cable manager or for an air gap over
-the CRS326. This plan, drafted on 2026-10-06, sizes the replacement. It
+**Bought 2026-10-09, built 2026-10-11; not yet moved into.** It was planned
+at 27U (#918) and bought at 32U. The 9U frame has no free unit. `trinity` and
+both laptops sit on a shelf beside it, the console's screen, keyboard and
+mouse are loose, and there is no room for a cable manager or for an air gap
+over the CRS326. This plan, drafted on 2026-10-06, sizes the replacement. It
 becomes the table above on the day the rack is moved.
 
+**Re-laid out on 2026-10-12.** The first 32U plan kept the 27U layout and
+left the five extra units spare above the screen. Instead, the console now
+takes the top of the rack, `smaug` comes into it, and the spare units sit
+between machines as air rather than in one block. The CRS326 was racked at
+U21 on 2026-10-12, unpowered and uncabled. Its cabling is still the move
+window's job. The house's in-wall runs reach the patch panel at U19, checked
+the same day. [`planned/rack-32u.svg`](diagrams/planned/rack-32u.svg) draws
+the table below.
+
 **The frame:** four-post, open, with adjustable depth reaching at least 30".
-The DL360 Gen9 is about 70 cm deep and its rails need four posts. The UPS
-needs rear support. Open frame suits a fanless switch.
+**It is set to 29" post to post**, the old 9U frame's depth, measured
+2026-10-12. The DL360's rails and the TP-Link's shelf already fit that
+spacing. The DL360 Gen9 is about 70 cm (27.5") deep, the deepest thing here,
+and its rails need four posts. The UPS needs rear support. Open frame suits a
+fanless switch. Any four-post shelf bought new must fit a 29"-deep rack,
+which its listing states, and bolt to both posts without forcing.
 
 **Why not 18U:** the existing ViewSonic N1700W goes into the rack
 rather than a 1U LCD console drawer, chosen 2026-10-06. A VESA rack mount
 for a 17" screen is typically 8U, and its keyboard and mouse need a 1U
 sliding shelf.
 
-**The N1700W: what is settled, and the one figure still open.** It is
+**The N1700W: every figure is settled.** It is
 431 × 414 × 172 mm (W × H × D) and 5.6 kg. It takes VGA and DVI inputs, so
 it connects to the VGA KVM directly. It runs from an external 12 V brick
 that needs a PDU outlet and somewhere to sit. 431 mm is inside a 19" rack's
@@ -88,35 +99,54 @@ opening, about 450 mm between the rails.
 **It is VESA 100 × 100 mm**, from its manual's wall-mount section, confirmed
 2026-10-06. The four holes sit under rubber plugs once the stand's four
 screws are out. So it takes a standard VESA rack mount with the stand off.
-The spec sheet's 414 mm includes the stand. **The bare panel's height has
-not been measured.** At 355 mm or less it fits the 8U mount tabled below.
-If it is taller, use a 9U mount at U20–U28, and U28 is no longer spare.
+The spec sheet's 414 mm includes the stand. **The bare panel is 13" (about
+330 mm) tall, measured 2026-10-12**, so it fits the 8U (355.6 mm) mount
+tabled below with about an inch to spare, and the layout stands as drawn.
+A taller panel would have needed 9U and pushed U17–U24 down a unit, the
+CRS326 with them.
 
 | U | Device | Why here |
 | --- | --- | --- |
-| U28–U32 | *spare* | The five units 32U adds over the 27U plan. Above the screen, out of reach of the standing heights below |
-| U20–U27 | ViewSonic N1700W on an 8U VESA rack mount | Top of the rack, at standing eye height. Light, so high is fine |
-| U19 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 90 cm up, a standing-desk height |
-| U18 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6 |
-| U17 | *spare* | Headroom: a second server, more storage |
-| U16 | *spare* | |
-| U15 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
-| U14 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built |
-| U13 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
-| U12 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
-| U11 | *spare* | Space between the network and compute groups, and the next unit to go |
-| U10 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
-| U9 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus` |
-| U8 | ProDesk Mini tray: `morpheus` | |
-| U7 | Vented shelf: TP-Link 8-port | Feeds the two laptops directly below it |
-| U6 | Vented shelf: `oracle`, flat, lid closed | One laptop per 1U shelf. They do not fit side by side in 19" |
-| U5 | Vented shelf: `prometheus`, flat, lid closed | |
+| U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
+| U24 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 112 cm up |
+| U23 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12 |
+| U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
+| U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
+| U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
+| U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
+| U18 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
+| U17 | *gap* | Keeps the range off the sensitive tier's box |
+| U16 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus`. Its 2 TB USB photo disk sits on the same tray |
+| U15 | ProDesk Mini tray: `morpheus` | |
+| U14 | Vented shelf: TP-Link 8-port | Feeds the two laptops below it |
+| U13 | *gap* | Air over `oracle` |
+| U12 | Vented shelf: `oracle`, flat, lid closed | One laptop per 1U shelf. They do not fit side by side in 19" |
+| U11 | *gap* | Air over `prometheus` |
+| U10 | Vented shelf: `prometheus`, flat, lid closed | |
+| U5–U9 | `smaug`, the TS150, on its side on a four-post shelf | Heavy, so low. Off its long cord: on the PDU directly |
 | U4 | 10-outlet PDU | Fed by the UPS, close to it, so the cords are short |
 | U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
 | U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
 
-Twenty-four units are used and eight are spare (U11, U16, U17, U28–U32). `smaug` stays in the media room on its long cord. A TS150 laid on
-its side would need about 4–5U more.
+Twenty-nine units are used and three are left as gaps (U11, U13, U17), so
+there is no headroom for another server. If the rack runs out, the 1U
+console drawer below gives back eight units, or nine with a model that
+replaces the KVM too.
+
+**`smaug` on its side, measured 2026-10-12.** Upright, the TS150 is 15"
+tall, 7" wide and 17" deep, and weighs about 20 lb with its drives. On its
+side the 7" becomes its height: 4U is exactly 7.00", so with a shelf tray
+under it, it needs 5U, which leaves about 1.5" above it. The 15" goes across
+the rack, inside the 450 mm opening. Its shelf is still to buy: four-post,
+adjustable to 29", at least 17" deep, and rated for 50 lb or more. The light
+1U vented shelves the laptops use are not enough. Lay it on a side with no
+vents, and take the feet off if they come off. Racking it retires the long
+cord to the media room, and its network lead goes straight to the switch
+instead of over the house run that carries it now.
+
+**`trinity`'s USB photo disk** (the 2 TB drive below, which holds Immich's
+originals) sits on `trinity`'s tray beside it, decided 2026-10-12. Strap it
+down so it cannot slide off or hang by its cable.
 
 **`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
 ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
@@ -125,6 +155,14 @@ asks for 32 GB of socketed RAM and NVMe, and two parts are still to buy:
 
 - 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
 - a 1 TB NVMe SSD, for the range's snapshot reverts.
+
+**A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
+Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the
+DisplayPort card that `ifrit` shipped with in that slot, so `ifrit` plugs
+straight into the VGA KVM. The listings name the M70q/M80q/M90q, and the
+FRU fits Tinys back to the M720q. Before fitting it, check that its ribbon
+cable and plug match the DP card's. Lenovo's M80q PSREF shows this slot
+with a VGA card fitted.
 
 It runs from an external power brick, like the ProDesks, which needs a PDU
 outlet and somewhere to sit. Its port goes to the switch on ImaginationLAN
@@ -159,6 +197,18 @@ SNMP devices at a 60-second interval, eleven Alloy agents, and 30 days of metric
 retention without complaint — which is a useful thing to know before spending
 money on a monitoring host. Its RAM is soldered at 8 GB and it has no built-in
 Ethernet, so it reaches the network over a USB NIC.
+
+**`Saruman`'s 128 GB, as its iLO reports it (read 2026-10-13):** eight 16 GB
+DDR4 RDIMMs, dual-rank, rated 2400. The maker reads *UNKNOWN* and HPE
+SmartMemory is not set, so they are third-party. They sit in slots 1, 4, 9
+and 12 of each CPU, one per memory channel, so 16 of 24 slots are empty.
+**Eight more are to buy** ([roadmap](roadmap.md#everything-still-to-buy)),
+which takes it to 256 GB with every channel populated alike. That is
+headroom, decided 2026-10-13. It does not contradict
+[ADR-0007](adr/0007-defensive-estate-and-offensive-range.md)'s finding that
+storage, not compute, is its constraint. Match a fitted stick's label, which
+the iLO does not report. At two per channel, third-party RDIMMs can train a
+step slower, so read the iLO's memory page after fitting.
 
 `morpheus` has two wired interfaces, and the second is not part of the model:
 the onboard Intel I219-LM (`em0`, the WAN) and an Intel I226-V 2.5 GbE card on
@@ -837,17 +887,20 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   runs it on RouterOS, keeps the name `neo` and the address `10.7.7.2`, serves
   `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
   an SNMPv3 authPriv user; the procedure is
-  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It enters the
-  Rack table at U9 and [`network.md`](network.md) when it is racked — `neo`
-  carries every VLAN, so the swap is a house-wide outage and shares a rack
-  visit rather than getting its own — and until then `neo` is the switch in
-  every document and every target. **Checked on arrival, not assumed:** which
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md). It was racked in the
+  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. It enters the
+  Rack table and [`network.md`](network.md) at the cutover, not at the
+  racking — `neo` carries every VLAN, so the swap is a house-wide outage and
+  shares the window of the move into the 32U rack rather than getting its
+  own — and until then `neo` is the MokerLink in every document and every
+  target. **Checked on arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
   included. **Read at the bench on 2026-10-05:** revision r2, serial
-  `CD010CC8FC1F`, management MAC `48:8F:5A:0E:A3:FB` (`ether1`). It booted
+  `CD010CC8FC1F`, management MAC `48:8f:5a:xx:xx:xx` (`ether1`, recorded as an
+  OUI like every other MAC here). It booted
   RouterOS 6.48.6 long-term (factory 6.44.6) with MikroTik's default
   configuration. It went to 6.49.22, then to 7.23.7, the long-term release
   that day, with the RouterBOOT firmware to match, and was then reset with

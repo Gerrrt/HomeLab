@@ -141,10 +141,17 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Prometheus"
 # ---------------------------------------------------------------------------
+# The docker fallbacks below (promtool, amtool, alloy, gitleaks) run with
+# --network none, as lint.sh's linters do: each one reads files from the mount
+# and needs nothing else, and on a fork PR those files are the author's. For
+# the same reason the mount is read-only and alloy and gitleaks, whose images
+# run as root, run as the caller: a tool those files subvert must not be able
+# to rewrite scripts/ that this script then runs on the host, such as
+# gitleaks-history.sh straight after the working-tree scan.
 if have promtool; then
   PROMTOOL=(promtool)
 elif have_docker; then
-  PROMTOOL=(docker run --rm --entrypoint promtool -v "${REPO_ROOT}:/repo" -w /repo "${PROM_IMAGE}")
+  PROMTOOL=(docker run --rm --network none --entrypoint promtool -v "${REPO_ROOT}:/repo:ro" -w /repo "${PROM_IMAGE}")
 else
   PROMTOOL=()
 fi
@@ -224,8 +231,8 @@ head_ "Alertmanager"
 if have amtool; then
   AMTOOL=(amtool)
 elif have_docker; then
-  AMTOOL=(docker run --rm --entrypoint amtool \
-          -v "${REPO_ROOT}:/repo" -w /repo "${AM_IMAGE}")
+  AMTOOL=(docker run --rm --network none --entrypoint amtool \
+          -v "${REPO_ROOT}:/repo:ro" -w /repo "${AM_IMAGE}")
 else
   AMTOOL=()
 fi
@@ -313,7 +320,8 @@ head_ "Alloy"
 if have alloy; then
   ALLOY=(alloy)
 elif have_docker; then
-  ALLOY=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
+  ALLOY=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+         -v "${REPO_ROOT}:/repo:ro" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
 else
   ALLOY=()
 fi
@@ -761,16 +769,18 @@ if have gitleaks; then
   GITLEAKS=(gitleaks)
 elif have_docker; then
   GIT_COMMON="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir)"
-  GITLEAKS=(docker run --rm -v "${REPO_ROOT}:/repo" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
+  # Read-only and as the caller: see the note at the top of the Prometheus section.
+  GITLEAKS=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "${REPO_ROOT}:/repo:ro" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
 else
   GITLEAKS=()
 fi
 
 if ((${#GITLEAKS[@]})); then
-  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
+  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml >/dev/null 2>&1; then
     pass "gitleaks (working tree)"
   else
-    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml
+    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml
     fail "gitleaks (working tree)"
   fi
 

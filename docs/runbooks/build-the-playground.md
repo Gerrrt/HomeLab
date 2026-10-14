@@ -41,11 +41,12 @@ decision and on this runbook.
 | [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | **Armed and verified 2026-09-08**, and nothing here re-arms it. §8 and §9 assume it is already live | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
 | [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | **Decided: it stays** ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)), **and the hardening that decision named was done 2026-09-09** — IPMI-over-LAN, SSH and iLO Federation off, the BMC's credential shared with nothing in the house, its security log read for a baseline, and the redundant `10.0.30.10 → 10.0.99.20/udp` return-path rule deleted from `morpheus`. Read [`SECURITY.md`](../../SECURITY.md)'s row for it rather than doing it again | Before §5 puts a Kali VM in its broadcast domain, the BMC already in that domain has to be the hardened one. A decision taken afterwards is taken under a fact that is already true |
 
-So what remains ahead of §1 is the machine. `ifrit` is unpurchased, and
-nothing gates the purchase any longer: it is still the **last** purchase on the
-estate's list. ADR-0017 and #421 carry the spec to buy against — and, since
-2026-10-01, a priced shortlist — and nothing below this section can be started
-without the box.
+So what remains ahead of §1 is the machine. `ifrit` was bought on 2026-10-05,
+a refurbished ThinkCentre M80q, and arrived on 2026-10-14. It is not ready
+yet: ADR-0017 asks for 32 GB of socketed RAM and an NVMe disk, and the parts
+chosen for that are still to fit. [`hardware.md`](../hardware.md) lists what
+is still to buy and fit, and #421 tracks the build. Nothing below this section
+can be started until they are in.
 
 You will also need a free Green access port on `neo` and an outlet on the PDU.
 `ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed

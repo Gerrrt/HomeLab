@@ -17,6 +17,72 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-14
+
+- **`ifrit` arrived, and a VGA card for it was ordered**
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Its rear has DP
+  and HDMI only, and the KVM is VGA, so Lenovo FRU `01AJ935`, a VGA card for
+  optional port 1, replaces the DisplayPort card in that slot. It is recorded
+  in `hardware.md` beside the RAM and NVMe still to buy.
+
+## 2026-10-13
+
+- **The rack move's parts, `ifrit`'s upgrades and `Saruman`'s memory are on
+  the buy list** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The
+  roadmap's *Everything still to buy* had been empty since 2026-09-25.
+  The 32U move's parts had been listed only in its runbook. #1179 added
+  `smaug`'s shelf there too, against the roadmap's rule that a planned
+  purchase goes in the table. Its rack, `Saruman` and cable rows join
+  `ifrit`'s two, twelve in all. The VESA mount, `trinity`'s tray and the
+  velcro are on hand.
+  - **`Saruman` gets eight more 16 GB RDIMMs, for headroom** (the operator,
+    today). Its iLO, read today, shows eight 16 GB DDR4 RDIMMs, dual-rank,
+    rated 2400 and third-party, one per channel in slots 1, 4, 9 and 12 of
+    each CPU. Eight more fill every channel's second slot alike, for 256 GB.
+    They go in during the move window, while the DL360 is out of the rack.
+  - **The XB7-to-`morpheus` factory cable is its own row, needed now.**
+    [#923](https://github.com/Gerrrt/HomeLab/issues/923) says that cable
+    should not wait for the rack move, so it is separate from the pack of
+    short leads the move needs.
+
+## 2026-10-12
+
+- **The screen fits 8U, and the plan's open questions are closed** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).
+  The N1700W's bare panel measures 13" (about 330 mm) tall, under the 8U
+  mount's 355.6 mm. It stays at U25–U32, and the 9U fallback in the entry
+  below, which would have moved U17–U24 and re-racked the CRS326, is not
+  needed. The entry's other open items are closed the same day: the KVM's
+  lead sets reach the DL360 at U3, `trinity`'s USB photo disk goes on
+  `trinity`'s own tray, and the rails need no reading beyond fitting at
+  29" (the DL360's and the TP-Link's already do; a new shelf's listing must
+  say it fits).
+
+- **The 32U rack is built, at 29", and laid out again**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The frame was
+  assembled on 2026-10-11 and is set to 29" post to post, the old 9U frame's
+  depth, measured today. No document had recorded a depth until now: the
+  runbook only said to copy the old one. The frame wobbled at first because
+  its screws were not yet tightened; depth had nothing to do with it.
+  - **What changed in the plan.** The console moves to the very top
+    (screen U25–U32, keyboard drawer U24, KVM U23), which puts the keyboard
+    at about 112 cm rather than 90 cm. `smaug` comes into the rack on its
+    side at U5–U9, which retires its long cord to the media room. The spare
+    units become single gaps: one over each closed-lid laptop, and one
+    between `trinity` and `ifrit`. 29 of 32 units are used, with no headroom
+    left.
+  - **What was measured.** The TS150 is 15" × 7" × 17" upright and about
+    20 lb with its drives. On its side it is 7" tall, exactly 4U, so with a
+    shelf it takes 5U. The house's in-wall runs reach the patch panel at
+    U19.
+  - **What is done.** The CRS326 was racked at U21 today, unpowered and
+    uncabled. Its cabling stays in the move window.
+  - **Still open.** The screen panel's height: over 355 mm and U17–U24 each
+    drop one unit. The adjustment range of every four-post rail and shelf
+    against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
+    sets reach the DL360 20 units below. The plan is in
+    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+
 ## 2026-10-11
 
 - **The SOC's CA is minted offline, by a cert tool pinned by its sha256**

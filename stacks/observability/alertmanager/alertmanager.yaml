@@ -193,6 +193,15 @@ inhibit_rules:
   - source_matchers: [alertname = "ManagementCertificateExpiryImminent"]
     target_matchers: [alertname = "ManagementCertificateExpiringSoon"]
     equal: ["endpoint"]
+  # The backup pair. ScheduledJobStaleCritical is the same comparison as
+  # ScheduledJobStale at three periods, so from the moment it pages the
+  # warning says nothing the page does not; without this the in-house channel
+  # keeps repeating the warning every twelve hours beside it. `homelab_job`
+  # and `instance`: one job on one host is one stream, and a second stale job
+  # on the same host keeps its own warning.
+  - source_matchers: [alertname = "ScheduledJobStaleCritical"]
+    target_matchers: [alertname = "ScheduledJobStale"]
+    equal: ["homelab_job", "instance"]
 
 receivers:
   - name: "null"

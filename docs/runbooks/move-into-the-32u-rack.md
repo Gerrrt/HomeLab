@@ -1,8 +1,9 @@
 # Runbook: Move the estate into the 32U rack
 
 **Target:** everything in the 9U rack, plus `trinity`, `prometheus` and
-`oracle` from the shelf beside it, the KVM console, `ifrit` (new), and the
-CRS326 that replaces `neo` — into the four-post 32U frame planned in
+`oracle` from the shelf beside it, `smaug` from the media room, the KVM
+console, `ifrit` (new), and the CRS326 that replaces `neo` — into the
+four-post 32U frame planned in
 [`hardware.md`](../hardware.md#planned-a-32u-rack)
 **Time:** two or three evenings at the bench beforehand, then one window of
 about four hours with the house offline, then an hour on the documents
@@ -19,6 +20,12 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > **2026-10-09:** the frame is bought, at 32U rather than the 27U this was
 > written for, and is due 2026-10-16. Only the height changed. The layout
 > keeps every unit where it was, and U28–U32 are spare above the screen.
+>
+> **2026-10-12:** the frame was built on 2026-10-11 and is set to 29" post
+> to post (§1.1). The layout is redone: the console at the top (U23–U32),
+> `smaug` racked on its side at U5–U9, and three single-unit gaps between
+> hosts. Every unit number below is the new layout's. The CRS326 is already
+> racked at U21, unpowered and uncabled.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -46,12 +53,15 @@ it ends.
    [`shut-down-on-the-ups.md`](shut-down-on-the-ups.md)) is built and live. A
    mains blip while hosts are half-moved can start it. Shut the subscribers
    down yourself, in §4's order, before the UPS is touched.
-3. **`smaug` is not in the rack, but its power is.** It is a tower in the
-   media room, on a long cord from the rack's PDU. Moving the PDU cuts it.
-   It is shut down cleanly in §4 like everything else.
-4. **The switch runbook says U9; this one says U14.** Follow
-   [`swap-the-switch.md`](swap-the-switch.md) Phase 2 for everything except
-   the rack position, which is U14 in the new frame.
+3. **`smaug` moves into the rack in the window.** Today it is a tower in
+   the media room on a long cord from the rack's PDU, so moving the PDU cuts
+   it anyway. It is shut down cleanly in §4, carried in at §5, and racked on
+   its side at U5–U9. Its long cord is retired.
+4. **The switch runbook says U9; this one says U21.** The CRS326 was racked
+   at U21 on 2026-10-12. Follow [`swap-the-switch.md`](swap-the-switch.md)
+   Phase 2 for everything except racking it, which is already done. Its
+   Phase 1 bench work still needs it powered: run an extension lead to it
+   in the frame, since the frame's PDU is not live until the window.
 
 ---
 
@@ -59,22 +69,26 @@ it ends.
 
 ### 0.1 The parts
 
-Every part below must be in the house before the window is booked.
+Every part below must be in the house before the window is booked. The
+ones not yet on hand are also in the roadmap's
+[*Everything still to buy*](../roadmap.md#everything-still-to-buy).
 
 | Part | Qty | For |
 | --- | --- | --- |
-| 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09 |
-| VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U20–U27 |
-| 1U sliding keyboard drawer, front-rail mount | 1 | U19 |
-| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U10 |
-| 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U9 |
-| 1U vented four-post shelf, square-hole | 2 | `prometheus` U5 and `oracle` U6 |
-| 1U horizontal cable manager | 1 | U13 |
-| 1U vented blank | 1 | U15, the air gap over the CRS326 |
+| 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09, built 2026-10-11 at 29" |
+| VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U25–U32. On hand, 2026-10-13 |
+| 1U sliding keyboard drawer, front-rail mount | 1 | U24 |
+| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18 |
+| 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16. On hand, 2026-10-13 |
+| 1U vented four-post shelf, square-hole, adjustable to 29" | 2 | `prometheus` U10 and `oracle` U12 |
+| Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
+| 1U horizontal cable manager | 1 | U20 |
+| 1U vented blank | 1 | U22, the air gap over the CRS326 |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
 | 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
-| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run, and XB7 to `morpheus` |
+| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
 | Spare M6 cage nuts and screws | 1 pack | Frames never ship with enough |
+| 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
 
 The current shelf for the TP-Link, `morpheus`'s tray, the KVM, the PDU, the
 patch panel, the UPS's rack mount, the DL360's rails and the CRS326 all move
@@ -109,10 +123,16 @@ rear posts on the 9U frame. Write it down. The DL360's rails and the TP-Link's
 shelf already fit that spacing, so setting the new frame to the same depth
 means both carry over unchanged.
 
+**Measured 2026-10-12: 29".** The DL360's rails and the TP-Link's shelf fit
+it already. Any shelf bought new must fit a 29"-deep rack, which its listing
+states. When mounting, each one bolts to front and rear posts without
+forcing; if one will not reach, see the recovery table.
+
 ### 1.2 Build the frame
 
 1. Assemble it per its manual, with the posts set to §1.1's depth. Every post
-   must be at the same depth, or the rails bind.
+   must be at the same depth, or the rails bind: measure top and bottom on
+   both sides, and get all four within about 1/8" before tightening.
 2. Put it where it will live. Leave room to stand behind it, and keep the
    back at least 30 cm from a wall: the DL360 exhausts hot air backwards.
 3. **Lock the casters, or lower the levelling feet, before anything heavy
@@ -120,6 +140,11 @@ means both carry over unchanged.
    out.
 4. Mark U1, U5, U10, U15, U20, U25 and U30 on a front post with tape. Counting
    holes in the dark is how a device ends up straddling two units.
+
+**Built 2026-10-11, at 29".** It wobbled at first; the cause was screws not
+yet tightened, and tightening them fixed it. If it still sways once loaded,
+anchor it to the wall: the DL360 slides out on its rails and moves the weight
+forward.
 
 **One unit is three holes.** Every device sits within its own three, aligned
 to the unit boundary marks on the post. Cage nuts go in from the inside of
@@ -184,10 +209,10 @@ series. **If you see a gap,** it suspended: open the lid, and confirm that
 1. Lay the N1700W face down on a towel.
 2. Remove the four screws holding the stand, then the four rubber plugs
    under them. **The VESA 100 × 100 holes are underneath** (from its manual).
-3. **Measure the bare panel's height.** At 355 mm or less it fits the 8U
-   reserved for it (U20–U27). If it is taller, it needs 9U: it then covers
-   U20–U28, taking one of the spare units above it, and the keyboard drawer
-   stays at U19.
+3. **The bare panel's height: measured 2026-10-12, 13" (about 330 mm).**
+   That fits the 8U (355.6 mm) reserved for it at U25–U32, so nothing
+   below it moves. With the stand off, check that the VESA holes sit near
+   the panel's vertical centre: the top edge must not rise above U32.
 4. Fit the rack mount's bracket to the VESA holes. Do not rack it yet.
 
 ### 1.6 Label everything
@@ -212,7 +237,7 @@ The PDU has ten outlets. Write down what will plug into it:
 | KVM | 1 |
 | CRS326 (DC adapter) | 1 |
 | N1700W (12 V brick) | 1 |
-| `smaug` (long cord to the media room) | 1 |
+| `smaug` (racked at U5–U9; the long cord is retired) | 1 |
 | Both laptops' chargers | 2 |
 
 That is **9–10 of 10**. If it comes to 11, put the laptops' chargers on the
@@ -304,6 +329,10 @@ separately.
    both sides, and lift it clear with one person on each side. Then remove
    the rails from the old posts.
 4. Lay everything on a clear floor, in the order it goes back in.
+5. **Bring `smaug` from the media room.** Unplug its network lead and its
+   long cord, and carry it upright with its drives in; it weighs about
+   20 lb. Retire the long cord. If its feet come off, take them off now: it
+   lies on its side in the rack.
 
 The MokerLink stays cabled and powerable on the bench until
 [`swap-the-switch.md`](swap-the-switch.md) Phase 3 passes. That is the
@@ -319,21 +348,22 @@ units (§1.2), then the next one up.
 | Order | U | Device | Notes |
 | --- | --- | --- | --- |
 | 1 | U1–U2 | UPS, on its rack mount | Battery pack back in once it is seated. Do not plug it into the wall yet |
-| 2 | U3 | DL360 | Rails first, at U3 on all four posts, then slide the server in until it clicks |
+| 2 | U3 | DL360 | **First, on the floor, its eight new RDIMMs**: lid off, wrist strap on, one more per channel in the slots the lid's diagram marks for each CPU's second DIMM per channel. Then rails, at U3 on all four posts, and slide the server in until it clicks |
 | 3 | U4 | PDU | Its plug goes to the UPS |
-| 4 | U5 | Shelf with `prometheus`, flat, lid closed | Only after §1.4 is proven |
-| 5 | U6 | Shelf with `oracle`, flat, lid closed | Only after §1.4 is proven |
-| 6 | U7 | The TP-Link on its shelf | It feeds the two laptops below it |
-| 7 | U8 | `morpheus` on its tray | |
-| 8 | U9 | `trinity` on the new ProDesk tray | |
-| 9 | U10 | `ifrit` on its Tiny mount, with its brick | |
-| 10 | U12 | Patch panel | U11 stays empty |
-| 11 | U13 | Cable manager | |
-| 12 | U14 | CRS326 | [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 2, at **U14** instead of U9 |
-| 13 | U15 | Vented blank | The air gap over the passive switch |
-| 14 | U18 | KVM | U16 and U17 stay empty |
-| 15 | U19 | Keyboard drawer | Front rails only |
-| 16 | U20–U27 | N1700W on its VESA mount | The bracket bolts to 4U. The screen in front of it covers 8U |
+| 4 | U5–U9 | `smaug` on its side, on its four-post shelf | The shelf at U5, then the tower on it, on a side with no vents. About 1.5" stays clear above it |
+| 5 | U10 | Shelf with `prometheus`, flat, lid closed | Only after §1.4 is proven |
+| 6 | U12 | Shelf with `oracle`, flat, lid closed | Only after §1.4 is proven. U11 stays empty |
+| 7 | U14 | The TP-Link on its shelf | It feeds the two laptops below it. U13 stays empty |
+| 8 | U15 | `morpheus` on its tray | |
+| 9 | U16 | `trinity` on the new ProDesk tray | Its USB photo disk too: see §6.1 |
+| 10 | U18 | `ifrit` on its Tiny mount, with its brick | U17 stays empty |
+| 11 | U19 | Patch panel | |
+| 12 | U20 | Cable manager | |
+| 13 | U21 | CRS326 | Already racked on 2026-10-12. [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 2 is done; carry on from step 3 |
+| 14 | U22 | Vented blank | The air gap over the passive switch |
+| 15 | U23 | KVM | |
+| 16 | U24 | Keyboard drawer | Front rails only |
+| 17 | U25–U32 | N1700W on its VESA mount | The bracket bolts to 4U. The screen in front of it covers 8U |
 
 ### 6.1 Cable it
 
@@ -351,10 +381,18 @@ units (§1.2), then the next one up.
   `igc0` goes to port 1. `ifrit` gets a free green access port, untagged
   VLAN 30, per [`build-the-playground.md`](build-the-playground.md) §1. Not
   the TP-Link.
+- **`smaug`'s lead goes straight to the CRS326,** on the port that takes
+  the MokerLink's port 15 role in the captured map: untagged, VLAN 40
+  ([`network.md`](../network.md)). The house run that carried it from the
+  media room is then free.
+- **`trinity`'s 2 TB USB photo disk goes on `trinity`'s tray**, beside it,
+  strapped down with velcro so it cannot slide off or hang by its cable. Plug
+  it back in before `trinity` powers up in §7: it holds Immich's originals.
 - **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
   clicks, in the XB7's striped 2.5 Gbit port.
 - KVM: one lead set each to `morpheus`, `Saruman`, `trinity` and `ifrit`.
-  Write down which KVM port is which; the repository has no map of it.
+  Write down which KVM port is which; the repository has no map of it. The
+  lead sets reach from U23 down to `Saruman` at U3, checked 2026-10-12.
 
 ---
 
@@ -366,7 +404,7 @@ units (§1.2), then the next one up.
 | 2 | CRS326 | [`swap-the-switch.md`](swap-the-switch.md) Phase 2, steps 4–8. **If 4–6 fail, its rollback applies:** the MokerLink comes back, by the same map |
 | 3 | `morpheus`, from the KVM | The console reaches its menu. The house gets DHCP and internet. `nc -z -w2 10.0.99.1 22` from `prometheus` succeeds |
 | 4 | `trinity` | It boots unattended: the TPM unseals its root disk ([ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)). Moving it changes nothing the TPM measures. **If it stops at a passphrase prompt,** something changed its firmware settings. Type the recovery passphrase, and read ADR-0054 before re-sealing |
-| 5 | `Saruman`, from the iLO at `10.0.30.10` | Its guests start on their own |
+| 5 | `Saruman`, from the iLO at `10.0.30.10` | Its guests start on their own. The iLO's memory page shows sixteen DIMMs and 256 GB, all healthy; note the speed they trained at |
 | 6 | `smaug`, from its front button | `erebor` imports. The NAS's shares are back |
 | 7 | `prometheus` and `oracle` on the network | Their leads into the TP-Link |
 
@@ -420,15 +458,22 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 
 - [`hardware.md`](../hardware.md): the Rack table becomes the 32U layout as
   built, and "Planned: a 32U rack" is removed or marked done. Include the
-  bare panel's measured height from §1.5.
+  bare panel's measured height from §1.5. `Saruman`'s row in the Compute
+  table becomes 256 GB, with the trained speed.
+- [`roadmap.md`](../roadmap.md#everything-still-to-buy): the rows bought for
+  this move leave the buy table, and README's count with them.
 - [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)'s
-  *What is on the UPS* records: `trinity` and `ifrit` are now on the PDU, and
-  §1.7's outlet table.
+  *What is on the UPS* records: `trinity` and `ifrit` are now on the PDU,
+  `smaug` is on it directly rather than by the long cord, and §1.7's outlet
+  table.
 - [`network.md`](../network.md): the port map, now that it was captured and
-  moved, and the KVM port map from §6.1.
+  moved, the KVM port map from §6.1, and `smaug`'s location, which is the
+  rack, not the media room.
+- [`shut-down-on-the-ups.md`](shut-down-on-the-ups.md): it sends you to
+  `smaug`'s power button in the media room, and to the KVM in U6.
+- `hardware.md`'s other mentions of `smaug` in the media room, on its long
+  cord.
 - [`swap-the-switch.md`](swap-the-switch.md) Phase 3, and its own documents.
-- [`build-the-playground.md`](build-the-playground.md) §0, which still says
-  `ifrit` is unpurchased.
 
 ---
 
@@ -436,8 +481,8 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 
 | What | Do |
 | --- | --- |
-| The CRS326 fails its checks (switch runbook Phase 2, steps 4–6) | Its rollback: the MokerLink goes into U14 by the same map. Finish the move around it |
-| A rail will not reach the rear post | The frame's depth differs from §1.1. Loosen the rear posts, set them to the measured depth, and tighten them again. Do not force the rail |
+| The CRS326 fails its checks (switch runbook Phase 2, steps 4–6) | Its rollback: the CRS326 comes out of U21 and the MokerLink goes in, by the same map. Finish the move around it |
+| A rail will not reach the rear post | The frame's depth differs from §1.1's 29". Loosen the rear posts, set them to 29", and tighten them again. Do not force the rail |
 | `trinity` asks for a passphrase | See row 4 in §7. Do not re-seal the TPM in the window |
 | The house has internet but no names resolve | `trinity`'s AdGuard is not answering. The documented stopgap is in [`forward-dns-to-adguard.md`](forward-dns-to-adguard.md): add `1.1.1.1` under *System → General Setup* on pfSense, and remove it once AdGuard answers |
 | The mains drops mid-move | NUT runs the shutdown sequence on whatever is still up. Wait for mains, then resume at §7 |
@@ -462,6 +507,12 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
   out its own back. What decides how hot things run is the room's temperature
   and the space behind the frame (§1.2), not its height. The one place that
   needs a gap — over the fanless CRS326, especially with two S+RJ10 modules —
-  has one at U15. A taller frame only adds spare units: the 32U bought
-  leaves eight, where the 27U plan left three. The total heat is modest:
-  one DL360, three small PCs, two laptops and a passive switch.
+  has one at U22. The other three gaps are single units over each
+  closed-lid laptop and between `trinity` and `ifrit`. The total heat is
+  modest: one DL360, one tower NAS, three small PCs, two laptops and a
+  passive switch.
+- **The console is at the top, by choice (2026-10-12).** The first plan put
+  the keyboard at U19, about 90 cm up, and left five units spare above the
+  screen. Moving the screen to the very top puts the keyboard at about
+  112 cm, and lets the 32U frame take `smaug` as well. A frame that tall
+  holds the whole estate, so the NAS's long cord goes.

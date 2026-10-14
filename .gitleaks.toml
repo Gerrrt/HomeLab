@@ -65,45 +65,18 @@ paths = [
   '''secrets/.*\.sops\.yaml$''',
   # Documents required key names and deliberately carries change-me values.
   '''secrets/.*\.example\.yaml$''',
-  # The next three hold real secrets on purpose, and are gitignored. They exist
-  # only on a host that has actually deployed, so CI — which scans a fresh
-  # checkout — never sees them; the filesystem scan on the monitoring host does,
-  # and reported eight findings that are all working as designed.
-  #
-  # Allowlisting them is not a weakening. gitleaks was never the control here:
-  # the control is that none may ever become a tracked file, which CI and
-  # scripts/validate.sh both assert directly. A `make validate` that is
-  # permanently red for a known reason is a `make validate` nobody reads.
-  #
-  # Decrypted at deploy time by scripts/render-config.sh.
-  '''\.rendered/''',
-  # The lab's own CA and leaf keys, created by scripts/gen-certs.sh.
-  '''certificates/''',
-  # The stack's .env, holding the real GRAFANA_ADMIN_PASSWORD. Same argument as
-  # the two above, and it belonged here all along — it was missed because
-  # nothing ever ran the filesystem scan on a deployed host. validate.sh asked
-  # for a `gitleaks` binary that was not installed and skipped, and CI's copy of
-  # this file is the throwaway from scripts/seed-validation-env.sh, whose
-  # values match the `validation-only` allowlist regex below. So the one machine
-  # that had a real .env was the one machine not scanning it (#68).
-  #
-  # `\.env$` does not match .env.example, which is committed and carries only
-  # change-me values.
-  '''(^|/)\.env$''',
-  # Third-party Ansible collections, downloaded and gitignored (ansible/.gitignore).
-  # `ansible-lint --project-dir ansible` in scripts/lint.sh installs
-  # ansible/requirements.yml into ansible/.ansible/ on every run, and
-  # ansible.cfg's collections_path is ansible/.collections/. ansible.windows
-  # ships test fixtures — PEM keys, a .pfx, passwords in task files — so
-  # `make validate` failed its working-tree scan on nine of them, on a clean
-  # main, every time lint had run first (2026-10-07). None of it is ours or
-  # secret. What keeps it out of the repository is
-  # scripts/check-tracked-artefacts.sh, which names both paths, `git add -f`
-  # included, and runs in CI and in validate.sh. An allowlisted path is
-  # invisible to the history scan as well, so that check is the only control
-  # on it, not a second one.
-  '''(^|/)ansible/\.ansible/''',
-  '''(^|/)ansible/\.collections/''',
+  # Nothing gitignored is allowlisted HERE. This file is what the full-history
+  # scan reads (scripts/gitleaks-history.sh), and a path allowlist applies to
+  # every commit a history scan walks, not only to the working tree: with
+  # `certificates/` listed here, the purged CA key of SECURITY.md would never
+  # be reported if it reappeared, and docs/security.md's "a history scan that
+  # passes is the evidence the purge worked" would be true of a scan that
+  # could not see it. The paths that hold real secrets on a deployed host —
+  # .rendered/, certificates/, .env, the installed Ansible collections — are
+  # allowlisted in .gitleaks-worktree.toml, which extends this file and is
+  # what the working-tree scans read. None of them may ever be a tracked
+  # file, which scripts/check-tracked-artefacts.sh asserts; so in history they
+  # are findings, and in the working tree they are the deploy.
 ]
 
 regexes = [

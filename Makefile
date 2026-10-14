@@ -620,7 +620,7 @@ scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports 
 
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
-	gitleaks detect --no-banner --redact -c .gitleaks.toml
+	gitleaks detect --no-banner --redact -c .gitleaks-worktree.toml
 	gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
 
 # ---------------------------------------------------------------------------

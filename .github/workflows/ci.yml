@@ -665,11 +665,25 @@ jobs:
       # .gitleaksignore any more. The purge in docs/runbooks/purge-git-history.md
       # removed what that file used to acknowledge, and deleting it is how a
       # future finding stays visible instead of being masked by a stale entry.
+      #
+      # Two configurations, because a path allowlist applies to every commit a
+      # history scan walks. The working tree reads .gitleaks-worktree.toml,
+      # which allowlists the decrypted and generated paths a deployed host
+      # holds; the history scan reads .gitleaks.toml, which allowlists none of
+      # them, so a purged key that reappears under certificates/ is a finding.
+      #
+      # Both run with --network none, as lint.sh's linters do: gitleaks reads
+      # the checkout and a local `git log`, and on a fork PR that checkout is
+      # the author's. For the same reason the checkout is mounted read-only and
+      # gitleaks, whose image runs as root, runs as the runner's user. A
+      # gitleaks that the checkout subverts must not be able to rewrite
+      # scripts/gitleaks-history.sh, which the next step runs on the runner.
       - name: gitleaks — working tree
         run: |
-          docker run --rm -v "$PWD:/repo" -w /repo \
+          docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/repo:ro" -w /repo \
             "$GITLEAKS_IMAGE" \
-            detect --no-git --no-banner --redact -c .gitleaks.toml -v
+            detect --no-git --no-banner --redact -c .gitleaks-worktree.toml -v
 
       # Through the script validate.sh also calls. gitleaks exits 0 when git
       # cannot read the repository, so the script also fails a scan of zero
@@ -677,7 +691,8 @@ jobs:
       # there for the day the checkout changes.
       - name: gitleaks — full history
         run: |
-          ./scripts/gitleaks-history.sh docker run --rm -v "$PWD:/repo" -w /repo \
+          ./scripts/gitleaks-history.sh docker run --rm --network none \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo:ro" -w /repo \
             "$GITLEAKS_IMAGE"
 
       # gitleaks cannot be the control here. .purge-secrets.txt is gitignored so

@@ -96,7 +96,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  177 alert rules — 157 metric-based in Prometheus, 20 log-based in Loki — sharing
+  178 alert rules — 158 metric-based in Prometheus, 20 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -106,14 +106,15 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Eleven assertions cross-check
+- **CI that validates the documentation too.** Twelve assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
   file's outstanding-purchase count against the roadmap's buy table, every
-  critical alert's `runbook_url` against the runbook and heading it names, and
+  critical alert's `runbook_url` against the runbook and heading it names,
+  every relative Markdown link against the file and heading it points at, and
   a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
@@ -128,7 +129,7 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 94 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 95 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 49
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -195,7 +196,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 157 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 158 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 20 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
@@ -218,11 +219,13 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 ├── systemd/                  # the timers that back up, verify and converge — see its README
 ├── .github/                  # CI, Dependabot, the ruleset on main — see OVERVIEW.md
 ├── SECURITY.md               # disclosure policy and known exposure
+├── CLAUDE.md                 # working rules for an AI session in this repo
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 94 ADRs — architecture decision records
+│   ├── adr/                  # 95 ADRs — architecture decision records
+│   ├── exercises/            # purple-team exercise records — see its README
 │   └── runbooks/             # 49 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
@@ -396,7 +399,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-0 items now, one later, and a rule that nothing joins them without a
+12 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the
