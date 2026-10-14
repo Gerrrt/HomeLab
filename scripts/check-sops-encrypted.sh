@@ -80,7 +80,7 @@ plaintext_reason() {  # <file>  prints a reason and returns 1, or returns 0
   return 0
 }
 
-if [[ "${1:-}" == "--self-test" ]]; then
+if [[ "${1:-}" == "--self-test" ]] && (($# == 1)); then
   T="$(mktemp -d)"
   trap 'rm -rf "${T}"' EXIT
   fail=0
