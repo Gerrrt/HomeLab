@@ -1,0 +1,57 @@
+title = "HomeLab gitleaks configuration — working-tree scans"
+
+# The same rules as .gitleaks.toml, with the paths that hold real secrets on a
+# deployed host allowlisted. This file is read by the working-tree scans only:
+# `make scan`'s first line, scripts/validate.sh and the workflow's
+# "gitleaks — working tree" step. The full-history scan reads .gitleaks.toml
+# directly, where none of these paths is allowlisted, because a path allowlist
+# applies to every commit a history scan walks: listed there, a purged key that
+# reappeared under certificates/ would never be reported, and the history scan
+# would stop being the evidence docs/security.md says it is.
+#
+# Everything below is gitignored and exists only on a host that has actually
+# deployed. CI scans a fresh checkout and never sees them; the filesystem scan
+# on the monitoring host does, and reported eight findings that are all
+# working as designed.
+#
+# Allowlisting them here is not a weakening. gitleaks was never the control on
+# them: the control is that none may ever become a tracked file, which CI and
+# scripts/validate.sh both assert directly through
+# scripts/check-tracked-artefacts.sh. A `make validate` that is permanently red
+# for a known reason is a `make validate` nobody reads.
+
+[extend]
+path = ".gitleaks.toml"
+
+[allowlist]
+description = "Decrypted and generated files that exist only on a deployed host"
+
+paths = [
+  # Decrypted at deploy time by scripts/render-config.sh.
+  '''\.rendered/''',
+  # The lab's own CA and leaf keys, created by scripts/gen-certs.sh.
+  '''certificates/''',
+  # The stack's .env, holding the real GRAFANA_ADMIN_PASSWORD. It was missed
+  # for a while because nothing ever ran the filesystem scan on a deployed host:
+  # validate.sh asked for a `gitleaks` binary that was not installed and
+  # skipped, and CI's copy of this file is the throwaway from
+  # scripts/seed-validation-env.sh, whose values match the `validation-only`
+  # allowlist regex in .gitleaks.toml. So the one machine that had a real .env
+  # was the one machine not scanning it (#68).
+  #
+  # `\.env$` does not match .env.example, which is committed and carries only
+  # change-me values.
+  '''(^|/)\.env$''',
+  # Third-party Ansible collections, downloaded and gitignored (ansible/.gitignore).
+  # `ansible-lint --project-dir ansible` in scripts/lint.sh installs
+  # ansible/requirements.yml into ansible/.ansible/ on every run, and
+  # ansible.cfg's collections_path is ansible/.collections/. ansible.windows
+  # ships test fixtures — PEM keys, a .pfx, passwords in task files — so
+  # `make validate` failed its working-tree scan on nine of them, on a clean
+  # main, every time lint had run first (2026-10-07). None of it is ours or
+  # secret. What keeps it out of the repository is
+  # scripts/check-tracked-artefacts.sh, which names both paths, `git add -f`
+  # included, and runs in CI and in validate.sh.
+  '''(^|/)ansible/\.ansible/''',
+  '''(^|/)ansible/\.collections/''',
+]
