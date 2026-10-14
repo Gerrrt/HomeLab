@@ -69,23 +69,26 @@ it ends.
 
 ### 0.1 The parts
 
-Every part below must be in the house before the window is booked.
+Every part below must be in the house before the window is booked. The
+ones not yet on hand are also in the roadmap's
+[*Everything still to buy*](../roadmap.md#everything-still-to-buy).
 
 | Part | Qty | For |
 | --- | --- | --- |
 | 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09, built 2026-10-11 at 29" |
-| VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U25–U32 |
+| VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U25–U32. On hand, 2026-10-13 |
 | 1U sliding keyboard drawer, front-rail mount | 1 | U24 |
 | 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18 |
-| 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16 |
+| 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16. On hand, 2026-10-13 |
 | 1U vented four-post shelf, square-hole, adjustable to 29" | 2 | `prometheus` U10 and `oracle` U12 |
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
 | 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
-| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run, and XB7 to `morpheus` |
+| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
 | Spare M6 cage nuts and screws | 1 pack | Frames never ship with enough |
+| 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
 
 The current shelf for the TP-Link, `morpheus`'s tray, the KVM, the PDU, the
 patch panel, the UPS's rack mount, the DL360's rails and the CRS326 all move
@@ -345,7 +348,7 @@ units (§1.2), then the next one up.
 | Order | U | Device | Notes |
 | --- | --- | --- | --- |
 | 1 | U1–U2 | UPS, on its rack mount | Battery pack back in once it is seated. Do not plug it into the wall yet |
-| 2 | U3 | DL360 | Rails first, at U3 on all four posts, then slide the server in until it clicks |
+| 2 | U3 | DL360 | **First, on the floor, its eight new RDIMMs**: lid off, wrist strap on, one more per channel in the slots the lid's diagram marks for each CPU's second DIMM per channel. Then rails, at U3 on all four posts, and slide the server in until it clicks |
 | 3 | U4 | PDU | Its plug goes to the UPS |
 | 4 | U5–U9 | `smaug` on its side, on its four-post shelf | The shelf at U5, then the tower on it, on a side with no vents. About 1.5" stays clear above it |
 | 5 | U10 | Shelf with `prometheus`, flat, lid closed | Only after §1.4 is proven |
@@ -401,7 +404,7 @@ units (§1.2), then the next one up.
 | 2 | CRS326 | [`swap-the-switch.md`](swap-the-switch.md) Phase 2, steps 4–8. **If 4–6 fail, its rollback applies:** the MokerLink comes back, by the same map |
 | 3 | `morpheus`, from the KVM | The console reaches its menu. The house gets DHCP and internet. `nc -z -w2 10.0.99.1 22` from `prometheus` succeeds |
 | 4 | `trinity` | It boots unattended: the TPM unseals its root disk ([ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)). Moving it changes nothing the TPM measures. **If it stops at a passphrase prompt,** something changed its firmware settings. Type the recovery passphrase, and read ADR-0054 before re-sealing |
-| 5 | `Saruman`, from the iLO at `10.0.30.10` | Its guests start on their own |
+| 5 | `Saruman`, from the iLO at `10.0.30.10` | Its guests start on their own. The iLO's memory page shows sixteen DIMMs and 256 GB, all healthy; note the speed they trained at |
 | 6 | `smaug`, from its front button | `erebor` imports. The NAS's shares are back |
 | 7 | `prometheus` and `oracle` on the network | Their leads into the TP-Link |
 
@@ -455,7 +458,10 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 
 - [`hardware.md`](../hardware.md): the Rack table becomes the 32U layout as
   built, and "Planned: a 32U rack" is removed or marked done. Include the
-  bare panel's measured height from §1.5.
+  bare panel's measured height from §1.5. `Saruman`'s row in the Compute
+  table becomes 256 GB, with the trained speed.
+- [`roadmap.md`](../roadmap.md#everything-still-to-buy): the rows bought for
+  this move leave the buy table, and README's count with them.
 - [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)'s
   *What is on the UPS* records: `trinity` and `ifrit` are now on the PDU,
   `smaug` is on it directly rather than by the long cord, and §1.7's outlet

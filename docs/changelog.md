@@ -25,6 +25,26 @@ docstring gives: it is a record, not a claim about now.
   optional port 1, replaces the DisplayPort card in that slot. It is recorded
   in `hardware.md` beside the RAM and NVMe still to buy.
 
+## 2026-10-13
+
+- **The rack move's parts, `ifrit`'s upgrades and `Saruman`'s memory are on
+  the buy list** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The
+  roadmap's *Everything still to buy* had been empty since 2026-09-25.
+  The 32U move's parts had been listed only in its runbook. #1179 added
+  `smaug`'s shelf there too, against the roadmap's rule that a planned
+  purchase goes in the table. Its rack, `Saruman` and cable rows join
+  `ifrit`'s two, twelve in all. The VESA mount, `trinity`'s tray and the
+  velcro are on hand.
+  - **`Saruman` gets eight more 16 GB RDIMMs, for headroom** (the operator,
+    today). Its iLO, read today, shows eight 16 GB DDR4 RDIMMs, dual-rank,
+    rated 2400 and third-party, one per channel in slots 1, 4, 9 and 12 of
+    each CPU. Eight more fill every channel's second slot alike, for 256 GB.
+    They go in during the move window, while the DL360 is out of the rack.
+  - **The XB7-to-`morpheus` factory cable is its own row, needed now.**
+    [#923](https://github.com/Gerrrt/HomeLab/issues/923) says that cable
+    should not wait for the rack move, so it is separate from the pack of
+    short leads the move needs.
+
 ## 2026-10-12
 
 - **The screen fits 8U, and the plan's open questions are closed** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).
