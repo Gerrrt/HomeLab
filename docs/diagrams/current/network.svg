@@ -631,7 +631,7 @@
 <g class="host" data-host="ifrit">
 <rect x="1202" y="1420" width="492" height="26" rx="8" class="card planned"/>
 <text x="1216" y="1438" class="hn planned-t">ifrit</text>
-<text x="1262" y="1438" class="sub planned-t">range server, not yet bought · Saruman moves to .20</text>
+<text x="1262" y="1438" class="sub planned-t">range server, bought, not yet built · Saruman moves to .20</text>
 <text x="1682" y="1438" class="ip" text-anchor="end" fill="#2ea043">.30</text>
 </g>
 </g>

@@ -86,7 +86,7 @@ ones not yet on hand are also in the roadmap's
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
 | 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
-| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run, and XB7 to `morpheus` |
+| Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
 | Spare M6 cage nuts and screws | 1 pack | Frames never ship with enough |
 | 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
 
@@ -474,8 +474,6 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 - `hardware.md`'s other mentions of `smaug` in the media room, on its long
   cord.
 - [`swap-the-switch.md`](swap-the-switch.md) Phase 3, and its own documents.
-- [`build-the-playground.md`](build-the-playground.md) §0, which still says
-  `ifrit` is unpurchased.
 
 ---
 
