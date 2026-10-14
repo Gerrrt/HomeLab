@@ -106,14 +106,15 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Eleven assertions cross-check
+- **CI that validates the documentation too.** Twelve assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
   file's outstanding-purchase count against the roadmap's buy table, every
-  critical alert's `runbook_url` against the runbook and heading it names, and
+  critical alert's `runbook_url` against the runbook and heading it names,
+  every relative Markdown link against the file and heading it points at, and
   a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
