@@ -43,10 +43,10 @@ decision and on this runbook.
 
 So what remains ahead of §1 is the machine. `ifrit` was bought on 2026-10-05,
 a refurbished ThinkCentre M80q, and arrived on 2026-10-14. It is not ready
-yet: the 2 × 16 GB of RAM and the 1 TB NVMe that ADR-0017 asks for are still to
-fit, and so is the VGA card that puts it on the KVM.
-[`hardware.md`](../hardware.md) lists the parts, and #421 tracks them. Nothing
-below this section can be started until they are in.
+yet: ADR-0017 asks for 32 GB of socketed RAM and an NVMe disk, and the parts
+chosen for that are still to fit. [`hardware.md`](../hardware.md) lists what
+is still to buy and fit, and #421 tracks the build. Nothing below this section
+can be started until they are in.
 
 You will also need a free Green access port on `neo` and an outlet on the PDU.
 `ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed
