@@ -32,7 +32,8 @@ Two kinds of document, edited differently:
   first, and a correction is a new entry that names the one it corrects. An
   accepted ADR in `docs/adr/` is immutable: a changed decision is a new ADR
   that supersedes it. An old ADR that says something has not happened yet
-  stays as written.
+  stays as written. An exercise in `docs/exercises/` is a record too: a re-run
+  is a new file.
 - **Current-state documents** must stay true: `README.md`,
   `docs/hardware.md`, `docs/network.md`, `docs/architecture.md`,
   `docs/security.md`, `docs/roadmap.md`, `docs/runbooks/` and
