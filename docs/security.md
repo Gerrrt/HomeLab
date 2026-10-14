@@ -713,7 +713,13 @@ with what it was and why it was still there. It was an acknowledgement, not a
 fix, and it existed because a CI job that is permanently red for a known reason
 gets ignored — and then a genuinely new leak goes unnoticed alongside it. The
 purge removed what it acknowledged, so the file was deleted. A history scan
-that passes with no exceptions is the evidence the purge worked.
+that passes with no exceptions is the evidence the purge worked — and since
+2026-10-14 the history scan reads a configuration with no path allowlist for
+anything gitignored. The working-tree scans read `.gitleaks-worktree.toml`,
+which extends it with `.rendered/`, `certificates/` and the rest; those were
+allowlisted in the one shared file before, and a path allowlist applies to
+every commit a history scan walks, so the purged key under `certificates/`
+was exactly the path that scan could not see.
 
 ### Everything above sits on an unencrypted disk
 

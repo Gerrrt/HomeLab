@@ -35,11 +35,13 @@
 # because `\.terraform/` needs the slash.
 #
 # ansible/.ansible/ and ansible/.collections/ are on the list because
-# .gitleaks.toml allowlists them. They hold third-party collections that
-# ansible-lint and ansible-galaxy download, and ansible.windows ships PEM keys
-# and passwords as test fixtures. An allowlisted path is invisible to BOTH
-# gitleaks scans, working tree and history, so being untracked is the only
-# control left. This is what asserts it, against `git add -f` too (#968).
+# .gitleaks-worktree.toml allowlists them. They hold third-party collections
+# that ansible-lint and ansible-galaxy download, and ansible.windows ships PEM
+# keys and passwords as test fixtures. An allowlisted path is invisible to the
+# working-tree scan, so being untracked is what keeps them out of the history
+# scan's reach too — and that scan reads .gitleaks.toml, which allowlists none
+# of them, so a tracked copy IS a finding there. This is what asserts the
+# untracked half, against `git add -f` too (#968).
 #
 # Usage:
 #   scripts/check-tracked-artefacts.sh               names every offender, exit 1 if any

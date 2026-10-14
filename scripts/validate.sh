@@ -777,10 +777,10 @@ else
 fi
 
 if ((${#GITLEAKS[@]})); then
-  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
+  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml >/dev/null 2>&1; then
     pass "gitleaks (working tree)"
   else
-    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml
+    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml
     fail "gitleaks (working tree)"
   fi
 
