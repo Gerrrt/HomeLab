@@ -899,7 +899,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   a netinstall or factory reset before it touches the network — a used
   RouterOS device arrives with whatever its last owner left on it, users
   included. **Read at the bench on 2026-10-05:** revision r2, serial
-  `CD010CC8FC1F`, management MAC `48:8F:5A:0E:A3:FB` (`ether1`). It booted
+  `CD010CC8FC1F`, management MAC `48:8f:5a:xx:xx:xx` (`ether1`, recorded as an
+  OUI like every other MAC here). It booted
   RouterOS 6.48.6 long-term (factory 6.44.6) with MikroTik's default
   configuration. It went to 6.49.22, then to 7.23.7, the long-term release
   that day, with the RouterBOOT firmware to match, and was then reset with
