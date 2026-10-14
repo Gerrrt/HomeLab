@@ -70,12 +70,28 @@ updates:
   # homelab-converge-sensitive applies it within the hour (#533), so review
   # it as one. Written before the host existed, for the reason the lab entry
   # gives: pins rot from the day they are written.
+  #
+  # Postgres majors are held, by wiki's rule below: the tier's three Postgres
+  # volumes — Immich's, Paperless's and Miniflux's — are quiesced data
+  # directory tars in `make backup`, restorable only into the same major, and
+  # a major is a dump and a restore (ADR-0065), never a digest bump. This
+  # entry carried no such line while wiki's and bloodhound's did, and here the
+  # merge IS the deploy: trinity would have started the next major against
+  # the previous major's data directory within the hour, with the previous
+  # night's set the only way back. Two names, because Immich's is its own image: the vectorchord
+  # build's tag moves with both the Postgres major and the extension's, and
+  # either is a migration Immich documents, not a bump.
   - package-ecosystem: docker-compose
     directory: /stacks/sensitive
     schedule:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: ghcr.io/immich-app/postgres
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "sensitive"]
