@@ -224,6 +224,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
 │   ├── adr/                  # 94 ADRs — architecture decision records
+│   ├── exercises/            # purple-team exercise records — see its README
 │   └── runbooks/             # 49 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
