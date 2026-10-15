@@ -108,13 +108,13 @@ CRS326 with them.
 | U | Device | Why here |
 | --- | --- | --- |
 | U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
-| U24 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 112 cm up |
-| U23 | MT-VIKI 8-port KVM | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12 |
+| U24 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 112 cm up. Mounted 2026-10-15 |
+| U23 | MT-VIKI 8-port KVM, on a 1U vented shelf | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, and the holes are not evenly spaced, so it sits about 8 mm off centre whichever pair is used. The shelf takes all three. Decided 2026-10-15 |
 | U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
 | U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
 | U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
-| U18 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so buy a mount made for the Tiny and check it fits before reusing `morpheus`'s tray design |
+| U18 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so its mount is one made for the Tiny, not `morpheus`'s tray design. Mounted 2026-10-15 |
 | U17 | *gap* | Keeps the range off the sensitive tier's box |
 | U16 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus`. Its 2 TB USB photo disk sits on the same tray |
 | U15 | ProDesk Mini tray: `morpheus` | |
@@ -132,6 +132,50 @@ Twenty-nine units are used and three are left as gaps (U11, U13, U17), so
 there is no headroom for another server. If the rack runs out, the 1U
 console drawer below gives back eight units, or nine with a model that
 replaces the KVM too.
+
+#### Console and power maps
+
+Decided 2026-10-15, cabled in the #919 window. Neither map existed before:
+the move runbook asked for the KVM's to be written down at the rack. Both
+are useful only to someone already standing at it, the same reach as the
+cable colours [`security.md`](security.md) publishes.
+
+**The KVM counts in the power-up order** of
+[`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §7. The
+switch selects port 1 at power-on, and `morpheus` is the first host brought
+up from the console.
+
+| KVM port | Host | Why |
+| --- | --- | --- |
+| 1 | `morpheus`, U15 | First up; the console the house's DHCP depends on |
+| 2 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
+| 3 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
+| 4 | `smaug`, U5–U9 | Racked, it loses the monitor beside it. Only if the TS150's rear VGA is used; check before cabling |
+| 5 | `ifrit`, U18 | Off until the playground build |
+| 6–8 | spare | |
+
+**The PDU follows the rack from the bottom up, bricks at the far end.** It
+is an unswitched strip, so the number is only a label, and the rule is that
+a cord's outlet tells you its device. External bricks block their
+neighbours, so they sit together at the high-numbered end.
+
+| Outlet | Device |
+| --- | --- |
+| 1 | DL360, supply 1 |
+| 2 | DL360, supply 2 if fitted, else spare |
+| 3 | `smaug` |
+| 4 | CRS326 |
+| 5 | spare |
+| 6 | `morpheus`'s brick |
+| 7 | `trinity`'s brick |
+| 8 | `ifrit`'s brick |
+| 9 | The N1700W's 12 V brick |
+| 10 | KVM |
+
+The TP-Link stays on its UPS outlet. **Which UPS outlet the PDU uses is not
+recorded.** The Smart-UPS X has outlet groups that can be switched
+separately, so the PDU's cord must be on the main group. Read it at the rack
+in the window and write it here.
 
 **`smaug` on its side, measured 2026-10-12.** Upright, the TS150 is 15"
 tall, 7" wide and 17" deep, and weighs about 20 lb with its drives. On its

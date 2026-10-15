@@ -347,14 +347,13 @@ ADR set; its last two rows are what it still needs. On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
 `Saruman`'s memory joined them. Already on hand, so not listed: the frame,
-the VESA mount, `trinity`'s ProDesk tray and the velcro.
+the VESA mount, `trinity`'s ProDesk tray and the velcro, and since
+2026-10-15 the keyboard drawer and `ifrit`'s Tiny mount, both mounted.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more. StarTech ADJSHELFHDV fits: 19.5–38", 27.5" tray, 330 lb | `smaug` on its side, U5–U9 | [`hardware.md`](hardware.md#planned-a-32u-rack), 2026-10-12 | Before the #919 window |
-| 2 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
-| 1U sliding keyboard drawer, front-rail mount | The console, U24 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
-| 1U mount made for a ThinkCentre Tiny, holding its brick | `ifrit`, U18 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 3 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12, and the KVM at U23 | [`hardware.md`](hardware.md#planned-a-32u-rack); the third on 2026-10-15 | Before the #919 window |
 | 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
 | 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
 | One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |

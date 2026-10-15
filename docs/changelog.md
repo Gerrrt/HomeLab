@@ -17,6 +17,34 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-15
+
+- **The KVM goes on a shelf, and the console and power maps are decided**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
+  CRS326, `ifrit`'s Tiny mount, `trinity`'s tray and the keyboard drawer are
+  mounted. The drawer and the Tiny mount leave *Everything still to buy* by
+  its rule, so twelve rows become ten. Both maps are in
+  [`hardware.md`](hardware.md#console-and-power-maps).
+  - **The KVM's ears leave a gap.** The MT-VIKI 801UK-L is sold as a half-U
+    device, so its ears take two adjacent holes of a unit's three. The holes
+    are not evenly spaced, so any two adjacent ones put the chassis about
+    8 mm off centre. No two-hole ear can centre it. It goes on a third 1U
+    vented shelf at U23 instead, which takes all three holes and needs no
+    drilling. Drilled full-height ears and a full-1U replacement KVM were
+    weighed and declined: a drill for the one, a new switch and eight cable
+    sets for a cosmetic offset for the other.
+  - **KVM ports count in the power-up order** of the move runbook's §7,
+    since the switch selects port 1 at power-on and `morpheus` is the first
+    host brought up from the console: `morpheus`, `trinity`, `Saruman`,
+    `smaug` if its rear VGA is used, then `ifrit`. `smaug` is new to the
+    list: racked, it loses the monitor beside it.
+  - **PDU outlets follow the rack from the bottom up**, the external bricks
+    together at the far end where they only block each other. The number is
+    a label only; the rule is that a cord's outlet tells you its device. One
+    check joins the runbook: the PDU's cord must be on the UPS's main outlet
+    group, which no document records.
+  - The switch's ports are not reordered: the captured map stands.
+
 ## 2026-10-14
 
 - **`ifrit` arrived, and a VGA card for it was ordered**

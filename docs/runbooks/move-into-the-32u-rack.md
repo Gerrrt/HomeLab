@@ -77,10 +77,10 @@ ones not yet on hand are also in the roadmap's
 | --- | --- | --- |
 | 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09, built 2026-10-11 at 29" |
 | VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U25–U32. On hand, 2026-10-13 |
-| 1U sliding keyboard drawer, front-rail mount | 1 | U24 |
-| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18 |
+| 1U sliding keyboard drawer, front-rail mount | 1 | U24. On hand and mounted, 2026-10-15 |
+| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18. On hand and mounted, 2026-10-15 |
 | 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16. On hand, 2026-10-13 |
-| 1U vented four-post shelf, square-hole, adjustable to 29" | 2 | `prometheus` U10 and `oracle` U12 |
+| 1U vented four-post shelf, square-hole, adjustable to 29" | 3 | `prometheus` U10, `oracle` U12 and the KVM at U23, whose own ears are half-height ([`hardware.md`](../hardware.md#planned-a-32u-rack)) |
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
@@ -361,7 +361,7 @@ units (§1.2), then the next one up.
 | 12 | U20 | Cable manager | |
 | 13 | U21 | CRS326 | Already racked on 2026-10-12. [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 2 is done; carry on from step 3 |
 | 14 | U22 | Vented blank | The air gap over the passive switch |
-| 15 | U23 | KVM | |
+| 15 | U23 | KVM, on its vented shelf | Its half-height ears take two of a unit's three holes; the shelf takes all three |
 | 16 | U24 | Keyboard drawer | Front rails only |
 | 17 | U25–U32 | N1700W on its VESA mount | The bracket bolts to 4U. The screen in front of it covers 8U |
 
@@ -390,9 +390,17 @@ units (§1.2), then the next one up.
   it back in before `trinity` powers up in §7: it holds Immich's originals.
 - **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
   clicks, in the XB7's striped 2.5 Gbit port.
-- KVM: one lead set each to `morpheus`, `Saruman`, `trinity` and `ifrit`.
-  Write down which KVM port is which; the repository has no map of it. The
-  lead sets reach from U23 down to `Saruman` at U3, checked 2026-10-12.
+- KVM: one lead set each, **by the port map in
+  [`hardware.md`](../hardware.md#console-and-power-maps)**: `morpheus` on 1,
+  `trinity` on 2, `Saruman` on 3, `smaug` on 4 if the TS150's rear VGA is
+  used, `ifrit` on 5. The lead sets reach from U23 down to `Saruman` at U3,
+  checked 2026-10-12.
+- Power cords **by the PDU outlet map** in the same section: the DL360's
+  supplies on 1 and 2, then up the rack, the external bricks together on 6–9
+  and the KVM on 10. Check that the PDU's own cord is on the UPS's main
+  outlet group, not a switched one: the Smart-UPS X can switch its groups
+  separately, and no document records which outlet the PDU uses. Write it in
+  `hardware.md` in §8.
 
 ---
 
