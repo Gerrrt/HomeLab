@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-15
 
+- **Both front-mounted trays wobble, so they get four-post support rails**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The keyboard
+  drawer at U24 and `ifrit`'s Tiny tray at U18 are mounted and move under
+  hand pressure with every ear screw tight. Both are front-only mounts: a
+  10.8" sliding tray with no rear support, whose reviewers tied its slider
+  rears to their cabinet, and a 6.6" hinged tray. Neither is a bad part; a
+  29" four-post frame gives their rears nothing to rest on. The operator
+  chose rails for both over a fourth vented shelf for the Tiny. Two pairs
+  of adjustable 1U four-post support rails join *Everything still to buy*,
+  ten rows to eleven, and the move runbook fits them before each tray and
+  fastens the tray's rear to them. Both parts are now footnoted in
+  [`hardware.md`](hardware.md#planned-a-32u-rack).
+
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
   CRS326, `ifrit`'s Tiny mount, `trinity`'s tray and the keyboard drawer are

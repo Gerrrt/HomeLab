@@ -356,6 +356,7 @@ the VESA mount, `trinity`'s ProDesk tray and the velcro, and since
 | 3 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12, and the KVM at U23 | [`hardware.md`](hardware.md#planned-a-32u-rack); the third on 2026-10-15 | Before the #919 window |
 | 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
 | 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 2 × pair of adjustable 1U four-post support rails, spanning 29" post to post | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight | The operator, 2026-10-15 | Before the #919 window |
 | One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
 | Short factory-made Cat6 patch cables, a pack, in the ADR-0009 VLAN colours | Switch to patch panel in the new rack | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §6.1 | Before the #919 window |
 | Spare M6 cage nuts and screws, a pack | The frame | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §0.1 | Before the #919 window |

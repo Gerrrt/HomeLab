@@ -108,13 +108,13 @@ CRS326 with them.
 | U | Device | Why here |
 | --- | --- | --- |
 | U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
-| U24 | 1U sliding keyboard and mouse shelf | Directly under the screen, about 112 cm up. Mounted 2026-10-15 |
+| U24 | 1U sliding keyboard and mouse shelf[^Drawer] | Directly under the screen, about 112 cm up. Mounted 2026-10-15. Front-mounted only, 10.8" deep, and it wobbles with all six ear screws tight, as its reviewers found. A pair of adjustable four-post support rails under its rear is to buy, decided 2026-10-15 |
 | U23 | MT-VIKI 8-port KVM, on a 1U vented shelf | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, and the holes are not evenly spaced, so it sits about 8 mm off centre whichever pair is used. The shelf takes all three. Decided 2026-10-15 |
 | U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
 | U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
 | U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
-| U18 | 1U mount for a Lenovo ThinkCentre Tiny: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so its mount is one made for the Tiny, not `morpheus`'s tray design. Mounted 2026-10-15 |
+| U18 | 1U mount for a Lenovo ThinkCentre Tiny[^Tinymount]: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so its mount is one made for the Tiny, not `morpheus`'s tray design. Mounted 2026-10-15. Hinged and front-mounted, 6.6" deep, and it wobbles with all six ear screws tight, so it gets a pair of four-post support rails under its rear too, decided 2026-10-15 |
 | U17 | *gap* | Keeps the range off the sensitive tier's box |
 | U16 | ProDesk Mini tray: `trinity` | Off the shelf. Same tray as `morpheus`. Its 2 TB USB photo disk sits on the same tray |
 | U15 | ProDesk Mini tray: `morpheus` | |
@@ -1164,6 +1164,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^KVM]: [MT-VIKI 8-port rackmount KVM](https://a.co/d/2yQl4KH)
 [^Panel]: [Jadol 24-port patch panel](https://a.co/d/izggRoK)
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)
+[^Drawer]: [Electriduct 1U sliding keyboard tray, 10.8" deep](https://www.amazon.com/dp/B07RCYP32J)
+[^Tinymount]: [Freejia 1U hinged rack mount for a ThinkCentre Tiny](https://www.amazon.com/dp/B0G4CZGRT7)
 [^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)

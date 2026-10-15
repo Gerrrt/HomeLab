@@ -84,6 +84,7 @@ ones not yet on hand are also in the roadmap's
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
+| Adjustable 1U four-post support rails, a pair, spanning 29" | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
 | 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
 | Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
@@ -359,13 +360,13 @@ units (§1.2), then the next one up.
 | 7 | U14 | The TP-Link on its shelf | It feeds the two laptops below it. U13 stays empty |
 | 8 | U15 | `morpheus` on its tray | |
 | 9 | U16 | `trinity` on the new ProDesk tray | Its USB photo disk too: see §6.1 |
-| 10 | U18 | `ifrit` on its Tiny mount, with its brick | U17 stays empty |
+| 10 | U18 | `ifrit` on its Tiny mount, with its brick | U17 stays empty. **Rails first:** a pair of four-post support rails in U18, then the tray's rear fastened to them (§6.1) |
 | 11 | U19 | Patch panel | |
 | 12 | U20 | Cable manager | |
 | 13 | U21 | CRS326 | Already racked on 2026-10-12. [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 2 is done; carry on from step 3 |
 | 14 | U22 | Vented blank | The air gap over the passive switch |
 | 15 | U23 | KVM, on its vented shelf | Its half-height ears take two of a unit's three holes; the shelf takes all three |
-| 16 | U24 | Keyboard drawer | Front rails only |
+| 16 | U24 | Keyboard drawer | Front rails only, plus a pair of four-post support rails in U24 under it; the drawer's slider rears are fastened to them before the screen goes on above (§6.1) |
 | 17 | U25–U32 | N1700W on its VESA mount | The bracket bolts to 4U. The screen in front of it covers 8U |
 
 ### 6.1 Cable it
@@ -402,6 +403,13 @@ units (§1.2), then the next one up.
   supplies on 1 and 2, then up the rack, the external bricks together on 6–9
   and the KVM on 10. Both laptops' chargers go on the UPS's own outlets
   beside the TP-Link, not on the PDU (§1.7).
+- **The two cantilevered trays get their rails before anything is loaded
+  above them.** The keyboard drawer and the Tiny tray are front-mounted and
+  wobble with all six ear screws tight; a pair of adjustable four-post
+  support rails in each unit gives their rears a ledge. Fasten each tray's
+  rear to its rails: a screw through the slider or the tray's lip into the
+  rail where there is a hole, a velcro strap round rail and tray where there
+  is not. Then push each tray: the frame should not move with it.
 - **Read which UPS outlet group the PDU's cord is on**, and which the
   TP-Link and the chargers are on. The Smart-UPS X's outlets are in groups
   the card can switch and sequence separately, and no document records
