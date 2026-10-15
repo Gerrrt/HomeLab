@@ -238,11 +238,14 @@ The PDU has ten outlets. Write down what will plug into it:
 | CRS326 (DC adapter) | 1 |
 | N1700W (12 V brick) | 1 |
 | `smaug` (racked at U5–U9; the long cord is retired) | 1 |
-| Both laptops' chargers | 2 |
+| Both laptops' chargers | 0: on the UPS's own outlets, beside the TP-Link |
 
-That is **9–10 of 10**. If it comes to 11, put the laptops' chargers on the
-UPS's own outlets beside the TP-Link: the laptops carry their own batteries,
-so they need the outlets least. Do not daisy-chain a power strip off the PDU.
+That is **8–9 of 10**, by the outlet map in
+[`hardware.md`](../hardware.md#console-and-power-maps). The laptops'
+chargers go on the UPS's own outlets in either case: with two DL360
+supplies the PDU would be at eleven, and the laptops carry their own
+batteries, so they need its outlets least. Do not daisy-chain a power strip
+off the PDU.
 
 ---
 
@@ -397,10 +400,14 @@ units (§1.2), then the next one up.
   checked 2026-10-12.
 - Power cords **by the PDU outlet map** in the same section: the DL360's
   supplies on 1 and 2, then up the rack, the external bricks together on 6–9
-  and the KVM on 10. Check that the PDU's own cord is on the UPS's main
-  outlet group, not a switched one: the Smart-UPS X can switch its groups
-  separately, and no document records which outlet the PDU uses. Write it in
-  `hardware.md` in §8.
+  and the KVM on 10. Both laptops' chargers go on the UPS's own outlets
+  beside the TP-Link, not on the PDU (§1.7).
+- **Read which UPS outlet group the PDU's cord is on**, and which the
+  TP-Link and the chargers are on. The Smart-UPS X's outlets are in groups
+  the card can switch and sequence separately, and no document records
+  which group feeds what. Check each group's turn-off and turn-on settings
+  against ADR-0049's shutdown and §7's power-up order, and write the groups
+  into `hardware.md` in §8.
 
 ---
 

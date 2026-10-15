@@ -40,9 +40,12 @@ docstring gives: it is a record, not a claim about now.
     list: racked, it loses the monitor beside it.
   - **PDU outlets follow the rack from the bottom up**, the external bricks
     together at the far end where they only block each other. The number is
-    a label only; the rule is that a cord's outlet tells you its device. One
-    check joins the runbook: the PDU's cord must be on the UPS's main outlet
-    group, which no document records.
+    a label only; the rule is that a cord's outlet tells you its device. Both
+    laptops' chargers go on the UPS's own outlets beside the TP-Link, which
+    keeps the map the same whether the DL360 has one supply or two. One
+    check joins the runbook: which UPS outlet group feeds the PDU, and
+    whether that group's switching settings fit ADR-0049 and the power-up
+    order. No document records the groups.
   - The switch's ports are not reordered: the captured map stands.
 
 ## 2026-10-14

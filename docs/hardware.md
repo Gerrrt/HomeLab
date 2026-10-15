@@ -172,10 +172,21 @@ neighbours, so they sit together at the high-numbered end.
 | 9 | The N1700W's 12 V brick |
 | 10 | KVM |
 
-The TP-Link stays on its UPS outlet. **Which UPS outlet the PDU uses is not
-recorded.** The Smart-UPS X has outlet groups that can be switched
-separately, so the PDU's cord must be on the main group. Read it at the rack
-in the window and write it here.
+**Both laptops' chargers go on the UPS's own outlets, beside the TP-Link
+that feeds them**, not on the PDU. The runbook's §1.7 counts them as PDU
+loads and says to move them to the UPS if the count reaches eleven; with
+two DL360 supplies it does, and the laptops carry their own cells, so they
+need the PDU's outlets least. Putting them there in either case keeps the
+map the same whatever the DL360 turns out to have, and outlet 5 stays
+spare.
+
+**Which UPS outlet group feeds the PDU is not recorded.** The Smart-UPS X's
+outlets are in groups the card can switch and sequence separately. Read
+which group the PDU's cord is on, check that group's turn-off and turn-on
+settings fit the shutdown in
+[ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
+and the power-up order in the runbook's §7, and write both here. The same
+goes for the group the TP-Link and the chargers are on.
 
 **`smaug` on its side, measured 2026-10-12.** Upright, the TS150 is 15"
 tall, 7" wide and 17" deep, and weighs about 20 lb with its drives. On its
