@@ -72,10 +72,30 @@ untagged VLAN 30. **No trunk, no tagged port** — ADR-0014 applies ADR-0007's
 constraint on `Saruman` to `ifrit` by name, and a VLAN-aware bridge here is
 listed as a reason to reopen that ADR.
 
-Install Proxmox VE. Take the defaults; the only thing worth deciding at install
-time is the filesystem, and there is one disk, so it is ext4 or a single-disk
-ZFS root. ZFS is worth it here for one reason: the range's whole operating model
-is snapshot and revert.
+Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
+([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)).
+At the installer's target-disk step pick the M.2 by name, which it shows as
+the `nvme` device, and leave the SATA drive unselected. ext4 is enough for a
+root disk that holds nothing the range churns; the snapshots happen on the
+other drive. Take the defaults otherwise.
+
+Then make the SATA SSD the guest storage, because the installer does not.
+From the node's shell, with the SSD's `by-id` name substituted:
+
+```bash
+ls -l /dev/disk/by-id/ | grep -i ata-
+zpool create -o ashift=12 range /dev/disk/by-id/ata-<the 1 TB SSD>
+pvesm add zfspool range --pool range --content images,rootdir --sparse 1
+pvesm status
+```
+
+**You should see** `range` active beside `local` and the M.2's own
+`local-lvm`. A single-disk pool with no redundancy is the point: ADR-0017
+said "not a mirror", and the range is maintained by nobody. From here on,
+**every template, the attack VM and every target gets its disk on `range`**:
+pick it in the *Storage* field when creating each VM, and §6's `clean`
+snapshot is then a ZFS snapshot on that pool. Nothing of the range goes on
+the M.2.
 
 Record what you actually bought in [`hardware.md`](../hardware.md) — the CPU,
 the memory kit and the disk capacity are chosen at the till and written down
@@ -372,6 +392,7 @@ has never fired is a rule nobody knows can.
 
 One VM, and it is the only guest with a leg on both bridges.
 
+- **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at
   this address, so it does not get a reservation.
 - **`net1` on `vmbr1`** — `172.30.30.10/24`, **no gateway**.
@@ -406,8 +427,9 @@ into the estate already need on `Saruman`.
 
 ## 6. The targets
 
-Each target attaches to **`vmbr1` and nothing else**, takes a static address
-from `172.30.30.100` upward, and has **no default route**. Every image insisting
+Each target attaches to **`vmbr1` and nothing else**, keeps its disk on
+**`range`** (§1), takes a static address from `172.30.30.100` upward, and has
+**no default route**. Every image insisting
 on DHCP gets a static override before its first boot on the bridge — ADR-0017
 declines to run a DHCP server here, because the obvious place to run one is the
 dual-homed VM, and a DHCP server that binds the wrong interface there is rogue
