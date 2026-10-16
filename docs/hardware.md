@@ -190,6 +190,16 @@ settings fit the shutdown in
 and the power-up order in the runbook's §7, and write both here. The same
 goes for the group the TP-Link and the chargers are on.
 
+**Two more decisions of 2026-10-16, both on the purchase table.** The UPS's
+AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
+bottom where the DL360 and the UPS sit; the SNMP job that already polls the
+card picks it up once the generator names it. And the strip gives way to a
+**switched, SNMP-managed PDU**, so the four hosts without a BMC (`morpheus`,
+`trinity`, `ifrit`, `smaug`) can be power-cycled without a walk to the rack.
+The outlet map above is the strip's and is redrawn when that PDU is placed;
+a switched PDU is a management-plane device, and which segment it sits on
+and how it is hardened is an ADR before it is cabled.
+
 **`smaug` on its side, measured 2026-10-12.** Upright, the TS150 is 15"
 tall, 7" wide and 17" deep, and weighs about 20 lb with its drives. On its
 side the 7" becomes its height: 4U is exactly 7.00", so with a shelf tray
