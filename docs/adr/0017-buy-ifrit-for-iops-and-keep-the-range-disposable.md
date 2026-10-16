@@ -3,6 +3,15 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **The *Disk* row of the decision table is superseded. The text below is
+> left as written, per ADR-0001.**
+> [ADR-0096](0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
+> puts the range disk in the M80q's 2.5" bay as a SATA SSD, decided
+> 2026-10-16, and keeps the 256 GB M.2 as the boot disk. The row's premise,
+> flash rather than spindles for snapshot revert, stands; what changed is
+> that the box has a bay as well as the slot.
+>
+> [!NOTE]
 > The ADR-0007 sentence this ADR quotes under "The fleet's measured
 > bottleneck is spindles, not RAM" was measured on 2026-09-20
 > ([#527](https://github.com/Gerrrt/HomeLab/issues/527)): `Saruman`'s 7.2K

@@ -129,7 +129,7 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 95 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 96 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 49
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -224,7 +224,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 95 ADRs — architecture decision records
+│   ├── adr/                  # 96 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
 │   └── runbooks/             # 49 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
@@ -399,7 +399,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-11 items now, 0 later, and a rule that nothing joins them without a
+10 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the

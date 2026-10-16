@@ -81,7 +81,9 @@ the table below.
 **It is set to 29" post to post**, the old 9U frame's depth, measured
 2026-10-12. The DL360's rails and the TP-Link's shelf already fit that
 spacing. The DL360 Gen9 is about 70 cm (27.5") deep, the deepest thing here,
-and its rails need four posts. The UPS needs rear support. Open frame suits a
+and its rails need four posts. The UPS needs rear support, and the rails it
+sits on now sag under it, so a 2U four-post pair rated above its weight is
+to buy, decided 2026-10-16. Open frame suits a
 fanless switch. Any four-post shelf bought new must fit a 29"-deep rack,
 which its listing states, and bolt to both posts without forcing.
 
@@ -126,7 +128,7 @@ CRS326 with them.
 | U5–U9 | `smaug`, the TS150, on its side on a four-post shelf | Heavy, so low. Off its long cord: on the PDU directly |
 | U4 | 10-outlet PDU | Fed by the UPS, close to it, so the cords are short |
 | U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
-| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
+| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom, on new 2U four-post rails: the ones it has sag, decided 2026-10-16 |
 
 Twenty-nine units are used and three are left as gaps (U11, U13, U17), so
 there is no headroom for another server. If the rack runs out, the 1U
@@ -206,10 +208,17 @@ down so it cannot slide off or hang by its cable.
 **`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
 ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
 1-litre Tiny chassis, so 1U. It is not usable as the range yet. ADR-0017
-asks for 32 GB of socketed RAM and NVMe, and two parts are still to buy:
+asks for 32 GB of socketed RAM and flash storage, and
+[ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
+puts the range disk in the chassis's 2.5" bay as a SATA SSD, decided
+2026-10-16, with the 256 GB M.2 it shipped with kept as the boot disk. Still
+to buy:
 
 - 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
-- a 1 TB NVMe SSD, for the range's snapshot reverts.
+- a 1 TB 2.5" SATA SSD, for the range's guests and their snapshot reverts.
+
+The bay's tray and its flat SATA cable are in the chassis, checked
+2026-10-16, so no kit is needed.
 
 **A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
 Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the
