@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-16
 
+- **A temperature probe for the UPS card and a switched PDU join the table**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The AP9641 card
+  has a sensor port and nothing measures rack ambient, so an APC AP9335T
+  probe is to buy; the existing SNMP job polls the card, and a generator
+  change follows. The 10-outlet strip gives way to a switched, SNMP-managed
+  PDU of the APC AP7900B class, because four hosts have no BMC and a hung
+  one needs someone at the rack today. Eight outlets suffice once the
+  screen's brick and the KVM move to the UPS's own outlets. The PDU is a
+  management-plane device: its segment and hardening are an ADR before it
+  is cabled, and the outlet map in `hardware.md` is redrawn then. Ten rows
+  become twelve.
+
 - **`mjolnir` gets 2U four-post rails, and two bought rows leave the table**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The rails the UPS
   sits on now sag under it; `hardware.md` had already said it needs rear

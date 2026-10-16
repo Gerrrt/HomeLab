@@ -399,7 +399,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-10 items now, 0 later, and a rule that nothing joins them without a
+12 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the
