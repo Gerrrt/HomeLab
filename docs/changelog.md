@@ -27,10 +27,10 @@ docstring gives: it is a record, not a claim about now.
   a 2.5" SATA drive as well as one M.2. The operator chose SATA, so the
   256 GB M.2 stays as the boot disk and the 1 TB SSD carries the guests.
   ADR-0017's *Disk* row is superseded and carries the note; its premise,
-  flash over spindles, stands. The roadmap row becomes a 2.5" SATA SSD and
-  gains a conditional row for the Tiny's tray kit, eleven rows to twelve,
-  since a refurbished box may ship without the tray and cable. The runbook's
-  §1.3 fits the drive in the bay instead of swapping the M.2.
+  flash over spindles, stands. The roadmap row becomes a 2.5" SATA SSD; the
+  bay's tray and cable are already in the chassis, checked the same day, so
+  no kit joins the table. The runbook's §1.3 fits the drive in the bay
+  instead of swapping the M.2.
 
 ## 2026-10-15
 

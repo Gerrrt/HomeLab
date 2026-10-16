@@ -17,10 +17,10 @@ roadmap's purchase row therefore read "1 TB NVMe SSD", and the move runbook's
 That last sentence was wrong. Lenovo's PSREF sheet for the first-generation
 M80q gives its storage as "up to two drives, 1x 2.5" HDD + 1x M.2 SSD", the
 2.5" bay on SATA 6 Gb/s. The bay takes a 2.5" SSD as readily as a disk, and
-it is empty on a Tiny sold with an M.2 only. Whether the tray and its flat
-SATA cable are in the chassis is not known until it is opened: Lenovo sells
-them as the Tiny tray kit `5M10U50268` with the `00XL211` cable, and a
-refurbished box may ship without them.
+it is empty on a Tiny sold with an M.2 only. The tray and its flat SATA
+cable are in this chassis, checked on 2026-10-16; a refurbished box can ship
+without them, in which case Lenovo sells them as the Tiny tray kit
+`5M10U50268` with the `00XL211` cable.
 
 The operator chose on 2026-10-16 to put the range disk in that bay as a SATA
 SSD rather than swap the M.2.
@@ -43,9 +43,7 @@ activity is attack tooling, not storage benchmarking.
 
 - **The bay, not the slot.** The SATA SSD mounts in the Tiny's 2.5" tray and
   connects by the flat SATA cable to the board, as the M80q hardware
-  maintenance manual shows. If the chassis has no tray and cable, the Lenovo
-  kit `5M10U50268` with `00XL211` is bought with the drive; the roadmap
-  carries it as its own row, conditional on opening the case first.
+  maintenance manual shows. Both are in the chassis, so no kit is bought.
 - **Two drives, two jobs.** The 256 GB M.2 is the Proxmox boot and root disk;
   the 1 TB SATA SSD is the guest storage, where templates, the attack VM and
   the targets' disks live and are reverted. The boot disk is never part of
@@ -56,8 +54,8 @@ activity is attack tooling, not storage benchmarking.
 
 ## Consequences
 
-- `docs/roadmap.md`'s row becomes a 2.5" SATA SSD, with a second row for the
-  bay kit; [`hardware.md`](../hardware.md) and the two runbooks that fit and
+- `docs/roadmap.md`'s row becomes a 2.5" SATA SSD;
+  [`hardware.md`](../hardware.md) and the two runbooks that fit and
   then use the drive say the same. The move runbook's §1.3 no longer swaps
   the M.2 and no longer keeps a 256 GB drive "with the spare parts".
 - The range's storage ceiling is SATA's. If a future exercise is ever

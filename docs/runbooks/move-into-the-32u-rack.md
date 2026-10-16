@@ -86,7 +86,7 @@ ones not yet on hand are also in the roadmap's
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
 | Adjustable 1U four-post support rails, a pair, spanning 29": Rack Solutions 1UKIT-109 | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
-| 1 TB 2.5" SATA SSD, plus the Tiny's tray kit (`5M10U50268` with `00XL211`) if the chassis has none | 1 | `ifrit`, in the 2.5" bay beside its 256 GB M.2 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
+| 1 TB 2.5" SATA SSD | 1 | `ifrit`, in the 2.5" bay beside its 256 GB M.2 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
 | Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
 | Spare M6 cage nuts and screws | 1 pack | Frames never ship with enough |
 | 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
@@ -159,8 +159,8 @@ The M80q (first generation) takes **DDR4-2666/2933 SO-DIMMs, two slots,
 2.5" SATA bay** (6 Gb/s). The other M.2 slot is for Wi-Fi. This is from
 Lenovo's PSREF spec sheet. The 1 TB SATA SSD goes in the bay and the 256 GB
 M.2 stays as the boot disk ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)).
-The bay needs Lenovo's tray and flat SATA cable; if the chassis has none,
-the kit in §0.1 is fitted here.
+The bay's tray and flat SATA cable are already in the chassis, checked
+2026-10-16.
 
 1. Unplug the power brick, then hold the power button for five seconds to
    drain it.

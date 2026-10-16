@@ -213,9 +213,10 @@ puts the range disk in the chassis's 2.5" bay as a SATA SSD, decided
 to buy:
 
 - 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
-- a 1 TB 2.5" SATA SSD, for the range's guests and their snapshot reverts;
-- the Tiny's 2.5" tray kit, Lenovo `5M10U50268` with the `00XL211` cable,
-  only if the chassis turns out to have none. Open it and look first.
+- a 1 TB 2.5" SATA SSD, for the range's guests and their snapshot reverts.
+
+The bay's tray and its flat SATA cable are in the chassis, checked
+2026-10-16, so no kit is needed.
 
 **A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
 Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the
