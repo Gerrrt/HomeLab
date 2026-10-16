@@ -29,8 +29,10 @@ docstring gives: it is a record, not a claim about now.
   chose rails for both over a fourth vented shelf for the Tiny. Two pairs
   of adjustable 1U four-post support rails join *Everything still to buy*,
   ten rows to eleven, and the move runbook fits them before each tray and
-  fastens the tray's rear to them. Both parts are now footnoted in
-  [`hardware.md`](hardware.md#planned-a-32u-rack).
+  fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
+  Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
+  cabling crossbar the drawer's slider rears can tie to. Both parts are now
+  footnoted in [`hardware.md`](hardware.md#planned-a-32u-rack).
 
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the

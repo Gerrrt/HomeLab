@@ -84,7 +84,7 @@ ones not yet on hand are also in the roadmap's
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
-| Adjustable 1U four-post support rails, a pair, spanning 29" | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
+| Adjustable 1U four-post support rails, a pair, spanning 29": Rack Solutions 1UKIT-109 | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
 | 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
 | Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
@@ -406,10 +406,12 @@ units (§1.2), then the next one up.
 - **The two cantilevered trays get their rails before anything is loaded
   above them.** The keyboard drawer and the Tiny tray are front-mounted and
   wobble with all six ear screws tight; a pair of adjustable four-post
-  support rails in each unit gives their rears a ledge. Fasten each tray's
-  rear to its rails: a screw through the slider or the tray's lip into the
-  rail where there is a hole, a velcro strap round rail and tray where there
-  is not. Then push each tray: the frame should not move with it.
+  support rails in each unit gives their rears a ledge. The 1UKIT-109 ships
+  with a cabling crossbar: fit it at the rear, and it is the tie point for
+  the keyboard drawer's slider rears. Fasten each tray's rear to its rails
+  or crossbar: a screw through the slider or the tray's lip where there is a
+  hole, a velcro strap round rail and tray where there is not. Then push
+  each tray: the frame should not move with it.
 - **Read which UPS outlet group the PDU's cord is on**, and which the
   TP-Link and the chargers are on. The Smart-UPS X's outlets are in groups
   the card can switch and sequence separately, and no document records
