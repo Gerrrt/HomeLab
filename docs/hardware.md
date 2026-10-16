@@ -81,7 +81,9 @@ the table below.
 **It is set to 29" post to post**, the old 9U frame's depth, measured
 2026-10-12. The DL360's rails and the TP-Link's shelf already fit that
 spacing. The DL360 Gen9 is about 70 cm (27.5") deep, the deepest thing here,
-and its rails need four posts. The UPS needs rear support. Open frame suits a
+and its rails need four posts. The UPS needs rear support, and the rails it
+sits on now sag under it, so a 2U four-post pair rated above its weight is
+to buy, decided 2026-10-16. Open frame suits a
 fanless switch. Any four-post shelf bought new must fit a 29"-deep rack,
 which its listing states, and bolt to both posts without forcing.
 
@@ -126,7 +128,7 @@ CRS326 with them.
 | U5–U9 | `smaug`, the TS150, on its side on a four-post shelf | Heavy, so low. Off its long cord: on the PDU directly |
 | U4 | 10-outlet PDU | Fed by the UPS, close to it, so the cords are short |
 | U3 | HPE ProLiant DL360 Gen9 (`shiva`/`Saruman`) | Heavy and deep, so low |
-| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom |
+| U1–U2 | APC Smart-UPS X 1500 (`mjolnir`) | Heaviest, at the bottom, on new 2U four-post rails: the ones it has sag, decided 2026-10-16 |
 
 Twenty-nine units are used and three are left as gaps (U11, U13, U17), so
 there is no headroom for another server. If the rack runs out, the 1U

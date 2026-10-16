@@ -347,8 +347,10 @@ ADR set; its last two rows are what it still needs. On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
 `Saruman`'s memory joined them. Already on hand, so not listed: the frame,
-the VESA mount, `trinity`'s ProDesk tray and the velcro, and since
-2026-10-15 the keyboard drawer and `ifrit`'s Tiny mount, both mounted.
+the VESA mount, `trinity`'s ProDesk tray and the velcro; since 2026-10-15
+the keyboard drawer and `ifrit`'s Tiny mount, both mounted; and since
+2026-10-16 the short patch leads in the VLAN colours and the spare M6 cage
+nuts, which the operator already had.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
@@ -357,9 +359,8 @@ the VESA mount, `trinity`'s ProDesk tray and the velcro, and since
 | 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
 | 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
 | 2 × pair of adjustable 1U four-post support rails, spanning 29" post to post. Rack Solutions 1UKIT-109 fits: 10–31.5", 45 lb, with a cabling crossbar | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight | The operator, 2026-10-15; the kit chosen 2026-10-16 | Before the #919 window |
+| 2U four-post rail pair rated above the UPS's weight. Rack Solutions 2UKIT-109 fits: 10–31.75", 75 lb, 18-gauge, with a cabling crossbar | `mjolnir` at U1–U2: the rails it sits on now sag under it | The operator, 2026-10-16 | Before the #919 window |
 | One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
-| Short factory-made Cat6 patch cables, a pack, in the ADR-0009 VLAN colours | Switch to patch panel in the new rack | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §6.1 | Before the #919 window |
-| Spare M6 cage nuts and screws, a pack | The frame | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §0.1 | Before the #919 window |
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
 | 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 | 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
