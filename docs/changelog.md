@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-16
 
+- **`mjolnir` gets 2U four-post rails, and two bought rows leave the table**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The rails the UPS
+  sits on now sag under it; `hardware.md` had already said it needs rear
+  support. A 2U four-post pair rated above its weight joins *Everything
+  still to buy*, Rack Solutions 2UKIT-109 named for its 10–31.75" range,
+  75 lb rating and 18-gauge steel, and the move runbook racks the UPS on
+  them and leaves the old rails out. The short patch leads in the VLAN
+  colours and the spare M6 cage nuts leave the table: the operator already
+  has both. Eleven rows become ten.
+
 - **`ifrit`'s range disk is a SATA SSD in the Tiny's bay, not an NVMe swap**
   ([ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md),
   [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The move runbook had
