@@ -17,6 +17,21 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-16
+
+- **`ifrit`'s range disk is a SATA SSD in the Tiny's bay, not an NVMe swap**
+  ([ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md),
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The move runbook had
+  the 1 TB drive replace the 256 GB M.2 because "there is nowhere to fit
+  both". Lenovo's PSREF sheet says otherwise: the first-generation M80q takes
+  a 2.5" SATA drive as well as one M.2. The operator chose SATA, so the
+  256 GB M.2 stays as the boot disk and the 1 TB SSD carries the guests.
+  ADR-0017's *Disk* row is superseded and carries the note; its premise,
+  flash over spindles, stands. The roadmap row becomes a 2.5" SATA SSD and
+  gains a conditional row for the Tiny's tray kit, eleven rows to twelve,
+  since a refurbished box may ship without the tray and cable. The runbook's
+  §1.3 fits the drive in the bay instead of swapping the M.2.
+
 ## 2026-10-15
 
 - **Both front-mounted trays wobble, so they get four-post support rails**

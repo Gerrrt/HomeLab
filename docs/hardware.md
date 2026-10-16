@@ -206,10 +206,16 @@ down so it cannot slide off or hang by its cable.
 **`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
 ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
 1-litre Tiny chassis, so 1U. It is not usable as the range yet. ADR-0017
-asks for 32 GB of socketed RAM and NVMe, and two parts are still to buy:
+asks for 32 GB of socketed RAM and flash storage, and
+[ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
+puts the range disk in the chassis's 2.5" bay as a SATA SSD, decided
+2026-10-16, with the 256 GB M.2 it shipped with kept as the boot disk. Still
+to buy:
 
 - 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
-- a 1 TB NVMe SSD, for the range's snapshot reverts.
+- a 1 TB 2.5" SATA SSD, for the range's guests and their snapshot reverts;
+- the Tiny's 2.5" tray kit, Lenovo `5M10U50268` with the `00XL211` cable,
+  only if the chassis turns out to have none. Open it and look first.
 
 **A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
 Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the

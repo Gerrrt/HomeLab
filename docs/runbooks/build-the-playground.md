@@ -43,8 +43,10 @@ decision and on this runbook.
 
 So what remains ahead of §1 is the machine. `ifrit` was bought on 2026-10-05,
 a refurbished ThinkCentre M80q, and arrived on 2026-10-14. It is not ready
-yet: ADR-0017 asks for 32 GB of socketed RAM and an NVMe disk, and the parts
-chosen for that are still to fit. [`hardware.md`](../hardware.md) lists what
+yet: ADR-0017 asks for 32 GB of socketed RAM and a flash disk, which
+[ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
+makes a SATA SSD in the Tiny's bay, and the parts chosen for that are still
+to fit. [`hardware.md`](../hardware.md) lists what
 is still to buy and fit, and #421 tracks the build. Nothing below this section
 can be started until they are in.
 

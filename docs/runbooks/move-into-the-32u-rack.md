@@ -86,7 +86,7 @@ ones not yet on hand are also in the roadmap's
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
 | Adjustable 1U four-post support rails, a pair, spanning 29": Rack Solutions 1UKIT-109 | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
 | 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
-| 1 TB NVMe, M.2 2280 | 1 | `ifrit`, replacing its 256 GB drive |
+| 1 TB 2.5" SATA SSD, plus the Tiny's tray kit (`5M10U50268` with `00XL211`) if the chassis has none | 1 | `ifrit`, in the 2.5" bay beside its 256 GB M.2 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
 | Factory-made Cat6 patch cables, short | a pack | Every switch-to-panel run. The XB7-to-`morpheus` cable is [#923](https://github.com/Gerrrt/HomeLab/issues/923)'s, fitted before the window rather than in it |
 | Spare M6 cage nuts and screws | 1 pack | Frames never ship with enough |
 | 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
@@ -155,9 +155,12 @@ thumb.
 ### 1.3 Fit `ifrit`'s RAM and SSD
 
 The M80q (first generation) takes **DDR4-2666/2933 SO-DIMMs, two slots,
-64 GB maximum**, and has **one M.2 2280 SSD slot** (PCIe 3.0 x4). The other
-M.2 slot is for Wi-Fi. This is from Lenovo's PSREF spec sheet. So the 1 TB
-drive **replaces** the 256 GB one; there is nowhere to fit both.
+64 GB maximum**, and has **one M.2 2280 SSD slot** (PCIe 3.0 x4) **and one
+2.5" SATA bay** (6 Gb/s). The other M.2 slot is for Wi-Fi. This is from
+Lenovo's PSREF spec sheet. The 1 TB SATA SSD goes in the bay and the 256 GB
+M.2 stays as the boot disk ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)).
+The bay needs Lenovo's tray and flat SATA cable; if the chassis has none,
+the kit in §0.1 is fitted here.
 
 1. Unplug the power brick, then hold the power button for five seconds to
    drain it.
@@ -169,12 +172,14 @@ drive **replaces** the 256 GB one; there is nowhere to fit both.
 4. Take out both 8 GB SO-DIMMs and fit the two 16 GB ones. Each goes in at
    an angle until its gold edge is fully seated, then presses down until both
    clips click.
-5. Take out the 256 GB SSD, fit the 1 TB one, and fasten it with the same
-   screw. **Keep the 256 GB drive with the machine's spare parts.** It holds
-   whatever the refurbisher installed.
+5. Fit the 1 TB SATA SSD in the 2.5" tray, the tray in the bay, and its
+   flat cable to the board's SATA header, routed as the manual shows. Leave
+   the 256 GB M.2 where it is: it holds whatever the refurbisher installed
+   and becomes the boot disk when Proxmox is installed over it.
 6. Close the case, power on, and enter the BIOS (F1 on ThinkCentres).
 
-**You should see** 32768 MB (or 32 GB) of memory and the 1 TB NVMe drive.
+**You should see** 32768 MB (or 32 GB) of memory and both drives, the
+256 GB M.2 and the 1 TB SATA.
 
 **If you see 16 GB:** one module is not seated. Power off, unplug, and reseat
 it. **If you see no drive:** the SSD is not fully seated in its slot, or its

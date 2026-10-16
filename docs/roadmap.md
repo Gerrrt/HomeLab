@@ -274,7 +274,7 @@ Gated on the domain, on a household observation, or on something to publish.
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
   uninstrumented estate teaches nothing. Both are met. What gates the build
-  now is its RAM kit and NVMe drive, in
+  now is its RAM kit and SATA SSD, in
   [*Everything still to buy*](#everything-still-to-buy), and its place in the
   #919 rack move.
   → [runbook](runbooks/build-the-playground.md)
@@ -362,10 +362,11 @@ the VESA mount, `trinity`'s ProDesk tray and the velcro, and since
 | Spare M6 cage nuts and screws, a pack | The frame | [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §0.1 | Before the #919 window |
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
 | 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
-| 1 TB NVMe SSD | `ifrit`'s range and its snapshot reverts | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): NVMe | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| Tiny 2.5" bay kit: Lenovo tray `5M10U50268` with the `00XL211` SATA cable | `ifrit`'s bay, only if the chassis has none: open the case and look before buying | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md) | With the SSD above |
 
 **The last one, bought 2026-10-05:** `ifrit`, the range host — a quiet
-SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
+SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
 [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The box is a
 refurbished ThinkCentre M80q, and it arrived on 2026-10-14. It shipped with
