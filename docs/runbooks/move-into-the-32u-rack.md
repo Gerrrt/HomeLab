@@ -94,7 +94,11 @@ The current shelf for the TP-Link, `morpheus`'s tray, the KVM, the PDU, the
 patch panel, the DL360's rails and the CRS326 all move over. The UPS's
 present rails do not: they sag under it, and the 2U pair above replaces
 them. The short patch leads in the VLAN colours and the spare cage nuts are
-already on hand.
+already on hand. The accessories decided on 2026-10-16 (a console cable for
+the CRS326, labels, a rack light, a bonding strap, a cable tester,
+power-side cable management, levelling feet and a keyboard that fits the
+drawer) are in the roadmap's table: fit whichever have arrived, and none of
+them gates the window.
 
 ### 0.2 Checklist
 

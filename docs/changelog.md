@@ -30,6 +30,13 @@ docstring gives: it is a record, not a claim about now.
   management-plane device: its segment and hardening are an ADR before it
   is cabled, and the outlet map in `hardware.md` is redrawn then. Ten rows
   become twelve.
+  - **Eight accessories join the same day**, one row each so each leaves as
+    it arrives: a serial console cable for the CRS326, labels for every
+    lead and port, a rack light, a bonding strap for the frame, a cable
+    tester for the in-wall runs, power-side cable management, levelling
+    feet if the floor needs them, and a tenkeyless keyboard that fits the
+    10.8" drawer. None gates the move; the runbook fits whichever have
+    arrived. Twelve rows become twenty.
 
 - **`mjolnir` gets 2U four-post rails, and two bought rows leave the table**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The rails the UPS
