@@ -34,6 +34,17 @@ docstring gives: it is a record, not a claim about now.
   that nothing reachable from `trinity` acts on an anonymous `GET`, and the
   fix is to be raised upstream.
 
+- **Home Assistant's first automations are packages in git**
+  (`stacks/sensitive/home-assistant/packages/`). `lighting.yaml` turns the
+  shared rooms' Hue lights on before sunset and off at sunrise, and
+  `bedtime.yaml` adds a bedtime script with an optional timer set from the UI.
+  The entity registry showed Ring, Litter-Robot and Tuya already connected
+  through their config flows, so there was nothing to connect. A
+  UPS-on-battery alert sent to ntfy from Home Assistant would only repeat
+  `UpsOnBattery`, which already pages through Alertmanager. So
+  `homelab_rack.yaml` gains an on-battery sensor and a runtime-remaining
+  sensor for the dashboard, and no notification.
+
 ## 2026-10-16
 
 - **A temperature probe for the UPS card and a switched PDU join the table**
