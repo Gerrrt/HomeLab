@@ -1,0 +1,67 @@
+---
+# Bedtime: the shared rooms go dark, the bedroom drops to a warm glow, and the
+# white-noise machine starts.
+#
+# A script rather than a scene. A scene sets states all at once and cannot
+# fade, and the white-noise machine is two switches (power, then sound), which
+# have to go in order. Run it from the dashboard or the phone, or let the
+# timer below run it.
+#
+# The script uses light.evening_lights from lighting.yaml. The white-noise
+# machine is the tuya integration's, reached through Tuya's cloud
+# (ADR-0035's inventory).
+
+script:
+  bedtime:
+    alias: Bedtime
+    icon: mdi:weather-night
+    mode: single
+    sequence:
+      - action: light.turn_off
+        target:
+          entity_id: light.evening_lights
+        data:
+          transition: 30
+      - action: light.turn_on
+        target:
+          entity_id: light.bedroom_bedroom
+        data:
+          brightness_pct: 15
+          color_temp_kelvin: 2200
+          transition: 30
+      - action: switch.turn_on
+        target:
+          entity_id: switch.smart_white_noise_machine
+      - action: switch.turn_on
+        target:
+          entity_id: switch.smart_white_noise_machine_music
+
+# The time and the on/off switch for the timer are the household's to set in
+# the UI, not in a review. Neither has an `initial`, so Home Assistant
+# restores whatever was last set across a restart. On a fresh volume the
+# switch starts off, so the timer does nothing until someone turns it on.
+input_boolean:
+  bedtime_timer:
+    name: Bedtime on a timer
+    icon: mdi:timer-outline
+
+input_datetime:
+  bedtime:
+    name: Bedtime
+    has_date: false
+    has_time: true
+
+automation:
+  - id: bedtime_on_a_timer
+    alias: Bedtime on a timer
+    description: Runs the bedtime script at the set time, while the timer switch is on.
+    mode: single
+    triggers:
+      - trigger: time
+        at: input_datetime.bedtime
+    conditions:
+      - condition: state
+        entity_id: input_boolean.bedtime_timer
+        state: "on"
+    actions:
+      - action: script.bedtime

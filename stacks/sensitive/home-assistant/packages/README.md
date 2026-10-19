@@ -11,7 +11,9 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 
 | Package | What it adds |
 | --- | --- |
-| `homelab_rack.yaml` | The rack's power draw for the Energy dashboard, read from the UPS's load through Prometheus rather than from the card directly |
+| `bedtime.yaml` | A bedtime script (shared rooms off, bedroom dimmed warm, white-noise machine on) and an optional timer for it, whose time and on/off switch are set in the UI |
+| `homelab_rack.yaml` | The rack's power draw for the Energy dashboard, read from the UPS's load through Prometheus rather than from the card directly, plus the UPS's on-battery state and runtime remaining for the dashboard. Paging stays with Alertmanager's `UpsOnBattery` |
+| `lighting.yaml` | `light.evening_lights`, a group of the shared rooms' Hue lights, on fifteen minutes before sunset and off at sunrise |
 
 There is no `automations.yaml`. The UI automation editor writes that file into
 `/config` and needs `automation: !include automations.yaml` to load it, and
@@ -23,3 +25,9 @@ used. Devices and integrations are still added through the UI: a config flow
 has no YAML form, and what it produces lands in `/config/.storage`, which is
 state, not configuration — `compose.yaml` says where that leaves the
 credentials.
+
+Only the shared rooms are named in these files. [`docs/security.md`](../../../../docs/security.md#what-this-repository-deliberately-does-not-publish)
+keeps owner-linked device names, a child's room and camera-to-room mapping out
+of the repository, so an automation that needs one of those is a UI-side
+setting (a label, an area or a helper) that a package here reads, not an
+entity id written here.
