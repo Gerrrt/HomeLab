@@ -427,7 +427,7 @@
 <rect x="816" y="956" width="342" height="50" rx="8" class="card"/>
 <rect x="816" y="962" width="4" height="38" rx="2" fill="#e3b341"/>
 <text x="830" y="978" class="hn">mediatv</text>
-<text x="1146" y="978" class="ip" text-anchor="end" fill="#e3b341">.100</text>
+<text x="1146" y="978" class="ip" text-anchor="end" fill="#e3b341">.40</text>
 <text x="830" y="996" class="sub">LG OLED · webOS · wired</text>
 </g>
 <g class="host" data-host="streambox">

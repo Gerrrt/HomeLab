@@ -190,6 +190,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
+- **Three rules into CasaBonita for the TV are decided, not created:**
+  `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
+  (reject), above *Block access to CasaBonita*. They let Home Assistant drive
+  and wake `mediatv`. The CasaBonita notes and
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  give the reasons.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -320,7 +326,7 @@ Televisions and consoles. Internet only.
 | nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Lower floor | Console |
 | hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Lower floor | Console |
 | smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Media room | NAS |
-| mediatv | `10.0.40.100` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
+| mediatv | `10.0.40.40` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
 | streambox | `10.0.40.101` | `f0:46:3b:xx:xx:xx` | Xumo Stream Box[^StreamBox] | entOS | Media room | Streaming |
 
 ### Notes
@@ -390,6 +396,18 @@ Televisions and consoles. Internet only.
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
   it, and `alexander` is refused.
+- **Three rules from `trinity` to `mediatv` are decided, not created:**
+  `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
+  webOS integration and `9/udp` for the magic packet that wakes the TV, and
+  **rejecting** `3000/tcp` so the integration falls back to TLS instead of
+  sending its pairing key in clear. All three sit above *Block access to
+  CasaBonita* on Winterfell's interface, with a static ARP entry for the TV so
+  the unicast wake reaches it asleep. The TV's address is a Kea reservation
+  at `.40` since 2026-10-19, below the pool. Before that it held `.100`, the
+  pool's first address, by lease.
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  records the reading, and [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)
+  creates them. Until then, nothing reaches the TV from another segment.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),

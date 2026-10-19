@@ -372,6 +372,24 @@ leaves is up to a day between a replacement and the page; a template built
 inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
+**Three more, for the television, are decided and not created.**
+`10.0.99.40 → 10.0.40.40` passes `3001/tcp` and `9/udp` and rejects
+`3000/tcp`, so Home Assistant can drive `mediatv` and wake it
+([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
+[#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The source is the
+most trusted tier and the destination is a guest-trust device. The residual
+is that Home Assistant parses whatever the TV sends back, and the integration
+does not verify the TV's self-signed certificate, so a device that took the
+TV's address would get a key that controls the TV and nothing else. There is
+also a request-forgery residual. `aiowebostv` connects to whatever input-socket
+URL the TV returns, so a compromised TV can make Home Assistant send a blind,
+unauthenticated websocket `GET` anywhere `trinity` reaches. The firewall rules
+for the TV do not limit that connection. All three are accepted: the first two
+as ADR-0035 accepted the Hue bridge's, and the third on the condition that
+nothing `trinity` reaches acts on an anonymous `GET`, which
+[#1218](https://github.com/Gerrrt/HomeLab/issues/1218) checks before the
+rules exist. ADR-0097 records
+the bound, and that the fix belongs in `aiowebostv`.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block that

@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-19
 
+- **The LG TV gets a decision before it gets a rule**
+  ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). LG ThinQ was ruled
+  out by reading the library the pinned image ships: `thinqconnect` 1.0.14
+  has no TV type. The LG webOS integration needs the TV on `3000` or `3001`.
+  Its library tries plaintext `3000` first and falls back to TLS only on a
+  refusal, so the rule passes `3001`, **rejects** `3000` and passes `9/udp`
+  for Wake-on-LAN. A static ARP entry on `morpheus` lets the unicast wake
+  reach a sleeping TV, and the TV's full MAC goes into SOPS rather than the
+  repository. Review found that the library also connects to whatever
+  input-socket URL the TV returns, a blind request forgery from `trinity`.
+  It is accepted on a condition #1218 checks before the rules are created,
+  that nothing reachable from `trinity` acts on an anonymous `GET`, and the
+  fix is to be raised upstream.
+
 - **Home Assistant's first automations are packages in git**
   (`stacks/sensitive/home-assistant/packages/`). `lighting.yaml` turns the
   shared rooms' Hue lights on before sunset and off at sunrise, and
