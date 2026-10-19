@@ -363,6 +363,12 @@ services:
   # second credential ever arrives, the secrets.yaml plan becomes worth its
   # mount.
   #
+  # HA_MEDIATV_MAC comes by the same route and is not a credential. It is the
+  # TV's full MAC, which packages/mediatv.yaml's Wake-on-LAN call needs and
+  # docs/security.md keeps out of the repository (ADR-0097, #1218). It sits in
+  # SOPS because that is where a withheld value lives, so it does not count
+  # towards the secrets.yaml plan above.
+  #
   # REQUESTS_CA_BUNDLE is how that sensor verifies the proxy, which serves
   # https under the estate CA (#764, ADR-0086). Home Assistant builds every
   # client SSL context from it when set, certifi otherwise, and it replaces
@@ -394,6 +400,7 @@ services:
       S6_READ_ONLY_ROOT: "1"
       REQUESTS_CA_BUNDLE: /etc/home-assistant/ca-bundle.pem
       HA_PROMETHEUS_AUTHORIZATION: ${HA_PROMETHEUS_AUTHORIZATION:?set in secrets/sensitive.sops.yaml}
+      HA_MEDIATV_MAC: ${HA_MEDIATV_MAC:?set in secrets/sensitive.sops.yaml}
     volumes:
       - home-assistant-config:/config
       # The config is the repository's; the volume is the application's. A
