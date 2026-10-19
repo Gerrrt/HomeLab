@@ -1,0 +1,35 @@
+---
+# The LG TV's power button: Wake-on-LAN across the VLAN (ADR-0097, #1218).
+#
+# The webostv integration turns the TV off itself, but a TV in standby has
+# its network stack mostly down and nothing answers on 3001. So "turn on"
+# is a trigger the integration fires for something else to act on. Here that
+# is a magic packet.
+#
+# The packet is a unicast to 10.0.40.40:9/udp, not a broadcast. A broadcast
+# from trinity stays on Winterfell. The unicast is routed by morpheus,
+# through ADR-0097's 9/udp pass, and reaches a sleeping TV because morpheus
+# holds a static ARP entry for it.
+#
+# The MAC comes from the environment, which compose.yaml fills from
+# secrets/sensitive.sops.yaml. docs/security.md keeps full MACs out of the
+# repository.
+
+# The action is registered only when the domain is in the configuration.
+# The key takes no options.
+wake_on_lan:
+
+automation:
+  - id: mediatv_wake_on_turn_on
+    alias: TV wakes on turn on
+    description: Sends the magic packet when the TV is turned on from Home Assistant.
+    mode: single
+    triggers:
+      - trigger: webostv.turn_on
+        entity_id: media_player.tv_room_lg_webos_tv_oled
+    actions:
+      - action: wake_on_lan.send_magic_packet
+        data:
+          mac: !env_var HA_MEDIATV_MAC
+          broadcast_address: 10.0.40.40
+          broadcast_port: 9
