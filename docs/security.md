@@ -373,7 +373,7 @@ inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
 **Three more, for the television, are decided and not created.**
-`10.0.99.40 → 10.0.40.100` passes `3001/tcp` and `9/udp` and rejects
+`10.0.99.40 → 10.0.40.40` passes `3001/tcp` and `9/udp` and rejects
 `3000/tcp`, so Home Assistant can drive `mediatv` and wake it
 ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
 [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The source is the

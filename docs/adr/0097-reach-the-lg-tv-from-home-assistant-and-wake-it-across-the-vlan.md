@@ -4,7 +4,7 @@
 
 ## Context
 
-The household wants `mediatv`, the LG OLED at `10.0.40.100` on CasaBonita (40),
+The household wants `mediatv`, the LG OLED on CasaBonita (40),
 in Home Assistant, including the power button.
 [#1218](https://github.com/Gerrrt/HomeLab/issues/1218) carries the work.
 Home Assistant runs on `trinity` (`10.0.99.40`, Winterfell, 99), and
@@ -61,7 +61,7 @@ its call data, and it sends a UDP datagram to a broadcast address and port
 (default `255.255.255.255:9`).
 
 A broadcast from `trinity` stays on Winterfell. To cross the VLAN, the packet
-has to be a unicast to `10.0.40.100`, routed by `morpheus`, and that has two
+has to be a unicast to `10.0.40.40`, routed by `morpheus`, and that has two
 preconditions:
 
 - **`morpheus` must know the TV's MAC while the TV sleeps.** A sleeping NIC
@@ -80,9 +80,9 @@ static ARP entry.**
 
 | On interface | Rule | Action | Position | Purpose |
 | --- | --- | --- | --- | --- |
-| 99 | `10.0.99.40 → 10.0.40.100:3001/tcp` | pass | **above** *Block access to CasaBonita* | The webOS websocket, over TLS |
-| 99 | `10.0.99.40 → 10.0.40.100:3000/tcp` | **reject** | same | Refuses plaintext, so `aiowebostv` falls back to 3001 at once |
-| 99 | `10.0.99.40 → 10.0.40.100:9/udp` | pass | same | The magic packet |
+| 99 | `10.0.99.40 → 10.0.40.40:3001/tcp` | pass | **above** *Block access to CasaBonita* | The webOS websocket, over TLS |
+| 99 | `10.0.99.40 → 10.0.40.40:3000/tcp` | **reject** | same | Refuses plaintext, so `aiowebostv` falls back to 3001 at once |
+| 99 | `10.0.99.40 → 10.0.40.40:9/udp` | pass | same | The magic packet |
 
 1. **Source is `trinity`, and the destination is the TV.** This is ADR-0035's
    argument, restated for this segment. `10.0.99.20` keeps its two passes to
@@ -97,13 +97,14 @@ static ARP entry.**
 3. **Port 9/udp, unicast, and nothing else for waking.** No directed broadcast
    to `10.0.40.255`, which `morpheus` does not forward and should not start
    forwarding for one device.
-4. **A Kea reservation, then a static ARP entry, for `mediatv`** on
-   `morpheus`. `network.md` lists `10.0.40.100` but does not record a
-   reservation for it, and ADR-0035 found Skids had none at all. So the first
-   step of #1218 is to read `morpheus` and reserve the address if the
-   reservation is missing, as ADR-0035's step 4 did for `bifrost`. A host rule
-   aimed at a leased address stops matching when the lease moves. The ARP
-   entry sits beside the reservation. It is verified with `arp -an` while the
+4. **A Kea reservation at `10.0.40.40`, then a static ARP entry, for
+   `mediatv`** on `morpheus`. The TV had no reservation. `.100`, where
+   `network.md` listed it, is the first address of CasaBonita's `.100–.200`
+   pool, so it was a lease. As ADR-0035's note records for `bifrost`, the
+   reservation goes below the pool, where no lease can take it. It was made at
+   `.40` on 2026-10-19, beside `smaug` at `.30`. A host rule aimed at a leased
+   address stops matching when the lease moves. The ARP entry sits beside the
+   reservation. It is verified with `arp -an` while the
    TV is in standby, and it is the reason the unicast works at all. Both carry
    the full MAC on the firewall, where every other reservation's already is.
 5. **The full MAC lives in `secrets/sensitive.sops.yaml`.** The Wake-on-LAN
@@ -181,7 +182,7 @@ static ARP entry.**
     contribution policy and raises it there. A release that validates the
     host retires this residual on the next bump.
 - **An impersonator gets the TV, not the tier.** With TLS unverified, a device
-  on 40 that took `10.0.40.100` could receive the `register` message and its
+  on 40 that took `10.0.40.40` could receive the `register` message and its
   client key. That key controls this TV and nothing else. The static ARP
   entry also pins the router's view of the address, which is the half of that
   attack the firewall can see.
