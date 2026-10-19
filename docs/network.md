@@ -190,6 +190,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
+- **Three rules into CasaBonita for the TV are decided, not created:**
+  `10.0.99.40 → 10.0.40.100` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
+  (reject), above *Block access to CasaBonita*. They let Home Assistant drive
+  and wake `mediatv`. The CasaBonita notes and
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  give the reasons.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -390,6 +396,16 @@ Televisions and consoles. Internet only.
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
   it, and `alexander` is refused.
+- **Three rules from `trinity` to `mediatv` are decided, not created:**
+  `10.0.99.40 → 10.0.40.100`, passing `3001/tcp` for Home Assistant's LG
+  webOS integration and `9/udp` for the magic packet that wakes the TV, and
+  **rejecting** `3000/tcp` so the integration falls back to TLS instead of
+  sending its pairing key in clear. All three sit above *Block access to
+  CasaBonita* on Winterfell's interface, with a static ARP entry for the TV so
+  the unicast wake reaches it asleep.
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  records the reading, and [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)
+  creates them. Until then, nothing reaches the TV from another segment.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),

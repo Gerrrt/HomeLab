@@ -17,6 +17,19 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-19
+
+- **The LG TV gets a decision before it gets a rule**
+  ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). LG ThinQ was ruled
+  out by reading the library the pinned image ships: `thinqconnect` 1.0.14
+  has no TV type. The LG webOS integration needs the TV on `3000` or `3001`.
+  Its library tries plaintext `3000` first and falls back to TLS only on a
+  refusal, so the rule passes `3001`, **rejects** `3000` and passes `9/udp`
+  for Wake-on-LAN. A static ARP entry on `morpheus` lets the unicast wake
+  reach a sleeping TV, and the TV's full MAC goes into SOPS rather than the
+  repository.
+
 ## 2026-10-16
 
 - **A temperature probe for the UPS card and a switched PDU join the table**
