@@ -410,9 +410,13 @@ Televisions and consoles. Internet only.
   records the reading. They were created under
   [#1218](https://github.com/Gerrrt/HomeLab/issues/1218) and probed from
   `trinity` the same day: `3001` answers TLS 1.2, `3000` is refused at once,
-  and Home Assistant paired with every connection on `3001`. A wake from
-  standby is not yet proved, so the `9/udp` pass is in place and unused
-  until the wake package is deployed and tested.
+  and Home Assistant paired with every connection on `3001`. The wake
+  (`packages/mediatv.yaml`) was deployed the same evening, and it woke the
+  TV from standby. A capture in Home Assistant's network namespace showed
+  one magic packet to `10.0.40.40:9/udp` per press. With *Quick Start+* on,
+  the TV keeps its network up in standby, so that test never needed the
+  static ARP entry. A wake with the TV's network fully down has not been
+  tried.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
