@@ -401,17 +401,18 @@ Televisions and consoles. Internet only.
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
   **rejecting** `3000/tcp` so the integration falls back to TLS instead of
   sending its pairing key in clear. All three sit above *Block access to
-  CasaBonita* on Winterfell's interface, with a static ARP entry for the TV so
-  the unicast wake reaches it asleep. The TV's address is a Kea reservation
+  CasaBonita* on Winterfell's interface. `morpheus` also holds a static ARP
+  entry for the TV, on its reservation, so the unicast wake can reach it
+  asleep. The entry was added on 2026-10-19. The TV's address is a Kea reservation
   at `.40` since 2026-10-19, below the pool. Before that it held `.100`, the
   pool's first address, by lease.
   [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
   records the reading. They were created under
   [#1218](https://github.com/Gerrrt/HomeLab/issues/1218) and probed from
   `trinity` the same day: `3001` answers TLS 1.2, `3000` is refused at once,
-  and Home Assistant paired with every connection on `3001`. The static ARP
-  entry and a wake from standby are not yet proved, so the `9/udp` pass is in
-  place and unused.
+  and Home Assistant paired with every connection on `3001`. A wake from
+  standby is not yet proved, so the `9/udp` pass is in place and unused
+  until the wake package is deployed and tested.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),

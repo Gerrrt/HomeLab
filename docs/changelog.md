@@ -28,7 +28,8 @@ docstring gives: it is a record, not a claim about now.
   `GET` to every service it reaches changed nothing. Each API that can act
   answered 401, 403 or 405, or redirected to a login, and the rest only read.
   Home Assistant then paired with the OLED65CX, with every connection on
-  `3001`. The wake from standby is still to build and prove.
+  `3001`. The static ARP entry for the TV was added on `morpheus` the same
+  day. The wake from standby is still to build and prove.
 
 - **The LG TV gets a decision before it gets a rule**
   ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
