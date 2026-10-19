@@ -23,7 +23,7 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | --- | --- | --- | --- | --- | --- |
 | WAN | — | — | ISP-assigned | Uplink | — |
 | LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
-| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 |
+| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 and 40 |
 | [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 30, named ports on 99[^hicks] |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
@@ -190,10 +190,10 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
-- **Three rules into CasaBonita for the TV are decided, not created:**
+- **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
-  and wake `mediatv`. The CasaBonita notes and
+  `mediatv`, and will let it wake the TV once the wake is built. The CasaBonita notes and
   [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
   give the reasons.
 - DHCP enabled, with static reservations for everything listed.
@@ -396,7 +396,7 @@ Televisions and consoles. Internet only.
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
   it, and `alexander` is refused.
-- **Three rules from `trinity` to `mediatv` are decided, not created:**
+- **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
   **rejecting** `3000/tcp` so the integration falls back to TLS instead of
@@ -406,8 +406,12 @@ Televisions and consoles. Internet only.
   at `.40` since 2026-10-19, below the pool. Before that it held `.100`, the
   pool's first address, by lease.
   [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
-  records the reading, and [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)
-  creates them. Until then, nothing reaches the TV from another segment.
+  records the reading. They were created under
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218) and probed from
+  `trinity` the same day: `3001` answers TLS 1.2, `3000` is refused at once,
+  and Home Assistant paired with every connection on `3001`. The static ARP
+  entry and a wake from standby are not yet proved, so the `9/udp` pass is in
+  place and unused.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
