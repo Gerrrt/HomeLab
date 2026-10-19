@@ -151,6 +151,35 @@ static ARP entry.**
   attack surface on the tier that holds every other config-flow credential.
   This is the trade ADR-0035 made for the Hue bridge, and it is accepted for
   the same reason: the device answers and never asks.
+- **The TV can also choose where Home Assistant connects next.** This is a
+  server-side request forgery residual, and it is wider than parsing. On every
+  connection, right after registration, `_create_input_ws` asks the TV for an
+  input socket and passes the `socketPath` it returns straight to
+  `_ws_connect`. Nothing checks that the URL points back at the TV. A
+  compromised TV can name any `ws://` or `wss://` host and port, and Home
+  Assistant opens a websocket handshake there: an HTTP `GET` with upgrade
+  headers and no credentials. If that upgrade succeeds, button presses
+  (`type:button`) go to it. The rules in this ADR do not constrain that
+  connection, because it is a new one from `trinity` and goes wherever
+  `trinity` can reach: the other containers on the tier's bridge network,
+  Winterfell's hosts and management interfaces, and the internet. What bounds
+  it is that it is **blind** and **unauthenticated**. The TV never sees the
+  response, the request carries no token or cookie, and it can only be a
+  handshake `GET`. It is **accepted** on one condition: nothing reachable
+  from `trinity` changes state on an anonymous `GET`. That condition has not
+  been checked yet. #1218 checks it before the rules are created, starting
+  with the management web interfaces on Winterfell (the UPS card and the
+  switch) and the tier's own services behind Caddy. If something fails the
+  check, the rules wait until it is fixed or contained.
+  - **Containment is not taken here.** Limiting where the Home Assistant
+    container may connect would need a per-destination egress allowlist,
+    because Ring, Tuya and Litter-Robot are all reached through their vendors'
+    clouds. That is a change to how the whole tier is networked, and it gets
+    its own ADR if it is wanted. It is not a condition of one television.
+  - **The fix belongs upstream.** `aiowebostv` should refuse a `socketPath`
+    whose host is not the TV it connected to. #1218 checks the project's
+    contribution policy and raises it there. A release that validates the
+    host retires this residual on the next bump.
 - **An impersonator gets the TV, not the tier.** With TLS unverified, a device
   on 40 that took `10.0.40.100` could receive the `register` message and its
   client key. That key controls this TV and nothing else. The static ARP
@@ -161,5 +190,7 @@ static ARP entry.**
   sits beside it.
 - **Reopened by:** firmware that serves only plaintext 3000; unicast wake that
   proves unreliable, in which case the 9/udp row and the ARP entry are removed
-  and the decision falls back to no power-on; or a second device on 40 wanted
-  in Home Assistant, which is a row of its own.
+  and the decision falls back to no power-on; a second device on 40 wanted
+  in Home Assistant, which is a row of its own; or something reachable from
+  `trinity` that acts on an anonymous `GET`, which breaks the bound the
+  request-forgery residual above was accepted on.

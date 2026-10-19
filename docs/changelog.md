@@ -28,7 +28,11 @@ docstring gives: it is a record, not a claim about now.
   refusal, so the rule passes `3001`, **rejects** `3000` and passes `9/udp`
   for Wake-on-LAN. A static ARP entry on `morpheus` lets the unicast wake
   reach a sleeping TV, and the TV's full MAC goes into SOPS rather than the
-  repository.
+  repository. Review found that the library also connects to whatever
+  input-socket URL the TV returns, a blind request forgery from `trinity`.
+  It is accepted on a condition #1218 checks before the rules are created,
+  that nothing reachable from `trinity` acts on an anonymous `GET`, and the
+  fix is to be raised upstream.
 
 ## 2026-10-16
 
