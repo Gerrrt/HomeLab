@@ -372,7 +372,7 @@ leaves is up to a day between a replacement and the page; a template built
 inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
-**Three more, for the television, are decided and not created.**
+**Three more, for the television, exist since 2026-10-19.**
 `10.0.99.40 → 10.0.40.40` passes `3001/tcp` and `9/udp` and rejects
 `3000/tcp`, so Home Assistant can drive `mediatv` and wake it
 ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
@@ -386,9 +386,10 @@ URL the TV returns, so a compromised TV can make Home Assistant send a blind,
 unauthenticated websocket `GET` anywhere `trinity` reaches. The firewall rules
 for the TV do not limit that connection. All three are accepted: the first two
 as ADR-0035 accepted the Hue bridge's, and the third on the condition that
-nothing `trinity` reaches acts on an anonymous `GET`, which
-[#1218](https://github.com/Gerrrt/HomeLab/issues/1218) checks before the
-rules exist. ADR-0097 records
+nothing `trinity` reaches acts on an anonymous `GET`. That was
+checked on 2026-10-19 from inside the Home Assistant container, before the TV
+was paired. Every service that can act refused an anonymous `GET` with 401,
+403 or 405, or redirected it to a login. The rest only read. ADR-0097 records
 the bound, and that the fix belongs in `aiowebostv`.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
