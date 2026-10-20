@@ -48,6 +48,11 @@
 > ([ADR-0062](0062-add-actual-to-the-sensitive-tier.md)). The table is not
 > edited.
 >
+> **Glance is left out of the table, as Homepage is.** It has no login, and
+> it authenticates no household identity. Adding it fires none of the
+> triggers below
+> ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
+>
 > **Trigger 1 fired on 2026-09-28, and the deferral was re-accepted on
 > 2026-10-02.** Immich's first real photographs arrived on 2026-09-28, before
 > the decision this ADR asks for. That decision is

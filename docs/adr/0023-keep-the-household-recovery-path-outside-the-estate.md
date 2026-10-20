@@ -137,6 +137,10 @@ service is allowed to hold real data.
 > ntfy's and Homepage's reason: it holds nothing a household would need back
 > ([ADR-0063](0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
 > The table is unchanged and this ADR is not superseded.*
+>
+> *Glance, the operator's start page, is **Unclassed** for the same reason
+> ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
+> This ADR is not superseded.*
 
 **Vaultwarden — the household's vault is not this vault.** The recommendation is
 that the family's own credentials live in hosted Bitwarden and that Vaultwarden

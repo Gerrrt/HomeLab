@@ -225,6 +225,17 @@ pdf.matrix.elysium {
 	}
 }
 
+# Glance (ADR-0098), the operator's browser start page. `proxied: true` in
+# glance/glance.yml is what makes it read the X-Forwarded-* Caddy sets.
+start.matrix.elysium {
+	reverse_proxy glance:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

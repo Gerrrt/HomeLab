@@ -321,6 +321,13 @@ none is in the order until one is taken.
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
   enrolled on the admin. Nothing is left; #143 closes with this.
+- **[#1223](https://github.com/Gerrrt/HomeLab/issues/1223) Glance, as
+  `start.matrix.elysium`** — decided by
+  [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)
+  and authored in `stacks/sensitive`. Deploying it is the stack README's
+  *Adding it to the running tier*: the Miniflux user `glance` and its Fever
+  key, two SOPS keys, the `start` override and `make up`. The blackbox probe
+  follows once the page answers.
 
 ## Everything still to buy
 

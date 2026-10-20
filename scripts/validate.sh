@@ -503,6 +503,17 @@ done
 SKIPPED=$((SKIPPED + $(wc -l < "${CADDY_SKIPS}")))
 
 # ---------------------------------------------------------------------------
+head_ "Glance"
+# ---------------------------------------------------------------------------
+# glance/glance.yml through the pinned image's own `config:validate`, for the
+# Caddyfile's reason: Glance refuses a bad config at start, behind a
+# healthcheck that never goes green (ADR-0098).
+GLANCE_SKIPS="$(mktemp)"
+./scripts/check_glance_config.sh --skips-file "${GLANCE_SKIPS}" || FAILED=1
+SKIPPED=$((SKIPPED + $(wc -l < "${GLANCE_SKIPS}")))
+rm -f "${GLANCE_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Grafana dashboards"
 # ---------------------------------------------------------------------------
 if have python3; then

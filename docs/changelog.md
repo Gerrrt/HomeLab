@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-19
 
+- **Glance is authored as the operator's start page, beside Homepage**
+  ([ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). It was asked for in
+  Homarr's shape and without Homarr's weight. Glance 0.8.7 was booted on
+  `trinity` under the compose options before the service was written:
+  read-only with no tmpfs, nothing written outside its mounts, CapEff 0,
+  13–14 MiB. Every household health path answered through Caddy, and
+  Prometheus and Miniflux each refused a placeholder key over verified TLS.
+  Miniflux's REST API turned out to be off by ADR-0057, so the feeds go
+  through a Fever key on a user of their own. The panel templates were
+  rendered against a mock Prometheus and Fever, and a `<script>` in a feed
+  title came out escaped. Trivy found four HIGH denial-of-service findings in
+  the image's Go runtime, all weighed in the ADR. Not deployed: the Miniflux
+  user, two SOPS keys and the `start` override come first.
+
 - **The TV wakes from Home Assistant**
   ([#1221](https://github.com/Gerrrt/HomeLab/pull/1221),
   [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The TV's MAC went

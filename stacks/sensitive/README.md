@@ -18,6 +18,7 @@
 [![linkding](https://img.shields.io/badge/linkding-5856e0?style=plastic)](https://github.com/sissbruecker/linkding)
 [![Actual](https://img.shields.io/badge/Actual-6B46C1?style=plastic&logo=actualbudget&logoColor=white)](https://actualbudget.org)
 [![Stirling-PDF](https://img.shields.io/badge/Stirling--PDF-b91c1c?style=plastic)](https://github.com/Stirling-Tools/Stirling-PDF)
+[![Glance](https://img.shields.io/badge/Glance-4b5563?style=plastic)](https://github.com/glanceapp/glance)
 
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
@@ -58,8 +59,9 @@ make up STACK=sensitive
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
+| glance | `glanceapp/glance` | *internal* (8080) | The operator's browser start page at `https://start.matrix.elysium`: the estate's alerts, probes and targets as Prometheus sees them, the household's apps checked directly, followed feeds through Miniflux, Hacker News, Reddit and the weather. Keeps nothing ([ADR-0098]) |
 
-Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Twenty-two services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -70,8 +72,9 @@ Miniflux, the first of the tier extras, decided by an ADR of its own before it
 was written here; Memos is the second; Mealie is the third, the one the
 household is meant to open for its own sake; linkding is the fourth; Actual
 is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
-that keeps nothing. What is absent is as deliberate as what
-is here:
+that keeps nothing; Glance is the operator's own start page, the one page
+here that shows up and down ([ADR-0098]). What is absent is as deliberate as
+what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -106,7 +109,7 @@ is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-one services, one network, health-gated ordering;
+compose.yaml               twenty-two services, one network, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml and packages/, mounted read-only
@@ -116,6 +119,8 @@ home-assistant/            configuration.yaml and packages/, mounted read-only
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
 homepage/                  settings, services, widgets and bookmarks YAML and
                            custom.css — its whole configuration, mounted read-only
+glance/glance.yml          Glance's whole configuration, mounted read-only;
+                           validated in CI by its own binary
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 ntfy/templates/            message templates, mounted read-only
 stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
@@ -569,6 +574,88 @@ is kept:
   tmpfs mounts, 101 MiB and 12 tasks; with placeholder tokens the Immich and
   Paperless widgets got a 401 from the real services through Caddy and the tier
   CA, which is the whole path short of a valid token.
+
+## Glance
+
+The operator's start page, at `https://start.matrix.elysium` — what the
+browser opens to ([ADR-0098]). Homepage above stays the household's directory
+with no status dots; this is the page that has them, kept apart so the two
+answer different questions. `glance/glance.yml` is all of it.
+
+- **The estate, as Prometheus sees it.** The *Estate* panel asks the reader
+  proxy on `prometheus` three things with the same reader token Homepage uses:
+  the firing alerts, every blackbox probe (`min by (name, host)
+  (probe_success)`) and every `up` series. That covers every VLAN, including
+  the ones `trinity` cannot reach, and it agrees with Grafana because it is
+  the same data. Alerts come first: a host that stops pushing leaves no `up`
+  series to be 0, and only the alert rules notice that. Only `warning` and
+  `critical` count, as those are what Alertmanager delivers. Watchdog always
+  fires, so it is not counted; if it is missing, the panel says rule
+  evaluation has stopped. An empty answer reads as "No data", never as
+  "All clear".
+- **The household's apps, checked directly.** The *Household* monitor asks
+  each app's health path through Caddy — the same paths the blackbox probes
+  use. Green means "Glance got a 200 when the page loaded", and nothing more;
+  whether it has been healthy is the Estate panel's question.
+- **A snapshot, reloaded.** Glance renders the widgets once, when the page
+  loads, and a widget's `cache` only bounds how old that answer may be. So
+  `glance.yml` carries a small inline script that reloads the page once it is
+  five minutes old, while the tab is visible and nothing is being typed. The
+  Estate panel ends with how long ago it was checked.
+- **Feeds from Miniflux, not from this file.** The repository is public, and a
+  list of someone's Mastodon, Bluesky and YouTube subscriptions is about a
+  person. The *Following* widget reads Miniflux's user `glance` through the
+  Fever API (ADR-0057 keeps the REST API off), newest first, the latest 50
+  across all its feeds. To add something to the page, log in to Miniflux as
+  `glance` and subscribe:
+  - a news site: its RSS or Atom URL, or the site, which Miniflux discovers;
+  - Mastodon: `https://<instance>/@<user>.rss`, or `/tags/<tag>.rss`;
+  - Bluesky: `https://bsky.app/profile/<handle>/rss`;
+  - YouTube: `https://www.youtube.com/feeds/videos.xml?channel_id=<id>`.
+
+  A home timeline has no feed, and nor do Instagram, Facebook or X.
+- **What is in the file is what anyone running this estate would see:** the
+  clock, a calendar, the weather (Bellevue, the coarse location
+  `homepage/widgets.yaml` uses), Hacker News, r/homelab and r/selfhosted, and
+  a DuckDuckGo search box with no suggestions, so nothing is sent before
+  Enter.
+- **Every fetch is server-side.** Glance fetches from `trinity` over
+  Winterfell's existing egress; the browser loads the page and nothing else.
+  That is why the monitor has no icons: Glance's `di:` and `si:` icons are
+  fetched by the browser from a CDN.
+- **No login and no Docker socket**, for Homepage's reasons. Glance has an
+  optional login. It is off, as Homepage has none: both are reached from the
+  same places, and neither shows a credential.
+- **Not booted in CI.** Its trust bundle holds the tier's root, which CI does
+  not have, as Homepage's does. CI instead runs Glance's own
+  `config:validate` on `glance.yml` (`scripts/check_glance_config.sh`), which
+  refuses a bad widget or a variable compose.yaml does not supply. It does not
+  render the custom-api templates. They were rendered against a mock
+  Prometheus and Fever before this was written: counts, failing lists, both
+  error lines, and a `<script>` in a feed title came out escaped.
+- **Measured before it was written**, on `trinity`, from the pinned digest with
+  exactly the compose options: healthy, CapEff 0, read-only root with no tmpfs
+  and nothing written outside its mount points, 13–14 MiB and 9 tasks. With
+  placeholder keys, Prometheus and Miniflux's Fever endpoint each refused them
+  over verified TLS, and every household health path answered through Caddy.
+- **Adding it to the running tier.** On `trinity`:
+  1. In Miniflux, as the admin, create the user `glance`, then as `glance` turn
+     on Fever (`secrets/sensitive.example.yaml` has the clicks and how the key
+     is derived). ADR-0057 pre-authorises a Fever credential on three
+     conditions; this is the record the third asks for: **client Glance, user
+     `glance`, set up on** *(the date, when it is done)*.
+  2. `make secrets-edit STACK=sensitive`: add `GLANCE_PROMETHEUS_TOKEN` (the
+     same value as `HOMEPAGE_PROMETHEUS_TOKEN`) and
+     `GLANCE_MINIFLUX_FEVER_KEY`. Commit the encrypted file.
+  3. Add `start` to `trinity`'s *Additional Names for this Host* on `morpheus`
+     ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+  4. `make up STACK=sensitive`. Caddy is recreated for its new alias and site
+     block, and step-ca issues the name's leaf on the first request.
+  5. Point the browser's home page and new tab at
+     `https://start.matrix.elysium`.
+  6. Add the page to `stacks/observability/prometheus/targets/blackbox.yaml`
+     beside Homepage's, once it answers — every target there is probed from
+     the running exporter before it is added.
 
 ## ntfy
 
@@ -1105,6 +1192,7 @@ it matters:
 [ADR-0060]: ../../docs/adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md
 [ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
+[ADR-0098]: ../../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129

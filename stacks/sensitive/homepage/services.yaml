@@ -6,7 +6,7 @@
 #
 #   - A LINK: a name, a line saying what it is for, and an href. That is all
 #     it claims. Home Assistant, AdGuard, Vaultwarden, Miniflux, Memos,
-#     Mealie, linkding, Stirling-PDF and Grafana are links.
+#     Mealie, linkding, Stirling-PDF, Glance and Grafana are links.
 #   - A WIDGET: live numbers read server-side, with a credential scoped
 #     READ-ONLY or none at all. Immich and Paperless-ngx are read from their
 #     own APIs; Prometheus, the UPS, the firewall, the iLO and the NAS are read
@@ -145,6 +145,12 @@
 # uptime is Grafana's question.
 
 - 🔴 Winterfell · VLAN 99:
+    - Start page:
+        icon: glance.svg
+        # A link: Glance is the operator's own page (ADR-0098), the one that
+        # does show up/down — this page stays a directory.
+        href: https://start.matrix.elysium
+        description: Glance — the estate's status, feeds and news
     - Grafana:
         icon: grafana.svg
         href: https://grafana.matrix.elysium:3000

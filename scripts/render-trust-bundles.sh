@@ -2,14 +2,20 @@
 #
 # Write the sensitive tier's trust bundles for the estate's ingest proxy (#764).
 #
-# Homepage and Home Assistant on trinity query Prometheus through the proxy on
-# 10.0.99.20:9090, whose leaf the estate CA issued. Each takes its trust from
-# ONE file, so the estate CA is appended to what each already trusts:
+# Homepage, Glance and Home Assistant on trinity query Prometheus through the
+# proxy on 10.0.99.20:9090, whose leaf the estate CA issued. Each takes its
+# trust from ONE file, so the estate CA is appended to what each already
+# trusts:
 #
 #   homepage-ca.pem        tier-ca.pem + the estate CA. NODE_EXTRA_CA_CERTS adds
 #                          to Node's built-in roots, so the tier's root
 #                          (step-ca's leaves, ADR-0037) and the estate's are the
 #                          whole of what it needs.
+#   glance-ca.pem          the same pair, for Glance (ADR-0098). Go reads it
+#                          from SSL_CERT_DIR, which adds to the image's own
+#                          public roots rather than replacing them. A file of
+#                          its own, so a change to one page's trust is not a
+#                          recreate of the other.
 #   home-assistant-ca.pem  the host's public roots + the estate CA. Home
 #                          Assistant builds every client SSL context from
 #                          REQUESTS_CA_BUNDLE when it is set and certifi
@@ -25,12 +31,12 @@
 # keeps the two the same).
 #
 # A CHANGED BUNDLE GETS A NEW INODE, AND AN UNCHANGED ONE IS LEFT ALONE. Node
-# reads NODE_EXTRA_CA_CERTS once at startup and Home Assistant builds its
-# contexts once, so a bundle rewritten in place (`>`, which keeps the inode)
+# reads NODE_EXTRA_CA_CERTS once at startup, Go loads the system pool once per
+# process and Home Assistant builds its contexts once, so a bundle rewritten in place (`>`, which keeps the inode)
 # would be read by nobody until something else recreated the containers.
 # Written to a temporary file and renamed over the old one, the running
 # container keeps the old inode, check_mounted_config.py --fix — which `make
-# up` runs — sees bytes that differ, and recreates both. That is the opposite
+# up` runs — sees bytes that differ, and recreates them. That is the opposite
 # of what render-config.sh does for its reloadable files, on purpose. A bundle
 # whose bytes have not changed is not touched, so an ordinary `make up`
 # recreates nothing.
@@ -40,7 +46,7 @@
 #
 # Usage: scripts/render-trust-bundles.sh <out-dir> [--home-assistant-only]
 #
-#   --home-assistant-only  skip homepage-ca.pem, which needs
+#   --home-assistant-only  skip homepage-ca.pem and glance-ca.pem, which need
 #                          certificates/tier-ca.pem (absent in CI)
 
 set -euo pipefail
@@ -81,3 +87,4 @@ publish() {  # <name> <source>... → OUT/<name>, renamed into place only if it 
 
 publish home-assistant-ca.pem "${SYSTEM_ROOTS}" "${INGEST_CA}"
 ((HA_ONLY)) || publish homepage-ca.pem "${TIER_CA}" "${INGEST_CA}"
+((HA_ONLY)) || publish glance-ca.pem "${TIER_CA}" "${INGEST_CA}"
