@@ -1,0 +1,156 @@
+---
+# The thermostat: alerts only, no control.
+#
+# The thermostat is a Honeywell RedLINK unit in the main-floor hallway,
+# reached through Honeywell's cloud by the core `honeywell` integration (its
+# gateway is appliance-03 in network.md). It runs its own schedule, with
+# periods and recovery of its own. Read on 2026-10-20, it was in auto with a
+# temporary hold ending where the next period began. So Home Assistant does
+# not set temperatures here. A setpoint sent from Home Assistant becomes a
+# temporary hold that the thermostat's next period overrides. A sudden jump
+# would also defeat the thermostat's gradual recovery, which on a heat pump is
+# what keeps the backup electric heat from switching on. The schedule is
+# edited on the thermostat or in Honeywell's app.
+#
+# What Home Assistant adds is watching: the hallway too cold or too hot, the
+# air too dry or too damp, emergency heat switched on, and the thermostat
+# dropping out of the cloud.
+#
+# Never automated: switch.thermostat_emergency_heat. It runs the heat pump's
+# backup electric heat alone. It is reported here and never switched.
+#
+# Notifications go to every notify entity labelled `household_phones`, a
+# label set in the UI, so no owner-linked phone name is written here. Each
+# alert also lands as a persistent notification in Home Assistant itself, so
+# nothing is lost before the label exists.
+
+script:
+  thermostat_alert:
+    alias: Thermostat alert
+    description: Sends a message to the labelled phones and to Home Assistant's notifications.
+    mode: queued
+    fields:
+      title:
+        description: Short title.
+        example: Thermostat
+      message:
+        description: What happened.
+        example: The hallway is at 58 °F.
+    sequence:
+      - action: persistent_notification.create
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+      # A phone that is unreachable must not stop the persistent copy above,
+      # or the next alert in the queue.
+      - action: notify.send_message
+        continue_on_error: true
+        target:
+          label_id: household_phones
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+
+automation:
+  # Thresholds are for a heated house in winter and a cooled one in summer,
+  # with room either side of the schedule. The `for:` keeps a door left open
+  # for a minute from paging anyone.
+  - id: thermostat_too_cold
+    alias: Thermostat too cold
+    description: The hallway has been below 60 °F for 30 minutes.
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.thermostat_temperature
+        below: 60
+        for: "00:30:00"
+    actions:
+      - action: script.thermostat_alert
+        data:
+          title: House too cold
+          message: >-
+            The hallway is at {{ states('sensor.thermostat_temperature') }} °F
+            and has been under 60 °F for half an hour. The heat pump may not
+            be keeping up. Outside: {{ states('sensor.thermostat_outdoor_temperature') }} °F.
+
+  - id: thermostat_too_hot
+    alias: Thermostat too hot
+    description: The hallway has been above 82 °F for 30 minutes.
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.thermostat_temperature
+        above: 82
+        for: "00:30:00"
+    actions:
+      - action: script.thermostat_alert
+        data:
+          title: House too hot
+          message: >-
+            The hallway is at {{ states('sensor.thermostat_temperature') }} °F
+            and has been over 82 °F for half an hour. Outside:
+            {{ states('sensor.thermostat_outdoor_temperature') }} °F.
+
+  # Humidity moves slowly, so two hours.
+  - id: thermostat_humidity_out_of_range
+    alias: Thermostat humidity out of range
+    description: Indoor humidity below 25% or above 65% for two hours.
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.thermostat_humidity
+        below: 25
+        for: "02:00:00"
+        id: dry
+      - trigger: numeric_state
+        entity_id: sensor.thermostat_humidity
+        above: 65
+        for: "02:00:00"
+        id: damp
+    actions:
+      - action: script.thermostat_alert
+        data:
+          title: "{{ 'Air too dry' if trigger.id == 'dry' else 'Air too damp' }}"
+          message: >-
+            Indoor humidity has been at {{ states('sensor.thermostat_humidity') }}%
+            for two hours{{ ', which is dry enough to be uncomfortable' if trigger.id == 'dry'
+            else ', which is damp enough for condensation and mould' }}.
+
+  # Emergency heat turned on, by a person or by the thermostat. It usually
+  # means the heat pump has a fault, and the electricity bill is about to
+  # jump. Reported, never switched.
+  - id: thermostat_emergency_heat_on
+    alias: Thermostat emergency heat on
+    description: Reports emergency heat turning on. Never switches it.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: switch.thermostat_emergency_heat
+        from: "off"
+        to: "on"
+    actions:
+      - action: script.thermostat_alert
+        data:
+          title: Emergency heat is on
+          message: >-
+            The thermostat is on emergency heat, the expensive backup. If
+            nobody switched it on, the heat pump may have a fault.
+
+  # The thermostat is reached through Honeywell's cloud, so it can drop out
+  # while the heat runs fine. An hour keeps short cloud outages quiet.
+  - id: thermostat_unavailable
+    alias: Thermostat unavailable
+    description: The thermostat has been unavailable for an hour.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: climate.thermostat
+        to: unavailable
+        for: "01:00:00"
+    actions:
+      - action: script.thermostat_alert
+        data:
+          title: Thermostat unreachable
+          message: >-
+            Home Assistant has not heard from the thermostat for an hour. Check
+            the RedLINK gateway's power and network, and Honeywell's app.

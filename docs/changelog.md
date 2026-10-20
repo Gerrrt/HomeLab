@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-20
 
+- **Thermostat alerts, and no thermostat control**
+  (`packages/thermostat.yaml`). Read through Honeywell's API, the thermostat
+  runs its own schedule: auto mode, a scheduled 66 °F, and a temporary hold
+  at 67 °F ending at 22:00, when its next period begins. A setback from Home
+  Assistant would only become a temporary hold the next period overrides, and
+  a sudden jump would defeat the heat pump's gradual recovery. So the
+  schedule stays on the thermostat, and Home Assistant watches. It alerts on
+  the hallway under 60 °F or over 82 °F for half an hour, humidity under 25%
+  or over 65% for two hours, emergency heat switching on (reported, never
+  switched), and the thermostat unreachable for an hour.
+
 - **A *Get attention* button in Home Assistant** (`packages/attention.yaml`).
   One press blinks one room's lights four times and has that room's Echo
   announce a short message, so someone working there knows they are wanted.
