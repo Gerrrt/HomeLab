@@ -1,0 +1,80 @@
+---
+# The Roomba ("Sheila"), driven through Alexa.
+#
+# The robot is a Roomba 105 Combo. Home Assistant's core `roomba`
+# integration does not support the x05 models: its documentation says so,
+# and the robots refuse the local MQTT connection it uses
+# (home-assistant/core#148741). So no firewall row is opened for it. Instead
+# it is linked in the Alexa app through iRobot's skill, and Home Assistant
+# asks Alexa to act. `alexa_devices.send_text_command` hands an Echo a typed
+# command as if someone had said it.
+#
+# One-way: Home Assistant sends commands and sees nothing back. No battery,
+# no bin full, no "stuck". The iRobot app keeps those alerts. Everything goes
+# through Amazon's and iRobot's clouds, so this stops working when either is
+# down.
+#
+# The Echo that speaks the command is the living room's, a shared room,
+# because it may answer out loud. Its device id is looked up from its entity
+# when the script runs, so no device id is written here.
+#
+# The phrases are helpers set in the UI, because what Alexa accepts depends
+# on the skill. Left empty, each script uses the default below. None of them
+# has an `initial`, so a phrase set in the UI survives a restart.
+
+input_text:
+  roomba_start_phrase:
+    name: Roomba start phrase
+    max: 100
+    icon: mdi:robot-vacuum
+  roomba_stop_phrase:
+    name: Roomba stop phrase
+    max: 100
+    icon: mdi:robot-vacuum-off
+  roomba_dock_phrase:
+    name: Roomba dock phrase
+    max: 100
+    icon: mdi:home-import-outline
+
+script:
+  roomba_start:
+    alias: "Roomba: start"
+    icon: mdi:robot-vacuum
+    mode: single
+    sequence:
+      - action: alexa_devices.send_text_command
+        data:
+          device_id: "{{ device_id('notify.living_room_echo_announce') }}"
+          text_command: >-
+            {{ states('input_text.roomba_start_phrase')
+               if has_value('input_text.roomba_start_phrase')
+               and states('input_text.roomba_start_phrase') != ''
+               else 'start Sheila' }}
+
+  roomba_stop:
+    alias: "Roomba: stop"
+    icon: mdi:robot-vacuum-off
+    mode: single
+    sequence:
+      - action: alexa_devices.send_text_command
+        data:
+          device_id: "{{ device_id('notify.living_room_echo_announce') }}"
+          text_command: >-
+            {{ states('input_text.roomba_stop_phrase')
+               if has_value('input_text.roomba_stop_phrase')
+               and states('input_text.roomba_stop_phrase') != ''
+               else 'stop Sheila' }}
+
+  roomba_dock:
+    alias: "Roomba: dock"
+    icon: mdi:home-import-outline
+    mode: single
+    sequence:
+      - action: alexa_devices.send_text_command
+        data:
+          device_id: "{{ device_id('notify.living_room_echo_announce') }}"
+          text_command: >-
+            {{ states('input_text.roomba_dock_phrase')
+               if has_value('input_text.roomba_dock_phrase')
+               and states('input_text.roomba_dock_phrase') != ''
+               else 'tell Sheila to go home' }}

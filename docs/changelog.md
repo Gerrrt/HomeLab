@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-20
 
+- **The Roomba is driven through Alexa, not directly**
+  (`packages/roomba.yaml`). The household's Roomba 105 Combo is an x05
+  model, which the core `roomba` integration does not support: its
+  documentation says so, the robots refuse its local MQTT connection, and
+  home-assistant/core#148741 closed without a fix. So no firewall row was
+  opened. The robot was linked in Alexa through iRobot's skill, and three
+  scripts send the living-room Echo a text command
+  (`alexa_devices.send_text_command`). It is one-way and cloud-dependent,
+  and status stays in the iRobot app.
+
 - **Thermostat alerts, and no thermostat control**
   (`packages/thermostat.yaml`). Read through Honeywell's API, the thermostat
   runs its own schedule: auto mode, a scheduled 66 °F, and a temporary hold
