@@ -46,10 +46,12 @@ script:
     sequence:
       # The announcement first, so it is heard while the lights blink.
       # Do not disturb is respected: the lights still blink, and nothing
-      # speaks.
+      # speaks. The Echo is reached through Amazon's cloud, so this is the
+      # step most likely to fail, and a failure must not stop the blink.
       - if: "{{ not do_not_disturb }}"
         then:
           - action: notify.send_message
+            continue_on_error: true
             target:
               label_id: attention_speaker
             data:
