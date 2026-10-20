@@ -13,8 +13,8 @@
 # edited on the thermostat or in Honeywell's app.
 #
 # What Home Assistant adds is watching: the hallway too cold or too hot, the
-# air too dry or too damp, emergency heat switched on, and the thermostat
-# dropping out of the cloud.
+# air too dry or too damp, emergency heat switched on, the thermostat gone
+# from Honeywell's cloud, and the gateway gone from the network.
 #
 # Never automated: switch.thermostat_emergency_heat. It runs the heat pump's
 # backup electric heat alone. It is reported here and never switched.
@@ -23,6 +23,91 @@
 # label set in the UI, so no owner-linked phone name is written here. Each
 # alert also lands as a persistent notification in Home Assistant itself, so
 # nothing is lost before the label exists.
+
+# Each condition is a binary sensor, not a `for:` on an automation trigger.
+# An automation's pending `for:` is dropped by a restart or a reload, and a
+# numeric_state trigger attached while the value is already past its
+# threshold never fires, so a house that stayed cold through a restart would
+# go unreported. A template binary sensor is evaluated afresh at every start,
+# and its `delay_on` counts from there. So a problem that is still there after
+# a restart turns its sensor on again once the delay has passed, and the
+# alert follows. The sensors also give the dashboard something to show.
+template:
+  - binary_sensor:
+      # Thresholds are for a heated house in winter and a cooled one in
+      # summer, with room either side of the schedule. The delay keeps a door
+      # left open for a minute from paging anyone.
+      - name: Thermostat too cold
+        unique_id: thermostat_too_cold
+        device_class: cold
+        state: "{{ states('sensor.thermostat_temperature') | float(999) < 60 }}"
+        availability: "{{ has_value('sensor.thermostat_temperature') }}"
+        delay_on: "00:30:00"
+      - name: Thermostat too hot
+        unique_id: thermostat_too_hot
+        device_class: heat
+        state: "{{ states('sensor.thermostat_temperature') | float(-999) > 82 }}"
+        availability: "{{ has_value('sensor.thermostat_temperature') }}"
+        delay_on: "00:30:00"
+      # Humidity moves slowly, so two hours.
+      - name: Thermostat air too dry
+        unique_id: thermostat_air_too_dry
+        device_class: problem
+        state: "{{ states('sensor.thermostat_humidity') | float(999) < 25 }}"
+        availability: "{{ has_value('sensor.thermostat_humidity') }}"
+        delay_on: "02:00:00"
+      - name: Thermostat air too damp
+        unique_id: thermostat_air_too_damp
+        device_class: moisture
+        state: "{{ states('sensor.thermostat_humidity') | float(-999) > 65 }}"
+        availability: "{{ has_value('sensor.thermostat_humidity') }}"
+        delay_on: "02:00:00"
+      # Honeywell's cloud not answering. An hour keeps short outages quiet.
+      - name: Thermostat unreachable
+        unique_id: thermostat_unreachable
+        device_class: problem
+        state: "{{ states('climate.thermostat') in ['unavailable', 'unknown'] }}"
+        delay_on: "01:00:00"
+
+# The gateway, watched on the network rather than through Honeywell. The
+# integration marks the thermostat available whenever Honeywell's API
+# answers, and never reads the library's `is_alive`
+# (`deviceLive`/`communicationLost`). So if the gateway loses power or its
+# cable, Home Assistant keeps showing the last readings as if all were well.
+#
+# The gateway renews its DHCP lease every hour (15:49, 16:49, 17:49, 18:49 on
+# 2026-10-20), and Kea's lease lines are in Loki. No renewal in two hours
+# means the gateway is off the network. The line is matched by Honeywell's
+# OUI, the only Honeywell device here, so a lease that moves address does not
+# matter and no full MAC is written here. Loki is reached the way
+# homelab_rack.yaml reaches Prometheus: the ingest proxy on 10.0.99.20, with
+# the reader token and the estate CA.
+#
+# What this cannot see is the RedLINK radio between the gateway and the
+# thermostat. A thermostat that loses its link while the gateway stays up
+# goes unreported here, until the integration reads `is_alive`.
+rest:
+  - resource: https://10.0.99.20:3100/loki/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
+    params:
+      query: >-
+        sum(count_over_time({app="kea-dhcp4"}
+        |= "DHCP4_LEASE_ALLOC" |= "hwtype=1 00:d0:2d:" [2h]))
+    scan_interval: 300
+    timeout: 15
+    binary_sensor:
+      - name: Thermostat gateway on the network
+        unique_id: thermostat_gateway_on_network
+        device_class: connectivity
+        # Unavailable, not "off", when Loki has no answer, so a monitoring
+        # outage is not reported as the gateway being down. An empty result
+        # is a real zero: no renewals in the window.
+        availability: >-
+          {{ value_json is defined and value_json.status == 'success' }}
+        value_template: >-
+          {{ value_json.data.result | length > 0
+             and value_json.data.result[0].value[1] | int(0) > 0 }}
 
 script:
   thermostat_alert:
@@ -52,105 +137,85 @@ script:
           message: "{{ message }}"
 
 automation:
-  # Thresholds are for a heated house in winter and a cooled one in summer,
-  # with room either side of the schedule. The `for:` keeps a door left open
-  # for a minute from paging anyone.
-  - id: thermostat_too_cold
-    alias: Thermostat too cold
-    description: The hallway has been below 60 °F for 30 minutes.
-    mode: single
+  # One automation for every condition. The triggers have no `from:`, so a
+  # sensor that comes back from unavailable already in its problem state,
+  # as after a restart, still alerts.
+  - id: thermostat_problem
+    alias: Thermostat problem
+    description: Alerts when any thermostat problem sensor turns on, or the gateway leaves the network.
+    mode: queued
     triggers:
-      - trigger: numeric_state
-        entity_id: sensor.thermostat_temperature
-        below: 60
-        for: "00:30:00"
-    actions:
-      - action: script.thermostat_alert
-        data:
-          title: House too cold
-          message: >-
-            The hallway is at {{ states('sensor.thermostat_temperature') }} °F
-            and has been under 60 °F for half an hour. The heat pump may not
-            be keeping up. Outside: {{ states('sensor.thermostat_outdoor_temperature') }} °F.
-
-  - id: thermostat_too_hot
-    alias: Thermostat too hot
-    description: The hallway has been above 82 °F for 30 minutes.
-    mode: single
-    triggers:
-      - trigger: numeric_state
-        entity_id: sensor.thermostat_temperature
-        above: 82
-        for: "00:30:00"
-    actions:
-      - action: script.thermostat_alert
-        data:
-          title: House too hot
-          message: >-
-            The hallway is at {{ states('sensor.thermostat_temperature') }} °F
-            and has been over 82 °F for half an hour. Outside:
-            {{ states('sensor.thermostat_outdoor_temperature') }} °F.
-
-  # Humidity moves slowly, so two hours.
-  - id: thermostat_humidity_out_of_range
-    alias: Thermostat humidity out of range
-    description: Indoor humidity below 25% or above 65% for two hours.
-    mode: single
-    triggers:
-      - trigger: numeric_state
-        entity_id: sensor.thermostat_humidity
-        below: 25
-        for: "02:00:00"
+      - trigger: state
+        entity_id: binary_sensor.thermostat_too_cold
+        to: "on"
+        id: cold
+      - trigger: state
+        entity_id: binary_sensor.thermostat_too_hot
+        to: "on"
+        id: hot
+      - trigger: state
+        entity_id: binary_sensor.thermostat_air_too_dry
+        to: "on"
         id: dry
-      - trigger: numeric_state
-        entity_id: sensor.thermostat_humidity
-        above: 65
-        for: "02:00:00"
+      - trigger: state
+        entity_id: binary_sensor.thermostat_air_too_damp
+        to: "on"
         id: damp
-    actions:
-      - action: script.thermostat_alert
-        data:
-          title: "{{ 'Air too dry' if trigger.id == 'dry' else 'Air too damp' }}"
-          message: >-
-            Indoor humidity has been at {{ states('sensor.thermostat_humidity') }}%
-            for two hours{{ ', which is dry enough to be uncomfortable' if trigger.id == 'dry'
-            else ', which is damp enough for condensation and mould' }}.
-
-  # Emergency heat turned on, by a person or by the thermostat. It usually
-  # means the heat pump has a fault, and the electricity bill is about to
-  # jump. Reported, never switched.
-  - id: thermostat_emergency_heat_on
-    alias: Thermostat emergency heat on
-    description: Reports emergency heat turning on. Never switches it.
-    mode: single
-    triggers:
+      - trigger: state
+        entity_id: binary_sensor.thermostat_unreachable
+        to: "on"
+        id: unreachable
+      - trigger: state
+        entity_id: binary_sensor.thermostat_gateway_on_network
+        to: "off"
+        id: gateway
+      # Emergency heat turned on, by a person or by the thermostat. It
+      # usually means the heat pump has a fault and the electricity bill is
+      # about to jump. Reported, never switched.
       - trigger: state
         entity_id: switch.thermostat_emergency_heat
-        from: "off"
         to: "on"
+        id: emergency_heat
     actions:
+      - variables:
+          temp: "{{ states('sensor.thermostat_temperature') }}"
+          outside: "{{ states('sensor.thermostat_outdoor_temperature') }}"
+          humidity: "{{ states('sensor.thermostat_humidity') }}"
+          alerts:
+            cold:
+              - House too cold
+              - >-
+                The hallway is at {{ temp }} °F and has been under 60 °F for
+                half an hour. The heat pump may not be keeping up. Outside:
+                {{ outside }} °F.
+            hot:
+              - House too hot
+              - >-
+                The hallway is at {{ temp }} °F and has been over 82 °F for
+                half an hour. Outside: {{ outside }} °F.
+            dry:
+              - Air too dry
+              - Indoor humidity has been at {{ humidity }}% for two hours, dry enough to be uncomfortable.
+            damp:
+              - Air too damp
+              - Indoor humidity has been at {{ humidity }}% for two hours, damp enough for condensation and mould.
+            unreachable:
+              - Thermostat unreachable
+              - >-
+                Home Assistant has not heard from Honeywell's cloud about the
+                thermostat for an hour.
+            gateway:
+              - Thermostat gateway offline
+              - >-
+                The thermostat's RedLINK gateway has not renewed its network
+                lease in two hours. Check its power and its cable to the eero.
+                Home Assistant may still show old readings.
+            emergency_heat:
+              - Emergency heat is on
+              - >-
+                The thermostat is on emergency heat, the expensive backup. If
+                nobody switched it on, the heat pump may have a fault.
       - action: script.thermostat_alert
         data:
-          title: Emergency heat is on
-          message: >-
-            The thermostat is on emergency heat, the expensive backup. If
-            nobody switched it on, the heat pump may have a fault.
-
-  # The thermostat is reached through Honeywell's cloud, so it can drop out
-  # while the heat runs fine. An hour keeps short cloud outages quiet.
-  - id: thermostat_unavailable
-    alias: Thermostat unavailable
-    description: The thermostat has been unavailable for an hour.
-    mode: single
-    triggers:
-      - trigger: state
-        entity_id: climate.thermostat
-        to: unavailable
-        for: "01:00:00"
-    actions:
-      - action: script.thermostat_alert
-        data:
-          title: Thermostat unreachable
-          message: >-
-            Home Assistant has not heard from the thermostat for an hour. Check
-            the RedLINK gateway's power and network, and Honeywell's app.
+          title: "{{ alerts[trigger.id][0] }}"
+          message: "{{ alerts[trigger.id][1] }}"

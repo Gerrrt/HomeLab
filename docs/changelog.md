@@ -28,7 +28,14 @@ docstring gives: it is a record, not a claim about now.
   schedule stays on the thermostat, and Home Assistant watches. It alerts on
   the hallway under 60 °F or over 82 °F for half an hour, humidity under 25%
   or over 65% for two hours, emergency heat switching on (reported, never
-  switched), and the thermostat unreachable for an hour.
+  switched), and the thermostat unreachable for an hour. Review found two
+  gaps before it merged. A restart dropped pending alerts, so each condition
+  is a template binary sensor instead, re-evaluated at start. And the
+  integration marks the thermostat available whenever Honeywell's API
+  answers, never reading the device's `is_alive`. So the gateway is also
+  watched on the network: it renews its lease hourly, and two hours without
+  a renewal in Loki alerts. The RedLINK radio between gateway and thermostat
+  stays unwatched.
 
 - **The thermostat is in Home Assistant**, through Honeywell's cloud and
   with no firewall rule. Its RedLINK internet gateway, a THM6000R, is

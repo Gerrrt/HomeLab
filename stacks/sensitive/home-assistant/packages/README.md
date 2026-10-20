@@ -16,7 +16,7 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 | `homelab_rack.yaml` | The rack's power draw for the Energy dashboard, read from the UPS's load through Prometheus rather than from the card directly, plus the UPS's on-battery state and runtime remaining for the dashboard. Paging stays with Alertmanager's `UpsOnBattery` |
 | `lighting.yaml` | `light.evening_lights`, a group of the shared rooms' Hue lights, on fifteen minutes before sunset and off at sunrise |
 | `mediatv.yaml` | The LG TV's power-on: the webOS integration's *turn on* trigger sends a unicast magic packet to `10.0.40.40` (ADR-0097), with the MAC from SOPS |
-| `thermostat.yaml` | Thermostat alerts, no control: the hallway too cold or hot, humidity out of range, emergency heat switched on, or the thermostat gone from the cloud, sent to phones labelled `household_phones` and to Home Assistant's notifications. The thermostat keeps its own schedule |
+| `thermostat.yaml` | Thermostat alerts, no control: the hallway too cold or hot, humidity out of range, emergency heat switched on, the thermostat gone from Honeywell's cloud, or its gateway gone from the network (from its DHCP renewals in Loki). Each condition is a template binary sensor, so a restart does not lose it. Alerts go to phones labelled `household_phones` and to Home Assistant's notifications. The thermostat keeps its own schedule |
 
 There is no `automations.yaml`. The UI automation editor writes that file into
 `/config` and needs `automation: !include automations.yaml` to load it, and
