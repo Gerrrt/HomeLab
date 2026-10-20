@@ -11,6 +11,7 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 
 | Package | What it adds |
 | --- | --- |
+| `attention.yaml` | A *Get attention* script: it blinks the lights labelled `attention_lights` and announces on the Echo labelled `attention_speaker`, unless that Echo is on do not disturb. The labels are set in the UI, so no owner-linked room is named here |
 | `bedtime.yaml` | A bedtime script (shared rooms off, bedroom dimmed warm, white-noise machine on) and an optional timer for it, whose time and on/off switch are set in the UI |
 | `homelab_rack.yaml` | The rack's power draw for the Energy dashboard, read from the UPS's load through Prometheus rather than from the card directly, plus the UPS's on-battery state and runtime remaining for the dashboard. Paging stays with Alertmanager's `UpsOnBattery` |
 | `lighting.yaml` | `light.evening_lights`, a group of the shared rooms' Hue lights, on fifteen minutes before sunset and off at sunrise |
