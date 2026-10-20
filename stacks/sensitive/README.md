@@ -588,11 +588,20 @@ answer different questions. `glance/glance.yml` is all of it.
   (probe_success)`) and every `up` series. That covers every VLAN, including
   the ones `trinity` cannot reach, and it agrees with Grafana because it is
   the same data. Alerts come first: a host that stops pushing leaves no `up`
-  series to be 0, and only the alert rules notice that.
+  series to be 0, and only the alert rules notice that. Only `warning` and
+  `critical` count, as those are what Alertmanager delivers. Watchdog always
+  fires, so it is not counted; if it is missing, the panel says rule
+  evaluation has stopped. An empty answer reads as "No data", never as
+  "All clear".
 - **The household's apps, checked directly.** The *Household* monitor asks
-  each app's health path through Caddy every minute — the same paths the
-  blackbox probes use. Green means "Glance got a 200 just now", and nothing
-  more; whether it has been healthy is the Estate panel's question.
+  each app's health path through Caddy — the same paths the blackbox probes
+  use. Green means "Glance got a 200 when the page loaded", and nothing more;
+  whether it has been healthy is the Estate panel's question.
+- **A snapshot, reloaded.** Glance renders the widgets once, when the page
+  loads, and a widget's `cache` only bounds how old that answer may be. So
+  `glance.yml` carries a small inline script that reloads the page once it is
+  five minutes old, while the tab is visible and nothing is being typed. The
+  Estate panel ends with how long ago it was checked.
 - **Feeds from Miniflux, not from this file.** The repository is public, and a
   list of someone's Mastodon, Bluesky and YouTube subscriptions is about a
   person. The *Following* widget reads Miniflux's user `glance` through the

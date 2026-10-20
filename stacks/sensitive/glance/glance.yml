@@ -26,8 +26,28 @@ server:
   proxied: true
 
 document:
+  # Glance fetches each widget's content ONCE, when the page loads; `cache` on
+  # a widget only says how old an answer may be when that load asks for it.
+  # So a tab left open would keep the status it opened with. This reloads the
+  # page once it is five minutes old, but only while the tab is visible and
+  # nothing is being typed into, and at once when a stale tab is shown again.
+  # Inline, so the browser still fetches nothing but this page.
   head: |
     <meta name="robots" content="noindex, nofollow">
+    <script>
+      (() => {
+        const maxAge = 5 * 60 * 1000;
+        const loadedAt = Date.now();
+        const reloadIfStale = () => {
+          if (document.hidden || Date.now() - loadedAt < maxAge) return;
+          const focused = document.activeElement;
+          if (focused && focused.matches("input, textarea")) return;
+          location.reload();
+        };
+        document.addEventListener("visibilitychange", reloadIfStale);
+        setInterval(reloadIfStale, 30 * 1000);
+      })();
+    </script>
 
 branding:
   hide-footer: true
@@ -154,6 +174,14 @@ pages:
           # that stops pushing leaves no `up` series at all rather than a 0;
           # the alert rules are what notice that, which is why alerts come
           # first.
+          #
+          # Only `warning` and `critical` count: they are what Alertmanager
+          # delivers, and `info` is routed to its null receiver on purpose.
+          # Watchdog (watchdog.rules.yaml) fires always, by design, so it is
+          # not a fault here; its ABSENCE is, because then rule evaluation has
+          # stopped and every other number here is stale. And "All clear"
+          # needs evidence: an empty answer from Prometheus is "no data", not
+          # health.
           - type: custom-api
             title: Estate
             cache: 1m
@@ -181,6 +209,15 @@ pages:
                 </p>
               {{ else }}
                 {{ $alerts := .JSON.Array "data.result" }}
+                {{ $faults := 0 }}{{ $watchdog := false }}
+                {{ range $alerts }}
+                  {{ $severity := .String "metric.severity" }}
+                  {{ if eq (.String "metric.alertname") "Watchdog" }}
+                    {{ $watchdog = true }}
+                  {{ else if or (eq $severity "warning") (eq $severity "critical") }}
+                    {{ $faults = add $faults 1 }}
+                  {{ end }}
+                {{ end }}
                 {{ $probeDown := 0 }}{{ $probeAll := 0 }}
                 {{ range $probes.JSON.Array "data.result" }}
                   {{ $probeAll = add $probeAll 1 }}
@@ -194,8 +231,8 @@ pages:
 
                 <div class="flex justify-between text-center">
                   <div>
-                    <div class="size-h3 {{ if $alerts }}color-negative{{ else }}color-positive{{ end }}">
-                      {{ len $alerts }}
+                    <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                      {{ $faults }}
                     </div>
                     <div class="size-h6">ALERTS FIRING</div>
                   </div>
@@ -213,9 +250,18 @@ pages:
                   </div>
                 </div>
 
-                {{ if gt (len $alerts) 0 }}
+                {{ if not $watchdog }}
+                  <p class="color-negative margin-top-15">
+                    Watchdog is not firing: Prometheus is not evaluating its rules, so nothing here is current.
+                  </p>
+                {{ end }}
+
+                {{ if gt $faults 0 }}
                   <ul class="list list-gap-10 margin-top-15">
                   {{ range $alerts }}
+                    {{ $severity := .String "metric.severity" }}
+                    {{ if and (ne (.String "metric.alertname") "Watchdog")
+                              (or (eq $severity "warning") (eq $severity "critical")) }}
                     <li>
                       <span class="color-negative">{{ .String "metric.alertname" }}</span>
                       <ul class="list-horizontal-text">
@@ -228,6 +274,7 @@ pages:
                         {{ end }}
                       </ul>
                     </li>
+                    {{ end }}
                   {{ end }}
                   </ul>
                 {{ end }}
@@ -250,9 +297,14 @@ pages:
                   </ul>
                 {{ end }}
 
-                {{ if and (eq (len $alerts) 0) (eq $probeDown 0) (eq $targetDown 0) }}
+                {{ if or (eq $probeAll 0) (eq $targetAll 0) }}
+                  <p class="color-negative margin-top-15">
+                    No data: Prometheus returned {{ $probeAll }} probes and {{ $targetAll }} targets.
+                  </p>
+                {{ else if and $watchdog (eq $faults 0) (eq $probeDown 0) (eq $targetDown 0) }}
                   <p class="color-positive margin-top-15">All clear.</p>
                 {{ end }}
+                <p class="size-h6 margin-top-15">CHECKED <span {{ now | toRelativeTime }}></span> AGO</p>
               {{ end }}
 
           # Everything the `glance` user follows — news sites, Mastodon and

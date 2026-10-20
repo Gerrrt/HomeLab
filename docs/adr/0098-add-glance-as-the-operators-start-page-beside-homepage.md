@@ -72,12 +72,21 @@ Three facts about the estate shaped the rest.
      reader proxy with the reader token, copied into the sensitive tier's
      secrets as Homepage's is. It covers every VLAN and agrees with Grafana
      because it is the same data. Alerts come first, because a host that stops
-     pushing leaves no `up` series to read as 0.
+     pushing leaves no `up` series to read as 0. Only `warning` and
+     `critical` alerts count, which are the ones Alertmanager delivers.
+     Watchdog fires always, so its absence is shown as a fault: it means rule
+     evaluation has stopped. An empty answer reads as "no data", never as
+     "all clear".
    - *Household*: the tier's apps, each asked for its health path through
-     Caddy every minute, at the paths the blackbox probes already use. This is
+     Caddy, at the paths the blackbox probes already use. This is
      the "a socket opened" dot #137 kept off Homepage. It is accepted here
      because this page is the operator's, it sits beside the panel that says
      whether the app has stayed up, and the README says what green means.
+   - Glance renders widgets only when the page loads, and a widget's cache
+     only bounds how old that answer may be. An open tab would keep its first
+     answer, so the page reloads itself once it is five minutes old, while it
+     is visible and nothing is being typed. The Estate panel says how long ago
+     it was checked.
 
 4. **Personal feeds live in Miniflux, under a user of their own.** A non-admin
    user `glance` follows what the page should show. The page reads it over
