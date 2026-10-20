@@ -193,7 +193,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
-  `mediatv`, and will let it wake the TV once the wake is built. The CasaBonita notes and
+  and wake `mediatv`, as tested on 2026-10-19 from standby. The CasaBonita notes and
   [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
   give the reasons.
 - DHCP enabled, with static reservations for everything listed.
