@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-20
 
+- **The thermostat is in Home Assistant**, through Honeywell's cloud and
+  with no firewall rule. Its RedLINK internet gateway, a THM6000R, is
+  `appliance-03` on Skids, leased at `10.0.20.122` since 15:49 that day. The
+  core *Honeywell Total Connect Comfort (US)* integration brought a
+  `climate` entity, indoor and outdoor temperature and humidity, and an
+  emergency-heat switch. The switch means the system is a heat pump, and no
+  automation is to turn emergency heat on.
+
 - **A *Get attention* button in Home Assistant** (`packages/attention.yaml`).
   One press blinks one room's lights four times and has that room's Echo
   announce a short message, so someone working there knows they are wanted.
