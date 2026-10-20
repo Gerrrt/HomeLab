@@ -121,8 +121,21 @@ addresses, outbound only, with the dynamic range stated as the trade it is.**
   unsolicited. A HomePod with a vulnerable listener in that range is
   reachable from `trinity`, and from nothing else.
 - **Home Assistant parses replies from four more guest-trust devices.** This
-  is the trade ADR-0035 and ADR-0097 accepted. pyatv's HAP-encrypted channels
-  and the pairing credentials in `.storage` are the authentication.
+  is the trade ADR-0035 and ADR-0097 accepted.
+- **The tunnel is encrypted, but nothing checks which device is on the other
+  end.** In pyatv 0.18.0, `protocols/airplay/utils.py`'s
+  `is_remote_control_supported()` allows a HomePod (model `AudioAccessory…`)
+  the remote-control tunnel only with `TRANSIENT_CREDENTIALS`. Transient
+  pairing (`auth/hap_transient.py`) uses the fixed, public PIN
+  `TRANSIENT_PIN = 3939`. So there is no stored per-device key, unlike the
+  TV's pairing key. A device on Skids that took one of the reserved addresses
+  would be accepted as that HomePod. It would see play, pause and volume
+  commands, could answer with whatever state it liked, and would gain no
+  credential, because none exists to steal. The reservations pin the address,
+  not the device. This is accepted. The control traffic carries nothing of
+  value, and such an impostor would already need a foothold on Skids, the
+  segment whose stated assumption is that everything on it may be
+  compromised.
 - **Four more load-bearing addresses**, kept true by the reservations.
 - **Reopened by:** pyatv or Home Assistant gaining fixed RAOP ports and a
   way to stream without the receiver initiating, which would reopen audio;
