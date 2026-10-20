@@ -74,6 +74,12 @@ Closes when it is empty.
   No gate: the TV and `trinity` both exist. The work is three rules on
   `morpheus`, a reservation and a static ARP entry for `mediatv`, and the
   pairing and wake test from `trinity`.
+- **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
+  Home Assistant, for control.** Decided by
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
+  No gate: the HomePods and `trinity` both exist. The work is four
+  reservations and three rules on `morpheus`, then adding each HomePod by
+  address from `trinity`.
 
 The rest of the milestone has no order between its issues.
 
