@@ -1,0 +1,221 @@
+---
+# The thermostat: alerts only, no control.
+#
+# The thermostat is a Honeywell RedLINK unit in the main-floor hallway,
+# reached through Honeywell's cloud by the core `honeywell` integration (its
+# gateway is appliance-03 in network.md). It runs its own schedule, with
+# periods and recovery of its own. Read on 2026-10-20, it was in auto with a
+# temporary hold ending where the next period began. So Home Assistant does
+# not set temperatures here. A setpoint sent from Home Assistant becomes a
+# temporary hold that the thermostat's next period overrides. A sudden jump
+# would also defeat the thermostat's gradual recovery, which on a heat pump is
+# what keeps the backup electric heat from switching on. The schedule is
+# edited on the thermostat or in Honeywell's app.
+#
+# What Home Assistant adds is watching: the hallway too cold or too hot, the
+# air too dry or too damp, emergency heat switched on, the thermostat gone
+# from Honeywell's cloud, and the gateway gone from the network.
+#
+# Never automated: switch.thermostat_emergency_heat. It runs the heat pump's
+# backup electric heat alone. It is reported here and never switched.
+#
+# Notifications go to every notify entity labelled `household_phones`, a
+# label set in the UI, so no owner-linked phone name is written here. Each
+# alert also lands as a persistent notification in Home Assistant itself, so
+# nothing is lost before the label exists.
+
+# Each condition is a binary sensor, not a `for:` on an automation trigger.
+# An automation's pending `for:` is dropped by a restart or a reload, and a
+# numeric_state trigger attached while the value is already past its
+# threshold never fires, so a house that stayed cold through a restart would
+# go unreported. A template binary sensor is evaluated afresh at every start,
+# and its `delay_on` counts from there. So a problem that is still there after
+# a restart turns its sensor on again once the delay has passed, and the
+# alert follows. The sensors also give the dashboard something to show.
+template:
+  - binary_sensor:
+      # Thresholds are for a heated house in winter and a cooled one in
+      # summer, with room either side of the schedule. The delay keeps a door
+      # left open for a minute from paging anyone.
+      - name: Thermostat too cold
+        unique_id: thermostat_too_cold
+        device_class: cold
+        state: "{{ states('sensor.thermostat_temperature') | float(999) < 60 }}"
+        availability: "{{ has_value('sensor.thermostat_temperature') }}"
+        delay_on: "00:30:00"
+      - name: Thermostat too hot
+        unique_id: thermostat_too_hot
+        device_class: heat
+        state: "{{ states('sensor.thermostat_temperature') | float(-999) > 82 }}"
+        availability: "{{ has_value('sensor.thermostat_temperature') }}"
+        delay_on: "00:30:00"
+      # Humidity moves slowly, so two hours.
+      - name: Thermostat air too dry
+        unique_id: thermostat_air_too_dry
+        device_class: problem
+        state: "{{ states('sensor.thermostat_humidity') | float(999) < 25 }}"
+        availability: "{{ has_value('sensor.thermostat_humidity') }}"
+        delay_on: "02:00:00"
+      - name: Thermostat air too damp
+        unique_id: thermostat_air_too_damp
+        device_class: moisture
+        state: "{{ states('sensor.thermostat_humidity') | float(-999) > 65 }}"
+        availability: "{{ has_value('sensor.thermostat_humidity') }}"
+        delay_on: "02:00:00"
+      # Honeywell's cloud not answering. An hour keeps short outages quiet.
+      - name: Thermostat unreachable
+        unique_id: thermostat_unreachable
+        device_class: problem
+        state: "{{ states('climate.thermostat') in ['unavailable', 'unknown'] }}"
+        delay_on: "01:00:00"
+
+# The gateway, watched on the network rather than through Honeywell. The
+# integration marks the thermostat available whenever Honeywell's API
+# answers, and never reads the library's `is_alive`
+# (`deviceLive`/`communicationLost`). So if the gateway loses power or its
+# cable, Home Assistant keeps showing the last readings as if all were well.
+#
+# The gateway renews its DHCP lease every hour (15:49, 16:49, 17:49, 18:49 on
+# 2026-10-20), and Kea's lease lines are in Loki. No renewal in two hours
+# means the gateway is off the network. The line is matched by Honeywell's
+# OUI, the only Honeywell device here, so a lease that moves address does not
+# matter and no full MAC is written here. Loki is reached the way
+# homelab_rack.yaml reaches Prometheus: the ingest proxy on 10.0.99.20, with
+# the reader token and the estate CA.
+#
+# What this cannot see is the RedLINK radio between the gateway and the
+# thermostat. A thermostat that loses its link while the gateway stays up
+# goes unreported here, until the integration reads `is_alive`.
+rest:
+  - resource: https://10.0.99.20:3100/loki/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
+    params:
+      query: >-
+        sum(count_over_time({app="kea-dhcp4"}
+        |= "DHCP4_LEASE_ALLOC" |= "hwtype=1 00:d0:2d:" [2h]))
+    scan_interval: 300
+    timeout: 15
+    binary_sensor:
+      - name: Thermostat gateway on the network
+        unique_id: thermostat_gateway_on_network
+        device_class: connectivity
+        # Unavailable, not "off", when Loki has no answer, so a monitoring
+        # outage is not reported as the gateway being down. An empty result
+        # is a real zero: no renewals in the window.
+        availability: >-
+          {{ value_json is defined and value_json.status == 'success' }}
+        value_template: >-
+          {{ value_json.data.result | length > 0
+             and value_json.data.result[0].value[1] | int(0) > 0 }}
+
+script:
+  thermostat_alert:
+    alias: Thermostat alert
+    description: Sends a message to the labelled phones and to Home Assistant's notifications.
+    mode: queued
+    fields:
+      title:
+        description: Short title.
+        example: Thermostat
+      message:
+        description: What happened.
+        example: The hallway is at 58 °F.
+    sequence:
+      - action: persistent_notification.create
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+      # A phone that is unreachable must not stop the persistent copy above,
+      # or the next alert in the queue.
+      - action: notify.send_message
+        continue_on_error: true
+        target:
+          label_id: household_phones
+        data:
+          title: "{{ title }}"
+          message: "{{ message }}"
+
+automation:
+  # One automation for every condition. The triggers have no `from:`, so a
+  # sensor that comes back from unavailable already in its problem state,
+  # as after a restart, still alerts.
+  - id: thermostat_problem
+    alias: Thermostat problem
+    description: Alerts when any thermostat problem sensor turns on, or the gateway leaves the network.
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.thermostat_too_cold
+        to: "on"
+        id: cold
+      - trigger: state
+        entity_id: binary_sensor.thermostat_too_hot
+        to: "on"
+        id: hot
+      - trigger: state
+        entity_id: binary_sensor.thermostat_air_too_dry
+        to: "on"
+        id: dry
+      - trigger: state
+        entity_id: binary_sensor.thermostat_air_too_damp
+        to: "on"
+        id: damp
+      - trigger: state
+        entity_id: binary_sensor.thermostat_unreachable
+        to: "on"
+        id: unreachable
+      - trigger: state
+        entity_id: binary_sensor.thermostat_gateway_on_network
+        to: "off"
+        id: gateway
+      # Emergency heat turned on, by a person or by the thermostat. It
+      # usually means the heat pump has a fault and the electricity bill is
+      # about to jump. Reported, never switched.
+      - trigger: state
+        entity_id: switch.thermostat_emergency_heat
+        to: "on"
+        id: emergency_heat
+    actions:
+      - variables:
+          temp: "{{ states('sensor.thermostat_temperature') }}"
+          outside: "{{ states('sensor.thermostat_outdoor_temperature') }}"
+          humidity: "{{ states('sensor.thermostat_humidity') }}"
+          alerts:
+            cold:
+              - House too cold
+              - >-
+                The hallway is at {{ temp }} °F and has been under 60 °F for
+                half an hour. The heat pump may not be keeping up. Outside:
+                {{ outside }} °F.
+            hot:
+              - House too hot
+              - >-
+                The hallway is at {{ temp }} °F and has been over 82 °F for
+                half an hour. Outside: {{ outside }} °F.
+            dry:
+              - Air too dry
+              - Indoor humidity has been at {{ humidity }}% for two hours, dry enough to be uncomfortable.
+            damp:
+              - Air too damp
+              - Indoor humidity has been at {{ humidity }}% for two hours, damp enough for condensation and mould.
+            unreachable:
+              - Thermostat unreachable
+              - >-
+                Home Assistant has not heard from Honeywell's cloud about the
+                thermostat for an hour.
+            gateway:
+              - Thermostat gateway offline
+              - >-
+                The thermostat's RedLINK gateway has not renewed its network
+                lease in two hours. Check its power and its cable to the eero.
+                Home Assistant may still show old readings.
+            emergency_heat:
+              - Emergency heat is on
+              - >-
+                The thermostat is on emergency heat, the expensive backup. If
+                nobody switched it on, the heat pump may have a fault.
+      - action: script.thermostat_alert
+        data:
+          title: "{{ alerts[trigger.id][0] }}"
+          message: "{{ alerts[trigger.id][1] }}"

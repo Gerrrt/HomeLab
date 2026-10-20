@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-20
 
+- **Thermostat alerts, and no thermostat control**
+  (`packages/thermostat.yaml`). Read through Honeywell's API, the thermostat
+  runs its own schedule: auto mode, a scheduled 66 °F, and a temporary hold
+  at 67 °F ending at 22:00, when its next period begins. A setback from Home
+  Assistant would only become a temporary hold the next period overrides, and
+  a sudden jump would defeat the heat pump's gradual recovery. So the
+  schedule stays on the thermostat, and Home Assistant watches. It alerts on
+  the hallway under 60 °F or over 82 °F for half an hour, humidity under 25%
+  or over 65% for two hours, emergency heat switching on (reported, never
+  switched), and the thermostat unreachable for an hour. Review found two
+  gaps before it merged. A restart dropped pending alerts, so each condition
+  is a template binary sensor instead, re-evaluated at start. And the
+  integration marks the thermostat available whenever Honeywell's API
+  answers, never reading the device's `is_alive`. So the gateway is also
+  watched on the network: it renews its lease hourly, and two hours without
+  a renewal in Loki alerts. The RedLINK radio between gateway and thermostat
+  stays unwatched.
+
 - **The thermostat is in Home Assistant**, through Honeywell's cloud and
   with no firewall rule. Its RedLINK internet gateway, a THM6000R, is
   `appliance-03` on Skids, leased at `10.0.20.122` since 15:49 that day. The
