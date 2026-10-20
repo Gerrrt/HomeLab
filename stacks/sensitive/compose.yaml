@@ -134,6 +134,7 @@ services:
           - links.matrix.elysium
           - actual.matrix.elysium
           - pdf.matrix.elysium
+          - start.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -1556,6 +1557,74 @@ services:
       timeout: 5s
       retries: 3
       start_period: 20s
+
+  # ---------------------------------------------------------------------------
+  # Glance — the operator's start page (ADR-0098)
+  # ---------------------------------------------------------------------------
+  # What the browser opens to, at https://start.matrix.elysium: the estate's
+  # state as Prometheus sees it, the household's apps checked directly,
+  # Miniflux's `glance` user's feeds, Hacker News, two subreddits and the
+  # weather. Homepage stays the household's directory; ADR-0098 says why the
+  # two are separate. glance/glance.yml is the whole configuration, in the
+  # repository and mounted read-only. Nothing lives in a volume, so there is
+  # nothing to back up and no sentinel.
+  #
+  # NO DOCKER SOCKET, for Homepage's reason: the Docker Containers widget
+  # would hand the full Docker API to a page with no login.
+  #
+  # As the operator, like Homepage: the image has no USER and would run as
+  # root, and it needs nothing root has. Measured on the pinned image on
+  # trinity, 2026-10-19, with exactly these options and every widget loaded
+  # three times: read-only root with no tmpfs at all — `docker diff` showed
+  # only the two mount points — CapEff 0, 13–14 MiB and 9 tasks. 64m is a
+  # ceiling for a leak, not a size.
+  #
+  # TRUST. A static Go binary, so Go's own rules: the image's
+  # /etc/ssl/certs/ca-certificates.crt is still read for the public roots
+  # Reddit, Hacker News and Open-Meteo need, and SSL_CERT_DIR ADDS the files
+  # in that directory. The one file there is the tier's root and the estate
+  # CA, the same pair as Homepage's bundle, written by
+  # render-trust-bundles.sh: the first for step-ca's leaves on every
+  # *.matrix.elysium name (which resolve to Caddy through its aliases), the
+  # second for the ingest proxy's leaf on 10.0.99.20:9090. Measured the same
+  # day: every household health path answered through Caddy, and Prometheus
+  # and Miniflux's Fever endpoint each refused a placeholder key over
+  # verified TLS.
+  #
+  # The two credentials come from SOPS and Glance substitutes them into
+  # glance.yml as ${…}: the Prometheus reader token (query only), and the
+  # Fever key of Miniflux's `glance` user, which holds nothing but the feeds
+  # this page shows (secrets/sensitive.example.yaml has the steps).
+  #
+  # No depends_on, for Vaultwarden's reason.
+  glance:
+    <<: *service-defaults
+    image: glanceapp/glance:v0.8.7@sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+    container_name: sensitive-glance
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      SSL_CERT_DIR: /etc/glance/certs
+      GLANCE_PROMETHEUS_TOKEN: ${GLANCE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      GLANCE_MINIFLUX_FEVER_KEY: ${GLANCE_MINIFLUX_FEVER_KEY:?set in secrets/sensitive.sops.yaml}
+    volumes:
+      - ./glance/glance.yml:/app/config/glance.yml:ro
+      - ./.rendered/glance-ca.pem:/etc/glance/certs/ca.pem:ro
+    expose:
+      - "8080"
+    healthcheck:
+      # Glance's own health endpoint; the image has no HEALTHCHECK. busybox
+      # wget; --probe proves it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/api/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Miniflux — the feed reader (#147), the first of the tier extras

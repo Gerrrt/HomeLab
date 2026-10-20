@@ -67,6 +67,13 @@ all of it under the existing 50→99 rule, so this adds no rule at all.
 > is a browsing history — decided in
 > [ADR-0061](0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md).
 > The placement above is unchanged and this ADR is not superseded.*
+>
+> *Glance, the operator's start page, sits on `trinity` beside Homepage. It
+> holds no data, only a query-only token and a feed reader's key, and it
+> lives on Winterfell because that is where the reader proxy and the tier's
+> Caddy are
+> ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
+> This ADR is not superseded.*
 
 **The streaming tier — CasaBonita (40).** A quiet N100-class NAS holds the bulk
 media library and runs Jellyfin, with Plex beside it for household convenience.

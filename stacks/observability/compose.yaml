@@ -311,9 +311,9 @@ services:
       # Loopback only. Prometheus authenticates nothing: whatever reaches this
       # port can read every metric and inject more through the remote-write
       # receiver. The off-host clients (the agents on oracle, trinity and
-      # Saruman, and Homepage and Home Assistant on trinity) reach it through
-      # `caddy` below, which holds the host's address on the same port number
-      # and wants a token first (#182, ADR-0067). Loopback stays open for the
+      # Saruman, and Homepage, Glance and Home Assistant on trinity) reach it
+      # through `caddy` below, which holds the host's address on the same port
+      # number and wants a token first (#182, ADR-0067). Loopback stays open for the
       # host's own timers and for the runbooks' `curl localhost:9090`. A local
       # user on this host is already past anything a token could stop.
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"

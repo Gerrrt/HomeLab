@@ -60,6 +60,7 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "INGEST_TOKEN_GARUDA=validation-only-garuda"
   echo "INGEST_TOKEN=validation-only-client"
   echo "HOMEPAGE_PROMETHEUS_TOKEN=validation-only"
+  echo "GLANCE_PROMETHEUS_TOKEN=validation-only"
   echo "HA_PROMETHEUS_AUTHORIZATION=Bearer validation-only"
   echo "HA_MEDIATV_MAC=00:00:5e:00:53:00"
   echo "STEPCA_PASSWORD=validation-only"
@@ -73,6 +74,7 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "LINKDING_SUPERUSER_PASSWORD=validation-only"
   echo "HOMEPAGE_IMMICH_API_KEY=validation-only"
   echo "HOMEPAGE_PAPERLESS_TOKEN=validation-only"
+  echo "GLANCE_MINIFLUX_FEVER_KEY=validation-only"
   # ntfy validates these at start and exits on a malformed one, so a boot of
   # it (check_hardened_boot.sh) needs them well-formed: a real bcrypt hash —
   # of the string "validation-only", from the pinned image's `ntfy user

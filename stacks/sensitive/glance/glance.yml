@@ -1,0 +1,320 @@
+---
+# Glance — the operator's browser start page (ADR-0098). Mounted read-only,
+# so an edit here is live at the next `make up STACK=sensitive`, which
+# recreates the container when the mounted bytes differ (#355). `git log` on
+# this directory is the history of what the page shows.
+#
+# https://github.com/glanceapp/glance/blob/main/docs/configuration.md
+#
+# WHAT IS NOT IN THIS FILE, ON PURPOSE. This repository is public, and the
+# operator's own subscriptions — news sites, Mastodon and Bluesky accounts,
+# YouTube channels — say more about a person than about a homelab. They live
+# in Miniflux, under a user of their own, `glance`, and the Following widget
+# below reads them back (stacks/sensitive/README.md has the setup). What is
+# written here is only what anyone running this estate would see: its status,
+# Hacker News, two homelab subreddits and the weather.
+#
+# Every third-party fetch is SERVER-SIDE, from trinity over Winterfell's
+# existing *Allow internet* egress (docs/network.md), as Homepage's weather
+# is. The browser loads the page and nothing else, except the search box,
+# which sends a query only when Enter is pressed.
+
+server:
+  host: 0.0.0.0
+  port: 8080
+  # Behind Caddy, which sets X-Forwarded-*.
+  proxied: true
+
+document:
+  head: |
+    <meta name="robots" content="noindex, nofollow">
+
+branding:
+  hide-footer: true
+
+# Tokyo Night (night), as homepage/custom.css. Glance takes HSL; these are
+# the same bg, blue, green and red converted.
+theme:
+  background-color: 235 19 13
+  primary-color: 221 89 72
+  positive-color: 89 51 61
+  negative-color: 349 89 72
+  contrast-multiplier: 1.1
+  disable-picker: true
+
+# Reusable widget definitions. `x-widgets` is not a Glance property; it only
+# holds the YAML anchors the pages below merge in, the way compose.yaml uses
+# x-service-defaults.
+x-widgets:
+  # The Prometheus reader proxy on `prometheus` (ADR-0067, ADR-0086). The
+  # reader token can query and nothing else; it is the one Homepage and Home
+  # Assistant already send. TLS is verified against the estate CA through
+  # SSL_CERT_DIR (compose.yaml).
+  - &prometheus
+    url: https://10.0.99.20:9090/api/v1/query
+    headers:
+      Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+
+  # Miniflux, through the Fever API of its user `glance` — not the REST API,
+  # which ADR-0057 keeps off because it takes the admin's password. Fever is
+  # per user and its key is that user's alone; ADR-0057 pre-authorises one on
+  # its three conditions, and the stack README records this one. The key goes
+  # in the POST body, never the query string, so it is not in Caddy's access
+  # log. A wrong key is not an HTTP error: Fever answers 200 with `auth: 0`.
+  - &fever
+    method: POST
+    headers:
+      Content-Type: application/x-www-form-urlencoded
+    body-type: string
+    body: api_key=${GLANCE_MINIFLUX_FEVER_KEY}
+
+pages:
+  - name: Home
+    width: wide
+    hide-desktop-navigation: true
+    columns:
+      # -----------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: clock
+            hour-format: 24h
+
+          - type: calendar
+            first-day-of-week: sunday
+
+          # COARSE ON PURPOSE, as homepage/widgets.yaml: a city, not a
+          # street. Open-Meteo, no key.
+          - type: weather
+            location: Bellevue, Washington, United States
+            units: imperial
+            hour-format: 24h
+
+          # The household's apps, checked directly from this container over
+          # the compose network, at the same health paths the blackbox probes
+          # use (prometheus/targets/blackbox.yaml). A green row means "Glance
+          # got a 200 through Caddy just now", nothing more — whether it is
+          # healthy over time is the Estate panel's question, and Grafana's.
+          - type: monitor
+            title: Household
+            cache: 1m
+            style: compact
+            sites:
+              - title: Home Assistant
+                url: https://homeassistant.matrix.elysium
+                check-url: https://homeassistant.matrix.elysium/manifest.json
+              - title: Immich
+                url: https://immich.matrix.elysium
+                check-url: https://immich.matrix.elysium/api/server/ping
+              - title: Paperless
+                url: https://paperless.matrix.elysium
+                check-url: https://paperless.matrix.elysium/accounts/login/
+              - title: Vaultwarden
+                url: https://vaultwarden.matrix.elysium
+                check-url: https://vaultwarden.matrix.elysium/alive
+              - title: Actual
+                url: https://actual.matrix.elysium
+                check-url: https://actual.matrix.elysium/health
+              - title: Mealie
+                url: https://recipes.matrix.elysium
+                check-url: https://recipes.matrix.elysium/api/app/about
+              - title: Memos
+                url: https://memos.matrix.elysium
+                check-url: https://memos.matrix.elysium/healthz
+              - title: linkding
+                url: https://links.matrix.elysium
+                check-url: https://links.matrix.elysium/health
+              - title: Miniflux
+                url: https://miniflux.matrix.elysium
+                check-url: https://miniflux.matrix.elysium/healthcheck
+              - title: Stirling PDF
+                url: https://pdf.matrix.elysium
+                check-url: https://pdf.matrix.elysium/api/v1/info/status
+              - title: ntfy
+                url: https://ntfy.matrix.elysium
+                check-url: https://ntfy.matrix.elysium/v1/health
+              - title: Homepage
+                url: https://home.matrix.elysium
+                check-url: https://home.matrix.elysium/api/healthcheck
+
+      # -----------------------------------------------------------------------
+      - size: full
+        widgets:
+          # Nothing is typed into a third party until Enter: this box has no
+          # suggestions, so no keystroke leaves the browser before then.
+          - type: search
+            search-engine: duckduckgo
+            autofocus: true
+            new-tab: false
+
+          # THE ESTATE, AS PROMETHEUS SEES IT. Every VLAN, including the ones
+          # trinity cannot reach itself: firing alerts are the verdict the
+          # alert rules reach, the probes are blackbox-exporter's from
+          # `prometheus`, and the targets are every `up` series, scraped or
+          # pushed. So this panel agrees with Grafana by construction. A host
+          # that stops pushing leaves no `up` series at all rather than a 0;
+          # the alert rules are what notice that, which is why alerts come
+          # first.
+          - type: custom-api
+            title: Estate
+            cache: 1m
+            <<: *prometheus
+            parameters:
+              query: ALERTS{alertstate="firing"}
+            subrequests:
+              probes:
+                <<: *prometheus
+                parameters:
+                  query: min by (name, host) (probe_success)
+              targets:
+                <<: *prometheus
+                parameters:
+                  query: min by (job, instance) (up)
+            template: |
+              {{ $probes := .Subrequest "probes" }}
+              {{ $targets := .Subrequest "targets" }}
+              {{ $codeA := .Response.StatusCode }}
+              {{ $codeP := $probes.Response.StatusCode }}
+              {{ $codeT := $targets.Response.StatusCode }}
+              {{ if or (ne $codeA 200) (ne $codeP 200) (ne $codeT 200) }}
+                <p class="color-negative">
+                  Prometheus answered {{ $codeA }} / {{ $codeP }} / {{ $codeT }} — is the reader token set?
+                </p>
+              {{ else }}
+                {{ $alerts := .JSON.Array "data.result" }}
+                {{ $probeDown := 0 }}{{ $probeAll := 0 }}
+                {{ range $probes.JSON.Array "data.result" }}
+                  {{ $probeAll = add $probeAll 1 }}
+                  {{ if eq (.String "value.1") "0" }}{{ $probeDown = add $probeDown 1 }}{{ end }}
+                {{ end }}
+                {{ $targetDown := 0 }}{{ $targetAll := 0 }}
+                {{ range $targets.JSON.Array "data.result" }}
+                  {{ $targetAll = add $targetAll 1 }}
+                  {{ if eq (.String "value.1") "0" }}{{ $targetDown = add $targetDown 1 }}{{ end }}
+                {{ end }}
+
+                <div class="flex justify-between text-center">
+                  <div>
+                    <div class="size-h3 {{ if $alerts }}color-negative{{ else }}color-positive{{ end }}">
+                      {{ len $alerts }}
+                    </div>
+                    <div class="size-h6">ALERTS FIRING</div>
+                  </div>
+                  <div>
+                    <div class="size-h3 {{ if gt $probeDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                      {{ sub $probeAll $probeDown }}/{{ $probeAll }}
+                    </div>
+                    <div class="size-h6">PROBES UP</div>
+                  </div>
+                  <div>
+                    <div class="size-h3 {{ if gt $targetDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                      {{ sub $targetAll $targetDown }}/{{ $targetAll }}
+                    </div>
+                    <div class="size-h6">TARGETS UP</div>
+                  </div>
+                </div>
+
+                {{ if gt (len $alerts) 0 }}
+                  <ul class="list list-gap-10 margin-top-15">
+                  {{ range $alerts }}
+                    <li>
+                      <span class="color-negative">{{ .String "metric.alertname" }}</span>
+                      <ul class="list-horizontal-text">
+                        <li>{{ .String "metric.severity" }}</li>
+                        {{ if .Exists "metric.name" }}<li>{{ .String "metric.name" }}</li>{{ end }}
+                        {{ if .Exists "metric.host" }}
+                          <li>{{ .String "metric.host" }}</li>
+                        {{ else if .Exists "metric.instance" }}
+                          <li>{{ .String "metric.instance" }}</li>
+                        {{ end }}
+                      </ul>
+                    </li>
+                  {{ end }}
+                  </ul>
+                {{ end }}
+
+                {{ if gt $probeDown 0 }}
+                  <p class="size-h6 margin-top-15">PROBES FAILING</p>
+                  <ul class="list-horizontal-text">
+                  {{ range $probes.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
+                    <li class="color-negative">{{ .String "metric.name" }} ({{ .String "metric.host" }})</li>
+                  {{ end }}{{ end }}
+                  </ul>
+                {{ end }}
+
+                {{ if gt $targetDown 0 }}
+                  <p class="size-h6 margin-top-15">TARGETS DOWN</p>
+                  <ul class="list-horizontal-text">
+                  {{ range $targets.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
+                    <li class="color-negative">{{ .String "metric.job" }} · {{ .String "metric.instance" }}</li>
+                  {{ end }}{{ end }}
+                  </ul>
+                {{ end }}
+
+                {{ if and (eq (len $alerts) 0) (eq $probeDown 0) (eq $targetDown 0) }}
+                  <p class="color-positive margin-top-15">All clear.</p>
+                {{ end }}
+              {{ end }}
+
+          # Everything the `glance` user follows — news sites, Mastodon and
+          # Bluesky profiles or hashtags as RSS (<instance>/@user.rss,
+          # bsky.app/profile/<handle>/rss), YouTube channels
+          # (youtube.com/feeds/videos.xml?channel_id=<id>) — newest first.
+          # Fever's newest-items call returns the latest 50 and cannot filter
+          # by category, so this is one stream, each item labelled with its
+          # feed. A home timeline has no feed, and nor do Instagram, Facebook
+          # or X; ADR-0098 says why they are not here.
+          #
+          # Feed and item titles are third-party text. html/template escapes
+          # every value below, and nothing here marks one safe. How often the
+          # feeds themselves are fetched is Miniflux's schedule, by its
+          # fetcher that refuses private addresses (ADR-0057); `cache` is only
+          # how often this page asks Miniflux.
+          - type: custom-api
+            title: Following
+            cache: 5m
+            url: https://miniflux.matrix.elysium/fever/?api&items&max_id=0
+            <<: *fever
+            subrequests:
+              feeds:
+                url: https://miniflux.matrix.elysium/fever/?api&feeds
+                <<: *fever
+            template: |
+              {{ $feeds := .Subrequest "feeds" }}
+              {{ if or (ne .Response.StatusCode 200) (ne (.JSON.Int "auth") 1) }}
+                <p class="color-negative">
+                  Miniflux refused the Fever key (HTTP {{ .Response.StatusCode }}) — is GLANCE_MINIFLUX_FEVER_KEY set?
+                </p>
+              {{ else if eq (len (.JSON.Array "items")) 0 }}
+                <p>The <code>glance</code> user follows nothing yet.</p>
+              {{ else }}
+                <ul class="list list-gap-10 collapsible-container" data-collapse-after="12">
+                {{ range .JSON.Array "items" }}
+                  {{ $feedID := .Int "feed_id" }}
+                  <li>
+                    <a class="size-title-dynamic color-primary-if-not-visited"
+                       href="{{ .String "url" }}" target="_blank" rel="noreferrer">{{ .String "title" }}</a>
+                    <ul class="list-horizontal-text">
+                      <li {{ .String "created_on_time" | parseRelativeTime "unix" }}></li>
+                      {{ range $feeds.JSON.Array "feeds" }}
+                        {{ if eq (.Int "id") $feedID }}<li>{{ .String "title" }}</li>{{ end }}
+                      {{ end }}
+                    </ul>
+                  </li>
+                {{ end }}
+                </ul>
+              {{ end }}
+
+      # -----------------------------------------------------------------------
+      - size: small
+        widgets:
+          - type: group
+            widgets:
+              - type: hacker-news
+                limit: 20
+                collapse-after: 6
+              - type: reddit
+                subreddit: homelab
+                collapse-after: 6
+              - type: reddit
+                subreddit: selfhosted
+                collapse-after: 6

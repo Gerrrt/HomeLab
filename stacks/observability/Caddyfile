@@ -101,7 +101,8 @@
 	}
 
 	# What Homepage's prometheus and prometheusmetric widgets call (targets and
-	# query), what Home Assistant's rack sensor calls (query), and what
+	# query), what Glance's Estate panel calls (query, ADR-0098), what Home
+	# Assistant's rack sensor calls (query), and what
 	# scripts/deploy-agent.sh's arrival check calls (query). The label and
 	# series reads are the ones a person debugging with the reader token
 	# reaches for first.

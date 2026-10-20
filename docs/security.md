@@ -978,6 +978,17 @@ this closes on.
   `10.0.99.1`, `10.0.99.20:9090` and `169.254.169.254`. None of those requests
   arrived. `HTTP_ALLOW_LIST` is what would open it, so it is written out
   empty in `compose.yaml`.
+- **Glance fetches a fixed list from `trinity`**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223), [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)):
+  Reddit, Hacker News and Open-Meteo, on its cache schedule. Every URL it asks
+  is written in `glance/glance.yml`, and nothing a visitor types becomes a
+  fetch, so it has no inward-fetch flag to set. The feeds people follow are
+  fetched by Miniflux's fetcher, under the flag above, and Glance reads them
+  from Miniflux. It has no login, as Homepage has none. It shows the names of
+  firing alerts, which Grafana shows to the same networks behind a login, and
+  that difference is accepted. It holds two credentials: the reader token,
+  which can only query, and a Fever key that can only mark items read for a
+  Miniflux user that follows public feeds.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
@@ -985,9 +996,9 @@ this closes on.
   system being switched off. Nothing off-host used the port; silences are
   reached through Grafana.
 - Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
-  clients (three agents, Homepage and Home Assistant) reach them through the
-  ingest proxy on `10.0.99.20`, which wants a token and serves each token one
-  role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
+  clients (three agents, Homepage, Glance and Home Assistant) reach them
+  through the ingest proxy on `10.0.99.20`, which wants a token and serves
+  each token one role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
   for which ports are published and
   [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)
   for what a client must prove.

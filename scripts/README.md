@@ -45,6 +45,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_socket_proxy.sh` | `check-socket-proxy` | The Docker socket proxies allow what Alloy reads and refuse `archive`, `export` and `top`, and upstream's template is unchanged under the committed config (Tecnativa/docker-socket-proxy#182) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
+| `check_glance_config.sh` | — | `stacks/sensitive/glance/glance.yml`, validated by the pinned Glance |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |

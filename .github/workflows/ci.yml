@@ -440,6 +440,10 @@ jobs:
           done
           exit $fail
 
+      # The same for Glance's config, in the pinned image (ADR-0098).
+      - name: Validate glance.yml
+        run: ./scripts/check_glance_config.sh
+
       # The device list is spread across snmp.yaml, generator.yaml,
       # render-config.sh's REQUIRED array and the example secrets file. Drift
       # between them is invisible until a poll goes out with an empty community,

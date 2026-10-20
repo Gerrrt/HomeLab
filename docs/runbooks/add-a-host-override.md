@@ -173,8 +173,10 @@ Homepage ([#137](https://github.com/Gerrrt/HomeLab/issues/137)), the one the
 household is told, and `links` for linkding
 ([#144](https://github.com/Gerrrt/HomeLab/issues/144)), added 2026-09-29 as
 an additional name on `trinity`, ahead of the service, `actual` for Actual
-([#142](https://github.com/Gerrrt/HomeLab/issues/142)), and `pdf` for Stirling-PDF
-([#143](https://github.com/Gerrrt/HomeLab/issues/143)). They land with the
+([#142](https://github.com/Gerrrt/HomeLab/issues/142)), `pdf` for Stirling-PDF
+([#143](https://github.com/Gerrrt/HomeLab/issues/143)), and `start` for Glance
+([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)), the operator's start
+page. They land with the
 build ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), not before: an
 override for a host that does not answer moves the failure from *no such host*
 to *no route*, and a name on the break-glass card is the one thing
