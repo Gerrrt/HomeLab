@@ -692,11 +692,11 @@
 <text x="1752" y="1196" class="hn">monitor ×2</text>
 <text x="1752" y="1214" class="sub">VTech baby monitor and tablet</text>
 </g>
-<g class="host" data-host="appliance ×2">
+<g class="host" data-host="appliance ×3">
 <rect x="1738" y="1230" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="1236" width="4" height="38" rx="2" fill="#388bfd"/>
-<text x="1752" y="1252" class="hn">appliance ×2</text>
-<text x="1752" y="1270" class="sub">Litter-Robot · white-noise machine</text>
+<text x="1752" y="1252" class="hn">appliance ×3</text>
+<text x="1752" y="1270" class="sub">Litter-Robot · white noise · thermostat</text>
 </g>
 <rect x="1738" y="1290" width="342" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
 <text x="1752" y="1312" class="sub">Everything else here is reached through</text>

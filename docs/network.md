@@ -741,6 +741,7 @@ the least trusted.
 | monitor-02 | `10.0.20.149` | `a4:97:5c:xx:xx:xx` | VTech tablet[^Monitor] | — | Upper floor | Baby monitor |
 | appliance-01 | `10.0.20.108` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
 | appliance-02 | `10.0.20.115` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Upper floor | Appliance |
+| appliance-03 | `10.0.20.122` | `00:d0:2d:xx:xx:xx` | Honeywell THM6000R RedLINK internet gateway, for the thermostat; wired to an eero's port | — | Bedroom | Appliance |
 
 ### Notes
 
