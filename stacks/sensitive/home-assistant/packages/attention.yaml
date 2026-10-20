@@ -1,0 +1,68 @@
+---
+# Get attention: one press blinks one room's lights and has the Echo there
+# announce a short message, so someone working in that room knows they are
+# wanted.
+#
+# The targets are Home Assistant labels, set in the UI, not entity ids
+# written here. The room is an office that belongs to one person, and
+# docs/security.md keeps owner-linked names out of the repository. So:
+#
+#   attention_lights   the room's bulbs. Bulbs only: a Hue smart plug is a
+#                      `light` too, and blinking one cycles the power to
+#                      whatever is plugged into it.
+#   attention_speaker  the Echo's `announce` notify entity, and that Echo's
+#                      do-not-disturb switch. Not its `speak` entity, or the
+#                      message plays twice.
+#
+# An action aimed at a label acts only on that label's entities of its own
+# domain, so the notify call ignores the switch and the light call ignores
+# both. With no labels assigned, the script runs and does nothing.
+
+input_text:
+  # Left empty, the script says the default below. No `initial`, so what is
+  # set in the UI survives a restart.
+  attention_message:
+    name: Attention message
+    max: 100
+    icon: mdi:message-alert-outline
+
+script:
+  get_attention:
+    alias: Get attention
+    description: Blinks the labelled lights and announces on the labelled Echo, unless it is on do not disturb.
+    icon: mdi:bell-ring-outline
+    # A second press while it runs is dropped, not queued.
+    mode: single
+    variables:
+      message: >-
+        {{ states('input_text.attention_message')
+           if states('input_text.attention_message') not in ['', 'unknown', 'unavailable']
+           else 'Someone needs you. Come find them when you can.' }}
+      do_not_disturb: >-
+        {{ label_entities('attention_speaker')
+           | select('match', 'switch\.')
+           | select('is_state', 'on')
+           | list | count > 0 }}
+    sequence:
+      # The announcement first, so it is heard while the lights blink.
+      # Do not disturb is respected: the lights still blink, and nothing
+      # speaks.
+      - if: "{{ not do_not_disturb }}"
+        then:
+          - action: notify.send_message
+            target:
+              label_id: attention_speaker
+            data:
+              message: "{{ message }}"
+      # Hue's short flash is a single "identify" blink that returns each
+      # light to the state it was in, on or off. Hue's long flash would leave
+      # an off light on. Four blinks, two seconds apart.
+      - repeat:
+          count: 4
+          sequence:
+            - action: light.turn_on
+              target:
+                label_id: attention_lights
+              data:
+                flash: short
+            - delay: 2

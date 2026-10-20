@@ -17,6 +17,17 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-20
+
+- **A *Get attention* button in Home Assistant** (`packages/attention.yaml`).
+  One press blinks one room's lights four times and has that room's Echo
+  announce a short message, so someone working there knows they are wanted.
+  The Echo stays quiet while it is on do not disturb, and the lights still
+  blink. The room is an owner's office, so the package targets two labels
+  set in the UI, `attention_lights` and `attention_speaker`, and the
+  repository never names the room. The blink is Hue's short flash, which
+  returns each light to the state it was in.
+
 ## 2026-10-19
 
 - **Glance is authored as the operator's start page, beside Homepage**
