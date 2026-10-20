@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-19
 
+- **The TV wakes from Home Assistant**
+  ([#1221](https://github.com/Gerrrt/HomeLab/pull/1221),
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The TV's MAC went
+  into SOPS, read from the TV through the paired webOS client and never
+  printed. `make up STACK=sensitive` deployed it with the first automations
+  from earlier in the day, and all 20 services came up healthy. The TV was
+  turned off with the remote and on again from Home Assistant, and a capture
+  showed one unicast magic packet per press. *Quick Start+* kept the TV's
+  network up throughout, so the static ARP entry was not needed for this
+  test, and a wake from deep standby is untested.
+
 - **The TV's rules exist, and the TV is paired**
   ([#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). `mediatv` was
   reserved at `10.0.40.40`, below CasaBonita's pool, and the three rules
