@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-20
 
+- **The HomePods get a decision before they get a rule**
+  ([ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md),
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Read in pyatv
+  0.18.0, control runs from Home Assistant to the HomePod: unicast discovery
+  on `5353`, AirPlay on `7000`, and AirPlay 2 event and data channels on
+  ports the HomePod picks. Audio runs the other way. pyatv's stream opens
+  timing and control listeners on random ports on Home Assistant's side, and
+  the HomePod sends to them. So control is decided, with three outbound rows
+  to four reservations, and audio stays out. The HomeKit Bridge entries
+  created in the UI the night before are to be removed, because control
+  lives in Home Assistant.
+
 - **A *Get attention* button in Home Assistant** (`packages/attention.yaml`).
   One press blinks one room's lights four times and has that room's Echo
   announce a short message, so someone working there knows they are wanted.
