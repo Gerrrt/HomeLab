@@ -190,6 +190,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
+- **Three more rows into Skids are decided, not created:** `10.0.99.40 →
+  10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, above
+  *Block access to Skids*, for Home Assistant's control of the HomePods. The
+  Skids notes and
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
+  give the reasons.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -760,6 +766,15 @@ the least trusted.
   will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
   `.113`, and `.104` went to another device.
+- **Three more rows from `trinity`, decided, not created:** `10.0.99.40 →
+  10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, so Home
+  Assistant can control the four HomePods (play, pause, volume, what's
+  playing) and not stream audio to them. The HomePods get reservations at
+  `.21`–`.24` first, below the pool beside `bifrost`. Until then they hold
+  the pool leases the table lists.
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
+  records the reading and why audio stays out, and
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) creates them.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 
