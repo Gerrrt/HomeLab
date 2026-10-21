@@ -733,7 +733,7 @@ the least trusted.
 | eero-iot-2 | `10.0.20.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Basement | Wi-Fi mesh |
 | eero-iot-3 | `10.0.20.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | bifrost | `10.0.20.20` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
-| speaker-01…04 | `.113`, `.124`, `.128`, `.132` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
+| speaker-01…03 | `10.0.20.21`–`.23` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
 | assistant-01…05 | `.105`, `.109`, `.114`, `.133`, `.144` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
 | camera-01…07 | `.112`, `.118`, `.119`, `.126`, `.130`, `.145`, `.146` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
 | alarm-hub | `10.0.20.121` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
@@ -760,20 +760,23 @@ the least trusted.
   the test that the return traffic rides state and never reaches them. Skids
   stays terminal outbound, and is no longer terminal inbound, for one host
   on two ports.
-- **Four addresses here are reserved, all below the `.100–.200` pool:**
-  `bifrost` at `10.0.20.20` since 2026-09-28, and the three eeros at
+- **Seven addresses here are reserved, all below the `.100–.200` pool:**
+  `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
   `.11`–`.13` since 2026-10-20
-  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)). Every other
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), and three
+  HomePods at `.21`–`.23` since 2026-10-21
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Every other
   device above sits inside the pool by lease, so its row is what it had when
   it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
   `.113`, and `.104` went to another device.
 - **Three more rows from `trinity`, decided, not created:** `10.0.99.40 →
   10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, so Home
-  Assistant can control the four HomePods (play, pause, volume, what's
-  playing) and not stream audio to them. The HomePods get reservations at
-  `.21`–`.24` first, below the pool beside `bifrost`. Until then they hold
-  the pool leases the table lists.
+  Assistant can control the HomePods (play, pause, volume, what's playing)
+  and not stream audio to them. Three are reserved at `.21`–`.23`, beside
+  `bifrost`, since 2026-10-21. They were reset and set up again that day,
+  and the fourth has not been set up again yet. `.24` is kept for it, and the
+  rows cover it already.
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   records the reading and why audio stays out, and
   [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) creates them.
