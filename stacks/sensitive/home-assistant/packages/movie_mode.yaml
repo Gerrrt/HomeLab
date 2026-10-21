@@ -74,8 +74,10 @@ automation:
         entity_id: input_boolean.movie_mode
         state: "on"
     actions:
-      # Missing after a restart. The lights then stay as they are.
-      - if: "{{ states('scene.tv_room_before_movie') not in ['unknown', 'unavailable'] }}"
+      # Missing after a restart. The lights then stay as they are. A fresh
+      # snapshot reads `unknown` until it is activated, so existence is the
+      # test, not its state.
+      - if: "{{ states.scene.tv_room_before_movie is not none }}"
         then:
           - action: scene.turn_on
             target:

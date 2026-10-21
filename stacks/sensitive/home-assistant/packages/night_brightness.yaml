@@ -10,10 +10,19 @@
 # list.
 #
 # "A person" means the change did not come from an automation or a script.
-# A change Home Assistant makes on its own behalf carries a parent context;
-# one from the Hue app, a Hue switch or the dashboard does not. So the sunset
-# lights and the bedtime script are never capped, and this automation's own
-# change is never capped again.
+# Two checks, because the bulbs alone cannot say. A change Home Assistant
+# makes on its own behalf carries a parent context; one from the Hue app, a
+# Hue switch or the dashboard does not. But when an automation lights a Hue
+# room or recalls a scene, only the room or scene entity carries that
+# context; the bulbs report their own change from the bridge with none. So a
+# bulb is also left alone if any light or scene changed with a parent context
+# in the last five seconds, the window in which Home Assistant attaches a
+# service call's context to an entity's state. The sunset lights, the
+# bedtime script and movie mode are therefore never capped, and this
+# automation's own change is never capped again.
+#
+# The cap is 25%, set here. A helper would start at its minimum on a fresh
+# volume, not at 25%.
 #
 # Only turn-ons are capped. Someone who turns a light on and then raises it
 # gets what they asked for.
@@ -24,17 +33,6 @@ input_boolean:
   night_brightness_cap_paused:
     name: Night brightness cap paused
     icon: mdi:brightness-auto
-
-input_number:
-  # No `initial`, so a value set in the UI survives a restart. Unset, the
-  # automation uses 25%.
-  night_brightness_cap:
-    name: Night brightness cap
-    min: 5
-    max: 100
-    step: 5
-    unit_of_measurement: "%"
-    icon: mdi:brightness-4
 
 automation:
   - id: night_brightness_cap
@@ -59,6 +57,13 @@ automation:
              and trigger.event.data.new_state.state == 'on' }}
       - condition: template
         value_template: "{{ trigger.event.data.new_state.context.parent_id is none }}"
+      - condition: template
+        value_template: >-
+          {% set recent = now() - timedelta(seconds=5) %}
+          {{ (states.light | list + states.scene | list)
+             | selectattr('last_updated', '>=', recent)
+             | selectattr('context.parent_id', 'ne', none)
+             | list | count == 0 }}
       - condition: time
         after: "20:00:00"
         before: "06:00:00"
@@ -71,14 +76,12 @@ automation:
       - condition: template
         value_template: >-
           {% set e = trigger.event.data.entity_id %}
-          {% set cap = states('input_number.night_brightness_cap') | float(25) %}
           {{ e in integration_entities('hue')
              and not state_attr(e, 'is_hue_group')
-             and (trigger.event.data.new_state.attributes.brightness | default(0) | int(0))
-                 > (cap * 2.55) | round(0) }}
+             and (trigger.event.data.new_state.attributes.brightness | default(0) | int(0)) > 64 }}
     actions:
       - action: light.turn_on
         target:
           entity_id: "{{ trigger.event.data.entity_id }}"
         data:
-          brightness_pct: "{{ states('input_number.night_brightness_cap') | float(25) | int }}"
+          brightness_pct: 25

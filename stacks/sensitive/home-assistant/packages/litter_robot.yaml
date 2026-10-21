@@ -74,7 +74,10 @@ script:
 
 # Each cat's weight, as a recent average against a baseline. The recorder
 # keeps ten days of history by default, which the statistics sensors load on
-# start. So the baseline is nine days, inside that, and recent is two.
+# start. So the baseline is nine days, inside that, and recent is two. There
+# is no sampling_size: the Litter-Robot reports every few minutes whether or
+# not the weight changed, and statistics counts those reports too, so a sample
+# cap would cut the windows far shorter than max_age.
 sensor:
   - platform: statistics
     name: Sebastian weight recent
@@ -82,7 +85,6 @@ sensor:
     entity_id: sensor.sebastian_weight
     state_characteristic: mean
     max_age: {days: 2}
-    sampling_size: 200
     precision: 2
   - platform: statistics
     name: Sebastian weight baseline
@@ -90,7 +92,6 @@ sensor:
     entity_id: sensor.sebastian_weight
     state_characteristic: mean
     max_age: {days: 9}
-    sampling_size: 1000
     precision: 2
   - platform: statistics
     name: Artemis weight recent
@@ -98,7 +99,6 @@ sensor:
     entity_id: sensor.artemis_weight
     state_characteristic: mean
     max_age: {days: 2}
-    sampling_size: 200
     precision: 2
   - platform: statistics
     name: Artemis weight baseline
@@ -106,7 +106,6 @@ sensor:
     entity_id: sensor.artemis_weight
     state_characteristic: mean
     max_age: {days: 9}
-    sampling_size: 1000
     precision: 2
   - platform: statistics
     name: Aristaeus weight recent
@@ -114,7 +113,6 @@ sensor:
     entity_id: sensor.aristaeus_weight
     state_characteristic: mean
     max_age: {days: 2}
-    sampling_size: 200
     precision: 2
   - platform: statistics
     name: Aristaeus weight baseline
@@ -122,7 +120,6 @@ sensor:
     entity_id: sensor.aristaeus_weight
     state_characteristic: mean
     max_age: {days: 9}
-    sampling_size: 1000
     precision: 2
 
 # Down 8% or more on its own baseline, which is about a pound on a

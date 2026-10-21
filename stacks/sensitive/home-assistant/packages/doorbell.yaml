@@ -10,21 +10,15 @@
 #
 # The doorbell is the Ring event entity labelled `doorbell`, set in the UI.
 # Its entity id names which door it covers, and docs/security.md keeps camera-
-# to-door mapping out of the repository. A trigger cannot target a label, so a
-# template sensor mirrors the labelled entity's state, which is the time of its
-# last ring, and the automation triggers on that.
+# to-door mapping out of the repository. A trigger cannot target a label, and
+# label_entities() does not notice a label assigned after start, so the
+# automation takes every event-entity change and checks the label at the
+# moment of the ring. Almost every state change fails the first, cheapest
+# condition.
 #
 # The Ring app sends its own push for every ring. If two phone notifications
 # are one too many, turn the doorbell's notifications off in the Ring app and
 # keep these.
-
-template:
-  - sensor:
-      - name: Doorbell last ring
-        unique_id: doorbell_last_ring
-        icon: mdi:doorbell
-        state: "{{ label_entities('doorbell') | map('states') | first | default('unknown') }}"
-        availability: "{{ label_entities('doorbell') | count > 0 }}"
 
 input_datetime:
   # No `initial`, so times set in the UI survive a restart. While both are
@@ -44,10 +38,21 @@ automation:
     description: Phones, the TV and (outside quiet hours) every Echo when the doorbell rings.
     mode: single
     triggers:
-      - trigger: state
-        entity_id: sensor.doorbell_last_ring
-        not_from: [unknown, unavailable]
-        not_to: [unknown, unavailable]
+      - trigger: event
+        event_type: state_changed
+    # An event entity's state is the time of its last event, so any change
+    # from one real time to another is a ring. Coming back from unavailable,
+    # as after a restart, is not.
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.event.data.entity_id.startswith('event.')
+             and trigger.event.data.old_state is not none
+             and trigger.event.data.new_state is not none
+             and trigger.event.data.old_state.state not in ['unknown', 'unavailable']
+             and trigger.event.data.new_state.state not in ['unknown', 'unavailable'] }}
+      - condition: template
+        value_template: "{{ trigger.event.data.entity_id in label_entities('doorbell') }}"
     variables:
       quiet: >-
         {% set s = states('input_datetime.doorbell_quiet_start') %}
