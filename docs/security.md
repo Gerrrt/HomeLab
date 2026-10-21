@@ -398,14 +398,17 @@ has stood between 99 and 20 since the segments existed
 ([#134](https://github.com/Gerrrt/HomeLab/issues/134),
 [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)). Nothing on
 Skids can start a connection through it; the #223 tripwire read 0 after
-pairing. **Three more, for the HomePods, are decided and not created**
+pairing. **Three more, for the HomePods, exist since 2026-10-21**
 ([ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md),
 [#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). They run from
 `trinity` to four reserved addresses on `5353/udp`, `7000/tcp` and the dynamic
 range `49152–65535/tcp`, because each HomePod picks its AirPlay 2 event and
 data ports per session. They are outbound only. Audio is left out because
 pyatv's stream needs the HomePod to send to random ports on Home Assistant's
-side, which would have Skids initiating into Winterfell.
+side, which would have Skids initiating into Winterfell. The HomePods ignore
+discovery from another subnet, so that traffic is NATed to `10.0.20.1` on its
+way into Skids. The HomePods therefore see the firewall's address, not
+`trinity`'s, and they treat it as a device on their own network.
 
 One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
