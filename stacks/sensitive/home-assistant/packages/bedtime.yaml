@@ -1,15 +1,15 @@
 ---
-# Bedtime: the shared rooms go dark, the bedroom drops to a warm glow, and the
-# white-noise machine starts.
+# Bedtime, for the adults: the shared rooms go dark and the bedroom drops to a
+# warm glow.
 #
-# A script rather than a scene. A scene sets states all at once and cannot
-# fade, and the white-noise machine is two switches (power, then sound), which
-# have to go in order. Run it from the dashboard or the phone, or let the
-# timer below run it.
+# A script rather than a scene, because a scene sets states all at once and
+# cannot fade. Run it from the dashboard or the phone, or let the timer below
+# run it.
 #
-# The script uses light.evening_lights from lighting.yaml. The white-noise
-# machine is the tuya integration's, reached through Tuya's cloud
-# (ADR-0035's inventory).
+# The script uses light.evening_lights from lighting.yaml. It leaves the
+# connected white-noise machine alone: that one is the child's, and
+# kid_bedtime.yaml runs it. The bedroom's own white-noise machine has no
+# connection.
 
 script:
   bedtime:
@@ -29,12 +29,6 @@ script:
           brightness_pct: 15
           color_temp_kelvin: 2200
           transition: 30
-      - action: switch.turn_on
-        target:
-          entity_id: switch.smart_white_noise_machine
-      - action: switch.turn_on
-        target:
-          entity_id: switch.smart_white_noise_machine_music
 
 # The time and the on/off switch for the timer are the household's to set in
 # the UI, not in a review. Neither has an `initial`, so Home Assistant

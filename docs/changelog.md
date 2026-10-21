@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Evening routines, and a correction to Bedtime**
+  (`kid_bedtime.yaml`, `tv_room_evening.yaml`, `bedtime.yaml`). This corrects
+  the 2026-10-19 entry *"Home Assistant's first automations are packages in
+  git"*, which had `bedtime.yaml` starting the white-noise machine at the
+  adults' bedtime. That machine is in the child's room, and the adults' own
+  has no connection, so Bedtime no longer touches it. The child's routine now
+  runs it. From 19:00 the room's Hue sleep scene dims to 25% and the noise
+  rises from 30% to 80% with a green night light. At 19:45 the lights go out
+  and the night light turns red. The room is reached through UI labels,
+  because the repository does not name a child's room. The TV room's evening
+  is show time at 19:00 (TV on, Mood scene, Prime Video open) and a bedtime
+  nudge at 21:00 on the living-room Echo, not every Echo.
+
 - **Glance's probe is live, and #1223 is closed**
   ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Prometheus did
   not see the target at first, because the deployment checkout on

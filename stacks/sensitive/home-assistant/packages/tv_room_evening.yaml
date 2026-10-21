@@ -1,0 +1,121 @@
+---
+# The TV room's evening: show time at 19:00, and a bedtime nudge at 21:00.
+#
+#   19:00  The TV comes on (through the wake in mediatv.yaml), the room goes
+#          to its Hue "Mood" scene, and Prime Video opens, ready for whoever
+#          finishes the child's bedtime first.
+#   21:00  The living-room Echo says it is bedtime, with a pop-up on the TV
+#          if it is on. It goes to one Echo, not to every Echo, so it cannot
+#          wake the child.
+#
+# Prime Video is opened by its webOS app id, `amazon`, through the webostv
+# integration's command action (system.launcher/launch). Picking a show
+# needs the app's own deep links, which webOS does not publish, so it stops
+# at Prime Video's home screen.
+#
+# Show time works with movie mode (movie_mode.yaml): it snapshots the room
+# and marks movie mode on, so turning the TV off puts the room back, and the
+# sunset lights skip the TV room while movie mode holds it.
+
+input_boolean:
+  # On skips both, for a night the TV should stay off. It is not turned back
+  # off automatically.
+  tv_room_evening_paused:
+    name: TV room evening paused
+    icon: mdi:television-off
+
+script:
+  tv_room_show_time:
+    alias: TV room show time
+    icon: mdi:television-play
+    mode: single
+    sequence:
+      - action: media_player.turn_on
+        target:
+          entity_id: media_player.tv_room_lg_webos_tv_oled
+      # The wake can take a minute, and the app can only open once the TV
+      # answers.
+      - wait_template: "{{ is_state('media_player.tv_room_lg_webos_tv_oled', 'on') }}"
+        timeout: "00:02:00"
+        continue_on_timeout: true
+      # Movie mode may already have dimmed the room, if its lights were on
+      # when the TV came on. If not, show time does the same: snapshot the
+      # room, go to Mood, and mark movie mode on. Then turning the TV off
+      # puts the room back, and the sunset lights leave the room alone
+      # (lighting.yaml).
+      - if:
+          - condition: state
+            entity_id: input_boolean.movie_mode
+            state: "off"
+        then:
+          - action: scene.create
+            data:
+              scene_id: tv_room_before_movie
+              snapshot_entities:
+                - light.tv_room_ceiling_1
+                - light.tv_room_ceiling_2
+                - light.tv_room_ceiling_3
+                - light.tv_room_hue_color_lamp_1
+                - light.tv_room_hue_color_lamp_2
+                - light.tv_room_hue_color_lamp_3
+          - action: scene.turn_on
+            target:
+              entity_id: scene.tv_room_tv_room_mood
+            data:
+              transition: 5
+          - action: input_boolean.turn_on
+            target:
+              entity_id: input_boolean.movie_mode
+      - if: "{{ is_state('media_player.tv_room_lg_webos_tv_oled', 'on') }}"
+        then:
+          - delay: 5
+          - action: webostv.command
+            continue_on_error: true
+            data:
+              entity_id: media_player.tv_room_lg_webos_tv_oled
+              command: system.launcher/launch
+              payload:
+                id: amazon
+
+automation:
+  - id: tv_room_show_time
+    alias: TV room show time
+    description: At 19:00, the TV comes on with Prime Video open and the room at its Mood scene.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "19:00:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.tv_room_evening_paused
+        state: "off"
+    actions:
+      - action: script.tv_room_show_time
+
+  - id: tv_room_bedtime_nudge
+    alias: TV room bedtime nudge
+    description: At 21:00, the living-room Echo says it is bedtime, with a pop-up on the TV if it is on.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "21:00:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.tv_room_evening_paused
+        state: "off"
+    actions:
+      - action: notify.send_message
+        continue_on_error: true
+        target:
+          entity_id: notify.living_room_echo_announce
+        data:
+          message: It's nine o'clock. Time to start winding down for bed.
+      - if:
+          - condition: state
+            entity_id: media_player.tv_room_lg_webos_tv_oled
+            state: "on"
+        then:
+          - action: notify.lg_webos_tv_oled65cxpua
+            continue_on_error: true
+            data:
+              message: It's nine o'clock. Time to start winding down for bed.
