@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance is deployed at `start.matrix.elysium`**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). With the `start`
+  override on `morpheus` and both keys in SOPS, `make up STACK=sensitive`
+  created Glance and recreated Caddy for its alias, and all 21 services came
+  up healthy. The page answered 200 over the tier's TLS, Glance held 6.6 MiB,
+  and the twelve household checks were green. Its first Estate reading was 7
+  alerts firing, 23 of 23 probes up and 48 of 49 targets up. The alerts and
+  the one target down (`snmp` on `10.0.30.10`) were already firing before the
+  deploy. Following said the `glance` user follows nothing yet, which was
+  true.
+
 - **Glance's two keys are in SOPS**
   ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Miniflux's user
   `glance` was created, not an administrator, with Fever on. Its key went

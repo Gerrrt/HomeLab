@@ -653,8 +653,12 @@ answer different questions. `glance/glance.yml` is all of it.
      answered the token over verified TLS.
   3. Add `start` to `trinity`'s *Additional Names for this Host* on `morpheus`
      ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
+     **Done 2026-10-21**; it answered `10.0.99.40` from `trinity`.
   4. `make up STACK=sensitive`. Caddy is recreated for its new alias and site
-     block, and step-ca issues the name's leaf on the first request.
+     block, and step-ca issues the name's leaf on the first request. **Done
+     2026-10-21**: 21 of 21 healthy, the page served over the tier's TLS,
+     Glance at 6.6 MiB, all twelve household checks green, and the Estate
+     panel reading live alerts, probes and targets.
   5. Point the browser's home page and new tab at
      `https://start.matrix.elysium`.
   6. Add the page to `stacks/observability/prometheus/targets/blackbox.yaml`
