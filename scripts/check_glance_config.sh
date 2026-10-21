@@ -59,6 +59,10 @@ image="$(COMPOSE_FILE="${STACK_DIR}/compose.yaml" "${REPO_ROOT}/scripts/image-fo
 env_file="$(mktemp)"
 trap 'rm -f "${env_file}"' EXIT
 "${REPO_ROOT}/scripts/seed-validation-env.sh" "${env_file}" sensitive
+# The seed is compose's .env, where Glance's lists are single-quoted so a
+# " #" in them is not a comment. `docker run --env-file` is not compose's
+# parser and would hand Glance the quotes too, so they are taken off here.
+sed -i -E "s/^(GLANCE_[A-Z_]+)='(.*)'$/\1=\2/" "${env_file}"
 
 # Backslash-continued for check_image_pins.py, as in check_caddyfile.sh. As the
 # caller and read-only: the image would otherwise run as root over a mount of

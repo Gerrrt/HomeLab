@@ -242,18 +242,32 @@
                 {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
               {{ end }}
               <div class="flex justify-between text-center">
+                {{/* A figure only with evidence: Watchdog firing for the alert
+                     count, at least one probe for the sites. Else a red dash. */}}
                 <div>
-                  <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
-                  {{ $faults }}</div>
+                  {{ if $watchdog }}
+                    <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ $faults }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
                   <div class="size-h6">ALERTS</div>
                 </div>
                 <div>
-                  <div class="size-h3 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
-                  {{ sub $pAll $pDown }}/{{ $pAll }}</div>
+                  {{ if gt $pAll 0 }}
+                    <div class="size-h3 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ sub $pAll $pDown }}/{{ $pAll }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
                   <div class="size-h6">SITES UP</div>
                 </div>
                 <div>
-                  <div class="size-h3 color-highlight">{{ $ctr.JSON.String "data.result.0.value.1" }}</div>
+                  {{ if $ctr.JSON.Exists "data.result.0" }}
+                    <div class="size-h3 color-highlight">{{ $ctr.JSON.String "data.result.0.value.1" }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
                   <div class="size-h6">CONTAINERS</div>
                 </div>
               </div>

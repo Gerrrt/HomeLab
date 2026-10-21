@@ -45,34 +45,60 @@
           <<: *prometheus
           parameters:
             query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+      # A figure is shown only with evidence behind it, as in the Estate panel:
+      # the alert count needs a 200 and Watchdog firing (else rule evaluation
+      # has stopped and zero means nothing), and the site count needs a 200
+      # and at least one probe. Otherwise it reads "—", in red, with why.
       template: |
-        {{ $faults := 0 }}
+        {{ $faults := 0 }}{{ $watchdog := false }}
         {{ range .JSON.Array "data.result" }}
           {{ $sev := .String "metric.severity" }}
-          {{ if and (ne (.String "metric.alertname") "Watchdog") (or (eq $sev "warning") (eq $sev "critical")) }}
-          {{ $faults = add $faults 1 }}{{ end }}
+          {{ if eq (.String "metric.alertname") "Watchdog" }}{{ $watchdog = true }}
+          {{ else if or (eq $sev "warning") (eq $sev "critical") }}{{ $faults = add $faults 1 }}{{ end }}
         {{ end }}
+        {{ $alertsOK := and (eq .Response.StatusCode 200) $watchdog }}
+        {{ $probes := .Subrequest "probes" }}
         {{ $pAll := 0 }}{{ $pDown := 0 }}
-        {{ range (.Subrequest "probes").JSON.Array "data.result" }}
+        {{ range $probes.JSON.Array "data.result" }}
           {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
         {{ end }}
+        {{ $probesOK := and (eq $probes.Response.StatusCode 200) (gt $pAll 0) }}
+        {{ $ctr := .Subrequest "containers" }}
         {{ $guests := (.Subrequest "guests").JSON.Array "data.result" }}
         {{ $wan := (.Subrequest "wan").JSON.Array "data.result" }}
         {{ $ups := (.Subrequest "ups").JSON.Array "data.result" }}
         <div class="flex justify-between text-center flex-wrap gap-20">
           <div>
-            <div class="size-h2 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $faults }}
-            </div>
-            <div class="size-h6">ALERTS FIRING</div>
+            {{ if $alertsOK }}
+              <div class="size-h2 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                {{ $faults }}
+              </div>
+              <div class="size-h6">ALERTS FIRING</div>
+            {{ else }}
+              <div class="size-h2 color-negative">—</div>
+              <div class="size-h6">
+                ALERTS:
+                {{ if ne .Response.StatusCode 200 }}HTTP {{ .Response.StatusCode }}{{ else }}WATCHDOG SILENT{{ end }}
+              </div>
+            {{ end }}
           </div>
           <div>
-            <div class="size-h2 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
-            {{ sub $pAll $pDown }}/{{ $pAll }}</div>
-            <div class="size-h6">SITES UP</div>
+            {{ if $probesOK }}
+              <div class="size-h2 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                {{ sub $pAll $pDown }}/{{ $pAll }}
+              </div>
+              <div class="size-h6">SITES UP</div>
+            {{ else }}
+              <div class="size-h2 color-negative">—</div>
+              <div class="size-h6">SITES: NO DATA</div>
+            {{ end }}
           </div>
           <div>
-            <div class="size-h2 color-highlight">{{ (.Subrequest "containers").JSON.String "data.result.0.value.1" }}
-            </div>
+            {{ if and (eq $ctr.Response.StatusCode 200) ($ctr.JSON.Exists "data.result.0") }}
+              <div class="size-h2 color-highlight">{{ $ctr.JSON.String "data.result.0.value.1" }}</div>
+            {{ else }}
+              <div class="size-h2 color-negative">—</div>
+            {{ end }}
             <div class="size-h6">CONTAINERS RUNNING</div>
           </div>
           <div>
@@ -343,7 +369,10 @@
         # Uptime-Kuma-style badges from the blackbox probes Prometheus already
         # runs every 30 seconds: now, and the share of probes that passed over
         # 24 hours and 7 days. A service probed twice (by name and by address)
-        # counts as down if either fails.
+        # counts as down if either fails, at each moment: the probes are
+        # combined with min first and that is averaged, so two probes failing
+        # at different hours count both outages. A one-minute subquery step
+        # against a 30-second probe interval.
         - type: custom-api
           title: Uptime
           cache: 1m
@@ -354,11 +383,11 @@
             day:
               <<: *prometheus
               parameters:
-                query: min by (name) (avg_over_time(probe_success[24h]))
+                query: avg_over_time((min by (name) (probe_success))[24h:1m])
             week:
               <<: *prometheus
               parameters:
-                query: min by (name) (avg_over_time(probe_success[7d]))
+                query: avg_over_time((min by (name) (probe_success))[7d:1m])
           template: |
             {{ $day := (.Subrequest "day").JSON.Array "data.result" }}
             {{ $week := (.Subrequest "week").JSON.Array "data.result" }}
@@ -519,8 +548,12 @@
                   {{ $up = .Float "value.1" }}{{ else }}{{ $ping = .Float "value.1" }}{{ end }}
                 {{ end }}
                 <p class="size-h6 margin-top-15">LAST SPEED TEST</p>
-                <p>↓ {{ printf "%.0f" (div $down 1e6) }} · ↑ {{ printf "%.0f" (div $up 1e6) }}
-                Mbit/s · {{ printf "%.1f" $ping }} ms</p>
+                {{ if gt $down 0.0 }}
+                  <p>↓ {{ printf "%.0f" (div $down 1e6) }} · ↑ {{ printf "%.0f" (div $up 1e6) }}
+                  Mbit/s · {{ printf "%.1f" $ping }} ms</p>
+                {{ else }}
+                  <p class="color-negative">No data from speedtest-tracker.</p>
+                {{ end }}
 
         # Saruman's guests, from its collector (collect-guest-state). Templates
         # are left out. If Saruman stops reporting, the series go stale and this

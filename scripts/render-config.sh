@@ -685,8 +685,24 @@ chmod 600 "${ENV_FILE}"
   # repository. Falls back to 4 only if the file is absent, which on a host with
   # no syslog is the case where the source has nothing to read anyway.
   printf 'LOG_READ_GID=%s\n' "$(stat -c '%g' /var/log/syslog 2>/dev/null || echo 4)"
+  # Glance's lists (ADR-0100) are JSON, where `#` is ordinary text — a
+  # bookmark called "Daily #1" — but in an UNQUOTED .env value ` #` starts a
+  # comment, and compose cut such a value off there (measured on compose
+  # v5, 2026-10-21). So they are written single-quoted, which compose reads
+  # literally: no comment, no interpolation, and therefore no `$$` either.
+  # The one thing a single-quoted value cannot hold is a single quote, which
+  # secrets/sensitive.example.yaml already forbids in them; refuse one here
+  # rather than write a line compose would misread.
   for var in "${COMPOSE_VARS[@]}"; do
-    [[ -n "${!var:-}" ]] && printf '%s=%s\n' "${var}" "$(env_escape "${!var}")"
+    [[ -n "${!var:-}" ]] || continue
+    case "${var}" in
+      GLANCE_MARKETS | GLANCE_BOOKMARKS | GLANCE_VIDEO_TABS | GLANCE_REDDIT_TABS)
+        [[ "${!var}" != *"'"* ]] \
+          || die "${var} contains a single quote, which its .env line cannot carry — remove it in SOPS"
+        printf "%s='%s'\n" "${var}" "${!var}"
+        ;;
+      *) printf '%s=%s\n' "${var}" "$(env_escape "${!var}")" ;;
+    esac
   done
 } > "${ENV_FILE}"
 chmod 600 "${ENV_FILE}"
