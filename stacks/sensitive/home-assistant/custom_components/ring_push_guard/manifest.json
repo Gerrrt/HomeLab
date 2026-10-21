@@ -1,0 +1,10 @@
+{
+  "domain": "ring_push_guard",
+  "name": "Ring push guard",
+  "codeowners": [],
+  "documentation": "https://github.com/Gerrrt/HomeLab/blob/main/docs/adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md",
+  "integration_type": "service",
+  "iot_class": "local_push",
+  "requirements": [],
+  "version": "1.0.0"
+}

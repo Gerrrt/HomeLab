@@ -80,6 +80,12 @@ Closes when it is empty.
   No gate: the HomePods and `trinity` both exist. The work is four
   reservations and three rules on `morpheus`, then adding each HomePod by
   address from `trinity`.
+- **[#1240](https://github.com/Gerrrt/HomeLab/issues/1240) Retire
+  `ring_push_guard`.** Decided by
+  [ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
+  Gate: a Home Assistant release that pins a `ring_doorbell` with the
+  missing-`ding.id` fix (python-ring-doorbell#540 or #556). Until then the
+  patch stays, and the issue tracks it.
 
 The rest of the milestone has no order between its issues.
 

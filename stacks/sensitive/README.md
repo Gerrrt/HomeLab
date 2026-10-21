@@ -105,6 +105,12 @@ what is here:
   on the day a device needs it, and today none does — Ring is cloud, the Hue
   bridge is its own radio, the speakers are Wi-Fi. No USB radio means where
   `trinity` sits is not this service's concern.
+- **One custom integration, and it is ours.** `home-assistant/custom_components/`
+  holds `ring_push_guard`, a version-gated patch for `ring_doorbell` 0.9.14,
+  whose push parser dies on Ring pushes without a `ding.id` and takes every
+  real-time Ring event with it. It is mounted read-only like the packages and
+  is reviewed here. It is not a HACS channel, and it is deleted when a fixed
+  `ring_doorbell` reaches Home Assistant [ADR-0101](../../docs/adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
 
 ## Layout
 
@@ -112,8 +118,9 @@ what is here:
 compose.yaml               twenty-two services, one network, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
-home-assistant/            configuration.yaml and packages/, mounted read-only
-                           over the volume Home Assistant writes its state to
+home-assistant/            configuration.yaml, packages/ and custom_components/,
+                           mounted read-only over the volume Home Assistant
+                           writes its state to
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
