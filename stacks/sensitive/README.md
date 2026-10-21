@@ -643,10 +643,14 @@ answer different questions. `glance/glance.yml` is all of it.
      on Fever (`secrets/sensitive.example.yaml` has the clicks and how the key
      is derived). ADR-0057 pre-authorises a Fever credential on three
      conditions; this is the record the third asks for: **client Glance, user
-     `glance`, set up on** *(the date, when it is done)*.
+     `glance` (not an administrator), set up on 2026-10-21**, both passwords
+     generated and kept in the password manager.
   2. `make secrets-edit STACK=sensitive`: add `GLANCE_PROMETHEUS_TOKEN` (the
      same value as `HOMEPAGE_PROMETHEUS_TOKEN`) and
-     `GLANCE_MINIFLUX_FEVER_KEY`. Commit the encrypted file.
+     `GLANCE_MINIFLUX_FEVER_KEY`. Commit the encrypted file. **Done
+     2026-10-21**, the Fever key copied from Miniflux's own record of it and
+     never printed. Fever answered `auth: 1` to it, and the reader proxy
+     answered the token over verified TLS.
   3. Add `start` to `trinity`'s *Additional Names for this Host* on `morpheus`
      ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)).
   4. `make up STACK=sensitive`. Caddy is recreated for its new alias and site

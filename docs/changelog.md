@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance's two keys are in SOPS**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Miniflux's user
+  `glance` was created, not an administrator, with Fever on. Its key went
+  into `secrets/sensitive.sops.yaml` from Miniflux's own record of it, and
+  the reader token from Homepage's copy, neither printed. Fever answered
+  `auth: 1` to the key, and the reader proxy answered the token. Since #1224
+  merged on 2026-10-20, `make up STACK=sensitive` had needed these two keys
+  and would have stopped at render without them; nothing had been deployed
+  in between.
+
 - **Three HomePods are reserved at `10.0.20.21`–`.23`**
   ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). The HomePods
   had been removed from Apple Home on 2026-10-20, which resets a HomePod and
