@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance's Homelab page is deployed**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). After the merge,
+  `make up STACK=sensitive` reported all 21 services healthy, with each of
+  Glance's three config files matching what was mounted. The four lists
+  arrived in the container as JSON. Both pages answered 200 over the tier's
+  TLS, the icons were served from the container, and no widget showed an
+  error. Glance held 8 MiB under its 96 MiB ceiling. YouTube's feeds, which
+  had answered 404 earlier the same day, were serving again, and the
+  Homelab tab filled.
+
 - **A first batch of everyday automations** (`night_brightness.yaml`,
   `doorbell.yaml`, `movie_mode.yaml`, `litter_robot.yaml`), picked from
   CCOSTAN's and frenck's published configurations for the devices this house
