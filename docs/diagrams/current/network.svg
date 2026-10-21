@@ -662,11 +662,11 @@
 <text x="1752" y="902" class="role">one wired backhaul</text>
 </g>
 <text x="1740" y="940" class="pill" fill="#388bfd">POOLED LEASES, BY CLASS</text>
-<g class="host" data-host="speaker ×4">
+<g class="host" data-host="speaker ×3">
 <rect x="1738" y="950" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="956" width="4" height="38" rx="2" fill="#388bfd"/>
-<text x="1752" y="972" class="hn">speaker ×4</text>
-<text x="1752" y="990" class="sub">Apple HomePod</text>
+<text x="1752" y="972" class="hn">speaker ×3</text>
+<text x="1752" y="990" class="sub">Apple HomePod · reserved .21–.23</text>
 </g>
 <g class="host" data-host="assistant ×5">
 <rect x="1738" y="1006" width="342" height="50" rx="8" class="card"/>

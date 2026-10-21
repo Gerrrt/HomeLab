@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Three HomePods are reserved at `10.0.20.21`–`.23`**
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). The HomePods
+  had been removed from Apple Home on 2026-10-20, which resets a HomePod and
+  takes it off Wi-Fi. Three were set up again on Skids, and all three were on
+  their reservations by 03:25, read from the lease lines in Loki. The fourth
+  is not set up again yet, and `.24` is kept for it. ADR-0099's rows are
+  still to be created.
+
 - **The eeros have reserved addresses, and Home Assistant watches them**
   ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228),
   `packages/eero.yaml`). All eight units held pool leases, and
