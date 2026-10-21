@@ -190,9 +190,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
-- **Three more rows into Skids are decided, not created:** `10.0.99.40 →
-  10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, above
-  *Block access to Skids*, for Home Assistant's control of the HomePods. The
+- **Three more rows into Skids, in force since 2026-10-21:** `10.0.99.40 →
+  10.0.20.21–.24` (alias `HomePods`) on `5353/udp`, `7000/tcp` and
+  `49152–65535/tcp`, above *Block access to Skids*, for Home Assistant's
+  control of the HomePods. An outbound NAT on the Skids interface sends that
+  traffic as `10.0.20.1`, because the HomePods ignore discovery from another
+  subnet. The
   Skids notes and
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   give the reasons.
@@ -758,8 +761,11 @@ the least trusted.
   above, the [#223](https://github.com/Gerrrt/HomeLab/issues/223) tripwire and
   the egress rule stay as they are, and the tripwire's counter — zero — is
   the test that the return traffic rides state and never reaches them. Skids
-  stays terminal outbound, and is no longer terminal inbound, for one host
-  on two ports.
+  stays terminal outbound. It is no longer terminal inbound, for `trinity`
+  alone: to the Hue bridge on two ports since 2026-09-28, and to the HomePods
+  on ADR-0099's three rows since 2026-10-21. The HomePod rows are in force
+  and reach the devices. Adding the HomePods in Home Assistant is a separate
+  matter, waiting on pyatv.
 - **Seven addresses here are reserved, all below the `.100–.200` pool:**
   `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
   `.11`–`.13` since 2026-10-20
@@ -770,16 +776,23 @@ the least trusted.
   it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
   `.113`, and `.104` went to another device.
-- **Three more rows from `trinity`, decided, not created:** `10.0.99.40 →
+- **Three more rows from `trinity`, in force since 2026-10-21:** `10.0.99.40 →
   10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, so Home
   Assistant can control the HomePods (play, pause, volume, what's playing)
   and not stream audio to them. Three are reserved at `.21`–`.23`, beside
   `bifrost`, since 2026-10-21. They were reset and set up again that day,
   and the fourth has not been set up again yet. `.24` is kept for it, and the
   rows cover it already.
+  Traffic matching them is translated on its way out of the Skids interface,
+  from `10.0.99.40` to `10.0.20.1`, because the HomePods ignore mDNS queries
+  from another subnet. With that, discovery from `trinity` finds all three.
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
-  records the reading and why audio stays out, and
-  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) creates them.
+  records the reading, the NAT and why audio stays out.
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them. Adding
+  the HomePods in Home Assistant waits on
+  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
+  because the config flow's scan asks only for a service HomePods do not
+  answer.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 

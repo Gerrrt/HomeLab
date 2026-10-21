@@ -85,9 +85,14 @@ documents for different readers.
   so the televisions can have a media server without the segment ceasing to be
   terminal in the direction that matters
   ([ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)),
-  and since 2026-09-28 Home Assistant reaches the Hue bridge on Skids and
-  nothing else there
-  ([ADR-0035](docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)).
+  and Home Assistant reaches a few named devices on the low-trust segments
+  and nothing else there: the Hue bridge on Skids since 2026-09-28
+  ([ADR-0035](docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)),
+  the TV on CasaBonita since 2026-10-19
+  ([ADR-0097](docs/adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)),
+  and the HomePods on Skids since 2026-10-21
+  ([ADR-0099](docs/adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)),
+  each by host-scoped passes that only Home Assistant's host can open.
   Default deny holds everywhere except the trusted workstation segment and the
   switch LAN, both of which are listed rather than counted.
   [Why](docs/adr/0013-segment-access-as-implemented.md)

@@ -29,6 +29,19 @@ docstring gives: it is a record, not a claim about now.
   and would have stopped at render without them; nothing had been deployed
   in between.
 
+- **The HomePod rows exist, with a NAT, and Home Assistant cannot add the
+  HomePods yet** ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)).
+  The three rows went in above *Block access to Skids*, and AirPlay answered
+  from `trinity`. Discovery did not: the rule passed the queries, and a
+  capture showed the HomePods never replied. They ignore mDNS from another
+  subnet. An outbound NAT on the Skids interface now sends `trinity`'s
+  traffic to them as `10.0.20.1`, and pyatv's scan finds all three
+  (`10.0.20.21` HomePod, `.22` and `.23` HomePod mini, Companion on `49153`).
+  Home Assistant's config flow still finds none. In its zeroconf mode pyatv
+  0.18.0 asks only for `_device-info._tcp`, the one service the HomePods do
+  not answer (postlund/pyatv#2929). The #223 tripwires read 0 on every
+  segment the same night.
+
 - **Three HomePods are reserved at `10.0.20.21`–`.23`**
   ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). The HomePods
   had been removed from Apple Home on 2026-10-20, which resets a HomePod and
