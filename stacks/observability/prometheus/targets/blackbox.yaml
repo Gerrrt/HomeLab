@@ -273,6 +273,22 @@
     renewal: acme
     tier: household
 
+# Glance, the operator's start page (ADR-0098). `/api/healthz` is the path
+# compose.yaml's healthcheck uses, and answers 200 with an empty body. Probed
+# before it was added (2026-10-21) by the pinned exporter image with this
+# file's module and the tier CA, on trinity through morpheus's resolver —
+# probe_success 1, status 200, chain verified — the same result Homepage's
+# probe gives on the same address and port.
+- targets: ["https://start.matrix.elysium/api/healthz"]
+  labels:
+    module: http_2xx_tier_ca
+    name: glance
+    role: start-page
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
 # `/health` answers `{"status":"UP"}` without a session.
 - targets: ["https://actual.matrix.elysium/health"]
   labels:
