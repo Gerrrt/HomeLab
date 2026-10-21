@@ -33,6 +33,13 @@ from homeassistant.helpers.typing import ConfigType
 
 DOMAIN = "ring_push_guard"
 PATCHED_VERSIONS = frozenset({"0.9.14"})
+_RELOAD_STATES = frozenset(
+    {
+        ConfigEntryState.LOADED,
+        ConfigEntryState.SETUP_IN_PROGRESS,
+        ConfigEntryState.SETUP_RETRY,
+    }
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -120,10 +127,15 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Apply the patch, and restart a Ring listener that started before it."""
     if not await hass.async_add_executor_job(apply_patch):
         return True
-    # If Ring set up first, its listener may already have met a malformed
-    # push and stopped. One reload starts it again with the patch in place.
+    # If Ring has set up, or is setting up, its listener may already have met
+    # a malformed push and stopped: Ring starts it during platform setup,
+    # while the entry still reads SETUP_IN_PROGRESS. Replacing the parser
+    # does not restart a stopped receiver, so the entry is reloaded once.
+    # async_reload takes the entry's setup lock, so a reload asked for during
+    # setup waits for it and then runs. An entry not started yet needs
+    # nothing: it will start with the patch already in place.
     for entry in hass.config_entries.async_entries("ring"):
-        if entry.state is ConfigEntryState.LOADED:
+        if entry.state in _RELOAD_STATES:
             _LOGGER.info("Reloading the Ring integration so its listener uses the patch")
             hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
     return True

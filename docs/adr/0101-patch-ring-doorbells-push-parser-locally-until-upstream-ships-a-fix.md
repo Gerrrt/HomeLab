@@ -49,9 +49,12 @@ Home Assistant.**
   kill the receiver, and a skipped push cannot cause one.
 - It applies only when `ring_doorbell` is 0.9.14. On any other version it
   patches nothing and logs a warning to delete it.
-- If the Ring integration set up before it, it reloads the Ring entry once, so
-  a receiver already stopped by a replayed push restarts with the patch in
-  place.
+- If the Ring integration has set up or is setting up when it loads, it
+  reloads the Ring entry once, so a receiver already stopped by a replayed
+  push restarts with the patch in place. Ring starts its receiver during
+  setup, while the entry still reads `SETUP_IN_PROGRESS`. The reload takes
+  the entry's setup lock, so one asked for mid-setup waits for setup to
+  finish.
 - [#1240](https://github.com/Gerrrt/HomeLab/issues/1240) tracks the removal.
 
 Tested in the pinned image before merge:
