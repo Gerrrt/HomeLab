@@ -1,0 +1,84 @@
+---
+# Late-night brightness cap: from 20:00 to 06:00, a Hue light that a person
+# turns on is held to a low brightness, so a light switched on at 2 a.m. does
+# not come on at full.
+#
+# The idea is CCOSTAN's late_night_brightness_guard
+# (github.com/CCOSTAN/Home-AssistantConfig), reworked so no light is named
+# here. docs/security.md keeps owner-linked rooms and a child's room out of
+# the repository, so the automation watches every Hue light rather than a
+# list.
+#
+# "A person" means the change did not come from an automation or a script.
+# A change Home Assistant makes on its own behalf carries a parent context;
+# one from the Hue app, a Hue switch or the dashboard does not. So the sunset
+# lights and the bedtime script are never capped, and this automation's own
+# change is never capped again.
+#
+# Only turn-ons are capped. Someone who turns a light on and then raises it
+# gets what they asked for.
+
+input_boolean:
+  # On pauses the cap, for a late night that wants full light. It is not
+  # turned back off automatically.
+  night_brightness_cap_paused:
+    name: Night brightness cap paused
+    icon: mdi:brightness-auto
+
+input_number:
+  # No `initial`, so a value set in the UI survives a restart. Unset, the
+  # automation uses 25%.
+  night_brightness_cap:
+    name: Night brightness cap
+    min: 5
+    max: 100
+    step: 5
+    unit_of_measurement: "%"
+    icon: mdi:brightness-4
+
+automation:
+  - id: night_brightness_cap
+    alias: Night brightness cap
+    description: Holds a Hue light a person turns on between 20:00 and 06:00 to the cap.
+    # Several lights come on together when a room is switched on.
+    mode: parallel
+    max: 25
+    # Every state change is offered to this automation, because a trigger
+    # cannot name "every Hue light" without naming them. The conditions are
+    # ordered cheapest first, and almost every event fails the first.
+    triggers:
+      - trigger: event
+        event_type: state_changed
+    conditions:
+      - condition: template
+        value_template: >-
+          {{ trigger.event.data.entity_id.startswith('light.')
+             and trigger.event.data.old_state is not none
+             and trigger.event.data.new_state is not none
+             and trigger.event.data.old_state.state == 'off'
+             and trigger.event.data.new_state.state == 'on' }}
+      - condition: template
+        value_template: "{{ trigger.event.data.new_state.context.parent_id is none }}"
+      - condition: time
+        after: "20:00:00"
+        before: "06:00:00"
+      - condition: state
+        entity_id: input_boolean.night_brightness_cap_paused
+        state: "off"
+      # A Hue room group is skipped: its member lights change too, and each
+      # is capped on its own. A light with no brightness (a smart plug) has
+      # no brightness attribute and is skipped too.
+      - condition: template
+        value_template: >-
+          {% set e = trigger.event.data.entity_id %}
+          {% set cap = states('input_number.night_brightness_cap') | float(25) %}
+          {{ e in integration_entities('hue')
+             and not state_attr(e, 'is_hue_group')
+             and (trigger.event.data.new_state.attributes.brightness | default(0) | int(0))
+                 > (cap * 2.55) | round(0) }}
+    actions:
+      - action: light.turn_on
+        target:
+          entity_id: "{{ trigger.event.data.entity_id }}"
+        data:
+          brightness_pct: "{{ states('input_number.night_brightness_cap') | float(25) | int }}"

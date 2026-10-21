@@ -1,0 +1,82 @@
+---
+# Doorbell alerts everywhere, with quiet hours.
+#
+# When the Ring doorbell is pressed: a notification to the phones labelled
+# `household_phones`, a pop-up on the TV when it is on, and an announcement on
+# every Echo outside quiet hours. During quiet hours the Echos stay silent and
+# the phones and TV still get it. The idea is frenck's doorbell notification
+# and chime quiet hours (github.com/frenck/home-assistant-config, before its
+# 2022 reset).
+#
+# The doorbell is the Ring event entity labelled `doorbell`, set in the UI.
+# Its entity id names which door it covers, and docs/security.md keeps camera-
+# to-door mapping out of the repository. A trigger cannot target a label, so a
+# template sensor mirrors the labelled entity's state, which is the time of its
+# last ring, and the automation triggers on that.
+#
+# The Ring app sends its own push for every ring. If two phone notifications
+# are one too many, turn the doorbell's notifications off in the Ring app and
+# keep these.
+
+template:
+  - sensor:
+      - name: Doorbell last ring
+        unique_id: doorbell_last_ring
+        icon: mdi:doorbell
+        state: "{{ label_entities('doorbell') | map('states') | first | default('unknown') }}"
+        availability: "{{ label_entities('doorbell') | count > 0 }}"
+
+input_datetime:
+  # No `initial`, so times set in the UI survive a restart. While both are
+  # unset (both 00:00) the automation uses 20:00 to 07:00.
+  doorbell_quiet_start:
+    name: Doorbell quiet hours start
+    has_date: false
+    has_time: true
+  doorbell_quiet_end:
+    name: Doorbell quiet hours end
+    has_date: false
+    has_time: true
+
+automation:
+  - id: doorbell_alert
+    alias: Doorbell alert
+    description: Phones, the TV and (outside quiet hours) every Echo when the doorbell rings.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: sensor.doorbell_last_ring
+        not_from: [unknown, unavailable]
+        not_to: [unknown, unavailable]
+    variables:
+      quiet: >-
+        {% set s = states('input_datetime.doorbell_quiet_start') %}
+        {% set e = states('input_datetime.doorbell_quiet_end') %}
+        {% if s == e %}{% set s, e = '20:00:00', '07:00:00' %}{% endif %}
+        {% set now_t = now().strftime('%H:%M:%S') %}
+        {{ (now_t >= s or now_t < e) if s > e else (s <= now_t < e) }}
+    actions:
+      - parallel:
+          - action: script.household_alert
+            data:
+              title: Doorbell
+              message: Someone is at the door.
+          # The TV's pop-up is a notify service named after the TV's model,
+          # not an entity. Off, the TV cannot show it, so it is skipped.
+          - if:
+              - condition: state
+                entity_id: media_player.tv_room_lg_webos_tv_oled
+                state: "on"
+            then:
+              - action: notify.lg_webos_tv_oled65cxpua
+                continue_on_error: true
+                data:
+                  message: Someone is at the door.
+          - if: "{{ not quiet }}"
+            then:
+              - action: notify.send_message
+                continue_on_error: true
+                target:
+                  entity_id: notify.everywhere_announce
+                data:
+                  message: Someone is at the door.

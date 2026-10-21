@@ -1,0 +1,292 @@
+---
+# The Litter-Robot and the cats' health.
+#
+# Two kinds of reminder, after CCOSTAN's medicine.yaml and maintenance_log.yaml
+# (github.com/CCOSTAN/Home-AssistantConfig):
+#
+#   - The waste drawer full, or the litter low: a reminder with buttons, which
+#     repeats every two hours in the daytime until it is dealt with or snoozed.
+#     It stops by itself once the drawer is emptied or the litter refilled,
+#     because the sensors then drop back.
+#   - A cat's health: its recent weight well below its own baseline, or no
+#     visits by evening. Plain alerts, because they need a look, not a button.
+#
+# Buttons need the phones' legacy notify services (notify.mobile_app_<phone>),
+# whose names are owner-linked and stay out of the repository. They are listed
+# in input_text.household_phone_services, set in the UI, comma-separated,
+# without the "notify." prefix. While it is empty, reminders go through
+# script.household_alert without buttons.
+
+input_text:
+  household_phone_services:
+    name: Phone notify services, for reminders with buttons
+    max: 255
+    icon: mdi:cellphone-message
+
+input_datetime:
+  # Set by the Snooze button. No `initial`, so a snooze survives a restart.
+  litter_robot_snoozed_until:
+    name: Litter-Robot reminders snoozed until
+    has_date: true
+    has_time: true
+
+script:
+  # A notification with buttons on every phone listed in
+  # input_text.household_phone_services, or a plain household alert when none
+  # is listed. `tag` replaces the previous notification with the same tag
+  # on the phone, so repeats do not pile up.
+  household_reminder:
+    alias: Household reminder
+    mode: queued
+    fields:
+      title:
+        description: Short title.
+      message:
+        description: What needs doing.
+      tag:
+        description: Groups repeats of the same reminder on the phone.
+      actions:
+        description: The buttons, a list of {action, title}.
+    variables:
+      services: >-
+        {{ states('input_text.household_phone_services').split(',')
+           | map('trim') | reject('eq', '') | list
+           if has_value('input_text.household_phone_services') else [] }}
+    sequence:
+      - if: "{{ services | count > 0 }}"
+        then:
+          - repeat:
+              for_each: "{{ services }}"
+              sequence:
+                - action: "notify.{{ repeat.item }}"
+                  continue_on_error: true
+                  data:
+                    title: "{{ title }}"
+                    message: "{{ message }}"
+                    data:
+                      tag: "{{ tag }}"
+                      actions: "{{ actions }}"
+        else:
+          - action: script.household_alert
+            data:
+              title: "{{ title }}"
+              message: "{{ message }}"
+
+# Each cat's weight, as a recent average against a baseline. The recorder
+# keeps ten days of history by default, which the statistics sensors load on
+# start. So the baseline is nine days, inside that, and recent is two.
+sensor:
+  - platform: statistics
+    name: Sebastian weight recent
+    unique_id: sebastian_weight_recent
+    entity_id: sensor.sebastian_weight
+    state_characteristic: mean
+    max_age: {days: 2}
+    sampling_size: 200
+    precision: 2
+  - platform: statistics
+    name: Sebastian weight baseline
+    unique_id: sebastian_weight_baseline
+    entity_id: sensor.sebastian_weight
+    state_characteristic: mean
+    max_age: {days: 9}
+    sampling_size: 1000
+    precision: 2
+  - platform: statistics
+    name: Artemis weight recent
+    unique_id: artemis_weight_recent
+    entity_id: sensor.artemis_weight
+    state_characteristic: mean
+    max_age: {days: 2}
+    sampling_size: 200
+    precision: 2
+  - platform: statistics
+    name: Artemis weight baseline
+    unique_id: artemis_weight_baseline
+    entity_id: sensor.artemis_weight
+    state_characteristic: mean
+    max_age: {days: 9}
+    sampling_size: 1000
+    precision: 2
+  - platform: statistics
+    name: Aristaeus weight recent
+    unique_id: aristaeus_weight_recent
+    entity_id: sensor.aristaeus_weight
+    state_characteristic: mean
+    max_age: {days: 2}
+    sampling_size: 200
+    precision: 2
+  - platform: statistics
+    name: Aristaeus weight baseline
+    unique_id: aristaeus_weight_baseline
+    entity_id: sensor.aristaeus_weight
+    state_characteristic: mean
+    max_age: {days: 9}
+    sampling_size: 1000
+    precision: 2
+
+# Down 8% or more on its own baseline, which is about a pound on a
+# twelve-pound cat. A baseline that covers less than five of its nine days is
+# too new to judge from, so the sensor stays off until it does. The delay
+# lets one odd reading pass.
+template:
+  - binary_sensor:
+      - name: Sebastian weight dropping
+        unique_id: sebastian_weight_dropping
+        device_class: problem
+        delay_on: "06:00:00"
+        state: >-
+          {% set recent = states('sensor.sebastian_weight_recent') | float(0) %}
+          {% set base = states('sensor.sebastian_weight_baseline') | float(0) %}
+          {% set cover = state_attr('sensor.sebastian_weight_baseline', 'age_coverage_ratio') | float(0) %}
+          {{ recent > 0 and base > 0 and cover >= 0.55 and recent < base * 0.92 }}
+        attributes:
+          cat: sebastian
+      - name: Artemis weight dropping
+        unique_id: artemis_weight_dropping
+        device_class: problem
+        delay_on: "06:00:00"
+        state: >-
+          {% set recent = states('sensor.artemis_weight_recent') | float(0) %}
+          {% set base = states('sensor.artemis_weight_baseline') | float(0) %}
+          {% set cover = state_attr('sensor.artemis_weight_baseline', 'age_coverage_ratio') | float(0) %}
+          {{ recent > 0 and base > 0 and cover >= 0.55 and recent < base * 0.92 }}
+        attributes:
+          cat: artemis
+      - name: Aristaeus weight dropping
+        unique_id: aristaeus_weight_dropping
+        device_class: problem
+        delay_on: "06:00:00"
+        state: >-
+          {% set recent = states('sensor.aristaeus_weight_recent') | float(0) %}
+          {% set base = states('sensor.aristaeus_weight_baseline') | float(0) %}
+          {% set cover = state_attr('sensor.aristaeus_weight_baseline', 'age_coverage_ratio') | float(0) %}
+          {{ recent > 0 and base > 0 and cover >= 0.55 and recent < base * 0.92 }}
+        attributes:
+          cat: aristaeus
+
+automation:
+  - id: litter_robot_reminder
+    alias: Litter-Robot reminder
+    description: Reminds, with buttons, when the drawer is full or the litter low, every two hours in the daytime.
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: sensor.litter_robot_4_waste_drawer
+        above: 89
+        for: "00:10:00"
+      - trigger: numeric_state
+        entity_id: sensor.litter_robot_4_litter_level
+        below: 30
+        for: "00:10:00"
+      # The repeat, and what makes the reminder survive a restart: every two
+      # hours the conditions below are checked afresh.
+      - trigger: time_pattern
+        hours: "/2"
+    variables:
+      drawer: "{{ states('sensor.litter_robot_4_waste_drawer') | float(0) }}"
+      litter: "{{ states('sensor.litter_robot_4_litter_level') | float(100) }}"
+    conditions:
+      - "{{ drawer >= 90 or litter < 30 }}"
+      - condition: time
+        after: "08:00:00"
+        before: "21:00:00"
+      # Not snoozed. Unset, the helper parses to nothing and nothing is
+      # snoozed.
+      - >-
+        {% set until = states('input_datetime.litter_robot_snoozed_until') | as_datetime %}
+        {{ until is none or now() >= until | as_local }}
+    actions:
+      - action: script.household_reminder
+        data:
+          title: Litter-Robot
+          message: >-
+            {{ ['The waste drawer is ' ~ (drawer | int) ~ '% full.' if drawer >= 90 else '',
+                'The litter is down to ' ~ (litter | int) ~ '%.' if litter < 30 else '']
+               | reject('eq', '') | join(' ') }}
+          tag: litter_robot
+          actions:
+            - action: LITTER_ROBOT_DONE
+              title: Done
+            - action: LITTER_ROBOT_SNOOZE
+              title: Remind me tomorrow
+
+  # The buttons. Done mutes the reminders for two hours, long enough for the
+  # sensors to catch up. Remind me tomorrow mutes them until 08:00 tomorrow.
+  - id: litter_robot_reminder_button
+    alias: Litter-Robot reminder button
+    mode: queued
+    triggers:
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: LITTER_ROBOT_DONE
+        id: done
+      - trigger: event
+        event_type: mobile_app_notification_action
+        event_data:
+          action: LITTER_ROBOT_SNOOZE
+        id: snooze
+    actions:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.litter_robot_snoozed_until
+        data:
+          datetime: >-
+            {% if trigger.id == 'done' %}
+              {{ (now() + timedelta(hours=2)).strftime('%Y-%m-%d %H:%M:%S') }}
+            {% else %}
+              {{ (today_at('08:00') + timedelta(days=1)).strftime('%Y-%m-%d %H:%M:%S') }}
+            {% endif %}
+
+  - id: cat_weight_dropping
+    alias: Cat weight dropping
+    description: Alerts when a cat's two-day weight is 8% or more under its nine-day baseline.
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id:
+          - binary_sensor.sebastian_weight_dropping
+          - binary_sensor.artemis_weight_dropping
+          - binary_sensor.aristaeus_weight_dropping
+        to: "on"
+    variables:
+      cat: "{{ state_attr(trigger.entity_id, 'cat') }}"
+    actions:
+      - action: script.household_alert
+        data:
+          title: "{{ cat | title }} is losing weight"
+          message: >-
+            {{ cat | title }} has averaged
+            {{ states('sensor.' ~ cat ~ '_weight_recent') }} lb over two days,
+            against {{ states('sensor.' ~ cat ~ '_weight_baseline') }} lb over
+            nine. Worth a look, and a vet call if it keeps falling.
+
+  # Every evening, any cat with no visit all day. It assumes the Litter-Robot
+  # is the only litter box. A cat that uses another one will trip this.
+  - id: cat_no_visits
+    alias: Cat with no visits today
+    description: At 21:00, alerts for each cat with no Litter-Robot visit that day.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "21:00:00"
+    variables:
+      missing: >-
+        {% set ns = namespace(cats=[]) %}
+        {% for c in ['sebastian', 'artemis', 'aristaeus'] %}
+          {% if states('sensor.' ~ c ~ '_visits_today') | int(-1) == 0 %}
+            {% set ns.cats = ns.cats + [c | title] %}
+          {% endif %}
+        {% endfor %}
+        {{ ns.cats }}
+    conditions:
+      - "{{ missing | count > 0 }}"
+    actions:
+      - action: script.household_alert
+        data:
+          title: No litter box visit today
+          message: >-
+            {{ missing | join(' and ') }} {{ 'has' if missing | count == 1 else 'have' }}
+            not used the Litter-Robot today. Worth checking on, and a vet call
+            if it lasts another day.
