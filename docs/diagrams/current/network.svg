@@ -390,7 +390,7 @@
 <rect x="450" y="1282" width="322" height="76" rx="8" class="card"/>
 <rect x="450" y="1288" width="4" height="64" rx="2" fill="#db6d28"/>
 <text x="464" y="1304" class="hn">eero mesh · trusted</text>
-<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.104 .110 .111</text>
+<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
 <text x="464" y="1322" class="sub">3 × eero Pro 6E, bridged</text>
 <text x="464" y="1338" class="role">one wired backhaul, two meshed</text>
 </g>
@@ -657,7 +657,7 @@
 <rect x="1738" y="846" width="342" height="76" rx="8" class="card"/>
 <rect x="1738" y="852" width="4" height="64" rx="2" fill="#388bfd"/>
 <text x="1752" y="868" class="hn">eero mesh · IoT</text>
-<text x="2068" y="868" class="ip" text-anchor="end" fill="#388bfd">.101–.103</text>
+<text x="2068" y="868" class="ip" text-anchor="end" fill="#388bfd">.11–.13</text>
 <text x="1752" y="886" class="sub">3 × eero Pro 6E, bridged</text>
 <text x="1752" y="902" class="role">one wired backhaul</text>
 </g>
@@ -716,7 +716,7 @@
 <rect x="2124" y="772" width="222" height="76" rx="8" class="card"/>
 <rect x="2124" y="778" width="4" height="64" rx="2" fill="#a371f7"/>
 <text x="2138" y="794" class="hn">eero · guest</text>
-<text x="2334" y="794" class="ip" text-anchor="end" fill="#a371f7">.10 .101</text>
+<text x="2334" y="794" class="ip" text-anchor="end" fill="#a371f7">.11 .12</text>
 <text x="2138" y="812" class="sub">2 × eero Pro 6E</text>
 <text x="2138" y="828" class="role">bridged, main floor</text>
 </g>
