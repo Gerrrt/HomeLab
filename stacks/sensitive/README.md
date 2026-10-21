@@ -700,8 +700,10 @@ kept apart so the two answer different questions. Two pages, under `glance/`:
   5. Point the browser's home page and new tab at
      `https://start.matrix.elysium`.
   6. Add the page to `stacks/observability/prometheus/targets/blackbox.yaml`
-     beside Homepage's, once it answers — every target there is probed from
-     the running exporter before it is added.
+     beside Homepage's, once it answers. **Added 2026-10-21** as `glance`,
+     after the pinned exporter image with the `http_2xx_tier_ca` module and
+     the tier CA probed it from `trinity` (`probe_success 1`). It is live once
+     `prometheus` pulls the merge; `probe_success{name="glance"}` then reads 1.
 
 ## ntfy
 

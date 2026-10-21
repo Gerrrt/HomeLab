@@ -336,9 +336,8 @@ none is in the order until one is taken.
 - **[#1223](https://github.com/Gerrrt/HomeLab/issues/1223) Glance, as
   `start.matrix.elysium`** — decided by
   [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md).
-  The gate is the blackbox probe for the new name, added to
-  `prometheus/targets/blackbox.yaml` only once the exporter on `prometheus`
-  has probed it.
+  The gate is `probe_success{name="glance"}` reading 1 in Prometheus, once
+  `prometheus` has pulled the target added for it.
 
 ## Everything still to buy
 

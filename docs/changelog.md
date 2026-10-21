@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **The start page gets a blackbox probe**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). `glance` was
+  added beside `homepage` in `prometheus/targets/blackbox.yaml`, probing
+  `/api/healthz`. The probe could not be run from `prometheus` itself:
+  `trinity` has no route to the exporter's port and no SSH trust for the
+  host. So it was run on `trinity` with the same pinned exporter image, the
+  same `http_2xx_tier_ca` module, the tier CA, and the name resolved through
+  `morpheus`. It reported `probe_success 1`, status 200 and a verified chain,
+  the same as Homepage's probe on the same address and port, which
+  `prometheus` already probes.
+
 - **Ring's push receiver kept dying, and a local patch keeps it up**
   ([ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md),
   [#1240](https://github.com/Gerrrt/HomeLab/issues/1240)). After the first-batch
