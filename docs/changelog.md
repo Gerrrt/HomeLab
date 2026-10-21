@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance grows a Homelab page**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). It was asked for
+  after comparing the first page with a fuller Glance page. Home gained
+  tickers, bookmarks, YouTube and Reddit tabs, NBA scores, trending
+  repositories and a host panel. Homelab is new: consoles by category,
+  uptime badges with 24-hour and 7-day figures, hosts, pools, per-VLAN
+  traffic, the UPS, the last speed test, Saruman's VMs and upstream releases.
+  Both pages were rendered against the live Prometheus on `trinity` before
+  they were written down. That run showed two findings that were already
+  true. Saruman had sent nothing since 2026-10-19, so the VM panel says so.
+  YouTube's feeds answered 404 to every URL form, which is
+  glanceapp/glance#910. The tickers, bookmarks, channels and subreddits went
+  into SOPS as one-line JSON. Icons are vendored, not fetched from a CDN.
+
 - **Glance is deployed at `start.matrix.elysium`**
   ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). With the `start`
   override on `morpheus` and both keys in SOPS, `make up STACK=sensitive`

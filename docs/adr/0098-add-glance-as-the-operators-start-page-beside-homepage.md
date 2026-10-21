@@ -153,3 +153,8 @@ Three facts about the estate shaped the rest.
 - **Deploy-gated.** The Miniflux user, two SOPS keys, the host override and a
   blackbox probe for the new name follow the merge. #1223 carries them, and
   the probe is added once the page answers, as every target in that file is.
+
+> *Decisions 5 and 6 are superseded by
+> [ADR-0100](0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md):
+> the operator's own lists now live in SOPS rather than being left out, and
+> the browser fetches YouTube thumbnails. The rest of this ADR stands.*

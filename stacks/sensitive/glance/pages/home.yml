@@ -1,0 +1,290 @@
+# The start page: what the browser opens to (ADR-0098, ADR-0100). Included
+# from glance.yml. Everything named ${GLANCE_*} below except the two
+# credentials is the operator's own list — tickers, bookmarks, YouTube tabs,
+# subreddits — kept in secrets/sensitive.sops.yaml as one-line JSON so this
+# public file says nothing about a person (stacks/sensitive/README.md).
+- name: Home
+  width: wide
+  head-widgets:
+    - type: markets
+      hide-header: true
+      cache: 15m
+      markets: ${GLANCE_MARKETS}
+
+  columns:
+    # -------------------------------------------------------------------------
+    - size: small
+      widgets:
+        - type: clock
+          hour-format: 24h
+
+        - type: calendar
+          first-day-of-week: sunday
+
+        # COARSE ON PURPOSE, as homepage/widgets.yaml: a city, not a street.
+        - type: weather
+          location: Bellevue, Washington, United States
+          units: imperial
+          hour-format: 24h
+
+        - type: bookmarks
+          groups: ${GLANCE_BOOKMARKS}
+
+        # Day of the year over days in the year, computed in the template; it
+        # fetches nothing.
+        - type: custom-api
+          title: Year
+          cache: 1h
+          template: |
+            {{ $y := now.Year }}
+            {{ $days := 365 }}
+            {{ if and (eq (mod $y 4) 0) (or (ne (mod $y 100) 0) (eq (mod $y 400) 0)) }}{{ $days = 366 }}{{ end }}
+            {{ $pct := mul (div (toFloat now.YearDay) (toFloat $days)) 100 }}
+            <div style="height: 8px; border-radius: 4px; background: var(--color-widget-background-highlight);">
+              <div style="height: 8px; border-radius: 4px; width: {{ printf "%.1f" $pct }}%;
+                          background: linear-gradient(90deg, hsl(349 89% 72%), hsl(43 80% 65%), hsl(89 51% 61%),
+                          hsl(221 89% 72%));">
+              </div>
+            </div>
+            <p class="text-center margin-top-10">{{ printf "%.2f" $pct }}% of {{ $y }} has passed</p>
+
+    # -------------------------------------------------------------------------
+    - size: full
+      widgets:
+        # Nothing is typed into a third party until Enter: this box has no
+        # suggestions, so no keystroke leaves the browser before then.
+        - type: search
+          search-engine: duckduckgo
+          autofocus: true
+          new-tab: false
+
+        # Tabs of YouTube channels. Thumbnails are the one thing on this page
+        # the BROWSER fetches from a third party (i.ytimg.com); ADR-0100 says
+        # why that is accepted. YouTube's channel feeds fail now and then with
+        # a 404 or 500; a tab whose channels all fail shows an error until the
+        # next fetch.
+        - type: group
+          widgets: ${GLANCE_VIDEO_TABS}
+
+        # Everything the `glance` user follows — news sites, Mastodon and
+        # Bluesky profiles or hashtags as RSS (<instance>/@user.rss,
+        # bsky.app/profile/<handle>/rss), YouTube channels
+        # (youtube.com/feeds/videos.xml?channel_id=<id>) — newest first.
+        # Fever's newest-items call returns the latest 50 and cannot filter
+        # by category, so this is one stream, each item labelled with its
+        # feed. A home timeline has no feed, and nor do Instagram, Facebook
+        # or X; ADR-0098 says why they are not here.
+        #
+        # Feed and item titles are third-party text. html/template escapes
+        # every value below, and nothing here marks one safe. How often the
+        # feeds themselves are fetched is Miniflux's schedule, by its
+        # fetcher that refuses private addresses (ADR-0057); `cache` is only
+        # how often this page asks Miniflux.
+        - type: custom-api
+          title: Following
+          cache: 5m
+          url: https://miniflux.matrix.elysium/fever/?api&items&max_id=0
+          <<: *fever
+          subrequests:
+            feeds:
+              url: https://miniflux.matrix.elysium/fever/?api&feeds
+              <<: *fever
+          template: |
+            {{ $feeds := .Subrequest "feeds" }}
+            {{ if or (ne .Response.StatusCode 200) (ne (.JSON.Int "auth") 1) }}
+              <p class="color-negative">
+                Miniflux refused the Fever key (HTTP {{ .Response.StatusCode }}) — is GLANCE_MINIFLUX_FEVER_KEY set?
+              </p>
+            {{ else if eq (len (.JSON.Array "items")) 0 }}
+              <p>The <code>glance</code> user follows nothing yet.</p>
+            {{ else }}
+              <ul class="list list-gap-10 collapsible-container" data-collapse-after="12">
+              {{ range .JSON.Array "items" }}
+                {{ $feedID := .Int "feed_id" }}
+                <li>
+                  <a class="size-title-dynamic color-primary-if-not-visited"
+                     href="{{ .String "url" }}" target="_blank" rel="noreferrer">{{ .String "title" }}</a>
+                  <ul class="list-horizontal-text">
+                    <li {{ .String "created_on_time" | parseRelativeTime "unix" }}></li>
+                    {{ range $feeds.JSON.Array "feeds" }}
+                      {{ if eq (.Int "id") $feedID }}<li>{{ .String "title" }}</li>{{ end }}
+                    {{ end }}
+                  </ul>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+        - type: group
+          widgets: ${GLANCE_REDDIT_TABS}
+
+        - type: split-column
+          max-columns: 2
+          widgets:
+            # ESPN's public scoreboard, no key. Logos are left out: they would
+            # be the browser fetching from ESPN's CDN.
+            - type: custom-api
+              title: NBA today
+              cache: 2m
+              url: https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard
+              template: |
+                {{ $events := .JSON.Array "events" }}
+                {{ if eq (len $events) 0 }}
+                  <p>No games today.</p>
+                {{ else }}
+                  <ul class="list list-gap-14 collapsible-container" data-collapse-after="6">
+                  {{ range $events }}
+                    {{ $state := .String "status.type.state" }}
+                    {{ $comps := .Array "competitions.0.competitors" }}
+                    {{ $home := index $comps 0 }}{{ $away := index $comps 0 }}
+                    {{ range $comps }}
+                      {{ if eq (.String "homeAway") "home" }}{{ $home = . }}{{ else }}{{ $away = . }}{{ end }}
+                    {{ end }}
+                    <li class="flex justify-between items-center">
+                      <div>
+                        <div class="size-h4 color-highlight">{{ $away.String "team.abbreviation" }}</div>
+                        <div class="size-h6">{{ $away.String "records.0.summary" }}</div>
+                      </div>
+                      <div class="text-center">
+                        {{ if ne $state "pre" }}
+                          <span class="size-h3 {{ if and (eq $state "post")
+                             (gt ($away.Int "score") ($home.Int "score")) }}
+                          color-highlight{{ end }}">{{ $away.String "score" }}</span>
+                          <span class="size-h6"> · {{ .String "status.type.shortDetail" }} · </span>
+                          <span class="size-h3 {{ if and (eq $state "post")
+                             (gt ($home.Int "score") ($away.Int "score")) }}
+                          color-highlight{{ end }}">{{ $home.String "score" }}</span>
+                        {{ else }}
+                          <span class="size-h6">{{ .String "status.type.shortDetail" }}</span>
+                        {{ end }}
+                      </div>
+                      <div class="text-right">
+                        <div class="size-h4 color-highlight">{{ $home.String "team.abbreviation" }}</div>
+                        <div class="size-h6">{{ $home.String "records.0.summary" }}</div>
+                      </div>
+                    </li>
+                  {{ end }}
+                  </ul>
+                {{ end }}
+
+            # GitHub's search API, unauthenticated: repositories created in the
+            # last seven days, by stars. Ten searches a minute is the anonymous
+            # limit, and this asks once an hour.
+            - type: custom-api
+              title: Trending repositories
+              cache: 1h
+              template: |
+                {{ $since := (offsetNow "-168h").Format "2006-01-02" }}
+                {{ $r := newRequest "https://api.github.com/search/repositories"
+                     | withParameter "q" (concat "created:>" $since)
+                     | withParameter "sort" "stars"
+                     | withParameter "order" "desc"
+                     | withParameter "per_page" "8"
+                     | withHeader "Accept" "application/vnd.github+json"
+                     | getResponse }}
+                {{ if ne $r.Response.StatusCode 200 }}
+                  <p class="color-negative">GitHub answered {{ $r.Response.StatusCode }}</p>
+                {{ else }}
+                  <ul class="list list-gap-10 collapsible-container" data-collapse-after="4">
+                  {{ range $r.JSON.Array "items" }}
+                    <li>
+                      <a class="size-h4 color-highlight" href="{{ .String "html_url" }}
+                      " target="_blank" rel="noreferrer">{{ .String "full_name" }}</a>
+                      <ul class="list-horizontal-text">
+                        <li>{{ .Int "stargazers_count" | formatApproxNumber }} stars</li>
+                        {{ if .Exists "language" }}<li>{{ .String "language" }}</li>{{ end }}
+                      </ul>
+                      <p class="size-h6 text-truncate">{{ .String "description" }}</p>
+                    </li>
+                  {{ end }}
+                  </ul>
+                {{ end }}
+
+    # -------------------------------------------------------------------------
+    - size: small
+      widgets:
+        # The estate in one line each, from the same reader-proxy queries the
+        # Homelab page uses; the detail is there.
+        - type: custom-api
+          title: Estate
+          title-url: /homelab
+          cache: 1m
+          <<: *prometheus
+          parameters:
+            query: ALERTS{alertstate="firing"}
+          subrequests:
+            probes:
+              <<: *prometheus
+              parameters:
+                query: min by (name) (probe_success)
+            containers:
+              <<: *prometheus
+              parameters:
+                query: >-
+                  (count(time() - container_last_seen{name!=""} < 120)
+                  or vector(0))
+                  + (sum(homelab_container_running)
+                  or vector(0))
+          template: |
+            {{ $probes := .Subrequest "probes" }}
+            {{ $ctr := .Subrequest "containers" }}
+            {{ if or (ne .Response.StatusCode 200) (ne $probes.Response.StatusCode 200) }}
+              <p class="color-negative">Prometheus answered {{ .Response.StatusCode }}</p>
+            {{ else }}
+              {{ $faults := 0 }}{{ $watchdog := false }}
+              {{ range .JSON.Array "data.result" }}
+                {{ $sev := .String "metric.severity" }}
+                {{ if eq (.String "metric.alertname") "Watchdog" }}{{ $watchdog = true }}
+                {{ else if or (eq $sev "warning") (eq $sev "critical") }}{{ $faults = add $faults 1 }}{{ end }}
+              {{ end }}
+              {{ $pAll := 0 }}{{ $pDown := 0 }}
+              {{ range $probes.JSON.Array "data.result" }}
+                {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
+              {{ end }}
+              <div class="flex justify-between text-center">
+                {{/* A figure only with evidence: Watchdog firing for the alert
+                     count, at least one probe for the sites. Else a red dash. */}}
+                <div>
+                  {{ if $watchdog }}
+                    <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ $faults }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">ALERTS</div>
+                </div>
+                <div>
+                  {{ if gt $pAll 0 }}
+                    <div class="size-h3 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ sub $pAll $pDown }}/{{ $pAll }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">SITES UP</div>
+                </div>
+                <div>
+                  {{ if $ctr.JSON.Exists "data.result.0" }}
+                    <div class="size-h3 color-highlight">{{ $ctr.JSON.String "data.result.0.value.1" }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">CONTAINERS</div>
+                </div>
+              </div>
+              {{ if not $watchdog }}
+              <p class="color-negative margin-top-10">Watchdog silent: nothing here is current.</p>{{ end }}
+            {{ end }}
+
+        - <<: *hosts
+          title: Hosts
+
+        - type: hacker-news
+          limit: 15
+          collapse-after: 5
+
+        - type: custom-api
+          title: Random fact
+          cache: 6h
+          url: https://uselessfacts.jsph.pl/api/v2/facts/random?language=en
+          template: |
+            <p class="color-paragraph">{{ .JSON.String "text" }}</p>
