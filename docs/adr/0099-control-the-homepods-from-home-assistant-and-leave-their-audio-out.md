@@ -2,6 +2,25 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> **The rows exist since 2026-10-21, with an outbound NAT this ADR did not
+> foresee, and Home Assistant cannot add the HomePods yet.** The three rows
+> were created as written, above *Block access to Skids*, to a `HomePods`
+> alias for `10.0.20.21`–`.24`, and AirPlay on `7000` answered from
+> `trinity`. Discovery did not. The rule passed the unicast queries, and a
+> capture on `trinity` showed no reply at all. The HomePods ignore mDNS
+> queries from another subnet. So `morpheus` has an outbound NAT on the Skids
+> interface: `10.0.99.40` to the `HomePods` alias leaves as `10.0.20.1`.
+> Nothing about direction changes, because `trinity` still initiates and
+> Skids still does not. With it, pyatv's scan finds all three HomePods
+> (Companion on `49153`, inside the third row). Home Assistant's own config
+> flow still finds none. It scans with its shared zeroconf instance, and in
+> that mode pyatv 0.18.0 asks only for `_device-info._tcp`, which the
+> HomePods do not answer, while `_airplay`, `_companion-link` and `_raop`
+> are answered
+> ([postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929)).
+> Adding them waits on that fix.
+
 ## Context
 
 The household's rule is that Home Assistant is where everything is controlled.
