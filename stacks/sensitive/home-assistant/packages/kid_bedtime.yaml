@@ -51,10 +51,18 @@ script:
         data:
           brightness_pct: 25
           transition: 2690
-      # The machine is two switches, power then sound, in that order.
+      # The machine is two switches, power then sound, in that order. The
+      # volume is set to 30% between them, because the machine keeps last
+      # night's 80% and would otherwise start loud.
       - action: switch.turn_on
         target:
           entity_id: switch.smart_white_noise_machine
+      - action: number.set_value
+        continue_on_error: true
+        target:
+          entity_id: number.smart_white_noise_machine_volume
+        data:
+          value: 30
       - action: switch.turn_on
         target:
           entity_id: switch.smart_white_noise_machine_music
@@ -63,9 +71,9 @@ script:
           entity_id: light.smart_white_noise_machine
         data:
           hs_color: [120, 100]
-      # 30% up to 80%, five points every four and a half minutes.
+      # On up from 30% to 80%, five points every four and a half minutes.
       - repeat:
-          for_each: [30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]
+          for_each: [35, 40, 45, 50, 55, 60, 65, 70, 75, 80]
           sequence:
             - action: number.set_value
               continue_on_error: true
