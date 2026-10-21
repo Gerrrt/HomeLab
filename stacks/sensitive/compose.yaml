@@ -410,6 +410,10 @@ services:
       # here, so `make up` runs check_mounted_config.py --fix for it (#355).
       - ./home-assistant/configuration.yaml:/config/configuration.yaml:ro
       - ./home-assistant/packages:/config/packages:ro
+      # One custom integration, ours, reviewed here and read-only: the local
+      # fix for the Ring push parser (ADR-0101). Not a HACS or add-on
+      # channel: nothing is installed into this directory at run time.
+      - ./home-assistant/custom_components:/config/custom_components:ro
       - ./.rendered/home-assistant-ca.pem:/etc/home-assistant/ca-bundle.pem:ro
     expose:
       - "8123"

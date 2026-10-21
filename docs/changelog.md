@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Ring's push receiver kept dying, and a local patch keeps it up**
+  ([ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md),
+  [#1240](https://github.com/Gerrrt/HomeLab/issues/1240)). After the first-batch
+  deploy, the log showed `KeyError: 'id'` from `ring_doorbell`'s push parser,
+  then "Shutting down push receiver due to 3 sequential errors", at 13:12 and
+  again seconds after the 14:09 restart (29 errors in 72 hours). Some Ring
+  pushes have had no `ding.id` since July. Upstream has open fixes and no
+  release since February. So no Ring motion or doorbell event was reaching
+  Home Assistant, and the new doorbell alerts could not fire.
+  `ring_push_guard` is the tier's first custom integration. It is ours, it is
+  read-only and gated to 0.9.14, and it applies the upstream PRs' id
+  fallbacks and skips what it cannot parse. Tested in the pinned image: the
+  original raised on an id-less push, and the patch passed three id-less
+  pushes and a malformed one through the real `_on_notification` without an
+  exception.
+
 - **A first batch of everyday automations** (`night_brightness.yaml`,
   `doorbell.yaml`, `movie_mode.yaml`, `litter_robot.yaml`), picked from
   CCOSTAN's and frenck's published configurations for the devices this house
