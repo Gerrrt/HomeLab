@@ -191,7 +191,9 @@ time and lives in Caddy's `/data` volume, never on disk here.
   `https://immich.matrix.elysium` on a certificate a phone has never heard
   of. `certificates/tier-ca.pem` — the tier's root, not the estate's
   `ca.pem`, which vouches for nothing here ([ADR-0037]) — goes onto each
-  phone as a user-installed root before the app is pointed at the server;
+  phone as a user-installed root before the app is pointed at the server.
+  The phone downloads it from `https://home.matrix.elysium/tier-ca.crt`,
+  the `Caddyfile`'s one static route, past a one-time browser warning;
   Android's Immich app honours a user root, iOS needs the profile installed
   and then *enabled* under Certificate Trust Settings, which is the step
   people miss ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md)

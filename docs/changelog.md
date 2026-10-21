@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **The tier's root is a download.** A household phone with the Home
+  Assistant app installed could not sign in: the app refused the tier's
+  certificate, because the phone had never seen the tier's root and nothing
+  on the estate served it — section 6 of
+  [`build-the-tier-ca.md`](runbooks/build-the-tier-ca.md) said *distribute*
+  and left the how to the operator. Caddy now serves `certificates/tier-ca.pem`
+  at `https://home.matrix.elysium/tier-ca.crt`, the same file it already
+  mounted for its ACME client, public by design. The phone fetched it past the
+  browser's one-time warning, installed it as a CA certificate, and the app
+  signed in. The runbook and the stack README now say so.
 - **#1218 closes: the LG TV in Home Assistant**
   ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)).
   Every item is done:
