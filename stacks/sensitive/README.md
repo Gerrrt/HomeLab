@@ -119,8 +119,9 @@ home-assistant/            configuration.yaml and packages/, mounted read-only
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
 homepage/                  settings, services, widgets and bookmarks YAML and
                            custom.css — its whole configuration, mounted read-only
-glance/glance.yml          Glance's whole configuration, mounted read-only;
-                           validated in CI by its own binary
+glance/                    Glance's configuration: glance.yml and pages/, each
+                           mounted read-only, and assets/icons; validated in CI
+                           by its own binary
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 ntfy/templates/            message templates, mounted read-only
 stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
@@ -578,9 +579,19 @@ is kept:
 ## Glance
 
 The operator's start page, at `https://start.matrix.elysium` — what the
-browser opens to ([ADR-0098]). Homepage above stays the household's directory
-with no status dots; this is the page that has them, kept apart so the two
-answer different questions. `glance/glance.yml` is all of it.
+browser opens to ([ADR-0098], [ADR-0100]). Homepage above stays the
+household's directory with no status dots; this is the page that has them,
+kept apart so the two answer different questions. Two pages, under `glance/`:
+
+- **Home** (`pages/home.yml`): the ticker strip, bookmarks, the year, search,
+  YouTube tabs, Following, Reddit tabs, NBA scores, trending repositories,
+  the estate in brief, hosts, Hacker News and a random fact.
+- **Homelab** (`pages/homelab.yml`): every console by category, a headline
+  strip, the Estate panel, uptime badges, hosts, storage, network, Saruman's
+  VMs, the household monitor, the UPS and upstream releases.
+
+`glance.yml` holds what both share: the server, the theme, and the
+`&prometheus`, `&fever` and `&hosts` anchors the pages merge in.
 
 - **The estate, as Prometheus sees it.** The *Estate* panel asks the reader
   proxy on `prometheus` three things with the same reader token Homepage uses:
@@ -614,25 +625,45 @@ answer different questions. `glance/glance.yml` is all of it.
   - YouTube: `https://www.youtube.com/feeds/videos.xml?channel_id=<id>`.
 
   A home timeline has no feed, and nor do Instagram, Facebook or X.
-- **What is in the file is what anyone running this estate would see:** the
-  clock, a calendar, the weather (Bellevue, the coarse location
-  `homepage/widgets.yaml` uses), Hacker News, r/homelab and r/selfhosted, and
-  a DuckDuckGo search box with no suggestions, so nothing is sent before
-  Enter.
-- **Every fetch is server-side.** Glance fetches from `trinity` over
-  Winterfell's existing egress; the browser loads the page and nothing else.
-  That is why the monitor has no icons: Glance's `di:` and `si:` icons are
-  fetched by the browser from a CDN.
+- **Your own lists are in SOPS, not in these files.** Tickers, bookmarks,
+  YouTube tabs and subreddits are `GLANCE_MARKETS`, `GLANCE_BOOKMARKS`,
+  `GLANCE_VIDEO_TABS` and `GLANCE_REDDIT_TABS` in
+  `secrets/sensitive.sops.yaml`, each one line of JSON that Glance
+  substitutes into `pages/home.yml`. To change one:
+  `make secrets-edit STACK=sensitive`, edit the line, keep it on one line
+  with no single quote inside, then `make up STACK=sensitive`.
+  `secrets/sensitive.example.yaml` shows the shape of each.
+- **What is in the files is what anyone running this estate would see:** the
+  consoles and addresses `homepage/services.yaml` already lists, the weather
+  (Bellevue, the coarse location `homepage/widgets.yaml` uses), Hacker News,
+  the NBA, trending repositories, and a DuckDuckGo search box with no
+  suggestions, so nothing is sent before Enter.
+- **Every fetch is server-side except thumbnails.** Glance fetches from
+  `trinity` over Winterfell's existing egress. The browser loads the page and
+  YouTube's thumbnails from `i.ytimg.com`, and nothing else ([ADR-0100]).
+  Icons are vendored under `glance/assets/icons` (Apache-2.0, see its
+  NOTICE) and served by Glance; add an SVG there to use a new one.
+- **Status on the Homelab page is Prometheus's.** `trinity` cannot reach
+  VLANs 30 and 40, so a direct check of a console there would always read
+  down; only the household monitor checks directly. Memory leaves out ZFS's
+  ARC, erebor shows free space (node_exporter cannot see the pool's used
+  total), and Saruman's VMs say when Saruman was last heard from. There is no
+  Jellyfin stream count: it would need a firewall pass to smaug, which
+  ADR-0100 leaves for a decision of its own.
+- **YouTube's feeds fail now and then**, with a 404 or a 500, which is
+  YouTube's and is open upstream as glanceapp/glance#910. A tab whose
+  channels all fail shows an error until a fetch works.
 - **No login and no Docker socket**, for Homepage's reasons. Glance has an
   optional login. It is off, as Homepage has none: both are reached from the
   same places, and neither shows a credential.
 - **Not booted in CI.** Its trust bundle holds the tier's root, which CI does
   not have, as Homepage's does. CI instead runs Glance's own
-  `config:validate` on `glance.yml` (`scripts/check_glance_config.sh`), which
-  refuses a bad widget or a variable compose.yaml does not supply. It does not
-  render the custom-api templates. They were rendered against a mock
-  Prometheus and Fever before this was written: counts, failing lists, both
-  error lines, and a `<script>` in a feed title came out escaped.
+  `config:validate` on the whole `glance/` directory
+  (`scripts/check_glance_config.sh`), with the seeded validation values,
+  which refuses a bad widget or a variable compose.yaml does not supply. It
+  does not render the custom-api templates. Those were rendered against a
+  mock Prometheus and Fever for the first version, and against the live
+  Prometheus on `trinity` for the second (2026-10-21), page by page.
 - **Measured before it was written**, on `trinity`, from the pinned digest with
   exactly the compose options: healthy, CapEff 0, read-only root with no tmpfs
   and nothing written outside its mount points, 13–14 MiB and 9 tasks. With
@@ -1201,6 +1232,7 @@ it matters:
 [ADR-0062]: ../../docs/adr/0062-add-actual-to-the-sensitive-tier.md
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [ADR-0098]: ../../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md
+[ADR-0100]: ../../docs/adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129

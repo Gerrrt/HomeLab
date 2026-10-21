@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Validate stacks/sensitive/glance/glance.yml with the binary that will run it
-# (ADR-0098).
+# Validate stacks/sensitive/glance/ — glance.yml and the pages it includes —
+# with the binary that will run it (ADR-0098, ADR-0100).
 #
 # Glance exits at start on a config it cannot parse, and `restart:
 # unless-stopped` then retries it forever behind a healthcheck that never goes
@@ -12,9 +12,12 @@
 # property is refused. It does not run a custom-api template; those are only
 # rendered against a live answer.
 #
-# The two variables glance.yml reads are given placeholders. Glance refuses a
-# config that names an unset one, so this also proves the file asks for
-# nothing compose.yaml does not hand it. `--network none`: validation fetches
+# The variables the config reads come from seed-validation-env.sh, the same
+# placeholders `docker compose config` is checked with: the two credentials
+# as strings, and the operator's lists as the smallest valid list of each
+# kind, since they are substituted into YAML. Glance refuses a config that
+# names an unset variable, so this also proves the files ask for nothing
+# compose.yaml does not hand them. `--network none`: validation fetches
 # nothing.
 #
 # Skips are recorded, not just printed, on the contract check_caddyfile.sh and
@@ -39,9 +42,9 @@ pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; }
 
 STACK_DIR="${REPO_ROOT}/stacks/sensitive"
-CONFIG="${STACK_DIR}/glance/glance.yml"
+CONFIG_DIR="${STACK_DIR}/glance"
 
-[[ -f "${CONFIG}" ]] || { fail "sensitive: ${CONFIG#"${REPO_ROOT}"/} is missing"; exit 1; }
+[[ -f "${CONFIG_DIR}/glance.yml" ]] || { fail "sensitive: glance/glance.yml is missing"; exit 1; }
 
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   msg="sensitive: no docker daemon — glance.yml unchecked"
@@ -53,16 +56,23 @@ fi
 # The image this stack pins, never a floating tag — see scripts/image-for.sh.
 image="$(COMPOSE_FILE="${STACK_DIR}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" glance)"
 
+env_file="$(mktemp)"
+trap 'rm -f "${env_file}"' EXIT
+"${REPO_ROOT}/scripts/seed-validation-env.sh" "${env_file}" sensitive
+# The seed is compose's .env, where Glance's lists are single-quoted so a
+# " #" in them is not a comment. `docker run --env-file` is not compose's
+# parser and would hand Glance the quotes too, so they are taken off here.
+sed -i -E "s/^(GLANCE_[A-Z_]+)='(.*)'$/\1=\2/" "${env_file}"
+
 # Backslash-continued for check_image_pins.py, as in check_caddyfile.sh. As the
 # caller and read-only: the image would otherwise run as root over a mount of
-# the checkout.
+# the checkout. The directory, so the pages' $include paths resolve.
 if docker run --rm --network none --user "$(id -u):$(id -g)" \
-  -e GLANCE_PROMETHEUS_TOKEN=validation-only \
-  -e GLANCE_MINIFLUX_FEVER_KEY=validation-only \
-  -v "${CONFIG}:/app/config/glance.yml:ro" \
+  --env-file "${env_file}" \
+  -v "${CONFIG_DIR}:/app/config:ro" \
   "${image}" config:validate; then
-  pass "sensitive: glance.yml validates against $(basename "${image%%@*}")"
+  pass "sensitive: glance/ validates against $(basename "${image%%@*}")"
 else
-  fail "sensitive: glance.yml does not validate — see above"
+  fail "sensitive: glance/ does not validate — see above"
   exit 1
 fi

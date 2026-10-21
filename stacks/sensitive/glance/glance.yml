@@ -6,24 +6,30 @@
 #
 # https://github.com/glanceapp/glance/blob/main/docs/configuration.md
 #
-# WHAT IS NOT IN THIS FILE, ON PURPOSE. This repository is public, and the
-# operator's own subscriptions — news sites, Mastodon and Bluesky accounts,
-# YouTube channels — say more about a person than about a homelab. They live
-# in Miniflux, under a user of their own, `glance`, and the Following widget
-# below reads them back (stacks/sensitive/README.md has the setup). What is
-# written here is only what anyone running this estate would see: its status,
-# Hacker News, two homelab subreddits and the weather.
+# Two pages, one file each under pages/ (ADR-0100): Home, the start page,
+# and Homelab, the estate's consoles and state. This file holds what both
+# share: the server, the theme and the widget anchors they merge in.
 #
-# Every third-party fetch is SERVER-SIDE, from trinity over Winterfell's
-# existing *Allow internet* egress (docs/network.md), as Homepage's weather
-# is. The browser loads the page and nothing else, except the search box,
-# which sends a query only when Enter is pressed.
+# WHAT IS NOT IN THESE FILES, ON PURPOSE. This repository is public, and the
+# operator's own lists — tickers, bookmarks, YouTube channels, subreddits —
+# say more about a person than about a homelab. They are one-line JSON values
+# in secrets/sensitive.sops.yaml (GLANCE_MARKETS, GLANCE_BOOKMARKS,
+# GLANCE_VIDEO_TABS, GLANCE_REDDIT_TABS), and Glance substitutes them as
+# ${…}. Followed feeds live in Miniflux under its user `glance`. The stack
+# README says how to edit both.
+#
+# Every fetch is SERVER-SIDE, from trinity over Winterfell's existing *Allow
+# internet* egress (docs/network.md), except two the browser makes: the
+# search box, which sends a query only on Enter, and YouTube thumbnails from
+# i.ytimg.com (ADR-0100). Icons are served from glance/assets.
 
 server:
   host: 0.0.0.0
   port: 8080
   # Behind Caddy, which sets X-Forwarded-*.
   proxied: true
+  # The vendored icons (assets/icons/NOTICE), served at /assets/.
+  assets-path: /app/config/assets
 
 document:
   # Glance fetches each widget's content ONCE, when the page loads; `cache` on
@@ -88,285 +94,109 @@ x-widgets:
     body-type: string
     body: api_key=${GLANCE_MINIFLUX_FEVER_KEY}
 
+  # Per-host load from node_exporter, as Prometheus holds it: CPU, memory,
+  # root filesystem, uptime and running containers. Memory leaves out ZFS's
+  # ARC where there is one: on smaug it is cache that ZFS gives back under
+  # pressure, and counting it showed the NAS at 90%. Keyed by `instance`,
+  # which is the host's name for every pushed agent and for smaug. A host
+  # that stops reporting drops off the list; the Estate panel's alerts are
+  # what say so.
+  - &hosts
+    type: custom-api
+    cache: 1m
+    url: https://10.0.99.20:9090/api/v1/query
+    headers:
+      Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+    parameters:
+      query: 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+    subrequests:
+      mem:
+        url: https://10.0.99.20:9090/api/v1/query
+        headers:
+          Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+        parameters:
+          query: >-
+            100 * (
+              sum by (instance) (node_memory_MemTotal_bytes)
+              - sum by (instance) (node_memory_MemAvailable_bytes)
+              - (sum by (instance) (node_zfs_arc_size) or 0 * sum by (instance) (node_memory_MemTotal_bytes))
+            ) / sum by (instance) (node_memory_MemTotal_bytes)
+      disk:
+        url: https://10.0.99.20:9090/api/v1/query
+        headers:
+          Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+        parameters:
+          query: >-
+            100 * (1 - sum by (instance) (node_filesystem_avail_bytes{mountpoint="/"})
+            / sum by (instance) (node_filesystem_size_bytes{mountpoint="/"}))
+      uptime:
+        url: https://10.0.99.20:9090/api/v1/query
+        headers:
+          Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+        parameters:
+          query: time() - max by (instance) (node_boot_time_seconds)
+      containers:
+        url: https://10.0.99.20:9090/api/v1/query
+        headers:
+          Authorization: Bearer ${GLANCE_PROMETHEUS_TOKEN}
+        parameters:
+          query: >-
+            count by (instance) (time() - container_last_seen{name!=""} < 120)
+            or sum by (instance) (homelab_container_running)
+    template: |
+      {{ $mem := (.Subrequest "mem").JSON.Array "data.result" }}
+      {{ $disk := (.Subrequest "disk").JSON.Array "data.result" }}
+      {{ $upt := (.Subrequest "uptime").JSON.Array "data.result" }}
+      {{ $ctr := (.Subrequest "containers").JSON.Array "data.result" }}
+      {{ $hosts := sortByString "metric.instance" "asc" (.JSON.Array "data.result") }}
+      {{ if eq (len $hosts) 0 }}
+        <p class="color-negative">No data: Prometheus returned no hosts.</p>
+      {{ else }}
+        <ul class="list list-gap-14">
+        {{ range $hosts }}
+          {{ $h := .String "metric.instance" }}
+          {{ $cpu := .Float "value.1" }}{{ $m := 0.0 }}{{ $d := 0.0 }}{{ $days := 0.0 }}{{ $c := "–" }}
+          {{ range $mem }}{{ if eq (.String "metric.instance") $h }}{{ $m = .Float "value.1" }}{{ end }}{{ end }}
+          {{ range $disk }}{{ if eq (.String "metric.instance") $h }}{{ $d = .Float "value.1" }}{{ end }}{{ end }}
+          {{ range $upt }}{{ if eq (.String "metric.instance") $h }}{{ $days = div (.Float "value.1") 86400 }}{{ end }}
+          {{ end }}
+          {{ range $ctr }}{{ if eq (.String "metric.instance") $h }}{{ $c = .String "value.1" }}{{ end }}{{ end }}
+          <li>
+            <div class="flex justify-between">
+              <span class="color-highlight">{{ $h }}</span>
+              <span class="size-h6">{{ printf "%.0f" $days }}d up · {{ $c }} containers</span>
+            </div>
+            <div class="flex justify-between gap-10 size-h6 margin-top-5">
+              <div style="flex: 1;">CPU {{ printf "%.0f" $cpu }}%
+                <div style="height: 4px; background: var(--color-widget-background-highlight);">
+                <div style="height: 4px; width: {{ printf "%.0f" $cpu }}%;
+                background: {{ if gt $cpu 85.0 }}var(--color-negative){{ else }}var(--color-primary){{ end }};">
+                </div></div>
+              </div>
+              <div style="flex: 1;">RAM {{ printf "%.0f" $m }}%
+                <div style="height: 4px; background: var(--color-widget-background-highlight);">
+                <div style="height: 4px; width: {{ printf "%.0f" $m }}%;
+                background: {{ if gt $m 90.0 }}var(--color-negative){{ else }}var(--color-primary){{ end }};">
+                </div></div>
+              </div>
+              <div style="flex: 1;">DISK {{ printf "%.0f" $d }}%
+                <div style="height: 4px; background: var(--color-widget-background-highlight);">
+                <div style="height: 4px; width: {{ printf "%.0f" $d }}%;
+                background: {{ if gt $d 85.0 }}var(--color-negative){{ else }}var(--color-primary){{ end }};">
+                </div></div>
+              </div>
+            </div>
+          </li>
+        {{ end }}
+        </ul>
+      {{ end }}
+
+# Each page file is a one-item list: $include replaces its whole line, the
+# list marker included, so the marker lives in the included file.
+# Glance reads the rest of an $include line as the path, so the yamllint
+# exception for the repeated key cannot be an inline comment.
 pages:
-  - name: Home
-    width: wide
-    hide-desktop-navigation: true
-    columns:
-      # -----------------------------------------------------------------------
-      - size: small
-        widgets:
-          - type: clock
-            hour-format: 24h
-
-          - type: calendar
-            first-day-of-week: sunday
-
-          # COARSE ON PURPOSE, as homepage/widgets.yaml: a city, not a
-          # street. Open-Meteo, no key.
-          - type: weather
-            location: Bellevue, Washington, United States
-            units: imperial
-            hour-format: 24h
-
-          # The household's apps, checked directly from this container over
-          # the compose network, at the same health paths the blackbox probes
-          # use (prometheus/targets/blackbox.yaml). A green row means "Glance
-          # got a 200 through Caddy just now", nothing more — whether it is
-          # healthy over time is the Estate panel's question, and Grafana's.
-          - type: monitor
-            title: Household
-            cache: 1m
-            style: compact
-            sites:
-              - title: Home Assistant
-                url: https://homeassistant.matrix.elysium
-                check-url: https://homeassistant.matrix.elysium/manifest.json
-              - title: Immich
-                url: https://immich.matrix.elysium
-                check-url: https://immich.matrix.elysium/api/server/ping
-              - title: Paperless
-                url: https://paperless.matrix.elysium
-                check-url: https://paperless.matrix.elysium/accounts/login/
-              - title: Vaultwarden
-                url: https://vaultwarden.matrix.elysium
-                check-url: https://vaultwarden.matrix.elysium/alive
-              - title: Actual
-                url: https://actual.matrix.elysium
-                check-url: https://actual.matrix.elysium/health
-              - title: Mealie
-                url: https://recipes.matrix.elysium
-                check-url: https://recipes.matrix.elysium/api/app/about
-              - title: Memos
-                url: https://memos.matrix.elysium
-                check-url: https://memos.matrix.elysium/healthz
-              - title: linkding
-                url: https://links.matrix.elysium
-                check-url: https://links.matrix.elysium/health
-              - title: Miniflux
-                url: https://miniflux.matrix.elysium
-                check-url: https://miniflux.matrix.elysium/healthcheck
-              - title: Stirling PDF
-                url: https://pdf.matrix.elysium
-                check-url: https://pdf.matrix.elysium/api/v1/info/status
-              - title: ntfy
-                url: https://ntfy.matrix.elysium
-                check-url: https://ntfy.matrix.elysium/v1/health
-              - title: Homepage
-                url: https://home.matrix.elysium
-                check-url: https://home.matrix.elysium/api/healthcheck
-
-      # -----------------------------------------------------------------------
-      - size: full
-        widgets:
-          # Nothing is typed into a third party until Enter: this box has no
-          # suggestions, so no keystroke leaves the browser before then.
-          - type: search
-            search-engine: duckduckgo
-            autofocus: true
-            new-tab: false
-
-          # THE ESTATE, AS PROMETHEUS SEES IT. Every VLAN, including the ones
-          # trinity cannot reach itself: firing alerts are the verdict the
-          # alert rules reach, the probes are blackbox-exporter's from
-          # `prometheus`, and the targets are every `up` series, scraped or
-          # pushed. So this panel agrees with Grafana by construction. A host
-          # that stops pushing leaves no `up` series at all rather than a 0;
-          # the alert rules are what notice that, which is why alerts come
-          # first.
-          #
-          # Only `warning` and `critical` count: they are what Alertmanager
-          # delivers, and `info` is routed to its null receiver on purpose.
-          # Watchdog (watchdog.rules.yaml) fires always, by design, so it is
-          # not a fault here; its ABSENCE is, because then rule evaluation has
-          # stopped and every other number here is stale. And "All clear"
-          # needs evidence: an empty answer from Prometheus is "no data", not
-          # health.
-          - type: custom-api
-            title: Estate
-            cache: 1m
-            <<: *prometheus
-            parameters:
-              query: ALERTS{alertstate="firing"}
-            subrequests:
-              probes:
-                <<: *prometheus
-                parameters:
-                  query: min by (name, host) (probe_success)
-              targets:
-                <<: *prometheus
-                parameters:
-                  query: min by (job, instance) (up)
-            template: |
-              {{ $probes := .Subrequest "probes" }}
-              {{ $targets := .Subrequest "targets" }}
-              {{ $codeA := .Response.StatusCode }}
-              {{ $codeP := $probes.Response.StatusCode }}
-              {{ $codeT := $targets.Response.StatusCode }}
-              {{ if or (ne $codeA 200) (ne $codeP 200) (ne $codeT 200) }}
-                <p class="color-negative">
-                  Prometheus answered {{ $codeA }} / {{ $codeP }} / {{ $codeT }} — is the reader token set?
-                </p>
-              {{ else }}
-                {{ $alerts := .JSON.Array "data.result" }}
-                {{ $faults := 0 }}{{ $watchdog := false }}
-                {{ range $alerts }}
-                  {{ $severity := .String "metric.severity" }}
-                  {{ if eq (.String "metric.alertname") "Watchdog" }}
-                    {{ $watchdog = true }}
-                  {{ else if or (eq $severity "warning") (eq $severity "critical") }}
-                    {{ $faults = add $faults 1 }}
-                  {{ end }}
-                {{ end }}
-                {{ $probeDown := 0 }}{{ $probeAll := 0 }}
-                {{ range $probes.JSON.Array "data.result" }}
-                  {{ $probeAll = add $probeAll 1 }}
-                  {{ if eq (.String "value.1") "0" }}{{ $probeDown = add $probeDown 1 }}{{ end }}
-                {{ end }}
-                {{ $targetDown := 0 }}{{ $targetAll := 0 }}
-                {{ range $targets.JSON.Array "data.result" }}
-                  {{ $targetAll = add $targetAll 1 }}
-                  {{ if eq (.String "value.1") "0" }}{{ $targetDown = add $targetDown 1 }}{{ end }}
-                {{ end }}
-
-                <div class="flex justify-between text-center">
-                  <div>
-                    <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
-                      {{ $faults }}
-                    </div>
-                    <div class="size-h6">ALERTS FIRING</div>
-                  </div>
-                  <div>
-                    <div class="size-h3 {{ if gt $probeDown 0 }}color-negative{{ else }}color-positive{{ end }}">
-                      {{ sub $probeAll $probeDown }}/{{ $probeAll }}
-                    </div>
-                    <div class="size-h6">PROBES UP</div>
-                  </div>
-                  <div>
-                    <div class="size-h3 {{ if gt $targetDown 0 }}color-negative{{ else }}color-positive{{ end }}">
-                      {{ sub $targetAll $targetDown }}/{{ $targetAll }}
-                    </div>
-                    <div class="size-h6">TARGETS UP</div>
-                  </div>
-                </div>
-
-                {{ if not $watchdog }}
-                  <p class="color-negative margin-top-15">
-                    Watchdog is not firing: Prometheus is not evaluating its rules, so nothing here is current.
-                  </p>
-                {{ end }}
-
-                {{ if gt $faults 0 }}
-                  <ul class="list list-gap-10 margin-top-15">
-                  {{ range $alerts }}
-                    {{ $severity := .String "metric.severity" }}
-                    {{ if and (ne (.String "metric.alertname") "Watchdog")
-                              (or (eq $severity "warning") (eq $severity "critical")) }}
-                    <li>
-                      <span class="color-negative">{{ .String "metric.alertname" }}</span>
-                      <ul class="list-horizontal-text">
-                        <li>{{ .String "metric.severity" }}</li>
-                        {{ if .Exists "metric.name" }}<li>{{ .String "metric.name" }}</li>{{ end }}
-                        {{ if .Exists "metric.host" }}
-                          <li>{{ .String "metric.host" }}</li>
-                        {{ else if .Exists "metric.instance" }}
-                          <li>{{ .String "metric.instance" }}</li>
-                        {{ end }}
-                      </ul>
-                    </li>
-                    {{ end }}
-                  {{ end }}
-                  </ul>
-                {{ end }}
-
-                {{ if gt $probeDown 0 }}
-                  <p class="size-h6 margin-top-15">PROBES FAILING</p>
-                  <ul class="list-horizontal-text">
-                  {{ range $probes.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
-                    <li class="color-negative">{{ .String "metric.name" }} ({{ .String "metric.host" }})</li>
-                  {{ end }}{{ end }}
-                  </ul>
-                {{ end }}
-
-                {{ if gt $targetDown 0 }}
-                  <p class="size-h6 margin-top-15">TARGETS DOWN</p>
-                  <ul class="list-horizontal-text">
-                  {{ range $targets.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
-                    <li class="color-negative">{{ .String "metric.job" }} · {{ .String "metric.instance" }}</li>
-                  {{ end }}{{ end }}
-                  </ul>
-                {{ end }}
-
-                {{ if or (eq $probeAll 0) (eq $targetAll 0) }}
-                  <p class="color-negative margin-top-15">
-                    No data: Prometheus returned {{ $probeAll }} probes and {{ $targetAll }} targets.
-                  </p>
-                {{ else if and $watchdog (eq $faults 0) (eq $probeDown 0) (eq $targetDown 0) }}
-                  <p class="color-positive margin-top-15">All clear.</p>
-                {{ end }}
-                <p class="size-h6 margin-top-15">CHECKED <span {{ now | toRelativeTime }}></span> AGO</p>
-              {{ end }}
-
-          # Everything the `glance` user follows — news sites, Mastodon and
-          # Bluesky profiles or hashtags as RSS (<instance>/@user.rss,
-          # bsky.app/profile/<handle>/rss), YouTube channels
-          # (youtube.com/feeds/videos.xml?channel_id=<id>) — newest first.
-          # Fever's newest-items call returns the latest 50 and cannot filter
-          # by category, so this is one stream, each item labelled with its
-          # feed. A home timeline has no feed, and nor do Instagram, Facebook
-          # or X; ADR-0098 says why they are not here.
-          #
-          # Feed and item titles are third-party text. html/template escapes
-          # every value below, and nothing here marks one safe. How often the
-          # feeds themselves are fetched is Miniflux's schedule, by its
-          # fetcher that refuses private addresses (ADR-0057); `cache` is only
-          # how often this page asks Miniflux.
-          - type: custom-api
-            title: Following
-            cache: 5m
-            url: https://miniflux.matrix.elysium/fever/?api&items&max_id=0
-            <<: *fever
-            subrequests:
-              feeds:
-                url: https://miniflux.matrix.elysium/fever/?api&feeds
-                <<: *fever
-            template: |
-              {{ $feeds := .Subrequest "feeds" }}
-              {{ if or (ne .Response.StatusCode 200) (ne (.JSON.Int "auth") 1) }}
-                <p class="color-negative">
-                  Miniflux refused the Fever key (HTTP {{ .Response.StatusCode }}) — is GLANCE_MINIFLUX_FEVER_KEY set?
-                </p>
-              {{ else if eq (len (.JSON.Array "items")) 0 }}
-                <p>The <code>glance</code> user follows nothing yet.</p>
-              {{ else }}
-                <ul class="list list-gap-10 collapsible-container" data-collapse-after="12">
-                {{ range .JSON.Array "items" }}
-                  {{ $feedID := .Int "feed_id" }}
-                  <li>
-                    <a class="size-title-dynamic color-primary-if-not-visited"
-                       href="{{ .String "url" }}" target="_blank" rel="noreferrer">{{ .String "title" }}</a>
-                    <ul class="list-horizontal-text">
-                      <li {{ .String "created_on_time" | parseRelativeTime "unix" }}></li>
-                      {{ range $feeds.JSON.Array "feeds" }}
-                        {{ if eq (.Int "id") $feedID }}<li>{{ .String "title" }}</li>{{ end }}
-                      {{ end }}
-                    </ul>
-                  </li>
-                {{ end }}
-                </ul>
-              {{ end }}
-
-      # -----------------------------------------------------------------------
-      - size: small
-        widgets:
-          - type: group
-            widgets:
-              - type: hacker-news
-                limit: 20
-                collapse-after: 6
-              - type: reddit
-                subreddit: homelab
-                collapse-after: 6
-              - type: reddit
-                subreddit: selfhosted
-                collapse-after: 6
+  # yamllint disable rule:key-duplicates
+  $include: pages/home.yml
+  $include: pages/homelab.yml
+  # yamllint enable rule:key-duplicates
