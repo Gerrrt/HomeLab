@@ -1,0 +1,89 @@
+---
+# Movie mode: when the TV comes on after dark with the TV room's lights on,
+# the room drops to its "Mood" Hue scene. When the TV goes off, the lights go
+# back to what they were. The idea is CCOSTAN's tv_time_on_and_off
+# (github.com/CCOSTAN/Home-AssistantConfig).
+#
+# The webOS integration reports the TV as on or off, not as playing or
+# paused, so movie mode follows the TV's power. The TV room's lights are
+# snapshotted into a scene before the change and restored from it.
+#
+# input_boolean.movie_mode says whether the snapshot is ours to restore.
+# Turning it off by hand stops the lights from changing when the TV goes off.
+# A snapshot does not survive a Home Assistant restart. If the TV goes off
+# after one, nothing is restored and the lights stay as they are.
+
+input_boolean:
+  movie_mode:
+    name: Movie mode
+    icon: mdi:movie-open
+
+automation:
+  - id: movie_mode_on
+    alias: Movie mode on
+    description: Dims the TV room to its Mood scene when the TV comes on after dark.
+    mode: single
+    triggers:
+      - trigger: state
+        entity_id: media_player.tv_room_lg_webos_tv_oled
+        from: "off"
+        to: "on"
+    conditions:
+      - condition: state
+        entity_id: sun.sun
+        state: below_horizon
+      - condition: state
+        entity_id: light.tv_room_tv_room
+        state: "on"
+      - condition: state
+        entity_id: input_boolean.movie_mode
+        state: "off"
+    actions:
+      - action: scene.create
+        data:
+          scene_id: tv_room_before_movie
+          snapshot_entities:
+            - light.tv_room_ceiling_1
+            - light.tv_room_ceiling_2
+            - light.tv_room_ceiling_3
+            - light.tv_room_hue_color_lamp_1
+            - light.tv_room_hue_color_lamp_2
+            - light.tv_room_hue_color_lamp_3
+      - action: scene.turn_on
+        target:
+          entity_id: scene.tv_room_tv_room_mood
+        data:
+          transition: 3
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.movie_mode
+
+  - id: movie_mode_off
+    alias: Movie mode off
+    description: Puts the TV room's lights back when the TV has been off for a minute.
+    mode: single
+    triggers:
+      # A minute, so switching input or a quick restart of the TV does not
+      # flash the lights up and down.
+      - trigger: state
+        entity_id: media_player.tv_room_lg_webos_tv_oled
+        to: "off"
+        for: "00:01:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.movie_mode
+        state: "on"
+    actions:
+      # Missing after a restart. The lights then stay as they are. A fresh
+      # snapshot reads `unknown` until it is activated, so existence is the
+      # test, not its state.
+      - if: "{{ states.scene.tv_room_before_movie is not none }}"
+        then:
+          - action: scene.turn_on
+            target:
+              entity_id: scene.tv_room_before_movie
+            data:
+              transition: 3
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.movie_mode

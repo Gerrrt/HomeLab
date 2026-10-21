@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **A first batch of everyday automations** (`night_brightness.yaml`,
+  `doorbell.yaml`, `movie_mode.yaml`, `litter_robot.yaml`), picked from
+  CCOSTAN's and frenck's published configurations for the devices this house
+  has:
+  - **A late-night brightness cap.** From 20:00 to 06:00, a Hue light a
+    person turns on is held to 25%. It watches every Hue light, so no room is
+    named.
+  - **Doorbell alerts.** The phones, a pop-up on the TV, and the Echos
+    outside quiet hours. The doorbell is found through a label, because its
+    entity id names the door it covers.
+  - **Movie mode.** The TV room drops to its Mood scene when the TV comes on
+    after dark, and its lights are restored when the TV goes off.
+  - **The Litter-Robot.** Reminders with buttons when the drawer is full or
+    the litter low, and cat-health alerts: a weight drop against each cat's
+    own baseline, or no visit all day.
+
+  The templates were rendered with Home Assistant's own engine against fake
+  states before merge, because `check_config` does not render them.
+
 - **Glance grows a Homelab page**
   ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
   [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). It was asked for
