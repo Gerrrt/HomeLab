@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance's two keys are in SOPS**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Miniflux's user
+  `glance` was created, not an administrator, with Fever on. Its key went
+  into `secrets/sensitive.sops.yaml` from Miniflux's own record of it, and
+  the reader token from Homepage's copy, neither printed. Fever answered
+  `auth: 1` to the key, and the reader proxy answered the token. Since #1224
+  merged on 2026-10-20, `make up STACK=sensitive` had needed these two keys
+  and would have stopped at render without them; nothing had been deployed
+  in between.
+
 - **The HomePod rows exist, with a NAT, and Home Assistant cannot add the
   HomePods yet** ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)).
   The three rows went in above *Block access to Skids*, and AirPlay answered
