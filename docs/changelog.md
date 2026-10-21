@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **Glance's probe is live, and #1223 is closed**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Prometheus did
+  not see the target at first, because the deployment checkout on
+  `prometheus` had not pulled #1242: the mounted `targets/blackbox.yaml`
+  still carried its 2026-10-07 mtime. Once it pulled, the file reloaded at
+  17:51 UTC, and `probe_success{name="glance"}` read 1 with HTTP 200 over the
+  verified tier chain. The roadmap entry leaves with this.
+
 - **The start page gets a blackbox probe**
   ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). `glance` was
   added beside `homepage` in `prometheus/targets/blackbox.yaml`, probing
