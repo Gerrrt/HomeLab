@@ -329,10 +329,10 @@ none is in the order until one is taken.
   enrolled on the admin. Nothing is left; #143 closes with this.
 - **[#1223](https://github.com/Gerrrt/HomeLab/issues/1223) Glance, as
   `start.matrix.elysium`** — decided by
-  [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)
-  and **deployed on `trinity` 2026-10-21**, with its Miniflux user, both
-  SOPS keys and the `start` override. What is left is the blackbox probe for
-  the new name, added from `prometheus` once the exporter has probed it.
+  [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md).
+  The gate is the blackbox probe for the new name, added to
+  `prometheus/targets/blackbox.yaml` only once the exporter on `prometheus`
+  has probed it.
 
 ## Everything still to buy
 
