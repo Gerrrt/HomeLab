@@ -1,0 +1,124 @@
+---
+# The child's bedtime: a 45-minute wind-down from 19:00, lights out at 19:45,
+# for a 20:00 bedtime.
+#
+#   19:00  The room's Hue "sleep" scene comes on, then dims slowly to 25%
+#          over 45 minutes. The white-noise machine starts at 30% and rises
+#          to 80% over the same 45 minutes, with its night light green.
+#   19:45  The room's lights go off, and the night light turns red.
+#
+# The noise and the red night light stay on through the night.
+#
+# The room is a child's, and docs/security.md keeps a child's room out of the
+# repository. So the room's lights and its sleep scene are reached through
+# two labels set in the UI:
+#
+#   kid_room_lights        the room's Hue group (the one light that holds the
+#                          whole room, not each bulb)
+#   kid_room_sleep_scene   the room's Hue sleep scene
+#
+# The white-noise machine is named by its own entities, which say nothing of
+# where it is. It is the tuya integration's, reached through Tuya's cloud.
+#
+# Two automations, not one long script, so that a restart during the
+# wind-down still turns the lights out at 19:45. A restart does stop the
+# volume ramp where it is.
+
+input_boolean:
+  # On skips both steps, for a night out or a sick night. It is not turned
+  # back off automatically.
+  kid_bedtime_paused:
+    name: Kid bedtime paused
+    icon: mdi:sleep-off
+
+script:
+  kid_bedtime_wind_down:
+    alias: Kid bedtime wind-down
+    icon: mdi:weather-night
+    mode: single
+    sequence:
+      - action: scene.turn_on
+        target:
+          label_id: kid_room_sleep_scene
+        data:
+          transition: 5
+      - delay: 10
+      # Hue fades this on the bulbs themselves, so it keeps going even if
+      # Home Assistant restarts mid-way.
+      - action: light.turn_on
+        target:
+          label_id: kid_room_lights
+        data:
+          brightness_pct: 25
+          transition: 2690
+      # The machine is two switches, power then sound, in that order.
+      - action: switch.turn_on
+        target:
+          entity_id: switch.smart_white_noise_machine
+      - action: switch.turn_on
+        target:
+          entity_id: switch.smart_white_noise_machine_music
+      - action: light.turn_on
+        target:
+          entity_id: light.smart_white_noise_machine
+        data:
+          hs_color: [120, 100]
+      # 30% up to 80%, five points every four and a half minutes.
+      - repeat:
+          for_each: [30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80]
+          sequence:
+            - action: number.set_value
+              continue_on_error: true
+              target:
+                entity_id: number.smart_white_noise_machine_volume
+              data:
+                value: "{{ repeat.item }}"
+            - if: "{{ repeat.item < 80 }}"
+              then:
+                - delay: "00:04:30"
+
+automation:
+  - id: kid_bedtime_wind_down
+    alias: Kid bedtime wind-down
+    description: At 19:00, the sleep scene dims to 25% and the white noise rises to 80% over 45 minutes.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "19:00:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.kid_bedtime_paused
+        state: "off"
+    actions:
+      - action: script.kid_bedtime_wind_down
+
+  - id: kid_bedtime_lights_out
+    alias: Kid bedtime lights out
+    description: At 19:45, the room's lights go off and the white-noise machine's night light turns red.
+    mode: single
+    triggers:
+      - trigger: time
+        at: "19:45:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.kid_bedtime_paused
+        state: "off"
+    actions:
+      - action: light.turn_off
+        target:
+          label_id: kid_room_lights
+        data:
+          transition: 60
+      - action: light.turn_on
+        target:
+          entity_id: light.smart_white_noise_machine
+        data:
+          hs_color: [0, 100]
+      # The ramp should have finished at 19:45. If a restart cut it short,
+      # this makes sure the noise is at its night level.
+      - action: number.set_value
+        continue_on_error: true
+        target:
+          entity_id: number.smart_white_noise_machine_volume
+        data:
+          value: 80
