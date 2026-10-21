@@ -68,12 +68,6 @@ Closes when it is empty.
   the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#1218](https://github.com/Gerrrt/HomeLab/issues/1218) The LG TV in
-  Home Assistant.** Decided by
-  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md).
-  No gate: the TV and `trinity` both exist. The work is three rules on
-  `morpheus`, a reservation and a static ARP entry for `mediatv`, and the
-  pairing and wake test from `trinity`.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).

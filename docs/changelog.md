@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-21
 
+- **#1218 closes: the LG TV in Home Assistant**
+  ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)).
+  Every item is done:
+  - the reservation at `10.0.40.40`, with a static ARP entry;
+  - the three rules (`3001` passed, `3000` rejected, `9/udp` passed), probed
+    from `trinity`;
+  - the TV paired over TLS;
+  - the request-forgery condition checked;
+  - the wake built and shown working from standby;
+  - the CasaBonita tripwire at 0.
+
+  The last item, raising `socketPath` host validation upstream, is
+  home-assistant-libs/aiowebostv#759. It was opened by the household after
+  reading the project's AI policy. It keeps only the TV's path and connects
+  on the main connection's origin, and was tested with a stubbed connection.
+  ADR-0097's request-forgery residual stands until Home Assistant pins an
+  aiowebostv release with it.
+
 - **Evening routines, and a correction to Bedtime**
   (`kid_bedtime.yaml`, `tv_room_evening.yaml`, `bedtime.yaml`). This corrects
   the 2026-10-19 entry *"Home Assistant's first automations are packages in
