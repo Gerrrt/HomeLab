@@ -423,9 +423,12 @@ unauthenticated ports the observability stack publishes. Audiobookshelf's
 `13378` is reachable the same way and is not the same residual: everything
 there but its health and status endpoints wants a login.
 
-The row ADR-0008wrote as `99 → 20` is narrower than it read: one host to one device on two
-ports, with the twenty other devices on Skids still unreachable from anywhere,
-and both segments still initiating nothing. The tripwire below is the check
+The row ADR-0008 wrote as `99 → 20` is narrower than it read: one host,
+`trinity`, to the Hue bridge on two ports and, since 2026-10-21, to the
+HomePods on ADR-0099's three rows, with every other device on Skids still
+unreachable from anywhere, and both segments still initiating nothing. The
+HomePod rows reach the devices today. Home Assistant has not added them yet,
+because of a pyatv bug, and that is not a firewall matter. The tripwire below is the check
 that the second half holds — waiting on Skids, and since 2026-09-16 actually
 checking on CasaBonita.
 

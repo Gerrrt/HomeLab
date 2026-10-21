@@ -761,8 +761,11 @@ the least trusted.
   above, the [#223](https://github.com/Gerrrt/HomeLab/issues/223) tripwire and
   the egress rule stay as they are, and the tripwire's counter — zero — is
   the test that the return traffic rides state and never reaches them. Skids
-  stays terminal outbound, and is no longer terminal inbound, for one host
-  on two ports.
+  stays terminal outbound. It is no longer terminal inbound, for `trinity`
+  alone: to the Hue bridge on two ports since 2026-09-28, and to the HomePods
+  on ADR-0099's three rows since 2026-10-21. The HomePod rows are in force
+  and reach the devices. Adding the HomePods in Home Assistant is a separate
+  matter, waiting on pyatv.
 - **Seven addresses here are reserved, all below the `.100–.200` pool:**
   `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
   `.11`–`.13` since 2026-10-20
