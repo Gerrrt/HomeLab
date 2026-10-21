@@ -13,6 +13,7 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 | --- | --- |
 | `attention.yaml` | A *Get attention* script: it blinks the lights labelled `attention_lights` and announces on the Echo labelled `attention_speaker`, unless that Echo is on do not disturb. The labels are set in the UI, so no owner-linked room is named here |
 | `bedtime.yaml` | A bedtime script (shared rooms off, bedroom dimmed warm, white-noise machine on) and an optional timer for it, whose time and on/off switch are set in the UI |
+| `eero.yaml` | Each eero unit's status from its DHCP renewals in Loki, keyed by its reserved address, with an alert when one has not renewed in two hours. No eero API, no firewall rule (#1228) |
 | `homelab_rack.yaml` | The rack's power draw for the Energy dashboard, read from the UPS's load through Prometheus rather than from the card directly, plus the UPS's on-battery state and runtime remaining for the dashboard. Paging stays with Alertmanager's `UpsOnBattery` |
 | `lighting.yaml` | `light.evening_lights`, a group of the shared rooms' Hue lights, on fifteen minutes before sunset and off at sunrise |
 | `mediatv.yaml` | The LG TV's power-on: the webOS integration's *turn on* trigger sends a unicast magic packet to `10.0.40.40` (ADR-0097), with the MAC from SOPS |
