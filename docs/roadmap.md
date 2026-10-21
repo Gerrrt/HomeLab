@@ -330,10 +330,9 @@ none is in the order until one is taken.
 - **[#1223](https://github.com/Gerrrt/HomeLab/issues/1223) Glance, as
   `start.matrix.elysium`** — decided by
   [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)
-  and authored in `stacks/sensitive`. Deploying it is the stack README's
-  *Adding it to the running tier*: the Miniflux user `glance` and its Fever
-  key, two SOPS keys, the `start` override and `make up`. The blackbox probe
-  follows once the page answers.
+  and **deployed on `trinity` 2026-10-21**, with its Miniflux user, both
+  SOPS keys and the `start` override. What is left is the blackbox probe for
+  the new name, added from `prometheus` once the exporter has probed it.
 
 ## Everything still to buy
 
