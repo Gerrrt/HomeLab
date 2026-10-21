@@ -17,6 +17,24 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-21
+
+- **The eeros have reserved addresses, and Home Assistant watches them**
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228),
+  `packages/eero.yaml`). All eight units held pool leases, and
+  `network.md`'s rows for them were stale. Kea reservations below each pool
+  went in on 2026-10-20. Hicks, Skids and Degens get `.11`–`.13`,
+  `.11`–`.13` and `.11`–`.12`, and every unit had moved by 00:05, read from
+  the lease lines in Loki. Each address was matched to its row by vendor
+  prefix, and the household named the floors that the prefix could not tell
+  apart. One sensor per unit reads its renewals in the last two hours from
+  Loki, and an alert fires when one stops. The alert script that the
+  thermostat and eero packages share is renamed `household_alert`.
+- **`network.md` uses the house's own floor names.** The house has a main
+  floor (kitchen, living and dining rooms, bedrooms, offices) and a basement
+  (media room, playroom). The tables said "Upper floor" for the main floor
+  and "Lower floor" for the basement, and both are corrected.
+
 ## 2026-10-20
 
 - **The Roomba is driven through Alexa, not directly**

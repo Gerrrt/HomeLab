@@ -110,14 +110,14 @@ rest:
              and value_json.data.result[0].value[1] | int(0) > 0 }}
 
 script:
-  thermostat_alert:
-    alias: Thermostat alert
+  household_alert:
+    alias: Household alert
     description: Sends a message to the labelled phones and to Home Assistant's notifications.
     mode: queued
     fields:
       title:
         description: Short title.
-        example: Thermostat
+        example: House too cold
       message:
         description: What happened.
         example: The hallway is at 58 °F.
@@ -215,7 +215,7 @@ automation:
               - >-
                 The thermostat is on emergency heat, the expensive backup. If
                 nobody switched it on, the heat pump may have a fault.
-      - action: script.thermostat_alert
+      - action: script.household_alert
         data:
           title: "{{ alerts[trigger.id][0] }}"
           message: "{{ alerts[trigger.id][1] }}"

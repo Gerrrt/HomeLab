@@ -234,8 +234,11 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.50.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| desktop-01 | `10.0.50.20` | `04:42:1a:xx:xx:xx` | ASUS ROG Strix X570-E[^Desktop1] | Windows 11 | Upper floor | Desktop |
-| desktop-02 | `10.0.50.90` | `04:42:1a:xx:xx:xx` | ASUS ROG Crosshair VIII[^Desktop2] | Windows 11 | Lower floor | Desktop |
+| eero-trusted-1 | `10.0.50.11` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
+| eero-trusted-2 | `10.0.50.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
+| eero-trusted-3 | `10.0.50.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Basement | Wi-Fi |
+| desktop-01 | `10.0.50.20` | `04:42:1a:xx:xx:xx` | ASUS ROG Strix X570-E[^Desktop1] | Windows 11 | Main floor | Desktop |
+| desktop-02 | `10.0.50.90` | `04:42:1a:xx:xx:xx` | ASUS ROG Crosshair VIII[^Desktop2] | Windows 11 | Basement | Desktop |
 | laptop-01 | `10.0.50.10` | `04:ed:33:xx:xx:xx` | HP Pavilion Gaming[^Pavillion] | Windows 11 | Roaming | Laptop |
 | laptop-02 | `10.0.50.80` | `4c:ea:41:xx:xx:xx` | Apple MacBook Pro[^MacBook] | macOS 26 | Roaming | Laptop |
 | workstation-01 | `10.0.50.69` | `e8:f6:73:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
@@ -243,9 +246,6 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.112` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
-| eero-trusted-1 | `10.0.50.104` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
-| eero-trusted-2 | `10.0.50.110` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
-| eero-trusted-3 | `10.0.50.111` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Lower floor | Wi-Fi |
 
 ### Notes
 
@@ -329,8 +329,8 @@ Televisions and consoles. Internet only.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.40.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Lower floor | Console |
-| hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Lower floor | Console |
+| nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Basement | Console |
+| hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Basement | Console |
 | smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Media room | NAS |
 | mediatv | `10.0.40.40` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
 | streambox | `10.0.40.101` | `f0:46:3b:xx:xx:xx` | Xumo Stream Box[^StreamBox] | entOS | Media room | Streaming |
@@ -729,18 +729,18 @@ the least trusted.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.20.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| eero-iot-1 | `10.0.20.101` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Upper floor | Wi-Fi mesh |
-| eero-iot-2 | `10.0.20.102` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
-| eero-iot-3 | `10.0.20.103` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Lower floor | Wi-Fi mesh |
+| eero-iot-1 | `10.0.20.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-iot-2 | `10.0.20.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Basement | Wi-Fi mesh |
+| eero-iot-3 | `10.0.20.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | bifrost | `10.0.20.20` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
 | speaker-01…04 | `.113`, `.124`, `.128`, `.132` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
 | assistant-01…05 | `.105`, `.109`, `.114`, `.133`, `.144` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
 | camera-01…07 | `.112`, `.118`, `.119`, `.126`, `.130`, `.145`, `.146` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
 | alarm-hub | `10.0.20.121` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
-| monitor-01 | `10.0.20.117` | `a4:97:5c:xx:xx:xx` | VTech camera[^Monitor] | — | Upper floor | Baby monitor |
-| monitor-02 | `10.0.20.149` | `a4:97:5c:xx:xx:xx` | VTech tablet[^Monitor] | — | Upper floor | Baby monitor |
+| monitor-01 | `10.0.20.117` | `a4:97:5c:xx:xx:xx` | VTech camera[^Monitor] | — | Main floor | Baby monitor |
+| monitor-02 | `10.0.20.149` | `a4:97:5c:xx:xx:xx` | VTech tablet[^Monitor] | — | Main floor | Baby monitor |
 | appliance-01 | `10.0.20.108` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
-| appliance-02 | `10.0.20.115` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Upper floor | Appliance |
+| appliance-02 | `10.0.20.115` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Main floor | Appliance |
 | appliance-03 | `10.0.20.122` | `00:d0:2d:xx:xx:xx` | Honeywell THM6000R RedLINK internet gateway, for the thermostat; wired to an eero's port | — | Bedroom | Appliance |
 
 ### Notes
@@ -760,10 +760,12 @@ the least trusted.
   the test that the return traffic rides state and never reaches them. Skids
   stays terminal outbound, and is no longer terminal inbound, for one host
   on two ports.
-- **One address here is reserved: `bifrost` at `10.0.20.20`**, below the
-  `.100–.200` pool, since 2026-09-28. Every other device above sits inside
-  the pool by lease, so its row is what it had when it was read, not what it
-  will have. The build proved why the rule's destination could not be one of
+- **Four addresses here are reserved, all below the `.100–.200` pool:**
+  `bifrost` at `10.0.20.20` since 2026-09-28, and the three eeros at
+  `.11`–`.13` since 2026-10-20
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)). Every other
+  device above sits inside the pool by lease, so its row is what it had when
+  it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
   `.113`, and `.104` went to another device.
 - **Three more rows from `trinity`, decided, not created:** `10.0.99.40 →
@@ -798,8 +800,8 @@ the least trusted.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.10.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| eero-guest-1 | `10.0.10.10` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
-| eero-guest-2 | `10.0.10.101` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-guest-1 | `10.0.10.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-guest-2 | `10.0.10.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 
 ### Notes
 
