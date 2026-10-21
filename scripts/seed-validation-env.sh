@@ -75,6 +75,12 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "HOMEPAGE_IMMICH_API_KEY=validation-only"
   echo "HOMEPAGE_PAPERLESS_TOKEN=validation-only"
   echo "GLANCE_MINIFLUX_FEVER_KEY=validation-only"
+  # Glance's own lists are substituted into YAML, so a placeholder string
+  # would not parse: each is the smallest valid list of its kind (ADR-0100).
+  echo 'GLANCE_MARKETS=[{"symbol":"SPY","name":"S&P 500"}]'
+  echo 'GLANCE_BOOKMARKS=[{"title":"Example","links":[{"title":"Example","url":"https://example.com"}]}]'
+  echo 'GLANCE_VIDEO_TABS=[{"type":"videos","title":"Example","channels":["UCR-DXc1voovS8nhAvccRZhg"]}]'
+  echo 'GLANCE_REDDIT_TABS=[{"type":"reddit","subreddit":"homelab"}]'
   # ntfy validates these at start and exits on a malformed one, so a boot of
   # it (check_hardened_boot.sh) needs them well-formed: a real bcrypt hash —
   # of the string "validation-only", from the pinned image's `ntfy user

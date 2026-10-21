@@ -992,10 +992,13 @@ this closes on.
   arrived. `HTTP_ALLOW_LIST` is what would open it, so it is written out
   empty in `compose.yaml`.
 - **Glance fetches a fixed list from `trinity`**
-  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223), [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)):
-  Reddit, Hacker News and Open-Meteo, on its cache schedule. Every URL it asks
-  is written in `glance/glance.yml`, and nothing a visitor types becomes a
-  fetch, so it has no inward-fetch flag to set. The feeds people follow are
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223), [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md),
+  [ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md)):
+  Reddit, Hacker News, Open-Meteo, Yahoo Finance, ESPN, GitHub, YouTube's
+  feeds and uselessfacts, on its cache schedule. Every URL it asks is written
+  in `glance/` or in the operator's lists in SOPS, and nothing a visitor
+  types becomes a fetch, so it has no inward-fetch flag to set. The one
+  third-party request the browser makes is for YouTube thumbnails. The feeds people follow are
   fetched by Miniflux's fetcher, under the flag above, and Glance reads them
   from Miniflux. It has no login, as Homepage has none. It shows the names of
   firing alerts, which Grafana shows to the same networks behind a login, and

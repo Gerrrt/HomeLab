@@ -57,6 +57,17 @@ rules:
     check-keys: false
   document-start:
     present: true
+    # Glance's page files are fragments that glance.yml splices in with
+    # $include before it parses anything: a `---` there would land in the
+    # middle of the combined document.
+    ignore: |
+      stacks/sensitive/glance/pages/
+  anchors:
+    # The same fragments use the anchors glance.yml defines (&prometheus,
+    # &fever, &hosts). They resolve in the combined document, which
+    # scripts/check_glance_config.sh validates with Glance itself.
+    ignore: |
+      stacks/sensitive/glance/pages/
   indentation:
     spaces: 2
     indent-sequences: consistent

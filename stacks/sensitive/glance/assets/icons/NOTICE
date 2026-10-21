@@ -1,0 +1,5 @@
+These SVGs are from homarr-labs/dashboard-icons
+(https://github.com/homarr-labs/dashboard-icons), licensed Apache-2.0,
+copied unmodified on 2026-10-21. The marks they depict belong to their owners.
+They are served by Glance from assets-path so the browser fetches no icon
+from a CDN (ADR-0100).

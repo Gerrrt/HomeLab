@@ -349,6 +349,7 @@ what each key is for. The values:
 | `HOMEPAGE_IMMICH_API_KEY`, `HOMEPAGE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only — the clicks are beside the keys in the example file | No |
 | `GLANCE_PROMETHEUS_TOKEN` | The same value as `HOMEPAGE_PROMETHEUS_TOKEN`, the estate's reader token | No. `secrets/observability.sops.yaml` holds the original |
 | `GLANCE_MINIFLUX_FEVER_KEY` | The MD5 of `glance:<fever password>`, once Miniflux is up and its user `glance` exists — the steps are beside the key in the example file ([ADR-0098](../adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)) | The Fever password and the `glance` login, both generated |
+| `GLANCE_MARKETS`, `GLANCE_BOOKMARKS`, `GLANCE_VIDEO_TABS`, `GLANCE_REDDIT_TABS` | The operator's own lists, one line of JSON each, in the shape `secrets/sensitive.example.yaml` gives ([ADR-0100](../adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md)). Not credentials | No |
 | `NTFY_ALERTMANAGER_TOKEN` | the pinned image's `ntfy token generate` — the command is beside the key | No. The monitoring host's `ALERTMANAGER_NTFY_TOKEN` is the other copy |
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |

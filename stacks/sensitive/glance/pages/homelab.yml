@@ -1,0 +1,665 @@
+# The Homelab page (ADR-0100): every console by category, and the estate's
+# state as Prometheus sees it — uptime, hosts, storage, network, guests, the
+# UPS. Included from glance.yml. Nothing here is personal; the addresses are
+# the ones docs/network.md and homepage/services.yaml already publish.
+#
+# Status on this page comes from Prometheus on `prometheus`, never from a
+# check this container makes, except the Household monitor: trinity cannot
+# reach VLANs 30 and 40, so a direct check of a console there would always
+# read down.
+- name: Homelab
+  width: wide
+  head-widgets:
+    # One strip of headline numbers. Each figure has a panel below it.
+    - type: custom-api
+      hide-header: true
+      cache: 1m
+      <<: *prometheus
+      parameters:
+        query: ALERTS{alertstate="firing"}
+      subrequests:
+        probes:
+          <<: *prometheus
+          parameters:
+            query: min by (name) (probe_success)
+        containers:
+          <<: *prometheus
+          parameters:
+            query: >-
+              (count(time() - container_last_seen{name!=""} < 120)
+              or vector(0))
+              + (sum(homelab_container_running)
+              or vector(0))
+        guests:
+          <<: *prometheus
+          parameters:
+            query: sum(homelab_guest_running unless on (vmid) (homelab_guest_template == 1))
+        wan:
+          <<: *prometheus
+          parameters:
+            query: >-
+              rate(pfInterfacesIf4BytesInPass[5m]) * 8
+              * on (pfInterfacesIfIndex) group_left (pfInterfacesIfDescr)
+              pfInterfacesIfDescr{pfInterfacesIfDescr="0x656D30"}
+        ups:
+          <<: *prometheus
+          parameters:
+            query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+      template: |
+        {{ $faults := 0 }}
+        {{ range .JSON.Array "data.result" }}
+          {{ $sev := .String "metric.severity" }}
+          {{ if and (ne (.String "metric.alertname") "Watchdog") (or (eq $sev "warning") (eq $sev "critical")) }}
+          {{ $faults = add $faults 1 }}{{ end }}
+        {{ end }}
+        {{ $pAll := 0 }}{{ $pDown := 0 }}
+        {{ range (.Subrequest "probes").JSON.Array "data.result" }}
+          {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
+        {{ end }}
+        {{ $guests := (.Subrequest "guests").JSON.Array "data.result" }}
+        {{ $wan := (.Subrequest "wan").JSON.Array "data.result" }}
+        {{ $ups := (.Subrequest "ups").JSON.Array "data.result" }}
+        <div class="flex justify-between text-center flex-wrap gap-20">
+          <div>
+            <div class="size-h2 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $faults }}
+            </div>
+            <div class="size-h6">ALERTS FIRING</div>
+          </div>
+          <div>
+            <div class="size-h2 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+            {{ sub $pAll $pDown }}/{{ $pAll }}</div>
+            <div class="size-h6">SITES UP</div>
+          </div>
+          <div>
+            <div class="size-h2 color-highlight">{{ (.Subrequest "containers").JSON.String "data.result.0.value.1" }}
+            </div>
+            <div class="size-h6">CONTAINERS RUNNING</div>
+          </div>
+          <div>
+            {{ if $guests }}
+              <div class="size-h2 color-highlight">{{ (index $guests 0).String "value.1" }}</div>
+            {{ else }}
+              <div class="size-h2 color-negative">—</div>
+            {{ end }}
+            <div class="size-h6">VMS RUNNING</div>
+          </div>
+          <div>
+            <div class="size-h2 color-highlight">
+              {{ if $wan }}{{ printf "%.1f" (div ((index $wan 0).Float "value.1") 1000000) }}{{ else }}—{{ end }}
+            </div>
+            <div class="size-h6">WAN ↓ MBIT/S</div>
+          </div>
+          <div>
+            <div class="size-h2 color-highlight">{{ if $ups }}
+            {{ (index $ups 0).String "value.1" }}%{{ else }}—{{ end }}</div>
+            <div class="size-h6">UPS CHARGE</div>
+          </div>
+        </div>
+
+  columns:
+    # -------------------------------------------------------------------------
+    - size: small
+      widgets:
+        # Shortcuts, by what they are for. Links only: whether each answers is
+        # the Uptime panel's question. Icons are served from glance/assets.
+        - type: bookmarks
+          title: Consoles
+          groups:
+            - title: Infrastructure
+              color: 349 89 72
+              links:
+                - title: Proxmox · Saruman
+                  url: https://10.0.30.110:8006
+                  icon: /assets/icons/proxmox.svg
+                - title: TrueNAS · smaug
+                  url: https://10.0.40.30
+                  icon: /assets/icons/truenas.svg
+                - title: pfSense · morpheus
+                  url: https://morpheus.matrix.elysium
+                  icon: /assets/icons/pfsense.svg
+                - title: iLO · shiva
+                  url: https://10.0.30.10
+                  icon: /assets/icons/hp.svg
+                - title: UPS · mjolnir
+                  url: https://10.0.99.10
+                  icon: /assets/icons/apc.svg
+                - title: AdGuard Home
+                  url: https://adguard.matrix.elysium
+                  icon: /assets/icons/adguard-home.svg
+                - title: Switch · neo
+                  url: http://neo.matrix.elysium/
+            - title: Monitoring & security
+              color: 43 80 65
+              links:
+                - title: Grafana
+                  url: https://grafana.matrix.elysium:3000
+                  icon: /assets/icons/grafana.svg
+                - title: Lab Grafana · alexander
+                  url: https://10.0.30.40:3000
+                  icon: /assets/icons/grafana.svg
+                - title: Wazuh · odin
+                  url: https://10.0.30.60/
+                  icon: /assets/icons/wazuh.svg
+                - title: Velociraptor · odin
+                  url: https://10.0.30.60:8889/
+                - title: ntfy
+                  url: https://ntfy.matrix.elysium
+                  icon: /assets/icons/ntfy.svg
+                - title: Homepage
+                  url: https://home.matrix.elysium
+            - title: Media
+              color: 280 60 75
+              links:
+                - title: Jellyfin
+                  url: http://10.0.40.30:8096
+                  icon: /assets/icons/jellyfin.svg
+                - title: Audiobookshelf
+                  url: http://10.0.40.30:13378
+                  icon: /assets/icons/audiobookshelf.svg
+                - title: Navidrome
+                  url: http://10.0.40.30:4533
+                  icon: /assets/icons/navidrome.svg
+                - title: Immich
+                  url: https://immich.matrix.elysium
+                  icon: /assets/icons/immich.svg
+            - title: Smart home & household
+              color: 89 51 61
+              links:
+                - title: Home Assistant
+                  url: https://homeassistant.matrix.elysium
+                  icon: /assets/icons/home-assistant.svg
+                - title: Paperless-ngx
+                  url: https://paperless.matrix.elysium
+                  icon: /assets/icons/paperless-ngx.svg
+                - title: Vaultwarden
+                  url: https://vaultwarden.matrix.elysium
+                  icon: /assets/icons/vaultwarden.svg
+                - title: Actual
+                  url: https://actual.matrix.elysium
+                  icon: /assets/icons/actual-budget.svg
+                - title: Mealie
+                  url: https://recipes.matrix.elysium
+                  icon: /assets/icons/mealie.svg
+                - title: Memos
+                  url: https://memos.matrix.elysium
+                  icon: /assets/icons/memos.svg
+                - title: linkding
+                  url: https://links.matrix.elysium
+                  icon: /assets/icons/linkding.svg
+                - title: Miniflux
+                  url: https://miniflux.matrix.elysium
+                  icon: /assets/icons/miniflux.svg
+                - title: Stirling-PDF
+                  url: https://pdf.matrix.elysium
+                  icon: /assets/icons/stirling-pdf.svg
+                - title: Wiki
+                  url: https://lemmiwinks.matrix.elysium
+                  icon: /assets/icons/wikijs.svg
+
+    # -------------------------------------------------------------------------
+    - size: full
+      widgets:
+        # THE ESTATE, AS PROMETHEUS SEES IT. Every VLAN, including the ones
+        # trinity cannot reach itself: firing alerts are the verdict the
+        # alert rules reach, the probes are blackbox-exporter's from
+        # `prometheus`, and the targets are every `up` series, scraped or
+        # pushed. So this panel agrees with Grafana by construction. A host
+        # that stops pushing leaves no `up` series at all rather than a 0;
+        # the alert rules are what notice that, which is why alerts come
+        # first.
+        #
+        # Only `warning` and `critical` count: they are what Alertmanager
+        # delivers, and `info` is routed to its null receiver on purpose.
+        # Watchdog (watchdog.rules.yaml) fires always, by design, so it is
+        # not a fault here; its ABSENCE is, because then rule evaluation has
+        # stopped and every other number here is stale. And "All clear"
+        # needs evidence: an empty answer from Prometheus is "no data", not
+        # health.
+        - type: custom-api
+          title: Estate
+          cache: 1m
+          <<: *prometheus
+          parameters:
+            query: ALERTS{alertstate="firing"}
+          subrequests:
+            probes:
+              <<: *prometheus
+              parameters:
+                query: min by (name, host) (probe_success)
+            targets:
+              <<: *prometheus
+              parameters:
+                query: min by (job, instance) (up)
+          template: |
+            {{ $probes := .Subrequest "probes" }}
+            {{ $targets := .Subrequest "targets" }}
+            {{ $codeA := .Response.StatusCode }}
+            {{ $codeP := $probes.Response.StatusCode }}
+            {{ $codeT := $targets.Response.StatusCode }}
+            {{ if or (ne $codeA 200) (ne $codeP 200) (ne $codeT 200) }}
+              <p class="color-negative">
+                Prometheus answered {{ $codeA }} / {{ $codeP }} / {{ $codeT }} — is the reader token set?
+              </p>
+            {{ else }}
+              {{ $alerts := .JSON.Array "data.result" }}
+              {{ $faults := 0 }}{{ $watchdog := false }}
+              {{ range $alerts }}
+                {{ $severity := .String "metric.severity" }}
+                {{ if eq (.String "metric.alertname") "Watchdog" }}
+                  {{ $watchdog = true }}
+                {{ else if or (eq $severity "warning") (eq $severity "critical") }}
+                  {{ $faults = add $faults 1 }}
+                {{ end }}
+              {{ end }}
+              {{ $probeDown := 0 }}{{ $probeAll := 0 }}
+              {{ range $probes.JSON.Array "data.result" }}
+                {{ $probeAll = add $probeAll 1 }}
+                {{ if eq (.String "value.1") "0" }}{{ $probeDown = add $probeDown 1 }}{{ end }}
+              {{ end }}
+              {{ $targetDown := 0 }}{{ $targetAll := 0 }}
+              {{ range $targets.JSON.Array "data.result" }}
+                {{ $targetAll = add $targetAll 1 }}
+                {{ if eq (.String "value.1") "0" }}{{ $targetDown = add $targetDown 1 }}{{ end }}
+              {{ end }}
+
+              <div class="flex justify-between text-center">
+                <div>
+                  <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ $faults }}
+                  </div>
+                  <div class="size-h6">ALERTS FIRING</div>
+                </div>
+                <div>
+                  <div class="size-h3 {{ if gt $probeDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ sub $probeAll $probeDown }}/{{ $probeAll }}
+                  </div>
+                  <div class="size-h6">PROBES UP</div>
+                </div>
+                <div>
+                  <div class="size-h3 {{ if gt $targetDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ sub $targetAll $targetDown }}/{{ $targetAll }}
+                  </div>
+                  <div class="size-h6">TARGETS UP</div>
+                </div>
+              </div>
+
+              {{ if not $watchdog }}
+                <p class="color-negative margin-top-15">
+                  Watchdog is not firing: Prometheus is not evaluating its rules, so nothing here is current.
+                </p>
+              {{ end }}
+
+              {{ if gt $faults 0 }}
+                <ul class="list list-gap-10 margin-top-15">
+                {{ range $alerts }}
+                  {{ $severity := .String "metric.severity" }}
+                  {{ if and (ne (.String "metric.alertname") "Watchdog")
+                            (or (eq $severity "warning") (eq $severity "critical")) }}
+                  <li>
+                    <span class="color-negative">{{ .String "metric.alertname" }}</span>
+                    <ul class="list-horizontal-text">
+                      <li>{{ .String "metric.severity" }}</li>
+                      {{ if .Exists "metric.name" }}<li>{{ .String "metric.name" }}</li>{{ end }}
+                      {{ if .Exists "metric.host" }}
+                        <li>{{ .String "metric.host" }}</li>
+                      {{ else if .Exists "metric.instance" }}
+                        <li>{{ .String "metric.instance" }}</li>
+                      {{ end }}
+                    </ul>
+                  </li>
+                  {{ end }}
+                {{ end }}
+                </ul>
+              {{ end }}
+
+              {{ if gt $probeDown 0 }}
+                <p class="size-h6 margin-top-15">PROBES FAILING</p>
+                <ul class="list-horizontal-text">
+                {{ range $probes.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
+                  <li class="color-negative">{{ .String "metric.name" }} ({{ .String "metric.host" }})</li>
+                {{ end }}{{ end }}
+                </ul>
+              {{ end }}
+
+              {{ if gt $targetDown 0 }}
+                <p class="size-h6 margin-top-15">TARGETS DOWN</p>
+                <ul class="list-horizontal-text">
+                {{ range $targets.JSON.Array "data.result" }}{{ if eq (.String "value.1") "0" }}
+                  <li class="color-negative">{{ .String "metric.job" }} · {{ .String "metric.instance" }}</li>
+                {{ end }}{{ end }}
+                </ul>
+              {{ end }}
+
+              {{ if or (eq $probeAll 0) (eq $targetAll 0) }}
+                <p class="color-negative margin-top-15">
+                  No data: Prometheus returned {{ $probeAll }} probes and {{ $targetAll }} targets.
+                </p>
+              {{ else if and $watchdog (eq $faults 0) (eq $probeDown 0) (eq $targetDown 0) }}
+                <p class="color-positive margin-top-15">All clear.</p>
+              {{ end }}
+              <p class="size-h6 margin-top-15">CHECKED <span {{ now | toRelativeTime }}></span> AGO</p>
+            {{ end }}
+
+        # Uptime-Kuma-style badges from the blackbox probes Prometheus already
+        # runs every 30 seconds: now, and the share of probes that passed over
+        # 24 hours and 7 days. A service probed twice (by name and by address)
+        # counts as down if either fails.
+        - type: custom-api
+          title: Uptime
+          cache: 1m
+          <<: *prometheus
+          parameters:
+            query: min by (name) (probe_success)
+          subrequests:
+            day:
+              <<: *prometheus
+              parameters:
+                query: min by (name) (avg_over_time(probe_success[24h]))
+            week:
+              <<: *prometheus
+              parameters:
+                query: min by (name) (avg_over_time(probe_success[7d]))
+          template: |
+            {{ $day := (.Subrequest "day").JSON.Array "data.result" }}
+            {{ $week := (.Subrequest "week").JSON.Array "data.result" }}
+            {{ $now := sortByString "metric.name" "asc" (.JSON.Array "data.result") }}
+            {{ if eq (len $now) 0 }}
+              <p class="color-negative">No data: Prometheus returned no probes.</p>
+            {{ else }}
+              <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px;">
+              {{ range $now }}
+                {{ $name := .String "metric.name" }}
+                {{ $up := eq (.String "value.1") "1" }}
+                <div style="border-left: 3px solid {{ if $up }}var(--color-positive){{ else }}
+                var(--color-negative){{ end }};
+                padding-left: 8px;">
+                  <div class="{{ if $up }}color-highlight{{ else }}color-negative{{ end }}
+                  text-truncate">{{ $name }}</div>
+                  <div class="size-h6">
+                    {{ range $day }}
+                    {{ if eq (.String "metric.name") $name }}
+                      24h {{ printf "%.2f%%" (mul (.Float "value.1") 100) }}
+                    {{ end }}
+                    {{ end }}
+                    ·
+                    {{ range $week }}
+                    {{ if eq (.String "metric.name") $name }}
+                      7d {{ printf "%.2f%%" (mul (.Float "value.1") 100) }}
+                    {{ end }}
+                    {{ end }}
+                  </div>
+                </div>
+              {{ end }}
+              </div>
+            {{ end }}
+
+        - <<: *hosts
+          title: Hosts
+
+        - type: split-column
+          max-columns: 2
+          widgets:
+            # ZFS pools as smaug's collector reports them (ADR-0047), erebor's
+            # free space as Homepage reads it, and the drives' SMART verdicts.
+            # Free, not used: node_exporter sees the pool's root dataset, whose
+            # own usage leaves out every child dataset, so "used" would read
+            # near zero on a full pool.
+            - type: custom-api
+              title: Storage
+              cache: 5m
+              <<: *prometheus
+              parameters:
+                query: homelab_zpool_state == 1
+              subrequests:
+                avail:
+                  <<: *prometheus
+                  parameters:
+                    query: node_filesystem_avail_bytes{instance="smaug", mountpoint="/mnt/erebor"}
+                smart:
+                  <<: *prometheus
+                  parameters:
+                    query: count by (instance) (homelab_smart_healthy)
+                smartbad:
+                  <<: *prometheus
+                  parameters:
+                    query: count by (instance) (homelab_smart_healthy == 0)
+              template: |
+                <ul class="list list-gap-10">
+                {{ range .JSON.Array "data.result" }}
+                  {{ $st := .String "metric.state" }}
+                  <li class="flex justify-between">
+                    <span class="color-highlight">{{ .String "metric.pool" }}
+                    <span class="size-h6">on {{ .String "metric.instance" }}</span>
+                    </span>
+                    <span class="{{ if eq $st "online" }}color-positive{{ else }}color-negative{{ end }}">{{ $st }}
+                    </span>
+                  </li>
+                {{ end }}
+                </ul>
+                {{ $avail := (.Subrequest "avail").JSON.Array "data.result" }}
+                {{ if $avail }}
+                  {{ $a := div ((index $avail 0).Float "value.1") 1e12 }}
+                  <p class="margin-top-15">erebor: <span class="{{ if lt $a 1.0 }}color-negative{{ else }}
+                  color-highlight{{ end }}">{{ printf "%.1f" $a }}
+                  TB free</span>
+                  </p>
+                {{ end }}
+                {{ $bad := (.Subrequest "smartbad").JSON.Array "data.result" }}
+                <p class="size-h6 margin-top-15">SMART</p>
+                <ul class="list-horizontal-text">
+                {{ range (.Subrequest "smart").JSON.Array "data.result" }}
+                  {{ $inst := .String "metric.instance" }}{{ $nbad := 0 }}
+                  {{ range $bad }}{{ if eq (.String "metric.instance") $inst }}{{ $nbad = .Int "value.1" }}{{ end }}
+                  {{ end }}
+                  <li class="{{ if gt $nbad 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $inst }}
+                  : {{ .String "value.1" }}
+                  drives{{ if gt $nbad 0 }}, {{ $nbad }} failing{{ end }}</li>
+                {{ end }}
+                </ul>
+
+            # Traffic through the firewall per interface, from pfSense's own
+            # counters over SNMP. The interface names arrive hex-encoded
+            # (pfInterfacesIfDescr), so the template names the seven that
+            # matter. For WAN, in is download; for a VLAN, in is what the
+            # segment sends.
+            - type: custom-api
+              title: Network
+              cache: 1m
+              <<: *prometheus
+              parameters:
+                query: >-
+                  rate(pfInterfacesIf4BytesInPass[5m]) * 8
+                  * on (pfInterfacesIfIndex) group_left (pfInterfacesIfDescr) pfInterfacesIfDescr
+              subrequests:
+                out:
+                  <<: *prometheus
+                  parameters:
+                    query: >-
+                      rate(pfInterfacesIf4BytesOutPass[5m]) * 8
+                      * on (pfInterfacesIfIndex) group_left (pfInterfacesIfDescr) pfInterfacesIfDescr
+                speed:
+                  <<: *prometheus
+                  parameters:
+                    query: >-
+                      label_replace(speedtest_tracker_download_bits, "dir", "down", "", "")
+                      or label_replace(speedtest_tracker_upload_bits, "dir", "up", "", "")
+                      or label_replace(speedtest_tracker_ping_ms, "dir", "ping", "", "")
+              template: |
+                {{ $out := (.Subrequest "out").JSON.Array "data.result" }}
+                <ul class="list list-gap-10">
+                {{/* Sorted by the hex name: em0 (WAN) sorts before igc0.10 … igc0.99. */}}
+                {{ range sortByString "metric.pfInterfacesIfDescr" "asc" (.JSON.Array "data.result") }}
+                  {{ $hex := .String "metric.pfInterfacesIfDescr" }}
+                  {{ $name := "" }}
+                  {{ if eq $hex "0x656D30" }}{{ $name = "WAN" }}
+                  {{ else if eq $hex "0x696763302E3130" }}{{ $name = "Degens · 10" }}
+                  {{ else if eq $hex "0x696763302E3230" }}{{ $name = "Skids · 20" }}
+                  {{ else if eq $hex "0x696763302E3330" }}{{ $name = "ImaginationLAN · 30" }}
+                  {{ else if eq $hex "0x696763302E3430" }}{{ $name = "CasaBonita · 40" }}
+                  {{ else if eq $hex "0x696763302E3530" }}{{ $name = "Hicks · 50" }}
+                  {{ else if eq $hex "0x696763302E3939" }}{{ $name = "Winterfell · 99" }}{{ end }}
+                  {{ if ne $name "" }}
+                    {{ $in := div (.Float "value.1") 1000000 }}{{ $o := 0.0 }}
+                    {{ range $out }}{{ if eq (.String "metric.pfInterfacesIfDescr") $hex }}
+                    {{ $o = div (.Float "value.1") 1000000 }}{{ end }}{{ end }}
+                    <li class="flex justify-between">
+                      <span class="{{ if eq $name "WAN" }}color-highlight{{ end }}">{{ $name }}</span>
+                      <span class="size-h6">
+                        {{ if eq $name "WAN" }}↓ {{ printf "%.1f" $in }} · ↑ {{ printf "%.1f" $o }}
+                        {{ else }}↑ {{ printf "%.1f" $in }} · ↓ {{ printf "%.1f" $o }}{{ end }} Mbit/s
+                      </span>
+                    </li>
+                  {{ end }}
+                {{ end }}
+                </ul>
+                {{ $down := 0.0 }}{{ $up := 0.0 }}{{ $ping := 0.0 }}
+                {{ range (.Subrequest "speed").JSON.Array "data.result" }}
+                  {{ $d := .String "metric.dir" }}
+                  {{ if eq $d "down" }}{{ $down = .Float "value.1" }}{{ else if eq $d "up" }}
+                  {{ $up = .Float "value.1" }}{{ else }}{{ $ping = .Float "value.1" }}{{ end }}
+                {{ end }}
+                <p class="size-h6 margin-top-15">LAST SPEED TEST</p>
+                <p>↓ {{ printf "%.0f" (div $down 1e6) }} · ↑ {{ printf "%.0f" (div $up 1e6) }}
+                Mbit/s · {{ printf "%.1f" $ping }} ms</p>
+
+        # Saruman's guests, from its collector (collect-guest-state). Templates
+        # are left out. If Saruman stops reporting, the series go stale and this
+        # says when it was last heard from rather than showing zeros.
+        - type: custom-api
+          title: Virtual machines · Saruman
+          cache: 5m
+          <<: *prometheus
+          parameters:
+            query: homelab_guest_running unless on (vmid) (homelab_guest_template == 1)
+          subrequests:
+            seen:
+              <<: *prometheus
+              parameters:
+                query: time() - max(max_over_time(timestamp(homelab_guest_running)[7d:15m]))
+          template: |
+            {{ $guests := sortByString "metric.guest" "asc" (.JSON.Array "data.result") }}
+            {{ if eq (len $guests) 0 }}
+              {{ $seen := (.Subrequest "seen").JSON.Array "data.result" }}
+              <p class="color-negative">
+                {{ if $seen }}
+                  Saruman is not reporting: last heard from
+                  {{ printf "%.0f" (div ((index $seen 0).Float "value.1") 3600) }} hours ago.
+                {{ else }}
+                  Saruman is not reporting.
+                {{ end }}
+              </p>
+            {{ else }}
+              {{ $run := 0 }}{{ $stop := 0 }}
+              {{ range $guests }}{{ if eq (.String "value.1") "1" }}{{ $run = add $run 1 }}{{ else }}
+              {{ $stop = add $stop 1 }}{{ end }}{{ end }}
+              <p><span class="color-positive">{{ $run }} running</span> · <span>{{ $stop }} stopped</span></p>
+              <ul class="list-horizontal-text margin-top-10">
+              {{ range $guests }}
+                <li class="{{ if eq (.String "value.1") "1" }}color-highlight{{ else }}color-subdue{{ end }}">
+                {{ .String "metric.guest" }}</li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+    # -------------------------------------------------------------------------
+    - size: small
+      widgets:
+        # The household's apps, checked directly from this container over
+        # the compose network, at the same health paths the blackbox probes
+        # use (prometheus/targets/blackbox.yaml). A green row means "Glance
+        # got a 200 through Caddy just now", nothing more — whether it is
+        # healthy over time is the Estate panel's question, and Grafana's.
+        - type: monitor
+          title: Household
+          cache: 1m
+          style: compact
+          sites:
+            - title: Home Assistant
+              url: https://homeassistant.matrix.elysium
+              check-url: https://homeassistant.matrix.elysium/manifest.json
+            - title: Immich
+              url: https://immich.matrix.elysium
+              check-url: https://immich.matrix.elysium/api/server/ping
+            - title: Paperless
+              url: https://paperless.matrix.elysium
+              check-url: https://paperless.matrix.elysium/accounts/login/
+            - title: Vaultwarden
+              url: https://vaultwarden.matrix.elysium
+              check-url: https://vaultwarden.matrix.elysium/alive
+            - title: Actual
+              url: https://actual.matrix.elysium
+              check-url: https://actual.matrix.elysium/health
+            - title: Mealie
+              url: https://recipes.matrix.elysium
+              check-url: https://recipes.matrix.elysium/api/app/about
+            - title: Memos
+              url: https://memos.matrix.elysium
+              check-url: https://memos.matrix.elysium/healthz
+            - title: linkding
+              url: https://links.matrix.elysium
+              check-url: https://links.matrix.elysium/health
+            - title: Miniflux
+              url: https://miniflux.matrix.elysium
+              check-url: https://miniflux.matrix.elysium/healthcheck
+            - title: Stirling PDF
+              url: https://pdf.matrix.elysium
+              check-url: https://pdf.matrix.elysium/api/v1/info/status
+            - title: ntfy
+              url: https://ntfy.matrix.elysium
+              check-url: https://ntfy.matrix.elysium/v1/health
+            - title: Homepage
+              url: https://home.matrix.elysium
+              check-url: https://home.matrix.elysium/api/healthcheck
+
+        - type: custom-api
+          title: UPS · mjolnir
+          cache: 1m
+          <<: *prometheus
+          parameters:
+            query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+          subrequests:
+            runtime:
+              <<: *prometheus
+              parameters:
+                query: upsEstimatedMinutesRemaining{instance="10.0.99.10"}
+            load:
+              <<: *prometheus
+              parameters:
+                query: upsOutputPercentLoad{instance="10.0.99.10"}
+          template: |
+            <div class="flex justify-between text-center">
+              <div>
+                <div class="size-h3 color-highlight">{{ .JSON.String "data.result.0.value.1" }}%</div>
+                <div class="size-h6">CHARGE</div>
+              </div>
+              <div>
+                <div class="size-h3 color-highlight">{{ (.Subrequest "runtime").JSON.String "data.result.0.value.1" }}
+                min</div>
+                <div class="size-h6">RUNTIME</div>
+              </div>
+              <div>
+                {{ $load := (.Subrequest "load").JSON.String "data.result.0.value.1" }}
+                <div class="size-h3 color-highlight">{{ $load }}%</div>
+                <div class="size-h6">LOAD</div>
+              </div>
+            </div>
+
+        # New releases of the software this estate pins. Dependabot opens the
+        # PR; this is the heads-up. Unauthenticated GitHub API, once per six
+        # hours per repository.
+        - type: releases
+          cache: 6h
+          show-source-icon: false
+          collapse-after: 6
+          repositories:
+            - home-assistant/core
+            - immich-app/immich
+            - paperless-ngx/paperless-ngx
+            - dani-garcia/vaultwarden
+            - jellyfin/jellyfin
+            - miniflux/v2
+            - glanceapp/glance
+            - caddyserver/caddy
+            - prometheus/prometheus
+            - grafana/grafana
+            - grafana/loki
