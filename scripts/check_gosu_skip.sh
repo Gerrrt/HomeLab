@@ -188,6 +188,32 @@ judge() { # shown what mark state name
   fi
 }
 
+# Pull, retrying only when the registry throttles. ghcr.io answers
+# `toomanyrequests` under load from shared CI runners, and a bare pull turned
+# that into a red "Validate configs" on main twice on 2026-10-21/22 — which in
+# turn made converge.sh refuse to deploy a commit that was fine. The pauses are
+# check_compose_health.py's PULL_RETRY_PAUSES (#602): 85 s at most, enough to
+# outlast a per-minute throttle. Any other failure — a missing tag, a bad
+# digest — fails at once: retrying does not fix it.
+#
+# The argument is named `img` on purpose: check_image_pins.py traces a docker
+# command's image by variable name back to image-for.sh, and `img` is the name
+# the loop below already resolves that way. `$1` would be untraceable.
+pull_with_retry() {
+  local img="$1" out pause
+  for pause in 5 20 60 0; do
+    if out="$(docker pull -q "${img}" 2>&1)"; then
+      return 0
+    fi
+    if [[ "${out}" != *toomanyrequests* ]] || ((pause == 0)); then
+      printf '%s\n' "${out}" >&2
+      return 1
+    fi
+    info "throttled by the registry; retrying in ${pause}s"
+    sleep "${pause}"
+  done
+}
+
 newmark() {
   n=$((n + 1))
   mkdir -p "${WORK}/mark-${n}"
@@ -197,7 +223,7 @@ newmark() {
 for img in "${images[@]}"; do
   shown="${img%%@*}"
   info "${shown}"
-  docker pull -q "${img}" >/dev/null || { fail "${shown}: could not pull ${img}"; continue; }
+  pull_with_retry "${img}" || { fail "${shown}: could not pull ${img}"; continue; }
 
   pgdata="$(pgdata_of "${img}")"
   [[ -n "${pgdata}" ]] || { fail "${shown}: the image sets no PGDATA"; continue; }
