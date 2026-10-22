@@ -22,8 +22,9 @@ docstring gives: it is a record, not a claim about now.
 - **The Ring Alarm is in Home Assistant, and most of it has never joined
   its base station**
   ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
-  [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry below
-  left it "not yet deployed"; this is that deployment.
+  [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry on
+  moving Home Assistant's Ring entry, further down this date, left it "not
+  yet deployed"; this is that deployment.
   - **Deployed.** `make up STACK=sensitive` started Mosquitto and ring-mqtt
     and recreated Home Assistant on its second network. All 21 services
     with a healthcheck passed; ring-mqtt has none, by design.
@@ -50,6 +51,39 @@ docstring gives: it is a record, not a claim about now.
     camera.
   - **What is left** is pairing them in the Ring app, nothing on `trinity`.
     Each device appears in Home Assistant as it joins.
+
+- **Memos holds its first real notes, ahead of the household copy's holder**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md);
+  refs [#455](https://github.com/Gerrrt/HomeLab/issues/455)). The
+  household wanted one place for a plan the two of them had been keeping
+  in two assistants, and Memos is that place. ADR-0059 said nothing real
+  until ADR-0023's off-estate copy existed with its staleness visible, and
+  for Memos that copy is further off than for the rest of the tier: `make
+  household-copy` carries Immich's library and a Paperless export and
+  nothing else, so even once #455 has its holder, `memos-data` is not on
+  the drive. What Memos has is the nightly volume set on `oracle`, age
+  ciphertext, off-host and not off-estate. The operator accepted that on
+  the day, because the plan also lives in both assistants and Memos is not
+  its only copy; carrying `memos-data` in the household copy is now owed
+  under #455, and `roadmap.md`, `architecture.md` and the stack README say
+  so from this entry on. What changed on the instance,
+  all of it settings in the database and none of it in `compose.yaml`:
+  public access turned off, so a signed-out visitor on Hicks can no longer
+  browse *Public* memos (none existed); the content length limit raised
+  from 8192 to 32768 bytes for a long pinned memo; Mekenna's account made
+  an instance admin, because in Memos 0.31 only a memo's author or an
+  instance admin can edit it and the plan is meant to be edited by both; a
+  Space for the plan with both accounts as Space admins (0.31's
+  Spaces: a members-only feed, joined by accepting an invitation from the
+  inbox); and *Protected* as the default visibility on both accounts, since
+  a *Private* memo is invisible to the other account. Checked on `trinity`
+  without logging in: `/api/v1/instance/profile` returned
+  `"accessMode":"INSTANCE_ACCESS_MODE_PRIVATE"`, `GENERAL` still
+  `"disallowUserRegistration":true`, and `MEMO_RELATED`
+  `"contentLengthLimit":32768`. The stack README's *Memos* section is
+  unchanged: registration is still closed behind the first account, and the
+  backup still names the same three things.
 
 - **Home Assistant's Ring entry moved to the Ring location owner's account,
   and the Ring Alarm got a way in**
