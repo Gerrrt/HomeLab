@@ -409,6 +409,15 @@ side, which would have Skids initiating into Winterfell. The HomePods ignore
 discovery from another subnet, so that traffic is NATed to `10.0.20.1` on its
 way into Skids. The HomePods therefore see the firewall's address, not
 `trinity`'s, and they treat it as a device on their own network.
+**Three more are decided and not yet created**
+([ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md),
+[#1248](https://github.com/Gerrrt/HomeLab/issues/1248)): `trinity` to
+`heimdall`, a Raspberry Pi to be placed on Skids to bridge the VTech monitor's
+stream, on `8554/tcp` and `22/tcp`, and `prometheus` to it on `9100/tcp`. The
+Pi is the first general-purpose computer on that segment, which is why it is
+scraped and reachable by SSH, each on a row of its own. Its restream requires
+a credential, so the rest of Skids cannot watch the room the camera watches.
+Still outbound only, and the tripwire still has to read 0 with it running.
 
 One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
