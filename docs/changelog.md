@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **Glance gets a page per subject**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)).
+  Home had grown into everything at once, so it was cut back to search,
+  bookmarks, time, weather and the estate in brief. The rest moved to Read,
+  Watch, Sports & Markets, Homelab and Network & Storage. Maintenance is new:
+  27 scheduled jobs against their allowed age, the open `security` issues,
+  pending updates and reboots, certificates by days left, and releases, all
+  from metrics Prometheus already held and GitHub's public API. Rendered live
+  on `trinity` before it was written down, at 18 MiB. Its first reading showed
+  three jobs whose last run had failed: `converge-sensitive`, `snmp-verify`
+  and `check-versions`.
+
 - **ADR-0102 accepted: the VTech RM7764HD monitor comes into Home Assistant
   by a bridge on Skids**
   ([ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md),

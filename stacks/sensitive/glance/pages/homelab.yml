@@ -1,12 +1,9 @@
-# The Homelab page (ADR-0100): every console by category, and the estate's
-# state as Prometheus sees it — uptime, hosts, storage, network, guests, the
-# UPS. Included from glance.yml. Nothing here is personal; the addresses are
-# the ones docs/network.md and homepage/services.yaml already publish.
-#
-# Status on this page comes from Prometheus on `prometheus`, never from a
-# check this container makes, except the Household monitor: trinity cannot
-# reach VLANs 30 and 40, so a direct check of a console there would always
-# read down.
+# Homelab: the estate at a glance (ADR-0100) — the headline
+# strip, alerts, uptime, hosts, guests and every console. Network & Storage
+# and Maintenance have the detail. Status here comes from Prometheus, never
+# from a check this container makes, except the Household monitor: trinity
+# cannot reach VLANs 30 and 40, so a direct check of a console there would
+# always read down.
 - name: Homelab
   width: wide
   head-widgets:
@@ -121,9 +118,8 @@
             <div class="size-h6">UPS CHARGE</div>
           </div>
         </div>
-
   columns:
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     - size: small
       widgets:
         # Shortcuts, by what they are for. Links only: whether each answers is
@@ -221,8 +217,7 @@
                 - title: Wiki
                   url: https://lemmiwinks.matrix.elysium
                   icon: /assets/icons/wikijs.svg
-
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     - size: full
       widgets:
         # THE ESTATE, AS PROMETHEUS SEES IT. Every VLAN, including the ones
@@ -424,177 +419,7 @@
 
         - <<: *hosts
           title: Hosts
-
-        - type: split-column
-          max-columns: 2
-          widgets:
-            # ZFS pools as smaug's collector reports them (ADR-0047), erebor's
-            # free space as Homepage reads it, and the drives' SMART verdicts.
-            # Free, not used: node_exporter sees the pool's root dataset, whose
-            # own usage leaves out every child dataset, so "used" would read
-            # near zero on a full pool.
-            - type: custom-api
-              title: Storage
-              cache: 5m
-              <<: *prometheus
-              parameters:
-                query: homelab_zpool_state == 1
-              subrequests:
-                avail:
-                  <<: *prometheus
-                  parameters:
-                    query: node_filesystem_avail_bytes{instance="smaug", mountpoint="/mnt/erebor"}
-                smart:
-                  <<: *prometheus
-                  parameters:
-                    query: count by (instance) (homelab_smart_healthy)
-                smartbad:
-                  <<: *prometheus
-                  parameters:
-                    query: count by (instance) (homelab_smart_healthy == 0)
-              template: |
-                <ul class="list list-gap-10">
-                {{ range .JSON.Array "data.result" }}
-                  {{ $st := .String "metric.state" }}
-                  <li class="flex justify-between">
-                    <span class="color-highlight">{{ .String "metric.pool" }}
-                    <span class="size-h6">on {{ .String "metric.instance" }}</span>
-                    </span>
-                    <span class="{{ if eq $st "online" }}color-positive{{ else }}color-negative{{ end }}">{{ $st }}
-                    </span>
-                  </li>
-                {{ end }}
-                </ul>
-                {{ $avail := (.Subrequest "avail").JSON.Array "data.result" }}
-                {{ if $avail }}
-                  {{ $a := div ((index $avail 0).Float "value.1") 1e12 }}
-                  <p class="margin-top-15">erebor: <span class="{{ if lt $a 1.0 }}color-negative{{ else }}
-                  color-highlight{{ end }}">{{ printf "%.1f" $a }}
-                  TB free</span>
-                  </p>
-                {{ end }}
-                {{ $bad := (.Subrequest "smartbad").JSON.Array "data.result" }}
-                <p class="size-h6 margin-top-15">SMART</p>
-                <ul class="list-horizontal-text">
-                {{ range (.Subrequest "smart").JSON.Array "data.result" }}
-                  {{ $inst := .String "metric.instance" }}{{ $nbad := 0 }}
-                  {{ range $bad }}{{ if eq (.String "metric.instance") $inst }}{{ $nbad = .Int "value.1" }}{{ end }}
-                  {{ end }}
-                  <li class="{{ if gt $nbad 0 }}color-negative{{ else }}color-positive{{ end }}">{{ $inst }}
-                  : {{ .String "value.1" }}
-                  drives{{ if gt $nbad 0 }}, {{ $nbad }} failing{{ end }}</li>
-                {{ end }}
-                </ul>
-
-            # Traffic through the firewall per interface, from pfSense's own
-            # counters over SNMP. The interface names arrive hex-encoded
-            # (pfInterfacesIfDescr), so the template names the seven that
-            # matter. For WAN, in is download; for a VLAN, in is what the
-            # segment sends.
-            - type: custom-api
-              title: Network
-              cache: 1m
-              <<: *prometheus
-              parameters:
-                query: >-
-                  rate(pfInterfacesIf4BytesInPass[5m]) * 8
-                  * on (pfInterfacesIfIndex) group_left (pfInterfacesIfDescr) pfInterfacesIfDescr
-              subrequests:
-                out:
-                  <<: *prometheus
-                  parameters:
-                    query: >-
-                      rate(pfInterfacesIf4BytesOutPass[5m]) * 8
-                      * on (pfInterfacesIfIndex) group_left (pfInterfacesIfDescr) pfInterfacesIfDescr
-                speed:
-                  <<: *prometheus
-                  parameters:
-                    query: >-
-                      label_replace(speedtest_tracker_download_bits, "dir", "down", "", "")
-                      or label_replace(speedtest_tracker_upload_bits, "dir", "up", "", "")
-                      or label_replace(speedtest_tracker_ping_ms, "dir", "ping", "", "")
-              template: |
-                {{ $out := (.Subrequest "out").JSON.Array "data.result" }}
-                <ul class="list list-gap-10">
-                {{/* Sorted by the hex name: em0 (WAN) sorts before igc0.10 … igc0.99. */}}
-                {{ range sortByString "metric.pfInterfacesIfDescr" "asc" (.JSON.Array "data.result") }}
-                  {{ $hex := .String "metric.pfInterfacesIfDescr" }}
-                  {{ $name := "" }}
-                  {{ if eq $hex "0x656D30" }}{{ $name = "WAN" }}
-                  {{ else if eq $hex "0x696763302E3130" }}{{ $name = "Degens · 10" }}
-                  {{ else if eq $hex "0x696763302E3230" }}{{ $name = "Skids · 20" }}
-                  {{ else if eq $hex "0x696763302E3330" }}{{ $name = "ImaginationLAN · 30" }}
-                  {{ else if eq $hex "0x696763302E3430" }}{{ $name = "CasaBonita · 40" }}
-                  {{ else if eq $hex "0x696763302E3530" }}{{ $name = "Hicks · 50" }}
-                  {{ else if eq $hex "0x696763302E3939" }}{{ $name = "Winterfell · 99" }}{{ end }}
-                  {{ if ne $name "" }}
-                    {{ $in := div (.Float "value.1") 1000000 }}{{ $o := 0.0 }}
-                    {{ range $out }}{{ if eq (.String "metric.pfInterfacesIfDescr") $hex }}
-                    {{ $o = div (.Float "value.1") 1000000 }}{{ end }}{{ end }}
-                    <li class="flex justify-between">
-                      <span class="{{ if eq $name "WAN" }}color-highlight{{ end }}">{{ $name }}</span>
-                      <span class="size-h6">
-                        {{ if eq $name "WAN" }}↓ {{ printf "%.1f" $in }} · ↑ {{ printf "%.1f" $o }}
-                        {{ else }}↑ {{ printf "%.1f" $in }} · ↓ {{ printf "%.1f" $o }}{{ end }} Mbit/s
-                      </span>
-                    </li>
-                  {{ end }}
-                {{ end }}
-                </ul>
-                {{ $down := 0.0 }}{{ $up := 0.0 }}{{ $ping := 0.0 }}
-                {{ range (.Subrequest "speed").JSON.Array "data.result" }}
-                  {{ $d := .String "metric.dir" }}
-                  {{ if eq $d "down" }}{{ $down = .Float "value.1" }}{{ else if eq $d "up" }}
-                  {{ $up = .Float "value.1" }}{{ else }}{{ $ping = .Float "value.1" }}{{ end }}
-                {{ end }}
-                <p class="size-h6 margin-top-15">LAST SPEED TEST</p>
-                {{ if gt $down 0.0 }}
-                  <p>↓ {{ printf "%.0f" (div $down 1e6) }} · ↑ {{ printf "%.0f" (div $up 1e6) }}
-                  Mbit/s · {{ printf "%.1f" $ping }} ms</p>
-                {{ else }}
-                  <p class="color-negative">No data from speedtest-tracker.</p>
-                {{ end }}
-
-        # Saruman's guests, from its collector (collect-guest-state). Templates
-        # are left out. If Saruman stops reporting, the series go stale and this
-        # says when it was last heard from rather than showing zeros.
-        - type: custom-api
-          title: Virtual machines · Saruman
-          cache: 5m
-          <<: *prometheus
-          parameters:
-            query: homelab_guest_running unless on (vmid) (homelab_guest_template == 1)
-          subrequests:
-            seen:
-              <<: *prometheus
-              parameters:
-                query: time() - max(max_over_time(timestamp(homelab_guest_running)[7d:15m]))
-          template: |
-            {{ $guests := sortByString "metric.guest" "asc" (.JSON.Array "data.result") }}
-            {{ if eq (len $guests) 0 }}
-              {{ $seen := (.Subrequest "seen").JSON.Array "data.result" }}
-              <p class="color-negative">
-                {{ if $seen }}
-                  Saruman is not reporting: last heard from
-                  {{ printf "%.0f" (div ((index $seen 0).Float "value.1") 3600) }} hours ago.
-                {{ else }}
-                  Saruman is not reporting.
-                {{ end }}
-              </p>
-            {{ else }}
-              {{ $run := 0 }}{{ $stop := 0 }}
-              {{ range $guests }}{{ if eq (.String "value.1") "1" }}{{ $run = add $run 1 }}{{ else }}
-              {{ $stop = add $stop 1 }}{{ end }}{{ end }}
-              <p><span class="color-positive">{{ $run }} running</span> · <span>{{ $stop }} stopped</span></p>
-              <ul class="list-horizontal-text margin-top-10">
-              {{ range $guests }}
-                <li class="{{ if eq (.String "value.1") "1" }}color-highlight{{ else }}color-subdue{{ end }}">
-                {{ .String "metric.guest" }}</li>
-              {{ end }}
-              </ul>
-            {{ end }}
-
-    # -------------------------------------------------------------------------
+    # ---------------------------------------------------------------------
     - size: small
       widgets:
         # The household's apps, checked directly from this container over
@@ -644,55 +469,41 @@
               url: https://home.matrix.elysium
               check-url: https://home.matrix.elysium/api/healthcheck
 
+        # Saruman's guests, from its collector (collect-guest-state). Templates
+        # are left out. If Saruman stops reporting, the series go stale and this
+        # says when it was last heard from rather than showing zeros.
         - type: custom-api
-          title: UPS · mjolnir
-          cache: 1m
+          title: Virtual machines · Saruman
+          cache: 5m
           <<: *prometheus
           parameters:
-            query: upsEstimatedChargeRemaining{instance="10.0.99.10"}
+            query: homelab_guest_running unless on (vmid) (homelab_guest_template == 1)
           subrequests:
-            runtime:
+            seen:
               <<: *prometheus
               parameters:
-                query: upsEstimatedMinutesRemaining{instance="10.0.99.10"}
-            load:
-              <<: *prometheus
-              parameters:
-                query: upsOutputPercentLoad{instance="10.0.99.10"}
+                query: time() - max(max_over_time(timestamp(homelab_guest_running)[7d:15m]))
           template: |
-            <div class="flex justify-between text-center">
-              <div>
-                <div class="size-h3 color-highlight">{{ .JSON.String "data.result.0.value.1" }}%</div>
-                <div class="size-h6">CHARGE</div>
-              </div>
-              <div>
-                <div class="size-h3 color-highlight">{{ (.Subrequest "runtime").JSON.String "data.result.0.value.1" }}
-                min</div>
-                <div class="size-h6">RUNTIME</div>
-              </div>
-              <div>
-                {{ $load := (.Subrequest "load").JSON.String "data.result.0.value.1" }}
-                <div class="size-h3 color-highlight">{{ $load }}%</div>
-                <div class="size-h6">LOAD</div>
-              </div>
-            </div>
-
-        # New releases of the software this estate pins. Dependabot opens the
-        # PR; this is the heads-up. Unauthenticated GitHub API, once per six
-        # hours per repository.
-        - type: releases
-          cache: 6h
-          show-source-icon: false
-          collapse-after: 6
-          repositories:
-            - home-assistant/core
-            - immich-app/immich
-            - paperless-ngx/paperless-ngx
-            - dani-garcia/vaultwarden
-            - jellyfin/jellyfin
-            - miniflux/v2
-            - glanceapp/glance
-            - caddyserver/caddy
-            - prometheus/prometheus
-            - grafana/grafana
-            - grafana/loki
+            {{ $guests := sortByString "metric.guest" "asc" (.JSON.Array "data.result") }}
+            {{ if eq (len $guests) 0 }}
+              {{ $seen := (.Subrequest "seen").JSON.Array "data.result" }}
+              <p class="color-negative">
+                {{ if $seen }}
+                  Saruman is not reporting: last heard from
+                  {{ printf "%.0f" (div ((index $seen 0).Float "value.1") 3600) }} hours ago.
+                {{ else }}
+                  Saruman is not reporting.
+                {{ end }}
+              </p>
+            {{ else }}
+              {{ $run := 0 }}{{ $stop := 0 }}
+              {{ range $guests }}{{ if eq (.String "value.1") "1" }}{{ $run = add $run 1 }}{{ else }}
+              {{ $stop = add $stop 1 }}{{ end }}{{ end }}
+              <p><span class="color-positive">{{ $run }} running</span> · <span>{{ $stop }} stopped</span></p>
+              <ul class="list-horizontal-text margin-top-10">
+              {{ range $guests }}
+                <li class="{{ if eq (.String "value.1") "1" }}color-highlight{{ else }}color-subdue{{ end }}">
+                {{ .String "metric.guest" }}</li>
+              {{ end }}
+              </ul>
+            {{ end }}
