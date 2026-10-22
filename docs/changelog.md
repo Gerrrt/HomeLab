@@ -25,10 +25,16 @@ docstring gives: it is a record, not a claim about now.
   refs [#455](https://github.com/Gerrrt/HomeLab/issues/455)). The
   household wanted one place for a plan the two of them had been keeping
   in two assistants, and Memos is that place. ADR-0059 said nothing real
-  until ADR-0023's off-estate copy existed with its staleness visible; the
-  copy is built and still waits on a holder. The operator accepted the gap
-  on the day, because the plan also lives in both assistants and the nightly
-  volume backup to `oracle` covers the rest. What changed on the instance,
+  until ADR-0023's off-estate copy existed with its staleness visible, and
+  for Memos that copy is further off than for the rest of the tier: `make
+  household-copy` carries Immich's library and a Paperless export and
+  nothing else, so even once #455 has its holder, `memos-data` is not on
+  the drive. What Memos has is the nightly volume set on `oracle`, age
+  ciphertext, off-host and not off-estate. The operator accepted that on
+  the day, because the plan also lives in both assistants and Memos is not
+  its only copy; carrying `memos-data` in the household copy is now owed
+  under #455, and `roadmap.md`, `architecture.md` and the stack README say
+  so from this entry on. What changed on the instance,
   all of it settings in the database and none of it in `compose.yaml`:
   public access turned off, so a signed-out visitor on Hicks can no longer
   browse *Public* memos (none existed); the content length limit raised
