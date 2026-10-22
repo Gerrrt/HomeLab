@@ -52,6 +52,30 @@ docstring gives: it is a record, not a claim about now.
   unchanged: registration is still closed behind the first account, and the
   backup still names the same three things.
 
+- **Home Assistant's Ring entry moved to the Ring location owner's account,
+  and the Ring Alarm got a way in**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
+  - **Why the account changed.** Turning the indoor cameras' motion detection
+    off for `presence.yaml` failed every time with "Error communicating with
+    Ring API". The entry was a shared user, and Ring does not let a shared
+    user change device settings.
+  - **The upgraded role was worse.** Upgrading that user's access in the Ring
+    app made Ring's API return zero locations and zero devices to it, even
+    after a fresh sign-in, so every Ring entity went unavailable.
+  - **Re-added as the owner.** All seven Ring devices came back, including
+    both floodlights and a garage camera Home Assistant had never seen.
+    Home Assistant restores removed entities by unique id, so the cameras'
+    labels survived, though the indoor cameras' entity ids gained a room
+    prefix. Motion detection then switched off as intended.
+  - **The alarm still could not come in that way.** The core integration's
+    library does not speak Ring's alarm websocket, so the base station's
+    sensors and keypads stayed invisible. Mosquitto and ring-mqtt are
+    written for that: two hardened services, with the broker on an internal
+    network of its own.
+  - **Not yet deployed.** The sign-in and the MQTT integration are
+    [`connect-the-ring-alarm.md`](runbooks/connect-the-ring-alarm.md), after
+    merge.
+
 - **Homepage is gone from `trinity`, and #1250 is closed**
   ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
   [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). `make up` removed

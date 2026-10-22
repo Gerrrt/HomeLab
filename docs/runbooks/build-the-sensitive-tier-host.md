@@ -346,6 +346,7 @@ what each key is for. The values:
 | `PAPERLESS_DBPASS` | `make gen-secret` | No |
 | `PAPERLESS_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
 | `STIRLING_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and a rebuild of the unbacked-up volume recreates the admin from it |
+| `MQTT_HA_PASSWORD`, `MQTT_RING_PASSWORD` | `make gen-secret`, one each | No. The broker rebuilds its password file from them on every start; Home Assistant's is typed into its MQTT integration by [`connect-the-ring-alarm.md`](connect-the-ring-alarm.md) ([ADR-0104](../adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)) |
 | `GLANCE_IMMICH_API_KEY`, `GLANCE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only, for the Household page's two numbers — the clicks are beside the keys in the example file | No |
 | `GLANCE_PROMETHEUS_TOKEN` | The estate's reader token, `INGEST_TOKEN_READER` in `secrets/observability.sops.yaml` | No. `secrets/observability.sops.yaml` holds the original |
 | `GLANCE_MINIFLUX_FEVER_KEY` | The MD5 of `glance:<fever password>`, once Miniflux is up and its user `glance` exists — the steps are beside the key in the example file ([ADR-0098](../adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)) | The Fever password and the `glance` login, both generated |

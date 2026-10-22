@@ -660,11 +660,17 @@ declare -A COMPANIONS=(
 # enrolment and any account added in the UI since, which is a re-enrolment,
 # not a record lost. The nightly SQL dump Stirling writes into the same volume
 # is left out for the same reason.
+# ring-mqtt-data (ADR-0104) holds ring-mqtt's state file, whose one thing of
+# value is Ring's refresh token, and Ring rotates that token as it is used. A
+# copy from last night is usually already spent, and restoring it would put a
+# live credential back for nothing. A rebuild is one sign-in with 2FA:
+# docs/runbooks/connect-the-ring-alarm.md.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [ntfy-data]="users re-provisioned from SOPS on every start, and twelve hours of notifications already delivered"
   [stirling-pdf-configs]="an admin rebuilt from SOPS and settings from the environment; documents are never on it"
+  [ring-mqtt-data]="a Ring refresh token Ring rotates in use; a rebuild is one sign-in from the runbook"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 
