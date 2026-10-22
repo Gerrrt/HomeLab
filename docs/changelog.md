@@ -19,8 +19,7 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
-- **The Ring Alarm is in Home Assistant, and most of it has never joined
-  its base station**
+- **The Ring Alarm integration is deployed in Home Assistant**
   ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
   [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry on
   moving Home Assistant's Ring entry, further down this date, left it "not
@@ -38,19 +37,9 @@ docstring gives: it is a record, not a claim about now.
   - **The device list missed Home Assistant once.** ring-mqtt published it
     three minutes before Home Assistant connected, and the broker keeps
     nothing. ring-mqtt resent it 15 seconds after Home Assistant's birth
-    message, and 24 entities arrived: the alarm panel (disarmed) and its
-    siren, the base station, a range extender, one contact sensor, one
-    motion sensor and one keypad.
-  - **The base station is healthy:** online, on mains, its battery charged.
-  - **Nothing else has ever joined it.** The sensors, the keypad and the
-    range extender all report `commStatus: waiting-for-join` and a last
-    contact of 1970. They are registered to the account but were never
-    paired, so their entities read "off" without meaning it.
-  - **Some devices are missing from the account.** The household has more
-    sensors and a second keypad than Ring lists, and a third floodlight
-    camera.
-  - **What is left** is pairing them in the Ring app, nothing on `trinity`.
-    Each device appears in Home Assistant as it joins.
+    message, and the alarm's entities arrived. Which devices, and what
+    state they are in, stays out of this file, as camera coverage does
+    (`docs/security.md`).
 
 - **Memos holds its first real notes, ahead of the household copy's holder**
   ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
