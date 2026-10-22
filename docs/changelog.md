@@ -17,6 +17,25 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-22
+
+- **Presence automations** (`presence.yaml`). With a second person's phone
+  in the Companion app, `zone.home` counts both adults:
+  - Indoor cameras stop motion detection while anyone is home.
+  - Ten minutes after everyone leaves, the dimmable lights go off, the
+    thermostat goes to away and the TV goes off. A *House is empty* flag,
+    kept across restarts, records it. The sunset lights and the 19:00 show
+    time skip while it is on.
+  - The first one home brings back the thermostat's schedule and, after
+    dark, the shared rooms' lights. Both reconcile when Home Assistant
+    starts, so a restart mid-wait or an arrival while it was down still
+    ends right.
+
+  A *Someone else is home* switch covers a babysitter with the child. The
+  Honeywell away is a permanent hold at 61 °F by default, seven degrees
+  under the schedule. On a heat pump that recovery leans on backup heat, so
+  the away temperature is to be raised in the integration's options.
+
 ## 2026-10-21
 
 - **#1218 closes: the LG TV in Home Assistant**
