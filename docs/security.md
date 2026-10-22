@@ -1164,6 +1164,14 @@ this closes on.
 - Stirling-PDF's analytics, PostHog, Scarf and update checks disabled, and its
   heap dump on OOM too, because a dump would put the document being processed
   on a disk ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+- The sensitive tier's MQTT broker, which carries the Ring Alarm's arming
+  commands, is on an internal network that only Home Assistant and ring-mqtt
+  join. Each signs in as its own user, and an ACL keeps ring-mqtt to its own
+  topics. ring-mqtt is community code holding the Ring location owner's
+  refresh token, as Home Assistant's Ring entry does. It runs non-root and
+  read-only, with no inbound port, and the token can be revoked in Ring's
+  Control Center
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability

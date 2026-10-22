@@ -36,6 +36,9 @@
 # same way (ADR-0062).
 # Stirling-PDF (#143) is the thirteenth, and the sixth beyond those nine:
 # ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
+# Mosquitto and ring-mqtt are the fourteenth, as two services: the Ring
+# Alarm's way into Home Assistant, decided by ADR-0104, and the reason for
+# DIFFERENCE 14, the tier's second network.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -46,7 +49,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are thirteen such places, each marked DIFFERENCE.
+# the sibling file. There are fourteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -381,6 +384,8 @@ services:
     <<: *service-defaults
     image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
     container_name: sensitive-home-assistant
+    # `mqtt` as well, for the broker (DIFFERENCE 14, ADR-0104).
+    networks: [sensitive, mqtt]
     init: false
     # A ceiling to catch a leak, not a measurement: #114's method — median and
     # peak over a fortnight of real use — replaces it once the tier runs. The
@@ -435,6 +440,153 @@ services:
       # recorder repair after an unclean stop, which is the slow start that
       # matters.
       start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Mosquitto and ring-mqtt — the Ring Alarm into Home Assistant (ADR-0104)
+  # ---------------------------------------------------------------------------
+  # Home Assistant's core Ring integration carries the cameras and the
+  # doorbell, but not the Ring Alarm: its base station, contact and motion
+  # sensors, keypads and arming live behind Ring's alarm websocket, which that
+  # integration's library does not speak. ring-mqtt does, and publishes them
+  # to an MQTT broker with Home Assistant discovery. Two services, then: a
+  # broker, and the bridge. ADR-0104 is the decision and its trade.
+  #
+  # DIFFERENCE 14: a second network, and it is internal. The broker is on
+  # `mqtt` alone, which has no gateway, so it can reach nothing and nothing
+  # but its two members can reach it: Home Assistant and ring-mqtt, which are
+  # on `sensitive` as well. Every other service here could otherwise open
+  # 1883, and the broker carries the alarm's arming commands. Each member
+  # also signs in as its own user, and the ACL keeps ring-mqtt to its two
+  # topic trees, so a compromised bridge cannot publish as anything else.
+  #
+  # Nothing is persisted. Retained discovery and state live in the broker's
+  # memory, and ring-mqtt republishes all of it when Home Assistant's birth
+  # message arrives on homeassistant/status, which it does after either side
+  # restarts. So the broker is read-only with no volume at all.
+  #
+  # The password file is built on every start from the environment, the
+  # pattern DIFFERENCE 12 set for ntfy: plaintext into a tmpfs under umask
+  # 077, hashed in place by `mosquitto_passwd -U` (argon2id), then the broker
+  # is exec'd. Changing a password in SOPS and `make up` is the rotation; Home
+  # Assistant's copy is entered once in its MQTT integration and must be
+  # changed there too.
+  mosquitto:
+    <<: *service-defaults
+    image: eclipse-mosquitto:2.1.2-alpine@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408
+    container_name: sensitive-mosquitto
+    networks: [mqtt]
+    user: "1883:1883"
+    # Two clients and a few hundred retained messages; a ceiling for a leak.
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /mosquitto/run:size=1m,uid=1883,gid=1883,mode=0700
+      # mosquitto_passwd -U writes its temporary copy here.
+      - /tmp:size=1m
+    environment:
+      MQTT_HA_PASSWORD: ${MQTT_HA_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      MQTT_RING_PASSWORD: ${MQTT_RING_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        umask 077
+        printf 'homeassistant:%s\nring-mqtt:%s\n' "$$MQTT_HA_PASSWORD" "$$MQTT_RING_PASSWORD" > /mosquitto/run/passwd
+        mosquitto_passwd -U /mosquitto/run/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+    expose:
+      - "1883"
+    healthcheck:
+      # The listener answers. A login would be the stronger claim, but it
+      # would put a password on the healthcheck's command line, where
+      # `docker inspect` shows it to anyone who can run it.
+      test: ["CMD", "nc", "-z", "127.0.0.1", "1883"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ring-mqtt runs as plain Node, not through the image's s6 /init. That init
+  # only sets RUNMODE and DEBUG and execs `ring-mqtt.js` (its services.d run
+  # script, read in the pinned image on 2026-10-22), but it needs root to
+  # start, and with BRANCH=latest or dev it would `git pull` a newer ring-mqtt
+  # at run time. Neither is wanted. So: the image's own Node, as RENDER_UID,
+  # read-only, with the two variables that init would have set.
+  #
+  # ring-mqtt reads one file, /data/config.json, and that file holds the
+  # broker password inside mqtt_url. It is written to a tmpfs on every start
+  # from the environment and linked into /data, so the password is never on
+  # a disk. /data itself is a volume for the one thing ring-mqtt must keep:
+  # ring-state.json, Ring's refresh token, which Ring rotates and ring-mqtt
+  # writes back. It is the Ring location owner's sign-in, held the way Home
+  # Assistant's own Ring entry holds it in /config/.storage, and it never
+  # passes through SOPS. The first one is made by hand, once, with 2FA:
+  # docs/runbooks/connect-the-ring-alarm.md.
+  #
+  # enable_cameras is false: the cameras and doorbell are the core
+  # integration's, and with it false ring-mqtt neither lists them nor starts
+  # its bundled go2rtc, so nothing listens on 8554. Its token web UI on 55123
+  # starts only when it has no token; it is not exposed, and the runbook does
+  # not use it.
+  ring-mqtt:
+    <<: *service-defaults
+    image: tsightler/ring-mqtt:5.9.3@sha256:4a4e0db460d7023aa5851ff25491401fd23b2fd153b7269af481f0953cd6f00a
+    container_name: sensitive-ring-mqtt
+    networks: [sensitive, mqtt]
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    # A ceiling for a leak. The one number there is: 48 MiB at idle on the
+    # pinned image before a Ring sign-in, 2026-10-22. Re-derive once the
+    # alarm's devices are loaded.
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+      - /run/ring-mqtt:size=1m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render},mode=0700
+    working_dir: /app/ring-mqtt
+    environment:
+      RUNMODE: docker
+      DEBUG: ring-*
+      MQTT_RING_PASSWORD: ${MQTT_RING_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        umask 077
+        cat > /run/ring-mqtt/config.json <<EOF
+        {
+          "mqtt_url": "mqtt://ring-mqtt:$$MQTT_RING_PASSWORD@mosquitto:1883",
+          "mqtt_options": "",
+          "livestream_user": "",
+          "livestream_pass": "",
+          "disarm_code": "",
+          "enable_cameras": false,
+          "enable_modes": false,
+          "enable_panic": false,
+          "hass_topic": "homeassistant/status",
+          "ring_topic": "ring",
+          "location_ids": []
+        }
+        EOF
+        ln -sfn /run/ring-mqtt/config.json /data/config.json
+        exec node ./ring-mqtt.js
+    volumes:
+      - ring-mqtt-data:/data
+    # No healthcheck: the one process is Node under docker-init, so when it
+    # dies the container stops and restarts, and nothing depends on it.
+    # Whether it reached Ring is in its log and in Home Assistant, where the
+    # alarm's entities go unavailable.
+    stop_grace_period: 15s
 
   # ---------------------------------------------------------------------------
   # AdGuard Home — the DNS filter Unbound forwards to (#135, ADR-0010)
@@ -1982,12 +2134,18 @@ networks:
       config:
         - subnet: 172.28.99.0/24
           ip_range: 172.28.99.128/25
+  # DIFFERENCE 14: the broker's network. Internal, so no gateway and no route
+  # out, and only the services that name it can reach what is on it.
+  mqtt:
+    driver: bridge
+    internal: true
 
 volumes:
   caddy-data:
   caddy-config:
   step-ca-data:
   home-assistant-config:
+  ring-mqtt-data:
   adguard-work:
   # Immich's metadata: every album, face, tag and the path of every original.
   # The originals are on the USB disk (DIFFERENCE 9); this is the SSD half.

@@ -1,0 +1,12 @@
+# Who may use which topics (ADR-0104). Anything not granted is denied.
+
+# Home Assistant reads everything it is offered and sends the commands.
+user homeassistant
+topic readwrite #
+
+# ring-mqtt publishes its devices under ring/ and their discovery under
+# homeassistant/, and reads homeassistant/status for Home Assistant's birth
+# message. Nothing else.
+user ring-mqtt
+topic readwrite ring/#
+topic readwrite homeassistant/#

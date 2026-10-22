@@ -18,6 +18,8 @@
 [![Actual](https://img.shields.io/badge/Actual-6B46C1?style=plastic&logo=actualbudget&logoColor=white)](https://actualbudget.org)
 [![Stirling-PDF](https://img.shields.io/badge/Stirling--PDF-b91c1c?style=plastic)](https://github.com/Stirling-Tools/Stirling-PDF)
 [![Glance](https://img.shields.io/badge/Glance-4b5563?style=plastic)](https://github.com/glanceapp/glance)
+[![Mosquitto](https://img.shields.io/badge/Mosquitto-3C5280?style=plastic&logo=eclipsemosquitto&logoColor=white)](https://mosquitto.org)
+[![ring-mqtt](https://img.shields.io/badge/ring--mqtt-1c9ad6?style=plastic)](https://github.com/tsightler/ring-mqtt)
 
 ADR-0008's sensitive tier — the household's password manager, photos, documents
 and home automation — on `trinity` (`10.0.99.40`, Winterfell / VLAN 99), the
@@ -58,8 +60,10 @@ make up STACK=sensitive
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
 | glance | `glanceapp/glance` | *internal* (8080) | Two front pages. The operator's start page at `https://start.matrix.elysium`, a page per subject: the estate's state as Prometheus sees it, maintenance, feeds, video, scores and markets. And the household's page at `https://home.matrix.elysium`: what exists in the house and where, with no status, which Homepage was until [ADR-0103]. Keeps nothing ([ADR-0098], [ADR-0100]) |
+| mosquitto | `eclipse-mosquitto` | *`mqtt` network only* (1883) | The MQTT broker the Ring Alarm reaches Home Assistant through. On an internal network of its own that only Home Assistant and ring-mqtt join, two users, an ACL, nothing on disk ([ADR-0104]) |
+| ring-mqtt | `tsightler/ring-mqtt` | *none* | The bridge from Ring's alarm websocket to that broker: the base station, its sensors, keypads and arming, with Home Assistant discovery. Alarm devices only; the cameras stay the core Ring integration's. Signed in once by [`connect-the-ring-alarm.md`](../../docs/runbooks/connect-the-ring-alarm.md) ([ADR-0104]) |
 
-Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Twenty-three services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
@@ -71,8 +75,10 @@ household is meant to open for its own sake; linkding is the fourth; Actual
 is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
 that keeps nothing; Glance is two front pages, the operator's start page,
 the one place here that shows up and down ([ADR-0098]), and the household's
-page that tells them the rest exist ([ADR-0103]). What is absent is as deliberate as
-what is here:
+page that tells them the rest exist ([ADR-0103]); and Mosquitto and ring-mqtt
+are the Ring Alarm's way into Home Assistant ([ADR-0104]), the first service
+that is plumbing for another rather than something anyone opens. What is
+absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
   telemetry must never reach VLAN 99 ([ADR-0007]); this host *is* on VLAN 99,
@@ -96,13 +102,15 @@ what is here:
   Postgres of their own — Immich's needs the vector extension and therefore a different
   image — and one database per service is what lets `backup-volumes.sh`
   attribute every volume to the one service that owns it and stop only that.
-- **No Supervisor, no add-ons, no MQTT broker, no Zigbee coordinator.** Home
-  Assistant *Container* has no add-on store, which is why it was chosen: an
-  add-on is a second package manager outside `compose.yaml` and outside digest
-  pinning. What an add-on would have supplied becomes a pinned service here
-  on the day a device needs it, and today none does — Ring is cloud, the Hue
-  bridge is its own radio, the speakers are Wi-Fi. No USB radio means where
-  `trinity` sits is not this service's concern.
+- **No Supervisor, no add-ons, no Zigbee coordinator.** Home Assistant
+  *Container* has no add-on store, which is why it was chosen: an add-on is a
+  second package manager outside `compose.yaml` and outside digest pinning.
+  What an add-on would have supplied becomes a pinned service here on the day
+  a device needs it. The Ring Alarm was the first, on 2026-10-22: Mosquitto
+  and ring-mqtt are the two services the add-on store would have installed,
+  pinned and hardened here instead ([ADR-0104]). Nothing else needs one. The
+  Hue bridge is its own radio and the speakers are Wi-Fi, and no USB radio
+  means where `trinity` sits is not this service's concern.
 - **One custom integration, and it is ours.** `home-assistant/custom_components/`
   holds `ring_push_guard`, a version-gated patch for `ring_doorbell` 0.9.14,
   whose push parser dies on Ring pushes without a `ding.id` and takes every
@@ -113,7 +121,7 @@ what is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-one services, one network, health-gated ordering;
+compose.yaml               twenty-three services, two networks, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml, packages/ and custom_components/,
@@ -129,6 +137,9 @@ ntfy/server.yml            ntfy's settings; its users and access list come from 
 ntfy/templates/            message templates, mounted read-only
 stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
                            run by check_hardened_boot.sh (#143)
+mosquitto/                 the broker's config and ACL, mounted read-only, and a
+                           smoke.sh that signs in as both users (ADR-0104)
+ring-mqtt/smoke.sh         proves ring-mqtt reads its config under its hardening
 household.recipients       the age public keys that can open the household's copies
 household-age.sha256       checksums of the age release the household copy is opened with
 consume/                   untracked: drop a scan here and Paperless-ngx imports
@@ -1049,6 +1060,45 @@ docker logs sensitive-stirling-pdf 2>&1 | grep -E 'sandbox active|UnsatisfiedLin
 
 The first line should appear; the second should not.
 
+## The Ring Alarm: Mosquitto and ring-mqtt
+
+The Ring Alarm's base station, sensors, keypads and arming reach Home
+Assistant through these two, since [ADR-0104]. The core Ring integration
+cannot see the alarm, because its library does not speak Ring's alarm
+websocket. `compose.yaml` has the services and DIFFERENCE 14. What has to be
+true around them is here.
+
+- **The broker is reachable from two services and nothing else.** It is on
+  `mqtt`, an internal network with no gateway, which only Home Assistant and
+  ring-mqtt join. Each signs in as its own user. The ACL keeps ring-mqtt to
+  `ring/#` and `homeassistant/#`, and anonymous clients are refused.
+- **The passwords come from SOPS on every start.** `MQTT_HA_PASSWORD` and
+  `MQTT_RING_PASSWORD` are hashed into a tmpfs password file when the broker
+  starts. Home Assistant's copy is also typed into its MQTT integration once,
+  so a rotation changes it there too
+  ([`connect-the-ring-alarm.md`](../../docs/runbooks/connect-the-ring-alarm.md)).
+- **ring-mqtt holds the Ring location owner's sign-in.** A shared user cannot
+  change settings, and Ring's newer shared role returns no devices to the
+  API. The refresh token is in `ring-mqtt-data`, made by hand with 2FA from
+  the runbook. It is not in SOPS and not backed up: Ring rotates it in use.
+- **It runs as plain Node, not through its image's s6 init,** as `RENDER_UID`
+  on a read-only root. Its `/data/config.json` holds the broker password, so
+  it is written to a tmpfs at start and linked into the volume.
+- **Alarm only.** `enable_cameras` is off, so ring-mqtt starts no go2rtc and
+  listens on nothing a client could reach. The cameras and doorbell remain
+  the core integration's.
+- **No disarm code.** Anyone signed in to Home Assistant can arm and disarm,
+  as anyone the Ring app lets in can. ADR-0104 says why.
+
+CI boots both under their hardening. [`mosquitto/smoke.sh`](mosquitto/smoke.sh)
+signs in as each user and checks the refusals and the ACL;
+[`ring-mqtt/smoke.sh`](ring-mqtt/smoke.sh) checks ring-mqtt read its
+configuration and is waiting for a token. On `trinity`, after a deploy:
+
+```bash
+docker logs --since 10m sensitive-ring-mqtt 2>&1 | grep -E 'Device Discovery Complete|MQTT.*(connected|Error)'
+```
+
 ## Backup and restore
 
 ```bash
@@ -1226,6 +1276,7 @@ it matters:
 [ADR-0098]: ../../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md
 [ADR-0100]: ../../docs/adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md
 [ADR-0103]: ../../docs/adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md
+[ADR-0104]: ../../docs/adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
