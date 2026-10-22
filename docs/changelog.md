@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **The Ring Alarm is in Home Assistant, and most of it has never joined
+  its base station**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
+  [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry below
+  left it "not yet deployed"; this is that deployment.
+  - **Deployed.** `make up STACK=sensitive` started Mosquitto and ring-mqtt
+    and recreated Home Assistant on its second network. All 21 services
+    with a healthcheck passed; ring-mqtt has none, by design.
+  - **ring-mqtt is on its two networks only.** It is on `mqtt` and
+    `ring-egress`, not `sensitive`, which the review asked for.
+  - **Signed in by the runbook.** `connect-the-ring-alarm.md` signed
+    ring-mqtt in to the Ring location owner's account with 2FA, and Ring
+    rotated the token on the first connection, as ADR-0104 expects.
+  - **Home Assistant's MQTT integration loaded.** It signed in to the broker
+    as `homeassistant`.
+  - **The device list missed Home Assistant once.** ring-mqtt published it
+    three minutes before Home Assistant connected, and the broker keeps
+    nothing. ring-mqtt resent it 15 seconds after Home Assistant's birth
+    message, and 24 entities arrived: the alarm panel (disarmed) and its
+    siren, the base station, a range extender, one contact sensor, one
+    motion sensor and one keypad.
+  - **The base station is healthy:** online, on mains, its battery charged.
+  - **Nothing else has ever joined it.** The sensors, the keypad and the
+    range extender all report `commStatus: waiting-for-join` and a last
+    contact of 1970. They are registered to the account but were never
+    paired, so their entities read "off" without meaning it.
+  - **Some devices are missing from the account.** The household has more
+    sensors and a second keypad than Ring lists, and a third floodlight
+    camera.
+  - **What is left** is pairing them in the Ring app, nothing on `trinity`.
+    Each device appears in Home Assistant as it joins.
+
 - **Home Assistant's Ring entry moved to the Ring location owner's account,
   and the Ring Alarm got a way in**
   ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
