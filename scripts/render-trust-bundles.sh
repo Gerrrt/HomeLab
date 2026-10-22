@@ -2,20 +2,17 @@
 #
 # Write the sensitive tier's trust bundles for the estate's ingest proxy (#764).
 #
-# Homepage, Glance and Home Assistant on trinity query Prometheus through the
-# proxy on 10.0.99.20:9090, whose leaf the estate CA issued. Each takes its
-# trust from ONE file, so the estate CA is appended to what each already
-# trusts:
+# Glance and Home Assistant on trinity query Prometheus through the proxy on
+# 10.0.99.20:9090, whose leaf the estate CA issued. Each takes its trust from
+# ONE file, so the estate CA is appended to what each already trusts:
 #
-#   homepage-ca.pem        tier-ca.pem + the estate CA. NODE_EXTRA_CA_CERTS adds
-#                          to Node's built-in roots, so the tier's root
-#                          (step-ca's leaves, ADR-0037) and the estate's are the
-#                          whole of what it needs.
-#   glance-ca.pem          the same pair, for Glance (ADR-0098). Go reads it
-#                          from SSL_CERT_DIR, which adds to the image's own
-#                          public roots rather than replacing them. A file of
-#                          its own, so a change to one page's trust is not a
-#                          recreate of the other.
+#   glance-ca.pem          tier-ca.pem + the estate CA, for Glance (ADR-0098).
+#                          Go reads it from SSL_CERT_DIR, which adds to the
+#                          image's own public roots rather than replacing them,
+#                          so the tier's root (step-ca's leaves, ADR-0037) and
+#                          the estate's are the whole of what it needs. It
+#                          was Homepage's homepage-ca.pem's twin until ADR-0102
+#                          retired Homepage.
 #   home-assistant-ca.pem  the host's public roots + the estate CA. Home
 #                          Assistant builds every client SSL context from
 #                          REQUESTS_CA_BUNDLE when it is set and certifi
@@ -46,7 +43,7 @@
 #
 # Usage: scripts/render-trust-bundles.sh <out-dir> [--home-assistant-only]
 #
-#   --home-assistant-only  skip homepage-ca.pem and glance-ca.pem, which need
+#   --home-assistant-only  skip glance-ca.pem, which needs
 #                          certificates/tier-ca.pem (absent in CI)
 
 set -euo pipefail
@@ -86,5 +83,4 @@ publish() {  # <name> <source>... → OUT/<name>, renamed into place only if it 
 }
 
 publish home-assistant-ca.pem "${SYSTEM_ROOTS}" "${INGEST_CA}"
-((HA_ONLY)) || publish homepage-ca.pem "${TIER_CA}" "${INGEST_CA}"
 ((HA_ONLY)) || publish glance-ca.pem "${TIER_CA}" "${INGEST_CA}"

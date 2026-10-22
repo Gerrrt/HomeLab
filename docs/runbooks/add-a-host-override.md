@@ -169,7 +169,8 @@ host, and one per service the [`stacks/sensitive/Caddyfile`](../../stacks/sensit
 routes by Host — `homeassistant` and `vaultwarden` to begin with
 ([#134](https://github.com/Gerrrt/HomeLab/issues/134),
 [#131](https://github.com/Gerrrt/HomeLab/issues/131)), and `home` for
-Homepage ([#137](https://github.com/Gerrrt/HomeLab/issues/137)), the one the
+the household's page ([#137](https://github.com/Gerrrt/HomeLab/issues/137),
+served by Glance since [ADR-0102](../adr/0102-retire-homepage-and-serve-the-household-page-from-glance.md)), the one the
 household is told, and `links` for linkding
 ([#144](https://github.com/Gerrrt/HomeLab/issues/144)), added 2026-09-29 as
 an additional name on `trinity`, ahead of the service, `actual` for Actual

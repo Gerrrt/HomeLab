@@ -199,7 +199,7 @@ unset untracked src
 # ---------------------------------------------------------------------------
 # Trust bundles for the sensitive tier's clients of the estate's ingest proxy
 #
-# Homepage and Home Assistant verify the proxy's leaf against the estate CA
+# Glance and Home Assistant verify the proxy's leaf against the estate CA
 # (#764), each through one bundle file. scripts/render-trust-bundles.sh has the
 # reasoning, and why a changed bundle gets a new inode where everything else
 # this script writes keeps its own. It decrypts nothing, which is why it is a
@@ -570,7 +570,6 @@ COMPOSE_VARS=(
   INGEST_TOKEN_EDEN
   INGEST_TOKEN_GARUDA
   INGEST_TOKEN
-  HOMEPAGE_PROMETHEUS_TOKEN
   GLANCE_PROMETHEUS_TOKEN
   HA_PROMETHEUS_AUTHORIZATION
   HA_MEDIATV_MAC
@@ -583,8 +582,8 @@ COMPOSE_VARS=(
   STIRLING_ADMIN_PASSWORD
   VAULTWARDEN_ADMIN_TOKEN
   LINKDING_SUPERUSER_PASSWORD
-  HOMEPAGE_IMMICH_API_KEY
-  HOMEPAGE_PAPERLESS_TOKEN
+  GLANCE_IMMICH_API_KEY
+  GLANCE_PAPERLESS_TOKEN
   GLANCE_MINIFLUX_FEVER_KEY
   GLANCE_MARKETS
   GLANCE_BOOKMARKS

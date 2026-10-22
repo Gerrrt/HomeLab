@@ -6,10 +6,12 @@
 #
 # https://github.com/glanceapp/glance/blob/main/docs/configuration.md
 #
-# Seven pages, one file each under pages/ (ADR-0100): Home, the
-# start page; Read; Watch; Sports & Markets; Homelab; Network & Storage; and
-# Maintenance. This file holds what they share: the server, the theme and the
-# widget anchors they merge in.
+# Eight pages, one file each under pages/ (ADR-0100, ADR-0102): Home, the
+# start page; Read; Watch; Sports & Markets; Homelab; Network & Storage;
+# Maintenance; and Household, the household's page, which Caddy serves at
+# home.matrix.elysium and which carries none of the others' content. This
+# file holds what they share: the server, the theme and the widget anchors
+# they merge in.
 #
 # WHAT IS NOT IN THESE FILES, ON PURPOSE. This repository is public, and the
 # operator's own lists — tickers, bookmarks, YouTube channels, subreddits —
@@ -59,8 +61,8 @@ document:
 branding:
   hide-footer: true
 
-# Tokyo Night (night), as homepage/custom.css. Glance takes HSL; these are
-# the same bg, blue, green and red converted.
+# Tokyo Night (night): https://github.com/folke/tokyonight.nvim. Glance takes
+# HSL; these are its bg, blue, green and red converted.
 theme:
   background-color: 235 19 13
   primary-color: 221 89 72
@@ -74,8 +76,8 @@ theme:
 # x-service-defaults.
 x-widgets:
   # The Prometheus reader proxy on `prometheus` (ADR-0067, ADR-0086). The
-  # reader token can query and nothing else; it is the one Homepage and Home
-  # Assistant already send. TLS is verified against the estate CA through
+  # reader token can query and nothing else; it is the one Home Assistant
+  # sends too. TLS is verified against the estate CA through
   # SSL_CERT_DIR (compose.yaml).
   - &prometheus
     url: https://10.0.99.20:9090/api/v1/query
@@ -205,4 +207,5 @@ pages:
   $include: pages/homelab.yml
   $include: pages/network.yml
   $include: pages/maintenance.yml
+  $include: pages/household.yml
   # yamllint enable rule:key-duplicates

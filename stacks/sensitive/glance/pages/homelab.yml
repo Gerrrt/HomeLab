@@ -167,7 +167,7 @@
                 - title: ntfy
                   url: https://ntfy.matrix.elysium
                   icon: /assets/icons/ntfy.svg
-                - title: Homepage
+                - title: Household page
                   url: https://home.matrix.elysium
             - title: Media
               color: 280 60 75
@@ -465,9 +465,9 @@
             - title: ntfy
               url: https://ntfy.matrix.elysium
               check-url: https://ntfy.matrix.elysium/v1/health
-            - title: Homepage
+            - title: Household page
               url: https://home.matrix.elysium
-              check-url: https://home.matrix.elysium/api/healthcheck
+              check-url: https://home.matrix.elysium/api/healthz
 
         # Saruman's guests, from its collector (collect-guest-state). Templates
         # are left out. If Saruman stops reporting, the series go stale and this

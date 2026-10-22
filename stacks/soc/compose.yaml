@@ -561,7 +561,7 @@ services:
       # both URLs, and a second copy of a number is how they drift apart.
       - "${BIND_ADDR:-0.0.0.0}:8448:8448"
       # The two UIs (#1139), on the host ports they were published on before,
-      # so a bookmark on Hicks and the homepage links still work. 8443 inside,
+      # so a bookmark on Hicks and the start page's links still work. 8443 inside,
       # so nothing below 1024 is bound in the container.
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:8443"
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"

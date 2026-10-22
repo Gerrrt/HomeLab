@@ -1,0 +1,153 @@
+# The household's page (ADR-0102): what exists in the house and where it lives,
+# at https://home.matrix.elysium — the one address the people who live here are
+# given. It took over from Homepage (#137) and keeps that page's promise: a
+# directory, not a status page. No up/down, no alerts, no feeds and nothing of
+# the operator's own; the two numbers it shows are read with read-only keys.
+#
+# Caddy sends home.matrix.elysium/ here, and the bar of tabs is hidden on it,
+# so the household lands on this page alone. Glance has no per-page login, so
+# the other pages are a URL away for anyone on this page; ADR-0102 accepts
+# that inside the household.
+- name: Household
+  slug: household
+  width: slim
+  hide-desktop-navigation: true
+  columns:
+    # -----------------------------------------------------------------------
+    - size: small
+      widgets:
+        - type: clock
+          hour-format: 24h
+
+        # COARSE ON PURPOSE: a city, not a street, because this file is public.
+        - type: weather
+          location: Bellevue, Washington, United States
+          units: imperial
+          hour-format: 24h
+
+        # The two live numbers, as Homepage showed them, each read with a key
+        # that can read and do nothing else: an Immich key with the single
+        # permission `server.statistics`, and the token of Paperless's
+        # view-only `homepage` user (secrets/sensitive.example.yaml has both).
+        - type: custom-api
+          title: Photos & documents
+          cache: 15m
+          url: https://immich.matrix.elysium/api/server/statistics
+          headers:
+            x-api-key: ${GLANCE_IMMICH_API_KEY}
+          subrequests:
+            paperless:
+              url: https://paperless.matrix.elysium/api/statistics/
+              headers:
+                Authorization: Token ${GLANCE_PAPERLESS_TOKEN}
+          template: |
+            {{ $p := .Subrequest "paperless" }}
+            <div class="flex justify-between text-center">
+              <div>
+                <div class="size-h3 color-highlight">
+                  {{ if eq .Response.StatusCode 200 }}{{ .JSON.Int "photos" | formatNumber }}{{ else }}—{{ end }}
+                </div>
+                <div class="size-h6">PHOTOS</div>
+              </div>
+              <div>
+                <div class="size-h3 color-highlight">
+                  {{ if eq .Response.StatusCode 200 }}{{ .JSON.Int "videos" | formatNumber }}{{ else }}—{{ end }}
+                </div>
+                <div class="size-h6">VIDEOS</div>
+              </div>
+              <div>
+                <div class="size-h3 color-highlight">
+                  {{ if eq $p.Response.StatusCode 200 }}
+                    {{ $p.JSON.Int "documents_total" | formatNumber }}
+                  {{ else }}—{{ end }}
+                </div>
+                <div class="size-h6">DOCUMENTS</div>
+              </div>
+            </div>
+
+    # -----------------------------------------------------------------------
+    - size: full
+      widgets:
+        - type: bookmarks
+          title: Apps
+          groups:
+            - title: Every day
+              color: 221 89 72
+              links:
+                - title: Photos
+                  description: Immich — the family's photos and videos
+                  url: https://immich.matrix.elysium
+                  icon: /assets/icons/immich.svg
+                - title: Documents
+                  description: Paperless-ngx — scanned post, tax, insurance, records
+                  url: https://paperless.matrix.elysium
+                  icon: /assets/icons/paperless-ngx.svg
+                - title: Passwords
+                  description: Vaultwarden — the Bitwarden apps point here
+                  url: https://vaultwarden.matrix.elysium
+                  icon: /assets/icons/vaultwarden.svg
+                - title: Home
+                  description: Home Assistant — lights and devices
+                  url: https://homeassistant.matrix.elysium
+                  icon: /assets/icons/home-assistant.svg
+                - title: Watch
+                  description: Jellyfin — films and TV on the NAS
+                  url: http://10.0.40.30:8096
+                  icon: /assets/icons/jellyfin.svg
+                - title: Recipes
+                  description: Mealie — recipes, meal plans and the shopping list
+                  url: https://recipes.matrix.elysium
+                  icon: /assets/icons/mealie.svg
+            - title: Also here
+              color: 89 51 61
+              links:
+                - title: Budget
+                  description: Actual — the household budget
+                  url: https://actual.matrix.elysium
+                  icon: /assets/icons/actual-budget.svg
+                - title: Notes
+                  description: Memos — quick notes, kept in the house
+                  url: https://memos.matrix.elysium
+                  icon: /assets/icons/memos.svg
+                - title: Bookmarks
+                  description: linkding — the household's bookmarks
+                  url: https://links.matrix.elysium
+                  icon: /assets/icons/linkding.svg
+                - title: Reading
+                  description: Miniflux — news feeds and blogs
+                  url: https://miniflux.matrix.elysium
+                  icon: /assets/icons/miniflux.svg
+                - title: PDF tools
+                  description: Stirling-PDF — merge, split, sign, OCR; nothing leaves the house
+                  url: https://pdf.matrix.elysium
+                  icon: /assets/icons/stirling-pdf.svg
+                - title: Notifications
+                  description: ntfy — the house's alerts, in the ntfy phone app
+                  url: https://ntfy.matrix.elysium
+                  icon: /assets/icons/ntfy.svg
+
+        - type: bookmarks
+          title: Help
+          groups:
+            - title: How things work here
+              links:
+                - title: House wiki
+                  url: https://lemmiwinks.matrix.elysium
+                  icon: /assets/icons/wikijs.svg
+            - title: Get the apps
+              links:
+                - title: Immich (photos)
+                  url: https://docs.immich.app/features/mobile-app
+                  icon: /assets/icons/immich.svg
+                - title: Bitwarden (passwords)
+                  url: https://bitwarden.com/download/
+                  icon: /assets/icons/bitwarden.svg
+                - title: Home Assistant
+                  url: https://companion.home-assistant.io/
+                  icon: /assets/icons/home-assistant.svg
+                - title: Jellyfin (watch)
+                  url: https://jellyfin.org/downloads/clients/
+                  icon: /assets/icons/jellyfin.svg
+                - title: ntfy (alerts)
+                  url: https://docs.ntfy.sh/subscribe/phone/
+                  icon: /assets/icons/ntfy.svg

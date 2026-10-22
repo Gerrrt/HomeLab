@@ -20,7 +20,7 @@
         - type: calendar
           first-day-of-week: sunday
 
-        # COARSE ON PURPOSE, as homepage/widgets.yaml: a city, not a street.
+        # COARSE ON PURPOSE: a city, not a street, because this file is public.
         - type: weather
           location: Bellevue, Washington, United States
           units: imperial

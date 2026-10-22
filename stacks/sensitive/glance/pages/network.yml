@@ -77,7 +77,7 @@
             {{ end }}
 
         # ZFS pools as smaug's collector reports them (ADR-0047), erebor's
-        # free space as Homepage reads it, and the drives' SMART verdicts.
+        # free space, and the drives' SMART verdicts.
         # Free, not used: node_exporter sees the pool's root dataset, whose
         # own usage leaves out every child dataset, so "used" would read
         # near zero on a full pool.

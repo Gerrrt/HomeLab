@@ -53,6 +53,10 @@
 > triggers below
 > ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
 >
+> **Homepage is gone and the household's page is Glance's**
+> ([ADR-0102](0102-retire-homepage-and-serve-the-household-page-from-glance.md)).
+> It is left out of the table for the reason Homepage was: no login.
+>
 > **Trigger 1 fired on 2026-09-28, and the deferral was re-accepted on
 > 2026-10-02.** Immich's first real photographs arrived on 2026-09-28, before
 > the decision this ADR asks for. That decision is

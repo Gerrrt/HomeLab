@@ -1000,7 +1000,7 @@ this closes on.
   types becomes a fetch, so it has no inward-fetch flag to set. The one
   third-party request the browser makes is for YouTube thumbnails. The feeds people follow are
   fetched by Miniflux's fetcher, under the flag above, and Glance reads them
-  from Miniflux. It has no login, as Homepage has none. It shows the names of
+  from Miniflux. It has no login. It shows the names of
   firing alerts, which Grafana shows to the same networks behind a login, and
   that difference is accepted. It holds two credentials: the reader token,
   which can only query, and a Fever key that can only mark items read for a
@@ -1012,7 +1012,7 @@ this closes on.
   system being switched off. Nothing off-host used the port; silences are
   reached through Grafana.
 - Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
-  clients (three agents, Homepage, Glance and Home Assistant) reach them
+  clients (three agents, Glance and Home Assistant) reach them
   through the ingest proxy on `10.0.99.20`, which wants a token and serves
   each token one role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
   for which ports are published and

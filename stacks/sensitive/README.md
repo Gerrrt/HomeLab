@@ -11,7 +11,6 @@
 [![Paperless-ngx](https://img.shields.io/badge/Paperless--ngx-17541F?style=plastic&logo=paperlessngx&logoColor=white)](https://docs.paperless-ngx.com)
 [![Vaultwarden](https://img.shields.io/badge/Vaultwarden-175DDC?style=plastic&logo=vaultwarden&logoColor=white)](https://github.com/dani-garcia/vaultwarden)
 [![ntfy](https://img.shields.io/badge/ntfy-317f6f?style=plastic&logo=ntfy&logoColor=white)](https://ntfy.sh)
-[![Homepage](https://img.shields.io/badge/Homepage-4b5563?style=plastic&logo=homepage&logoColor=white)](https://gethomepage.dev)
 [![Miniflux](https://img.shields.io/badge/Miniflux-33658a?style=plastic)](https://miniflux.app)
 [![Memos](https://img.shields.io/badge/Memos-4b5563?style=plastic)](https://usememos.com)
 [![Mealie](https://img.shields.io/badge/Mealie-E58325?style=plastic&logo=mealie&logoColor=white)](https://mealie.io)
@@ -51,7 +50,6 @@ make up STACK=sensitive
 | paperless-broker | `valkey/valkey` | *internal* (6379) | Paperless-ngx's task queue and cache — the one volume in this stack whose loss costs nothing |
 | vaultwarden | `vaultwarden/server` | *internal* (8080) | The household's password manager, at `https://vaultwarden.matrix.elysium` — Bitwarden's own clients and extensions, pointed at that URL ([#131]) |
 | memos | `neosmemo/memos` | *internal* (5230) | The household's quick notes, at `https://memos.matrix.elysium`. Notes, not documentation — the second service beyond [ADR-0008]'s nine, by [ADR-0059] ([#145]) |
-| homepage | `ghcr.io/gethomepage/homepage` | *internal* (3000) | The household's front page at `https://home.matrix.elysium`: what exists on the estate and where it lives, grouped by VLAN. A directory, not a status page — seven tiles read live numbers, with read-only tokens or from Prometheus; the rest are links ([#137]) |
 | ntfy | `binwiederhier/ntfy` | *internal* (8080) | Where the estate's alerts arrive: Alertmanager on `prometheus` publishes to `https://ntfy.matrix.elysium` and the phones subscribe there. Deny-all, two declared users ([#136]) |
 | miniflux | `miniflux/miniflux` | *internal* (8080) | The household's feed reader at `https://miniflux.matrix.elysium`, and the tier's first service beyond ADR-0008's nine ([ADR-0057], [#147]). It polls every subscription on a timer, so it is a steady source of outbound traffic from VLAN 99 |
 | miniflux-db | `postgres` | *internal* (5432) | Miniflux's own database: subscriptions, read state, stars and entries |
@@ -59,21 +57,21 @@ make up STACK=sensitive
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
-| glance | `glanceapp/glance` | *internal* (8080) | The operator's browser start page at `https://start.matrix.elysium`: the estate's alerts, probes and targets as Prometheus sees them, the household's apps checked directly, followed feeds through Miniflux, Hacker News, Reddit and the weather. Keeps nothing ([ADR-0098]) |
+| glance | `glanceapp/glance` | *internal* (8080) | Two front pages. The operator's start page at `https://start.matrix.elysium`, a page per subject: the estate's state as Prometheus sees it, maintenance, feeds, video, scores and markets. And the household's page at `https://home.matrix.elysium`: what exists in the house and where, with no status, which Homepage was until [ADR-0102]. Keeps nothing ([ADR-0098], [ADR-0100]) |
 
-Twenty-two services. Two are plumbing; Home Assistant and Vaultwarden are the first
+Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
 household uses without ever knowing it; four are Immich, the service [ADR-0008]
 names as the price of putting the tier on Winterfell at all; three are
-Paperless-ngx, the archive of what the household cannot get back; Homepage
-is the page that tells the household the rest exist; ntfy is the one the
+Paperless-ngx, the archive of what the household cannot get back; ntfy is the one the
 estate uses, to tell the operator what is wrong with the rest; two are
 Miniflux, the first of the tier extras, decided by an ADR of its own before it
 was written here; Memos is the second; Mealie is the third, the one the
 household is meant to open for its own sake; linkding is the fourth; Actual
 is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
-that keeps nothing; Glance is the operator's own start page, the one page
-here that shows up and down ([ADR-0098]). What is absent is as deliberate as
+that keeps nothing; Glance is two front pages, the operator's start page,
+the one place here that shows up and down ([ADR-0098]), and the household's
+page that tells them the rest exist ([ADR-0102]). What is absent is as deliberate as
 what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -83,7 +81,7 @@ what is here:
   no new port. The agent is not in this compose file for the same reason it is
   not in the lab's: it is the estate's, deployed identically everywhere.
 - **No other services planned.** The next one, whenever it comes, arrives as
-  Home Assistant, Immich, Paperless-ngx, Vaultwarden, Homepage, ntfy,
+  Home Assistant, Immich, Paperless-ngx, Vaultwarden, ntfy,
   Miniflux, Memos, Mealie, linkding, Actual and Stirling-PDF did — and, beyond
   ADR-0008's nine, after an ADR of its own, as [ADR-0057], [ADR-0059],
   [ADR-0060], [ADR-0061], [ADR-0062] and [ADR-0063] were for the last six: a
@@ -115,7 +113,7 @@ what is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-two services, one network, health-gated ordering;
+compose.yaml               twenty-one services, one network, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml, packages/ and custom_components/,
@@ -124,8 +122,6 @@ home-assistant/            configuration.yaml, packages/ and custom_components/,
 .env.example               non-sensitive tunables — edit this, not .env:
                              the library's mount point, and the ML switch
 adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists included
-homepage/                  settings, services, widgets and bookmarks YAML and
-                           custom.css — its whole configuration, mounted read-only
 glance/                    Glance's configuration: glance.yml and pages/, each
                            mounted read-only, and assets/icons; validated in CI
                            by its own binary
@@ -526,73 +522,40 @@ The household's notes, and the second *Tier extras* service —
 - **Durable, under [ADR-0023].** No real notes before the off-estate copy the
   class requires, for the same reason as Paperless-ngx.
 
-## Homepage
+## The household's page
 
-The household's page, at `https://home.matrix.elysium` — the one address on
-this tier that people who are not the operator are given. [#137] asked that it
-stay honest about what it is, and the files under `homepage/` are where that
-is kept:
+What exists in the house and where it lives, at `https://home.matrix.elysium`
+— the one address on this tier that people who are not the operator are
+given. It was Homepage ([#137]) until [ADR-0102] made it Glance's *Household*
+page (`glance/pages/household.yml`), and it keeps that page's promise: a
+directory, not a status page.
 
-- **A directory, not a status page.** No status dots, no `siteMonitor`, no
-  `ping` (`settings.yaml` says why). Uptime is Grafana's question; a green dot
-  that means "a socket opened" is worse than no dot. Grafana is linked from the
-  page so the two are not strangers.
-- **Household first, then the estate by VLAN.** *Household* — photos,
-  documents, passwords, the house, Jellyfin and ntfy — comes first. Every
-  other tile sits under its host's segment, in the order and with the rack
-  colour of [`docs/network.md`](../../docs/network.md)'s table:
-  *🔴 Winterfell · VLAN 99* (Grafana, Prometheus, AdGuard, the firewall, the
-  UPS, the wiki) is open; *🟢 ImaginationLAN · VLAN 30* (Proxmox, iLO, the lab's
-  Grafana, Wazuh, Velociraptor), *🟡 CasaBonita · VLAN 40* (the NAS) and
-  *⚪ Switch LAN* start collapsed. Every console link is a login page Hicks
-  already reaches through a named pass; listing it grants nothing. Below the
-  tiles, `bookmarks.yaml` holds the house wiki and where to
-  get each app. It is tracked because without it Homepage serves its own
-  sample — GitHub, Reddit and YouTube, which the first deploy did.
-- **Seven tiles read live numbers, and only with read-only credentials or
-  none.** Immich (a key with the single permission `server.statistics`) and
-  Paperless-ngx (the token of a view-only `homepage` user) are read from their
-  own APIs. Prometheus, the UPS (charge, runtime, load), the firewall (pf
-  states), the iLO (watts) and the NAS (pool free) are read from Prometheus,
-  which shares a /24 with `trinity` and wants the estate's read-only reader
-  token ([#182]), a token that can query and nothing else. That is how
-  tiles on VLANs `trinity` cannot reach show numbers with no new rule:
-  Prometheus already scrapes them, and each query is one a Grafana dashboard
-  already runs. Numbers only, never up/down. Home Assistant, AdGuard, Vaultwarden and Grafana are links,
-  because none of them can issue a token that reads without also being able to
-  change something. `services.yaml` has the per-service reasoning.
-- **Weather is the one third-party call, and a coarse one.** `widgets.yaml`
-  has Open-Meteo (no key), fetched server-side from `trinity` over
-  Winterfell's existing egress, for Bellevue rounded to one decimal place —
-  about 10 km — because this repository is public.
-- **Tokyo Night, frosted.** `custom.css` redefines the `slate` palette that
-  `settings.yaml` names and draws a gradient behind translucent cards
-  (`cardBlur: md`); no image or font is fetched. It is tracked and mounted for
-  the bookmarks reason: without it Homepage serves its own (empty) sample. Its
-  selectors come from the pinned bundle, not a documented contract, so a
-  Dependabot bump is where to look if the cards go flat.
-- **No Docker socket**, although upstream's example mounts one — the full
-  Docker API behind a page with no login ([ADR-0022]). `compose.yaml` says so
-  at the service.
-- **Deploy order.** The two tokens can be minted only once Immich and
-  Paperless are up, and the compose guards refuse `make up` until both are in
-  SOPS — so: mint them (`secrets/sensitive.example.yaml` has the clicks),
-  `make secrets-edit STACK=sensitive`, add the host override for
-  `home.matrix.elysium` on `morpheus`
-  ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
-  then `make up STACK=sensitive`.
-- **Measured before it was written**, on `trinity`, from the pinned digest with
-  exactly the compose options: healthy, CapEff 0, nothing written outside its
-  tmpfs mounts, 101 MiB and 12 tasks; with placeholder tokens the Immich and
-  Paperless widgets got a 401 from the real services through Caddy and the tier
-  CA, which is the whole path short of a valid token.
+- **Caddy sends the bare name there.** `home.matrix.elysium/` redirects to
+  `/household`, and everything else under the name is Glance, so the page's
+  assets and health path resolve. The tier's root certificate is still a
+  download at `/tier-ca.crt` on the same name, for a household phone
+  ([`build-the-tier-ca.md`](../../docs/runbooks/build-the-tier-ca.md)).
+- **No status, no feeds, nothing of the operator's.** The household's apps
+  as links with a line each, the house wiki, where to get each app, the time
+  and the weather (coarse). The bar of tabs is hidden on desktop. Glance has
+  no per-page login, so the operator's pages are a URL or the mobile menu
+  away for anyone here; [ADR-0102] accepts that inside the household.
+- **Two numbers, on read-only keys.** Photos and videos from Immich, with a
+  key holding the single permission `server.statistics`, and documents from
+  Paperless-ngx, with the token of a view-only user still named `homepage`.
+  They are `GLANCE_IMMICH_API_KEY` and `GLANCE_PAPERLESS_TOKEN` in SOPS, the
+  keys Homepage used, renamed and not reminted. `secrets/sensitive.example.yaml`
+  has how each was made, and why the Paperless user needs view on the
+  consumption workflow's documents.
+- **Probed.** The blackbox target `household-page` asks
+  `https://home.matrix.elysium/api/healthz`.
 
 ## Glance
 
 The operator's start page, at `https://start.matrix.elysium` — what the
-browser opens to ([ADR-0098], [ADR-0100]). Homepage above stays the
-household's directory with no status dots; this is the page that has them,
-kept apart so the two answer different questions. One page per subject,
+browser opens to ([ADR-0098], [ADR-0100]). The household's page above is a
+page of the same Glance with no status at all; these are the pages that have
+it, kept apart so the two answer different questions. One page per subject,
 each a file under `glance/pages/` and a tab along the top, so none carries
 everything:
 
@@ -619,7 +582,7 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
 `compose.yaml`.
 
 - **The estate, as Prometheus sees it.** The *Estate* panel asks the reader
-  proxy on `prometheus` three things with the same reader token Homepage uses:
+  proxy on `prometheus` three things with the estate's reader token:
   the firing alerts, every blackbox probe (`min by (name, host)
   (probe_success)`) and every `up` series. That covers every VLAN, including
   the ones `trinity` cannot reach, and it agrees with Grafana because it is
@@ -659,8 +622,8 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
   with no single quote inside, then `make up STACK=sensitive`.
   `secrets/sensitive.example.yaml` shows the shape of each.
 - **What is in the files is what anyone running this estate would see:** the
-  consoles and addresses `homepage/services.yaml` already lists, the weather
-  (Bellevue, the coarse location `homepage/widgets.yaml` uses), Hacker News,
+  consoles and addresses `docs/network.md` already lists, the weather
+  (Bellevue, rounded to a city), Hacker News,
   the NBA, trending repositories, and a DuckDuckGo search box with no
   suggestions, so nothing is sent before Enter.
 - **Every fetch is server-side except thumbnails.** Glance fetches from
@@ -678,11 +641,13 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
 - **YouTube's feeds fail now and then**, with a 404 or a 500, which is
   YouTube's and is open upstream as glanceapp/glance#910. A tab whose
   channels all fail shows an error until a fetch works.
-- **No login and no Docker socket**, for Homepage's reasons. Glance has an
-  optional login. It is off, as Homepage has none: both are reached from the
-  same places, and neither shows a credential.
+- **No login and no Docker socket.** Glance has an optional login. It is
+  off: the pages are reached from the same places the household's apps are,
+  none shows a credential, and a login would sit in front of the household's
+  page too. The Docker socket would be root on trinity behind a page with no
+  login.
 - **Not booted in CI.** Its trust bundle holds the tier's root, which CI does
-  not have, as Homepage's does. CI instead runs Glance's own
+  not have. CI instead runs Glance's own
   `config:validate` on the whole `glance/` directory
   (`scripts/check_glance_config.sh`), with the seeded validation values,
   which refuses a bad widget or a variable compose.yaml does not supply. It
@@ -702,7 +667,7 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
      `glance` (not an administrator), set up on 2026-10-21**, both passwords
      generated and kept in the password manager.
   2. `make secrets-edit STACK=sensitive`: add `GLANCE_PROMETHEUS_TOKEN` (the
-     same value as `HOMEPAGE_PROMETHEUS_TOKEN`) and
+     estate's reader token) and
      `GLANCE_MINIFLUX_FEVER_KEY`. Commit the encrypted file. **Done
      2026-10-21**, the Fever key copied from Miniflux's own record of it and
      never printed. Fever answered `auth: 1` to it, and the reader proxy
@@ -718,7 +683,7 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
   5. Point the browser's home page and new tab at
      `https://start.matrix.elysium`.
   6. Add the page to `stacks/observability/prometheus/targets/blackbox.yaml`
-     beside Homepage's, once it answers. **Added 2026-10-21** as `glance`,
+     beside the household page's, once it answers. **Added 2026-10-21** as `glance`,
      after the pinned exporter image with the `http_2xx_tier_ca` module and
      the tier CA probed it from `trinity` (`probe_success 1`). It is live once
      `prometheus` pulls the merge; `probe_success{name="glance"}` then reads 1.
@@ -833,7 +798,7 @@ factor. `compose.yaml` has what was measured on the pinned image.
   for that reason.
 - **The REST API is off.** It accepts the admin's own password over basic
   auth, which would be a second door to the account that nothing here uses.
-  With it off, Homepage's tile is a link rather than an unread count.
+  With it off, the Household page's tile is a link rather than an unread count.
 - **The sync APIs stay off until a phone wants them.** Fever and Google
   Reader are what third-party mobile clients speak. Each is turned on per
   user under *Settings › Integrations*, with a username and password of its
@@ -1260,6 +1225,7 @@ it matters:
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [ADR-0098]: ../../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md
 [ADR-0100]: ../../docs/adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md
+[ADR-0102]: ../../docs/adr/0102-retire-homepage-and-serve-the-household-page-from-glance.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
@@ -1277,7 +1243,6 @@ it matters:
 [#147]: https://github.com/Gerrrt/HomeLab/issues/147
 [#146]: https://github.com/Gerrrt/HomeLab/issues/146
 [#143]: https://github.com/Gerrrt/HomeLab/issues/143
-[#182]: https://github.com/Gerrrt/HomeLab/issues/182
 [#66]: https://github.com/Gerrrt/HomeLab/issues/66
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
