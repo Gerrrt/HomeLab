@@ -71,17 +71,35 @@ nothing on Skids initiates upward, including the Pi.**
    declined with Frigate, and it does not reopen that decision: the cameras
    are still Ring, there is still no accelerator, and ADR-0008's table gains
    no continuous row.
-3. **The restream is not open to the segment.** go2rtc's RTSP listener
-   requires a username and password, its API port binds to the Pi's loopback,
-   and nothing else on the Pi listens on Skids but SSH and node_exporter.
-   Without this, every device on Skids could watch the room the camera
-   watches, which is wider than the camera itself allows today.
-4. **Four secrets, in `secrets/*.sops.yaml` and on the Pi, and nowhere
-   else:** the TUTK license key, the camera's UID and channel password, and
-   go2rtc's RTSP credential. They are recorded in the repository's secrets
-   so the Pi can be rebuilt, and rendered onto it by hand. ThroughTek's four
-   libraries are not secrets but are not redistributable; they live on the Pi
-   and are extracted again from the app on a rebuild. None of the five
+3. **The restream is not open to the segment, and the hop is not private
+   from it either.** go2rtc's RTSP listener requires a username and password,
+   its API port binds to the Pi's loopback, and nothing else on the Pi
+   listens on Skids but SSH and node_exporter. Without that, every device on
+   Skids could connect and watch the room the camera watches, which is wider
+   than the camera itself allows today. What the credential does not do is
+   encrypt the hop. RTSP from the Pi to `trinity` crosses Skids in the clear,
+   so a Skids device that has already been compromised and can put itself in
+   the path, by ARP spoofing the Pi or the gateway, can read the picture and
+   the sound for as long as Home Assistant has the stream open. That is
+   accepted here, as a residual and not a property: it needs an active
+   attacker already inside the segment, it is bounded by point 2 to the
+   minutes a dashboard is showing the camera, and it is the same interception
+   the parent unit's own link is open to on the same segment. What retires
+   it is an encrypted transport that verifies the peer, and #1248 tries the
+   one go2rtc offers before settling for RTSP: its API served over TLS with
+   a leaf from the tier's CA, read by Home Assistant's own go2rtc over
+   WebRTC, whose media is DTLS-SRTP. If that path works from `trinity`, the
+   `8554/tcp` row becomes the TLS port instead and this point gets a note.
+   If it does not, the residual stands as written.
+4. **Four secrets, each in `secrets/*.sops.yaml` and in exactly the places
+   that use it.** The TUTK license key and the camera's UID and channel
+   password are the camera's: they are recorded in the repository's secrets
+   so the Pi can be rebuilt, rendered onto the Pi by hand, and held nowhere
+   else. go2rtc's restream credential is shared by design: it is on the Pi,
+   and in Home Assistant's configuration on `trinity`, rendered from the
+   same secrets the way the rest of the tier's are. ThroughTek's four
+   libraries are not secrets but are not redistributable; they live on the
+   Pi and are extracted again from the app on a rebuild. None of the five
    touches a tracked file.
 5. **A used Pixel is bought for the extraction, rooted, used, and wiped.**
    It signs into the household's VTech account for the afternoon the capture
@@ -143,7 +161,10 @@ nothing on Skids initiates upward, including the Pi.**
 - **The picture of one room travels to Winterfell on demand** and is shown
   by Home Assistant to whoever is signed in. Home Assistant's users are the
   household; this is the same trust the Ring cameras' snapshots already carry
-  there. Nothing is recorded on `trinity`.
+  there. Nothing is recorded on `trinity`. On its way it crosses Skids
+  unencrypted unless point 3's TLS path works, and a compromised Skids
+  device in the path can read it while it flows. The credential keeps the
+  idle stream closed to the segment; it does not keep an open one private.
 - **Two purchases and one new host**, through *Everything still to buy* and
   then `hardware.md` and `network.md`, with the Pi's address kept true by its
   reservation.

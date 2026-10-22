@@ -416,8 +416,13 @@ way into Skids. The HomePods therefore see the firewall's address, not
 stream, on `8554/tcp` and `22/tcp`, and `prometheus` to it on `9100/tcp`. The
 Pi is the first general-purpose computer on that segment, which is why it is
 scraped and reachable by SSH, each on a row of its own. Its restream requires
-a credential, so the rest of Skids cannot watch the room the camera watches.
-Still outbound only, and the tripwire still has to read 0 with it running.
+a credential, so the rest of Skids cannot connect and watch the room the
+camera watches; the hop itself is RTSP in the clear across Skids, so a
+compromised device there that can put itself in the path can read the
+stream while Home Assistant has it open. ADR-0102 accepts that as a
+residual, bounds it to the minutes a dashboard shows the camera, and names
+the TLS path that retires it. Still outbound only, and the tripwire still has
+to read 0 with it running.
 
 One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
