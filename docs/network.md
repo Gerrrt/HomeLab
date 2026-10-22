@@ -199,6 +199,14 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Skids notes and
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   give the reasons.
+- **Three rows into Skids, decided and not yet created:** `10.0.99.40 →
+  10.0.20.30` on `8554/tcp` and `22/tcp`, and `10.0.99.20 → 10.0.20.30` on
+  `9100/tcp`, above *Block access to Skids*, for `heimdall`, the Raspberry
+  Pi that will bridge the VTech monitor's stream to Home Assistant, be
+  scraped by `prometheus` and be maintained from `trinity`.
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md)
+  records the decision; [#1248](https://github.com/Gerrrt/HomeLab/issues/1248) creates them after the
+  reservation.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -808,6 +816,14 @@ the least trusted.
 [^Monitor]: [VTech baby monitor](https://www.vtechkids.com/monitors)
 
 ---
+
+- **One more reservation is decided and not yet made:** `heimdall` at
+  `10.0.20.30`, a Raspberry Pi that will run the VTech monitor's bridge, and
+  the first general-purpose computer on this segment. It joins the table
+  above when it exists, and the three rows that reach it are in the
+  Winterfell notes.
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md);
+  [#1248](https://github.com/Gerrrt/HomeLab/issues/1248).
 
 ## Degens — VLAN 10 — Guest
 
