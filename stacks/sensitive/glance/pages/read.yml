@@ -1,0 +1,101 @@
+# Read: what the operator follows, and the news.
+- name: Read
+  width: wide
+  columns:
+    # ---------------------------------------------------------------------
+    - size: full
+      widgets:
+        # Everything the `glance` user follows — news sites, Mastodon and
+        # Bluesky profiles or hashtags as RSS (<instance>/@user.rss,
+        # bsky.app/profile/<handle>/rss), YouTube channels
+        # (youtube.com/feeds/videos.xml?channel_id=<id>) — newest first.
+        # Fever's newest-items call returns the latest 50 and cannot filter
+        # by category, so this is one stream, each item labelled with its
+        # feed. A home timeline has no feed, and nor do Instagram, Facebook
+        # or X; ADR-0098 says why they are not here.
+        #
+        # Feed and item titles are third-party text. html/template escapes
+        # every value below, and nothing here marks one safe. How often the
+        # feeds themselves are fetched is Miniflux's schedule, by its
+        # fetcher that refuses private addresses (ADR-0057); `cache` is only
+        # how often this page asks Miniflux.
+        - type: custom-api
+          title: Following
+          cache: 5m
+          url: https://miniflux.matrix.elysium/fever/?api&items&max_id=0
+          <<: *fever
+          subrequests:
+            feeds:
+              url: https://miniflux.matrix.elysium/fever/?api&feeds
+              <<: *fever
+          template: |
+            {{ $feeds := .Subrequest "feeds" }}
+            {{ if or (ne .Response.StatusCode 200) (ne (.JSON.Int "auth") 1) }}
+              <p class="color-negative">
+                Miniflux refused the Fever key (HTTP {{ .Response.StatusCode }}) — is GLANCE_MINIFLUX_FEVER_KEY set?
+              </p>
+            {{ else if eq (len (.JSON.Array "items")) 0 }}
+              <p>The <code>glance</code> user follows nothing yet.</p>
+            {{ else }}
+              <ul class="list list-gap-10 collapsible-container" data-collapse-after="12">
+              {{ range .JSON.Array "items" }}
+                {{ $feedID := .Int "feed_id" }}
+                <li>
+                  <a class="size-title-dynamic color-primary-if-not-visited"
+                     href="{{ .String "url" }}" target="_blank" rel="noreferrer">{{ .String "title" }}</a>
+                  <ul class="list-horizontal-text">
+                    <li {{ .String "created_on_time" | parseRelativeTime "unix" }}></li>
+                    {{ range $feeds.JSON.Array "feeds" }}
+                      {{ if eq (.Int "id") $feedID }}<li>{{ .String "title" }}</li>{{ end }}
+                    {{ end }}
+                  </ul>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+        - type: group
+          widgets: ${GLANCE_REDDIT_TABS}
+    # ---------------------------------------------------------------------
+    - size: small
+      widgets:
+        - type: hacker-news
+          limit: 20
+          collapse-after: 8
+
+        - type: lobsters
+          limit: 15
+          collapse-after: 6
+
+        # GitHub's search API, unauthenticated: repositories created in the
+        # last seven days, by stars. Ten searches a minute is the anonymous
+        # limit, and this asks once an hour.
+        - type: custom-api
+          title: Trending repositories
+          cache: 1h
+          template: |
+            {{ $since := (offsetNow "-168h").Format "2006-01-02" }}
+            {{ $r := newRequest "https://api.github.com/search/repositories"
+                 | withParameter "q" (concat "created:>" $since)
+                 | withParameter "sort" "stars"
+                 | withParameter "order" "desc"
+                 | withParameter "per_page" "8"
+                 | withHeader "Accept" "application/vnd.github+json"
+                 | getResponse }}
+            {{ if ne $r.Response.StatusCode 200 }}
+              <p class="color-negative">GitHub answered {{ $r.Response.StatusCode }}</p>
+            {{ else }}
+              <ul class="list list-gap-10 collapsible-container" data-collapse-after="4">
+              {{ range $r.JSON.Array "items" }}
+                <li>
+                  <a class="size-h4 color-highlight" href="{{ .String "html_url" }}
+                  " target="_blank" rel="noreferrer">{{ .String "full_name" }}</a>
+                  <ul class="list-horizontal-text">
+                    <li>{{ .Int "stargazers_count" | formatApproxNumber }} stars</li>
+                    {{ if .Exists "language" }}<li>{{ .String "language" }}</li>{{ end }}
+                  </ul>
+                  <p class="size-h6 text-truncate">{{ .String "description" }}</p>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}

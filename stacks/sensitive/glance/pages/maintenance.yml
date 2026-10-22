@@ -1,0 +1,226 @@
+# Maintenance: what needs doing, in one place — scheduled jobs
+# and backups, open security issues, pending updates and reboots,
+# certificates, and new upstream releases. All read-only: Prometheus, and
+# GitHub's public API.
+- name: Maintenance
+  width: wide
+  columns:
+    # ---------------------------------------------------------------------
+    - size: full
+      widgets:
+        # Every scheduled job the estate runs (systemd timers through
+        # run-scheduled.sh), worst first: how long since it last succeeded against
+        # the longest it may go (homelab_job_max_age_seconds, the same threshold the
+        # ScheduledJob* alerts use), and whether its last run failed. Backups, the
+        # off-site copy and the key-backup proofs are all here.
+        - type: custom-api
+          title: Scheduled jobs
+          cache: 5m
+          <<: *prometheus
+          parameters:
+            query: >-
+              (time() - homelab_job_last_success_timestamp_seconds)
+              / homelab_job_max_age_seconds
+          subrequests:
+            age:
+              <<: *prometheus
+              parameters:
+                query: time() - homelab_job_last_success_timestamp_seconds
+            failed:
+              <<: *prometheus
+              parameters:
+                query: homelab_job_last_exit_code != 0
+          template: |
+            {{ $jobs := sortByFloat "value.1" "desc" (.JSON.Array "data.result") }}
+            {{ $age := (.Subrequest "age").JSON.Array "data.result" }}
+            {{ $failed := (.Subrequest "failed").JSON.Array "data.result" }}
+            {{ if eq (len $jobs) 0 }}
+              <p class="color-negative">No data: Prometheus returned no scheduled jobs.</p>
+            {{ else }}
+              {{ $bad := 0 }}
+              {{ range $jobs }}
+                {{ $j := .String "metric.homelab_job" }}{{ $h := .String "metric.host" }}
+                {{ $isFailed := false }}
+                {{ range $failed }}
+                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
+                    {{ $isFailed = true }}
+                  {{ end }}
+                {{ end }}
+                {{ if or $isFailed (gt (.Float "value.1") 1.0) }}{{ $bad = add $bad 1 }}{{ end }}
+              {{ end }}
+              <p class="margin-bottom-10">
+                {{ if gt $bad 0 }}<span class="color-negative">{{ $bad }} need attention</span>
+                {{ else }}<span class="color-positive">All {{ len $jobs }} on schedule</span>{{ end }}
+              </p>
+              <ul class="list list-gap-10 collapsible-container" data-collapse-after="10">
+              {{ range $jobs }}
+                {{ $j := .String "metric.homelab_job" }}{{ $h := .String "metric.host" }}
+                {{ $ratio := .Float "value.1" }}{{ $hours := 0.0 }}{{ $isFailed := false }}
+                {{ range $age }}
+                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
+                    {{ $hours = div (.Float "value.1") 3600 }}
+                  {{ end }}
+                {{ end }}
+                {{ range $failed }}
+                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
+                    {{ $isFailed = true }}
+                  {{ end }}
+                {{ end }}
+                <li class="flex justify-between">
+                  <span class="{{ if or $isFailed (gt $ratio 1.0) }}color-negative{{ else }}color-highlight{{ end }}">
+                    {{ $j }} <span class="size-h6">on {{ $h }}</span>
+                  </span>
+                  <span class="size-h6">
+                    {{ if gt $hours 48.0 }}{{ printf "%.0fd" (div $hours 24) }}
+                    {{ else }}{{ printf "%.1fh" $hours }}{{ end }} ago
+                    {{ if $isFailed }}· last run failed{{ else if gt $ratio 1.0 }}· overdue{{ end }}
+                  </span>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+        # Open issues labelled `security` in this repository: the weekly CVE scan's
+        # one-per-image issues (cve-scan.yml) and the findings filed by hand. The
+        # repository is public, so GitHub's search API answers without a key, and
+        # this asks once an hour.
+        - type: custom-api
+          title: Security issues
+          title-url: https://github.com/Gerrrt/HomeLab/issues?q=is%3Aissue+is%3Aopen+label%3Asecurity
+          cache: 1h
+          url: https://api.github.com/search/issues?q=repo:Gerrrt/HomeLab+label:security+state:open+is:issue&sort=updated&per_page=12
+          headers:
+            Accept: application/vnd.github+json
+          template: |
+            {{ if ne .Response.StatusCode 200 }}
+              <p class="color-negative">GitHub answered {{ .Response.StatusCode }}</p>
+            {{ else }}
+              <p class="margin-bottom-10">
+                <span class="{{ if gt (.JSON.Int "total_count") 0 }}color-negative{{ else }}color-positive{{ end }}">
+                  {{ .JSON.Int "total_count" }} open</span>, most recently updated first
+              </p>
+              <ul class="list list-gap-10 collapsible-container" data-collapse-after="6">
+              {{ range .JSON.Array "items" }}
+                <li>
+                  <a class="color-highlight" href="{{ .String "html_url" }}" target="_blank" rel="noreferrer">
+                    #{{ .Int "number" }} {{ .String "title" }}</a>
+                  <div class="size-h6" {{ .String "updated_at" | parseRelativeTime "rfc3339" }}></div>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+    # ---------------------------------------------------------------------
+    - size: small
+      widgets:
+        # Pending upgrades and reboots, from the patch-state collector. Only the
+        # hosts that run it report; a host missing here is not up to date, it is
+        # unmeasured.
+        - type: custom-api
+          title: Updates
+          cache: 15m
+          <<: *prometheus
+          parameters:
+            query: homelab_apt_upgrades_pending
+          subrequests:
+            security:
+              <<: *prometheus
+              parameters:
+                query: homelab_apt_security_upgrades_pending
+            reboot:
+              <<: *prometheus
+              parameters:
+                query: homelab_reboot_required
+          template: |
+            {{ $sec := (.Subrequest "security").JSON.Array "data.result" }}
+            {{ $rb := (.Subrequest "reboot").JSON.Array "data.result" }}
+            {{ $hosts := sortByString "metric.host" "asc" (.JSON.Array "data.result") }}
+            {{ if eq (len $hosts) 0 }}
+              <p class="color-negative">No data: no host reports its packages.</p>
+            {{ else }}
+              <ul class="list list-gap-10">
+              {{ range $hosts }}
+                {{ $h := .String "metric.host" }}{{ $n := .Int "value.1" }}{{ $s := 0 }}{{ $r := 0 }}
+                {{ range $sec }}{{ if eq (.String "metric.host") $h }}{{ $s = .Int "value.1" }}{{ end }}{{ end }}
+                {{ range $rb }}{{ if eq (.String "metric.host") $h }}{{ $r = .Int "value.1" }}{{ end }}{{ end }}
+                <li class="flex justify-between">
+                  <span class="color-highlight">{{ $h }}</span>
+                  <span class="size-h6">
+                    <span class="{{ if gt $s 0 }}color-negative{{ end }}">{{ $n }} pending, {{ $s }} security</span>
+                    {{ if gt $r 0 }}· <span class="color-negative">reboot</span>{{ end }}
+                  </span>
+                </li>
+              {{ end }}
+              </ul>
+            {{ end }}
+
+        # Certificates by days left. The tier's step-ca leaves renew themselves
+        # every few days (renewal="acme"), so they are summarised: what matters is
+        # that none is close to running out. The rest are renewed by hand and are
+        # listed: the blackbox probes' view, and the management consoles'
+        # collector (homelab_cert_expiry_timestamp_seconds).
+        - type: custom-api
+          title: Certificates
+          cache: 15m
+          <<: *prometheus
+          parameters:
+            query: min by (name, renewal) (probe_ssl_earliest_cert_expiry) - time()
+          subrequests:
+            consoles:
+              <<: *prometheus
+              parameters:
+                query: homelab_cert_expiry_timestamp_seconds - time()
+          template: |
+            {{ $all := sortByFloat "value.1" "asc" (.JSON.Array "data.result") }}
+            {{ $auto := 0 }}{{ $soonest := 0.0 }}{{ $first := true }}
+            {{ range $all }}
+              {{ if eq (.String "metric.renewal") "acme" }}
+                {{ $auto = add $auto 1 }}
+                {{ if $first }}{{ $soonest = div (.Float "value.1") 86400 }}{{ $first = false }}{{ end }}
+              {{ end }}
+            {{ end }}
+            {{ if gt $auto 0 }}
+              <p class="margin-bottom-10">
+                <span class="{{ if lt $soonest 1.0 }}color-negative{{ else }}color-positive{{ end }}">
+                  {{ $auto }} auto-renewing</span>,
+                soonest in {{ printf "%.1f" $soonest }} days
+              </p>
+            {{ end }}
+            <ul class="list list-gap-10">
+            {{ range $all }}
+              {{ if ne (.String "metric.renewal") "acme" }}
+                {{ $d := div (.Float "value.1") 86400 }}
+                <li class="flex justify-between">
+                  <span>{{ .String "metric.name" }}</span>
+                  <span class="size-h6 {{ if lt $d 30.0 }}color-negative{{ end }}">{{ printf "%.0f" $d }} days</span>
+                </li>
+              {{ end }}
+            {{ end }}
+            {{ range (.Subrequest "consoles").JSON.Array "data.result" }}
+              {{ $d := div (.Float "value.1") 86400 }}
+              <li class="flex justify-between">
+                <span>{{ .String "metric.endpoint" }}</span>
+                <span class="size-h6 {{ if lt $d 30.0 }}color-negative{{ end }}">{{ printf "%.0f" $d }} days</span>
+              </li>
+            {{ end }}
+            </ul>
+
+        # New releases of the software this estate pins. Dependabot opens the
+        # PR; this is the heads-up. Unauthenticated GitHub API, once per six
+        # hours per repository.
+        - type: releases
+          cache: 6h
+          show-source-icon: false
+          collapse-after: 6
+          repositories:
+            - home-assistant/core
+            - immich-app/immich
+            - paperless-ngx/paperless-ngx
+            - dani-garcia/vaultwarden
+            - jellyfin/jellyfin
+            - miniflux/v2
+            - glanceapp/glance
+            - caddyserver/caddy
+            - prometheus/prometheus
+            - grafana/grafana
+            - grafana/loki

@@ -1565,11 +1565,10 @@ services:
   # ---------------------------------------------------------------------------
   # Glance — the operator's start page (ADR-0098, ADR-0100)
   # ---------------------------------------------------------------------------
-  # What the browser opens to, at https://start.matrix.elysium. Two pages:
-  # Home (markets, bookmarks, YouTube and Reddit tabs, followed feeds, scores,
-  # trending repositories, the estate in brief) and Homelab (every console,
-  # uptime, hosts, storage, network, guests, the UPS, releases), all read
-  # from Prometheus or a public API. Homepage stays the household's
+  # What the browser opens to, at https://start.matrix.elysium. A page per
+  # subject — Home, Read, Watch, Sports & Markets, Homelab, Network & Storage
+  # and Maintenance — each a file under glance/pages/, all read from
+  # Prometheus or a public API. Homepage stays the household's
   # directory; ADR-0098 says why the two are separate. glance/ is the whole
   # configuration, in the repository and mounted read-only, except the
   # operator's own lists, which come from SOPS. Nothing lives in a volume, so
@@ -1634,7 +1633,12 @@ services:
       # replaced file whose old inode Glance's watcher still holds.
       - ./glance/glance.yml:/app/config/glance.yml:ro
       - ./glance/pages/home.yml:/app/config/pages/home.yml:ro
+      - ./glance/pages/read.yml:/app/config/pages/read.yml:ro
+      - ./glance/pages/watch.yml:/app/config/pages/watch.yml:ro
+      - ./glance/pages/sports.yml:/app/config/pages/sports.yml:ro
       - ./glance/pages/homelab.yml:/app/config/pages/homelab.yml:ro
+      - ./glance/pages/network.yml:/app/config/pages/network.yml:ro
+      - ./glance/pages/maintenance.yml:/app/config/pages/maintenance.yml:ro
       # Static icons (assets/icons/NOTICE); nothing watches them.
       - ./glance/assets:/app/config/assets:ro
       - ./.rendered/glance-ca.pem:/etc/glance/certs/ca.pem:ro

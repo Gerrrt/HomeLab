@@ -592,17 +592,31 @@ is kept:
 The operator's start page, at `https://start.matrix.elysium` — what the
 browser opens to ([ADR-0098], [ADR-0100]). Homepage above stays the
 household's directory with no status dots; this is the page that has them,
-kept apart so the two answer different questions. Two pages, under `glance/`:
+kept apart so the two answer different questions. One page per subject,
+each a file under `glance/pages/` and a tab along the top, so none carries
+everything:
 
-- **Home** (`pages/home.yml`): the ticker strip, bookmarks, the year, search,
-  YouTube tabs, Following, Reddit tabs, NBA scores, trending repositories,
-  the estate in brief, hosts, Hacker News and a random fact.
-- **Homelab** (`pages/homelab.yml`): every console by category, a headline
-  strip, the Estate panel, uptime badges, hosts, storage, network, Saruman's
-  VMs, the household monitor, the UPS and upstream releases.
+- **Home** (`home.yml`): the ticker strip, search, bookmarks, the time and
+  weather, the estate in brief, the year and a random fact. Short on purpose.
+- **Read** (`read.yml`): Following, the Reddit tabs, Hacker News, Lobsters
+  and trending repositories.
+- **Watch** (`watch.yml`): the YouTube tabs at full width, as a grid.
+- **Sports & Markets** (`sports.yml`): NBA, NFL, MLB and NHL scores from
+  ESPN, and the full ticker list with charts.
+- **Homelab** (`homelab.yml`): a headline strip, the Estate panel, uptime
+  badges, hosts, every console by category, the household monitor and
+  Saruman's VMs.
+- **Network & Storage** (`network.yml`): traffic per VLAN and at the WAN, the
+  last speed test, pools and SMART, and the UPS.
+- **Maintenance** (`maintenance.yml`): every scheduled job against its
+  allowed age (backups and the off-site copy among them), the open
+  `security` issues, pending updates and reboots, certificates by days left,
+  and upstream releases.
 
-`glance.yml` holds what both share: the server, the theme, and the
-`&prometheus`, `&fever` and `&hosts` anchors the pages merge in.
+`glance.yml` holds what they share: the server, the theme, and the
+`&prometheus`, `&fever` and `&hosts` anchors the pages merge in. A new page
+is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
+`compose.yaml`.
 
 - **The estate, as Prometheus sees it.** The *Estate* panel asks the reader
   proxy on `prometheus` three things with the same reader token Homepage uses:
