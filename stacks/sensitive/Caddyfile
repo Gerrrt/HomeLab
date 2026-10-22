@@ -131,7 +131,22 @@ memos.matrix.elysium {
 # Its widgets call the other names above from inside the compose network, and
 # arrive here like any browser.
 home.matrix.elysium {
-	reverse_proxy homepage:3000
+	# The tier's root certificate, as a download, so a household phone can
+	# install it before any app here is pointed at the tier
+	# (build-the-tier-ca.md section 6). It is the same file compose.yaml mounts
+	# for the ACME client, public by design: a root certificate vouches for the
+	# tier and reveals nothing. The leaf's key, and the CA's, are elsewhere.
+	handle /tier-ca.crt {
+		root * /etc/caddy/tls
+		rewrite * /ca.pem
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=matrix-elysium-tier-ca.crt"
+		file_server
+	}
+
+	handle {
+		reverse_proxy homepage:3000
+	}
 
 	log {
 		output stdout

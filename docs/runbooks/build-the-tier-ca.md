@@ -197,10 +197,47 @@ sudo update-ca-certificates
 ```
 
 Firefox keeps its own store: **Settings → Privacy & Security → Certificates →
-View Certificates → Authorities → Import**. On a phone, install it as a
-certificate profile and — on iOS — enable full trust for it under
-**General → About → Certificate Trust Settings**, without which the profile
-sits installed and untrusted.
+View Certificates → Authorities → Import**.
+
+A phone fetches the root itself. Caddy serves it as a download at
+`https://home.matrix.elysium/tier-ca.crt`, the one static route in the
+`Caddyfile`, so nothing is carried over by cable or mail. The browser warns
+first, because the phone does not yet trust the very root it is fetching:
+proceed past that warning once, for this download and nothing else, and
+never again after the install.
+
+That first fetch is the one connection nothing authenticates, so the file it
+delivers is checked by hand before anything relies on it. Before you start,
+print the root's fingerprint from a copy you already trust — on `prometheus`
+or `trinity`:
+
+```bash
+openssl x509 -in certificates/tier-ca.pem -noout -sha256 -fingerprint
+```
+
+Then, on the phone:
+
+- **Android:** Settings → Security & privacy → More security settings →
+  Encryption & credentials → Install a certificate → CA certificate, and pick
+  the download. Then **Trusted credentials → User**, tap the new entry, and
+  compare its SHA-256 fingerprint to the one you printed. They match, or you
+  remove the entry there and then and find out what answered on 443. Done
+  this way for a Pixel on 2026-10-21, and the Home Assistant app signed in on
+  the first try afterwards.
+- **iOS:** Safari asks whether to allow a configuration profile to be
+  downloaded; allow it. That only stages the profile. Install it under
+  **Settings → Profile Downloaded** (or **General → VPN & Device Management**)
+  → Install, with the passcode; **More Details** on the same screen shows the
+  certificate's fingerprint, to compare before you tap Install. Only then
+  does the root appear under **General → About → Certificate Trust
+  Settings**, where full trust has to be enabled for it; without that step
+  the profile sits installed and untrusted.
+
+Prove it before pointing any app at the tier: the phone's browser opens
+`https://homeassistant.matrix.elysium` with a padlock and no warning. That
+check shows the phone trusts *a* root for the name; the fingerprint above is
+what shows it is ours. An app that is told the address before this step
+caches the failure and has to be told again.
 
 ## Adding a service
 
