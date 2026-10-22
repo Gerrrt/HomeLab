@@ -128,7 +128,8 @@
                         </span>
                         <span class="size-h6">
                           {{ if $never }}never run
-                          {{ else if gt $age 1e9 }}never succeeded{{ if $isFailed }} · last run failed{{ end }}
+                          {{ else if gt $age 1e9 }}never succeeded
+                            {{ if $isFailed }} · last run failed{{ end }}
                           {{ else }}
                             {{ if gt $hours 48.0 }}{{ printf "%.0fd" (div $hours 24) }}
                             {{ else }}{{ printf "%.1fh" $hours }}{{ end }} ago
