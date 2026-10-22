@@ -16,6 +16,8 @@
         #   per machine), not the outcomes, so a job with no success series is shown
         #   as "never run" and counted, as ScheduledJobNeverRan counts it, rather
         #   than vanishing from the list.
+        # - A job that has run but never succeeded publishes a success time of 0;
+        #   that reads "never succeeded", not an age of decades.
         # - A job is overdue when its last success is older than its declared limit
         #   (ScheduledJobStale), and flagged when its last run failed.
         # - verify-key-backup and verify-ca-key-backup are not read from the generic
@@ -126,6 +128,8 @@
                         </span>
                         <span class="size-h6">
                           {{ if $never }}never run
+                          {{ else if gt $age 1e9 }}never succeeded
+                            {{ if $isFailed }} · last run failed{{ end }}
                           {{ else }}
                             {{ if gt $hours 48.0 }}{{ printf "%.0fd" (div $hours 24) }}
                             {{ else }}{{ printf "%.1fh" $hours }}{{ end }} ago
