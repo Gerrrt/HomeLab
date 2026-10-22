@@ -8,21 +8,34 @@
     # ---------------------------------------------------------------------
     - size: full
       widgets:
-        # Every scheduled job the estate runs (systemd timers through
-        # run-scheduled.sh), worst first: how long since it last succeeded against
-        # the longest it may go (homelab_job_max_age_seconds, the same threshold the
-        # ScheduledJob* alerts use), and whether its last run failed. Backups, the
-        # off-site copy and the key-backup proofs are all here.
+        # Every scheduled job the estate declares, judged the way the alert rules in
+        # prometheus/rules/backup.rules.yaml judge it, so the panel and the alerts
+        # agree:
+        #
+        # - The list is the DECLARATIONS (homelab_job_max_age_seconds, one per job
+        #   per machine), not the outcomes, so a job with no success series is shown
+        #   as "never run" and counted, as ScheduledJobNeverRan counts it, rather
+        #   than vanishing from the list.
+        # - A job is overdue when its last success is older than its declared limit
+        #   (ScheduledJobStale), and flagged when its last run failed.
+        # - verify-key-backup and verify-ca-key-backup are not read from the generic
+        #   success time. One proof refreshes that for every key, so it can be green
+        #   while one key rots. They are judged per age recipient
+        #   (homelab_key_recipient_last_proof_timestamp_seconds) and per current CA
+        #   key (homelab_ca_key_backup_last_proof_timestamp_seconds) against the same
+        #   limit, as SecretsKeyBackupUnproven and CaKeyBackupUnproven do. A proof
+        #   recorded as 0 reads "never proved".
+        #
+        # Everything is joined on `instance`, the machine label the rules join on.
+        # Needing attention comes first; the rest follow.
         - type: custom-api
           title: Scheduled jobs
           cache: 5m
           <<: *prometheus
           parameters:
-            query: >-
-              (time() - homelab_job_last_success_timestamp_seconds)
-              / homelab_job_max_age_seconds
+            query: homelab_job_max_age_seconds
           subrequests:
-            age:
+            success:
               <<: *prometheus
               parameters:
                 query: time() - homelab_job_last_success_timestamp_seconds
@@ -30,52 +43,99 @@
               <<: *prometheus
               parameters:
                 query: homelab_job_last_exit_code != 0
+            keys:
+              <<: *prometheus
+              parameters:
+                query: time() - homelab_key_recipient_last_proof_timestamp_seconds
+            ca:
+              <<: *prometheus
+              parameters:
+                query: time() - homelab_ca_key_backup_last_proof_timestamp_seconds
           template: |
-            {{ $jobs := sortByFloat "value.1" "desc" (.JSON.Array "data.result") }}
-            {{ $age := (.Subrequest "age").JSON.Array "data.result" }}
+            {{ $decl := sortByString "metric.homelab_job" "asc" (.JSON.Array "data.result") }}
+            {{ $success := (.Subrequest "success").JSON.Array "data.result" }}
             {{ $failed := (.Subrequest "failed").JSON.Array "data.result" }}
-            {{ if eq (len $jobs) 0 }}
-              <p class="color-negative">No data: Prometheus returned no scheduled jobs.</p>
+            {{ $keys := (.Subrequest "keys").JSON.Array "data.result" }}
+            {{ $ca := (.Subrequest "ca").JSON.Array "data.result" }}
+            {{ if or (ne .Response.StatusCode 200) (eq (len $decl) 0) }}
+              <p class="color-negative">No data: Prometheus returned no job declarations.</p>
             {{ else }}
-              {{ $bad := 0 }}
-              {{ range $jobs }}
-                {{ $j := .String "metric.homelab_job" }}{{ $h := .String "metric.host" }}
-                {{ $isFailed := false }}
-                {{ range $failed }}
-                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
-                    {{ $isFailed = true }}
+              {{/* Pass 0 counts, pass 1 lists what needs attention, pass 2 the rest.
+                   Ages come from Prometheus (time() - …), so nothing here reads a
+                   clock; a proof recorded as 0 is an age of decades: "never proved". */}}
+              {{ $bad := 0 }}{{ $all := 0 }}
+              {{ range $pass := 3 }}
+                {{ if eq $pass 1 }}
+                  <p class="margin-bottom-10">
+                    {{ if gt $bad 0 }}<span class="color-negative">{{ $bad }} of {{ $all }} need attention</span>
+                    {{ else }}<span class="color-positive">All {{ $all }} on schedule</span>{{ end }}
+                  </p>
+                  <ul class="list list-gap-10 collapsible-container" data-collapse-after="10">
+                {{ end }}
+                {{ range $decl }}
+                  {{ $j := .String "metric.homelab_job" }}{{ $i := .String "metric.instance" }}
+                  {{ $limit := .Float "value.1" }}
+                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-ca-key-backup") }}
+                    {{ $proofs := $keys }}{{ $label := "recipient" }}
+                    {{ if eq $j "verify-ca-key-backup" }}{{ $proofs = $ca }}{{ $label = "ca" }}{{ end }}
+                    {{ range $proofs }}
+                      {{ if eq (.String "metric.instance") $i }}
+                        {{ $age := .Float "value.1" }}{{ $never := gt $age 1e9 }}
+                        {{ $isBad := or $never (gt $age $limit) }}
+                        {{ if eq $pass 0 }}
+                          {{ $all = add $all 1 }}{{ if $isBad }}{{ $bad = add $bad 1 }}{{ end }}
+                        {{ else if eq $isBad (eq $pass 1) }}
+                          <li class="flex justify-between">
+                            <span class="{{ if $isBad }}color-negative{{ else }}color-highlight{{ end }}">
+                              {{ $j }}
+                              <span class="size-h6">
+                                {{ printf "%.14s" (.String (concat "metric." $label)) }}… on {{ $i }}
+                              </span>
+                            </span>
+                            <span class="size-h6">
+                              {{ if $never }}never proved
+                              {{ else }}{{ printf "%.0fd ago" (div $age 86400) }}
+                                {{ if $isBad }} · overdue{{ end }}
+                              {{ end }}
+                            </span>
+                          </li>
+                        {{ end }}
+                      {{ end }}
+                    {{ end }}
+                  {{ else }}
+                    {{ $age := -1.0 }}{{ $isFailed := false }}
+                    {{ range $success }}
+                      {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.instance") $i) }}
+                        {{ $age = .Float "value.1" }}
+                      {{ end }}
+                    {{ end }}
+                    {{ range $failed }}
+                      {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.instance") $i) }}
+                        {{ $isFailed = true }}
+                      {{ end }}
+                    {{ end }}
+                    {{ $never := lt $age 0.0 }}
+                    {{ $isBad := or $never $isFailed (gt $age $limit) }}
+                    {{ if eq $pass 0 }}
+                      {{ $all = add $all 1 }}{{ if $isBad }}{{ $bad = add $bad 1 }}{{ end }}
+                    {{ else if eq $isBad (eq $pass 1) }}
+                      {{ $hours := div $age 3600 }}
+                      <li class="flex justify-between">
+                        <span class="{{ if $isBad }}color-negative{{ else }}color-highlight{{ end }}">
+                          {{ $j }} <span class="size-h6">on {{ $i }}</span>
+                        </span>
+                        <span class="size-h6">
+                          {{ if $never }}never run
+                          {{ else }}
+                            {{ if gt $hours 48.0 }}{{ printf "%.0fd" (div $hours 24) }}
+                            {{ else }}{{ printf "%.1fh" $hours }}{{ end }} ago
+                            {{ if $isFailed }}· last run failed{{ else if gt $age $limit }}· overdue{{ end }}
+                          {{ end }}
+                        </span>
+                      </li>
+                    {{ end }}
                   {{ end }}
                 {{ end }}
-                {{ if or $isFailed (gt (.Float "value.1") 1.0) }}{{ $bad = add $bad 1 }}{{ end }}
-              {{ end }}
-              <p class="margin-bottom-10">
-                {{ if gt $bad 0 }}<span class="color-negative">{{ $bad }} need attention</span>
-                {{ else }}<span class="color-positive">All {{ len $jobs }} on schedule</span>{{ end }}
-              </p>
-              <ul class="list list-gap-10 collapsible-container" data-collapse-after="10">
-              {{ range $jobs }}
-                {{ $j := .String "metric.homelab_job" }}{{ $h := .String "metric.host" }}
-                {{ $ratio := .Float "value.1" }}{{ $hours := 0.0 }}{{ $isFailed := false }}
-                {{ range $age }}
-                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
-                    {{ $hours = div (.Float "value.1") 3600 }}
-                  {{ end }}
-                {{ end }}
-                {{ range $failed }}
-                  {{ if and (eq (.String "metric.homelab_job") $j) (eq (.String "metric.host") $h) }}
-                    {{ $isFailed = true }}
-                  {{ end }}
-                {{ end }}
-                <li class="flex justify-between">
-                  <span class="{{ if or $isFailed (gt $ratio 1.0) }}color-negative{{ else }}color-highlight{{ end }}">
-                    {{ $j }} <span class="size-h6">on {{ $h }}</span>
-                  </span>
-                  <span class="size-h6">
-                    {{ if gt $hours 48.0 }}{{ printf "%.0fd" (div $hours 24) }}
-                    {{ else }}{{ printf "%.1fh" $hours }}{{ end }} ago
-                    {{ if $isFailed }}· last run failed{{ else if gt $ratio 1.0 }}· overdue{{ end }}
-                  </span>
-                </li>
               {{ end }}
               </ul>
             {{ end }}
