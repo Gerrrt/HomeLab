@@ -25,7 +25,7 @@
 # as three, and Vaultwarden (#131) the fifth — the one whose volume is the
 # vault, and the reason scripts/backup-volumes.sh learned this stack.
 # Homepage (#137) was the sixth, the household's page of links to the other
-# five, until ADR-0102 retired it for Glance's Household page. ntfy (#136) is
+# five, until ADR-0103 retired it for Glance's Household page. ntfy (#136) is
 # the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
@@ -1459,14 +1459,14 @@ services:
 
   # ---------------------------------------------------------------------------
   # Glance — the start page and the household's page (ADR-0098, ADR-0100,
-  # ADR-0102)
+  # ADR-0103)
   # ---------------------------------------------------------------------------
   # What the operator's browser opens to, at https://start.matrix.elysium: a
   # page per subject — Home, Read, Watch, Sports & Markets, Homelab, Network &
   # Storage and Maintenance — each a file under glance/pages/, all read from
   # Prometheus or a public API. And the household's directory, at
   # https://home.matrix.elysium, which Caddy sends to the Household page; it
-  # replaced Homepage (#137) under ADR-0102. glance/ is the whole
+  # replaced Homepage (#137) under ADR-0103. glance/ is the whole
   # configuration, in the repository and mounted read-only, except the
   # operator's own lists, which come from SOPS. Nothing lives in a volume, so
   # there is nothing to back up and no sentinel.

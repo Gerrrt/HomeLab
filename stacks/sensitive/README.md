@@ -57,7 +57,7 @@ make up STACK=sensitive
 | linkding | `sissbruecker/linkding` | *internal* (9090) | The household's bookmarks, at `https://links.matrix.elysium`. One SQLite file, one account, no second factor. The fourth service beyond ADR-0008's nine ([ADR-0061], [#144]) |
 | actual | `actualbudget/actual-server` | *internal* (5006) | The household's budget at `https://actual.matrix.elysium`: the sync server for Actual's local-first clients, password login only, no bank sync. The fifth service beyond ADR-0008's nine, after Miniflux, Memos, Mealie and linkding, by [ADR-0062] ([#142]) |
 | stirling-pdf | `stirlingtools/stirling-pdf` | *internal* (8080) | The household's PDF editor at `https://pdf.matrix.elysium`: merge, split, sign, OCR, convert, so that none of it goes through a website. Keeps nothing, and its documents live only in memory ([#143], [ADR-0063]) |
-| glance | `glanceapp/glance` | *internal* (8080) | Two front pages. The operator's start page at `https://start.matrix.elysium`, a page per subject: the estate's state as Prometheus sees it, maintenance, feeds, video, scores and markets. And the household's page at `https://home.matrix.elysium`: what exists in the house and where, with no status, which Homepage was until [ADR-0102]. Keeps nothing ([ADR-0098], [ADR-0100]) |
+| glance | `glanceapp/glance` | *internal* (8080) | Two front pages. The operator's start page at `https://start.matrix.elysium`, a page per subject: the estate's state as Prometheus sees it, maintenance, feeds, video, scores and markets. And the household's page at `https://home.matrix.elysium`: what exists in the house and where, with no status, which Homepage was until [ADR-0103]. Keeps nothing ([ADR-0098], [ADR-0100]) |
 
 Twenty-one services. Two are plumbing; Home Assistant and Vaultwarden are the first
 household services and the shape every later one takes; AdGuard is the one the
@@ -71,7 +71,7 @@ household is meant to open for its own sake; linkding is the fourth; Actual
 is the household's budget, the fifth; and Stirling-PDF, the sixth, is the one
 that keeps nothing; Glance is two front pages, the operator's start page,
 the one place here that shows up and down ([ADR-0098]), and the household's
-page that tells them the rest exist ([ADR-0102]). What is absent is as deliberate as
+page that tells them the rest exist ([ADR-0103]). What is absent is as deliberate as
 what is here:
 
 - **No Prometheus, Loki or Grafana.** The lab has its own because its
@@ -526,7 +526,7 @@ The household's notes, and the second *Tier extras* service —
 
 What exists in the house and where it lives, at `https://home.matrix.elysium`
 — the one address on this tier that people who are not the operator are
-given. It was Homepage ([#137]) until [ADR-0102] made it Glance's *Household*
+given. It was Homepage ([#137]) until [ADR-0103] made it Glance's *Household*
 page (`glance/pages/household.yml`), and it keeps that page's promise: a
 directory, not a status page.
 
@@ -539,7 +539,7 @@ directory, not a status page.
   as links with a line each, the house wiki, where to get each app, the time
   and the weather (coarse). The bar of tabs is hidden on desktop. Glance has
   no per-page login, so the operator's pages are a URL or the mobile menu
-  away for anyone here; [ADR-0102] accepts that inside the household.
+  away for anyone here; [ADR-0103] accepts that inside the household.
 - **Two numbers, on read-only keys.** Photos and videos from Immich, with a
   key holding the single permission `server.statistics`, and documents from
   Paperless-ngx, with the token of a view-only user still named `homepage`.
@@ -1225,7 +1225,7 @@ it matters:
 [ADR-0063]: ../../docs/adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md
 [ADR-0098]: ../../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md
 [ADR-0100]: ../../docs/adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md
-[ADR-0102]: ../../docs/adr/0102-retire-homepage-and-serve-the-household-page-from-glance.md
+[ADR-0103]: ../../docs/adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129

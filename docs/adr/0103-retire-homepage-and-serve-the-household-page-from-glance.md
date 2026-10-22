@@ -1,4 +1,4 @@
-# ADR-0102: Retire Homepage, and serve the household's page from Glance
+# ADR-0103: Retire Homepage, and serve the household's page from Glance
 
 **Status:** Accepted · 2026-10 · supersedes decision 2 of
 [ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)

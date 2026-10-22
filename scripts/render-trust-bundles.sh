@@ -11,7 +11,7 @@
 #                          image's own public roots rather than replacing them,
 #                          so the tier's root (step-ca's leaves, ADR-0037) and
 #                          the estate's are the whole of what it needs. It
-#                          was Homepage's homepage-ca.pem's twin until ADR-0102
+#                          was Homepage's homepage-ca.pem's twin until ADR-0103
 #                          retired Homepage.
 #   home-assistant-ca.pem  the host's public roots + the estate CA. Home
 #                          Assistant builds every client SSL context from

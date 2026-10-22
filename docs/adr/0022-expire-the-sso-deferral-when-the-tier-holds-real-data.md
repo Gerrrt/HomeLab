@@ -54,7 +54,7 @@
 > ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
 >
 > **Homepage is gone and the household's page is Glance's**
-> ([ADR-0102](0102-retire-homepage-and-serve-the-household-page-from-glance.md)).
+> ([ADR-0103](0103-retire-homepage-and-serve-the-household-page-from-glance.md)).
 > It is left out of the table for the reason Homepage was: no login.
 >
 > **Trigger 1 fired on 2026-09-28, and the deferral was re-accepted on

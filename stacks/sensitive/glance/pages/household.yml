@@ -1,4 +1,4 @@
-# The household's page (ADR-0102): what exists in the house and where it lives,
+# The household's page (ADR-0103): what exists in the house and where it lives,
 # at https://home.matrix.elysium — the one address the people who live here are
 # given. It took over from Homepage (#137) and keeps that page's promise: a
 # directory, not a status page. No up/down, no alerts, no feeds and nothing of
@@ -6,7 +6,7 @@
 #
 # Caddy sends home.matrix.elysium/ here, and the bar of tabs is hidden on it,
 # so the household lands on this page alone. Glance has no per-page login, so
-# the other pages are a URL away for anyone on this page; ADR-0102 accepts
+# the other pages are a URL away for anyone on this page; ADR-0103 accepts
 # that inside the household.
 - name: Household
   slug: household

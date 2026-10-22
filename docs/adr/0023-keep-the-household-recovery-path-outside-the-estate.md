@@ -143,7 +143,7 @@ service is allowed to hold real data.
 > This ADR is not superseded.*
 >
 > *Homepage was retired by
-> [ADR-0102](0102-retire-homepage-and-serve-the-household-page-from-glance.md);
+> [ADR-0103](0103-retire-homepage-and-serve-the-household-page-from-glance.md);
 > the household's page it was is now Glance's, and stays **Unclassed**.
 > This ADR is not superseded.*
 

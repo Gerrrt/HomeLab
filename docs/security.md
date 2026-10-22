@@ -419,7 +419,7 @@ scraped and reachable by SSH, each on a row of its own. Its restream requires
 a credential, so the rest of Skids cannot connect and watch the room the
 camera watches; the hop itself is RTSP in the clear across Skids, so a
 compromised device there that can put itself in the path can read the
-stream while Home Assistant has it open. ADR-0102 accepts that as a
+stream while Home Assistant has it open. ADR-0103 accepts that as a
 residual, bounds it to the minutes a dashboard shows the camera, and names
 the TLS path that retires it. Still outbound only, and the tripwire still has
 to read 0 with it running.

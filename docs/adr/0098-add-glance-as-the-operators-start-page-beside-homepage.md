@@ -160,6 +160,6 @@ Three facts about the estate shaped the rest.
 > the browser fetches YouTube thumbnails. The rest of this ADR stands.*
 >
 > *Decision 2 is superseded by
-> [ADR-0102](0102-retire-homepage-and-serve-the-household-page-from-glance.md):
+> [ADR-0103](0103-retire-homepage-and-serve-the-household-page-from-glance.md):
 > Homepage is retired, and the household's directory at `home.matrix.elysium`
 > is now a page of Glance with no status on it. The rest of this ADR stands.*

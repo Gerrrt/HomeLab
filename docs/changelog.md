@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-10-22
 
 - **Homepage is retired, and the household's page is Glance's**
-  ([ADR-0102](adr/0102-retire-homepage-and-serve-the-household-page-from-glance.md),
+  ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
   [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). The operator
   asked whether Homepage was still needed once Glance had grown. Little was
   left that it did alone: the household's directory and two read-only
