@@ -19,6 +19,28 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **The Ring Alarm integration is deployed in Home Assistant**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
+  [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry on
+  moving Home Assistant's Ring entry, further down this date, left it "not
+  yet deployed"; this is that deployment.
+  - **Deployed.** `make up STACK=sensitive` started Mosquitto and ring-mqtt
+    and recreated Home Assistant on its second network. All 21 services
+    with a healthcheck passed; ring-mqtt has none, by design.
+  - **ring-mqtt is on its two networks only.** It is on `mqtt` and
+    `ring-egress`, not `sensitive`, which the review asked for.
+  - **Signed in by the runbook.** `connect-the-ring-alarm.md` signed
+    ring-mqtt in to the Ring location owner's account with 2FA, and Ring
+    rotated the token on the first connection, as ADR-0104 expects.
+  - **Home Assistant's MQTT integration loaded.** It signed in to the broker
+    as `homeassistant`.
+  - **The device list missed Home Assistant once.** ring-mqtt published it
+    three minutes before Home Assistant connected, and the broker keeps
+    nothing. ring-mqtt resent it 15 seconds after Home Assistant's birth
+    message, and the alarm's entities arrived. Which devices, and what
+    state they are in, stays out of this file, as camera coverage does
+    (`docs/security.md`).
+
 - **Memos holds its first real notes, ahead of the household copy's holder**
   ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md);
