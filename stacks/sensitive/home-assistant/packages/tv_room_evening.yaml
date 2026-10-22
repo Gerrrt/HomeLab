@@ -89,6 +89,10 @@ automation:
       - condition: state
         entity_id: input_boolean.tv_room_evening_paused
         state: "off"
+      # Not into an empty house (presence.yaml).
+      - condition: state
+        entity_id: input_boolean.house_empty
+        state: "off"
     actions:
       - action: script.tv_room_show_time
 

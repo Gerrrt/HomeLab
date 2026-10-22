@@ -23,9 +23,13 @@ docstring gives: it is a record, not a claim about now.
   in the Companion app, `zone.home` counts both adults:
   - Indoor cameras stop motion detection while anyone is home.
   - Ten minutes after everyone leaves, the dimmable lights go off, the
-    thermostat goes to away and the TV goes off.
+    thermostat goes to away and the TV goes off. A *House is empty* flag,
+    kept across restarts, records it. The sunset lights and the 19:00 show
+    time skip while it is on.
   - The first one home brings back the thermostat's schedule and, after
-    dark, the shared rooms' lights.
+    dark, the shared rooms' lights. Both reconcile when Home Assistant
+    starts, so a restart mid-wait or an arrival while it was down still
+    ends right.
 
   A *Someone else is home* switch covers a babysitter with the child. The
   Honeywell away is a permanent hold at 61 °F by default, seven degrees

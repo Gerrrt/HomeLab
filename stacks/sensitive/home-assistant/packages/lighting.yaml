@@ -20,8 +20,8 @@ light:
       - light.tv_room_tv_room
 
 automation:
-  # No presence condition. person.* tracks one phone, so "nobody home" would
-  # mean "that phone is out", and the rest of the house would sit in the dark.
+  # Skipped while presence.yaml marks the house empty, which needs every
+  # tracked phone out for ten minutes and no one else home.
   - id: evening_lights_on_at_sunset
     alias: Evening lights on at sunset
     description: The shared rooms come on warm and dim, fifteen minutes before sunset.
@@ -30,6 +30,10 @@ automation:
       - trigger: sun
         event: sunset
         offset: "-00:15:00"
+    conditions:
+      - condition: state
+        entity_id: input_boolean.house_empty
+        state: "off"
     actions:
       # The TV room is skipped while the TV is on or movie mode holds the
       # room, so a summer sunset after show time does not overwrite its Mood
