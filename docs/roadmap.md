@@ -330,11 +330,6 @@ none is in the order until one is taken.
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
   enrolled on the admin. Nothing is left; #143 closes with this.
-- **[#1250](https://github.com/Gerrrt/HomeLab/issues/1250) Glance as the only
-  front page** — decided by
-  [ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md).
-  The gate is the deploy order: `trinity` first, so `home.matrix.elysium`
-  is Glance's before `prometheus` pulls the `household-page` probe.
 
 ## Everything still to buy
 

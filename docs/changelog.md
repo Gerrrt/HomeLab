@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **Homepage is gone from `trinity`, and #1250 is closed**
+  ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). `make up` removed
+  Homepage and recreated Glance and Caddy, and 20 of 20 services were
+  healthy. `home.matrix.elysium/` answered 302 to `/household`, which read
+  458 photos, 22 videos and 0 documents, and `/tier-ca.crt` still served.
+  Deploying `trinity` first did not avoid a gap: `prometheus` kept probing
+  Homepage's old path until its converge timer pulled, and `SiteDown` for
+  `homepage` went pending without firing. Once pulled, `household-page` read
+  `probe_success` 1. The converge timers had been stopped before that by a
+  red `main`, caused by ghcr.io throttling a pull in the gosu-skip check.
+  That was re-run green, and #1253 adds a retry.
+
 - **Homepage is retired, and the household's page is Glance's**
   ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
   [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). The operator
