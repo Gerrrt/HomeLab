@@ -195,10 +195,14 @@ judge() { # shown what mark state name
 # check_compose_health.py's PULL_RETRY_PAUSES (#602): 85 s at most, enough to
 # outlast a per-minute throttle. Any other failure — a missing tag, a bad
 # digest — fails at once: retrying does not fix it.
+#
+# The argument is named `img` on purpose: check_image_pins.py traces a docker
+# command's image by variable name back to image-for.sh, and `img` is the name
+# the loop below already resolves that way. `$1` would be untraceable.
 pull_with_retry() {
-  local out pause
+  local img="$1" out pause
   for pause in 5 20 60 0; do
-    if out="$(docker pull -q "$1" 2>&1)"; then
+    if out="$(docker pull -q "${img}" 2>&1)"; then
       return 0
     fi
     if [[ "${out}" != *toomanyrequests* ]] || ((pause == 0)); then
