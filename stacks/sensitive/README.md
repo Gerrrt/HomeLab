@@ -530,8 +530,20 @@ The household's notes, and the second *Tier extras* service —
   `memos_prod.db` is a 4 KB header and everything else is in the `-wal`, which
   a clean stop checkpoints back — and attachments are files under `./assets`.
   The backup names all three.
-- **Durable, under [ADR-0023].** No real notes before the off-estate copy the
-  class requires, for the same reason as Paperless-ngx.
+- **Durable, under [ADR-0023], and running ahead of it.** The class
+  requires an off-estate copy before real notes, for the same reason as
+  Paperless-ngx. It holds real notes since 2026-10-22 anyway, by the
+  operator's accepted exception: the household's shared plan, which also
+  lives outside the estate, so this is not its only copy. What backs it up
+  today is the nightly volume set on `oracle`, age ciphertext, off-host and
+  not off-estate. `make household-copy` does not carry `memos-data`, and
+  until [#455] does, the class's condition is still owed.
+- **Two admins, and the settings that came with the first real notes**
+  (2026-10-22), all in the database and none in this file: public access
+  off, so a signed-out visitor gets nothing; the content length limit at
+  32768 bytes; a Space for the plan; *Protected* as both accounts' default
+  visibility. In Memos 0.31 only a memo's author or an instance admin can
+  edit a memo, which is why the household's second account is an admin.
 
 ## The household's page
 

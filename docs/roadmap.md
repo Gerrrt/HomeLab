@@ -185,7 +185,11 @@ has been rehearsed on it.
   first trigger, the first real photo, fired on 2026-09-28. Until this lands,
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
   nightly copy to `oracle` stands in for the library, off-host and not
-  off-estate. When this lands, it supersedes ADR-0064.
+  off-estate. When this lands, it supersedes ADR-0064. **It does not carry
+  Memos yet.** `make household-copy` writes Immich's library and a
+  Paperless export; `memos-data`, which holds real notes since 2026-10-22,
+  has only the nightly volume set on `oracle`. Adding it to the copy is
+  part of this, and Memos' *Durable* row is not met before it is.
 
 ## NAS
 
@@ -310,9 +314,11 @@ none is in the order until one is taken.
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
   and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
   same day. The admin registered and closed registration on 2026-10-02.
-  Nothing is left; #145 closes with this. It holds no real notes until
-  ADR-0023's *Durable* condition is met, which is the tier's condition and
-  not this issue's.
+  Nothing is left; #145 closes with this. It holds real notes since
+  2026-10-22, ahead of ADR-0023's *Durable* condition, by the operator's
+  accepted exception (the changelog of that day). The condition is the
+  tier's and not this issue's, and what it still owes Memos is written on
+  #455 below.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
