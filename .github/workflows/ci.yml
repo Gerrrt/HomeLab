@@ -584,7 +584,8 @@ jobs:
           key: >-
             boot-proofs-${{ hashFiles('stacks/sensitive/compose.yaml',
             'stacks/sensitive/home-assistant/**', 'stacks/sensitive/ntfy/**',
-            'stacks/sensitive/stirling-pdf/**', 'stacks/soc/compose.yaml',
+            'stacks/sensitive/stirling-pdf/**', 'stacks/sensitive/mosquitto/**',
+            'stacks/sensitive/ring-mqtt/**', 'stacks/soc/compose.yaml',
             'scripts/seed-validation-env.sh', 'scripts/check_hardened_boot.sh') }}
           restore-keys: boot-proofs-
 
@@ -627,6 +628,21 @@ jobs:
         run: >-
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service actual --proof-cache .boot-proofs/proofs.txt
+
+      # The Ring Alarm's broker and bridge (ADR-0104). Mosquitto builds its
+      # password file at start and runs read-only as 1883, and its smoke.sh
+      # signs in as both users and checks the ACL. ring-mqtt runs as plain
+      # Node, not its image's s6 init, as RENDER_UID on a read-only root;
+      # its smoke.sh checks that it read its config and waits for a token.
+      - name: Boot Mosquitto under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service mosquitto --proof-cache .boot-proofs/proofs.txt
+
+      - name: Boot ring-mqtt under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service ring-mqtt --proof-cache .boot-proofs/proofs.txt
 
       # The SOC stack's MSI server (#1068) is a numeric user, read-only, with
       # every capability dropped but NET_BIND_SERVICE. Its first deploy on odin
