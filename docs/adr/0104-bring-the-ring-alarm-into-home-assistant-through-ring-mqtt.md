@@ -83,8 +83,15 @@ garage camera. ring-mqtt has the same constraint, for the same reason.
      `docs/runbooks/connect-the-ring-alarm.md`.
 6. **Alarm only.** `enable_cameras` is false. The cameras and doorbell stay the
    core integration's, so ring-mqtt neither lists them nor starts its bundled
-   go2rtc, and nothing listens on 8554. Its token web UI on 55123 runs only
-   when it has no token, is not exposed, and is not used.
+   go2rtc, and nothing listens on 8554. Its token web UI on 55123 is the one
+   listener left, and it matters. It runs whenever ring-mqtt has no working
+   token, on every interface and with no authentication, and from it anyone
+   who can reach the port can start a Ring sign-in. So ring-mqtt is **not on
+   `sensitive`**. It joins `mqtt`, and `ring-egress`, a network for its way
+   out to Ring with no other member. The only containers that can reach
+   55123 are the broker and Home Assistant, which already holds the same
+   owner's Ring sign-in.
+   The runbook signs in with `docker exec` and never uses the page.
 7. **No disarm code in Home Assistant.** `disarm_code` is empty, so anyone
    signed in to Home Assistant can arm and disarm. They are the household,
    the same people the Ring app lets do it. A code would also have to sit in
@@ -120,9 +127,10 @@ station.
 
 ## Consequences
 
-- **The tier's first broker, and its second network.** `compose.yaml` marks it
-  DIFFERENCE 14. Anything that later wants MQTT joins `mqtt`, with a user and
-  an ACL entry of its own, rather than widening an existing one.
+- **The tier's first broker, and two networks besides `sensitive`.**
+  `compose.yaml` marks them DIFFERENCE 14. Anything that later wants MQTT
+  joins `mqtt`, with a user and an ACL entry of its own, rather than widening
+  an existing one. `ring-egress` stays ring-mqtt's alone.
 - **Community code holds the owner's Ring sign-in.** ring-mqtt is one author's
   project, built on `ring-client-api`, another's. It runs with the Ring
   location owner's refresh token, which can do anything that owner can,
@@ -131,7 +139,7 @@ station.
   accepted on the same terms:
   - pinned by digest;
   - non-root, read-only, with no capabilities;
-  - no inbound port;
+  - no listener the tier's other services can reach;
   - reachable only by Home Assistant over an authenticated, ACL'd broker.
 
   The token is listed in Ring's Control Center as `ring-mqtt-xxxxx`, where it

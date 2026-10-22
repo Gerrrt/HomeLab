@@ -1169,8 +1169,11 @@ this closes on.
   join. Each signs in as its own user, and an ACL keeps ring-mqtt to its own
   topics. ring-mqtt is community code holding the Ring location owner's
   refresh token, as Home Assistant's Ring entry does. It runs non-root and
-  read-only, with no inbound port, and the token can be revoked in Ring's
-  Control Center
+  read-only, and the token can be revoked in Ring's Control Center. Its one
+  listener, an unauthenticated sign-in page that runs while it has no working
+  token, is out of reach of the tier's other services: ring-mqtt is not on
+  `sensitive`, only on the broker's network, shared with Home Assistant, and
+  an egress network of its own
   ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is

@@ -121,7 +121,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-three services, two networks, health-gated ordering;
+compose.yaml               twenty-three services, three networks, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml, packages/ and custom_components/,
@@ -1084,9 +1084,12 @@ true around them is here.
 - **It runs as plain Node, not through its image's s6 init,** as `RENDER_UID`
   on a read-only root. Its `/data/config.json` holds the broker password, so
   it is written to a tmpfs at start and linked into the volume.
-- **Alarm only.** `enable_cameras` is off, so ring-mqtt starts no go2rtc and
-  listens on nothing a client could reach. The cameras and doorbell remain
-  the core integration's.
+- **Alarm only.** `enable_cameras` is off, so ring-mqtt starts no go2rtc.
+  The cameras and doorbell remain the core integration's.
+- **ring-mqtt is not on `sensitive`.** Without a working Ring token it serves
+  an unauthenticated sign-in page on 55123. So it joins only `mqtt` and
+  `ring-egress`, its own way out to Ring with no other member. Only the broker
+  and Home Assistant, which holds the same Ring sign-in, can reach that page.
 - **No disarm code.** Anyone signed in to Home Assistant can arm and disarm,
   as anyone the Ring app lets in can. ADR-0104 says why.
 

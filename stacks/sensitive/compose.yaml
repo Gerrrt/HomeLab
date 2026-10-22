@@ -38,7 +38,7 @@
 # ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
 # Mosquitto and ring-mqtt are the fourteenth, as two services: the Ring
 # Alarm's way into Home Assistant, decided by ADR-0104, and the reason for
-# DIFFERENCE 14, the tier's second network.
+# DIFFERENCE 14, the tier's second and third networks.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -451,13 +451,24 @@ services:
   # to an MQTT broker with Home Assistant discovery. Two services, then: a
   # broker, and the bridge. ADR-0104 is the decision and its trade.
   #
-  # DIFFERENCE 14: a second network, and it is internal. The broker is on
-  # `mqtt` alone, which has no gateway, so it can reach nothing and nothing
-  # but its two members can reach it: Home Assistant and ring-mqtt, which are
-  # on `sensitive` as well. Every other service here could otherwise open
-  # 1883, and the broker carries the alarm's arming commands. Each member
-  # also signs in as its own user, and the ACL keeps ring-mqtt to its two
-  # topic trees, so a compromised bridge cannot publish as anything else.
+  # DIFFERENCE 14: two more networks, and neither is `sensitive`.
+  #
+  #   mqtt         internal, no gateway. The broker is on it alone with its
+  #                two clients, Home Assistant and ring-mqtt, so it can reach
+  #                nothing and no other service here can open 1883. The broker
+  #                carries the alarm's arming commands.
+  #   ring-egress  ring-mqtt's way out to Ring's cloud, and nothing else is on
+  #                it. ring-mqtt is deliberately not on `sensitive`: while it
+  #                has no Ring token, or its saved one fails, it serves an
+  #                unauthenticated sign-in page on 55123 on every interface,
+  #                and a service beside it could start a Ring sign-in of its
+  #                own there. On this network there is no one beside it; on
+  #                `mqtt` there are the broker and Home Assistant, which holds
+  #                the same Ring sign-in already.
+  #
+  # Each client also signs in to the broker as its own user, and the ACL keeps
+  # ring-mqtt to its two topic trees, so a compromised bridge cannot publish
+  # as anything else.
   #
   # Nothing is persisted. Retained discovery and state live in the broker's
   # memory, and ring-mqtt republishes all of it when Home Assistant's birth
@@ -533,13 +544,15 @@ services:
   # enable_cameras is false: the cameras and doorbell are the core
   # integration's, and with it false ring-mqtt neither lists them nor starts
   # its bundled go2rtc, so nothing listens on 8554. Its token web UI on 55123
-  # starts only when it has no token; it is not exposed, and the runbook does
-  # not use it.
+  # starts only when it has no working token. It has no authentication, which
+  # is why ring-mqtt is on a network of its own (DIFFERENCE 14), and the
+  # runbook signs in with `docker exec` instead.
   ring-mqtt:
     <<: *service-defaults
     image: tsightler/ring-mqtt:5.9.3@sha256:4a4e0db460d7023aa5851ff25491401fd23b2fd153b7269af481f0953cd6f00a
     container_name: sensitive-ring-mqtt
-    networks: [sensitive, mqtt]
+    # Not `sensitive`: DIFFERENCE 14 says why.
+    networks: [ring-egress, mqtt]
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
     # A ceiling for a leak. The one number there is: 48 MiB at idle on the
     # pinned image before a Ring sign-in, 2026-10-22. Re-derive once the
@@ -2139,6 +2152,9 @@ networks:
   mqtt:
     driver: bridge
     internal: true
+  # DIFFERENCE 14 again: ring-mqtt's own way out, with no other member.
+  ring-egress:
+    driver: bridge
 
 volumes:
   caddy-data:
