@@ -126,10 +126,11 @@ memos.matrix.elysium {
 	}
 }
 
-# Homepage (#137), the household's front page. A short name on purpose: it is
-# the one address on this tier that people who are not the operator are told.
-# Its widgets call the other names above from inside the compose network, and
-# arrive here like any browser.
+# The household's front page. A short name on purpose: it is the one address
+# on this tier that people who are not the operator are told. Since ADR-0103
+# it is Glance's Household page, which Homepage (#137) used to be: the bare
+# name lands there, and everything else is Glance, so the page's own assets
+# and API calls resolve.
 home.matrix.elysium {
 	# The tier's root certificate, as a download, so a household phone can
 	# install it before any app here is pointed at the tier
@@ -145,7 +146,8 @@ home.matrix.elysium {
 	}
 
 	handle {
-		reverse_proxy homepage:3000
+		redir / /household
+		reverse_proxy glance:8080
 	}
 
 	log {

@@ -141,6 +141,11 @@ service is allowed to hold real data.
 > *Glance, the operator's start page, is **Unclassed** for the same reason
 > ([ADR-0098](0098-add-glance-as-the-operators-start-page-beside-homepage.md)).
 > This ADR is not superseded.*
+>
+> *Homepage was retired by
+> [ADR-0103](0103-retire-homepage-and-serve-the-household-page-from-glance.md);
+> the household's page it was is now Glance's, and stays **Unclassed**.
+> This ADR is not superseded.*
 
 **Vaultwarden — the household's vault is not this vault.** The recommendation is
 that the family's own credentials live in hosted Bitwarden and that Vaultwarden

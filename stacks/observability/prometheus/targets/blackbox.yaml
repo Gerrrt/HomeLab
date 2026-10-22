@@ -262,11 +262,14 @@
     renewal: acme
     tier: household
 
-# `/api/healthcheck` answers `up`, the path compose.yaml's healthcheck uses.
-- targets: ["https://home.matrix.elysium/api/healthcheck"]
+# The household's page, at the name the household is given. Since ADR-0103
+# it is Glance's Household page, not Homepage, so the path is Glance's
+# `/api/healthz`, which Caddy passes through; only the bare `/` is
+# redirected. The name stays the address's, not the software's.
+- targets: ["https://home.matrix.elysium/api/healthz"]
   labels:
     module: http_2xx_tier_ca
-    name: homepage
+    name: household-page
     role: front-page
     host: trinity
     via: dns
@@ -277,8 +280,8 @@
 # compose.yaml's healthcheck uses, and answers 200 with an empty body. Probed
 # before it was added (2026-10-21) by the pinned exporter image with this
 # file's module and the tier CA, on trinity through morpheus's resolver —
-# probe_success 1, status 200, chain verified — the same result Homepage's
-# probe gives on the same address and port.
+# probe_success 1, status 200, chain verified — the same result the
+# household page's probe gave on the same address and port.
 - targets: ["https://start.matrix.elysium/api/healthz"]
   labels:
     module: http_2xx_tier_ca

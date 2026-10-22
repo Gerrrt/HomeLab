@@ -157,15 +157,11 @@ has been rehearsed on it.
   because a phone away from home cannot reach the tier. The deploy and the
   observed end-to-end check remain
   (→ [runbook](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy));
-  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage, authored
-  on 2026-09-28 against the running tier: `home.matrix.elysium`, a directory
-  and not a status page, with live numbers only where a read-only token can
-  read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
-  widget path measured through Caddy with placeholder tokens before the real
-  ones exist. Deployed and reading real numbers since; on 2026-09-29 it took
-  Tokyo Night, groups by VLAN, and four more tiles read from Prometheus (UPS,
-  firewall, iLO, NAS) with no new rule or credential. The restore path is
-  rehearsed already:
+  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) the household's
+  page at `home.matrix.elysium`, a directory and not a status page, with live
+  numbers only where a read-only token can read them (Immich, Paperless-ngx).
+  It was Homepage until [ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md) moved it onto Glance's Household
+  page. The restore path is rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
@@ -334,6 +330,11 @@ none is in the order until one is taken.
   `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
   none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
   enrolled on the admin. Nothing is left; #143 closes with this.
+- **[#1250](https://github.com/Gerrrt/HomeLab/issues/1250) Glance as the only
+  front page** — decided by
+  [ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md).
+  The gate is the deploy order: `trinity` first, so `home.matrix.elysium`
+  is Glance's before `prometheus` pulls the `household-page` probe.
 
 ## Everything still to buy
 

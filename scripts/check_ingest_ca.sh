@@ -5,7 +5,7 @@
 # stacks/observability/alloy/ingest-ca.pem is the only .pem the repository
 # tracks (#764). It is the public half of the estate CA in certificates/ca.pem,
 # committed so that every checkout that deploys a client of the ingest ports —
-# deploy-agent.sh on the Mac for Saruman, trinity's for Homepage and Home
+# deploy-agent.sh on the Mac for Saruman, trinity's for Glance and Home
 # Assistant — has the file without a copy step to forget. .gitignore lets this
 # one path through `*.pem`, which is the reason for this check: the exception is
 # a filename, and a filename does not know what is in it. Paste the key into it

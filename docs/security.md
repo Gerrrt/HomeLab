@@ -419,7 +419,7 @@ scraped and reachable by SSH, each on a row of its own. Its restream requires
 a credential, so the rest of Skids cannot connect and watch the room the
 camera watches; the hop itself is RTSP in the clear across Skids, so a
 compromised device there that can put itself in the path can read the
-stream while Home Assistant has it open. ADR-0102 accepts that as a
+stream while Home Assistant has it open. ADR-0103 accepts that as a
 residual, bounds it to the minutes a dashboard shows the camera, and names
 the TLS path that retires it. Still outbound only, and the tripwire still has
 to read 0 with it running.
@@ -1014,7 +1014,7 @@ this closes on.
   types becomes a fetch, so it has no inward-fetch flag to set. The one
   third-party request the browser makes is for YouTube thumbnails. The feeds people follow are
   fetched by Miniflux's fetcher, under the flag above, and Glance reads them
-  from Miniflux. It has no login, as Homepage has none. It shows the names of
+  from Miniflux. It has no login. It shows the names of
   firing alerts, which Grafana shows to the same networks behind a login, and
   that difference is accepted. It holds two credentials: the reader token,
   which can only query, and a Fever key that can only mark items read for a
@@ -1026,7 +1026,7 @@ this closes on.
   system being switched off. Nothing off-host used the port; silences are
   reached through Grafana.
 - Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
-  clients (three agents, Homepage, Glance and Home Assistant) reach them
+  clients (three agents, Glance and Home Assistant) reach them
   through the ingest proxy on `10.0.99.20`, which wants a token and serves
   each token one role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
   for which ports are published and

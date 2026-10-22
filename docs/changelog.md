@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **Homepage is retired, and the household's page is Glance's**
+  ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). The operator
+  asked whether Homepage was still needed once Glance had grown. Little was
+  left that it did alone: the household's directory and two read-only
+  numbers. It used 191 MiB to Glance's 31. A Household page in Glance now
+  carries both. It was rendered live on `trinity` with the two keys Homepage
+  used, renamed in SOPS and not reminted, and read 458 photos, 22 videos and
+  0 documents. `home.matrix.elysium` keeps its name and serves it. The
+  Homepage service, its config, its trust bundle and its copy of the reader
+  token are gone. Not deployed yet.
+
 - **Glance gets a page per subject**
   ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
   [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)).
