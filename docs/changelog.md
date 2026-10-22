@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-10-22
 
+- **ADR-0102 accepted: the VTech RM7764HD monitor comes into Home Assistant
+  by a bridge on Skids**
+  ([ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md),
+  [#1248](https://github.com/Gerrrt/HomeLab/issues/1248)). The camera has no local API, and VTech says so. The
+  community bridge for its app family decodes its TUTK stream on the LAN,
+  and needs an arm64 host on the camera's segment and a rooted phone once.
+  The decision is a Raspberry Pi, `heimdall`, at a reserved address, three
+  host-scoped rows from Winterfell, an authenticated restream read on
+  demand, and the key extraction as the gate: the Pi is not ordered until
+  the keys come out of the phone. The phone and the Pi entered *Everything
+  still to buy*.
 - **Presence automations** (`presence.yaml`). With a second person's phone
   in the Companion app, `zone.home` counts both adults:
   - Indoor cameras stop motion detection while anyone is home.
