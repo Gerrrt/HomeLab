@@ -74,6 +74,13 @@ Closes when it is empty.
   No gate: the HomePods and `trinity` both exist. The work is four
   reservations and three rules on `morpheus`, then adding each HomePod by
   address from `trinity`.
+- **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248) The VTech monitor
+  in Home Assistant, by a bridge on Skids.** Decided by
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).
+  Gate: the two purchases in *Everything still to buy*, in order — the used
+  phone first, because the key extraction is the step that decides whether
+  the Pi is ordered at all. Then a reservation, three rows on `morpheus`, and
+  the camera read from `trinity`.
 - **[#1240](https://github.com/Gerrrt/HomeLab/issues/1240) Retire
   `ring_push_guard`.** Decided by
   [ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
@@ -387,6 +394,8 @@ nuts, which the operator already had.
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
 | 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 | 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| A used Android phone that KernelSU or Magisk supports (a Pixel), to be rooted, used once and wiped | The one-time extraction of the VTech camera's TUTK license key, UID and channel password ([#1248](https://github.com/Gerrrt/HomeLab/issues/1248)) | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | First: nothing else in #1248 starts until the keys exist |
+| Raspberry Pi 4 or 5, 2 GB or more, with PSU, case and a 32 GB card | `heimdall`, the monitor bridge on Skids at `10.0.20.30` | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | After the extraction succeeds, and not before |
 
 **The last one, bought 2026-10-05:** `ifrit`, the range host — a quiet
 SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC
