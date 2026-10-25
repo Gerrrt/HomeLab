@@ -105,6 +105,31 @@ a second or two.
 Then label what automations will use, in the UI, as the other packages do:
 a label never reveals which sensor is on which door.
 
+## After adding, re-pairing or resetting alarm devices
+
+ring-mqtt reads the base station's device list when it starts, when its
+broker connection comes back, and when Home Assistant's birth message
+arrives. A sensor or keypad paired after that is not noticed. Once the Ring
+app shows the base station *Online* and every new device joined, restart
+ring-mqtt with step 2's `docker restart` and watch its log for one *"New
+device:"* line per device and *"Device Discovery Complete!"*.
+
+*"No assets (alarm hubs or beam bridges) found"* means Ring listed no base
+station for the location at that moment, as it does while one is being
+enrolled. ring-mqtt exits on it and Docker restarts it; a pass that then ends
+in *"No devices found"* stays empty until the restart above.
+
+A base station that was reset or replaced comes back with new device ids,
+and so do the devices paired to it. Home Assistant keeps the old devices,
+*unavailable*, and gives the new entities a `_2` suffix. Delete the stale
+devices under **Settings → Devices & services → MQTT** *before* the restart;
+any label or area set on them goes with them. If the ids did not change,
+discovery recreates them as they were.
+
+The cameras are the core Ring integration's, which lists its devices once,
+at setup. A camera added in the Ring app appears after **Settings → Devices
+& services → Ring → ⋮ → Reload**.
+
 ## Rotating a broker password
 
 Generate a new value with `scripts/gen-secret.sh`, put it in
