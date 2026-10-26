@@ -17,6 +17,45 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-26
+
+- **The Ring Alarm's sensors and keypads are paired, and ring-mqtt sees them**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
+  The 2026-10-22 entry below left every sensor and keypad `waiting-for-join`.
+  The base station was re-enrolled on 2026-10-25, both keypads joined it that
+  day, and the sensors joined on 2026-10-26 once they had fresh batteries.
+  - **ring-mqtt fell over when the hub went.** At 18:50 UTC on 2026-10-25
+    Ring listed no base station for the location, ring-mqtt exited on *"No
+    assets (alarm hubs or beam bridges) found"*, Docker restarted it, and its
+    next pass ended in *"No devices found"*. It then sat with nothing for a
+    day, because it reads the hub's device list only on start, on a broker
+    reconnect or on Home Assistant's birth message, and the birth message
+    from Home Assistant's 04:30 restart did not shake it loose: with nothing
+    to publish, the republish count a start sets was never spent, so the
+    message only reset it. `connect-the-ring-alarm.md` now says so.
+  - **The stale devices went first.** Home Assistant had kept the six devices
+    of 2026-10-22, *unavailable* since the crash and carrying no label or
+    area. They were deleted in its UI before the restart, so the new entities
+    took plain entity ids.
+  - **Fourteen devices in one pass.** The restart's discovery found the alarm
+    panel, the base station, two keypads, six contact sensors and four motion
+    sensors, every one at `commStatus: ok` and none waiting to join, and Home
+    Assistant made 79 entities of them. Two battery sensors carry a `_2`
+    suffix because a camera already held the name; the packages read labels,
+    not entity ids, so nothing minds. The range extender of 2026-10-22 was
+    not re-paired. Which sensor watches which door stays out of this file,
+    as the cameras' rooms do.
+  - **An eighth camera, through the core integration.** One camera was
+    reconnected and one added on 2026-10-25. Home Assistant's nightly restart
+    at 04:30 reloaded the Ring integration, which builds its device list once,
+    at setup, and it listed eight. `network.md`, `security.md`,
+    `enable-suricata.md` and the diagram said seven and now say eight, and
+    `network.md`'s camera row gains a MAC prefix one of the older cameras had
+    all along. Which room the new camera covers stays out.
+  - **ring-mqtt's memory with the alarm loaded.** 60 MiB two minutes after
+    the restart with fourteen devices, against its 256 MiB ceiling, beside
+    the 48 MiB idle figure in `compose.yaml`'s comment. The ceiling stands.
+
 ## 2026-10-22
 
 - **The Ring Alarm integration is deployed in Home Assistant**

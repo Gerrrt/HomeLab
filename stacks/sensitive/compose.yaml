@@ -554,9 +554,9 @@ services:
     # Not `sensitive`: DIFFERENCE 14 says why.
     networks: [ring-egress, mqtt]
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
-    # A ceiling for a leak. The one number there is: 48 MiB at idle on the
-    # pinned image before a Ring sign-in, 2026-10-22. Re-derive once the
-    # alarm's devices are loaded.
+    # A ceiling for a leak. The numbers there are: 48 MiB at idle on the
+    # pinned image before a Ring sign-in, 2026-10-22, and 60 MiB two minutes
+    # after a start with the alarm's fourteen devices loaded, 2026-10-26.
     mem_limit: 256m
     memswap_limit: 256m
     cap_drop: [ALL]
