@@ -17,7 +17,7 @@ repository began. This closes that — on the firewall rather than the
 hypervisor, for the reasons in
 [ADR-0006](../adr/0006-detect-at-the-chokepoint.md): `Saruman` is single-homed
 on VLAN 30, so a sensor there sees `Saruman`. `morpheus` terminates every VLAN
-and is the only place that sees the seven cameras, the doorbell and the Tuya
+and is the only place that sees the eight cameras, the doorbell and the Tuya
 device.
 
 > [!CAUTION]
