@@ -107,9 +107,10 @@ a label never reveals which sensor is on which door.
 
 ## After adding, re-pairing or resetting alarm devices
 
-ring-mqtt reads the base station's device list when it starts, when its
-broker connection comes back, and when Home Assistant's birth message
-arrives. A sensor or keypad paired after that is not noticed. Once the Ring
+ring-mqtt asks the base station for its device list once, when it connects
+at start. A broker reconnect or Home Assistant's birth message makes it
+republish the devices it already holds, not ask again, so a sensor or keypad
+paired after the start is not noticed until ring-mqtt restarts. Once the Ring
 app shows the base station *Online* and every new device joined, restart
 ring-mqtt with step 2's `docker restart` and watch its log for one *"New
 device:"* line per device and *"Device Discovery Complete!"*.

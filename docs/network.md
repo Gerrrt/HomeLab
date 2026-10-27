@@ -803,9 +803,9 @@ the least trusted.
   answer.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
-- An eighth Ring camera, added 2026-10-25, is on a lease from the pool and
-  has no row until it has a reservation. `security.md` and the diagram count
-  it; the table lists reserved addresses.
+- An eighth Ring camera, added 2026-10-25, is not in the camera row yet: it
+  sits in the pool by lease like the other seven, and its lease has not been
+  read. `security.md` and the diagram count it.
 
 [^Huebridge]: [Philips Hue Bridge](https://www.philips-hue.com/en-us/p/hue-bridge/046677458478)
 [^echo]: [Amazon Echo](https://www.amazon.com/dp/B07XKF5RM3)

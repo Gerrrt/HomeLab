@@ -29,11 +29,11 @@ docstring gives: it is a record, not a claim about now.
     Ring listed no base station for the location, ring-mqtt exited on *"No
     assets (alarm hubs or beam bridges) found"*, Docker restarted it, and its
     next pass ended in *"No devices found"*. It then sat with nothing for a
-    day, because it reads the hub's device list only on start, on a broker
-    reconnect or on Home Assistant's birth message, and the birth message
-    from Home Assistant's 04:30 restart did not shake it loose: with nothing
-    to publish, the republish count a start sets was never spent, so the
-    message only reset it. `connect-the-ring-alarm.md` now says so.
+    day: it asks the hub for its device list once, when it connects at start,
+    and a broker reconnect or Home Assistant's birth message only republishes
+    what it already holds, so the birth message from Home Assistant's 04:30
+    restart could not have found the sensors either way.
+    `connect-the-ring-alarm.md` now says so.
   - **The stale devices went first.** Home Assistant had kept the six devices
     of 2026-10-22, *unavailable* since the crash and carrying no label or
     area. They were deleted in its UI before the restart, so the new entities
@@ -51,10 +51,11 @@ docstring gives: it is a record, not a claim about now.
     at 04:30 reloaded the Ring integration, which builds its device list once,
     at setup, and it listed eight. `network.md`, `security.md`,
     `enable-suricata.md` and the diagram said seven and now say eight. The
-    new camera has no reservation yet, so `network.md`'s table, which lists
-    reserved addresses, says so below the row rather than giving it one; the
-    row itself gains a MAC prefix one of the older cameras had all along.
-    Which room the new camera covers stays out.
+    new camera's lease had not been read when this was written, so
+    `network.md`'s camera row still carries seven addresses and a note below
+    the table says the eighth is missing; the row itself gains a MAC prefix
+    one of the older cameras had all along. Which room the new camera covers
+    stays out.
   - **ring-mqtt's memory with the alarm loaded.** 60 MiB two minutes after
     the restart with fourteen devices, against its 256 MiB ceiling, beside
     the 48 MiB idle figure in `compose.yaml`'s comment. The ceiling stands.
