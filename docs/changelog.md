@@ -17,6 +17,25 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-10-27
+
+- **The eighth camera's lease is read, and the Skids pool rows with it**
+  ([#1283](https://github.com/Gerrrt/HomeLab/pull/1283)).
+  The 2026-10-26 entry below left `network.md`'s camera row at seven
+  addresses with a note that the eighth was missing. `morpheus`'s lease table
+  for Skids was read on 2026-10-27 and matched against Home Assistant's Ring
+  device registry, whose eight device ids carry the cameras' MAC prefixes:
+  the eight Ring leases are the eight devices, and the new camera's prefix
+  was one the row already listed. The row is `camera-01…08` and the note is
+  gone. The same read showed that all but two of the pool addresses in the
+  table had changed, the base station's with its re-enrolment of 2026-10-25,
+  so the alarm hub, the VTech monitors, the Litter-Robot, the white-noise
+  machine and four of the five Echos carry their new addresses. The fifth
+  Echo held no lease at the time, and the two VTech units, which share a
+  prefix, now share a row. Two leases matched no row, one locally
+  administered and one with a `4c:b9:ea` prefix, and are not in the table.
+  Nothing reserved moved.
+
 ## 2026-10-26
 
 - **The Ring Alarm's sensors and keypads are paired, and ring-mqtt sees them**
