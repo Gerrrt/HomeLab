@@ -20,7 +20,8 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-10-26
 
 - **The Ring Alarm's sensors and keypads are paired, and ring-mqtt sees them**
-  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
+  [#1283](https://github.com/Gerrrt/HomeLab/pull/1283)).
   The 2026-10-22 entry below left every sensor and keypad `waiting-for-join`.
   The base station was re-enrolled on 2026-10-25, both keypads joined it that
   day, and the sensors joined on 2026-10-26 once they had fresh batteries.
