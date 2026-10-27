@@ -49,9 +49,11 @@ docstring gives: it is a record, not a claim about now.
     reconnected and one added on 2026-10-25. Home Assistant's nightly restart
     at 04:30 reloaded the Ring integration, which builds its device list once,
     at setup, and it listed eight. `network.md`, `security.md`,
-    `enable-suricata.md` and the diagram said seven and now say eight, and
-    `network.md`'s camera row gains a MAC prefix one of the older cameras had
-    all along. Which room the new camera covers stays out.
+    `enable-suricata.md` and the diagram said seven and now say eight. The
+    new camera has no reservation yet, so `network.md`'s table, which lists
+    reserved addresses, says so below the row rather than giving it one; the
+    row itself gains a MAC prefix one of the older cameras had all along.
+    Which room the new camera covers stays out.
   - **ring-mqtt's memory with the alarm loaded.** 60 MiB two minutes after
     the restart with fourteen devices, against its 256 MiB ceiling, beside
     the 48 MiB idle figure in `compose.yaml`'s comment. The ceiling stands.
