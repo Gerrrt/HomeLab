@@ -684,7 +684,7 @@
 <rect x="1738" y="1118" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="1124" width="4" height="38" rx="2" fill="#388bfd"/>
 <text x="1752" y="1140" class="hn">alarm-hub</text>
-<text x="1752" y="1158" class="sub">Ring Alarm Base Station · .121</text>
+<text x="1752" y="1158" class="sub">Ring Alarm Base Station · .108</text>
 </g>
 <g class="host" data-host="monitor ×2">
 <rect x="1738" y="1174" width="342" height="50" rx="8" class="card"/>
