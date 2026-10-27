@@ -20,7 +20,8 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-10-27
 
 - **The eighth camera's lease is read, and the Skids pool rows with it**
-  ([#1283](https://github.com/Gerrrt/HomeLab/pull/1283)).
+  ([#1283](https://github.com/Gerrrt/HomeLab/pull/1283),
+  [#1284](https://github.com/Gerrrt/HomeLab/pull/1284)).
   The 2026-10-26 entry below left `network.md`'s camera row at seven
   addresses with a note that the eighth was missing. `morpheus`'s lease table
   for Skids was read on 2026-10-27 and matched against Home Assistant's Ring
