@@ -1227,7 +1227,7 @@ fingerprint of a house is not. Withheld on purpose:
   seven days, so nothing in this repository has to enumerate them.
 - **Owner-linked device names.** Personal devices are listed by role
   (`laptop-01`) rather than by person, and a child's bedroom is not labelled.
-- **Camera-to-room mapping.** Knowing there are eight cameras is fine. Knowing
+- **Camera-to-room mapping.** Knowing there are nine cameras is fine. Knowing
   which one covers which door is a physical-security detail.
 - **The WAN address**, firewall rule bodies, and Wi-Fi configuration.
 - **The WireGuard endpoint and its listen port**, for the same reason and with
