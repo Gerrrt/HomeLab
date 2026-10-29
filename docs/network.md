@@ -745,13 +745,12 @@ the least trusted.
 | eero-iot-3 | `10.0.20.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | bifrost | `10.0.20.20` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
 | speaker-01…03 | `10.0.20.21`–`.23` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
-| assistant-01…05 | `.105`, `.109`, `.114`, `.133`, `.144` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
-| camera-01…07 | `.112`, `.118`, `.119`, `.126`, `.130`, `.145`, `.146` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `5c:47:5e:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
-| alarm-hub | `10.0.20.121` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
-| monitor-01 | `10.0.20.117` | `a4:97:5c:xx:xx:xx` | VTech camera[^Monitor] | — | Main floor | Baby monitor |
-| monitor-02 | `10.0.20.149` | `a4:97:5c:xx:xx:xx` | VTech tablet[^Monitor] | — | Main floor | Baby monitor |
-| appliance-01 | `10.0.20.108` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
-| appliance-02 | `10.0.20.115` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Main floor | Appliance |
+| assistant-01…05 | `.103`, `.107`, `.111`, `.145` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
+| camera-01…09 | `.100`, `.102`, `.116`, `.117`, `.125`, `.126`, `.178`, `.179`, `.181` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `5c:47:5e:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
+| alarm-hub | `10.0.20.108` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
+| monitor-01…02 | `.101`, `.104` | `a4:97:5c:xx:xx:xx` | VTech camera and tablet[^Monitor] | — | Main floor | Baby monitor |
+| appliance-01 | `10.0.20.189` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
+| appliance-02 | `10.0.20.109` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Main floor | Appliance |
 | appliance-03 | `10.0.20.122` | `00:d0:2d:xx:xx:xx` | Honeywell THM6000R RedLINK internet gateway, for the thermostat; wired to an eero's port | — | Bedroom | Appliance |
 
 ### Notes
@@ -803,9 +802,20 @@ the least trusted.
   answer.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
-- An eighth Ring camera, added 2026-10-25, is not in the camera row yet: it
-  sits in the pool by lease like the other seven, and its lease has not been
-  read. `security.md` and the diagram count it.
+- **The pool rows above were read from `morpheus`'s lease table on
+  2026-10-27 and again on 2026-10-28.** All but two of the pool addresses
+  the table carried had changed since their rows were written, the base
+  station's with its re-enrolment of 2026-10-25, which is what the rule
+  above looks like in practice. The eighth Ring camera, added 2026-10-25,
+  and the ninth, a floodlight connected 2026-10-28, are in the camera row;
+  the first read's eight Ring leases were matched to Home Assistant's eight
+  Ring devices by prefix, the ninth is the one lease the second read added,
+  and neither new camera brought a prefix the row did not already list. One
+  Echo held no lease at either read, so `assistant-01…05` carries four
+  addresses. The two VTech units share a prefix and cannot be told apart in
+  a lease table, so they share a row. One lease at each read matched no
+  row: a locally administered address, which is how a phone or watch joins
+  a Wi-Fi network it does not trust. It is not in the table.
 
 [^Huebridge]: [Philips Hue Bridge](https://www.philips-hue.com/en-us/p/hue-bridge/046677458478)
 [^echo]: [Amazon Echo](https://www.amazon.com/dp/B07XKF5RM3)
