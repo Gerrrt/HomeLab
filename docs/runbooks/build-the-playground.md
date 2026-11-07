@@ -217,8 +217,9 @@ commands again, with
 `cat /sys/module/zfs/parameters/zfs_arc_max; zpool status -x`. Nothing above
 should have changed. The ARC cap should read `4294967296` and the pool
 should be healthy. On 2026-11-07 the offloads, the ARC cap and the pool held
-across the reboot. `vmbr1` came up with an `fe80::` address that day,
-because the `pre-up` line was added afterwards, from review.
+across the reboot. `vmbr1` still had an `fe80::` address after that
+reboot. The `pre-up` line was added the same day, from review, and after
+`ifreload -a` the `grep -c` read `0`.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
