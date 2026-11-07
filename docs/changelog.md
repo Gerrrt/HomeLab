@@ -22,13 +22,12 @@ docstring gives: it is a record, not a claim about now.
 - **`neo` is the CRS326, and the documents and the SNMP config say so**
   ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
   [#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MikroTik
-  CRS326-24G-2S+RM on RouterOS 7.23.7 replaced the MokerLink 26-port at U9
-  of the 9U rack, by Phases 1 and 2 of
-  [`swap-the-switch.md`](runbooks/swap-the-switch.md), keeping the name `neo`,
-  the address `10.7.7.2` and the untagged switch LAN from `morpheus`'s
-  `igc0` to port 1. It ran in a window of its own rather than sharing the
-  move into the 32U rack, so the switch leaves U21 of the new frame until
-  that move. A health check of `smaug` afterwards found one thing: its NUT
+  CRS326-24G-2S+RM on RouterOS 7.23.7 replaced the MokerLink 26-port, by
+  Phases 1 and 2 of [`swap-the-switch.md`](runbooks/swap-the-switch.md),
+  keeping the name `neo`, the address `10.7.7.2` and the untagged switch LAN
+  from `morpheus`'s `igc0` to port 1. It shared its window with the move
+  into the 32U rack (the #919 entry below), so the switch stands at U21. A
+  health check of `smaug` afterwards found one thing: its NUT
   client needed a restart. This entry is Phase 3.
   - **Plain HTTP closed.** From a workstation, `https://10.7.7.2/` answered
     with `CN=neo.matrix.elysium` under the estate CA, SANs
@@ -59,6 +58,31 @@ docstring gives: it is a record, not a claim about now.
     community, and `SECURITY.md` holds the GETBULK residual open until that
     output is recorded. `snmp-walk.sh` stays until the CRS326 is shown not to
     need it. The `#444` and `#84` entries left `roadmap.md`.
+- **[#919](https://github.com/Gerrrt/HomeLab/issues/919): the estate is in
+  the 32U rack.** Moved on 2026-11-06 by
+  [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md), in the
+  same window as the switch swap
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)), and exactly as the
+  2026-10-12 layout planned it: the UPS at U1–U2, the DL360 at U3, the PDU at
+  U4, `smaug` on its side at U5–U9, the laptops at U10 and U12, the TP-Link at
+  U14, `morpheus` and `trinity` at U15 and U16, `ifrit` at U18, the panel,
+  cable manager and CRS326 at U19–U21, a vented blank at U22, and the console
+  (KVM U23, drawer U24, the N1700W U25–U32), with U11, U13 and U17 left as
+  air. The KVM and PDU maps were cabled as decided on 2026-10-15. The 9U
+  frame's Rack table in `hardware.md` gave way to the 32U table, which absorbed
+  the *Planned: a 32U rack* section, so three links in older entries here
+  that named that section and the `planned/` drawing now go to those files as
+  they stood before the move, pinned to commit `32f3678`: the targets they
+  meant, kept alive rather than redirected to the rack as built; `network.md`'s Location column
+  moved with the hosts, `smaug` from the media room to U5–U9 and `trinity`,
+  `prometheus` and `oracle` off the shelf; the diagram's rack panel is the 32U
+  layout; and `diagrams/planned/rack-32u.svg` moved to `current/` as built.
+  `smaug`'s long cord to the media room is retired: it is on PDU outlet 3.
+  The six move parts left the roadmap's buy table. **Not done in the window:**
+  `Saruman`'s eight RDIMMs were not fitted, so it stays at 128 GB and the
+  kit stays on the buy table, and which UPS outlet group feeds the PDU was not
+  read. `ifrit` is racked and off until the playground build
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
 
 ## 2026-10-28
 
@@ -640,7 +664,7 @@ docstring gives: it is a record, not a claim about now.
   fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
   Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
   cabling crossbar the drawer's slider rears can tie to. Both parts are now
-  footnoted in [`hardware.md`](hardware.md#planned-a-32u-rack).
+  footnoted in [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack).
 
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
@@ -734,8 +758,8 @@ docstring gives: it is a record, not a claim about now.
     drop one unit. The adjustment range of every four-post rail and shelf
     against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
     sets reach the DL360 20 units below. The plan is in
-    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
-    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+    [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/diagrams/planned/rack-32u.svg).
 
 ## 2026-10-11
 

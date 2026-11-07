@@ -283,8 +283,7 @@ Gated on the domain, on a household observation, or on something to publish.
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
   uninstrumented estate teaches nothing. Both are met. What gates the build
   now is its RAM kit and SATA SSD, in
-  [*Everything still to buy*](#everything-still-to-buy), and its place in the
-  #919 rack move.
+  [*Everything still to buy*](#everything-still-to-buy).
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -356,32 +355,26 @@ from 2026-09-25 until `ifrit` was bought on 2026-10-05, short of the spec its
 ADR set; its last two rows are what it still needs. On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
-`Saruman`'s memory joined them. Already on hand, so not listed: the frame,
-the VESA mount, `trinity`'s ProDesk tray and the velcro; since 2026-10-15
-the keyboard drawer and `ifrit`'s Tiny mount, both mounted; and since
-2026-10-16 the short patch leads in the VLAN colours and the spare M6 cage
-nuts, which the operator already had.
+`Saruman`'s memory joined them. The six rows the move needed (`smaug`'s
+shelf, the three 1U shelves, the cable manager, the vented blank and both
+sets of rails) left on 2026-11-06, bought and racked; they are in
+[`hardware.md`](hardware.md#rack). The accessories below never gated the
+move and stay until they are bought or dropped.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more. StarTech ADJSHELFHDV fits: 19.5–38", 27.5" tray, 330 lb | `smaug` on its side, U5–U9 | [`hardware.md`](hardware.md#planned-a-32u-rack), 2026-10-12 | Before the #919 window |
-| 3 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12, and the KVM at U23 | [`hardware.md`](hardware.md#planned-a-32u-rack); the third on 2026-10-15 | Before the #919 window |
-| 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
-| 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
-| 2 × pair of adjustable 1U four-post support rails, spanning 29" post to post. Rack Solutions 1UKIT-109 fits: 10–31.5", 45 lb, with a cabling crossbar | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight | The operator, 2026-10-15; the kit chosen 2026-10-16 | Before the #919 window |
-| 2U four-post rail pair rated above the UPS's weight. Rack Solutions 2UKIT-109 fits: 10–31.75", 75 lb, 18-gauge, with a cabling crossbar | `mjolnir` at U1–U2: the rails it sits on now sag under it | The operator, 2026-10-16 | Before the #919 window |
 | APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
-| Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `ifrit`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | After the #919 window: a management-plane device, not a move part |
-| USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
-| Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `ifrit`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
+| USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
+| Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Stick-on LED rack light, USB or battery | The top of the frame, lighting the bottom where the UPS, the DL360 and `smaug` sit | The operator, 2026-10-16 | Any time |
-| Bonding strap, frame to the UPS's ground | The frame's grounding screw; it shipped without a strap | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
-| Cable tester, the basic kind | The in-wall runs to the panel, never tested; the September fault was a plug ([#923](https://github.com/Gerrrt/HomeLab/issues/923)) | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
-| Adhesive D-rings or a short vertical finger duct | The power-side rear post: the move runbook keeps power and data apart, and the horizontal manager serves the data side only | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
-| Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
-| Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Bonding strap, frame to the UPS's ground | The frame's grounding screw; it shipped without a strap | The operator, 2026-10-16 | Any time; the #919 move is done |
+| Cable tester, the basic kind | The in-wall runs to the panel, never tested; the September fault was a plug ([#923](https://github.com/Gerrrt/HomeLab/issues/923)) | The operator, 2026-10-16 | Any time; the #919 move is done |
+| Adhesive D-rings or a short vertical finger duct | The power-side rear post: the move runbook keeps power and data apart, and the horizontal manager serves the data side only | The operator, 2026-10-16 | Any time; the #919 move is done |
+| Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Any time; the #919 move is done |
+| Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Any time; the #919 move is done |
 | One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
-| 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
+| 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | The next time the DL360 is out of the rack: not fitted in the #919 move |
 | 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 | 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 | A used Android phone that KernelSU or Magisk supports (a Pixel), to be rooted, used once and wiped | The one-time extraction of the VTech camera's TUTK license key, UID and channel password ([#1248](https://github.com/Gerrrt/HomeLab/issues/1248)) | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | First: nothing else in #1248 starts until the keys exist |
@@ -474,7 +467,7 @@ them name the condition that would change the answer.
   and a larger concession on the management segment than SSH already is: it
   turns any browser session on Hicks into a potential path to every console in
   the estate, and it stores connection credentials to do it. The estate already
-  has a KVM in U6 for physical console access. Declined. **The remote-access question it
+  has a KVM in U23 for physical console access. Declined. **The remote-access question it
   gestured at is answered differently** by
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md):
   WireGuard to the lab jumpbox, terminating on ImaginationLAN and reaching the

@@ -143,7 +143,7 @@ documents for different readers.
 ## Architecture
 
 [![The home network: the ISP gateway in bridge mode, the pfSense firewall
-morpheus, the core switch neo and the 9U rack across the top; below them one
+morpheus, the core switch neo and the 32U rack across the top; below them one
 panel per VLAN in its patch-cable colour, holding every addressed host —
 Winterfell's monitoring, wiki and household hosts, Hicks' workstations by role,
 CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its ten guests,
@@ -367,7 +367,7 @@ estate is as unglamorous:
 | `oracle` | Dell Inspiron 15 | The wiki and the off-host copies |
 | `mjolnir` | APC Smart-UPS X 1500 | Power for the rack and everything on its PDU |
 
-All of it but the two laptops, `trinity` and the NAS sits in a 9U open-frame rack. Details
+All of it sits in a 32U four-post open-frame rack. Details
 in [`docs/hardware.md`](docs/hardware.md).
 
 ## Security posture
@@ -404,7 +404,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-22 items now, 0 later, and a rule that nothing joins them without a
+16 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the
