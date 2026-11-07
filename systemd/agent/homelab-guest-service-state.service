@@ -1,0 +1,38 @@
+# Whether a few named lab services are healthy (#858, ADR-0088).
+#
+# WHAT IT IS FOR. The lab Prometheus has no Alertmanager (ADR-0020), and the
+# estate saw a guest's run state but not its services, so a dead lab
+# Prometheus, Zeek or Wazuh manager inside a running guest told no one. This
+# runs one fixed `docker inspect` per service through the guest agent, on the
+# hypervisor, and writes one healthy-or-not bit each to the textfile directory,
+# so the estate's GuestService* rules can say so. ADR-0088 records why that bit
+# may cross when ADR-0028 kept a guest's service health in the lab.
+#
+# HARDENING IS homelab-guest-state.service's, for its reason: `qm` reads /etc/pve,
+# a pmxcfs FUSE mount, and any directive that makes a mount namespace can hide
+# it. See that unit's header; the same class is left out here.
+#
+# TimeoutStartSec is sized for the worst case: four services, each under a 25 s
+# timeout plus 5 s to kill, serially. A run that hits it writes nothing, and
+# GuestServiceStateStale says so.
+[Unit]
+Description=HomeLab: record whether the named lab services are healthy
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/qm
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-guest-service-state
+TimeoutStartSec=180
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-guest-service-state

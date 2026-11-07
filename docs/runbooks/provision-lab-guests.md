@@ -90,8 +90,8 @@ elif cp -p "$E" "$E.bak-445"; then
       "$PROXMOX_TOKEN_ID" "$PROXMOX_TOKEN_SECRET" "$(openssl rand -base64 32)" >> "$E" )
   chmod 600 "$E"; grep -o '^[A-Za-z_]*=' "$E"
   ( set -a; . "$E"; set +a; echo "passphrase length ${#TF_VAR_state_passphrase}"
-    curl -fsS -o /dev/null -w 'API %{http_code}\n' -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" \
-      "${PROXMOX_VE_ENDPOINT}api2/json/version" )
+    printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" \
+      | curl -K - -fsS -o /dev/null -w 'API %{http_code}\n' "${PROXMOX_VE_ENDPOINT}api2/json/version" )
 else
   echo "backup failed: nothing written"
 fi
@@ -112,6 +112,9 @@ never at `/`:
 ```bash
 pveum role modify PhoenixBuilder --append 1 --privs "Pool.Allocate,Pool.Audit"
 pveum acl modify /pool/proof --users phoenix@pve --roles PhoenixBuilder
+pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixBuilder
+pveum acl modify /pool/dotfiles --users phoenix@pve --roles PhoenixBuilder
+pveum acl modify /pool/analyst --users phoenix@pve --roles PhoenixBuilder
 pveum acl list | grep phoenix
 ```
 
@@ -129,6 +132,9 @@ Each later pool gets its own `acl modify` line here and a row below:
 | Path | Role | For |
 | --- | --- | --- |
 | `/pool/proof` | `PhoenixBuilder` | §4's proof guest. It exists only while the proof runs, and §4's teardown deletes this grant with it. Re-run it before any later `-var proof=true` |
+| `/pool/lab-domain` | `PhoenixBuilder` | ADR-0029's six. A rebuild destroys with `-target=module.guest`, so the pool and this grant outlive the guests. An untargeted `tofu destroy` takes both, and this line must be run again before the next apply |
+| `/pool/dotfiles` | `PhoenixBuilder` | [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)'s on-demand dotfiles VMs, 191–198. The same rule as `lab-domain`: rebuild one with `-target`, or run this line again |
+| `/pool/analyst` | `PhoenixBuilder` | [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)'s `garuda`, 162. The pool is its own resource, so a targeted destroy of the guest leaves the pool and this grant. Teardown destroys both targets (build-the-analyst-workstation.md §13), and then this line must be run again before a rebuild |
 
 If an apply fails with `Permission check failed (/…, Some.Privilege)`, add that
 privilege to the role and record it here. This is ADR-0043's rule again.
@@ -173,7 +179,7 @@ mkdir -p tofu/state && chmod 700 tofu/state
 tofu -chdir=tofu init
 tofu -chdir=tofu plan -var proof=true -out=proof.tfplan
 tofu -chdir=tofu apply proof.tfplan && rm tofu/proof.tfplan
-api() { curl -fsS -H "Authorization: PVEAPIToken=${PROXMOX_VE_API_TOKEN}" "${PROXMOX_URL}$1"; }
+api() { printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" | curl -K - -fsS "${PROXMOX_URL}$1"; }
 api /nodes/Saruman/qemu/998/config | jq '.data | {name, tags, scsi0, net0}'
 api /pools/proof | jq -r '.data.members[].vmid'
 ```
@@ -240,11 +246,19 @@ first, then run plan and apply as in §4. The module refuses:
 - a VMID inside the template range;
 - a template that is not one of `packer/`'s.
 
+A guest `golem` must hold gets the tag `backup` beside its others, and its
+VMID added to `golem-nightly`
+([`build-the-backup-guest.md`](build-the-backup-guest.md) §8). The module does
+not purge on destroy, so a replace keeps the VMID in the job. A destroy for
+good leaves it there, to be removed by hand.
+
 A Windows guest takes no `initialization` block, because its first-boot answers
 come from the template's sysprep answer file (ADR-0074 §3).
 
 A plan that says `must be replaced` for a guest that exists is a stop, not a
-step. Read why before applying. A changed template VMID or clone setting
+step. The one exception is the plan right after an import, as in
+[`build-the-lab-domain.md`'s rebuild](build-the-lab-domain.md#rebuild-from-the-pipeline):
+a guest built by hand has no `clone` to read back. Read why before applying. A changed template VMID or clone setting
 replaces the guest, and replacing it re-clones it from scratch.
 
 ## 6. As run
@@ -259,6 +273,8 @@ replaces the guest, and replacing it re-clones it from scratch.
 | 2026-10-03 | §4 half one, `check-tofu-state-encryption.sh` on the real state | Two PASS: the encrypted wrapper with no gitleaks match, and the proof password absent. The passphrase grep returned `0`. The state file was mode 664, found from `Saruman` and fixed (`umask 077` above) |
 | 2026-10-03 | §4 half two, `git add` refused, and `-f` caught | `git add` refused: "ignored by one of your .gitignore files", exit 1. With `-f`, `check-tracked-artefacts.sh` named `tofu/state/lab.tfstate`, exit 1. Reset, and nothing was left staged |
 | 2026-10-03 | §4 proof guest and `proof` pool destroyed | `-var proof=false`: 3 destroyed. From `Saruman`: no 998, no pools, no `vm-998` disk on `large_data`, and no `/pool/proof` ACL. Proxmox deleted the grant with the pool, as §2 says |
+| 2026-10-06 | `PhoenixHostKeys` grant, as root on `Saruman` ([#846](https://github.com/Gerrrt/HomeLab/issues/846), [`build-the-lab-domain.md`](build-the-lab-domain.md#run-it-from-phoenix)) | Role created with `VM.GuestAgent.FileRead` alone and granted to `phoenix@pve` on `/pool/lab-domain` (no such pool yet; accepted, as `/pool/proof` was) and on `/vms/150`–`/vms/155`. `PhoenixBuilder` unchanged. With `phoenix`'s token, `agent/file-read` returned `bahamut`'s host key from 150, and was refused on 160 (`odin`): `Permission check failed (/vms/160, VM.GuestAgent.FileRead\|VM.GuestAgent.Unrestricted)`. The six VMID grants go with their guests on a destroy; the pool grant is the one that outlives a rebuild |
+| 2026-10-07 | `PhoenixHostKeys` grant corrected | The 2026-10-06 grant put `PhoenixHostKeys` alone on `/vms/150`–`155`, which replaced the `PhoenixBuilder` that `phoenix@pve` inherits from `/vms`. The token's `/cluster/resources` listed none of the six, and `lab-known-hosts.sh` failed with "expected one guest of that name, found 0". Re-granted as `PhoenixBuilder,PhoenixHostKeys` on each; `pveum user permissions` on `/vms/150` then showed `VM.Audit`, `VM.PowerMgmt`, `VM.Clone`, `VM.Config.Options` and `VM.GuestAgent.FileRead`, and the script pinned all six |
 
 ## Recovery: `phoenix` is gone
 

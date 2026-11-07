@@ -9,6 +9,9 @@
 # `renewal` is `acme` for a certificate something renews on its own on a short
 #          lifetime — today, the sensitive tier's — and absent otherwise. It
 #          selects which expiry rules apply (blackbox.rules.yaml).
+# `tier`   is `household` for a service the house uses behind trinity's Caddy,
+#          and absent otherwise. It moves the target from EndpointUnreachable
+#          (5m) to SiteDown (10m), which rides out a `make up` on trinity.
 # `via`    is how the endpoint was addressed: `dns` by the name a person types,
 #          `address` by its IP, `compose` by its service name on the compose
 #          network. A `dns` probe should have an `address` twin, because both
@@ -25,18 +28,25 @@
 # --- The wiki ----------------------------------------------------------------
 # Probed twice on purpose: once by the name on the printed card, once by its
 # address. See `via` above.
+#
+# Over https and verified against the lab CA since #847 (ADR-0082): Caddy on
+# oracle terminates TLS with a leaf from it, and port 80 only redirects. So
+# these also read the leaf's expiry, and the `address` probe is what checks
+# it carries its IP SAN, as Grafana's does below. `/healthz` because it is
+# Wiki.js's own and answers without a session, so a 200 means Caddy, the
+# proxy and Wiki.js all answered.
 
-- targets: ["http://lemmiwinks.matrix.elysium"]
+- targets: ["https://lemmiwinks.matrix.elysium/healthz"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: wiki
     role: documentation
     host: oracle
     via: dns
 
-- targets: ["http://10.0.99.30"]
+- targets: ["https://10.0.99.30/healthz"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: wiki
     role: documentation
     host: oracle
@@ -51,9 +61,10 @@
 # nothing. Probing 10.0.99.20 hairpins through Docker's published port and
 # fails in exactly that case.
 #
-# Grafana is the only service terminating TLS, and the only lab-CA target: the
-# chain is verified against certificates/ca.pem and the name against the URL,
-# so the `address` probe is also what checks that the leaf carries its IP SAN.
+# Grafana and the ingest proxy below terminate TLS on lab-CA leaves, as the
+# wiki's Caddy does: the chain is verified against certificates/ca.pem and the
+# name against the URL, so an `address` probe is also what checks that the
+# leaf carries its IP SAN.
 # `/api/health` because it answers without a session — `/` is a redirect to
 # the login page, which also works, but says less.
 
@@ -73,23 +84,25 @@
     host: prometheus
     via: address
 
-# Plain http on the management VLAN, and these two answer without a token:
+# https under the estate CA since #764, and these two answer without a token:
 # the ingest proxy that holds 10.0.99.20:9090 and :3100 passes its health
 # paths through unauthenticated for exactly this probe (#182). A 200 here says
-# the publish, the proxy and the service behind it all work. The paths are the
-# readiness endpoints the compose healthchecks use.
+# the publish, the proxy's leaf, the proxy and the service behind it all
+# work, and the probe's certificate expiry is the leaf's, which is how
+# TlsCertificateExpiringSoon covers it. The paths are the readiness endpoints
+# the compose healthchecks use.
 
-- targets: ["http://10.0.99.20:9090/-/healthy"]
+- targets: ["https://10.0.99.20:9090/-/healthy"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: prometheus
     role: metrics
     host: prometheus
     via: address
 
-- targets: ["http://10.0.99.20:3100/ready"]
+- targets: ["https://10.0.99.20:3100/ready"]
   labels:
-    module: http_2xx_plain
+    module: http_2xx_lab_ca
     name: loki
     role: logs
     host: prometheus
@@ -101,8 +114,13 @@
 # EndpointUnreachable and the dns/address join, and IngestAuthNotEnforced
 # reads them. The delete path is probed rather than a read because it is the
 # one whose loss would cost data.
+#
+# A refusal probe that fails its TLS handshake has no status code, so
+# IngestAuthNotEnforced cannot see it, and EndpointUnreachable skips
+# `via: refusal`. That is not a gap: the health probes above ask the same two
+# ports with the same CA, so a broken certificate pages there.
 
-- targets: ["http://10.0.99.20:9090/api/v1/query?query=up"]
+- targets: ["https://10.0.99.20:9090/api/v1/query?query=up"]
   labels:
     module: http_401_ingest_refused
     name: prometheus
@@ -110,7 +128,7 @@
     host: prometheus
     via: refusal
 
-- targets: ["http://10.0.99.20:3100/loki/api/v1/delete"]
+- targets: ["https://10.0.99.20:3100/loki/api/v1/delete"]
   labels:
     module: http_401_ingest_refused
     name: loki
@@ -143,9 +161,11 @@
 # and carries the name and no IP SAN, and Caddy picks the site by SNI, so an
 # https probe of 10.0.99.40 fails for a reason that says nothing about ntfy.
 # `/v1/health` answers with no credential, deny-all notwithstanding. The
-# module verifies the chain against the TIER'S root, which is also the only
-# HTTPS check any of trinity's sites has, so its expiry series is the first
-# evidence from outside that Caddy is renewing its seven-day leaves.
+# module verifies the chain against the TIER'S root. It was the first HTTPS
+# check of any of trinity's sites, and it stays on EndpointUnreachable rather
+# than the household sites' SiteDown below: it is the alert-path probe that
+# validate.sh and docs/runbooks/verify-the-alert-path.md pin, and five minutes
+# is the right wait for the thing that delivers every other page.
 #
 # Enabled 2026-09-28 at the cutover (#136), after this was run from the live
 # exporter on prometheus and answered probe_success 1, status 200, and a
@@ -167,6 +187,178 @@
     # A seven-day ACME leaf: the two 30/7-day expiry rules skip it and
     # TlsAcmeRenewalStalled watches it instead (blackbox.rules.yaml).
     renewal: acme
+
+# --- The household sites on trinity (#855) ----------------------------------
+# Every other name trinity's Caddy serves for the house, one probe each. Until
+# these existed nothing outside trinity measured that a household service
+# answered, and nothing watched its certificate: step-ca's leaves are seven
+# days long (ADR-0037), so a stuck renewal is an outage within the week.
+#
+# Each one is the same shape as ntfy above, for the same reasons: by name only,
+# because Caddy picks the site by SNI and the ACME leaf has no IP SAN;
+# http_2xx_tier_ca, so the chain is verified against the tier's root; and
+# `renewal: acme`, so TlsAcmeRenewalLate and TlsAcmeRenewalStalled watch each
+# leaf. A stopped backend makes Caddy answer 502, which fails the probe.
+#
+# `tier: household` sends a failure to SiteDown rather than EndpointUnreachable:
+# ten minutes rather than five, so `make up STACK=sensitive` restarting a
+# service does not page, and one notification for all of them when Caddy
+# itself is down (blackbox.rules.yaml says how).
+#
+# Every path answers 200 with no redirect and no session. That is the expected
+# status for each, and module http_2xx_tier_ca accepts any 2xx. Checked
+# 2026-10-07 from trinity through Caddy at 10.0.99.40, the chain verified
+# against certificates/tier-ca.pem; re-run from the exporter on prometheus
+# with the recipe above, swapping the target.
+#
+# AdGuard's UI is a Caddy site too, and is deliberately not here: it is a page
+# for the operator, not the house, its DNS side is targets/blackbox-dns.yaml's
+# job, and ADR-0010 decided a failed filter is not a page.
+
+# `/alive` is Vaultwarden's own liveness path: a timestamp, no session.
+- targets: ["https://vaultwarden.matrix.elysium/alive"]
+  labels:
+    module: http_2xx_tier_ca
+    name: vaultwarden
+    role: passwords
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/server/ping` answers `{"res":"pong"}` without a session.
+- targets: ["https://immich.matrix.elysium/api/server/ping"]
+  labels:
+    module: http_2xx_tier_ca
+    name: immich
+    role: photos
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# No unauthenticated health path (`/api/` is 401), so the login page itself:
+# `/` redirects here, and asking for it directly makes the 200 Django
+# rendering a page rather than a redirect followed.
+- targets: ["https://paperless.matrix.elysium/accounts/login/"]
+  labels:
+    module: http_2xx_tier_ca
+    name: paperless
+    role: documents
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/manifest.json`, the path compose.yaml's healthcheck uses; served by the
+# frontend with no session.
+- targets: ["https://homeassistant.matrix.elysium/manifest.json"]
+  labels:
+    module: http_2xx_tier_ca
+    name: home-assistant
+    role: home-automation
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# The household's page, at the name the household is given. Since ADR-0103
+# it is Glance's Household page, not Homepage, so the path is Glance's
+# `/api/healthz`, which Caddy passes through; only the bare `/` is
+# redirected. The name stays the address's, not the software's.
+- targets: ["https://home.matrix.elysium/api/healthz"]
+  labels:
+    module: http_2xx_tier_ca
+    name: household-page
+    role: front-page
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# Glance, the operator's start page (ADR-0098). `/api/healthz` is the path
+# compose.yaml's healthcheck uses, and answers 200 with an empty body. Probed
+# before it was added (2026-10-21) by the pinned exporter image with this
+# file's module and the tier CA, on trinity through morpheus's resolver —
+# probe_success 1, status 200, chain verified — the same result the
+# household page's probe gave on the same address and port.
+- targets: ["https://start.matrix.elysium/api/healthz"]
+  labels:
+    module: http_2xx_tier_ca
+    name: glance
+    role: start-page
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/health` answers `{"status":"UP"}` without a session.
+- targets: ["https://actual.matrix.elysium/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: actual
+    role: budget
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/app/about` answers the version without a session; Mealie has no
+# dedicated health path over HTTP.
+- targets: ["https://recipes.matrix.elysium/api/app/about"]
+  labels:
+    module: http_2xx_tier_ca
+    name: mealie
+    role: recipes
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/healthcheck` answers `OK`; it also checks Miniflux's database connection.
+- targets: ["https://miniflux.matrix.elysium/healthcheck"]
+  labels:
+    module: http_2xx_tier_ca
+    name: miniflux
+    role: feeds
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/healthz` answers `Service ready.`, the path compose.yaml's healthcheck uses.
+- targets: ["https://memos.matrix.elysium/healthz"]
+  labels:
+    module: http_2xx_tier_ca
+    name: memos
+    role: notes
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/health` answers `{"status": "healthy"}`, compose.yaml's healthcheck path.
+- targets: ["https://links.matrix.elysium/health"]
+  labels:
+    module: http_2xx_tier_ca
+    name: linkding
+    role: bookmarks
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
+
+# `/api/v1/info/status` answers `{"status":"UP"}`, compose.yaml's
+# healthcheck path.
+- targets: ["https://pdf.matrix.elysium/api/v1/info/status"]
+  labels:
+    module: http_2xx_tier_ca
+    name: stirling-pdf
+    role: pdf-tools
+    host: trinity
+    via: dns
+    renewal: acme
+    tier: household
 
 # --- Devices that otherwise only have SNMP ---------------------------------
 # An SNMP agent answering says nothing about the management UI a person would
@@ -236,6 +428,12 @@
 #            to the firewall's login page. Worth having — the
 #            default GUI certificate is 398 days and nothing else watches it —
 #            but not worth having by accident.
+#
+# Their CERTIFICATES are watched without either pass (#857, ADR-0084):
+# scripts/collect-cert-expiry.sh reads pfSense's on the firewall over the ssh
+# `make gateway-state` already makes, and the iLO's from Saruman, which shares
+# its segment. So the case for these probes is reachability alone now, not
+# expiry — weigh the pass on that.
 #
 # Once the rule exists, verify from the running exporter before uncommenting:
 #

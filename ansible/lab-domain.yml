@@ -15,6 +15,35 @@
 # DNS GlobalQueryBlockList are the exercises ADR-0014 built the segment for;
 # no role touches them, and verify.yml fails if any of them has moved.
 
+# FIRST, AND ON EVERY TAG. Without phoenix.env exported, lookup('env') returns
+# "" and base would rotate Administrator to an empty password, silently: the
+# task is no_log, so even its error would be hidden (#846). Fourteen is the
+# floor packer/variables.pkr.hcl sets for the build password. Tagged always,
+# so a one-stage run (--tags exporter) is guarded too. It targets lab_domain,
+# not localhost, so that --limit cannot leave it out: `--limit titan --tags
+# base` would select no localhost, and skip it. assert runs on the controller
+# and connects to nothing, so evaluating it per host costs nothing, and
+# any_errors_fatal stops every host on a failure. The population seed, the
+# Wazuh password and the endpoint admin's are asserted by the roles that use
+# them.
+- name: The secrets are present before anything uses them
+  hosts: lab_domain
+  gather_facts: false
+  any_errors_fatal: true
+  tags: [always]
+  tasks:
+    - name: Refuse to run without the passwords from phoenix.env
+      ansible.builtin.assert:
+        that:
+          - lab_admin_password | length >= 14
+          - lab_dsrm_password | length >= 14
+          - lab_tier_admin_password | length >= 14
+        fail_msg: >-
+          LAB_ADMIN_PASSWORD, LAB_DSRM_PASSWORD or LAB_TIER_ADMIN_PASSWORD is
+          missing or shorter than 14 characters. Export phoenix.env first:
+          set -a; . ~/.config/proxmox/phoenix.env; set +a
+        quiet: true
+
 # Strictly serial: one Windows guest at a time. A reboot storm on Saruman's
 # disks is the failure build-the-lab-domain.md §0 prices, and the domain's
 # order (forest, clock, second DC, joins) is serial anyway.
@@ -55,6 +84,13 @@
     - role: member
       tags: [join]
 
+- name: The endpoints' own local administrator
+  hosts: endpoints
+  gather_facts: false
+  roles:
+    - role: endpoint_admin
+      tags: [endpoint_admin]
+
 - name: The tiers ADR-0029 names, and where the members sit in them
   hosts: dc_primary
   gather_facts: false
@@ -62,12 +98,37 @@
     - role: tiers
       tags: [tiers]
 
-- name: The Tier 0 logon denial and the file-share audit
+- name: The Tier 0 logon denial, and the audit policies
   hosts: dc_primary
   gather_facts: false
   roles:
     - role: gpos
       tags: [gpos]
+
+# #1077: apply a GPO change now rather than at the next refresh. DCs refresh
+# within about 5 minutes and members about 90, and verify.yml reads the audit
+# policy as auditpol sees it, so without this a rebuild's verify fails on
+# titan and ramuh for no fault. Only when the gpos role changed something.
+- name: Group Policy refreshed where a GPO changed
+  hosts: lab_domain
+  gather_facts: false
+  tasks:
+    - name: Refresh computer policy
+      ansible.windows.win_command: gpupdate /target:computer /force
+      changed_when: true
+      when:
+        - not ansible_check_mode
+        - hostvars[groups['dc_primary'][0]].gpos_result.changed | default(false)
+      tags: [gpos]
+
+# #1077: which attribute writes the DCs record. The GPO above turns 5136 on;
+# this says which writes on users and computers count.
+- name: The domain head audits the writes the weaknesses make
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: ds_audit
+      tags: [audit]
 
 - name: Titan's shares, with the decoy
   hosts: titan
@@ -75,6 +136,24 @@
   roles:
     - role: shares
       tags: [shares]
+
+# #450: what each guest records. sysmon-modular's balanced config, vendored at
+# one release (ADR-0080). It records, it does not harden: nothing it does changes
+# what an exercise can reach.
+#
+# Before the SOC agents, not after. The Wazuh agent subscribes to
+# Microsoft-Windows-Sysmon/Operational once, at start (#1035), and an agent
+# started before the channel existed never read it: on the #448 rebuild, five
+# of the six sent no Sysmon alert at all. Installed first, the channel is there
+# when the agent starts. roles/sysmon also restarts the agent whenever it
+# installs or upgrades Sysmon, which covers the guest that already has one.
+- name: Sysmon, so the endpoints record what fired
+  hosts: lab_domain
+  serial: 1
+  gather_facts: false
+  roles:
+    - role: sysmon
+      tags: [sysmon]
 
 - name: The SOC agents, installed not deployed by GPO
   hosts: lab_domain
@@ -117,3 +196,51 @@
   roles:
     - role: authgen
       tags: [authgen]
+
+# #449's deliberate weaknesses, each its own tag, each off until asked for
+# (weakness_<name>_state, default absent in the role). A plain run leaves every
+# one absent — the negative test, that the path to Domain Admin is not there.
+# Enable one, watch the SOC see it, disable it, watch the signal go. ADR-0083,
+# and the identifiers are in group_vars/all.yaml. All six are directory writes,
+# so they run on the PDC emulator like tiers and population.
+- name: Kerberoast — an SPN on a crackable account
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_kerberoast
+      tags: [kerberoast]
+
+- name: AS-REP roast — pre-auth disabled on a crackable account
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_asreproast
+      tags: [asreproast]
+
+- name: DCSync — replication rights on a non-DA principal
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_dcsync
+      tags: [dcsync]
+
+- name: Unconstrained delegation — on a member server
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_ucd
+      tags: [ucd]
+
+- name: Constrained delegation — svc-web to titan's CIFS
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_cd
+      tags: [cd]
+
+- name: Resource-based constrained delegation — titan trusts svc-rbcd
+  hosts: dc_primary
+  gather_facts: false
+  roles:
+    - role: weakness_rbcd
+      tags: [rbcd]

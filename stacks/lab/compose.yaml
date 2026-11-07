@@ -64,6 +64,13 @@ services:
     image: prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e
     container_name: lab-prometheus
     user: "65534:65534"
+    # The estate's block, copied as it stands (#845). The reasoning, and the
+    # measurements behind "no tmpfs needed", are against prometheus in
+    # stacks/observability/compose.yaml; this is the same image and digest.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
     command:
       - --config.file=/etc/prometheus/prometheus.yaml
       - --storage.tsdb.path=/prometheus
@@ -184,6 +191,16 @@ services:
     image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
     container_name: lab-loki
     user: "10001:10001"
+    # The estate's block, as on prometheus above (#845), including the /tmp
+    # tmpfs its loki needs for retention: the compactor writes its deletion
+    # markers there, and without it retention fails on every pass. The estate's
+    # loki has the reasoning. This stack is where it was found.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -226,7 +243,7 @@ services:
   # ---------------------------------------------------------------------------
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
     container_name: lab-ingest-proxy
     user: "65534:65534"
     mem_limit: 64m
@@ -244,6 +261,9 @@ services:
       INGEST_TOKEN_ODIN: ${INGEST_TOKEN_ODIN:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_PHOENIX: ${INGEST_TOKEN_PHOENIX:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_FENRIR: ${INGEST_TOKEN_FENRIR:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_GOLEM: ${INGEST_TOKEN_GOLEM:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_EDEN: ${INGEST_TOKEN_EDEN:?set in secrets/lab.sops.yaml}
+      INGEST_TOKEN_GARUDA: ${INGEST_TOKEN_GARUDA:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/lab.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -269,9 +289,23 @@ services:
   # ---------------------------------------------------------------------------
   grafana:
     <<: *service-defaults
-    image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
+    # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
+    # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
+    # the old repository's last tag went stale with no bump to follow (#988).
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     container_name: lab-grafana
+    # The estate's block, as on prometheus above (#845), including the one
+    # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
+    # that stops the plugin installer logging a read-only error on every
+    # start. Both are argued against grafana in stacks/observability.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m
     environment:
+      GF_PLUGINS_PREINSTALL_DISABLED: "true"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set in secrets/lab.sops.yaml}
       GF_SECURITY_COOKIE_SECURE: "true"
@@ -347,7 +381,7 @@ services:
   # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
   # comment in stacks/observability/compose.yaml is the reasoning. `:ro` on
   # the socket does not stop POST /containers/create, so a collector holding the
-  # socket holds root on the host, and alexander holds the lab's only age key (#671).
+  # socket holds root on the host, and alexander holds the lab's age key (#671).
   # Alloy now reaches the API here, GET-only, and the socket stops at this
   # container. Not published.
   # ---------------------------------------------------------------------------
@@ -355,6 +389,10 @@ services:
     <<: *service-defaults
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: lab-docker-socket-proxy
+    # stacks/observability's HAProxy config, not the image's template, which
+    # with CONTAINERS=1 also allows /containers/{id}/archive and /export
+    # (Tecnativa/docker-socket-proxy#182). The estate's proxy has the reasoning.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # The estate's allowlist exactly: what docker.alloy's three components
       # were measured to need (#193). NETWORKS is the one that is not obvious;
@@ -383,6 +421,7 @@ services:
       VOLUMES: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../observability/docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     expose:
       - "2375"
     mem_limit: 64m
@@ -392,6 +431,14 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's
+      # docker-socket-proxy has the reasoning.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   alloy:
     <<: *service-defaults
@@ -444,9 +491,24 @@ services:
       # Debug UI, loopback only. No syslog receiver on 1514/udp, because
       # syslog.alloy is not mounted above.
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's alloy
+      # has the reasoning.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       docker-socket-proxy:
-        condition: service_started
+        condition: service_healthy
       loki:
         condition: service_started
       prometheus:

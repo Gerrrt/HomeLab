@@ -181,7 +181,9 @@ JOBS=(
 # the tier onto main (#533), three hours for the reason the estate's converge
 # row gives. converge-sensitive, not converge: the job name is
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
-# name from JOBS — check 8 below asserts that.
+# name from JOBS — check 8 below asserts that. And the nightly re-verification
+# of both kinds of set, here and on oracle (#856): verify-backups-sensitive,
+# two days for the same reason as the backups it re-reads.
 #
 # The units under systemd/sensitive/ carry @DEPLOY_ROOT@, @RUN_USER@,
 # @RUN_GROUP@ and @RUN_HOME@ rather than a name, because the build runbook
@@ -192,6 +194,7 @@ SENSITIVE_JOBS=(
   "backup-sensitive  homelab-backup-sensitive    172800  backup"
   "backup-library    homelab-backup-library      172800  backup-library"
   "converge-sensitive homelab-converge-sensitive 10800  converge"
+  "verify-backups-sensitive homelab-verify-backups-sensitive 172800 verify-backups"
   "household-copy    -                          7776000  household-copy"
   "household-proof   -                         31536000  household-proof"
 )
@@ -668,6 +671,7 @@ green "installed — systemctl list-timers 'homelab-*'"
 if [[ "${PROFILE}" == sensitive ]]; then
   info "backup-library was primed: it stops nothing, and oracle now holds a set"
   info "converge-sensitive was primed: it applied nothing if HOMELAB_CONVERGE_APPLY=0 was set first"
+  info "verify-backups-sensitive was primed: it re-read every set here and asked oracle to hash its copies"
   info "backup-sensitive was NOT primed: it stops the tier. Run it when you can watch:"
   info "  sudo systemctl start homelab-backup-sensitive.service"
   exit 0

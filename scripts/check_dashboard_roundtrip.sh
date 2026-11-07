@@ -47,7 +47,12 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK="${REPO_ROOT}/stacks/observability"
 DASHBOARD_DIR="${STACK}/grafana/dashboards"
-BOOT_SECONDS="${BOOT_SECONDS:-90}"
+# A ceiling, not a wait: the poll below returns the moment the first dashboard
+# is there, so a larger number costs nothing where Grafana is quick. It was 90,
+# and on oracle (2 cores) grafana-oss 13.0.2's first boot ran 710 database
+# migrations in 2m20s before it provisioned anything, so `make validate` failed
+# there on a clean main every time (measured 2026-10-07). 300 is that with room.
+BOOT_SECONDS="${BOOT_SECONDS:-300}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }

@@ -4,7 +4,10 @@ groups:
     interval: 30s
     rules:
       - alert: InstanceDown
-        expr: up == 0
+        # speedtest-tracker is excluded: a measurement tool being unreachable
+        # is not worth a page. SpeedtestTrackerDown in internet.rules.yaml is
+        # the same condition at warning (#914).
+        expr: up{job!="speedtest-tracker"} == 0
         for: 5m
         labels:
           component: host
@@ -50,8 +53,27 @@ groups:
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
 
       - alert: HostMemoryPressure
+        # THE ZFS ARC COUNTS AS AVAILABLE (#910). On Linux the ARC is not page
+        # cache, so MemAvailable leaves it out, though ZFS hands it back down to
+        # c_min whenever anything else wants memory. smaug's ARC filled to 24.9
+        # of 31 GiB on 2026-10-04 and this fired with no OOM kill and no swap.
+        # So where a host exports node_zfs_arc_*, ARC above its floor is added
+        # back; a host without ZFS has no such series, and `or` gives it the
+        # plain MemAvailable it always had.
+        #
+        # A plain `+`, matching on every label, and not `+ on (instance, job)`:
+        # `on` keeps only the labels it names, so the sum lost role and vlan,
+        # no longer matched MemAvailable in the `or`, and smaug came out twice,
+        # once at 84% and once at the 7% that still fired. The tests carry the
+        # real label set so that cannot pass again.
         expr: |
-          node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes < 0.10
+          (
+            node_memory_MemAvailable_bytes
+            + clamp_min(node_zfs_arc_size - node_zfs_arc_c_min, 0)
+            or
+            node_memory_MemAvailable_bytes
+          )
+          / node_memory_MemTotal_bytes < 0.10
         for: 15m
         labels:
           component: host
@@ -59,6 +81,38 @@ groups:
           category: capacity
         annotations:
           summary: "{{ $labels.instance }} has less than 10% memory available"
+
+      - alert: NasOomKill
+        # The kernel OOM-killed something on smaug (#1095). The estate's other
+        # three OOM rules cannot see the NAS: KernelOomKill and UnitOomKilled
+        # read logs, and smaug ships none (ADR-0016); ContainerOomKilled reads
+        # cAdvisor, and smaug runs none. node_exporter's vmstat collector, on
+        # by default and not disabled in stacks/media/compose.yaml, exports
+        # the kernel's own count of OOM kills, machine-wide and memory-cgroup
+        # alike, so the scrape already carries it (#910 read it as 0).
+        #
+        # SMAUG ONLY, by instance, not every host with the counter. Everywhere
+        # else that ships logs, a kill would alert twice, here and as
+        # KernelOomKill, UnitOomKilled or ContainerOomKilled.
+        #
+        # It says THAT something was killed, not what: only smaug's own
+        # `dmesg` knows. increase() reads a reboot's reset to 0 as a reset,
+        # not a kill. No `for`: the counter only moves when a kill happened,
+        # and the 15m window holds the alert long enough to be noticed.
+        expr: |
+          increase(node_vmstat_oom_kill{job="node", instance="smaug"}[15m]) > 0
+        labels:
+          component: host
+          severity: warning
+          category: capacity
+        annotations:
+          summary: "smaug's kernel OOM-killed {{ $value | printf \"%.0f\" }} process(es) in 15 minutes"
+          description: >-
+            Nothing else here can say which: the NAS ships no logs. On smaug,
+            `dmesg -T | grep -iE 'out of memory|oom-kill'` names the process and
+            the cgroup. A `docker-` cgroup is a media container at its
+            mem_limit; anything else is TrueNAS itself, the middleware or ZFS.
+            HostMemoryPressure says whether memory was short beforehand.
 
       - alert: HostHighLoad
         # Normalised by core count so the same rule works on the 2012 MacBook
@@ -716,9 +770,36 @@ groups:
         # destroyed is the goal, so this rule saying "stopped" is noise in
         # exactly the direction #438 warns about. DisposableGuestOutlived
         # watches those guests instead, running or not.
+        #
+        # AND A TEMPLATE (#885). `template: 1` in the guest's config means it
+        # can never run — 901, 911 and 912 are the Packer templates the lab's
+        # guests are cloned from — so stopped is its only state. Read from the
+        # guest by scripts/collect-guest-state.sh, not from a VMID range. A
+        # template whose config cannot be read loses the series and alerts
+        # here, which GuestConfigUnreadable explains.
+        #
+        # AND AN ON-DEMAND GUEST (ADR-0079). The Proxmox tag `on-demand` marks
+        # a guest that is meant to be off between sessions: `carbuncle` and
+        # `siren`, the domain's endpoints, which fired this rule for 51 hours in
+        # the week to 2026-10-04 while doing exactly what ADR-0029 planned.
+        # ADR-0029 accepted that noise rather than keep a table of expected
+        # guests; a tag on the guest is not that table, which is why ADR-0079
+        # takes the other side. Tagging a guest `on-demand` is a statement that
+        # its being off is never news — use it for that and nothing else.
+        #
+        # AND A GUEST STILL BEING MADE (#899). Proxmox writes a new guest's
+        # config with `lock: clone` (or `lock: create` for a restore) before it
+        # copies the disks, so a full clone is a stopped, untagged guest for the
+        # length of the copy — packer-smoke.sh's VMID 999 went pending that way.
+        # The clone API takes no tags, so the lock is the only signal there is.
+        # A lock that never clears would hide a stopped guest here for good;
+        # GuestCreationStuck below is what notices that.
         expr: >-
           homelab_guest_running == 0
           unless on (host, vmid) homelab_guest_disposable == 1
+          unless on (host, vmid) homelab_guest_template == 1
+          unless on (host, vmid) homelab_guest_on_demand == 1
+          unless on (host, vmid) homelab_guest_creating == 1
         for: 1h
         labels:
           component: host
@@ -732,6 +813,53 @@ groups:
             estate cannot tell the difference, and says so rather than implying
             it can. If it was not, the guest is down and anything inside it,
             including the lab stack on `alexander`, is down with it.
+
+      - alert: GuestNotInBackupJob
+        # A guest golem must hold is not selected by any enabled backup job on
+        # its hypervisor.
+        #
+        # WHY IT EXISTS. On 2026-10-10 `golem-nightly` was found holding only
+        # `odin`: the domain's six had fallen out. tofu destroyed them with the
+        # provider's default purge, which removes a VMID from every backup
+        # job, so the #448 rebuild and a `-replace` of the endpoints each
+        # dropped guests from the job, and every indicator stayed green. The
+        # module no longer purges (tofu/modules/guest/main.tf). This catches
+        # the rest: a job edited by hand, a guest re-created another way.
+        #
+        # THE TAG, NOT A TABLE, as ADR-0079 argues for `on-demand`. `backup`
+        # is set where the guest is made: tofu/guests.tf for the domain and
+        # `garuda`, `qm set` for `odin`. A guest that is rebuilt from the
+        # repository and backed up by nothing (ADR-0053's alexander, phoenix,
+        # golem; ADR-0081's eden) carries no tag and is never news here.
+        #
+        # SELECTED IS READ FROM /etc/pve/jobs.cfg by
+        # scripts/collect-guest-state.sh: an enabled vzdump job's `vmid`
+        # list, `all` less its `exclude`, or `pool`. Absent when jobs.cfg
+        # cannot be read, so `== 0` stays quiet rather than guess; and absent
+        # with the whole collector, which GuestStateStopped covers.
+        #
+        # AN HOUR, so a job being edited, or a guest being replaced, does not
+        # page. A nightly job missed by an hour's delay is still caught before
+        # the next run. Warning: a guest out of the job loses nothing yet; it
+        # loses the next backup, and then the one after.
+        expr: >-
+          homelab_guest_backup_expected == 1
+          and on (host, vmid) homelab_guest_backup_selected == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }} is tagged backup but no backup job selects it"
+          description: >-
+            This guest carries the Proxmox tag `backup`, so golem is meant to
+            hold it (ADR-0053), but no enabled vzdump job on the hypervisor
+            selects it. Add its VMID back to the job (`pvesh set
+            /cluster/backup/golem-nightly --vmid <list>`), or remove the tag if
+            it is no longer meant to be backed up. A guest destroyed and
+            re-created with a purge drops out of every job this way.
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-backup-guest.md#8-the-backup-job"
 
       - alert: DisposableGuestOutlived
         # The inverted liveness check #438 asked for: for a guest the hypervisor
@@ -775,13 +903,39 @@ groups:
             docs/runbooks/run-a-scratch-investigation.md — or it is no longer
             disposable, and the tag is the thing to remove, deliberately.
 
+      - alert: GuestCreationStuck
+        # The other half of HypervisorGuestStopped's `creating` exclusion: a
+        # config still locked for clone or create after six hours is not a
+        # clone in progress — a full clone of the largest template takes
+        # minutes — but a task that died and left its lock, and the guest it
+        # hides from the stopped-guest rule. Warning; the fix is `qm unlock`
+        # and a look at why, or destroying the half-made guest.
+        expr: homelab_guest_creating == 1
+        for: 6h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: guest {{ $labels.guest }} has been locked for clone or create for six hours"
+          description: >-
+            `qm config {{ $labels.vmid }}` still shows `lock: clone` or `lock:
+            create`, so the task that was making this guest has stopped
+            without finishing, and HypervisorGuestStopped is ignoring it. Read
+            the task log on the hypervisor, then either `qm unlock
+            {{ $labels.vmid }}` and finish the job, or destroy the half-made
+            guest.
+
       - alert: GuestConfigUnreadable
         # DisposableGuestOutlived's own blind spot (#438). If `qm config` fails
         # for a guest, the collector keeps that guest's run state and drops its
         # tag and age, so the age rule silently has nothing to match while
         # GuestStateStopped stays green. This says so. Every guest, not only
         # disposable ones: an unreadable config cannot say whether the guest
-        # is disposable, which is the point.
+        # is disposable, which is the point. Nor whether it is a template
+        # (#885): HypervisorGuestStopped excludes templates by the same read,
+        # so a stopped template whose config fails alerts there as well, and
+        # this description is where that alert is explained.
         #
         # An hour, for HypervisorGuestStopped's reason: a guest mid-migration
         # or mid-restore can fail a read or two without anything being wrong.
@@ -795,10 +949,12 @@ groups:
           summary: "{{ $labels.host }}: cannot read guest {{ $labels.guest }}'s config"
           description: >-
             `qm config {{ $labels.vmid }}` (or `pct config`) has failed for an
-            hour, so whether this guest is tagged `disposable`, and how old it
-            is, are unknown — DisposableGuestOutlived cannot fire for it. Its
-            run state is still reported. Run the command on the hypervisor and
-            read its error.
+            hour, so whether this guest is tagged `disposable` or `on-demand`,
+            how old it is, and whether it is a template are unknown — DisposableGuestOutlived
+            cannot fire for it, and if it is a stopped template,
+            HypervisorGuestStopped firing for it is noise. Its run state is
+            still reported. Run the command on the hypervisor and read its
+            error.
 
       - alert: GuestStateStopped
         # The collector itself stopped reporting. Without this, a hypervisor
@@ -1110,10 +1266,26 @@ groups:
         # Windows domain machines, until someone installs one) stays quiet
         # rather than alerting forever. odin's agent has hung under load; the
         # hour is what keeps that from paging on every busy spell.
+        #
+        # ANSWERED SINCE THIS GUEST WAS CREATED. A rebuild reuses the VMID and
+        # the name, so the day's history can belong to a guest that no longer
+        # exists. On 2026-10-07 Packer rebuilt tpl-ws2025-eval (vmid 912) at
+        # 17:57; the earlier build's agent had answered at 13:57, and the new
+        # one, mid Windows install, had no agent yet. That is not an agent that
+        # stopped, and it went pending. So a guest whose last answer predates
+        # its own creation time (`meta: ctime=`, read from the config by
+        # collect-guest-state.sh) is left out. A guest whose config could not
+        # be read has no creation time, the `unless` matches nothing, and it
+        # alerts as before; GuestConfigUnreadable owns that case.
         expr: >-
           homelab_guest_agent_up == 0
           and on (host, guest, vmid)
           max_over_time(homelab_guest_agent_up[1d]) == 1
+          unless on (host, guest, vmid)
+          (
+            max_over_time(timestamp(homelab_guest_agent_up == 1)[1d:1m])
+            < on (host, guest, vmid) homelab_guest_created_timestamp_seconds
+          )
         for: 1h
         labels:
           component: host
@@ -1125,7 +1297,86 @@ groups:
             The guest is running, and `qm guest cmd {{ $labels.vmid }} get-fsinfo`
             on {{ $labels.host }} has failed or timed out for an hour, so this
             guest's disks cannot page. `systemctl status qemu-guest-agent` inside
-            the guest; if it has hung, restarting it is safe.
+            the guest. If it is running but has stopped answering, run
+            `make qga-resync VMID={{ $labels.vmid }}` on {{ $labels.host }} as root
+            first: it resets the agent's parser without touching the guest.
+            If that gets no answer, restarting the agent is safe.
+
+      # --- Named lab services, read through the hypervisor (#858, ADR-0088) --
+      #
+      # A running guest with a dead service inside it looked healthy from
+      # here: the lab Prometheus sends nothing (ADR-0020), and ADR-0028 let
+      # only run state cross. ADR-0088 lets one bit per named service cross —
+      # whether Docker calls the container `running healthy` — read on
+      # `Saruman` by scripts/collect-guest-service-state.sh. The real test is
+      # each container's own healthcheck: stats.log freshness for Zeek,
+      # `wazuh-remoted is running` for the manager, /-/healthy for Prometheus.
+      #
+      # WARNING, NOT CRITICAL (#858). A blind SOC is serious and is not a 2 a.m.
+      # page for the house; `default` reaches the phone at home. A stopped
+      # guest is HypervisorGuestStopped's, and has no series here at all.
+
+      - alert: GuestServiceUnhealthy
+        # Fifteen minutes on top of the healthcheck's own retries (Zeek's is
+        # three minutes, the manager's two and a half), so a `make up` that
+        # recreates the container does not alert, and a crash does within the
+        # half hour.
+        expr: homelab_guest_service_healthy == 0
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.service }} on {{ $labels.guest }} is not healthy"
+          description: >-
+            Docker on {{ $labels.guest }} (VMID {{ $labels.vmid }}) has not called
+            {{ $labels.service }} running and healthy for fifteen minutes: it is
+            stopped, missing, or failing its own healthcheck. The guest is up.
+            From {{ $labels.host }}: `qm guest exec {{ $labels.vmid }} -- docker ps -a`,
+            then the container's log from the lab.
+
+      - alert: GuestServiceUnchecked
+        # The agent did not run the check to completion for an hour, so the
+        # service's health is unknown and GuestServiceUnhealthy cannot fire.
+        # The hour is GuestAgentSilent's, for odin's agent hanging under load.
+        expr: homelab_guest_service_checked == 0
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.service }} on {{ $labels.guest }} has not been checked for an hour"
+          description: >-
+            `qm guest exec {{ $labels.vmid }}` on {{ $labels.host }} has failed or
+            timed out for an hour, so whether {{ $labels.service }} is healthy is
+            unknown. `systemctl status qemu-guest-agent` inside the guest; if it
+            has hung, restarting it is safe.
+
+      - alert: GuestServiceStateStale
+        # The collector stopped rewriting its file. A timestamp rather than
+        # presence, for GuestDiskStateStale's reason: the .prom persists and is
+        # re-served, so every service would stay healthy after the timer died.
+        # Thirty minutes is six missed runs of a five-minute timer. The
+        # `for` is GuestDiskStateStale's too, and keeps the stale rules alike,
+        # so this fires about 45 minutes after the last rewrite. Nothing it
+        # guards pages, so a quarter of an hour is not worth a second shape.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*guest-service-state\\.prom"} > 1800
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its guests' service state in half an hour"
+          description: >-
+            The file is {{ $value | humanizeDuration }} old, so
+            GuestServiceUnhealthy is reading old answers. Check
+            homelab-guest-service-state.timer on the host and its last run in
+            the journal (`journalctl -u homelab-guest-service-state`); a failed
+            `qm list` writes nothing on purpose, so the journal says why.
 
       # --- The hypervisor's own firewall (#576) ------------------------------
       #
@@ -1774,3 +2025,111 @@ groups:
             to outlast. If this is prometheus, that is the monitoring host:
             shut it down cleanly rather than letting the cell decide.
             HostOnBattery says why the mains is out.
+
+      # Management console certificates (#857, ADR-0084): the pfSense GUI, the
+      # iLO, Saruman's :8006 and the TrueNAS UI. TlsCertificateExpiringSoon
+      # cannot see them — each answers Hicks only, so the blackbox exporter on
+      # the monitoring host never completes a handshake — and so these read
+      # scripts/collect-cert-expiry.sh's gauge instead, written by a handshake
+      # made inside each console's own segment.
+      #
+      # The same two tiers and thresholds as the blackbox pair, for the same
+      # reasons: 30 days is enough to reissue by hand, 7 is a reminder that was
+      # missed. The critical one inhibits the warning in alertmanager.yaml.
+      # `min by (endpoint, host)` so the alert carries only the console's name
+      # and the machine it belongs to — the iLO's series is collected on
+      # Saruman (instance="Saruman") and is about shiva (host="shiva").
+      - alert: ManagementCertificateExpiringSoon
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds - time())
+          / 86400 < 30
+        for: 1h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: >-
+            {{ $labels.endpoint }} on {{ $labels.host }} has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            Read from the handshake with the console itself, so this is the
+            certificate actually being served. Each of these is self-signed and
+            reissued from its own UI or shell —
+            docs/runbooks/generate-certificates.md#management-console-certificates
+            says how for each one. The alert resolves on the next collection
+            after the new certificate is served: within 15 minutes for
+            pfsense-ui, the next day for the others.
+
+      - alert: ManagementCertificateExpiryImminent
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds - time())
+          / 86400 < 7
+        for: 10m
+        labels:
+          component: host
+          severity: critical
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/generate-certificates.md#management-console-certificates"
+          summary: >-
+            {{ $labels.endpoint }} on {{ $labels.host }} has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            Under a week, or already expired if the number is negative. The
+            console keeps answering, but browsers start refusing it, and this
+            is the console someone reaches for when something else is already
+            wrong. Reissue it now from the runbook.
+
+      # The reader could not complete a handshake. Kept apart from the expiry
+      # rules on purpose (the homelab_ddns_record_checked pattern): an unread
+      # certificate has no expiry sample, so without this a console that
+      # stopped answering — or an iLO that OpenSSL refuses to talk to — would
+      # make the expiry alerts quietly impossible. Six hours, because a console
+      # restarting or a host rebooting is not worth a word.
+      - alert: ManagementCertificateUnchecked
+        expr: homelab_cert_checked == 0
+        for: 6h
+        labels:
+          component: host
+          severity: warning
+          category: config
+        annotations:
+          summary: "{{ $labels.endpoint }} on {{ $labels.host }}: its certificate could not be read"
+          description: >-
+            The collector on {{ $labels.instance }} ran but got no certificate
+            from {{ $labels.endpoint }}, so its expiry is not being watched. Run
+            the collector by hand with --print to see the probe: for
+            pfsense-ui that is `make gateway-state` on the monitoring host, on
+            Saruman `systemctl start homelab-cert-expiry` and its journal, on
+            smaug the cron job's command. A console that is down says so
+            elsewhere; one that is up and refusing the handshake is a TLS
+            setting changed on the device.
+
+      - alert: CertExpiryStateStale
+        # The collector has stopped rewriting its file, on any host. The
+        # SmartStateStale shape and reasons: the .prom persists and is
+        # re-served on every scrape, so the expiry samples stay present and a
+        # year away while nobody is reading them. On the monitoring host the
+        # writer is `make gateway-state`, which ScheduledJobStale watches too;
+        # on Saruman and smaug it is a timer and a TrueNAS cron job that
+        # nothing else knows about. Two days against a daily schedule.
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*cert-expiry-.*\\.prom"} > 2 * 86400
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten {{ $labels.file }} in two days"
+          description: >-
+            The certificate expiry textfile is {{ $value | humanizeDuration }}
+            old, so ManagementCertificateExpiringSoon is reading dates that
+            nobody has checked since. On Saruman the writer is
+            homelab-cert-expiry.timer; on smaug a cron job in TrueNAS's UI
+            (System → Advanced Settings → Cron Jobs; build-the-nas.md §6.10);
+            on the monitoring host `make gateway-state`. Check the job still
+            exists and that its last run wrote the file.

@@ -53,6 +53,7 @@ The KVM in the rack is that access.
 | `oracle` | `matrix.elysium` | `10.0.99.30` | The machine the wiki runs on |
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
+| `speedtest` | `matrix.elysium` | `10.0.99.20` | Speed-test history on `:8443` — matches the certificate's CN (#914) |
 | `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0018. Note the subnet: this one is not `10.0.99.x` |
 
 `morpheus` needs no entry. It already resolves — and note it answers with **two**
@@ -95,6 +96,7 @@ dig +short @10.0.99.1 lemmiwinks.matrix.elysium
 dig +short @10.0.99.1 oracle.matrix.elysium
 dig +short @10.0.99.1 prometheus.matrix.elysium
 dig +short @10.0.99.1 grafana.matrix.elysium
+dig +short @10.0.99.1 speedtest.matrix.elysium
 dig +short @10.0.99.1 neo.matrix.elysium
 ```
 
@@ -167,12 +169,15 @@ host, and one per service the [`stacks/sensitive/Caddyfile`](../../stacks/sensit
 routes by Host — `homeassistant` and `vaultwarden` to begin with
 ([#134](https://github.com/Gerrrt/HomeLab/issues/134),
 [#131](https://github.com/Gerrrt/HomeLab/issues/131)), and `home` for
-Homepage ([#137](https://github.com/Gerrrt/HomeLab/issues/137)), the one the
+the household's page ([#137](https://github.com/Gerrrt/HomeLab/issues/137),
+served by Glance since [ADR-0103](../adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md)), the one the
 household is told, and `links` for linkding
 ([#144](https://github.com/Gerrrt/HomeLab/issues/144)), added 2026-09-29 as
 an additional name on `trinity`, ahead of the service, `actual` for Actual
-([#142](https://github.com/Gerrrt/HomeLab/issues/142)), and `pdf` for Stirling-PDF
-([#143](https://github.com/Gerrrt/HomeLab/issues/143)). They land with the
+([#142](https://github.com/Gerrrt/HomeLab/issues/142)), `pdf` for Stirling-PDF
+([#143](https://github.com/Gerrrt/HomeLab/issues/143)), and `start` for Glance
+([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)), the operator's start
+page. They land with the
 build ([#404](https://github.com/Gerrrt/HomeLab/issues/404)), not before: an
 override for a host that does not answer moves the failure from *no such host*
 to *no route*, and a name on the break-glass card is the one thing

@@ -1,0 +1,12 @@
+---
+# Microsoft's one URL for Sysmon. It is not versioned, so the pin in
+# group_vars (sysmon_version, sysmon_zip_sha256) is what makes this reproducible.
+sysmon_url: https://download.sysinternals.com/files/Sysmon.zip
+sysmon_zip: C:\ProgramData\lab\Sysmon-{{ sysmon_version }}.zip
+sysmon_unpacked: C:\ProgramData\lab\Sysmon-{{ sysmon_version }}
+# Where the vendored config sits on the guest. Sysmon reads it only at -i or -c
+# and keeps its own copy in the registry, so this file is the record of what
+# was applied, not something the driver needs at boot.
+sysmon_config_dir: C:\ProgramData\lab\sysmon
+sysmon_config_path: C:\ProgramData\lab\sysmon\sysmonconfig.xml
+sysmon_channel: Microsoft-Windows-Sysmon/Operational

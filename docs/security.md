@@ -19,9 +19,12 @@ What this network is actually built to survive:
 | An attacker on the lab segment reaching the hypervisor's management plane | **Closed at the host, and watched.** `Saruman`'s Proxmox firewall admits `8006` and `22` from Hicks and `8006` from the deployment host only ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)). It was found disabled and turned on on 2026-09-20 ([#566](https://github.com/Gerrrt/HomeLab/issues/566)); since [#576](https://github.com/Gerrrt/HomeLab/issues/576) `homelab_pve_firewall_enabled` is read every five minutes and `PveFirewallDisabled` pages after ten, so a `pve-firewall stop` left in place is noticed rather than found. `PveFirewallPolicyAccept` does the same for `policy_in` left at `ACCEPT`, which reads as enabled and admits the whole segment |
 | Someone on the lab segment reaching the domain's configuration path | **Scoped, key-only, and accepted for `phoenix` itself.** Each of ADR-0029's six listens on `22` for `ansible/` ([ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md)). The rule admits `10.0.30.70` alone, `sshd` refuses passwords, and the only administrators' key is `phoenix`'s, installed by the template and never by hand on a clone. The residual: whoever owns `phoenix` owns the lab domain. That was already true through its Proxmox token, so it adds reach to nothing. Host keys are not pinned, because every rebuild replaces them |
 | Someone on the lab segment reading the domain's metrics | **Scoped, unauthenticated, and accepted.** `windows_exporter` listens on `9182` on all six of ADR-0029's guests, on the segment that exists to hold attackers. Each guest's Windows Firewall admits `10.0.30.40` (`alexander`) alone ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §7). That rule is the difference between an endpoint a `/24` sweep finds and one you have to go looking for, and it is a residual, not a control: the exporter has no authentication, so whoever owns `alexander` reads every gauge. It has no write API, so what leaks is the shape of the host (services, disks, uptime, the licence clock), the same class as `node_exporter` on the NAS below |
+| Someone on the lab segment fetching a Velociraptor client package | **Scoped by address, and accepted.** `odin`'s `caddy` service (container `soc-agent-msi`) serves the two agent MSIs `ansible/` installs, and the two Debian packages `garuda` installs, on `8448` ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)). Its Caddyfile answers the six domain addresses, `.50`–`.55`, and `garuda`'s `.62`, and refuses everyone else, Hicks's route from VLAN 50 included. The Velociraptor MSI and the Velociraptor `.deb` each carry the client config: the server URL, its CA, and the enrolment nonce. Whoever holds either can enrol a rogue client, which is why #864 took the MSI out of SYSVOL. The residual: an address on this segment can be spoofed, and any of the seven can fetch either package. What the nonce buys is noise in Velociraptor's client list, the same class as the Wazuh enrolment password. Rotating it means a new server config, a rebuilt MSI with the role's pin moved, and the staged `.deb` deleted so that `scripts/stage-agent-msis.sh` builds it again. The two Wazuh packages carry no secret |
+| An OpenVAS plugin on `garuda` reaching a non-target | **Fenced at layer 2** ([ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md)). OpenVAS scans the domain's six only. While a scan runs, the scanner runs in a network namespace whose one route to the segment is a macvlan, `scan0` at `10.0.30.63`, behind an nftables `netdev` egress hook that drops every frame — IP, ARP (`send_arp_request`) and raw (`send_frame`) — to anything but the six. So the AF_PACKET paths that bypass an IP filter are caught here. Proved: a GVM scan of an out-of-scope host raised the egress drop counter with 0 open ports, and an `arping` from the namespace to an out-of-scope host was dropped while an in-scope host answered. `gvmd`, `notus`, `redis` and `mosquitto` stay on the host; only MQTT crosses to the namespace, on a veth that routes nowhere else |
+| Someone on the lab segment reaching the SOC's web UIs | **Scoped by address, and accepted.** The Wazuh dashboard (`443`) and the Velociraptor GUI (`8889`) on `odin` are published by the stack's `caddy` service (container `soc-agent-msi`), not by their own containers, and its Caddyfile answers Hicks's `10.0.50.0/24` and refuses everyone else ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139)). Until then both answered all of VLAN 30, the six domain guests included, because traffic between VLAN 30 hosts never crosses pfSense — so no firewall rule could have narrowed them. WireGuard peers are not in the list. The residuals: Hicks is a whole /24 with no per-host source yet ([ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)), and an address on VLAN 30 can be spoofed, so this narrows who reaches the login pages and does not replace them. And the hop from Caddy to Velociraptor skips certificate verification: the GUI's certificate is signed by the CA inside the gitignored `server.config.yaml` on `odin`, and the hop is container to container on the `soc` bridge. The dashboard hop is verified against the Wazuh generator's root |
 | A range target with a path out | It has none — `ifrit`'s targets sit on a bridge with no physical port, on `172.30.30.0/24`, which the firewall does not route and on which nothing has a default route at all ([ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md), [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)) |
 | Someone with the trusted Wi-Fi key quietly joining | Kea's lease log reaches Loki; `UnknownDeviceOnTrustedSegment` fires the first time a MAC appears on VLAN 50 in seven days ([ADR-0019](adr/0019-read-device-joins-from-the-dhcp-server.md)) |
-| Losing visibility of a failure | 156 alert rules, 30 days of metrics and logs |
+| Losing visibility of a failure | 178 alert rules, 30 days of metrics and logs |
 | Someone on a reachable VLAN silencing an alert to hide a failure | Alertmanager binds to `127.0.0.1`; silences go through authenticated Grafana |
 | Mains power loss | **The rack, yes; the monitoring path, yes — on two laptop cells that were measured for the first time on 2026-09-12.** A pack fitted to `mjolnir` on 2026-08-28 passed its self-test; the TP-Link carrying `prometheus` and `oracle` has been on UPS power since 2026-09-08 ([#110](https://github.com/Gerrrt/HomeLab/issues/110)); the laptops ride a cut out on their own batteries, which `HostBatteryHealthLow` in `host.rules.yaml` now reads — `prometheus`'s cell was replaced on 2026-09-18 and reads 101 % of design, `oracle`'s is the original at 72 %, with its replacement bought on 2026-09-19 and in transit ([#531](https://github.com/Gerrrt/HomeLab/issues/531)) — and **`prometheus`'s runtime on its cell was measured on 2026-09-19 — about 2.5 hours from full at the stack's load — while `oracle`'s never has been**; since the same day the projection is recorded on every cut and pages under thirty minutes (`HostBatteryRuntimeLow`, [#532](https://github.com/Gerrrt/HomeLab/issues/532)), but neither pack reports a moving cell temperature, so this row is answered for the monitoring host, and for the other only as far as its cell being healthy — see below. **What the UPS cannot answer is what happens when the cut outlasts the pack: as of 2026-09-20 nothing shuts down on its signal, and everything on the PDU — `morpheus`, `Saruman`, `neo` and `smaug`, which is in the media room on a long cord from that PDU — stops uncleanly when the pack empties, about 47 minutes in at 21 % load by the card's own unmeasured estimate.** [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides that the firewall's NUT server halts `Saruman` and `smaug` first and itself last, and [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) is the build, the forced-shutdown proof and the one mains pull that measures the pack; until those are done the decision is a configuration nobody has tested ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) |
 | The estate being down while the person who runs it is unavailable | **Documentation, yes; data, not yet off the estate.** ADR-0011 puts the emergency tier on paper; [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md) extends the same reasoning to the sensitive tier's data. That tier has held real photographs since 2026-09-28, and their off-estate copy is built but has no holder yet ([#455](https://github.com/Gerrrt/HomeLab/issues/455)) — see below |
@@ -369,6 +372,25 @@ leaves is up to a day between a replacement and the page; a template built
 inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
+**Three more, for the television, exist since 2026-10-19.**
+`10.0.99.40 → 10.0.40.40` passes `3001/tcp` and `9/udp` and rejects
+`3000/tcp`, so Home Assistant can drive `mediatv` and wake it
+([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
+[#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The source is the
+most trusted tier and the destination is a guest-trust device. The residual
+is that Home Assistant parses whatever the TV sends back, and the integration
+does not verify the TV's self-signed certificate, so a device that took the
+TV's address would get a key that controls the TV and nothing else. There is
+also a request-forgery residual. `aiowebostv` connects to whatever input-socket
+URL the TV returns, so a compromised TV can make Home Assistant send a blind,
+unauthenticated websocket `GET` anywhere `trinity` reaches. The firewall rules
+for the TV do not limit that connection. All three are accepted: the first two
+as ADR-0035 accepted the Hue bridge's, and the third on the condition that
+nothing `trinity` reaches acts on an anonymous `GET`. That was
+checked on 2026-10-19 from inside the Home Assistant container, before the TV
+was paired. Every service that can act refused an anonymous `GET` with 401,
+403 or 405, or redirected it to a login. The rest only read. ADR-0097 records
+the bound, and that the fix belongs in `aiowebostv`.
 [`network.md`](network.md) holds the current list. **Skids has one, since
 2026-09-28:** `10.0.99.40 → 10.0.20.20:80,443/tcp` — Home Assistant to the Hue
 bridge, the one device on that segment with a local API — above the block that
@@ -376,7 +398,31 @@ has stood between 99 and 20 since the segments existed
 ([#134](https://github.com/Gerrrt/HomeLab/issues/134),
 [ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)). Nothing on
 Skids can start a connection through it; the #223 tripwire read 0 after
-pairing.
+pairing. **Three more, for the HomePods, exist since 2026-10-21**
+([ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md),
+[#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). They run from
+`trinity` to four reserved addresses on `5353/udp`, `7000/tcp` and the dynamic
+range `49152–65535/tcp`, because each HomePod picks its AirPlay 2 event and
+data ports per session. They are outbound only. Audio is left out because
+pyatv's stream needs the HomePod to send to random ports on Home Assistant's
+side, which would have Skids initiating into Winterfell. The HomePods ignore
+discovery from another subnet, so that traffic is NATed to `10.0.20.1` on its
+way into Skids. The HomePods therefore see the firewall's address, not
+`trinity`'s, and they treat it as a device on their own network.
+**Three more are decided and not yet created**
+([ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md),
+[#1248](https://github.com/Gerrrt/HomeLab/issues/1248)): `trinity` to
+`heimdall`, a Raspberry Pi to be placed on Skids to bridge the VTech monitor's
+stream, on `8554/tcp` and `22/tcp`, and `prometheus` to it on `9100/tcp`. The
+Pi is the first general-purpose computer on that segment, which is why it is
+scraped and reachable by SSH, each on a row of its own. Its restream requires
+a credential, so the rest of Skids cannot connect and watch the room the
+camera watches; the hop itself is RTSP in the clear across Skids, so a
+compromised device there that can put itself in the path can read the
+stream while Home Assistant has it open. ADR-0103 accepts that as a
+residual, bounds it to the minutes a dashboard shows the camera, and names
+the TLS path that retires it. Still outbound only, and the tripwire still has
+to read 0 with it running.
 
 One of CasaBonita's six is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
@@ -391,9 +437,12 @@ unauthenticated ports the observability stack publishes. Audiobookshelf's
 `13378` is reachable the same way and is not the same residual: everything
 there but its health and status endpoints wants a login.
 
-The row ADR-0008wrote as `99 → 20` is narrower than it read: one host to one device on two
-ports, with the twenty other devices on Skids still unreachable from anywhere,
-and both segments still initiating nothing. The tripwire below is the check
+The row ADR-0008 wrote as `99 → 20` is narrower than it read: one host,
+`trinity`, to the Hue bridge on two ports and, since 2026-10-21, to the
+HomePods on ADR-0099's three rows, with every other device on Skids still
+unreachable from anywhere, and both segments still initiating nothing. The
+HomePod rows reach the devices today. Home Assistant has not added them yet,
+because of a pyatv bug, and that is not a firewall matter. The tripwire below is the check
 that the second half holds — waiting on Skids, and since 2026-09-16 actually
 checking on CasaBonita.
 
@@ -486,9 +535,13 @@ route. The blackbox probes in `targets/blackbox.yaml` ask the published
 address for a query and a delete with no token, and `IngestAuthNotEnforced`
 pages if either is ever answered by anything but the proxy's 401.
 
-What remains is deliberate, and `SECURITY.md` records it. The tokens are plain
-HTTP on VLAN 99, which a Hicks workstation can route to but not sniff. Loopback
-is unauthenticated, for a local user who already holds the SOPS key.
+Since [#764](https://github.com/Gerrrt/HomeLab/issues/764) both ports serve TLS
+under the estate CA
+([ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)),
+and every client verifies the chain, so no token crosses VLAN 99, or Saruman's
+pass from VLAN 30, in cleartext. What remains is deliberate, and `SECURITY.md`
+records it: loopback is unauthenticated, for a local user who already holds
+the SOPS key.
 
 **The lab's stores got the same treatment second, and needed it more**
 ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). `alexander` published
@@ -514,8 +567,8 @@ Two residuals are recorded rather than fixed:
 
 - **The tokens are plain HTTP on a segment built for ARP spoofing,** so they can
   be stolen by anyone in a position to spoof. A stolen token can still only
-  push, or read; it cannot quit or delete. TLS is #764's question, asked here
-  too.
+  push, or read; it cannot quit or delete. The estate's proxy answered this
+  with TLS (#764, ADR-0086); the lab's has not been asked yet.
 - **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
   and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
   a step in the rollout check, not a rule. Making the lab's failures reach the
@@ -664,6 +717,25 @@ assumption consistent with what they are.
   there, and `.gitignore` keeps that file out of git. The key has no backup,
   unlike every other key in ADR-0024, on purpose: the key, the secrets and the
   data they protect are destroyed together by `qm destroy 161 --purge`.
+- **The BloodHound stack's key is one recipient on one guest, and has no
+  backup** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **How it is held.** `eden`'s rule sits above the catch-all, with a
+    placeholder until the guest exists. So the host holding a map of the lab
+    domain's weaknesses opens its own four secrets and nothing else.
+  - **Why it gets no second recipient, unlike ADR-0024's other keys.** What
+    the key guards is all re-issuable:
+    - the database's password, which guards data that is itself one
+      collection run from rebuilt;
+    - a first admin, which matters only on the first start;
+    - a session signing key;
+    - an ingest token, whose other copy is on `alexander`.
+  - **What losing it costs.** New values, a fresh data disk and a collection
+    run. `check_sops_rules.py`'s list of stacks whose key guards data
+    therefore leaves it out.
+  - **The graph itself never leaves the guest.** Not to a backup, and not to
+    VLAN 99. Its Alloy ships the guest's telemetry to `alexander`, not the
+    graph.
 
 ### Known historical exposure
 
@@ -687,7 +759,13 @@ with what it was and why it was still there. It was an acknowledgement, not a
 fix, and it existed because a CI job that is permanently red for a known reason
 gets ignored — and then a genuinely new leak goes unnoticed alongside it. The
 purge removed what it acknowledged, so the file was deleted. A history scan
-that passes with no exceptions is the evidence the purge worked.
+that passes with no exceptions is the evidence the purge worked — and since
+2026-10-14 the history scan reads a configuration with no path allowlist for
+anything gitignored. The working-tree scans read `.gitleaks-worktree.toml`,
+which extends it with `.rendered/`, `certificates/` and the rest; those were
+allowlisted in the one shared file before, and a path allowlist applies to
+every commit a history scan walks, so the purged key under `certificates/`
+was exactly the path that scan could not see.
 
 ### Everything above sits on an unencrypted disk
 
@@ -890,7 +968,12 @@ this closes on.
 ## Hardening applied to the stack
 
 - Anonymous Grafana access disabled; sign-up disabled; admin password from SOPS.
-- Every service except Alloy runs as a non-root uid. Prometheus and
+- Every service except Alloy and speedtest-tracker runs as a non-root uid.
+  speedtest-tracker's image is built on s6-overlay, which must start as root
+  and as PID 1; s6 then runs nginx, php-fpm and the test itself as the
+  operator's `${RENDER_UID}`. Its capabilities are cut to the six that drop
+  needs (#914, measured in compose.yaml), and no-new-privileges holds.
+  Prometheus and
   blackbox-exporter run as `nobody` (65534), Loki and Grafana as their own
   unprivileged UIDs (10001, 472), and Alertmanager and snmp-exporter as the
   operator's `${RENDER_UID}` because each mounts a 0600 file that
@@ -899,6 +982,15 @@ this closes on.
   went unnoticed for as long as it did. Alloy is uid 0 on purpose and is
   covered separately below: it reads the host's logs, and the capability drop
   rather than the uid is what bounds it.
+- **speedtest-tracker saturates the WAN for ~20 seconds every 30 minutes**,
+  to Ookla's servers, from VLAN 99 — the same deliberate egress path as the
+  probes below, and far larger: a test at the port's ~940 Mbit/s moves around
+  a gigabyte each way ([#914](https://github.com/Gerrrt/HomeLab/issues/914)).
+  What leaves is test traffic; what Ookla learns is the public address and
+  its speed. Its UI on `:8443` wants the app's own login, but
+  `/prometheus` and `/api/healthcheck` on the same port answer without one,
+  and the first discloses the ISP's name and the latest result — nothing a
+  client on a segment that can reach `10.0.99.20` could not measure for itself.
 - **Outbound probes leave VLAN 99 for the public internet**, and that is a
   deliberate new egress path rather than a side effect
   ([#166](https://github.com/Gerrrt/HomeLab/issues/166)). blackbox-exporter
@@ -929,6 +1021,20 @@ this closes on.
   `10.0.99.1`, `10.0.99.20:9090` and `169.254.169.254`. None of those requests
   arrived. `HTTP_ALLOW_LIST` is what would open it, so it is written out
   empty in `compose.yaml`.
+- **Glance fetches a fixed list from `trinity`**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223), [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md),
+  [ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md)):
+  Reddit, Hacker News, Open-Meteo, Yahoo Finance, ESPN, GitHub, YouTube's
+  feeds and uselessfacts, on its cache schedule. Every URL it asks is written
+  in `glance/` or in the operator's lists in SOPS, and nothing a visitor
+  types becomes a fetch, so it has no inward-fetch flag to set. The one
+  third-party request the browser makes is for YouTube thumbnails. The feeds people follow are
+  fetched by Miniflux's fetcher, under the flag above, and Glance reads them
+  from Miniflux. It has no login. It shows the names of
+  firing alerts, which Grafana shows to the same networks behind a login, and
+  that difference is accepted. It holds two credentials: the reader token,
+  which can only query, and a Fever key that can only mark items read for a
+  Miniflux user that follows public feeds.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
@@ -936,9 +1042,9 @@ this closes on.
   system being switched off. Nothing off-host used the port; silences are
   reached through Grafana.
 - Prometheus and Loki bind to `127.0.0.1` only, since #182. Their off-host
-  clients (three agents, Homepage and Home Assistant) reach them through the
-  ingest proxy on `10.0.99.20`, which wants a token and serves each token one
-  role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
+  clients (three agents, Glance and Home Assistant) reach them
+  through the ingest proxy on `10.0.99.20`, which wants a token and serves
+  each token one role. See [ADR-0012](adr/0012-publish-only-ports-with-an-off-host-consumer.md)
   for which ports are published and
   [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)
   for what a client must prove.
@@ -999,6 +1105,30 @@ this closes on.
   `docker.alloy` still falls back to the socket when `DOCKER_API` is unset, so
   an agent deployed before this keeps working until its next `deploy-agent.sh`
   run.
+
+  **"Refuses everything else" was not true of `/containers` until
+  2026-10-10.** The image's rule for `CONTAINERS=1` is a prefix match on
+  `/containers`, so it also allowed four GETs that `POST=0` does not touch:
+  `archive`, which returns any file from any container, `export`, which returns
+  a whole container filesystem, `top` and `changes`
+  ([Tecnativa/docker-socket-proxy#182](https://github.com/Tecnativa/docker-socket-proxy/issues/182),
+  unfixed upstream). The daemon serves them as root, so a client trusted only
+  to list containers could read through the proxy what `cap_drop` keeps it from
+  reading through `/rootfs`. All four answered 200 on `prometheus`.
+  - **Every proxy now runs the repository's HAProxy config,**
+    [`stacks/observability/docker-socket-proxy/haproxy.cfg`](../stacks/observability/docker-socket-proxy/haproxy.cfg).
+    It is upstream's template with that one rule replaced by the three
+    `/containers` paths the clients send, read from three days of the proxy's
+    own request log. That covers the six compose stacks and `deploy-agent.sh`'s
+    `alloy-socket-proxy`.
+  - **`check_socket_proxy.sh` boots the pinned image on it in CI.** Alloy's
+    paths must answer, and `archive`, `export`, `top`, `changes`, `stats`,
+    `attach` and the `..` and encoded-slash spellings must be refused by the
+    proxy itself. It also fails when an image bump changes upstream's template
+    under the committed copy.
+  - **`check_compose_health.py` fails a proxy that does not mount the config or
+    is not started on it,** because either one alone falls back to the image's
+    template without any visible change.
 - Alloy holds no capabilities. It runs as uid 0 with `cap_drop: [ALL]` and
   `no-new-privileges`, so root inside it is subject to file permissions like any
   other user, and joins only the group that owns `/var/log/syslog` so the auth
@@ -1018,7 +1148,7 @@ this closes on.
   loop that `restart: unless-stopped` retries forever, so each service was
   booted read-only from its pinned digest with its real mounts before the line
   was written. Grafana got the full soak the issue asked for — login, all three
-  datasources, all seven dashboards fetched by uid, an annotation written and a
+  datasources, all eight dashboards fetched by uid, an annotation written and a
   folder created. Alloy is included too: #186 proposed skipping it as
   performative next to `privileged: true`, and that reason left with #188.
 
@@ -1050,6 +1180,17 @@ this closes on.
 - Stirling-PDF's analytics, PostHog, Scarf and update checks disabled, and its
   heap dump on OOM too, because a dump would put the document being processed
   on a disk ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)).
+- The sensitive tier's MQTT broker, which carries the Ring Alarm's arming
+  commands, is on an internal network that only Home Assistant and ring-mqtt
+  join. Each signs in as its own user, and an ACL keeps ring-mqtt to its own
+  topics. ring-mqtt is community code holding the Ring location owner's
+  refresh token, as Home Assistant's Ring entry does. It runs non-root and
+  read-only, and the token can be revoked in Ring's Control Center. Its one
+  listener, an unauthenticated sign-in page that runs while it has no working
+  token, is out of reach of the tier's other services: ring-mqtt is not on
+  `sensitive`, only on the broker's network, shared with Home Assistant, and
+  an egress network of its own
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability
@@ -1102,7 +1243,7 @@ fingerprint of a house is not. Withheld on purpose:
   seven days, so nothing in this repository has to enumerate them.
 - **Owner-linked device names.** Personal devices are listed by role
   (`laptop-01`) rather than by person, and a child's bedroom is not labelled.
-- **Camera-to-room mapping.** Knowing there are seven cameras is fine. Knowing
+- **Camera-to-room mapping.** Knowing there are nine cameras is fine. Knowing
   which one covers which door is a physical-security detail.
 - **The WAN address**, firewall rule bodies, and Wi-Fi configuration.
 - **The WireGuard endpoint and its listen port**, for the same reason and with

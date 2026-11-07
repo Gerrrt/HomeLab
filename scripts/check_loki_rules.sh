@@ -26,8 +26,6 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 STACK_NAME="observability"
-# Resolved from compose.yaml — see scripts/image-for.sh.
-LOKI_IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" loki)"
 BOOT_SECONDS="${BOOT_SECONDS:-45}"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -77,10 +75,16 @@ if ((n_committed == 0 && ${#dash_files[@]} == 0)); then
   exit 0
 fi
 
+# This stack's pin, resolved once --stack is known and there is something to
+# check: most stacks have no loki service, and set -e would end the run on the
+# lookup. image-for.sh falls back to stacks/observability/compose.yaml, so
+# resolving it before --stack checked every stack against observability's Loki.
+LOKI_IMAGE="$(COMPOSE_FILE="${STACK}/compose.yaml" "${REPO_ROOT}/scripts/image-for.sh" loki)"
+
 # Whether this run can happen at all is decided FIRST, before anything with a
 # side effect or a failure mode of its own.
 #
-# Everything below needs a scratch directory, may pip install PyYAML, and
+# Everything below needs a scratch directory, may install the pinned PyYAML, and
 # shells out to check_dashboards.py to emit the panel queries. Doing any of
 # that before knowing there is a Loki to run it against turned an intended SKIP
 # into a hard failure on a host with no python3 — and recorded no skip while
@@ -147,30 +151,19 @@ fi
 chmod -R a+rwX "${WORK}"
 
 # PyYAML is not guaranteed on a clean runner, and the failure mode without this
-# guard is an opaque ModuleNotFoundError inside a heredoc.
-if ! python3 -c 'import yaml' 2>/dev/null; then
-  info "installing PyYAML"
-  python3 -m pip install --quiet --disable-pip-version-check pyyaml >/dev/null 2>&1 \
-    || die "PyYAML is required and could not be installed"
-fi
+# guard is an opaque ModuleNotFoundError inside a heredoc. scripts/_deps.py is
+# the one bootstrap (#848): the host's python3-yaml, or on a runner the pinned
+# and hashed scripts/requirements.txt. It prints the directory it installed
+# into, which the heredocs below only see through PYTHONPATH.
+pydeps="$(python3 "${REPO_ROOT}/scripts/_deps.py" --pythonpath)" \
+  || die "PyYAML is required: sudo apt install python3-yaml"
+[[ -n "${pydeps}" ]] && export PYTHONPATH="${pydeps}${PYTHONPATH:+:${PYTHONPATH}}"
 
 # Rewrite every path in the real config to point inside the scratch dir, so the
-# rules are checked against the same settings production uses.
-python3 - "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml" <<'PY'
-import sys, yaml
-cfg = yaml.safe_load(open(sys.argv[1]))
-work = sys.argv[2]
-cfg["common"]["path_prefix"] = f"{work}/data"
-cfg["common"]["storage"]["filesystem"] = {
-    "chunks_directory": f"{work}/data/chunks", "rules_directory": f"{work}/data/rules"}
-cfg["storage_config"]["tsdb_shipper"] = {
-    "active_index_directory": f"{work}/data/index", "cache_location": f"{work}/data/cache"}
-cfg["storage_config"]["filesystem"] = {"directory": f"{work}/data/chunks"}
-cfg["compactor"]["working_directory"] = f"{work}/data/compactor"
-cfg["ruler"]["storage"]["local"]["directory"] = f"{work}/rules"
-cfg["ruler"]["rule_path"] = f"{work}/data/rules-temp"
-yaml.safe_dump(cfg, sys.stdout)
-PY
+# rules are checked against the same settings production uses. Shared with
+# test_loki_rules.py, so the parse check and the behaviour tests cannot drift.
+python3 "${REPO_ROOT}/scripts/loki_scratch_config.py" \
+  "$STACK/loki/loki-config.yaml" "${WORK}" > "${WORK}/loki.yaml"
 
 # Rule groups use interval: 1m in production, and Loki jitters a group's first
 # evaluation across that interval — so a short boot window can legitimately see

@@ -36,10 +36,12 @@
 # says `make up` stays true and this script's blast radius is the DECISION to
 # deploy, not the deployment.
 #
-# The no-op path costs one fetch. When the checkout is already at the fetched
-# tip, the tree is clean and `make up` last applied that same revision, nothing
-# is rendered, no container is touched and docker is never called — which is
-# what makes an hourly cadence reasonable.
+# The no-op path costs one fetch and one look at the stack's containers. When
+# the checkout is already at the fetched tip, the tree is clean and `make up`
+# last applied that same revision, nothing is rendered and no running container
+# is touched — which is what makes an hourly cadence reasonable. The one thing
+# it does is start a service that should be running and is not (ADR-0087,
+# "Stopped services" below).
 #
 # "AT THE TIP" IS NOT "DEPLOYED", and the first version treated it as though it
 # were. On 2026-10-01 the checkout reached #781's merge by a `git pull` by hand,
@@ -105,7 +107,9 @@
 #   scripts/converge.sh --dry-run          say what it would do, change nothing
 #   scripts/converge.sh --allow-unsigned   fast-forward past a failed signature
 #   scripts/converge.sh --allow-red        deploy a tip whose CI did not pass (#833)
-#   scripts/converge.sh --self-test        run the CI gate's fixtures
+#   scripts/converge.sh --self-test        run the fixtures: the CI gate, then
+#                                          every refusal against a throwaway
+#                                          repository and key (#854)
 #   scripts/converge.sh --stack sensitive  converge trinity's tier, not the
 #                                          monitoring host's (default observability)
 #
@@ -119,6 +123,14 @@
 #                            homelab_deploy_apply_enabled, so the mode is
 #                            visible from Prometheus rather than only from a
 #                            file on the host.
+#   CONVERGE_UNSAFE_SELF_TEST  the self-test's, and nobody else's. When set,
+#                            CONVERGE_DEPLOY_ROOT, CONVERGE_FETCH_URL and
+#                            CONVERGE_SIGNING_FPR replace the deployment root,
+#                            the URL fetched and the pinned fingerprint, so the
+#                            fixtures can run every refusal below against a
+#                            throwaway repository and a throwaway key (#854).
+#                            Unset, all three are ignored. Set on a host, it is
+#                            a host told to trust another key, and says so.
 
 set -euo pipefail
 
@@ -126,6 +138,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Read-only, credential-free, and not taken from the checkout's own config.
 CANONICAL_URL="https://github.com/Gerrrt/HomeLab.git"
+# What the fetch names. The canonical URL everywhere but the self-test, which
+# serves `main` from a bare repository it built (CONVERGE_UNSAFE_SELF_TEST).
+FETCH_URL="${CANONICAL_URL}"
 BRANCH="main"
 
 # GitHub's web-flow signing key, full fingerprint. Not the 16-hex key id: a key
@@ -238,7 +253,15 @@ for name in required:
 ci_verdict() {
   local api_ok="$2" name status conclusion red=0 wait=0 seen=0
   # Drain stdin on every path, so the writer never dies of a broken pipe.
-  while IFS=$'\t' read -r name status conclusion; do
+  #
+  # `|| [[ -n ${name} ]]` reads a last line with no newline, and the caller
+  # below sends exactly that: ci_summary is a $(...), which strips the newline,
+  # and printf '%s' does not put it back. Without it the LAST required check —
+  # Secret scan — was never looked at, so a tip with Secret scan failed or still
+  # running deployed as green. The unit fixtures above piped ci_summarise
+  # straight in, newline intact, and could not see it; the end-to-end one in
+  # self_test_converge did (#854).
+  while IFS=$'\t' read -r name status conclusion || [[ -n "${name}" ]]; do
     [[ -n "${name}" ]] || continue
     seen=$((seen + 1))
     if [[ "${status}" != "completed" ]]; then
@@ -257,9 +280,74 @@ ci_verdict() {
   fi
 }
 
+# The newest commit behind a tip that is still in CI that CAN be deployed
+# (#1026). Prints its full sha and returns 0, or returns 1 having found none.
+#
+# Why this exists. The gate above asks about the tip and only the tip. On a busy
+# main, a new tip usually lands before the previous one's CI finishes, so every
+# hourly run found an unfinished tip and stayed put: on 2026-10-07 trinity sat
+# on one revision from 12:29 to past 15:00, 23 commits behind, while e4cf127 —
+# a newer commit than the deployed one — had already passed. "Wait" was the
+# right answer about the tip and the wrong answer about the host.
+#
+# What it walks. main's first-parent history from just below the tip down to
+# HEAD, newest first. Each first-parent commit is a merge, and its own push run
+# is the run #833 asks about — the same question, asked one commit further back.
+# A candidate must, in this order:
+#   - be a fast-forward from HEAD (on a linear main every one is);
+#   - carry a good signature from the pinned key (verify_commit), because it is
+#     the commit being deployed. --allow-unsigned does not reach this far: it is
+#     a decision about one commit a human looked at, not a policy for a walk;
+#   - be green by ci_verdict. A red one is skipped, not fatal: a newer green
+#     commit contains its changes, and its own run is what says whether the
+#     result passed. Only a red TIP is fatal, as before. A wait one is skipped.
+#
+# HEAD is a candidate too, last, when it is unapplied ($3 is 1): the fallback
+# that moved the checkout and whose make up failed is re-applied, as a failed
+# deploy of the tip always was.
+#
+# What stops it. WALK_CAP candidates (HOMELAB_CONVERGE_WALK, default 10), because
+# ci_fetch is anonymous: 60 requests an hour per address, and both converging
+# hosts leave through the same WAN address. And an API failure: the likeliest
+# cause is that limit, and asking again only spends more of it — so it stops and
+# the host stays where it is, exactly as a failed ask about the tip does.
+ci_newest_green() {
+  local tip="$1" cap="$2" with_head="$3" cand short summary ok verdict looked=0
+  while read -r cand; do
+    [[ -n "${cand}" ]] || continue
+    # Every commit looked at counts, skipped or asked about, so the cap bounds
+    # how far back the walk goes and not only how often it asks.
+    if ((looked >= cap)); then
+      warn "looked at ${cap} commit(s) below the tip without finding one that passed — HOMELAB_CONVERGE_WALK caps the walk"
+      return 1
+    fi
+    looked=$((looked + 1))
+    short="$(git rev-parse --short=12 "${cand}")"
+    git merge-base --is-ancestor HEAD "${cand}" || { warn "  ${short}: not a fast-forward from HEAD — skipped"; continue; }
+    verify_commit "${cand}" || { warn "  ${short}: did not verify against the pinned key — skipped"; continue; }
+    if summary="$(ci_fetch "${cand}" | ci_summarise 2>/dev/null)" && [[ -n "${summary}" ]]; then
+      ok=1
+    else
+      warn "  ${short}: could not ask CI — stopping the walk, rather than spending more of the API limit"
+      return 1
+    fi
+    verdict="$(printf '%s' "${summary}" | ci_verdict 0 "${ok}")"
+    case "${verdict}" in
+      green) printf '%s\n' "${cand}"; return 0 ;;
+      red)   warn "  ${short}: CI did not pass — skipped; a newer commit that passes carries its changes" ;;
+      *)     warn "  ${short}: CI has not finished either — skipped" ;;
+    esac
+  done < <(git rev-list --first-parent "HEAD..${tip}" | tail -n +2
+           # HEAD itself, last, when make up has not applied it: a fallback whose
+           # make up failed. Without this the walk starts above HEAD, finds
+           # nothing newer green, and the failed deploy is never retried.
+           ((with_head)) && git rev-parse HEAD)
+  return 1
+}
+
 # Fixtures for the three functions above: the parse against check-runs shaped
-# like GitHub's, and the verdict against each state a tip can be in. The rest of
-# this script needs a deployment checkout and a network, and is #854's.
+# like GitHub's, and the verdict against each state a tip can be in. Then the
+# whole script, end to end, by self_test_converge below (#854).
 self_test() {
   local fail=0 got
   check() {
@@ -308,8 +396,482 @@ self_test() {
     "$(verdict "$(green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"timed_out"/')" 600)" red
   check "a failure beats a check still running" \
     "$(verdict "$(runs "$(run Lint completed '"failure"' github-actions 1)" "$(run 'Secret scan' in_progress null github-actions 2)")" 600)" red
+  # As the main path feeds it: through a $(...) and printf '%s', last newline gone.
+  got="$(green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"completed","conclusion":"failure"/' | ci_summarise)"
+  check "the last check counts without its newline" "$(printf '%s' "${got}" | ci_verdict 600 1)" red
 
+  self_test_converge
   return "${fail}"
+}
+
+# The decisions, end to end (#854). Each refusal is the thing that keeps a bad
+# `main` off a host, and until this each one was tested only by never having
+# fired. So every one runs here against a real repository, a real signature and
+# a real fetch:
+#
+#   - a throwaway GNUPGHOME holding two ed25519 keys, the "pinned" one and an
+#     impostor, so a good signature from the wrong key is a fixture and not an
+#     argument;
+#   - a bare repository standing in for GitHub, served to the fetch through
+#     CONVERGE_FETCH_URL, and a clone of it as the deployment checkout;
+#   - a COPY of this script and record-applied.sh committed in that clone and
+#     run from it, so REPO_ROOT is derived exactly as on a host and the
+#     REPO_ROOT == DEPLOY_ROOT refusal is the real one;
+#   - `make` and `curl` stubbed on PATH: make logs that it was asked and writes
+#     the applied record as the Makefile's `up` does, curl serves check-runs
+#     JSON built by the helpers above;
+#   - `docker` stubbed too, serving the containers a case lists and logging what
+#     it was asked to start. No case can reach the host's real daemon — every
+#     run, not only the stopped-service ones, goes through "Stopped services".
+#
+# A refusal passes only if it exits 1, says why, AND never reached `make`. That
+# last part is the point: delete any one refusal and the run behind it goes on
+# to deploy, and its fixture fails.
+#
+# Runs as a function of the parent self_test, so check() and the JSON builders
+# are in scope and a failure lands in the same `fail`.
+self_test_converge() {
+  local T PIN IMPOSTOR RETIRED OUT RC here
+  local name
+  for name in git gpg gpgconf python3; do
+    if ! command -v "${name}" >/dev/null 2>&1; then
+      printf '\033[0;33m  SKIP\033[0m converge end to end: %s is not installed\n' "${name}"
+      return 0
+    fi
+  done
+
+  here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  # -P: REPO_ROOT inside the copy is a `pwd`, and a symlinked TMPDIR would
+  # otherwise make every run a REPO_ROOT != DEPLOY_ROOT refusal.
+  T="$(cd "$(mktemp -d)" && pwd -P)"
+  # Cleanup must not change the exit status, and must not leave an agent behind.
+  # shellcheck disable=SC2064,SC2154  # T is fixed now and is what must be removed; rc is the trap's own
+  trap "rc=\$?; GNUPGHOME='${T}/gnupg' gpgconf --kill all >/dev/null 2>&1 || :; GNUPGHOME='${T}/gnupg' gpgconf --remove-socketdir >/dev/null 2>&1 || :; rm -rf '${T}'; exit \"\${rc}\"" EXIT INT TERM
+
+  # Nothing from the operator's own git or gpg reaches the fixture: a global
+  # commit.gpgsign would sign the "unsigned" tip, and their keyring would be the
+  # one asked.
+  export GNUPGHOME="${T}/gnupg" GIT_CONFIG_GLOBAL="${T}/gitconfig" GIT_CONFIG_NOSYSTEM=1
+  mkdir -m 0700 "${GNUPGHOME}"
+  git config --file "${GIT_CONFIG_GLOBAL}" user.name "converge self-test"
+  git config --file "${GIT_CONFIG_GLOBAL}" user.email "selftest@converge.invalid"
+  git config --file "${GIT_CONFIG_GLOBAL}" init.defaultBranch main
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'pinned <pinned@converge.invalid>' ed25519 sign never 2>/dev/null
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'impostor <impostor@converge.invalid>' ed25519 sign never 2>/dev/null
+  gpg --batch --quiet --passphrase '' --quick-gen-key 'retired <retired@converge.invalid>' ed25519 sign never 2>/dev/null
+  # Now, quietly, rather than chattering on the first signature.
+  gpg --batch --check-trustdb >/dev/null 2>&1 || :
+  fpr_of() { gpg --batch --with-colons --list-secret-keys "$1" | awk -F: '$1 == "fpr" { print $10; exit }'; }
+  PIN="$(fpr_of pinned@converge.invalid)"
+  IMPOSTOR="$(fpr_of impostor@converge.invalid)"
+  RETIRED="$(fpr_of retired@converge.invalid)"
+
+  mkdir "${T}/bin" "${T}/prom"
+  cat > "${T}/bin/make" <<EOF
+#!/usr/bin/env bash
+# The Makefile's up target, as far as converge can tell: it ran, and it ended by
+# recording what it applied (Makefile, scripts/record-applied.sh).
+set -euo pipefail
+printf '%s\n' "\$*" >> '${T}/make.log'
+# A deploy that fails, for the case that has to retry one.
+[[ -e '${T}/make-fails' ]] && { echo 'make stub: up failed' >&2; exit 1; }
+for a in "\$@"; do [[ "\${a}" == STACK=* ]] && ./scripts/record-applied.sh "\${a#STACK=}"; done
+exit 0
+EOF
+  # check-runs for the commit asked about: ci/<sha>.json when a case wrote one,
+  # ci.json otherwise; ci/<sha>.fail makes that commit's ask fail as curl -f
+  # does. Every ask is logged, so a case can count them.
+  cat > "${T}/bin/curl" <<EOF
+#!/bin/sh
+sha=""
+for a in "\$@"; do
+  case "\$a" in */commits/*/check-runs*) sha="\${a#*/commits/}"; sha="\${sha%%/*}" ;; esac
+done
+printf '%s\n' "\$sha" >> '${T}/curl.log'
+[ -n "\$sha" ] && [ -e '${T}/ci/'"\$sha"'.fail' ] && exit 22
+if [ -n "\$sha" ] && [ -f '${T}/ci/'"\$sha"'.json' ]; then cat '${T}/ci/'"\$sha"'.json'; else cat '${T}/ci.json'; fi
+EOF
+  # Containers as `id|name|status|policy|finished|service|working_dir|oneoff`.
+  # `ps` answers only for the working directory it was asked about, so a
+  # scratch project's container in the list proves the selector.
+  cat > "${T}/bin/docker" <<'EOF'
+#!/usr/bin/env bash
+F="${DOCKER_FIXTURE_DIR:?}"
+case "$1" in
+  info)    [[ -e "${F}/docker-down" ]] && exit 1; exit 0 ;;
+  # The services compose counts as active: the case's own list, or every
+  # service it put in the containers file.
+  compose) [[ -e "${F}/compose-fails" ]] && exit 1
+           if [[ -f "${F}/services" ]]; then cat "${F}/services"
+           elif [[ -f "${F}/containers" ]]; then cut -d'|' -f6 "${F}/containers"; fi ;;
+  ps)      [[ -e "${F}/ps-fails" ]] && exit 1
+           wd=""
+           for a in "$@"; do
+             [[ "${a}" == label=com.docker.compose.project.working_dir=* ]] && wd="${a#*working_dir=}"
+           done
+           [[ -f "${F}/containers" ]] || exit 0
+           awk -F'|' -v wd="${wd}" '$7 == wd && $8 == "False" { print $1 }' "${F}/containers" ;;
+  inspect) [[ -e "${F}/inspect-fails" ]] && exit 1
+           shift 3
+           for id in "$@"; do
+             awk -F'|' -v id="${id}" '$1 == id { print "/" $2 "|" $3 "|" $4 "|" $5 "|" $6 }' "${F}/containers"
+           done ;;
+  # Logs the name, and whether the backup lock was held while it started.
+  start)   lock="${F}/deploy/backups/volumes/.lock"
+           if [[ -f "${lock}" ]] && ! flock -n "${lock}" true; then
+             printf '%s\n' "$2" >> "${F}/docker.log"
+           else
+             printf '%s(unlocked)\n' "$2" >> "${F}/docker.log"
+           fi ;;
+  *)       printf 'docker stub: unexpected %s\n' "$*" >&2; exit 2 ;;
+esac
+EOF
+  chmod +x "${T}/bin/make" "${T}/bin/curl" "${T}/bin/docker"
+  # container <name> <status> <policy> <minutes since it stopped> [working dir] [oneoff]
+  container() {
+    printf '%s|%s|%s|%s|%s|%s|%s|%s\n' "id-$1" "$1" "$2" "$3" \
+      "$(date -u -d "-$4 minutes" +%Y-%m-%dT%H:%M:%S.000000000Z)" "$1" \
+      "${5:-${T}/deploy/stacks/observability}" "${6:-False}" >> "${T}/containers"
+  }
+
+  # commit <repo> <unsigned|pinned|impostor> <message>
+  commit() {
+    case "$2" in
+      unsigned) git -C "$1" commit -q --allow-empty --no-gpg-sign -m "$3" ;;
+      pinned)   git -C "$1" commit -q --allow-empty -S"${PIN}" -m "$3" ;;
+      impostor) git -C "$1" commit -q --allow-empty -S"${IMPOSTOR}" -m "$3" ;;
+      retired)  git -C "$1" commit -q --allow-empty -S"${RETIRED}" -m "$3" ;;
+    esac
+  }
+  # A fresh world for each case: GitHub at one signed commit, the deployment
+  # checkout cloned from it and deployed (its applied record is HEAD), CI green.
+  fresh() {
+    rm -rf "${T}/work" "${T}/origin.git" "${T}/deploy" "${T}/make.log" "${T}/prom/"* \
+           "${T}/containers" "${T}/docker.log" "${T}/docker-down" "${T}/services" \
+           "${T}/compose-fails" "${T}/ps-fails" "${T}/inspect-fails" "${T}/ci" "${T}/curl.log" "${T}/make-fails"
+    mkdir "${T}/ci"
+    git init -q "${T}/work"
+    mkdir "${T}/work/scripts"
+    cp "${here}/converge.sh" "${here}/record-applied.sh" "${here}/deploy-lock.sh" "${T}/work/scripts/"
+    printf 'fixture\n' > "${T}/work/README"
+    # As the repository's own .gitignore has it: the backup lock lives there.
+    printf 'backups/\n' > "${T}/work/.gitignore"
+    git -C "${T}/work" add -A
+    commit "${T}/work" pinned "root"
+    git clone -q --bare "${T}/work" "${T}/origin.git"
+    git clone -q "${T}/origin.git" "${T}/deploy"
+    # As on a host, so the "origin is not canonical" warning is not noise here.
+    git -C "${T}/deploy" remote set-url origin "${CANONICAL_URL}"
+    (cd "${T}/deploy" && ./scripts/record-applied.sh observability)
+    green_tip > "${T}/ci.json"
+  }
+  # GitHub's main moves by one commit, signed as $1.
+  advance() {
+    commit "${T}/work" "$1" "advance ($1)"
+    git -C "${T}/work" push -q "${T}/origin.git" HEAD:main
+  }
+  converge() {  # <args...> -> OUT, RC
+    : > "${T}/make.log"
+    : > "${T}/docker.log"
+    set +e
+    OUT="$(cd "${T}/deploy" && PATH="${T}/bin:${PATH}" CONVERGE_UNSAFE_SELF_TEST=1 DOCKER_FIXTURE_DIR="${T}" \
+           CONVERGE_DEPLOY_ROOT="${DEPLOY_FOR_TEST:-${T}/deploy}" \
+           CONVERGE_FETCH_URL="${FETCH_FOR_TEST:-${T}/origin.git}" CONVERGE_SIGNING_FPR="${PIN_FOR_TEST:-${PIN}}" \
+           TEXTFILE_DIR="${T}/prom" ./scripts/converge.sh "$@" 2>&1)"
+    RC=$?
+    set -e
+  }
+  # expect <name> <rc> <output substring> <made: 0 never reached make, 1 did>
+  expect() {
+    local made=0
+    [[ -s "${T}/make.log" ]] && made=1
+    if [[ "${RC}" == "$2" && "${OUT}" == *"$3"* && "${made}" == "$4" ]]; then
+      printf '\033[0;32m  PASS\033[0m %s\n' "$1"
+    else
+      printf '\033[0;31m  FAIL\033[0m %s\n       exit %s, wanted %s; make reached %s, wanted %s; wanted output containing: %s\n' \
+        "$1" "${RC}" "$2" "${made}" "$4" "$3"
+      printf '%s\n' "${OUT}" | sed 's/^/       | /'
+      fail=1
+    fi
+  }
+  prom() { awk -v m="homelab_deploy_$1" '$1 == m { print $2 }' "${T}/prom/homelab-deploy.prom" 2>/dev/null; }
+  head_of() { git -C "$1" rev-parse HEAD; }
+
+  # --- the refusals: exit 1, and never reach make -------------------------
+  fresh; advance unsigned; converge
+  expect "refuses an unsigned tip" 1 "did not verify" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main~1)"
+
+  fresh; advance impostor; converge
+  expect "refuses a tip signed by a key that is not the pinned one" 1 "did not verify" 0
+
+  # The one fixture where the fingerprint matches and the signature still must
+  # not pass: the pinned key, revoked after it signed. %GF is the pin, %G? is R.
+  # gpg wrote a revocation certificate at key generation; its armour line is
+  # defused with a leading ':' so it cannot be imported by accident.
+  fresh; advance retired
+  sed 's/^:-----BEGIN/-----BEGIN/' "${GNUPGHOME}/openpgp-revocs.d/${RETIRED}.rev" \
+    | gpg --batch --quiet --import 2>/dev/null
+  PIN_FOR_TEST="${RETIRED}" converge
+  expect "refuses a tip signed by the pinned key once that key is revoked" 1 "did not verify" 0
+
+  fresh; advance pinned; : > "${T}/deploy/stray"; converge
+  expect "refuses an untracked file in the checkout" 1 "uncommitted changes" 0
+  check "  and records the drift" "$(prom tree_dirty)" 1
+
+  fresh; advance pinned; printf 'edited on the host\n' >> "${T}/deploy/README"; converge
+  expect "refuses an edited tracked file" 1 "uncommitted changes" 0
+
+  fresh; commit "${T}/deploy" pinned "a local commit"; advance pinned; converge
+  expect "refuses a tip that is not a fast-forward" 1 "is not a fast-forward" 0
+
+  fresh; git -C "${T}/deploy" checkout -q --detach; advance pinned; converge
+  expect "refuses a checkout that is not on main" 1 "not main" 0
+
+  fresh; advance pinned; FETCH_FOR_TEST="${T}/nowhere.git" converge
+  expect "refuses when the fetch fails" 1 "could not fetch main" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"failure"/' > "${T}/ci.json"
+  converge
+  expect "refuses a tip whose CI failed" 1 "CI did not pass" 0
+  check "  and records it red" "$(prom tip_ci)" 0
+
+  fresh; advance pinned; mkdir "${T}/elsewhere"; DEPLOY_FOR_TEST="${T}/elsewhere" converge
+  expect "refuses to converge any checkout but the deployment one" 1 "refusing to converge" 0
+
+  fresh; advance pinned; converge --stack lab
+  expect "refuses a stack nothing pulls" 1 "nothing converges stack 'lab'" 0
+
+  # Another deploy holds the lock: a hand `make up` mid-run, the 2026-10-07 shape.
+  # Left alone, not refused: exit 0, said so, and never reached make.
+  fresh; advance pinned
+  (cd "${T}/deploy" && env -u HOMELAB_DEPLOY_LOCK_HELD bash -c \
+     'source scripts/deploy-lock.sh; deploy_lock_acquire observability 1; sleep 4') &
+  lock_holder=$!
+  sleep 0.5
+  HOMELAB_CONVERGE_LOCK_WAIT=1 converge
+  wait "${lock_holder}"
+  expect "leaves alone a stack another deploy holds the lock for" 0 "still held the deploy lock" 0
+
+  if ((EUID != 0)); then
+    fresh; advance pinned; chmod 0555 "${T}/prom"; converge; chmod 0755 "${T}/prom"
+    expect "refuses when the record cannot be written" 1 "is not writable" 0
+  fi
+
+  # --- the paths that proceed -------------------------------------------
+  fresh; advance pinned; converge
+  expect "deploys a signed fast-forward that CI passed" 0 "converged to" 1
+  check "  with the stack named" "$(cat "${T}/make.log")" "up STACK=observability"
+  check "  at the tip" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main)"
+  check "  recorded verified and applied" "$(prom verified) $(prom unapplied) $(prom tip_ci)" "1 0 1"
+
+  # Straight on from the deploy above. CI now says red: the no-op path must not
+  # ask, so it cannot hear it.
+  green_tip | sed 's/"conclusion":"success"/"conclusion":"failure"/g' > "${T}/ci.json"
+  converge
+  expect "does nothing at a tip it already applied, and does not ask CI" 0 "converged —" 0
+
+  # HEAD == main but not what make up last applied: the 2026-10-01 incident.
+  # NOT a refusal — the deploy the move skipped is the fix, so it applies.
+  fresh; rm -f "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-applied-observability)"
+  converge
+  expect "applies a checkout that is at the tip with nothing on record" 0 "nothing on record" 1
+
+  fresh; (cd "${T}/deploy" && printf '%s-dirty\n' "$(git rev-parse HEAD)" > "$(git rev-parse --git-path homelab-applied-observability)")
+  converge
+  expect "applies a checkout whose last deploy was of a dirty tree" 0 "and now deployed" 1
+
+  fresh; rm -f "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-applied-observability)"
+  converge --dry-run
+  expect "a dry run reports the unapplied checkout and applies nothing" 0 "dry run" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/' > "${T}/ci.json"
+  converge
+  expect "waits, exit 0, while CI is still running" 0 "CI has not finished" 0
+
+  # --- a tip still in CI, and the commits below it (#1026) ---------------
+  # main~N as GitHub has it, and that commit's CI answer.
+  at() { git -C "${T}/origin.git" rev-parse "main~$1"; }
+  running_ci() { green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/'; }
+  red_ci() { green_tip | sed 's/"name":"Lint","status":"completed","conclusion":"success"/"name":"Lint","status":"completed","conclusion":"failure"/'; }
+  asks() { grep -c . "${T}/curl.log" 2>/dev/null || echo 0; }
+
+  # The 2026-10-07 shape, one commit deep: the tip running, the merge below it green.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge
+  expect "deploys the newest commit below a running tip that passed" 0 "below a tip still in CI" 1
+  check "  at that commit, not the tip" "$(head_of "${T}/deploy")" "$(at 1)"
+  check "  recorded one behind, moving, tip unknown" "$(prom behind_commits) $(prom ci_fallback) $(prom tip_ci)" "1 1 -1"
+  check "  and applied" "$(prom unapplied) $(prom verified)" "0 1"
+
+  # Straight on: the tip is still running and nothing newer than HEAD has passed.
+  converge
+  expect "then stays, with nothing newer that passed" 0 "nothing between" 0
+  check "  and records it not moving, so DeployBehind can count" "$(prom ci_fallback) $(prom behind_commits)" "0 1"
+
+  # A red commit in the middle is skipped: the green one below it is deployed.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  red_ci > "${T}/ci/$(at 1).json"
+  converge
+  expect "skips a red commit below the tip and deploys the green one under it" 0 "CI did not pass — skipped" 1
+  check "  at main~2" "$(head_of "${T}/deploy")" "$(at 2)"
+
+  # A green commit that does not verify is never deployed, whatever its CI says.
+  fresh; advance unsigned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge
+  expect "skips a commit below the tip that does not verify" 0 "did not verify against the pinned key — skipped" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(at 2)"
+
+  # The cap: one ask below the tip, and that one is still running.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci.json"
+  green_tip > "${T}/ci/$(at 2).json"
+  HOMELAB_CONVERGE_WALK=1 converge
+  expect "stops at HOMELAB_CONVERGE_WALK, short of the green commit" 0 "caps the walk" 0
+  check "  having asked about the tip and one more" "$(asks)" 2
+
+  # An ask that fails stops the walk: the likeliest cause is the API limit.
+  fresh; advance pinned; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  : > "${T}/ci/$(at 1).fail"
+  converge
+  expect "stops the walk when an ask fails, and stays" 0 "could not ask CI" 0
+  check "  without asking about the commit below it" "$(asks)" 2
+
+  # A tip whose own ask failed is not walked below: the likeliest cause is the
+  # API limit, and every ask in a walk spends more of it.
+  fresh; advance pinned; advance pinned
+  : > "${T}/ci/$(at 0).fail"
+  converge
+  expect "does not walk when the ask about the tip failed" 0 "not walking below it" 0
+  check "  having asked once" "$(asks)" 1
+
+  # The cap counts every commit looked at, not only those asked about: with a
+  # cap of one, an unsigned commit uses it up and the green one below is not
+  # reached.
+  fresh; advance pinned; advance unsigned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  HOMELAB_CONVERGE_WALK=1 converge
+  expect "counts a skipped commit against HOMELAB_CONVERGE_WALK" 0 "caps the walk" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(at 3)"
+
+  # A fallback whose make up failed is applied again on the next run, though
+  # nothing newer has passed: the walk offers HEAD itself when it is unapplied.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  : > "${T}/make-fails"
+  converge
+  expect "a fallback whose make up fails exits non-zero" 1 "applying" 1
+  check "  moved, and recorded unapplied" "$(head_of "${T}/deploy") $(prom unapplied) $(prom ci_fallback)" "$(at 1) 1 0"
+  rm -f "${T}/make-fails"
+  converge
+  expect "then re-applies that commit on the next run" 0 "now deployed" 1
+  check "  and records it applied, moving, one behind" "$(prom unapplied) $(prom ci_fallback) $(prom behind_commits)" "0 1 1"
+
+  # A dry run says what it would deploy, and records no fallback: nothing moved.
+  fresh; advance pinned; advance pinned
+  running_ci > "${T}/ci/$(at 0).json"
+  converge --dry-run
+  expect "a dry run reports the fallback and applies nothing" 0 "dry run" 0
+  check "  and records it not moving" "$(head_of "${T}/deploy") $(prom ci_fallback)" "$(at 2) 0"
+
+  fresh; advance pinned; HOMELAB_CONVERGE_APPLY=0 converge
+  expect "HOMELAB_CONVERGE_APPLY=0 reports and applies nothing" 0 "dry run" 0
+  check "  and stays where it was" "$(head_of "${T}/deploy")" "$(git -C "${T}/origin.git" rev-parse main~1)"
+  check "  and records report-only" "$(prom apply_enabled) $(prom behind_commits)" "0 1"
+
+  fresh; advance unsigned; converge --allow-unsigned
+  expect "--allow-unsigned deploys an unsigned tip" 0 "converged to" 1
+  check "  and records it unverified" "$(prom verified)" 0
+
+  fresh; advance pinned
+  green_tip | sed 's/"conclusion":"success"/"conclusion":"failure"/g' > "${T}/ci.json"
+  converge --allow-red
+  expect "--allow-red deploys a tip whose CI failed" 0 "converged to" 1
+
+  # --- stopped services (ADR-0087) ---------------------------------------
+  # The 2026-10-07 shape: at a tip already applied, production alloy killed two
+  # hours ago. Beside it, what must NOT be started: a scratch project's alloy
+  # from the same image, a one-shot that finished, and a one-off `compose run`.
+  # And one running service, which must not be counted.
+  started() { tr '\n' ' ' < "${T}/docker.log" | sed 's/ $//'; }
+  fresh
+  container alloy exited unless-stopped 120
+  container syslogcheck-alloy exited unless-stopped 120 "${T}/elsewhere/stacks/observability"
+  container prune-once exited no 120
+  container run-once exited unless-stopped 120 "${T}/deploy/stacks/observability" True
+  container prometheus running unless-stopped 0
+  converge
+  expect "starts a stack service killed two hours ago, at a tip already applied" 0 "started alloy" 0
+  check "  and only that one" "$(started)" "alloy"
+  check "  and records it" "$(prom services_revived) $(prom services_stopped)" "1 0"
+
+  fresh; container alertmanager exited unless-stopped 5; converge
+  expect "leaves one stopped five minutes ago, as a runbook's deliberate stop" 0 "leaving it until" 0
+  check "  and does not start it" "$(started)" ""
+  check "  and counts it as left stopped" "$(prom services_revived) $(prom services_stopped)" "0 1"
+
+  fresh; container alloy exited unless-stopped 120
+  printf '# restoring loki by hand, #NNN\nalloy\n' > "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-hold-observability)"
+  converge
+  expect "leaves a service the hold file names" 0 "held by" 0
+  check "  and counts it, so a forgotten hold still shows" "$(started) $(prom services_stopped)" " 1"
+
+  fresh; container alloy exited unless-stopped 120
+  printf '*\n' > "$(cd "${T}/deploy" && git rev-parse --path-format=absolute --git-path homelab-hold-observability)"
+  converge
+  check "a hold of * holds every service" "$(started)" ""
+
+  if command -v flock >/dev/null 2>&1; then
+    fresh; container grafana exited unless-stopped 120
+    mkdir -p "${T}/deploy/backups/volumes"
+    flock "${T}/deploy/backups/volumes/.lock" sleep 30 & holder=$!
+    sleep 0.3
+    converge
+    kill "${holder}" 2>/dev/null; wait "${holder}" 2>/dev/null || :
+    expect "starts nothing while a backup holds its lock" 0 "a backup holds" 0
+    check "  and starts nothing" "$(started)" ""
+  fi
+
+  fresh; container alloy exited unless-stopped 120; converge --dry-run
+  expect "a dry run says what it would start and starts nothing" 0 "would start alloy" 0
+  check "  and starts nothing" "$(started)" ""
+
+  # The 06:26 run that day was on this path, not the no-op one.
+  fresh; container alloy exited unless-stopped 120; advance pinned
+  green_tip | sed 's/"name":"Secret scan","status":"completed","conclusion":"success"/"name":"Secret scan","status":"in_progress","conclusion":null/' > "${T}/ci.json"
+  converge
+  expect "starts it while waiting on CI" 0 "CI has not finished" 0
+  check "  started" "$(started)" "alloy"
+
+  fresh; container alloy exited unless-stopped 120; advance pinned; : > "${T}/deploy/stray"; converge
+  expect "starts it even when it refuses a dirty tree" 1 "uncommitted changes" 0
+  check "  started" "$(started)" "alloy"
+
+  # A profile compose does not count as active — the `capture` renderer — is
+  # neither started nor counted, however long it has been stopped.
+  fresh; container alloy running unless-stopped 0; container renderer exited unless-stopped 120
+  printf 'alloy\n' > "${T}/services"
+  converge
+  check "a profile-gated service that is not active is left alone" "$(started) $(prom services_stopped)" " 0"
+
+  for broken in compose-fails ps-fails inspect-fails; do
+    fresh; container alloy exited unless-stopped 120; : > "${T}/${broken}"; converge
+    expect "carries on when docker ${broken%-fails} fails" 0 "not checking for stopped services" 0
+    check "  starts nothing and records unmeasured, not zero" \
+      "$(started) $(prom services_revived) $(prom services_stopped)" " -1 -1"
+  done
+
+  fresh; container alloy exited unless-stopped 120; : > "${T}/docker-down"; converge
+  expect "carries on when docker cannot be asked" 0 "docker cannot be asked" 0
+  check "  and records unmeasured, not zero" "$(prom services_revived) $(prom services_stopped)" "-1 -1"
+
+  unset GNUPGHOME GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
 }
 
 DRY_RUN=0
@@ -351,6 +913,17 @@ case "${DEPLOY_STACK}" in
   sensitive)     DEPLOY_ROOT="${HOME:?}/code/Gerrrt/HomeLab" ;;
   *) die "nothing converges stack '${DEPLOY_STACK}' — only observability (prometheus) and sensitive (trinity) pull" ;;
 esac
+
+# The self-test's seams (#854). After the stack refusal, so the fixture still
+# meets it, and before every other one, so it meets those against its own
+# repository. The REPO_ROOT == DEPLOY_ROOT check stays real: the fixture runs a
+# copy of this script committed inside the repository it converges.
+if [[ -n "${CONVERGE_UNSAFE_SELF_TEST:-}" ]]; then
+  DEPLOY_ROOT="${CONVERGE_DEPLOY_ROOT:-${DEPLOY_ROOT}}"
+  FETCH_URL="${CONVERGE_FETCH_URL:-${FETCH_URL}}"
+  SIGNING_FPR="${CONVERGE_SIGNING_FPR:-${SIGNING_FPR}}"
+  warn "CONVERGE_UNSAFE_SELF_TEST is set — converging ${DEPLOY_ROOT} from ${FETCH_URL}, trusting ${SIGNING_FPR}"
+fi
 
 # The report-only switch, so the timer can be installed and watched before it is
 # allowed to act. Folded into DRY_RUN rather than given a second code path —
@@ -415,6 +988,17 @@ UNAPPLIED=0
 # What CI said about the fetched tip. -1 until asked, and stays -1 on a run with
 # nothing to deploy, because nothing was asked.
 CI_TIP=-1
+# 1 when this run deployed a commit below a tip still in CI, because that commit
+# had passed and the tip had not finished (#1026). 0 on every other path,
+# including a dry run that would have: only an applied fallback counts.
+CI_FALLBACK=0
+# How many commits below the tip the walk may ask CI about. See ci_newest_green.
+WALK_CAP="${HOMELAB_CONVERGE_WALK:-10}"
+[[ "${WALK_CAP}" =~ ^[0-9]+$ ]] || die "HOMELAB_CONVERGE_WALK must be a count, not '${WALK_CAP}'"
+# Stack services started again, and left stopped ("Stopped services" below).
+# -1 until measured, and stays -1 when docker cannot be asked.
+REVIVED=-1
+STOPPED=-1
 
 recorded=0
 record() {
@@ -450,14 +1034,23 @@ homelab_deploy_unapplied ${UNAPPLIED}
 # HELP homelab_deploy_tip_ci What CI said about the fetched tip: 1 passed, 0 did not, -1 not asked (nothing to deploy) or not finished.
 # TYPE homelab_deploy_tip_ci gauge
 homelab_deploy_tip_ci ${CI_TIP}
+# HELP homelab_deploy_ci_fallback 1 when this run deployed the newest commit below a tip still in CI that had passed (#1026), so the host moved although it is still behind.
+# TYPE homelab_deploy_ci_fallback gauge
+homelab_deploy_ci_fallback ${CI_FALLBACK}
+# HELP homelab_deploy_services_revived Stack services this run found stopped and started again. -1 when docker could not be asked.
+# TYPE homelab_deploy_services_revived gauge
+homelab_deploy_services_revived ${REVIVED}
+# HELP homelab_deploy_services_stopped Stack services meant to be running that this run left stopped: held, inside the grace period, under a backup, or a dry run. -1 when docker could not be asked.
+# TYPE homelab_deploy_services_stopped gauge
+homelab_deploy_services_stopped ${STOPPED}
 EOF
   chmod 0644 "${tmp}"
   mv -f "${tmp}" "${PROM}"
 
   # One structured line for the journal, which Alloy already ships to Loki with
   # a `unit` label — findable with LogQL without parsing anything above it.
-  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s\n' \
-    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}"
+  printf 'homelab-deploy revision=%s behind=%s dirty=%s verified=%s apply=%s unapplied=%s tip_ci=%s ci_fallback=%s revived=%s stopped=%s\n' \
+    "${REVISION}" "${BEHIND}" "${DIRTY}" "${VERIFIED}" "${APPLY_ENABLED}" "${UNAPPLIED}" "${CI_TIP}" "${CI_FALLBACK}" "${REVIVED}" "${STOPPED}"
 }
 trap record EXIT
 
@@ -474,12 +1067,41 @@ cd "${DEPLOY_ROOT}"
 
 command -v git >/dev/null 2>&1 || die "git is not installed"
 
+# ---------------------------------------------------------------------------
+# One deploy at a time
+# ---------------------------------------------------------------------------
+#
+# Held from here to exit, so a hand `make up` cannot recreate containers under
+# this run, and this run cannot fast-forward the checkout under a hand deploy.
+# On 2026-10-07 the two met eighteen seconds apart and one failed halfway on a
+# container-name conflict (scripts/deploy-lock.sh has the incident). The
+# `make up` below runs straight through, because this process exported that it
+# holds the lock.
+#
+# A deploy still holding it after HOMELAB_CONVERGE_LOCK_WAIT seconds is left
+# alone: exit 0, a line in the journal, and the next hourly run asks again. Not
+# a failure, because a deploy in progress is not a fault. Not a long wait
+# either, because a timer blocked for most of its hour helps nobody.
+CONVERGE_LOCK_WAIT="${HOMELAB_CONVERGE_LOCK_WAIT:-600}"
+[[ "${CONVERGE_LOCK_WAIT}" =~ ^[0-9]+$ ]] \
+  || die "HOMELAB_CONVERGE_LOCK_WAIT must be seconds, not '${CONVERGE_LOCK_WAIT}'"
+# shellcheck source=deploy-lock.sh
+source ./scripts/deploy-lock.sh
+DEPLOY_LOCK_CMD="converge.sh --stack ${DEPLOY_STACK}"
+lock_rc=0
+deploy_lock_acquire "${DEPLOY_STACK}" "${CONVERGE_LOCK_WAIT}" || lock_rc=$?
+if ((lock_rc == 75)); then
+  warn "another deploy of ${DEPLOY_STACK} still held the deploy lock after ${CONVERGE_LOCK_WAIT}s — not converging over it; the next run asks again"
+  exit 0
+fi
+((lock_rc == 0)) || die "could not take the deploy lock (exit ${lock_rc})"
+
 # Read before any check about the STATE of this checkout — the branch it is on,
 # whether it is clean, what it can fetch — so that every one of those refusals
 # still records what the host is running. A refusal that leaves yesterday's
 # metric in place is a refusal that reads as a healthy deployment.
 #
-# Three guards do run earlier and can exit before this line, and all three are
+# Four guards do run earlier and can exit before this line, and all four are
 # cases where recording nothing is the correct outcome rather than a gap:
 #
 #   - an unwritable TEXTFILE_DIR, where recording is impossible by definition
@@ -487,7 +1109,11 @@ command -v git >/dev/null 2>&1 || die "git is not installed"
 #   - REPO_ROOT != DEPLOY_ROOT, where HEAD belongs to some other checkout, and
 #     writing its revision as "what is deployed" would be an actively false
 #     statement about the host rather than a missing one;
-#   - git absent, where there is no revision to read.
+#   - git absent, where there is no revision to read;
+#   - the deploy lock still held by another deploy, which may be moving HEAD
+#     or recreating containers at that moment, so anything read here would
+#     describe a deploy in progress. If that deploy is converge, it records for
+#     itself; if it is a hand `make up`, the next run here records.
 #
 # So the claim is narrower than "before anything that can fail", and stating it
 # loosely was wrong: a maintainer reading the loose version would think the
@@ -501,6 +1127,138 @@ COMMIT_TS="$(git log -1 --format=%ct HEAD)"
 # is cheap, and assuming a deploy that may never have happened is the bug.
 APPLIED="$(./scripts/record-applied.sh --read "${DEPLOY_STACK}" 2>/dev/null || true)"
 [[ "${APPLIED}" == "$(git rev-parse HEAD)" ]] || UNAPPLIED=1
+
+# ---------------------------------------------------------------------------
+# Stopped services
+# ---------------------------------------------------------------------------
+#
+# A service the stack says should be running, and is not, is started again
+# (ADR-0087). On 2026-10-07 at 05:34 a scratch test elsewhere on this host ran
+# `docker kill` by image and took the production `alloy` with it. `unless-stopped`
+# does not restart a container after a user stop or kill, and this script did
+# nothing at a tip it had already applied, so it stayed down until a person
+# started it 47 minutes later. The 06:26 run was on the CI-wait path, not the
+# no-op one, which is why this runs on EVERY path, before anything can refuse.
+#
+# `docker start`, not `make up`. It starts the container with the config it was
+# created with — what was last applied — so it needs nothing from the checkout
+# and is as safe on a dirty tree or a red tip as on a clean one. Deploying is
+# still only ever `make up`, below.
+#
+# WHAT COUNTS. Containers of THIS checkout's stack (the compose working
+# directory under DEPLOY_ROOT, so no worktree's or scratch project's), not
+# one-off `compose run`s, whose service compose counts as active — so a
+# profile-gated helper such as the `capture` renderer is never started, while
+# trinity's `ml`, switched on by COMPOSE_PROFILES in its .env, is — whose
+# restart policy says they are meant to run (unless-stopped or always: a
+# one-shot that finished is not stopped), and that are exited or dead.
+#
+# A MEASUREMENT THAT FAILED IS NOT ZERO. If compose, `docker ps` or `docker
+# inspect` fails, both gauges stay -1 and nothing is started, rather than
+# recording "nothing stopped" from an answer that never came.
+#
+# WHAT IS LEFT ALONE, because a person or a job stopped it on purpose:
+#   - one stopped under REVIVE_GRACE ago. The runbooks' deliberate stops — the
+#     alert-path check's `docker stop alertmanager`, AdGuard's ten minutes —
+#     are inside half an hour.
+#   - one named in the hold file, for a longer deliberate stop. One service per
+#     line, `*` for all, `#` comments; `rm` it to let them be started again.
+#     homelab_deploy_services_stopped keeps counting what it holds, so a hold
+#     that was forgotten fires DeployServicesStopped rather than hiding.
+#   - all of them while backup-volumes.sh holds its lock: a hand-run backup
+#     stops the services that own the volumes it is copying, and one started
+#     mid-copy turns the archive into a copy of a live store. So the starts
+#     happen UNDER that lock, taken without waiting and held until the last
+#     one returns — a probe-and-release would leave a backup free to begin in
+#     between. A hand backup that tries in those seconds is refused by its own
+#     `flock -n` and can be run again. Timer-run backups already share this
+#     unit's `backups` lock and cannot overlap at all. No flock, no starts.
+REVIVE_GRACE="${HOMELAB_CONVERGE_REVIVE_GRACE:-1800}"
+[[ "${REVIVE_GRACE}" =~ ^[0-9]+$ ]] || die "HOMELAB_CONVERGE_REVIVE_GRACE must be seconds, not '${REVIVE_GRACE}'"
+HOLD_FILE="$(git rev-parse --path-format=absolute --git-path "homelab-hold-${DEPLOY_STACK}")"
+BACKUP_LOCK="${DEPLOY_ROOT}/backups/volumes/.lock"
+
+held() {
+  [[ -f "${HOLD_FILE}" ]] || return 1
+  sed 's/#.*//; s/[[:space:]]//g' "${HOLD_FILE}" | grep -qxF -e '*' -e "$1"
+}
+
+revive_stopped() {
+  local name status policy finished service age now active ps_out inspect_out lock_fd
+  local stopped=0
+  local -a ids=() start=()
+  if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+    warn "docker cannot be asked from here — not checking for stopped services"
+    return 0
+  fi
+  if ! active="$(docker compose -f "${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}/compose.yaml" config --services 2>/dev/null)"; then
+    warn "docker compose could not read stacks/${DEPLOY_STACK}/compose.yaml — not checking for stopped services"
+    return 0
+  fi
+  if ! ps_out="$(docker ps -aq \
+      --filter "label=com.docker.compose.project.working_dir=${DEPLOY_ROOT}/stacks/${DEPLOY_STACK}" \
+      --filter "label=com.docker.compose.oneoff=False")"; then
+    warn "docker ps failed — not checking for stopped services"
+    return 0
+  fi
+  if [[ -n "${ps_out}" ]]; then
+    mapfile -t ids <<<"${ps_out}"
+    if ! inspect_out="$(docker inspect --format \
+        '{{.Name}}|{{.State.Status}}|{{.HostConfig.RestartPolicy.Name}}|{{.State.FinishedAt}}|{{index .Config.Labels "com.docker.compose.service"}}' \
+        "${ids[@]}")"; then
+      warn "docker inspect failed — not checking for stopped services"
+      return 0
+    fi
+    now="$(date +%s)"
+    while IFS='|' read -r name status policy finished service; do
+      name="${name#/}"
+      case "${status}" in exited|dead) ;; *) continue ;; esac
+      case "${policy}" in unless-stopped|always) ;; *) continue ;; esac
+      grep -qxF -- "${service}" <<<"${active}" || continue
+      stopped=$((stopped + 1))
+      age=$(( now - $(date -d "${finished}" +%s 2>/dev/null || echo "${now}") ))
+      if held "${service}"; then
+        warn "${name} is stopped and held by ${HOLD_FILE} — leaving it"
+      elif ((age < REVIVE_GRACE)); then
+        warn "${name} stopped $((age / 60))m ago — leaving it until it has been down $((REVIVE_GRACE / 60))m"
+      else
+        start+=("${name}")
+      fi
+    done <<<"${inspect_out}"
+  fi
+  # Measured: from here the gauges are real numbers.
+  REVIVED=0
+  STOPPED="${stopped}"
+
+  ((${#start[@]})) || return 0
+  if ((DRY_RUN)); then
+    warn "dry run — would start ${start[*]}"
+    return 0
+  fi
+  if ! command -v flock >/dev/null 2>&1; then
+    warn "no flock here, so a backup cannot be ruled out — not starting ${start[*]}"
+    return 0
+  fi
+  mkdir -p "${BACKUP_LOCK%/*}"
+  exec {lock_fd}>>"${BACKUP_LOCK}"
+  if ! flock -n "${lock_fd}"; then
+    exec {lock_fd}>&-
+    warn "a backup holds ${BACKUP_LOCK} — not starting ${start[*]} under it; the next run asks again"
+    return 0
+  fi
+  for name in "${start[@]}"; do
+    if docker start "${name}" >/dev/null; then
+      REVIVED=$((REVIVED + 1))
+      STOPPED=$((STOPPED - 1))
+      warn "started ${name}, which was stopped and should not have been — find out what stopped it"
+    else
+      warn "could not start ${name} — docker logs ${name}"
+    fi
+  done
+  exec {lock_fd}>&-
+}
+
+revive_stopped
 
 # ---------------------------------------------------------------------------
 # Signature
@@ -574,17 +1332,21 @@ fi
 # ---------------------------------------------------------------------------
 # Fetch
 # ---------------------------------------------------------------------------
-info "fetching ${BRANCH} from ${CANONICAL_URL}"
+info "fetching ${BRANCH} from ${FETCH_URL}"
 # --no-tags because nothing here reads a tag and a tag is another thing that can
 # move. No --depth: a shallow fetch has no merge base, so the fast-forward
 # assertion and the behind-count below would both be unanswerable.
-git fetch --quiet --no-tags "${CANONICAL_URL}" "${BRANCH}" \
-  || die "could not fetch ${BRANCH} from ${CANONICAL_URL}.
+git fetch --quiet --no-tags "${FETCH_URL}" "${BRANCH}" \
+  || die "could not fetch ${BRANCH} from ${FETCH_URL}.
 The host stays on ${REVISION}, which is the correct outcome of not knowing what
 ${BRANCH} says. If this persists, DeployBehind will not fire — nothing was
 learned about how far behind the host is — but ScheduledJobFailed will."
 
 TARGET="$(git rev-parse FETCH_HEAD)"
+# The tip as fetched. TARGET becomes an older commit if the tip is still in CI
+# and a newer one below it has passed (#1026); TIP stays what main says.
+TIP="${TARGET}"
+fell_back=0
 BEHIND="$(git rev-list --count "HEAD..${TARGET}")"
 
 # ---------------------------------------------------------------------------
@@ -645,8 +1407,26 @@ if [[ "${TARGET}" != "$(git rev-parse HEAD)" ]] || ((UNAPPLIED)); then
       info "CI passed on $(git rev-parse --short=12 "${TARGET}")" ;;
     wait)
       CI_TIP=-1
-      warn "CI has not finished with $(git rev-parse --short=12 "${TARGET}") — staying on ${REVISION}; the next run asks again"
-      exit 0 ;;
+      if ((ci_api_ok == 0)); then
+        # Not "not finished": GitHub did not answer. The likeliest cause is the
+        # anonymous limit, and walking would only spend more of it.
+        warn "could not ask CI about $(git rev-parse --short=12 "${TARGET}") — staying on ${REVISION}, and not walking below it; the next run asks again"
+        exit 0
+      fi
+      warn "CI has not finished with $(git rev-parse --short=12 "${TARGET}") — looking below it for the newest commit that passed (#1026)"
+      if fallback="$(ci_newest_green "${TARGET}" "${WALK_CAP}" "${UNAPPLIED}")"; then
+        # Deploy that one instead. It verified inside the walk, and everything
+        # below — the fast-forward check, the dry run, make up — now applies to
+        # it exactly as it would have to the tip. TIP keeps the tip, so BEHIND
+        # can say how far the host still is from it afterwards.
+        TARGET="${fallback}"
+        target_verified=1
+        fell_back=1
+        info "CI passed on $(git rev-parse --short=12 "${TARGET}"), $(git rev-list --count "${TARGET}..${TIP}") commit(s) below the tip — deploying that"
+      else
+        warn "nothing between ${REVISION} and the tip has passed CI yet — staying on ${REVISION}; the next run asks again"
+        exit 0
+      fi ;;
     red)
       CI_TIP=0
       if ((ALLOW_RED)); then
@@ -668,11 +1448,12 @@ fi
 # Converge
 # ---------------------------------------------------------------------------
 if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
-  BEHIND=0
+  # 0 at the tip. Below it, this is the walk choosing HEAD to re-apply.
+  BEHIND="$(git rev-list --count "HEAD..${TIP}")"
   if ((UNAPPLIED == 0)); then
     green "converged — ${REVISION} is ${BRANCH}"
-    # Nothing rendered, no container touched, docker never called. This is the
-    # path an hourly cadence spends almost all of its time on.
+    # Nothing rendered and no running container touched. This is the path an
+    # hourly cadence spends almost all of its time on.
     exit 0
   fi
   # At the tip and never deployed from it — the 2026-10-01 shape. Not a
@@ -686,7 +1467,12 @@ if [[ "${TARGET}" == "$(git rev-parse HEAD)" ]]; then
   info "applying ${REVISION}"
   make up STACK="${DEPLOY_STACK}"
   UNAPPLIED=0
-  green "converged — ${REVISION} is ${BRANCH}, and now deployed"
+  CI_FALLBACK="${fell_back}"
+  if ((CI_FALLBACK)); then
+    green "converged — ${REVISION}, ${BEHIND} commit(s) below a tip still in CI, is now deployed"
+  else
+    green "converged — ${REVISION} is ${BRANCH}, and now deployed"
+  fi
   exit 0
 fi
 
@@ -701,7 +1487,7 @@ onto a revision someone deliberately replaced.
   git -C ${DEPLOY_ROOT} log --oneline ${REVISION}..${TARGET}
   git -C ${DEPLOY_ROOT} log --oneline ${TARGET}..${REVISION}"
 
-info "${BEHIND} commit(s) behind — ${REVISION} to $(git rev-parse --short=12 "${TARGET}")"
+info "$(git rev-list --count "HEAD..${TARGET}") commit(s) to apply — ${REVISION} to $(git rev-parse --short=12 "${TARGET}")"
 git --no-pager log --oneline --no-decorate "HEAD..${TARGET}" | sed 's/^/     /' >&2
 
 if ((DRY_RUN)); then
@@ -715,7 +1501,10 @@ fi
 git merge --ff-only --quiet "${TARGET}"
 REVISION="$(git rev-parse --short=12 HEAD)"
 COMMIT_TS="$(git log -1 --format=%ct HEAD)"
-BEHIND=0
+# 0 at the tip. After a fallback, the commits still above what was deployed,
+# which DeployBehind leaves alone while homelab_deploy_ci_fallback says the
+# host is moving.
+BEHIND="$(git rev-list --count "HEAD..${TIP}")"
 VERIFIED="${target_verified}"
 # Moved and not yet deployed. If `make up` fails below, set -e exits with this
 # still 1, and the record says the checkout is ahead of what is running.
@@ -729,5 +1518,12 @@ UNAPPLIED=1
 info "applying ${REVISION}"
 make up STACK="${DEPLOY_STACK}"
 UNAPPLIED=0
+# Only now, after make up applied it. A dry run, report-only mode or a failed
+# make up deployed nothing, and must leave DeployBehind free to say so.
+CI_FALLBACK="${fell_back}"
 
-green "converged to ${REVISION}"
+if ((CI_FALLBACK)); then
+  green "converged to ${REVISION}, ${BEHIND} commit(s) below a tip still in CI; the next run moves on from here"
+else
+  green "converged to ${REVISION}"
+fi

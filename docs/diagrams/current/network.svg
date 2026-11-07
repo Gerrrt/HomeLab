@@ -141,7 +141,7 @@
 <text x="724" y="470" class="lbl">802.1Q trunk: igc0 → port 1 · LAN untagged · VLANs 10, 20, 30, 40, 50, 99 tagged</text>
 <rect x="640" y="500" width="1080" height="92" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
 <text x="660" y="530" class="pname" fill="#f0f6fc">neo</text>
-<text x="706" y="530" class="sub">MikroTik CRS326-24G-2S+RM · RouterOS · rack U9</text>
+<text x="706" y="530" class="sub">MikroTik CRS326 · RouterOS · rack U9</text>
 <text x="660" y="554" class="ip" fill="#8b949e">10.7.7.2</text>
 <text x="736" y="554" class="sub">on LAN · neo.matrix.elysium · UI HTTPS only</text>
 <text x="660" y="576" class="sub">Port map lives on the wiki (infrastructure/switching)</text>
@@ -385,7 +385,7 @@
 <rect x="450" y="1282" width="322" height="76" rx="8" class="card"/>
 <rect x="450" y="1288" width="4" height="64" rx="2" fill="#db6d28"/>
 <text x="464" y="1304" class="hn">eero mesh · trusted</text>
-<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.104 .110 .111</text>
+<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
 <text x="464" y="1322" class="sub">3 × eero Pro 6E, bridged</text>
 <text x="464" y="1338" class="role">one wired backhaul, two meshed</text>
 </g>
@@ -422,7 +422,7 @@
 <rect x="816" y="956" width="342" height="50" rx="8" class="card"/>
 <rect x="816" y="962" width="4" height="38" rx="2" fill="#e3b341"/>
 <text x="830" y="978" class="hn">mediatv</text>
-<text x="1146" y="978" class="ip" text-anchor="end" fill="#e3b341">.100</text>
+<text x="1146" y="978" class="ip" text-anchor="end" fill="#e3b341">.40</text>
 <text x="830" y="996" class="sub">LG OLED · webOS · wired</text>
 </g>
 <g class="host" data-host="streambox">
@@ -455,10 +455,10 @@
 <text x="1282" y="709" class="pname" fill="#2ea043">ImaginationLAN</text>
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
-<text x="1204" y="1452" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
-<text x="1204" y="1468" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
-<text x="1204" y="1484" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
-<rect x="1202" y="772" width="492" height="560" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
+<text x="1204" y="1460" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
+<text x="1204" y="1476" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
+<text x="1204" y="1492" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
+<rect x="1202" y="772" width="492" height="642" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
 <g class="host" data-host="Saruman">
 <rect x="1212" y="806" width="231.0" height="62" rx="8" class="card"/>
@@ -551,25 +551,83 @@
 <text x="1672.0" y="1190" class="ip" text-anchor="end" fill="#2ea043">.55</text>
 <text x="1467.0" y="1208" class="sub">Windows 11 · endpoint</text>
 </g>
-<text x="1216" y="1244" class="pill" fill="#6e7681">PLANNED</text>
+<text x="1536" y="1244" class="pill" fill="#6e7681">PLANNED</text>
+<g class="host" data-host="eden">
+<rect x="1212.0" y="1254" width="152.0" height="50" rx="8" class="card"/>
+<rect x="1212.0" y="1260" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1276" class="hn">eden</text>
+<text x="1226.0" y="1294" class="sub">BloodHound CE · .41</text>
+</g>
 <g class="host" data-host="golem">
-<rect x="1212.0" y="1254" width="231.0" height="50" rx="8" class="card planned"/>
-<text x="1226.0" y="1276" class="hn planned-t">golem</text>
-<text x="1431.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.80</text>
-<text x="1226.0" y="1294" class="sub planned-t">PBS guest (ADR-0053)</text>
+<rect x="1372.0" y="1254" width="152.0" height="50" rx="8" class="card"/>
+<rect x="1372.0" y="1260" width="4" height="38" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1276" class="hn">golem</text>
+<text x="1386.0" y="1294" class="sub">PBS on erebor · .80</text>
 </g>
 <g class="host" data-host="diabolos">
-<rect x="1453.0" y="1254" width="231.0" height="50" rx="8" class="card planned"/>
-<text x="1467.0" y="1276" class="hn planned-t">diabolos</text>
-<text x="1672.0" y="1276" class="ip" text-anchor="end" fill="#2ea043">.61</text>
-<text x="1467.0" y="1294" class="sub planned-t">disposable (ADR-0071)</text>
+<rect x="1532.0" y="1254" width="152.0" height="50" rx="8" class="card planned"/>
+<text x="1546.0" y="1276" class="hn planned-t">diabolos</text>
+<text x="1546.0" y="1294" class="sub planned-t">disposable · .61</text>
+</g>
+<g class="host" data-host="dot-debian">
+<rect x="1212.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1332" class="hn" style="font-size:13px">dot-debian</text>
+<text x="1352.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.91</text>
+</g>
+<g class="host" data-host="dot-fedora">
+<rect x="1372.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1372.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1332" class="hn" style="font-size:13px">dot-fedora</text>
+<text x="1512.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.92</text>
+</g>
+<g class="host" data-host="dot-opensuse">
+<rect x="1532.0" y="1312" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1532.0" y="1317" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1332" class="hn" style="font-size:13px">dot-opensuse</text>
+<text x="1672.0" y="1332" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.93</text>
+</g>
+<g class="host" data-host="dot-arch">
+<rect x="1212.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1368" class="hn" style="font-size:13px">dot-arch</text>
+<text x="1352.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.94</text>
+</g>
+<g class="host" data-host="dot-alpine">
+<rect x="1372.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1372.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1368" class="hn" style="font-size:13px">dot-alpine</text>
+<text x="1512.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.95</text>
+</g>
+<g class="host" data-host="dot-gentoo">
+<rect x="1532.0" y="1348" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1532.0" y="1353" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1368" class="hn" style="font-size:13px">dot-gentoo</text>
+<text x="1672.0" y="1368" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.96</text>
+</g>
+<g class="host" data-host="dot-nixos">
+<rect x="1212.0" y="1384" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1212.0" y="1389" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1226.0" y="1404" class="hn" style="font-size:13px">dot-nixos</text>
+<text x="1352.0" y="1404" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.97</text>
+</g>
+<g class="host" data-host="dot-windows">
+<rect x="1372.0" y="1384" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1372.0" y="1389" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1386.0" y="1404" class="hn" style="font-size:13px">dot-windows</text>
+<text x="1512.0" y="1404" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.98</text>
+</g>
+<g class="host" data-host="garuda">
+<rect x="1532.0" y="1384" width="152.0" height="30" rx="7" class="card"/>
+<rect x="1532.0" y="1389" width="4" height="20" rx="2" fill="#2ea043"/>
+<text x="1546.0" y="1404" class="hn" style="font-size:13px">garuda</text>
+<text x="1672.0" y="1404" class="ip" style="font-size:12px" text-anchor="end" fill="#2ea043">.62</text>
 </g>
 <g class="host" data-host="ifrit">
-<rect x="1202" y="1344" width="492" height="64" rx="8" class="card planned"/>
-<text x="1216" y="1366" class="hn planned-t">ifrit</text>
-<text x="1682" y="1366" class="ip" text-anchor="end" fill="#2ea043">.30</text>
-<text x="1216" y="1384" class="sub planned-t">second server for the range, not yet bought;</text>
-<text x="1216" y="1400" class="sub planned-t">range bridge 172.30.30.0/24 · Saruman moves to .20</text>
+<rect x="1202" y="1420" width="492" height="26" rx="8" class="card planned"/>
+<text x="1216" y="1438" class="hn planned-t">ifrit</text>
+<text x="1262" y="1438" class="sub planned-t">range server, bought, not yet built · Saruman moves to .20</text>
+<text x="1682" y="1438" class="ip" text-anchor="end" fill="#2ea043">.30</text>
 </g>
 </g>
 <g id="vlan-20">
@@ -594,16 +652,16 @@
 <rect x="1738" y="846" width="342" height="76" rx="8" class="card"/>
 <rect x="1738" y="852" width="4" height="64" rx="2" fill="#388bfd"/>
 <text x="1752" y="868" class="hn">eero mesh · IoT</text>
-<text x="2068" y="868" class="ip" text-anchor="end" fill="#388bfd">.101–.103</text>
+<text x="2068" y="868" class="ip" text-anchor="end" fill="#388bfd">.11–.13</text>
 <text x="1752" y="886" class="sub">3 × eero Pro 6E, bridged</text>
 <text x="1752" y="902" class="role">one wired backhaul</text>
 </g>
 <text x="1740" y="940" class="pill" fill="#388bfd">POOLED LEASES, BY CLASS</text>
-<g class="host" data-host="speaker ×4">
+<g class="host" data-host="speaker ×3">
 <rect x="1738" y="950" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="956" width="4" height="38" rx="2" fill="#388bfd"/>
-<text x="1752" y="972" class="hn">speaker ×4</text>
-<text x="1752" y="990" class="sub">Apple HomePod</text>
+<text x="1752" y="972" class="hn">speaker ×3</text>
+<text x="1752" y="990" class="sub">Apple HomePod · reserved .21–.23</text>
 </g>
 <g class="host" data-host="assistant ×5">
 <rect x="1738" y="1006" width="342" height="50" rx="8" class="card"/>
@@ -611,17 +669,17 @@
 <text x="1752" y="1028" class="hn">assistant ×5</text>
 <text x="1752" y="1046" class="sub">Amazon Echo</text>
 </g>
-<g class="host" data-host="camera ×7">
+<g class="host" data-host="camera ×9">
 <rect x="1738" y="1062" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="1068" width="4" height="38" rx="2" fill="#388bfd"/>
-<text x="1752" y="1084" class="hn">camera ×7</text>
+<text x="1752" y="1084" class="hn">camera ×9</text>
 <text x="1752" y="1102" class="sub">Ring cameras, floodlights, doorbell</text>
 </g>
 <g class="host" data-host="alarm-hub">
 <rect x="1738" y="1118" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="1124" width="4" height="38" rx="2" fill="#388bfd"/>
 <text x="1752" y="1140" class="hn">alarm-hub</text>
-<text x="1752" y="1158" class="sub">Ring Alarm Base Station · .121</text>
+<text x="1752" y="1158" class="sub">Ring Alarm Base Station · .108</text>
 </g>
 <g class="host" data-host="monitor ×2">
 <rect x="1738" y="1174" width="342" height="50" rx="8" class="card"/>
@@ -629,11 +687,11 @@
 <text x="1752" y="1196" class="hn">monitor ×2</text>
 <text x="1752" y="1214" class="sub">VTech baby monitor and tablet</text>
 </g>
-<g class="host" data-host="appliance ×2">
+<g class="host" data-host="appliance ×3">
 <rect x="1738" y="1230" width="342" height="50" rx="8" class="card"/>
 <rect x="1738" y="1236" width="4" height="38" rx="2" fill="#388bfd"/>
-<text x="1752" y="1252" class="hn">appliance ×2</text>
-<text x="1752" y="1270" class="sub">Litter-Robot · white-noise machine</text>
+<text x="1752" y="1252" class="hn">appliance ×3</text>
+<text x="1752" y="1270" class="sub">Litter-Robot · white noise · thermostat</text>
 </g>
 <rect x="1738" y="1290" width="342" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
 <text x="1752" y="1312" class="sub">Everything else here is reached through</text>
@@ -653,7 +711,7 @@
 <rect x="2124" y="772" width="222" height="76" rx="8" class="card"/>
 <rect x="2124" y="778" width="4" height="64" rx="2" fill="#a371f7"/>
 <text x="2138" y="794" class="hn">eero · guest</text>
-<text x="2334" y="794" class="ip" text-anchor="end" fill="#a371f7">.10 .101</text>
+<text x="2334" y="794" class="ip" text-anchor="end" fill="#a371f7">.11 .12</text>
 <text x="2138" y="812" class="sub">2 × eero Pro 6E</text>
 <text x="2138" y="828" class="role">bridged, main floor</text>
 </g>

@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: nightly verification of trinity's backup sets
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/restore-the-sensitive-tier.md
+
+[Timer]
+Unit=homelab-verify-backups-sensitive.service
+# After the night's writing: the volume backup at 04:30 and the library copy at
+# 05:15, which may take its hour. A run that still meets one waits on the
+# shared `backups` lock rather than reading a set being pruned.
+OnCalendar=*-*-* 06:30:00
+RandomizedDelaySec=0
+# True: this stops nothing, so a replay at boot costs only I/O, and a missed
+# night of verification is worth catching up.
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

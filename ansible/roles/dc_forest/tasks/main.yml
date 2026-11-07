@@ -51,11 +51,25 @@
 # "If it reports Local CMOS Clock, stop and fix it" (§3). A member that joins
 # across a skew fails as a credential problem, so this stops the play here
 # rather than letting the join below fail for a reason nobody will look for.
+#
+# Asked again for up to three minutes, because right after the restart above
+# the answer is "Local CMOS Clock" even when the gateway is answering: the
+# NtpClient is only chosen once it has a few samples. The #448 rebuild's
+# bahamut logged "receiving valid time data from 10.0.30.1" at 19:38:52, was
+# refused here moments later, and read 10.0.30.1,0x8 at 19:40:15. A gateway
+# that never answers still fails the assert below, after the retries.
 - name: Read the clock's source
   ansible.windows.win_command: w32tm /query /source
   register: dc_forest_source
   changed_when: false
   check_mode: false
+  until: ansible_check_mode or lab_gateway in dc_forest_source.stdout
+  retries: 18
+  delay: 10
+  # A wrong source after the retries is the assert's to report, with its
+  # pointer to the runbook's fallback. w32tm itself failing is not a clock
+  # problem, and fails here with its own error.
+  failed_when: dc_forest_source.rc != 0
 
 - name: Refuse to go on if the PDC emulator is on its own clock
   ansible.builtin.assert:

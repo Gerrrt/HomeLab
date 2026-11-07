@@ -1,0 +1,21 @@
+# The scanner's network namespace (#921 phase 3, ADR-0093), installed as
+# /etc/systemd/system/gvm-scan-netns.service. Pulled in by ospd-openvas (its
+# Requires=), and ordered before mosquitto so the broker can bind the veth.
+#
+# oneshot + RemainAfterExit: it builds the namespace once and is "active" while
+# it stands, so ospd-openvas's After=/Requires= wait for it and a scan stop
+# tears it down. ExecStart is write-once: a second start while active is a
+# no-op, which is why up() does not need to be idempotent.
+[Unit]
+Description=OpenVAS scanner network namespace (fenced to the lab domain)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/gvm-scan/gvm-scan-netns.sh up
+ExecStop=/opt/gvm-scan/gvm-scan-netns.sh down
+
+[Install]
+WantedBy=multi-user.target

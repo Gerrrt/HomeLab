@@ -1,0 +1,111 @@
+---
+# #449: DCSync. svc-sync is an ordinary, non-Domain-Admin account granted the
+# two replication extended rights on the domain head — DS-Replication-Get-
+# Changes and DS-Replication-Get-Changes-All — which together let it pull
+# password hashes as if it were a DC. The point is that the right sits on a
+# principal that is NOT a DA, so "who can DCSync" is more than Domain Admins.
+#
+# A dedicated account carries the grant, so disabling removes both ACEs and
+# deletes the account, leaving the population and the domain ACL as they were.
+# Order matters: on enable, create then grant; on disable, remove the ACEs
+# while the account still exists (so its SID resolves), then delete it.
+# Runs on the PDC emulator.
+
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_dcsync_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_dcsync_state is '{{ weakness_dcsync_state }}', not 'present' or
+      'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
+- name: Refuse to enable dcsync without the weak password
+  ansible.builtin.assert:
+    that: lab_weak_password | length >= 1
+    fail_msg: >-
+      LAB_WEAK_PASSWORD is missing from phoenix.env. svc-sync needs a password
+      the DCSync exercise can authenticate with.
+    quiet: true
+  when: weakness_dcsync_state == 'present'
+
+- name: The non-DA account that will hold the replication rights
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_dcsync_account }}"
+    name: "{{ lab_weakness_dcsync_account }}"
+    sam_account_name: "{{ lab_weakness_dcsync_account }}"
+    upn: "{{ lab_weakness_dcsync_account }}@{{ lab_domain }}"
+    description: "#449 dcsync: replication rights on a non-DA principal (ADR-0083)"
+    path: "{{ lab_weakness_ou }}"
+    password: "{{ lab_weak_password }}"
+    update_password: when_changed
+    password_never_expires: true
+    enabled: true
+    state: present
+  no_log: true
+  when: weakness_dcsync_state == 'present'
+
+# Both directions, and always run: on disable this removes the ACEs while
+# svc-sync still exists, before the delete below. Compares the domain ACL
+# first, so a second run of either direction writes nothing.
+- name: Grant or revoke the replication rights on the domain head
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Sam, [string]$Want)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $wantGrant = ($Want -eq 'present')
+      # DS-Replication-Get-Changes and DS-Replication-Get-Changes-All.
+      $rights = @(
+        '1131f6aa-9c07-11d1-f79f-00c04fc2dcd2',
+        '1131f6ad-9c07-11d1-f79f-00c04fc2dcd2')
+      $u = Get-ADUser -Identity $Sam -ErrorAction SilentlyContinue
+      if ($null -eq $u) {
+        # No account: if enabling, this is a pending change (check mode before
+        # the create above); if disabling, there is nothing to revoke.
+        $Ansible.Changed = $wantGrant
+        return
+      }
+      $sid = [System.Security.Principal.SecurityIdentifier]$u.SID
+      $sidValue = $u.SID.Value
+      $domainDn = (Get-ADDomain).DistinguishedName
+      $path = "AD:\$domainDn"
+      $acl = Get-Acl -Path $path
+      foreach ($g in $rights) {
+        $guid = [guid]$g
+        $match = $acl.Access | Where-Object {
+          $idSid = try {
+            $_.IdentityReference.Translate(
+              [System.Security.Principal.SecurityIdentifier]).Value
+          } catch { $null }
+          $idSid -eq $sidValue -and
+          ($_.ActiveDirectoryRights -band
+            [System.DirectoryServices.ActiveDirectoryRights]::ExtendedRight) -and
+          $_.ObjectType -eq $guid -and $_.AccessControlType -eq 'Allow'
+        }
+        if ($wantGrant -and -not $match) {
+          $ace = New-Object System.DirectoryServices.ActiveDirectoryAccessRule(
+            $sid, 'ExtendedRight', 'Allow', $guid)
+          $acl.AddAccessRule($ace)
+          $Ansible.Changed = $true
+        } elseif (-not $wantGrant -and $match) {
+          $match | ForEach-Object { [void]$acl.RemoveAccessRule($_) }
+          $Ansible.Changed = $true
+        }
+      }
+      if ($Ansible.Changed -and -not $Ansible.CheckMode) {
+        Set-Acl -Path $path -AclObject $acl
+      }
+    parameters:
+      Sam: "{{ lab_weakness_dcsync_account }}"
+      Want: "{{ weakness_dcsync_state }}"
+
+- name: Remove the account when the weakness is off
+  microsoft.ad.user:
+    identity: "{{ lab_weakness_dcsync_account }}"
+    name: "{{ lab_weakness_dcsync_account }}"
+    sam_account_name: "{{ lab_weakness_dcsync_account }}"
+    state: absent
+  no_log: true
+  when: weakness_dcsync_state != 'present'

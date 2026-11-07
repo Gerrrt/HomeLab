@@ -18,33 +18,45 @@ Two conventions hold across all of them:
 - **Images come from `compose.yaml`, by way of `image-for.sh`.** A `docker run`
   that names its image anywhere else fails `check_image_pins.py`, so a script
   can only run an image that Dependabot can see and that has a pinned digest.
+- **Python's one third-party module is PyYAML, and it is pinned.** Every
+  script that needs it takes it from `_deps.py`: the host's `python3-yaml`, or
+  on a CI runner the hash-pinned `requirements.txt`. A host never installs it
+  from PyPI. `compose-guards.sh` is the one exception, and installs nothing:
+  it uses PyYAML only if it is already importable, and approximates without it.
 - **A check that cannot run says SKIP, not PASS.** `validate.sh` counts the
   skips and prints them at the end, because a skipped check proves nothing.
 
 ## Validate: what CI runs
 
-`validate.sh` runs every row here except the last three. CI runs the first two
-of those as a job and a workflow of their own. The third runs on `phoenix`,
+`validate.sh` runs every row here except the last four. CI runs the first three
+of those as a job and workflows of their own. The fourth runs on `phoenix`,
 and only its fixtures run in CI, through `self-tests.sh`.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
+| `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
+| `check_gosu_skip.sh` | `check-gosu-skip` | Every image whose gosu the CVE scan skips (`gosu-skip.txt`) never runs gosu when started as `999:999`, with a root control proving the stand-in is on its path (#995, #980) |
+| `check_socket_proxy.sh` | `check-socket-proxy` | The Docker socket proxies allow what Alloy reads and refuse `archive`, `export` and `top`, and upstream's template is unchanged under the committed config (Tecnativa/docker-socket-proxy#182) |
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
-| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml` |
+| `check_glance_config.sh` | — | `stacks/sensitive/glance/glance.yml`, validated by the pinned Glance |
+| `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
+| `gitleaks-history.sh` | — | The full-history secret scan CI and `validate.sh` both run, which fails a scan of zero commits because gitleaks exits 0 when git cannot read the repository; its fixtures run in `self-tests.sh` |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
 | `self-tests.sh` | — | Every fixture suite embedded in the scripts above |
+| `volume-selftest-fixture.sh` | — | Sourced, not run: the throwaway repository, volumes and age keys that `backup-volumes.sh` and `restore-volumes.sh` round-trip in their fixtures |
 | `seed-validation-env.sh` | — | A throwaway `.env` that satisfies `${VAR:?}` guards, so `docker compose config` can run |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
+| `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
 | `check-tofu-state-encryption.sh` | — | `tofu/`'s state is encrypted, proved rather than assumed — run on `phoenix`; its fixtures run in `self-tests.sh` |
 
 ## Deploy and converge
@@ -55,6 +67,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `secrets-env.sh` | — | Sourced, not run: a stack's SOPS file as shell variables |
 | `converge.sh` | `converge` | Fetches `main`, refuses it unless GitHub signed it and CI passed, fast-forwards and runs `make up` ([ADR-0021](../docs/adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)) |
 | `record-applied.sh` | via `up` | Records the revision `make up` applied, so converge can tell a hand edit from a deploy |
+| `deploy-lock.sh` | via `up`, `converge` | One deploy of a stack at a time per checkout: `make up` waits for the holder, and converge leaves a held stack for its next run |
 | `reload-config.sh` | `reload` | Hot-reloads Prometheus, Alertmanager and snmp-exporter |
 | `check_mounted_config.py`, `check_container_health.py`, `check_alert_channels.py` | via `up` | After a deploy: each container runs the repo's config, its healthcheck passes, and Alertmanager can read every receiver URL |
 | `seed-ha-http.sh`, `seed-actual-password.sh` | via `up` | First-start state for Home Assistant and Actual, written before anything can reach them |
@@ -109,12 +122,16 @@ they describe. The rest are installed on the host they describe by
 | `collect-smart-state.sh`, `render-smart-baselines.sh` | SMART health for disks the iLO cannot see, and the known reallocated-sector baselines ([ADR-0046](../docs/adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)) |
 | `collect-zpool-state.sh`, `collect-truenas-version.sh` | `smaug`'s pool leaves and TrueNAS version |
 | `collect-gateway-state.sh` | The firewall's view of its uplinks and its DDNS record |
+| `collect-cert-expiry.sh` | When the management consoles' certificates expire, read off a handshake inside each console's segment ([ADR-0084](../docs/adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)) |
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
+| `collect-wazuh-manager-state.sh` | The Wazuh manager's agent counts, analysisd queues and dropped events, for the lab's Prometheus ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
+| `collect-guest-service-state.sh` | Whether the lab Prometheus, Zeek, the Wazuh manager and Velociraptor are healthy, read through the guest agent ([ADR-0088](../docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)) |
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |
 | `collect-zeek-mirror-state.sh`, `zeek-mirror.sh` | The `tc` mirror to the Zeek sensor: build it, and whether it carries packets ([ADR-0068](../docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)) |
+| `collect-pbs-task-state.py` | What `golem`'s Proxmox Backup Server last did: verify, prune and garbage-collection outcomes, and its snapshots by verify state and encryption ([ADR-0053](../docs/adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)) |
 | `collect-drift-check.sh` | The wiki's drift check and what it found |
 | `mark-clean-shutdown.sh` | Clean stops by kind, so a disk-fault page can tell a power cut from a shutdown |
 
@@ -127,9 +144,10 @@ They need the running estate, so CI cannot run them. Timers do.
 | `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset |
 | `check_loki_coverage.py` | `check-loki-coverage` | No Loki rule is blind to a host whose logs it would match |
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
+| `qga-resync.py` | `qga-resync` | Resets a guest agent's parser and proves it with a ping, when `qm agent` says it is not running but the guest is fine — on `Saruman`, as root |
 | `check-ruleset.sh` | `check-ruleset`, `apply-ruleset` | The ruleset on `main` against [`.github/rulesets/main.json`](../.github/OVERVIEW.md) |
 | `snmp-verify.sh`, `snmp-walk.sh` | `snmp-verify`, `snmp-walk` | Each SNMP device answers its current credential; walk one subtree the way the exporter would |
-| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once, and the vendor MIBs `generator.yaml` needs |
+| `snmp-targets.sh`, `snmp-auth.sh`, `snmp-mibs.sh`, `snmp-generate.sh` | `snmp-generate`, `snmp-mibs` | The SNMP inventory and auth blocks, read once; the vendor MIBs `generator.yaml` needs; and the regeneration of `snmp.yaml` from them |
 
 ## Dashboards and the lab
 
@@ -138,8 +156,13 @@ They need the running estate, so CI cannot run them. Timers do.
 | `export-dashboards.sh`, `export_dashboards.py` | `dashboards-export` | Folds UI edits in the running Grafana back over the committed JSON |
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
+| `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs, and the two Debian packages `garuda` installs, into `${SOC_DATA_DIR}/agent-msi` on `odin`, which the SOC stack's Caddy serves. The vendor packages are checked against their pins; the Velociraptor `.deb` is built by the server and its hash printed ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)) |
+| `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
+| `vendor-wazuh-certs-tool.sh` | — | Vendors Wazuh's cert tool at one sha256, `--check`s it offline (in `validate.sh`), or reports whether `--upstream` has moved ([ADR-0094](../docs/adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)) |
+| `wazuh-certs-mint.sh` | — | The `certs` profile's entrypoint: mints the SOC's mTLS CA with the vendored tool, offline, and refuses a tool VENDORED doesn't pin; its fixtures run in `self-tests.sh` |
 | `vendor-ja4.sh` | — | Vendors the JA4+ Zeek scripts at one commit ([ADR-0069](../docs/adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)) |
+| `vendor-sysmon-config.sh` | — | Vendors sysmon-modular's Sysmon config from one release, or `--check`s it ([ADR-0080](../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)) |
 
 ## Adding a script
 

@@ -1,6 +1,6 @@
 ---
 # The home lab rack's power draw, for the Energy dashboard's "Individual
-# devices".
+# devices", and the UPS's battery state beside it.
 #
 # The UPS (`mjolnir`) already measures the rack, and Prometheus on
 # `prometheus` already scrapes it over SNMP. So this reads Prometheus rather
@@ -14,14 +14,17 @@
 # separately (cpqHePowerMeterCurrReading, 117 W that day). It is a subset of
 # this, so adding both would double-count.
 #
-# Prometheus is plain HTTP on 9090 inside Winterfell. Since #182 that port is
-# the estate's ingest proxy, which serves a query only to the reader token
-# (ADR-0067). The header comes from the environment, with `!env_var`, and
+# Prometheus is on 9090 inside Winterfell. Since #182 that port is the
+# estate's ingest proxy, which serves a query only to the reader token
+# (ADR-0067), and since #764 it serves https under the estate CA (ADR-0086).
+# verify_ssl is the integration's default, on, and it verifies against
+# REQUESTS_CA_BUNDLE, which compose.yaml points at a bundle holding that CA.
+# The header comes from the environment, with `!env_var`, and
 # compose.yaml's guard fills it from secrets/sensitive.sops.yaml. The query
 # returns one number.
 
 rest:
-  - resource: http://10.0.99.20:9090/api/v1/query
+  - resource: https://10.0.99.20:9090/api/v1/query
     headers:
       Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
     params:
@@ -43,6 +46,52 @@ rest:
         device_class: power
         state_class: measurement
         icon: mdi:server
+
+  # Whether the rack is on battery, and for how long it can stay there, for
+  # the dashboard. This is a display, not the alert: UpsOnBattery in
+  # stacks/observability/prometheus/rules/ups.rules.yaml already pages through
+  # Alertmanager to ntfy, and a second notification from here would only
+  # repeat it. Same endpoint, token and CA as the power reading above.
+  - resource: https://10.0.99.20:9090/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
+    params:
+      query: max(upsSecondsOnBattery{device="mjolnir"})
+    scan_interval: 60
+    timeout: 10
+    binary_sensor:
+      - name: Home lab UPS on battery
+        unique_id: homelab_ups_on_battery
+        # The same test the alert uses: any seconds on battery means mains is
+        # out. Unavailable, not "off", when Prometheus has no answer, because
+        # "off" would claim the mains is fine.
+        availability: >-
+          {{ value_json is defined and value_json.status == 'success'
+             and value_json.data.result | length > 0 }}
+        value_template: "{{ value_json.data.result[0].value[1] | float > 0 }}"
+        device_class: problem
+        icon: mdi:battery-alert
+
+  - resource: https://10.0.99.20:9090/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
+    params:
+      query: max(upsEstimatedMinutesRemaining{device="mjolnir"})
+    scan_interval: 60
+    timeout: 10
+    sensor:
+      - name: Home lab UPS runtime remaining
+        unique_id: homelab_ups_runtime_remaining
+        # The card's own estimate at the present load (106 min at 100% charge
+        # on 2026-10-19). Meaningful whether or not the rack is on battery.
+        availability: >-
+          {{ value_json is defined and value_json.status == 'success'
+             and value_json.data.result | length > 0 }}
+        value_template: "{{ value_json.data.result[0].value[1] | float | round(0) }}"
+        unit_of_measurement: min
+        device_class: duration
+        state_class: measurement
+        icon: mdi:timer-sand
 
 sensor:
   # Watts over time, into kWh: the unit the Energy dashboard accepts. `left`

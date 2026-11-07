@@ -1,0 +1,27 @@
+---
+# The local administrator each endpoint was installed with. Windows 11's setup
+# will not finish without a local account, so the two built by hand for #414
+# each have one, `labadmin`, in Administrators (read on both, 2026-10-06). A
+# clone of 911 has only the built-in Administrator, so without this the
+# rebuild would quietly lose an account the hand build had.
+#
+# One password for both, from phoenix.env, set only when the account is made:
+# an existing labadmin keeps whatever password it has. Whether two endpoints
+# sharing a local admin password stays as an exercise is #449's to decide, not
+# this role's.
+
+- name: Refuse to run without the endpoint admin password
+  ansible.builtin.assert:
+    that: lab_endpoint_admin_password | length >= 12
+    fail_msg: LAB_ENDPOINT_ADMIN_PASSWORD is missing from phoenix.env (build-the-lab-domain.md §2).
+    quiet: true
+
+- name: Keep labadmin, a local administrator
+  ansible.windows.win_user:
+    name: labadmin
+    password: "{{ lab_endpoint_admin_password }}"
+    update_password: on_create
+    groups: [Administrators]
+    groups_action: add
+    state: present
+  no_log: true

@@ -14,6 +14,20 @@ and it amends nothing in it.
 > set. This record is superseded as the stand-in on the first
 > `household-proof`, not before. Its nightly copy to `oracle` continues after
 > that.
+>
+> **The copies on `oracle` are re-verified nightly, from `trinity`,
+> 2026-10-07.** Before [#856](https://github.com/Gerrrt/HomeLab/issues/856) a
+> set was verified the night it was written and never again, here or there.
+> `homelab-verify-backups-sensitive` now runs `make verify-backups
+> STACK=sensitive` at 06:30. It decrypts and reads every retained library set
+> on `trinity`, then has `oracle` sha256 every archive it holds and compares
+> each hash with the set's MANIFEST on `trinity`. It also compares each
+> MANIFEST byte for byte. That answers where the far side is verified: from
+> `trinity`, which holds the key, by a check that decrypts nothing on
+> `oracle`, which holds none ([ADR-0015](0015-give-oracle-the-off-host-jobs.md)).
+> A copy with the same bytes as a set that has just decrypted is the same
+> backup, so nothing on `oracle` needs a key or a timer of its own. The tier's
+> volume sets on `oracle` get the same check in the same run.
 
 ## Context
 

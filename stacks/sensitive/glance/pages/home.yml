@@ -1,0 +1,138 @@
+# Home: the start page (ADR-0098, ADR-0100). Deliberately short —
+# search, your bookmarks, the time and weather, the estate in a line. Every
+# other subject has a page of its own in the bar along the top. Everything
+# named ${GLANCE_*} except the two credentials is the operator's own list,
+# kept in secrets/sensitive.sops.yaml.
+- name: Home
+  width: wide
+  head-widgets:
+    - type: markets
+      hide-header: true
+      cache: 15m
+      markets: ${GLANCE_MARKETS}
+  columns:
+    # ---------------------------------------------------------------------
+    - size: small
+      widgets:
+        - type: clock
+          hour-format: 24h
+
+        - type: calendar
+          first-day-of-week: sunday
+
+        # COARSE ON PURPOSE: a city, not a street, because this file is public.
+        - type: weather
+          location: Bellevue, Washington, United States
+          units: imperial
+          hour-format: 24h
+    # ---------------------------------------------------------------------
+    - size: full
+      widgets:
+        # Nothing is typed into a third party until Enter: this box has no
+        # suggestions, so no keystroke leaves the browser before then.
+        - type: search
+          search-engine: duckduckgo
+          autofocus: true
+          new-tab: false
+
+        - type: bookmarks
+          groups: ${GLANCE_BOOKMARKS}
+    # ---------------------------------------------------------------------
+    - size: small
+      widgets:
+        # The estate in one line each, from the same reader-proxy queries the
+        # Homelab page uses; the detail is there.
+        - type: custom-api
+          title: Estate
+          title-url: /homelab
+          cache: 1m
+          <<: *prometheus
+          parameters:
+            query: ALERTS{alertstate="firing"}
+          subrequests:
+            probes:
+              <<: *prometheus
+              parameters:
+                query: min by (name) (probe_success)
+            containers:
+              <<: *prometheus
+              parameters:
+                query: >-
+                  (count(time() - container_last_seen{name!=""} < 120)
+                  or vector(0))
+                  + (sum(homelab_container_running)
+                  or vector(0))
+          template: |
+            {{ $probes := .Subrequest "probes" }}
+            {{ $ctr := .Subrequest "containers" }}
+            {{ if or (ne .Response.StatusCode 200) (ne $probes.Response.StatusCode 200) }}
+              <p class="color-negative">Prometheus answered {{ .Response.StatusCode }}</p>
+            {{ else }}
+              {{ $faults := 0 }}{{ $watchdog := false }}
+              {{ range .JSON.Array "data.result" }}
+                {{ $sev := .String "metric.severity" }}
+                {{ if eq (.String "metric.alertname") "Watchdog" }}{{ $watchdog = true }}
+                {{ else if or (eq $sev "warning") (eq $sev "critical") }}{{ $faults = add $faults 1 }}{{ end }}
+              {{ end }}
+              {{ $pAll := 0 }}{{ $pDown := 0 }}
+              {{ range $probes.JSON.Array "data.result" }}
+                {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
+              {{ end }}
+              <div class="flex justify-between text-center">
+                {{/* A figure only with evidence: Watchdog firing for the alert
+                     count, at least one probe for the sites. Else a red dash. */}}
+                <div>
+                  {{ if $watchdog }}
+                    <div class="size-h3 {{ if gt $faults 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ $faults }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">ALERTS</div>
+                </div>
+                <div>
+                  {{ if gt $pAll 0 }}
+                    <div class="size-h3 {{ if gt $pDown 0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ sub $pAll $pDown }}/{{ $pAll }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">SITES UP</div>
+                </div>
+                <div>
+                  {{ if $ctr.JSON.Exists "data.result.0" }}
+                    <div class="size-h3 color-highlight">{{ $ctr.JSON.String "data.result.0.value.1" }}</div>
+                  {{ else }}
+                    <div class="size-h3 color-negative">—</div>
+                  {{ end }}
+                  <div class="size-h6">CONTAINERS</div>
+                </div>
+              </div>
+              {{ if not $watchdog }}
+              <p class="color-negative margin-top-10">Watchdog silent: nothing here is current.</p>{{ end }}
+            {{ end }}
+
+        # Day of the year over days in the year, computed in the template; it
+        # fetches nothing.
+        - type: custom-api
+          title: Year
+          cache: 1h
+          template: |
+            {{ $y := now.Year }}
+            {{ $days := 365 }}
+            {{ if and (eq (mod $y 4) 0) (or (ne (mod $y 100) 0) (eq (mod $y 400) 0)) }}{{ $days = 366 }}{{ end }}
+            {{ $pct := mul (div (toFloat now.YearDay) (toFloat $days)) 100 }}
+            <div style="height: 8px; border-radius: 4px; background: var(--color-widget-background-highlight);">
+              <div style="height: 8px; border-radius: 4px; width: {{ printf "%.1f" $pct }}%;
+                          background: linear-gradient(90deg, hsl(349 89% 72%), hsl(43 80% 65%), hsl(89 51% 61%),
+                          hsl(221 89% 72%));">
+              </div>
+            </div>
+            <p class="text-center margin-top-10">{{ printf "%.2f" $pct }}% of {{ $y }} has passed</p>
+
+        - type: custom-api
+          title: Random fact
+          cache: 6h
+          url: https://uselessfacts.jsph.pl/api/v2/facts/random?language=en
+          template: |
+            <p class="color-paragraph">{{ .JSON.String "text" }}</p>

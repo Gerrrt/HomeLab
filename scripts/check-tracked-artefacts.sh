@@ -34,6 +34,15 @@
 # second check. `.terraform.lock.hcl` is meant to be tracked and is not matched,
 # because `\.terraform/` needs the slash.
 #
+# ansible/.ansible/ and ansible/.collections/ are on the list because
+# .gitleaks-worktree.toml allowlists them. They hold third-party collections
+# that ansible-lint and ansible-galaxy download, and ansible.windows ships PEM
+# keys and passwords as test fixtures. An allowlisted path is invisible to the
+# working-tree scan, so being untracked is what keeps them out of the history
+# scan's reach too — and that scan reads .gitleaks.toml, which allowlists none
+# of them, so a tracked copy IS a finding there. This is what asserts the
+# untracked half, against `git add -f` too (#968).
+#
 # Usage:
 #   scripts/check-tracked-artefacts.sh               names every offender, exit 1 if any
 #   scripts/check-tracked-artefacts.sh --root <dir>  the same, against another checkout
@@ -64,6 +73,8 @@ PATTERNS=(
   '[^/]*\.tfstate'
   '[^/]*\.tfplan'
   '\.terraform/'
+  'ansible/\.ansible/'
+  'ansible/\.collections/'
 )
 
 # ---------------------------------------------------------------------------
@@ -89,6 +100,9 @@ if [[ "${1:-}" == "--self-test" ]]; then
     tofu/versions.tf
     docs/tfstate-notes.md
     docs/runbooks/back-up-the-age-key.md
+    ansible/requirements.yml
+    ansible/ansible.cfg
+    ansible/.ansible-lint
   )
   scratch() {  # <name> [<offender>] → a repository at ${T}/<name>, everything added -f
     local dir="${T}/$1" f
@@ -130,6 +144,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
     tofu/proof.tfplan
     tofu/.terraform/providers/registry.opentofu.org/x
     modules/y/.terraform/terraform.tfstate
+    ansible/.ansible/collections/ansible_collections/ansible/windows/tests/root-key.pem
+    ansible/.collections/ansible_collections/ansible/windows/tests/cert.pfx
   )
   i=0
   for f in "${OFFENDERS[@]}"; do
@@ -173,4 +189,4 @@ if ((fail)); then
   exit 1
 fi
 
-printf 'no rendered, decrypted, purge-secrets, certificate, backup or tofu state files tracked\n'
+printf 'no rendered, decrypted, purge-secrets, certificate, backup, tofu state or downloaded ansible collection files tracked\n'

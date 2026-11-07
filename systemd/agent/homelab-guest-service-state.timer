@@ -1,0 +1,13 @@
+[Unit]
+Description=HomeLab: named lab service health, read through the guest agent
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md
+
+[Timer]
+Unit=homelab-guest-service-state.service
+OnCalendar=*:0/5
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -4,6 +4,15 @@ version: 2
 updates:
   # Pinned container images in compose.yaml. This is what makes pinning
   # sustainable — without it, pinned tags simply rot.
+  #
+  # grafana/alloy is the exception to "one PR per directory is fine". lab,
+  # sensor, soc, bloodhound and analyst all mount this stack's
+  # alloy/config.alloy, so their Alloy has to be this one, digest for digest,
+  # and check_image_pins.py fails a pull request that moves one without the
+  # others (#848). Those six entries cannot be merged the way soc and scratch
+  # were, because here and in lab Alloy rides in the grafana-stack group. So
+  # when an Alloy bump arrives, push the same bump to the other five stacks
+  # onto that PR and close the rest.
   - package-ecosystem: docker-compose
     directory: /stacks/observability
     schedule:
@@ -18,6 +27,16 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
+    # Grafana below 13.2.4 is skipped (#1122). By the pinned trivy, 13.2.3
+    # carries one more fixable HIGH/CRITICAL than the 13.0.10 pin: it adds
+    # two grpc findings in the bundled Prometheus and Loki datasource plugins,
+    # which we use. 13.1.7 clears only one of the seven findings. The 13.x patch
+    # releases already being prepared carry the Go and x/net fixes, so wait
+    # for 13.2.4 and scan it before merging. Drop this entry once the pin is
+    # at 13.2.4 or later.
+    ignore:
+      - dependency-name: grafana/grafana
+        versions: ["< 13.2.4"]
 
   # The lab stack. A second entry rather than a second directory on the one
   # above, because Dependabot takes a single directory per entry — and without
@@ -40,18 +59,39 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
+    # Skips Grafana below 13.2.4 for the reason given on the observability
+    # entry (#1122).
+    ignore:
+      - dependency-name: grafana/grafana
+        versions: ["< 13.2.4"]
 
   # The sensitive tier. Its images share nothing with the other stacks, so
   # no groups; each bump is its own PR, and each merge is a deploy: trinity's
   # homelab-converge-sensitive applies it within the hour (#533), so review
   # it as one. Written before the host existed, for the reason the lab entry
   # gives: pins rot from the day they are written.
+  #
+  # Postgres majors are held, by wiki's rule below: the tier's three Postgres
+  # volumes — Immich's, Paperless's and Miniflux's — are quiesced data
+  # directory tars in `make backup`, restorable only into the same major, and
+  # a major is a dump and a restore (ADR-0065), never a digest bump. This
+  # entry carried no such line while wiki's and bloodhound's did, and here the
+  # merge IS the deploy: trinity would have started the next major against
+  # the previous major's data directory within the hour, with the previous
+  # night's set the only way back. Two names, because Immich's is its own image: the vectorchord
+  # build's tag moves with both the Postgres major and the extension's, and
+  # either is a migration Immich documents, not a bump.
   - package-ecosystem: docker-compose
     directory: /stacks/sensitive
     schedule:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: ghcr.io/immich-app/postgres
+        update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "sensitive"]
@@ -61,21 +101,33 @@ updates:
   # must match to the patch version, and three separate bumps would be three
   # deploys of a half-upgraded SIEM. Velociraptor and Alloy bump alone. Present
   # before the host is, for the reason the entries above give: pins rot from
-  # the day they are written. One thing Dependabot cannot bump is
-  # CERT_TOOL_VERSION in compose.yaml, which tracks the wazuh/* major.minor —
-  # the compose file says so where it is set.
+  # the day they are written. One thing Dependabot cannot bump is the Wazuh
+  # cert tool vendored in stacks/soc/wazuh/certs-tool/ (ADR-0094), which tracks
+  # the wazuh/* major.minor — the compose file says so where it is used.
+  #
+  # stacks/scratch (#438, ADR-0071), the disposable copy of soc on diabolos,
+  # rides in this entry rather than its own. It mounts soc's config
+  # (../soc/wazuh/..., ../soc/velociraptor/...), so a scratch store on a
+  # different Wazuh from odin's answers a different question. With its own
+  # entry a release arrived as two PRs that had to be merged together, and only
+  # discipline made sure they were. Since #848 check_image_pins.py fails either
+  # one alone, and `directories` puts each group's bump to both stacks in ONE PR.
+  # Velociraptor gets a group for the same reason; an ungrouped dependency would
+  # still arrive as one PR per directory.
   - package-ecosystem: docker-compose
-    directory: /stacks/soc
+    directories: [/stacks/soc, /stacks/scratch]
     schedule:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
+    labels: ["dependencies", "soc", "scratch"]
     groups:
       wazuh:
         patterns: ["wazuh/*"]
+      velociraptor:
+        patterns: ["velocidex/*"]
 
   # The media stack on smaug. Present before the pool is, for the reason the
   # entries above give — but this one was absent while three documents said it
@@ -114,7 +166,7 @@ updates:
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies"]
+    labels: ["dependencies", "wiki"]
 
   # stacks/sensor (#437): Zeek and Alloy on fenrir. It shipped without an
   # entry, so for its first day its two digests were pinned and bumped by
@@ -130,34 +182,74 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
+    labels: ["dependencies", "sensor"]
 
-  # stacks/scratch (#438, ADR-0071): the disposable copy of soc on diabolos,
-  # on the same images and digests. Its own entry because a separate
-  # directory is a separate PR, so a wazuh/* release arrives as one PR here and
-  # one in /stacks/soc. Merge them together: the two stacks share their mounted
-  # config, and a scratch store on a different Wazuh from odin's answers a
-  # different question.
+  # stacks/bloodhound (#451, ADR-0081): BloodHound CE and the one Postgres
+  # that holds its state and its graph, on eden. Postgres majors are held, by
+  # wiki's rule: a major is a dump and a restore. An entry from the first
+  # commit, which is the lesson sensor's comment above records.
   - package-ecosystem: docker-compose
-    directory: /stacks/scratch
+    directory: /stacks/bloodhound
+    schedule:
+      interval: weekly
+      day: sunday
+    open-pull-requests-limit: 5
+    ignore:
+      - dependency-name: postgres
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "bloodhound"]
+
+  # stacks/analyst (#921, ADR-0091): Alloy and its socket proxy on garuda,
+  # and nothing else. An entry from the first commit, by sensor's lesson.
+  - package-ecosystem: docker-compose
+    directory: /stacks/analyst
     schedule:
       interval: weekly
       day: sunday
     open-pull-requests-limit: 5
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "soc"]
-    groups:
-      wazuh:
-        patterns: ["wazuh/*"]
+    labels: ["dependencies", "analyst"]
 
   # ansible/ (ADR-0077): ansible-core in requirements.txt, ansible-lint in
   # requirements-lint.txt, both exact. The collections in requirements.yml are
   # not an ecosystem Dependabot reads, and stay a deliberate edit like Packer's
-  # plugin pin. Monthly: phoenix applies these by hand, so a weekly PR would
-  # outrun anyone running them.
+  # plugin pin; the weekly scripts/check_tool_versions.py job in digests.yml is
+  # what says a newer one exists (#848). Monthly: phoenix applies these by
+  # hand, so a weekly PR would outrun anyone running them.
   - package-ecosystem: pip
     directory: /ansible
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "lab"]
+
+  # scripts/: three pins, all monthly — neither is a deploy, and a new linter
+  # release can bring new findings, so one PR a month to fix them is enough.
+  #   - PyYAML, with its hashes, in requirements.txt, which scripts/_deps.py
+  #     installs on a CI runner and nowhere else; a host takes it from apt (#848).
+  #   - yamllint in requirements-lint.txt, for scripts/lint.sh (#848).
+  #   - ruff in requirements-lint.txt, for scripts/lint.sh (#853).
+  - package-ecosystem: pip
+    directory: /scripts
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "chore(deps)"
+    labels: ["dependencies", "ci"]
+
+  # tofu/ (ADR-0076, #848): the bpg/proxmox provider in versions.tf and its
+  # hashes in .terraform.lock.hcl. Dependabot's opentofu ecosystem resolves it
+  # against registry.opentofu.org, the registry the lock file names. Its lock
+  # edit is incomplete: the first one (#961) left constraints on the old
+  # version and one zh: hash out, and scripts/lint.sh fails that. Expect each
+  # bump to be red until `tofu -chdir=tofu init -upgrade -backend=false` is
+  # committed onto it. Monthly: phoenix applies it by hand, like ansible/ above.
+  - package-ecosystem: opentofu
+    directory: /tofu
     schedule:
       interval: monthly
     commit-message:

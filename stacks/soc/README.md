@@ -24,14 +24,15 @@ make up STACK=soc        # from the repository root, on odin
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
 | `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch — the store for the estate's security events. 2 GiB heap, 30-day retention, and both numbers are bounds ([ADR-0030]) |
-| `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | The analysis engine the six domain agents report to and enrol with; enrolment needs a password |
-| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | 443 (https) | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
-| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8889 (https), 8003 | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
+| `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | The analysis engine the six domain agents, and `garuda`'s ([ADR-0092]), report to and enrol with; enrolment needs a password |
+| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | *internal* (5601), on 443 through `caddy` | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
+| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8003; the GUI on 8889 through `caddy` | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector, pushing to the lab's stores on `alexander` — and the indexer-health exporter |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
+| `caddy` | `caddy` | 8448, 443, 8889 | The two agent MSIs `ansible/roles/soc_agents` installs on the six, and the two `.deb`s `garuda` installs, staged by `scripts/stage-agent-msis.sh` and served to the six domain addresses and `garuda` only ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092]); and the front door to the Wazuh dashboard (443) and the Velociraptor GUI (8889), answering Hicks's `10.0.50.0/24` only ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139)) |
 | `wazuh.certs-generator` | `wazuh/wazuh-certs-generator` | — | Behind the `certs` profile: run once, before the first start, to issue the indexer/manager/dashboard mTLS material |
 
-Six services, and what is absent is as deliberate as what is here:
+Seven services, and what is absent is as deliberate as what is here:
 
 - **No Prometheus, Loki or Grafana.** They are on `alexander`, four hundred
   metres of copper away on the same segment, and this guest's Alloy pushes to
@@ -54,7 +55,7 @@ Six services, and what is absent is as deliberate as what is here:
   container logs, the way it holds `alexander`'s. Tailing `alerts.json` into
   Loki would put every alert in two stores with two retentions.
 - **No Alertmanager, here or on `alexander`.** Nothing in the lab pages
-  ([ADR-0020]). The six rules that read this stack's health are visible in the
+  ([ADR-0020]). The seven rules that read this stack's health are visible in the
   lab's Prometheus and Grafana and nowhere else.
 - **No syslog listener, no API port.** Upstream's single-node file publishes
   `514/udp` and `55000`; nothing off this host consumes either
@@ -66,12 +67,31 @@ Six services, and what is absent is as deliberate as what is here:
 to the two it mounts unchanged from `stacks/observability/alloy/`. It runs
 Alloy's first-party `prometheus.exporter.elasticsearch` against the indexer —
 verified against the indexer's own root CA, signed in as `admin` — and pushes
-cluster status, heap, shard count and indexing rate to the lab's Prometheus.
+cluster status, heap, shard count and indexing rate to the lab's Prometheus,
+plus one per-index series: documents indexed into `wazuh-alerts-*`, so a dead
+filebeat is visible past the dashboard's own writes.
 That is what says *the SIEM stopped ingesting*, which is the #62/#63 failure
 this repository keeps paying for and the one thing worth alerting on across
 the boundary. The rules live where the series arrive:
 [`stacks/lab/prometheus/rules/soc.rules.yaml`](../lab/prometheus/rules/soc.rules.yaml),
-six of them, each with a firing and a quiet promtool case.
+seven of them, each with a firing and a quiet promtool case.
+
+**The manager's own numbers** come from a collector on odin, not from Alloy:
+[`scripts/collect-wazuh-manager-state.sh`](../../scripts/collect-wazuh-manager-state.sh)
+runs every five minutes and `docker exec`s into `soc-wazuh-manager` for its
+analysisd and remoted state files and `agent_control -l -j`. It writes a
+textfile odin's Alloy already pushes. The rules beside the indexer's say:
+
+- a running domain guest's agent is not connected (counted against the guests
+  whose `windows_exporter` answers, so guests switched off between sessions are
+  quiet);
+- an analysisd queue is over 90%;
+- events were dropped;
+- a state file stopped being readable: both say they will be deprecated in a
+  future Wazuh ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)).
+
+Install it from the Mac, since VLAN 99 cannot reach VLAN 30 on port 22:
+`make install-agent-collectors AGENT=<you>@10.0.30.60 ARGS='--only wazuh-manager-state'`, with your own account on odin.
 
 The file lives here and **not** in `stacks/observability/alloy/`, because the
 estate's Alloy mounts that whole directory and would load it on VLAN 99
@@ -81,7 +101,8 @@ nothing, one layer along.
 ## Layout
 
 ```text
-compose.yaml                     six services, one network, health-gated ordering
+compose.yaml                     seven services, one network, health-gated ordering
+Caddyfile                        the caddy service: the agent packages, to the six domain addresses and garuda only (#1068)
 .env.example                     non-sensitive tunables — edit this, not .env
 alloy/opensearch.alloy           the indexer-health exporter (see above)
 wazuh/
@@ -93,6 +114,8 @@ wazuh/
   indexer/template-wazuh-alerts.json   1 shard, 0 replicas, 30s refresh, on wazuh-alerts-*
   indexer/ism-wazuh-alerts.json        delete wazuh-alerts-* at 30 days — Wazuh ships no policy
   manager/ossec.conf             upstream's file with ONE change: enrolment needs a password
+  manager/shared/default/agent.conf  the `default` group's shared agent config: the Sysmon channel (#1035)
+  manager/rules/local_rules.xml  the lab's own rules: #449's weaknesses by name, PowerShell's probe file at level 0 (#1077)
   manager/.rendered/authd.pass   that password, rendered from SOPS
   dashboard/opensearch_dashboards.yml  upstream's file, verbatim
 velociraptor/
@@ -172,9 +195,12 @@ the lab CA are a named follow-up rather than a prerequisite.
   repacked MSI by software installation assigned to the computer OU; Wazuh's
   by startup script, because its MSI takes the manager address and the
   enrolment password as properties. The runbook has both.
-- **`CERT_TOOL_VERSION` in `compose.yaml` is the one thing Dependabot cannot
-  bump.** It names the script the certs generator downloads and tracks the
-  `wazuh/*` images' major.minor; a bump to 4.15 changes it in the same PR.
+- **The vendored cert tool is the one thing Dependabot cannot bump.** The
+  certs generator mints offline with `wazuh/certs-tool/wazuh-certs-tool.sh`,
+  pinned by its sha256 in `VENDORED`, and never downloads it
+  ([ADR-0094](../../docs/adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+  A bump of the `wazuh/*` images to 4.15 runs
+  `scripts/vendor-wazuh-certs-tool.sh 4.15` in the same PR.
 - **Nothing converges this stack.** The `homelab-*` timers are the estate's;
   a merged change reaches `odin` when someone goes and applies it.
 
@@ -189,7 +215,7 @@ stack is covered by everything the estate's is: `docker compose config`, the
 image-pin and digest checks, `alloy fmt --test` on `opensearch.alloy`,
 `check_compose_health.py --probe` (which execs each healthcheck binary inside
 the pinned image — `curl` in the three Wazuh images, busybox `wget` in
-Velociraptor's), and `check_sops_rules.py` on the `soc` rule. The six rules
+Velociraptor's), and `check_sops_rules.py` on the `soc` rule. The seven rules
 and their tests run under the lab stack's promtool step, because that is
 where they live.
 
@@ -216,3 +242,5 @@ it matters:
 [#834]: https://github.com/Gerrrt/HomeLab/issues/834
 [`build-the-soc-guest.md`]: ../../docs/runbooks/build-the-soc-guest.md
 [#439]: https://github.com/Gerrrt/HomeLab/issues/439
+
+[ADR-0092]: ../../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md

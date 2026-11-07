@@ -44,6 +44,7 @@
 #   scripts/restore-volumes.sh --from <STAMP>                 restore the whole set
 #   scripts/restore-volumes.sh --from <STAMP> --only grafana-data[,loki-data]
 #   scripts/restore-volumes.sh --from latest
+#   scripts/restore-volumes.sh --self-test       a round trip into a throwaway volume (#854)
 #
 # Options:
 #   --no-safety-net   skip the pre-restore snapshot of the current contents
@@ -58,6 +59,77 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# --self-test (#854)
+#
+# The round trip, for real: a throwaway volume is backed up by the real
+# backup-volumes.sh, restored by this script into a SECOND volume under another
+# compose project (the rehearsal COMPOSE_PROJECT_NAME is documented for above),
+# and the two are compared path by path — type, size, mode, owner, link target
+# and sha256. scripts/volume-selftest-fixture.sh says what it builds.
+#
+# The restore decrypts with the SECOND recipient's key, the one an operator
+# who has lost theirs would be holding (#835). The confirmation is typed at a
+# pseudo-terminal, because there is deliberately no --yes.
+# ---------------------------------------------------------------------------
+if [[ "${1:-}" == "--self-test" ]]; then
+  # shellcheck source=scripts/volume-selftest-fixture.sh
+  source "${REPO_ROOT}/scripts/volume-selftest-fixture.sh"
+  vf_setup "${REPO_ROOT}" script || exit 0
+  A="${VF_P}a_grafana-data" B="${VF_P}b_grafana-data"
+  VF_VOLUMES+=("${B}")
+  ENV=(STACK=observability COMPOSE_FILE= TEXTFILE_DIR="${VF}/no-textfile")
+  INTO_B=("${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}b")
+
+  vf_volume "${VF_P}a" grafana
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}a" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "a set to restore from" 0 "wrote backups/volumes/"
+  STAMP="$(vf_newest_set)"
+  WANT="$(vf_fingerprint "${A}")"
+
+  vf_run "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from latest --dry-run
+  expect "a dry run proves the set with the second recipient's key" 0 "Nothing was changed"
+  check "  and creates nothing" "$(vf_exists "${B}" && echo created || echo absent)" absent
+
+  vf_run "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from "${STAMP}" --no-safety-net
+  expect "refuses to restore without a terminal" 1 "restore needs a terminal"
+
+  vf_tty "not-the-stamp" "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from "${STAMP}" --no-safety-net
+  expect "refuses when the stamp typed is not the set's" 1 "not confirmed"
+  check "  and creates nothing" "$(vf_exists "${B}" && echo created || echo absent)" absent
+
+  vf_run "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K3}" -- restore-volumes.sh --from "${STAMP}" --dry-run
+  expect "refuses a set the key in hand cannot open" 1 "the archives did not verify"
+
+  vf_tty "${STAMP}" "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from "${STAMP}" --no-safety-net
+  expect "restores the set into a second volume" 0 "restored 1 volume(s) from ${STAMP}"
+  expect "  owned as grafana expects" 0 "owned by uid 472"
+  check "  and it is the same tree, byte for byte" "$(vf_fingerprint "${B}")" "${WANT}"
+
+  # A changed archive is caught by the MANIFEST before anything is decrypted.
+  cp -a "${VF_REPO}/backups/volumes/${STAMP}" "${VF_REPO}/backups/volumes/20000101T000000Z"
+  vf_flip "${VF_REPO}/backups/volumes/20000101T000000Z/grafana-data.tar.gz.age"
+  vf_run "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from 20000101T000000Z --dry-run
+  expect "refuses an archive that no longer matches its MANIFEST" 1 "sha256 does not match the manifest"
+  rm -rf "${VF_REPO}/backups/volumes/20000101T000000Z"
+
+  # The safety net: what a restore replaces is kept, and can be put back.
+  vf_docker "${B}" 'printf "written after the backup\n" > /data/after.txt'
+  CHANGED="$(vf_fingerprint "${B}")"
+  vf_tty "${STAMP}" "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K1}" -- restore-volumes.sh --from "${STAMP}"
+  expect "restores over a volume, snapshotting it first" 0 "What you replaced is in"
+  check "  and the volume is the set again" "$(vf_fingerprint "${B}")" "${WANT}"
+  check "  and the snapshot is a set with a MANIFEST" \
+    "$(awk -F'\t' '$1 == "grafana-data" { print $5 }' "${VF_REPO}/backups/volumes/.pre-restore-${STAMP}/MANIFEST")" \
+    "$(sha256sum "${VF_REPO}/backups/volumes/.pre-restore-${STAMP}/grafana-data.tar.gz.age" | awk '{ print $1 }')"
+  vf_tty ".pre-restore-${STAMP}" "${INTO_B[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- restore-volumes.sh --from ".pre-restore-${STAMP}" --no-safety-net
+  expect "rolls back from the snapshot" 0 "restored 1 volume(s)"
+  check "  to exactly what was replaced" "$(vf_fingerprint "${B}")" "${CHANGED}"
+
+  exit "${fail}"
+fi
+
 STACK="${STACK:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"

@@ -39,14 +39,22 @@
 # REMOVE=FirewallException: the MSI's own rule admits any remote address. The
 # rule below admits one, and two rules on one port is a /24 sweep finding the
 # wider of them.
+#
+# ADDLOCAL=DefaultFeature, because REMOVE alone on a machine with nothing
+# installed asks for no feature at all: msiexec turns REMOVE into ALL, installs
+# no files, and CreateConfigFile then fails 1603 writing config.yaml into a
+# folder that was never made. The #448 rebuild hit exactly that on titan. The
+# hand-built six never took this path; their exporter was installed by hand
+# and this role adopted it.
 - name: Install windows_exporter
   ansible.windows.win_package:
     path: "C:\\ProgramData\\lab\\{{ exporter_msi }}"
     product_id: "{{ windows_exporter_product_id }}"
     arguments: >-
       ENABLED_COLLECTORS={{ windows_exporter_collectors }}
-      LISTEN_PORT=9182
+      LISTEN_PORT={{ windows_exporter_port }}
       TEXTFILE_DIRS="{{ windows_exporter_textfile_dir }}"
+      ADDLOCAL=DefaultFeature
       REMOVE=FirewallException
     state: present
   when:
@@ -66,12 +74,12 @@
 # have to go looking for" (§7). Domain profile only, which is why this role
 # runs after the join. The name is the one the hand-built six were given, so
 # the module adopts their rule rather than adding a second.
-- name: Admit alexander, and only alexander, to 9182
+- name: Admit alexander, and only alexander, to {{ windows_exporter_port }}
   community.windows.win_firewall_rule:
     name: windows_exporter from alexander
     direction: in
     protocol: tcp
-    localport: "9182"
+    localport: "{{ windows_exporter_port }}"
     remoteip: "{{ windows_exporter_scraper }}"
     action: allow
     profiles: [domain]

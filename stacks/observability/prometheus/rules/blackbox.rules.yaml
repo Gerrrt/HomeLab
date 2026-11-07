@@ -46,9 +46,10 @@ groups:
       # separate TLS alert, and the description says where to look.
       #
       # `via="refusal"` is excluded: those probes succeed on a 401, and
-      # IngestAuthNotEnforced below owns them.
+      # IngestAuthNotEnforced below owns them. `tier="household"` is excluded
+      # too: SiteDown, next, owns trinity's household sites.
       - alert: EndpointUnreachable
-        expr: probe_success{job="blackbox", via!="refusal"} == 0
+        expr: probe_success{job="blackbox", via!="refusal", tier!="household"} == 0
         for: 5m
         labels:
           component: blackbox
@@ -64,6 +65,46 @@ groups:
             one is, the service is up and its name is not resolving. For an
             https target, a certificate that no longer verifies looks exactly
             like this — `make certs ARGS=--list` shows what is being served.
+
+      # A household service behind trinity's Caddy is not answering (#855).
+      # The same question as EndpointUnreachable, for the targets labelled
+      # `tier: household`, asked two ways differently.
+      #
+      # `for: 10m`, not 5m. `make up STACK=sensitive` restarts whatever
+      # changed, and a restarted service is not an outage: the slowest
+      # start_period on the tier is Immich's 120s, and a 502 for that long
+      # must not page. Ten minutes is several restarts' worth and still pages
+      # within the quarter-hour.
+      #
+      # `max by (name, role, host)` drops `instance` and `via`. Each name has
+      # exactly one probe, so per site it changes nothing; what it changes is
+      # Alertmanager's grouping, which is by alertname and instance. Without
+      # `instance`, every SiteDown lands in one group, and a dead Caddy is one
+      # notification listing every site rather than eleven. ntfy's own
+      # EndpointUnreachable fires alongside it, which is how that case is told
+      # apart from eleven services failing at once.
+      #
+      # Critical and `availability`, so it reaches `urgent` like the rest of
+      # the tier's pages — validate.sh pins that route.
+      - alert: SiteDown
+        expr: >-
+          max by (name, role, host)
+            (probe_success{job="blackbox", tier="household"}) == 0
+        for: 10m
+        labels:
+          component: blackbox
+          severity: critical
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#sitedown"
+          summary: "{{ $labels.name }} is not answering on {{ $labels.host }}"
+          description: >-
+            Probed through Caddy by name for ten minutes, with no successful
+            response. If it is the only site firing, the service behind it is
+            down: `make ps STACK=sensitive` on {{ $labels.host }}, then its
+            container's log. If every household site is firing, it is Caddy or
+            the host itself. A certificate that no longer verifies looks
+            exactly like this too.
 
       # Deliberately warning, not critical, and deliberately separate from the
       # rule above. A name that stops resolving while the service still answers
@@ -199,10 +240,13 @@ groups:
       # down, the challenge failing, Caddy stuck. Critical, not warning, and
       # deliberately so. The first leaf this watches is the in-house ntfy's,
       # and when that lapses the in-house alert path goes with it, so the page
-      # has to reach `urgent` and its ntfy.sh copy. Every other name Caddy
-      # serves renews through the same step-ca, so one stalled leaf here is
-      # evidence about all of them. alertmanager.yaml inhibits the warning
-      # under it, so a stalled renewal pages once.
+      # has to reach `urgent` and its ntfy.sh copy. Since #855 every household
+      # site carries `renewal: acme` too, and all of them renew through the
+      # same step-ca, so a stalled CA fires one of these per site — grouped
+      # into one notification, because `instance` is dropped. The 3-day
+      # warning #855 asked for is not used: a healthy leaf crosses 72 hours on
+      # every cycle before Caddy renews it at ~56. alertmanager.yaml inhibits
+      # the warning under the page, so a stalled renewal pages once.
       - alert: TlsAcmeRenewalLate
         expr: >-
           min by (name, role, host)

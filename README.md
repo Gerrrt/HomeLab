@@ -6,6 +6,7 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/ci.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CI)](https://github.com/Gerrrt/HomeLab/actions/workflows/ci.yml)
 [![Digest drift](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/digests.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=Digest%20drift)](https://github.com/Gerrrt/HomeLab/actions/workflows/digests.yml)
+[![CVE scan](https://img.shields.io/github/actions/workflow/status/Gerrrt/HomeLab/cve-scan.yml?branch=main&style=plastic&logo=githubactions&logoColor=white&label=CVE%20scan)](https://github.com/Gerrrt/HomeLab/actions/workflows/cve-scan.yml)
 [![Last commit](https://img.shields.io/github/last-commit/Gerrrt/HomeLab/main?style=plastic&logo=git&logoColor=white&label=last%20commit)](https://github.com/Gerrrt/HomeLab/commits/main)
 [![Open issues](https://img.shields.io/github/issues/Gerrrt/HomeLab?style=plastic&logo=github&logoColor=white&label=open%20issues)](https://github.com/Gerrrt/HomeLab/issues)
 [![Dependabot](https://img.shields.io/badge/Dependabot-enabled-025E8C?style=plastic&logo=dependabot&logoColor=white)](.github/dependabot.yml)
@@ -84,9 +85,14 @@ documents for different readers.
   so the televisions can have a media server without the segment ceasing to be
   terminal in the direction that matters
   ([ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)),
-  and since 2026-09-28 Home Assistant reaches the Hue bridge on Skids and
-  nothing else there
-  ([ADR-0035](docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)).
+  and Home Assistant reaches a few named devices on the low-trust segments
+  and nothing else there: the Hue bridge on Skids since 2026-09-28
+  ([ADR-0035](docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md)),
+  the TV on CasaBonita since 2026-10-19
+  ([ADR-0097](docs/adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)),
+  and the HomePods on Skids since 2026-10-21
+  ([ADR-0099](docs/adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)),
+  each by host-scoped passes that only Home Assistant's host can open.
   Default deny holds everywhere except the trusted workstation segment and the
   switch LAN, both of which are listed rather than counted.
   [Why](docs/adr/0013-segment-access-as-implemented.md)
@@ -94,8 +100,8 @@ documents for different readers.
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
-- **Dashboards and alerting as code.** 7 provisioned dashboards, 144 panels, and
-  156 alert rules — 137 metric-based in Prometheus, 19 log-based in Loki — sharing
+- **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
+  178 alert rules — 158 metric-based in Prometheus, 20 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -105,14 +111,15 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Eleven assertions cross-check
+- **CI that validates the documentation too.** Twelve assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
   and ports tables against `compose.yaml`, ADR numbering, firewall posture
   against `docs/firewall-claims.yaml`, guest rows against each other, this
   file's outstanding-purchase count against the roadmap's buy table, every
-  critical alert's `runbook_url` against the runbook and heading it names, and
+  critical alert's `runbook_url` against the runbook and heading it names,
+  every relative Markdown link against the file and heading it points at, and
   a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
@@ -124,9 +131,11 @@ documents for different readers.
   `make pin-digests` re-resolves them from the registry. Every `docker run` in
   the Makefile, the scripts, the workflow and the runbooks resolves its image
   from `compose.yaml` too, so an image that is not pinned there cannot be run
-  at all.
-- **Documented decisions and runbooks.** 78 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 44
+  at all. Every pinned digest is also scanned weekly for fixable HIGH and
+  CRITICAL CVEs, and each image with findings has an open issue until a scan
+  finds it clean.
+- **Documented decisions and runbooks.** 104 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 50
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -177,10 +186,11 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 | Collection | [Grafana Alloy](stacks/observability/alloy) | every Linux host but `smaug`, which is scraped through node_exporter instead | node + cAdvisor metrics, Docker/journal/syslog/auth logs |
 | Network polling | [snmp_exporter](stacks/observability/snmp-exporter) | `prometheus` | pfSense, switch, UPS, iLO |
 | Alerting | [Alertmanager](stacks/observability/alertmanager) | `prometheus` | Severity routing, inhibition |
-| Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 7 provisioned dashboards |
+| Visualisation | [Grafana](stacks/observability/grafana) | `prometheus` | 8 provisioned dashboards |
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
 | Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
+| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; not built yet, and off between sessions |
 | Lab provisioning | [Packer](packer), [OpenTofu](tofu), [Ansible](ansible) | `phoenix` | VM templates, guests cloned from them, and the `ad.matrix.elysium` domain's configuration |
 | Secrets | [SOPS + age](secrets) | in the repo | Encrypted in-repo, decrypted at deploy time |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | GitHub | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
@@ -190,13 +200,13 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 ```text
 .
 ├── stacks/
-│   ├── observability/        # the estate's stack on prometheus — nine services
-│   │   ├── prometheus/       #   config, file_sd targets, 137 alert rules
+│   ├── observability/        # the estate's stack on prometheus — ten services
+│   │   ├── prometheus/       #   config, file_sd targets, 158 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
-│   │   ├── loki/             #   single-binary config + 19 LogQL rules
+│   │   ├── loki/             #   single-binary config + 20 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
 │   │   ├── snmp-exporter/    #   generator.yaml is the source of truth
-│   │   └── grafana/          #   provisioning + 7 dashboards
+│   │   └── grafana/          #   provisioning + 8 dashboards
 │   ├── sensitive/            # the household's tier on trinity — its own CA,
 │   │                         #   leaves over ACME (ADR-0034, ADR-0037)
 │   ├── media/                # Jellyfin, Audiobookshelf and Navidrome on smaug,
@@ -206,6 +216,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   │                         #   never remote-writes to VLAN 99 (ADR-0020)
 │   ├── soc/                  # Wazuh and Velociraptor on odin (ADR-0030)
 │   ├── sensor/               # Zeek on fenrir, on a mirror of the lab bridge (ADR-0068)
+│   ├── bloodhound/           # BloodHound CE on eden, off between sessions (ADR-0081)
 │   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
 ├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
@@ -213,12 +224,14 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 ├── systemd/                  # the timers that back up, verify and converge — see its README
 ├── .github/                  # CI, Dependabot, the ruleset on main — see OVERVIEW.md
 ├── SECURITY.md               # disclosure policy and known exposure
+├── CLAUDE.md                 # working rules for an AI session in this repo
 ├── docs/
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 78 ADRs — architecture decision records
-│   └── runbooks/             # 44 runbooks; successor-handover.md is the front door
+│   ├── adr/                  # 104 ADRs — architecture decision records
+│   ├── exercises/            # purple-team exercise records — see its README
+│   └── runbooks/             # 50 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 
@@ -249,13 +262,15 @@ make secrets-init     # generate an age keypair, create the encrypted secrets fi
 make secrets-edit     # fill in real values
 make certs ARGS=--ca  # create the lab CA
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana"    # Grafana's leaf
+make certs ARGS="--host speedtest.matrix.elysium --ip 10.0.99.20 --dns speedtest-tracker"    # speedtest-tracker's
+make certs ARGS="--host prometheus.matrix.elysium --ip 10.0.99.20 --dns caddy"    # the ingest proxy's
 make validate         # everything CI runs
 make up               # render config and start the stack
 ```
 
-The two `certs` steps are not optional: Grafana serves https from that leaf and
-Prometheus verifies it with the CA, so `make up` renders nothing until they
-exist. Details in
+The `certs` steps are not optional: Grafana, speedtest-tracker and the ingest
+proxy each mount their leaf, and Prometheus verifies Grafana's with the CA, so
+`make up` renders nothing until they exist. Details in
 [`docs/runbooks/generate-certificates.md`](docs/runbooks/generate-certificates.md).
 
 Grafana on `:3000` over https, Prometheus on `:9090`. Alertmanager binds to
@@ -305,7 +320,7 @@ a ninety-day deadline and an alert instead. See
 
 ## Dashboards
 
-Rendered from the running stack by `make screenshots` on 2026-10-04, over a
+Rendered from the running stack by `make screenshots` on 2026-10-10, over a
 24-hour window. Every dashboard but Logs and Security is here;
 `docs/images/README.md` explains why those two are deliberately left out, and
 what in these renders is a known fault rather than the steady state.
@@ -329,6 +344,10 @@ was fitted and proven.](docs/images/ups-power.png)
 ![Observability Stack dashboard: every scrape target with its staleness, then
 Prometheus, Loki, Alertmanager and the Alloy agents — the collection path
 watching itself.](docs/images/observability-stack.png)
+
+![Internet dashboard: scheduled speed tests against the link's ceiling, WAN
+throughput and errors from the firewall, round-trip time, latency under load,
+and dpinger's uplink loss and delay.](docs/images/internet.png)
 
 ## What runs it
 
@@ -385,7 +404,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-0 items now, one later, and a rule that nothing joins them without a
+22 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the

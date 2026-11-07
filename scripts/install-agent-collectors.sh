@@ -32,17 +32,34 @@
 # script in this repository that is meant to be run by hand rather than by a
 # timer.
 #
-# WHAT IT DELIBERATELY DOES NOT DO. It does not install run-scheduled.sh or a
-# job entry. An agent host has no checkout of this repository and no Makefile,
-# so there are no homelab_job_* outcome metrics for these runs — the unit header
-# says so at length. `PatchStateStopped` covers the gap from the data side
-# instead, alerting when a host that WAS reporting stops.
+# RUN-SCHEDULED.SH, FOR ONE ROW. An agent host has no checkout of this
+# repository and no Makefile, and the estate's ScheduledJob* rules key on a
+# declaration install-timers.sh writes on oracle, so the collectors here emit no
+# homelab_job_* outcome metrics — the unit headers say so at length.
+# `PatchStateStopped` covers that gap from the data side instead, alerting when a
+# host that WAS reporting stops.
+#
+# zeek-archive-prune (#850) is the exception, because it can be watched where
+# the others cannot: fenrir's Alloy writes to the lab's Prometheus, and
+# lab.rules.yaml carries its own ScheduledJob* rules for it. Its row's script is
+# run-scheduled.sh itself, installed as /usr/local/bin/homelab-run-scheduled
+# (bin_for below), and its unit runs `find` through it. It replaced a hand-typed
+# /etc/cron.d line that reported nothing and was in no repository state.
 #
 # WHAT IT INSTALLS. One row per collector in COLLECTORS below — patch-state
 # (#360), smart-state (#351), pve-version (#311), guest-state (#257),
-# thin-pool-state (#538), guest-disk-state (#778), pve-firewall-state (#576),
-# iso-store-state (#440), zeek-mirror-state (#437) and drift-check (#470), plus
-# two rows that collect nothing (below).
+# thin-pool-state (#538), guest-disk-state (#778), guest-service-state (#858),
+# wazuh-manager-state (#1038, odin only: its requirement is odin's data disk,
+# /srv/soc-data, which no other host has. Not the manager-queue directory
+# under it, as first written: requirements are checked with `test -x` as the
+# SSH user, and manager-queue is 0750 root:systemd-journal, so the check
+# failed on the one host it was meant for),
+# pve-firewall-state (#576),
+# iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
+# drift-check (#470), plus
+# two rows that collect nothing (below) and zeek-archive-prune (#850), a
+# scheduled job rather than a collector (above). Its requirement is the archive
+# directory, so like iso-store-state's it exists on exactly one host: fenrir.
 #
 # iso-store-state's requirement is a directory, not a binary: /mnt/smaug-iso,
 # the ISO store's mountpoint, which exists on the one host that mounts it
@@ -102,15 +119,20 @@ COLLECTORS=(
   "patch-state scripts/collect-patch-state.sh   apt-patch-state.prom   /usr/bin/apt-get"
   "smart-state scripts/collect-smart-state.sh   smart-state-HOST.prom  /usr/sbin/smartctl"
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
+  "cert-expiry scripts/collect-cert-expiry.sh   cert-expiry-HOST.prom  /usr/bin/pveproxy"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
   "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
+  "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
+  "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
+  "pbs-task-state scripts/collect-pbs-task-state.py pbs-task-state.prom /usr/sbin/proxmox-backup-debug"
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
   "prune-images scripts/prune-images.sh         -                      /usr/bin/docker"
+  "zeek-archive-prune scripts/run-scheduled.sh zeek-archive-prune.prom /srv/sensor-data/zeek/archive"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'
@@ -191,11 +213,15 @@ prom_for() {
   printf '%s' "${pattern/HOST/$hostname}"
 }
 
-# Where a row's script is installed. `-` in the .prom column marks a row
-# that is not a collector (see the header).
+# Where a row's script is installed. A row whose script is run-scheduled.sh
+# installs the wrapper under the one name every such unit's ExecStart uses; the
+# .prom is the wrapper's outcome file, named for the job. `-` in the .prom
+# column marks a row that is not a collector (see the header).
 bin_for() {
-  local name="$1" prom_pattern="$2"
-  if [[ "$prom_pattern" == - ]]; then
+  local name="$1" prom_pattern="$2" script="$3"
+  if [[ "$script" == scripts/run-scheduled.sh ]]; then
+    printf '/usr/local/bin/homelab-run-scheduled'
+  elif [[ "$prom_pattern" == - ]]; then
     printf '/usr/local/bin/homelab-%s' "$name"
   else
     printf '/usr/local/bin/homelab-collect-%s' "$name"
@@ -368,7 +394,7 @@ for target in "${TARGETS[@]}"; do
     for row in "${COLLECTORS[@]}"; do
       read -r name script prom need <<<"$row"
       [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
-      bin_of[$name]="$(bin_for "$name" "$prom")"
+      bin_of[$name]="$(bin_for "$name" "$prom" "$script")"
       install_one "$target" "$name" "$script" "$need" "$remote_home" && staged+=("$name")
     done
 

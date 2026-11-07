@@ -1,0 +1,780 @@
+---
+# Behaviour tests for loki/rules/security.rules.yaml, run by
+# scripts/test_loki_rules.py (#843). Each case pushes these lines into a
+# throwaway Loki and runs the rule's own expr as an instant query; `expect` is
+# the series it must return, and [] means it must return none.
+#
+# `before` is how long before the case's evaluation instant a line is written.
+# `for:` is not exercised: an instant query is the expression, not the alert.
+#
+# The labels are the ones Alloy attaches (config.alloy, syslog.alloy): `host`
+# on every stream from loki.write's external_labels, `log_type` per source,
+# and for morpheus's syslog `app`, plus filterlog's `action`/`interface` and
+# Suricata's `priority`/`classification`. The lines are each source's real
+# format: Ubuntu's RFC 3339 auth.log, pfSense's filterlog CSV
+# (rulenr,subrulenr,anchor,tracker,interface,reason,action,direction,...,
+# src,dst,...), Kea's lease line as ADR-0019 quotes it, and smartd's messages
+# as smartmontools' smartd.cpp prints them.
+#
+# Every critical rule needs a case that fires and one that does not; the
+# runner refuses to start otherwise.
+tests:
+  # --- SshBruteForceSevere: more than 100 failures from one host in 5m -------
+  - alert: SshBruteForceSevere
+    name: 101 failures in auth.log inside five minutes fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 101
+            every: 2s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect:
+      - {host: oracle}
+
+  - alert: SshBruteForceSevere
+    name: the journal branch counts on its own
+    streams:
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 4m
+            count: 101
+            every: 2s
+            line: Failed password for root from 203.0.113.7 port 41822 ssh2
+    expect:
+      - {host: trinity}
+
+  - alert: SshBruteForceSevere
+    name: pfSense's sshd-session over syslog counts (the app regex is sshd.*)
+    streams:
+      - labels: {log_type: syslog, host: morpheus, app: sshd-session}
+        entries:
+          - before: 4m
+            count: 101
+            every: 2s
+            line: Failed password for admin from 203.0.113.9 port 50011 ssh2
+    expect:
+      - {host: morpheus}
+
+  - alert: SshBruteForceSevere
+    name: exactly 100 is the threshold, not over it
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 100
+            every: 2s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect: []
+
+  - alert: SshBruteForceSevere
+    name: 150 failures spread over ten minutes put 75 in any five
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 10m
+            count: 150
+            every: 4s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect: []
+
+  # --- SshLoginFromUnexpectedSubnet: accepted from outside VLAN 50 or 99 -----
+  - alert: SshLoginFromUnexpectedSubnet
+    name: a login accepted from the lab segment fires
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 3m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[51220]: Accepted
+              publickey for robo from 10.0.30.40 port 50122 ssh2: ED25519
+              SHA256:Zk3uQe9xJbm4lPp1YtR2vS0wN8aC7dF6gH5iJ4kL3mO
+      - labels: {log_type: syslog, host: morpheus, app: sshd-session}
+        entries:
+          - before: 3m
+            line: >-
+              Accepted publickey for admin from 10.0.20.15 port 49330 ssh2:
+              ED25519 SHA256:Zk3uQe9xJbm4lPp1YtR2vS0wN8aC7dF6gH5iJ4kL3mO
+    expect:
+      - {host: oracle}
+      - {host: morpheus}
+
+  - alert: SshLoginFromUnexpectedSubnet
+    name: logins from Hicks and from management itself are expected
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 3m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[51220]: Accepted
+              publickey for robo from 10.0.50.12 port 50122 ssh2: ED25519
+              SHA256:Zk3uQe9xJbm4lPp1YtR2vS0wN8aC7dF6gH5iJ4kL3mO
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 3m
+            line: >-
+              Accepted publickey for rabbit from 10.0.99.20 port 41210 ssh2:
+              ED25519 SHA256:Zk3uQe9xJbm4lPp1YtR2vS0wN8aC7dF6gH5iJ4kL3mO
+    expect: []
+
+  - alert: SshLoginFromUnexpectedSubnet
+    name: a failed attempt from the lab is not an accepted login
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 3m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[51220]: Failed
+              password for robo from 10.0.30.40 port 50122 ssh2
+    expect: []
+
+  # --- FilesystemRemountedReadOnly -------------------------------------------
+  - alert: FilesystemRemountedReadOnly
+    name: ext4 remounting read-only fires
+    streams:
+      - labels: {log_type: varlog, host: prometheus}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus kernel: EXT4-fs
+              (sda2): Remounting filesystem read-only
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 2m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle kernel: EXT4-fs (sdb1):
+              Remounting filesystem read-only
+    expect:
+      - {host: prometheus}
+      - {host: oracle}
+
+  - alert: FilesystemRemountedReadOnly
+    name: an ordinary remount does not
+    streams:
+      - labels: {log_type: varlog, host: prometheus}
+        entries:
+          - before: 2m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus kernel: EXT4-fs
+              (sda2): re-mounted 7c0e5a3e-2b8f-4d1a-9c6e-0f3b2a1d4e5f r/w.
+              Quota mode: none.
+    expect: []
+
+  # --- DiskIoErrors -----------------------------------------------------------
+  # smartd's two failure lines are verbatim from smartd.cpp:
+  #   "Device: %s, FAILED SMART self-check. BACK UP DATA NOW!"
+  #   "Device: %s, SMART Failure: %s"
+  # Neither matched the rule's old `SMART.*FAILED`: it is case-sensitive, and
+  # smartd writes FAILED before SMART in one and "Failure" in the other.
+  - alert: DiskIoErrors
+    name: a block I/O error, a failed ATA command and both smartd failures fire
+    streams:
+      - labels: {log_type: varlog, host: prometheus}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus kernel: I/O error,
+              dev sda, sector 123456789 op 0x0:(READ) flags 0x80700 phys_seg 1
+              prio class 2
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle kernel: ata1.00: failed
+              command: READ FPDMA QUEUED
+      - labels: {log_type: syslog, host: trinity}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 trinity smartd[812]: Device:
+              /dev/sda [SAT], FAILED SMART self-check. BACK UP DATA NOW!
+      - labels: {log_type: syslog, host: smaug}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 smaug smartd[903]: Device:
+              /dev/sdc, SMART Failure: FAILURE PREDICTION THRESHOLD EXCEEDED
+    expect:
+      - {host: prometheus}
+      - {host: oracle}
+      - {host: trinity}
+      - {host: smaug}
+
+  - alert: DiskIoErrors
+    name: a SMART attribute change and an ATA link coming up do not
+    streams:
+      - labels: {log_type: syslog, host: trinity}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 trinity smartd[812]: Device:
+              /dev/sda [SAT], SMART Usage Attribute: 194 Temperature_Celsius
+              changed from 64 to 65
+          - before: 4m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 trinity kernel: ata1: SATA link
+              up 6.0 Gbps (SStatus 133 SControl 300)
+    expect: []
+
+  # --- TerminalSegmentReachedInternalNetwork: a PASS from 10/20/40 inward ----
+  - alert: TerminalSegmentReachedInternalNetwork
+    name: IoT passed to the management segment fires
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 2m
+            line: "81,,,1000102433,igc0.20,match,pass,in,4,0x0,,64,51234,0,DF,6,tcp,\
+              60,10.0.20.15,10.0.99.20,50122,443,0,S,3520011234,,64240,,mss;sackOK;TS;nop;wscale"
+    expect:
+      - {interface: igc0.20}
+
+  - alert: TerminalSegmentReachedInternalNetwork
+    name: IoT to the internet, IoT blocked inward, and management into IoT do not
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 2m
+            line: "81,,,1000102433,igc0.20,match,pass,in,4,0x0,,64,51234,0,DF,6,tcp,\
+              60,10.0.20.15,1.1.1.1,50122,443,0,S,3520011234,,64240,,mss;sackOK;TS;nop;wscale"
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 2m
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51235,0,DF,6,tcp,\
+              60,10.0.20.15,10.0.99.20,50123,443,0,S,3520011235,,64240,,mss;sackOK;TS;nop;wscale"
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.99, host: morpheus}
+        entries:
+          - before: 2m
+            line: "90,,,1000102500,igc0.99,match,pass,in,4,0x0,,64,51236,0,DF,6,tcp,\
+              60,10.0.99.20,10.0.20.15,50124,8080,0,S,3520011236,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- LabSegmentReachedInternalNetwork: a PASS from the lab inward ----------
+  - alert: LabSegmentReachedInternalNetwork
+    name: the lab passed to Hicks, and its range behind odin to management, fire
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "60,,,1000102300,igc0.30,match,pass,in,4,0x0,,64,40112,0,DF,6,tcp,\
+              60,10.0.30.40,10.0.50.12,40112,445,0,S,1200034001,,64240,,mss;sackOK;TS;nop;wscale"
+          - before: 1m
+            line: "60,,,1000102300,igc0.30,match,pass,in,4,0x0,,64,40113,0,DF,17,udp,\
+              76,172.31.0.5,10.0.99.20,40113,514,56"
+    expect:
+      - {interface: igc0.30}
+
+  - alert: LabSegmentReachedInternalNetwork
+    name: the lab to the internet, and the lab blocked inward, do not
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "60,,,1000102300,igc0.30,match,pass,in,4,0x0,,64,40114,0,DF,6,tcp,\
+              60,10.0.30.40,93.184.215.14,40114,443,0,S,1200034002,,64240,,mss;sackOK;TS;nop;wscale"
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "5,,,1000000103,igc0.30,match,block,in,4,0x0,,64,40115,0,DF,6,tcp,\
+              60,10.0.30.40,10.0.50.12,40115,445,0,S,1200034003,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- UnknownDeviceOnManagementSegment: a MAC on VLAN 99 unseen for 7 days --
+  # Every DHCP case shares one stream ({app="kea-dhcp4"}) and the rule looks
+  # back seven days, so each case uses MACs no other case does.
+  - alert: UnknownDeviceOnManagementSegment
+    name: a MAC new to VLAN 99 fires
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:10:99:01], cid=[01:02:00:5e:10:99:01], tid=0xb53e488e:
+              lease 10.0.99.57 has been allocated for 7200 seconds
+    expect:
+      - {mac: "02:00:5e:10:99:01"}
+
+  - alert: UnknownDeviceOnManagementSegment
+    name: a MAC seen on VLAN 99 two days ago is known
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 2d
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:10:99:02], cid=[01:02:00:5e:10:99:02], tid=0x1a2b3c4d:
+              lease 10.0.99.58 has been allocated for 7200 seconds
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:10:99:02], cid=[01:02:00:5e:10:99:02], tid=0x1a2b3c4e:
+              lease 10.0.99.58 has been allocated for 7200 seconds
+    expect: []
+
+  - alert: UnknownDeviceOnManagementSegment
+    name: a MAC new to VLAN 50 is the other rule's business
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:10:50:01], cid=[01:02:00:5e:10:50:01], tid=0x5e6f7a8b:
+              lease 10.0.50.90 has been allocated for 7200 seconds
+    expect: []
+
+  # --- SuricataHighPriorityAlert: any priority-1 alert -----------------------
+  - alert: SuricataHighPriorityAlert
+    name: a priority-1 alert fires, by interface and classification
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "1", classification: A Network Trojan was detected}
+        entries:
+          - before: 4m
+            line: >-
+              [1:2027758:3] ET MALWARE Observed Malicious SSL Cert
+              [Classification: A Network Trojan was detected] [Priority: 1]
+              {TCP} 10.0.20.15:51544 -> 198.51.100.23:443
+    expect:
+      - {interface: igc0.20, classification: A Network Trojan was detected}
+
+  - alert: SuricataHighPriorityAlert
+    name: a priority-2 alert does not
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "2", classification: Attempted Information Leak}
+        entries:
+          - before: 4m
+            line: >-
+              [1:2013028:7] ET POLICY curl User-Agent Outbound
+              [Classification: Attempted Information Leak] [Priority: 2]
+              {TCP} 10.0.20.5:443 -> 203.0.113.9:80
+    expect: []
+
+  # ===========================================================================
+  # Warning-level rules. Same contract: a case that fires and one that does
+  # not. The three "logs stopped" rules assert an absence, so each case
+  # declares the rule's range as `window` and the runner keeps every other
+  # case's lines out of it.
+  # ===========================================================================
+
+  # --- SshBruteForce: more than 20 failures from one host in 5m --------------
+  - alert: SshBruteForce
+    name: 21 failures inside five minutes fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 21
+            every: 5s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect:
+      - {host: oracle}
+
+  - alert: SshBruteForce
+    name: exactly 20 is the threshold, not over it
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 4m
+            count: 20
+            every: 5s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sshd[41822]: Failed
+              password for invalid user admin from 203.0.113.7 port 52144 ssh2
+    expect: []
+
+  # --- SudoFailure: more than 5 sudo authentication failures in 10m ----------
+  # PAM writes the line; journald carries it as the bare MESSAGE (Alloy's
+  # journal source forwards MESSAGE alone), which still holds "sudo:auth)".
+  - alert: SudoFailure
+    name: six failures, in auth.log and in the journal, fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 8m
+            count: 6
+            every: 30s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sudo: pam_unix(sudo:auth):
+              authentication failure; logname=robo uid=1000 euid=0
+              tty=/dev/pts/0 ruser=robo rhost=  user=robo
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 8m
+            count: 6
+            every: 30s
+            line: >-
+              pam_unix(sudo:auth): authentication failure; logname=rabbit
+              uid=1000 euid=0 tty=/dev/pts/1 ruser=rabbit rhost=  user=rabbit
+    expect:
+      - {host: oracle}
+      - {host: trinity}
+
+  - alert: SudoFailure
+    name: exactly five is the threshold, not over it
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 8m
+            count: 5
+            every: 30s
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle sudo: pam_unix(sudo:auth):
+              authentication failure; logname=robo uid=1000 euid=0
+              tty=/dev/pts/0 ruser=robo rhost=  user=robo
+    expect: []
+
+  # --- NewUserOrGroupCreated ---------------------------------------------------
+  # shadow-utils' own lines (useradd.c, groupadd.c): "new user: name=%s, UID=%u,
+  # GID=%u, home=%s, shell=%s, from=%s" and "new group: name=%s, GID=%u". In
+  # auth.log syslog prefixes "useradd[pid]:"; in the journal the line is the
+  # bare MESSAGE, with no program name in it.
+  - alert: NewUserOrGroupCreated
+    name: a new user in auth.log and in the journal, and a new group, fire
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle useradd[2211]: new user:
+              name=mallory, UID=1002, GID=1002, home=/home/mallory,
+              shell=/bin/bash, from=/dev/pts/0
+      - labels: {log_type: journal, host: trinity}
+        entries:
+          - before: 5m
+            line: >-
+              new user: name=mallory, UID=1002, GID=1002, home=/home/mallory,
+              shell=/bin/bash, from=/dev/pts/1
+      - labels: {log_type: authlog, host: prometheus}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus groupadd[2230]: new
+              group: name=backup-ops, GID=1003
+    expect:
+      - {host: oracle}
+      - {host: trinity}
+      - {host: prometheus}
+
+  - alert: NewUserOrGroupCreated
+    name: changing an existing user's shell is not a creation
+    streams:
+      - labels: {log_type: authlog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle usermod[2240]: change
+              user 'robo' shell from '/bin/bash' to '/bin/zsh'
+    expect: []
+
+  # --- KernelOomKill -----------------------------------------------------------
+  # The kernel prints "%s: Killed process ..." (mm/oom_kill.c) where %s is "Out
+  # of memory" for the whole machine and "Memory cgroup out of memory" for a
+  # cgroup. The rule is the machine-wide one; ContainerOomKilled has cgroups.
+  - alert: KernelOomKill
+    name: the machine-wide OOM killer fires
+    streams:
+      - labels: {log_type: varlog, host: prometheus}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 prometheus kernel: Out of
+              memory: Killed process 4122 (prometheus) total-vm:2894532kB,
+              anon-rss:1803244kB, file-rss:0kB, shmem-rss:0kB, UID:65534
+              pgtables:4096kB oom_score_adj:0
+    expect:
+      - {host: prometheus}
+
+  # Since #909, varlog no longer ships kern.log on a host that writes syslog,
+  # so a kernel line reaches Loki through syslog alone. It must still fire.
+  - alert: KernelOomKill
+    name: the OOM killer fires from syslog alone, with no kern.log copy
+    streams:
+      - labels: {log_type: syslog, host: golem}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-07T16:02:44.318211+00:00 golem kernel: Out of memory:
+              Killed process 2210 (alloy) total-vm:1830412kB,
+              anon-rss:912340kB, file-rss:0kB, shmem-rss:0kB, UID:0
+              pgtables:2210kB oom_score_adj:0
+    expect:
+      - {host: golem}
+
+  - alert: KernelOomKill
+    name: a cgroup OOM is ContainerOomKilled's, not this rule's
+    streams:
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 10m
+            line: >-
+              2026-10-03T21:14:07.123456+00:00 oracle kernel: Memory cgroup
+              out of memory: Killed process 5120 (node) total-vm:1204480kB,
+              anon-rss:512000kB, file-rss:0kB, shmem-rss:0kB, UID:1000
+              pgtables:1200kB oom_score_adj:0
+    expect: []
+
+  # --- UnitOomKilled -----------------------------------------------------------
+  # systemd's verdict, as PID 1 writes it: the stream's `unit` is init.scope,
+  # and the unit that died is the line's prefix (#903). The lines are the
+  # shape `journalctl` shows on trinity for 'exit-code', with the result
+  # swapped.
+  - alert: UnitOomKilled
+    name: a unit that failed with result 'oom-kill' fires, named from the line
+    streams:
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
+        entries:
+          - before: 10m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: journal}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'oom-kill'."
+    expect:
+      - {host: prometheus, unit: init.scope, oom_unit: homelab-backup-volumes.service}
+      - {host: trinity, unit: user@1000.service, oom_unit: run-p3241787-i3245756.service}
+
+  - alert: UnitOomKilled
+    name: the same sentence from anything but a systemd manager does not
+    streams:
+      # `logger "x.service: Failed with result 'oom-kill'."` from a login shell.
+      - labels: {log_type: journal, host: trinity, unit: session-4.scope, transport: syslog}
+        entries:
+          - before: 5m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      # `logger` from a program in a user's own systemd session, which logs as
+      # the user's manager unit. Only the transport stops this one.
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: syslog}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'oom-kill'."
+      # A service printing it to stdout.
+      - labels: {log_type: journal, host: oracle, unit: someapp.service, transport: stdout}
+        entries:
+          - before: 4m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+      # The native API from a unit that is not a manager.
+      - labels: {log_type: journal, host: oracle, unit: someapp.service, transport: journal}
+        entries:
+          - before: 3m
+            line: "homelab-backup-volumes.service: Failed with result 'oom-kill'."
+    expect: []
+
+  - alert: UnitOomKilled
+    name: any other result, and a container's cgroup OOM, do not
+    streams:
+      - labels: {log_type: journal, host: trinity, unit: init.scope, transport: journal}
+        entries:
+          - before: 5m
+            line: "run-p3241787-i3245756.service: Failed with result 'exit-code'."
+          - before: 4m
+            line: "homelab-backup-volumes.service: Failed with result 'timeout'."
+      # The kernel's line for a Docker container hitting mem_limit, as the
+      # journal's kernel transport carries it. ContainerOomKilled's.
+      - labels: {log_type: journal, host: oracle, transport: kernel}
+        entries:
+          - before: 3m
+            line: >-
+              Memory cgroup out of memory: Killed process 5120 (node)
+              total-vm:1204480kB, anon-rss:512000kB, file-rss:0kB,
+              shmem-rss:0kB, UID:1000 pgtables:1200kB oom_score_adj:0
+    expect: []
+
+  # --- IoTAttemptedLateralMovement: more than 20 blocked IoT->internal in 10m -
+  - alert: IoTAttemptedLateralMovement
+    name: 21 blocked attempts from IoT to management fire
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 8m
+            count: 21
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51235,0,DF,6,tcp,60,\
+              10.0.20.15,10.0.99.20,50123,22,0,S,3520011235,,64240,,mss;sackOK;TS;nop;wscale"
+    expect:
+      - {interface: igc0.20}
+
+  - alert: IoTAttemptedLateralMovement
+    name: 20 is not over the threshold, and blocks to the internet do not count
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.20, host: morpheus}
+        entries:
+          - before: 8m
+            count: 20
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51235,0,DF,6,tcp,60,\
+              10.0.20.15,10.0.99.20,50123,22,0,S,3520011235,,64240,,mss;sackOK;TS;nop;wscale"
+          - before: 8m
+            count: 30
+            every: 10s
+            line: "5,,,1000000103,igc0.20,match,block,in,4,0x0,,64,51236,0,DF,6,tcp,60,\
+              10.0.20.15,1.1.1.1,50124,853,0,S,3520011236,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- FirewallLogsStopped: no filterlog line for 30 minutes -----------------
+  - alert: FirewallLogsStopped
+    name: thirty minutes without a filterlog line fires
+    window: 30m
+    streams: []
+    expect:
+      - {app: filterlog}
+
+  - alert: FirewallLogsStopped
+    name: one line twenty minutes ago is enough
+    window: 30m
+    streams:
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.50, host: morpheus}
+        entries:
+          - before: 20m
+            line: "70,,,1000102400,igc0.50,match,pass,in,4,0x0,,64,40200,0,DF,6,tcp,60,\
+              10.0.50.12,93.184.215.14,40200,443,0,S,1200040001,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
+  # --- UnknownDeviceOnTrustedSegment: a MAC on VLAN 50 unseen for 7 days -----
+  # MACs distinct from every other DHCP case, for the reason given above.
+  - alert: UnknownDeviceOnTrustedSegment
+    name: a MAC new to VLAN 50 fires
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:01], cid=[01:02:00:5e:20:50:01], tid=0x2b3c4d5e:
+              lease 10.0.50.91 has been allocated for 7200 seconds
+    expect:
+      - {mac: "02:00:5e:20:50:01"}
+
+  - alert: UnknownDeviceOnTrustedSegment
+    name: a MAC seen on VLAN 50 yesterday is known, and VLAN 99 is the other rule's
+    isolated_by: mac
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 1d
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:02], cid=[01:02:00:5e:20:50:02], tid=0x3c4d5e6f:
+              lease 10.0.50.92 has been allocated for 7200 seconds
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:50:02], cid=[01:02:00:5e:20:50:02], tid=0x3c4d5e70:
+              lease 10.0.50.92 has been allocated for 7200 seconds
+          - before: 3m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:20:99:01], cid=[01:02:00:5e:20:99:01], tid=0x4d5e6f70:
+              lease 10.0.99.59 has been allocated for 7200 seconds
+    expect: []
+
+  # --- DhcpLeaseLogsStopped: no Kea line for 2 hours -------------------------
+  - alert: DhcpLeaseLogsStopped
+    name: two hours without a lease line fires
+    window: 2h
+    streams: []
+    expect:
+      - {app: kea-dhcp4}
+
+  - alert: DhcpLeaseLogsStopped
+    name: one lease ninety minutes ago is enough
+    window: 2h
+    streams:
+      - labels: {app: kea-dhcp4, host: morpheus}
+        entries:
+          - before: 90m
+            line: >-
+              INFO  [kea-dhcp4.leases.0x8a1c2e000] DHCP4_LEASE_ALLOC [hwtype=1
+              02:00:5e:30:50:01], cid=[01:02:00:5e:30:50:01], tid=0x5e6f7081:
+              lease 10.0.50.93 has been allocated for 7200 seconds
+    expect: []
+
+  # --- SuricataAlertStorm: more than 200 alerts on one interface in 10m ------
+  # An alert from an interface whose facility is unmapped carries no interface
+  # label (syslog.alloy says why); the storm still shows, as an empty series.
+  - alert: SuricataAlertStorm
+    name: 201 alerts on IoT fire, and on an unlabelled interface fire as an empty series
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 201
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
+      - labels: {app: suricata, host: morpheus,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 201
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.40.8:51544 -> 10.0.99.20:443
+    expect:
+      - {interface: igc0.20}
+      - {}
+
+  - alert: SuricataAlertStorm
+    name: exactly 200 is the threshold, not over it
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 9m
+            count: 200
+            every: 2s
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
+    expect: []
+
+  # --- SuricataLogsStopped: no Suricata alert for 9 hours --------------------
+  - alert: SuricataLogsStopped
+    name: nine hours without an alert fires
+    window: 9h
+    streams: []
+    expect:
+      - {app: suricata}
+
+  - alert: SuricataLogsStopped
+    name: one alert eight hours ago is enough
+    window: 9h
+    streams:
+      - labels: {app: suricata, host: morpheus, interface: igc0.20,
+                 priority: "3", classification: Misc activity}
+        entries:
+          - before: 8h
+            line: >-
+              [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
+              Webserver [Classification: Misc activity] [Priority: 3] {TCP}
+              10.0.20.15:51544 -> 10.0.99.20:443
+    expect: []

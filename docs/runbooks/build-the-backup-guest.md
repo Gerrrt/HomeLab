@@ -43,7 +43,12 @@ guest's runbook, this points there rather than carrying a second copy.
 ## 1. Create the VM
 
 On `Saruman`, as for `alexander` (its §1 explains each flag). Upload the PBS
-ISO to `local` first, and check `pvesm status` for room on `large_data`:
+ISO to `local` first, and check `pvesm status` for room on `large_data`.
+**`local`, not `smaug-iso`:** every file in the ISO store is hashed daily
+against the list in `scripts/collect-iso-store-state.sh`, and one that is not
+on it fires `IsoStoreUnexpected`. That store is Packer's; this is a one-off.
+Check the ISO's SHA-256 against Proxmox's published `SHA256SUMS` before you
+use it:
 
 ```bash
 qm create 180 \
@@ -89,10 +94,12 @@ apt update && apt full-upgrade -y
 And the guest agent, which `--agent enabled=1` expects and does not install:
 
 ```bash
-apt install -y qemu-guest-agent nfs-common && systemctl start qemu-guest-agent
+apt install -y qemu-guest-agent nfs-common rsyslog && systemctl start qemu-guest-agent
 ```
 
-`qm guest exec 180 -- uptime` from `Saruman` is the check.
+`rsyslog` is for §10's agent, which reads files journald alone does not
+write. `qm guest exec 180 -- uptime` from `Saruman` is the check. Then
+`qm set 180 --ide2 none`, so the installer is not left attached.
 
 ## 3. The dataset, the share and the snapshots, on `smaug`
 
@@ -236,11 +243,17 @@ proxmox-backup-manager user create pve@pbs && proxmox-backup-manager user genera
 ```
 
 Keep the token secret it prints for §7; it is shown once. Then its
-permission, on the datastore only:
+permission, on the datastore only, **for the user and for the token**:
 
 ```bash
-proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id 'pve@pbs!saruman'
+proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id pve@pbs && proxmox-backup-manager acl update /datastore/erebor DatastoreBackup --auth-id 'pve@pbs!saruman'
 ```
+
+A PBS token holds the *intersection* of its own permissions and its user's.
+Granted to the token alone, it holds nothing, and §7's `pvesm add` fails
+with *Cannot find datastore 'erebor', check permissions and existence*. That
+is what the 2026-10-03 build hit with the runbook's first version of this
+line.
 
 And the fingerprint §7 pins:
 
@@ -263,14 +276,27 @@ those backups.** A rebuilt `Saruman` without it has a datastore full of
 ciphertext.
 
 So copy it off now, in two forms. Into the lab's SOPS file, from `alexander`,
-which holds the lab's age key (ADR-0020):
+which holds the lab's age key (ADR-0020), as a key `PBS_ENCRYPTION_KEY` whose
+value is the whole of `golem.enc` **as one JSON string**. On `Saruman`, print
+it in that form:
 
 ```bash
-cd ~/code/Gerrrt/HomeLab && make secrets-edit STACK=lab
+jq -c . /etc/pve/priv/storage/golem.enc | jq -R .
 ```
 
-Add a key `PBS_ENCRYPTION_KEY` whose value is the whole contents of
-`golem.enc`, a short JSON document. Commit the re-encrypted file. And a paper
+and on `alexander` set it, pasting that output between the single quotes:
+
+```bash
+cd ~/code/Gerrrt/HomeLab && sops set secrets/lab.sops.yaml '["PBS_ENCRYPTION_KEY"]' '<the output>'
+```
+
+Not through `make secrets-edit`. The 2026-10-03 build pasted it there twice,
+as the file's own JSON and then unquoted, and YAML read it as a nested map
+both times; `scripts/secrets-env.sh` takes flat `KEY: value` lines only and
+refuses the whole file, so `make render STACK=lab` would fail. `sops set`
+writes a string and nothing else. To get it back as a key file:
+`sops -d --extract '["PBS_ENCRYPTION_KEY"]' secrets/lab.sops.yaml`, which must
+start `{"kdf":`. Commit the re-encrypted file. And a paper
 copy, which survives the lab's age key being lost too:
 
 ```bash
@@ -290,14 +316,36 @@ Print it, and keep it where the age key's own backup lives
 | --- | --- |
 | Storage | `golem` |
 | Schedule | `21:00` |
-| Selection | `odin` (160) and the domain's six, as each is built |
+| Selection | `odin` (160), `garuda` (162) and the domain's six, as each is built |
 | Mode | Snapshot |
 | Retention | *Keep all backups* — PBS's prune job in §6 decides |
 
 On the day this is built, the selection may be empty. That is correct: ADR-0053
-backs up the domain and `odin`, and neither may exist yet. `alexander`,
+backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
+when it was built, both did**, and the job took all seven from that night. `alexander`,
 `phoenix`, `ifrit` and `golem` itself are rebuilt from this repository and
-stay out.
+stay out. So does `eden` (141), whose graph is one collection run from rebuilt
+([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). `garuda`
+is in, because its case notes are in no repository
+([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+The job selects VMIDs, so a new guest stays out unless someone adds it.
+
+**Every guest in the job carries the Proxmox tag `backup`.** For the domain's
+six and `garuda` it comes from `tofu/guests.tf`. `odin` is hand-built, so
+`qm set 160 --tags` gives it the tag, keeping its existing ones.
+`scripts/collect-guest-state.sh` reads the tag, and reads which guests an
+enabled job selects from `/etc/pve/jobs.cfg`. `GuestNotInBackupJob` fires
+when a tagged guest has been out of every job for an hour. So adding a guest
+here means two things, the VMID and the tag, and taking one out means
+removing both.
+
+**A destroy must not purge.** Proxmox's `qm destroy --purge`, which the tofu
+provider does by default, removes the VMID from every backup job. On
+2026-10-10 that had left the job holding only `odin`: the #448 rebuild and a
+`-replace` of the endpoints had each dropped guests from it. The guest module
+sets `purge_on_destroy = false`, so a replaced guest keeps its place. A guest
+destroyed for good keeps its VMID in the job too, and vzdump's nightly error
+names it until its teardown takes it out.
 
 ## 9. Prove it: one backup, one restore, then delete both
 
@@ -327,8 +375,15 @@ then remove both:
 qm destroy 979 --purge
 ```
 
-And delete the test snapshot from `golem`'s UI, so the datastore holds only
-what §8 puts there.
+And delete the test snapshot on `golem`, from its UI or as root on its
+shell, so the datastore holds only what §8 puts there. `pvesm free` from
+`Saruman` is refused, and that is correct: `DatastoreBackup` can write a
+backup and cannot remove one, so a compromised `Saruman` cannot delete what
+it has stored.
+
+```bash
+proxmox-backup-debug api delete /admin/datastore/erebor/snapshots --backup-type vm --backup-id 170 --backup-time <epoch>
+```
 
 ## 10. Make the verification visible
 
@@ -338,7 +393,14 @@ nothing behind it. Two pieces:
 
 1. **`golem`'s agent**, as `phoenix`'s: the native Alloy package, from the
    Mac, pushing to `alexander`
-   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6):
+   ([`build-the-jumpbox.md`](build-the-jumpbox.md) §6).
+
+   The lab's ingest proxy wants `golem`'s own token first
+   ([#834](https://github.com/Gerrrt/HomeLab/issues/834)):
+   `INGEST_TOKEN_GOLEM` in `secrets/lab.sops.yaml`, generated there with
+   `openssl rand -hex 32`, and a line for it in `stacks/lab/Caddyfile`.
+   Export it as `INGEST_TOKEN`, with `INGEST_TOKEN_READER`, in the Mac's
+   shell, as `build-the-jumpbox.md` §6 does for `phoenix`. Then:
 
    ```bash
    ./scripts/deploy-agent.sh --runtime native --monitoring-host 10.0.30.40 root@10.0.30.80
@@ -348,15 +410,27 @@ nothing behind it. Two pieces:
    `/var/log/syslog`. `build-the-lab-guest.md` explains why that makes
    `config.alloy` collect nothing from them while reporting healthy, and
    `apt install -y rsyslog` is the fix.
-2. **The PBS task outcomes**, which the agent cannot see by itself. This is
-   a textfile collector that does not exist yet: something that reads the
-   last verify, prune and garbage-collection results from
-   `proxmox-backup-manager` and writes them into the textfile directory, with
-   a rule in the lab's Prometheus that fires when the last verify failed or
-   is older than a fortnight. It is written, with fixtures, as its own change
-   once there is a real PBS to read output from.
-   **[#485](https://github.com/Gerrrt/HomeLab/issues/485) stays open until it
-   exists.**
+2. **The PBS task outcomes**, which the agent cannot see by itself.
+   `scripts/collect-pbs-task-state.py` reads them from PBS's own job-state
+   API every hour and writes them into the textfile directory: each verify,
+   prune and garbage-collection job's last outcome and when it ended, and
+   each datastore's snapshots by verify state, the ones not encrypted (by
+   each archive's crypt mode, since a `sign-only` backup has a key
+   fingerprint and readable data), the newest, and how many jobs of each
+   kind exist. Install it from `Saruman`, which can reach `golem` as root:
+
+   ```bash
+   ./scripts/install-agent-collectors.sh --only pbs-task-state root@10.0.30.80
+   ```
+
+   The installer checks the timer and that the file is written mode 644.
+   `stacks/lab/prometheus/rules/lab.rules.yaml` reads it: `PbsJobFailed`,
+   `PbsVerifyOverdue` (no verify for a fortnight), `PbsNoVerifyJob`,
+   `PbsSnapshotVerifyFailed`,
+   `PbsBackupStale` (nothing for 36 hours), `PbsSnapshotUnencrypted`, and
+   `PbsTaskStateStale` for the collector itself. Like every lab rule they
+   page nobody (ADR-0020); they are in the lab Prometheus's `/alerts` and in
+   Grafana. Built 2026-10-04, after the first nightly run had been verified.
 
 ## 11. If something goes wrong
 

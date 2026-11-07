@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: daily console certificate expiry record
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/generate-certificates.md
+
+[Timer]
+Unit=homelab-cert-expiry.service
+# Daily. The warning is at 30 days, so a day of resolution costs nothing, and
+# CertExpiryStateStale allows two days before calling the file stale.
+#
+# Persistent=true so a host that was off at 08:30 records on its next boot.
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

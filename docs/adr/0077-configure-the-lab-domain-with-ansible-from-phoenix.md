@@ -6,6 +6,16 @@ in is now part of the image) and the "join none of the estate's loops"
 consequence of
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
 
+> [!NOTE]
+> "Host keys are not pinned" (decision 2, below) is amended by
+> [ADR-0085](0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md),
+> 2026-10. Host keys are checked, against keys `scripts/lab-known-hosts.sh`
+> reads from each guest through the Proxmox guest agent after each rebuild.
+> The Windows build's WinRM, which "WinRM is rejected" calls HTTP Basic, is
+> HTTPS scoped to `phoenix` since
+> [#846](https://github.com/Gerrrt/HomeLab/issues/846); the rejection stands.
+> The text here is left as written, per ADR-0001.
+
 ## Context
 
 [`build-the-lab-domain.md`](../runbooks/build-the-lab-domain.md) builds
@@ -132,6 +142,23 @@ The two DCs also get reservations, at their static addresses. A fresh clone
 first boots on DHCP, and `base` then makes the same address static. That keeps
 the inventory's addresses true from the first connection, without a discovery
 step.
+
+*2026-10-06:* implemented. The guest module takes `mac_address`, and
+`tofu/guests.tf` pins the six to the MACs the hand-built ones had. Two more
+are pinned the same way:
+
+- each guest's SMBIOS UUID, because the endpoints' bought Windows 11 Pro
+  activation is tied to the hardware ID;
+- the servers' startup order.
+
+*2026-10-07:* the startup order is not pinned by `tofu/` after all. Proxmox
+wants `Sys.Modify` on `/` to set it, and `phoenix` holds nothing at `/`
+(ADR-0043). The first rebuild's apply was refused with a 403 on it. The order
+is recorded in `tofu/guests.tf` and set by root on `Saruman` after an apply;
+the module ignores it.
+
+The module also states q35, OVMF, the EFI disk and, on Windows, the TPM,
+rather than leaving them to the provider's SeaBIOS default.
 
 ## Consequences
 

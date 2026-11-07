@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Eleven assertions, each comparing prose against something machine-readable:
+Twelve assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -46,10 +46,17 @@ Eleven assertions, each comparing prose against something machine-readable:
  11. Runbook URLs         every critical alert's runbook_url names a file in
                            docs/runbooks/ and, if it has one, an anchor that is
                            a heading in that file (#842).
+ 12. Relative links       every relative Markdown link, in every tracked file,
+                           resolves to a file in the tree, and its anchor to a
+                           heading. The one check that runs over records too: a
+                           dead link is a structural fault, not a claim.
 
-Only present-tense documents are checked. `docs/changelog.md`, `docs/roadmap.md`
-and `docs/adr/` record what was true when the work landed — `changelog.md`
-still says "(34 rules)" in a 2026-08 entry, and that is correct as written.
+Only present-tense documents are checked for their claims — the relative-link
+assertion (12) is the exception, and scans every tracked file including the
+records, because a dead link is a structural fault, not a claim. `docs/changelog.md`,
+`docs/roadmap.md` and `docs/adr/` record what was true when the work landed —
+`changelog.md` still says "(34 rules)" in a 2026-08 entry, and that is correct
+as written, and its *claims* are not checked here.
 Failing on those would need an
 ignore list, and this repository has already learned where that leads: the
 `.gitleaksignore` deleted in the history purge "was an acknowledgement, not a
@@ -66,6 +73,7 @@ stale silently — the exact failure #72 is about, surviving inside its own fix.
 
 Usage: scripts/check_docs.py
 """
+
 from __future__ import annotations
 
 import functools
@@ -75,17 +83,11 @@ import re
 import subprocess
 import sys
 
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 STACK = REPO / "stacks/observability"
@@ -113,12 +115,8 @@ PROSE = (
     # prose nothing checked — its image table could have carried a version pin
     # and gone stale silently, which is the #73 defect the whole PROSE list
     # exists to prevent (#263).
-    *sorted(
-        str(p.relative_to(REPO)) for p in REPO.glob("stacks/*/README.md")
-    ),
-    *sorted(
-        str(p.relative_to(REPO)) for p in (REPO / "docs/runbooks").glob("*.md")
-    ),
+    *sorted(str(p.relative_to(REPO)) for p in REPO.glob("stacks/*/README.md")),
+    *sorted(str(p.relative_to(REPO)) for p in (REPO / "docs/runbooks").glob("*.md")),
 )
 
 # Prose spells small numbers out, and a spelled count goes stale exactly as
@@ -152,10 +150,9 @@ PROSE = (
 # a document that lies. Phrase a subset so it does not put a bare count in front
 # of the noun.
 _ONES = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
-_TEENS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
-          "sixteen", "seventeen", "eighteen", "nineteen"]
-_TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty",
-         "ninety"]
+_TEENS = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+_TENS = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
+
 
 def _number_words() -> dict[str, int]:
     words = {w: i + 1 for i, w in enumerate(_ONES)}
@@ -171,7 +168,10 @@ def _number_words() -> dict[str, int]:
             words[f"{tens}-{one}"] = base + o_i + 1
     return words
 
+
 NUMBER_WORDS = _number_words()
+
+
 # Built as STRUCTURE rather than as a flat list of all ninety-nine words. A
 # 99-branch alternation is correct and slow: it is applied for ~20 claim
 # patterns across ~25 documents, and flattening it took check_docs from 1.6s to
@@ -183,10 +183,11 @@ NUMBER_WORDS = _number_words()
 def _alt(words: list[str]) -> str:
     return "|".join(sorted(words, key=len, reverse=True))
 
+
 _WORD_NUMBER = (
-    rf"(?:{_alt(_TENS)})(?:-(?:{_alt(_ONES)}))?"   # twenty, forty-five
-    rf"|{_alt(_TEENS)}"                             # ten .. nineteen
-    rf"|{_alt(_ONES)}"                              # one .. nine
+    rf"(?:{_alt(_TENS)})(?:-(?:{_alt(_ONES)}))?"  # twenty, forty-five
+    rf"|{_alt(_TEENS)}"  # ten .. nineteen
+    rf"|{_alt(_ONES)}"  # one .. nine
 )
 COUNT = r"\b(\d+|(?i:" + _WORD_NUMBER + r"))"
 
@@ -199,9 +200,7 @@ COUNT = r"\b(\d+|(?i:" + _WORD_NUMBER + r"))"
 # the article sits between the verb and the number and the claim pattern's
 # whitespace cannot span it. That was the first version's bug, caught by testing
 # the assertion rather than assuming it worked.
-UNPARSEABLE_NUMBER = re.compile(
-    r"(?:\w+[ \t]+)?\b(?i:hundred|thousand|million|billion|dozen|score)\b"
-)
+UNPARSEABLE_NUMBER = re.compile(r"(?:\w+[ \t]+)?\b(?i:hundred|thousand|million|billion|dozen|score)\b")
 
 
 # Prose wraps, and a counted claim wraps with it. "It routes all seven\nVLANs"
@@ -211,6 +210,7 @@ UNPARSEABLE_NUMBER = re.compile(
 # offset. One newline is allowed inside a claim and a blank line is not, so a
 # count ending one paragraph cannot bind to a noun starting the next.
 WS = r"(?:[ \t]+|[ \t]*\n[ \t]*)"
+
 
 def number(token: str) -> int:
     """A counted claim, written either as digits or as a word."""
@@ -247,7 +247,7 @@ def tables_under(text: str, heading: re.Pattern[str]) -> list[list[list[str]]]:
 
     level = len(lines[start]) - len(lines[start].lstrip("#"))
     rows: list[list[str]] = []
-    for line in lines[start + 1:]:
+    for line in lines[start + 1 :]:
         if line.startswith("#"):
             depth = len(line) - len(line.lstrip("#"))
             if depth <= level:
@@ -265,8 +265,8 @@ def tables_under(text: str, heading: re.Pattern[str]) -> list[list[list[str]]]:
 
 def strip_md(cell: str) -> str:
     """Reduce a table cell to its plain text: no backticks, links or emphasis."""
-    cell = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", cell)     # links
-    cell = re.sub(r"\[\^[^\]]*\]", "", cell)                  # footnote refs
+    cell = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", cell)  # links
+    cell = re.sub(r"\[\^[^\]]*\]", "", cell)  # footnote refs
     cell = cell.replace("`", "").replace("*", "").replace("**", "")
     return cell.strip()
 
@@ -278,24 +278,18 @@ def strip_md(cell: str) -> str:
 #
 # Matched against the RAW cell, never strip_md()'s output: that helper removes
 # every `*`, which takes the emphasis with it and leaves the marker unfindable.
-NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.I)
+NOT_BUILT = re.compile(r"\*\*not built yet\*\*", re.IGNORECASE)
 
 
 # ---------------------------------------------------------------------------
 # Facts, computed from the configs
 # ---------------------------------------------------------------------------
 def count_alerts(paths) -> int:
-    return sum(
-        len(re.findall(r"^\s*-\s*alert:", p.read_text(encoding="utf-8"), re.M))
-        for p in paths
-    )
+    return sum(len(re.findall(r"^\s*-\s*alert:", p.read_text(encoding="utf-8"), re.MULTILINE)) for p in paths)
 
 
 def count_recording_rules(paths) -> int:
-    return sum(
-        len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.M))
-        for p in paths
-    )
+    return sum(len(re.findall(r"^\s*-\s*record:", p.read_text(encoding="utf-8"), re.MULTILINE)) for p in paths)
 
 
 def tested_alertnames(paths) -> set[str]:
@@ -312,11 +306,7 @@ def tested_alertnames(paths) -> set[str]:
     """
     names: set[str] = set()
     for path in paths:
-        names.update(
-            re.findall(
-                r"^\s*alertname:\s*(\S+)", path.read_text(encoding="utf-8"), re.M
-            )
-        )
+        names.update(re.findall(r"^\s*alertname:\s*(\S+)", path.read_text(encoding="utf-8"), re.MULTILINE))
     return names
 
 
@@ -348,11 +338,7 @@ def compose_services() -> dict:
     would make this check disagree with a document that is correct.
     """
     doc = yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))
-    return {
-        name: svc or {}
-        for name, svc in (doc.get("services") or {}).items()
-        if not (svc or {}).get("profiles")
-    }
+    return {name: svc or {} for name, svc in (doc.get("services") or {}).items() if not (svc or {}).get("profiles")}
 
 
 def count_notifying_receivers() -> int:
@@ -365,11 +351,7 @@ def count_notifying_receivers() -> int:
     excluded on the same grounds without anyone remembering to add it here.
     """
     doc = yaml.safe_load(ALERTMANAGER.read_text(encoding="utf-8")) or {}
-    return sum(
-        1
-        for r in (doc.get("receivers") or [])
-        if any(k.endswith("_configs") and r[k] for k in r)
-    )
+    return sum(1 for r in (doc.get("receivers") or []) if any(k.endswith("_configs") and r[k] for k in r))
 
 
 # A Contents cell saying a host runs NO Alloy agent. Stripped before the
@@ -381,7 +363,7 @@ def count_notifying_receivers() -> int:
 # would overcount — the failure is loud rather than silent, because the count
 # is asserted against hardware.md's sentence, but it is worth extending here
 # rather than reaching for a different phrasing in the table.
-NO_ALLOY = re.compile(r"\bno\s+alloy\b", re.I)
+NO_ALLOY = re.compile(r"\bno\s+alloy\b", re.IGNORECASE)
 
 
 def count_alloy_agents() -> int:
@@ -425,10 +407,9 @@ def count_alloy_agents() -> int:
     if not tables:
         return 0
     return sum(
-        1 for row in tables[0][1:]
-        if len(row) > 3
-        and "alloy" in NO_ALLOY.sub("", strip_md(row[3])).lower()
-        and not NOT_BUILT.search(row[3])
+        1
+        for row in tables[0][1:]
+        if len(row) > 3 and "alloy" in NO_ALLOY.sub("", strip_md(row[3])).lower() and not NOT_BUILT.search(row[3])
     )
 
 
@@ -443,7 +424,7 @@ def count_vlans() -> int:
     keeps that distinction.
     """
     text = NETWORK_MD.read_text(encoding="utf-8")
-    rows = tables_under(text, re.compile(r"^#\s+Network$", re.M))
+    rows = tables_under(text, re.compile(r"^#\s+Network$", re.MULTILINE))
     if not rows:
         return 0
     return sum(1 for row in rows[0] if len(row) > 1 and strip_md(row[1]).isdigit())
@@ -499,9 +480,7 @@ def facts() -> dict:
     prom = count_alerts(prom_rules)
     loki = count_alerts(loki_rules)
     recording = count_recording_rules(prom_rules)
-    tested = tested_alertnames(
-        sorted((STACK / "prometheus/tests").glob("*.test.yaml"))
-    )
+    tested = tested_alertnames(sorted((STACK / "prometheus/tests").glob("*.test.yaml")))
     return {
         "prometheus_rules": prom,
         "loki_rules": loki,
@@ -524,7 +503,7 @@ def facts() -> dict:
 # ---------------------------------------------------------------------------
 # 1. Counted claims
 # ---------------------------------------------------------------------------
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def _unreadable_pattern(pattern: str) -> re.Pattern[str]:
     """`pattern` with the number token swapped for the ones that cannot be read.
 
@@ -541,8 +520,7 @@ def check_counts(f: dict) -> list[str]:
     # legitimate prose, so both are accepted — the check still catches a number
     # that is neither, which is what stale looks like.
     claims = (
-        (rf"{COUNT}" + WS + r"alert rules", {f["prometheus_rules"], f["total_rules"]},
-         "alert rules"),
+        (rf"{COUNT}" + WS + r"alert rules", {f["prometheus_rules"], f["total_rules"]}, "alert rules"),
         (rf"{COUNT}" + WS + r"rules in total", {f["total_rules"]}, "total rules"),
         (rf"{COUNT}" + WS + r"rules loaded", {f["prometheus_rules"]}, "rules loaded"),
         (rf"{COUNT}" + WS + r"rules across", {f["prometheus_rules"]}, "Prometheus rules"),
@@ -551,33 +529,31 @@ def check_counts(f: dict) -> list[str]:
         # README says "13 LogQL rules" where observability.md says "log-based".
         # Same number, different prose; the first phrasing matched nothing.
         (rf"{COUNT}" + WS + r"LogQL rules", {f["loki_rules"]}, "LogQL rules"),
-        (rf"{COUNT}" + WS + r"(?:provisioned\s+)?dashboards", {f["dashboards"]},
-         "dashboards"),
+        (rf"{COUNT}" + WS + r"(?:provisioned\s+)?dashboards", {f["dashboards"]}, "dashboards"),
         (rf"{COUNT}" + WS + r"panels", {f["panels"]}, "panels"),
         # "39 rules across six files" states two counts. The first was checked
         # and the second was not, so splitting a rule file could not fail here.
-        (rf"rules across" + WS + COUNT + WS + r"files", {f["prometheus_rule_files"]},
-         "Prometheus rule files"),
+        (r"rules across" + WS + COUNT + WS + r"files", {f["prometheus_rule_files"]}, "Prometheus rule files"),
         # How many rules have a unit test, and how many do not. Both were
         # unguarded and both were already stale: the sentence read "Coverage is
         # six rules of 39 ... ContainerHighMemory and Watchdog" while
         # blackbox.test.yaml had covered three more for weeks. This is the
         # figure most likely to drift, because it moves whenever a test lands.
-        (rf"[Cc]overage is" + WS + COUNT + WS + r"rules", {f["tested_rules"]},
-         "unit-tested rules"),
-        (rf"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]},
-         "rules without a unit test"),
+        (r"[Cc]overage is" + WS + COUNT + WS + r"rules", {f["tested_rules"]}, "unit-tested rules"),
+        (r"[Oo]ther" + WS + COUNT + WS + r"are still validated", {f["untested_rules"]}, "rules without a unit test"),
         # The same count in the wording #843 left it in, once it reached zero:
         # "the other 0 are still validated" reads as nonsense, and a clearer
         # sentence that nothing checked would drift silently.
-        (r"leaves" + WS + COUNT + WS + r"rules" + WS + r"without" + WS + r"a" + WS + r"unit" + WS + r"test",
-         {f["untested_rules"]}, "rules without a unit test"),
+        (
+            r"leaves" + WS + COUNT + WS + r"rules" + WS + r"without" + WS + r"a" + WS + r"unit" + WS + r"test",
+            {f["untested_rules"]},
+            "rules without a unit test",
+        ),
         # "Coverage is fifteen rules of 45" states two counts and only the
         # first was checked, so the denominator could go stale on its own —
         # the same shape as "39 rules across six files" above, and it did go
         # stale the same way the moment a rule was added (#81).
-        (rf"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]},
-         "rules in the coverage denominator"),
+        (r"rules of" + WS + COUNT + WS + r"so far", {f["prometheus_rules"]}, "rules in the coverage denominator"),
         # deploy-stack.md's Status → Rules step: "The page lists 129: the 127
         # alert rules ... plus the two recording rules". Three counts in one
         # sentence, and only the middle one was guarded. A merge on 2026-10-03
@@ -586,10 +562,12 @@ def check_counts(f: dict) -> list[str]:
         # is the alert rules plus the recording rules, both counted from the
         # rule files, so adding either kind fails here; the recording-rule count
         # is guarded beside it because it is the other half of the sum.
-        (r"page" + WS + r"lists" + WS + COUNT, {f["rules_page"]},
-         "rules on Prometheus's Rules page (alert + recording)"),
-        (rf"{COUNT}" + WS + r"recording rules", {f["recording_rules"]},
-         "recording rules"),
+        (
+            r"page" + WS + r"lists" + WS + COUNT,
+            {f["rules_page"]},
+            "rules on Prometheus's Rules page (alert + recording)",
+        ),
+        (rf"{COUNT}" + WS + r"recording rules", {f["recording_rules"]}, "recording rules"),
         # Where the agents run is documented, not deployed from here, so the
         # architecture table is the source and hardware.md's sentence is the
         # claim. See count_alloy_agents.
@@ -605,8 +583,7 @@ def check_counts(f: dict) -> list[str]:
         # from the rule files, so adding a receiver fails here rather than
         # waiting for someone to reread the paragraph.
         (rf"{COUNT}" + WS + r"receivers", {f["receivers"]}, "notifying receivers"),
-        (rf"{COUNT}" + WS + r"separate destinations", {f["receivers"]},
-         "separate destinations"),
+        (rf"{COUNT}" + WS + r"separate destinations", {f["receivers"]}, "separate destinations"),
         # Asserted five times and enumerated zero times (#209). The count is
         # the segment table's tag column, so the untagged switch-management LAN
         # stays uncounted here and "seven internal networks" stays sayable.
@@ -677,10 +654,7 @@ def check_counts(f: dict) -> list[str]:
                 n = text.count("\n", 0, match.start()) + 1
                 want = " or ".join(str(v) for v in sorted(expected))
                 claimed = " ".join(match.group(1).split())
-                problems.append(
-                    f"{rel}:{n} claims {claimed} {label}; "
-                    f"the repository has {want}"
-                )
+                problems.append(f"{rel}:{n} claims {claimed} {label}; the repository has {want}")
 
             # THE SAME CLAIM, WRITTEN IN A NUMBER THIS FILE CANNOT READ.
             # NUMBER_WORDS reaches ninety-nine and no further, so "a hundred
@@ -710,7 +684,7 @@ def check_counts(f: dict) -> list[str]:
 def network_sections(text: str) -> dict[str, list[list[str]]]:
     """Host rows keyed by VLAN id, plus 'wan' and 'lan'."""
     out: dict[str, list[list[str]]] = {}
-    for heading in re.finditer(r"^##\s+(.+)$", text, re.M):
+    for heading in re.finditer(r"^##\s+(.+)$", text, re.MULTILINE):
         title = heading.group(1)
         vlan_match = re.search(r"VLAN\s+(\d+)", title)
         if vlan_match:
@@ -739,15 +713,11 @@ def check_snmp_targets() -> list[str]:
         rows = sections.get(vlan)
         if rows is None:
             problems.append(
-                f"snmp.yaml polls {device} with vlan label {vlan!r}, and "
-                f"docs/network.md has no section for it"
+                f"snmp.yaml polls {device} with vlan label {vlan!r}, and docs/network.md has no section for it"
             )
             continue
         for ip in ips:
-            hit = [
-                r for r in rows
-                if strip_md(r[0]).lower() == device.lower() and ip in strip_md(r[1])
-            ]
+            hit = [r for r in rows if strip_md(r[0]).lower() == device.lower() and ip in strip_md(r[1])]
             if not hit:
                 problems.append(
                     f"snmp.yaml polls {device} at {ip} on VLAN {vlan}, and "
@@ -809,18 +779,14 @@ def check_host_stack_table() -> list[str]:
 
         ip, vlan = ip_match.group(1), vlan_match.group(1)
         rows_for_vlan = sections.get(vlan, [])
-        hit = [
-            r for r in rows_for_vlan
-            if strip_md(r[0]).lower() == host.lower() and ip in strip_md(r[1])
-        ]
+        hit = [r for r in rows_for_vlan if strip_md(r[0]).lower() == host.lower() and ip in strip_md(r[1])]
 
         if planned:
             # The VLAN must be one network.md actually describes, or a typo'd
             # segment would make every assertion below vacuously true.
             if not rows_for_vlan:
                 problems.append(
-                    f"docs/architecture.md plans {host} on VLAN {vlan}, which "
-                    f"docs/network.md has no table for"
+                    f"docs/architecture.md plans {host} on VLAN {vlan}, which docs/network.md has no table for"
                 )
             if hit:
                 problems.append(
@@ -831,10 +797,7 @@ def check_host_stack_table() -> list[str]:
             # An unbuilt host planned onto an address something else already
             # holds is a real conflict, and the cheapest possible moment to
             # find it is before anyone racks it.
-            clash = [
-                r for r in rows_for_vlan
-                if ip in strip_md(r[1]) and strip_md(r[0]).lower() != host.lower()
-            ]
+            clash = [r for r in rows_for_vlan if ip in strip_md(r[1]) and strip_md(r[0]).lower() != host.lower()]
             if clash:
                 problems.append(
                     f"docs/architecture.md plans {host} at {ip}, which "
@@ -843,14 +806,10 @@ def check_host_stack_table() -> list[str]:
                 )
         elif not hit:
             problems.append(
-                f"docs/architecture.md places {host} at {ip} on VLAN {vlan}; "
-                f"docs/network.md does not list it there"
+                f"docs/architecture.md places {host} at {ip} on VLAN {vlan}; docs/network.md does not list it there"
             )
 
-    on_disk = {
-        p.name for p in (REPO / "stacks").iterdir()
-        if p.is_dir() and not p.name.startswith(".")
-    }
+    on_disk = {p.name for p in (REPO / "stacks").iterdir() if p.is_dir() and not p.name.startswith(".")}
     for missing in sorted(on_disk - named_stacks):
         problems.append(
             f"stacks/{missing}/ exists and no row of the host and stack mapping "
@@ -914,8 +873,7 @@ def check_ports() -> list[str]:
 
         if service not in services:
             problems.append(
-                f"docs/architecture.md documents a port for {service!r}, which "
-                f"is not a service in compose.yaml"
+                f"docs/architecture.md documents a port for {service!r}, which is not a service in compose.yaml"
             )
             continue
 
@@ -939,8 +897,7 @@ def check_ports() -> list[str]:
             continue
         if match[0][0] != want_bind:
             problems.append(
-                f"docs/architecture.md says {service}:{port} binds to {bind}; "
-                f"compose.yaml binds it to {match[0][0]}"
+                f"docs/architecture.md says {service}:{port} binds to {bind}; compose.yaml binds it to {match[0][0]}"
             )
         documented.add((service, port))
 
@@ -1003,9 +960,7 @@ def point_release_problem(doc: str, host: str, cell: str) -> str | None:
 
 
 def check_compute_table() -> list[str]:
-    tables = tables_under(
-        HARDWARE_MD.read_text(encoding="utf-8"), re.compile(r"^##\s+Compute")
-    )
+    tables = tables_under(HARDWARE_MD.read_text(encoding="utf-8"), re.compile(r"^##\s+Compute"))
     if not tables:
         return ["docs/hardware.md has no 'Compute' table"]
 
@@ -1040,14 +995,10 @@ def check_compute_table() -> list[str]:
         if problem:
             problems.append(problem)
         if have is None:
-            problems.append(
-                f"docs/hardware.md lists {host}, which appears nowhere in "
-                f"docs/network.md"
-            )
+            problems.append(f"docs/hardware.md lists {host}, which appears nowhere in docs/network.md")
         elif have != want:
             problems.append(
-                f"docs/hardware.md says {host} runs {strip_md(row[5])!r}; "
-                f"docs/network.md says {have[0]} {have[1]}"
+                f"docs/hardware.md says {host} runs {strip_md(row[5])!r}; docs/network.md says {have[0]} {have[1]}"
             )
     return problems
 
@@ -1131,16 +1082,12 @@ def check_adr_numbers() -> list[str]:
         if not heading:
             problems.append(f"{path.name} has no H1 heading")
         elif not heading.startswith(f"# ADR-{num}:"):
-            problems.append(
-                f"{path.name} is numbered {num} but its heading reads "
-                f"{heading[2:].split(':')[0]!r}"
-            )
+            problems.append(f"{path.name} is numbered {num} but its heading reads {heading[2:].split(':')[0]!r}")
 
     for num, names in sorted(by_number.items()):
         if len(names) > 1:
             problems.append(
-                f"ADR-{num} is claimed by {len(names)} files: {', '.join(names)} "
-                f"— renumber the one that landed second"
+                f"ADR-{num} is claimed by {len(names)} files: {', '.join(names)} — renumber the one that landed second"
             )
 
     return problems
@@ -1164,7 +1111,7 @@ def check_guest_claims() -> list[str]:
     problems: list[str] = []
     text = ARCH_MD.read_text(encoding="utf-8")
 
-    hosts = tables_under(text, re.compile(r"^##\s+.*[Hh]ost", re.M))
+    hosts = tables_under(text, re.compile(r"^##\s+.*[Hh]ost", re.MULTILINE))
     if not hosts:
         return ["docs/architecture.md has no host table under a Host heading"]
     rows = [r for r in hosts[0] if len(r) >= 4]
@@ -1180,7 +1127,7 @@ def check_guest_claims() -> list[str]:
 
     for row in rows:
         name = row[0].split("`")[1] if "`" in row[0] else row[0]
-        if not re.search(r"no guests(?:\s+yet)?\b", row[-1], re.I):
+        if not re.search(r"no guests(?:\s+yet)?\b", row[-1], re.IGNORECASE):
             continue
         if name in guest_of:
             problems.append(
@@ -1247,18 +1194,17 @@ def check_firewall_posture() -> list[str]:
         cut = re.search(r"\.\s", sentence)
         if cut:
             sentence = sentence[: cut.start()]
-        return {
-            re.sub(r"\s*\(\d+\)$", "", n).strip()
-            for n in re.findall(r"\*\*(.+?)\*\*", sentence)
-        }
+        return {re.sub(r"\s*\(\d+\)$", "", n).strip() for n in re.findall(r"\*\*(.+?)\*\*", sentence)}
 
     claimed_deny = named("Default deny holds for")
     claimed_open = named("It does not hold for")
     if claimed_deny is None or claimed_open is None:
         return problems + [
-            "docs/security.md no longer opens its Segmentation section with "
-            "'Default deny holds for' / 'It does not hold for', so this check "
-            "has stopped reading it — re-anchor it or the section is unchecked"
+            (
+                "docs/security.md no longer opens its Segmentation section with "
+                "'Default deny holds for' / 'It does not hold for', so this check "
+                "has stopped reading it — re-anchor it or the section is unchecked"
+            )
         ]
 
     for segment in sorted(deny - claimed_deny):
@@ -1272,10 +1218,7 @@ def check_firewall_posture() -> list[str]:
             f"{claims_path.name} says its catch-all still reaches another segment"
         )
     for segment in sorted(open_ ^ claimed_open):
-        problems.append(
-            f"{segment} is named as an exception by exactly one of "
-            f"security.md and {claims_path.name}"
-        )
+        problems.append(f"{segment} is named as an exception by exactly one of security.md and {claims_path.name}")
 
     return problems
 
@@ -1305,9 +1248,11 @@ def check_buy_list() -> list[str]:
     tables = tables_under(roadmap, re.compile(r"^## Everything still to buy\b"))
     if not tables:
         return [
-            "docs/roadmap.md has no table under 'Everything still to buy' — "
-            "README's count of outstanding purchases has nothing to check "
-            "against"
+            (
+                "docs/roadmap.md has no table under 'Everything still to buy' — "
+                "README's count of outstanding purchases has nothing to check "
+                "against"
+            )
         ]
 
     # The section's first table is the "Buy these" list; rows[0] is its header.
@@ -1315,17 +1260,17 @@ def check_buy_list() -> list[str]:
     rows_later = len(re.findall(r"\*\*One more, later", roadmap))
 
     num = "|".join(["[0-9]+", *NUMBER_WORDS])
-    pattern = re.compile(
-        rf"({num}){WS}items?{WS}now,{WS}({num}){WS}later", re.IGNORECASE
-    )
+    pattern = re.compile(rf"({num}){WS}items?{WS}now,{WS}({num}){WS}later", re.IGNORECASE)
     text = (REPO / "README.md").read_text()
     match = pattern.search(text)
     if not match:
         return [
-            "README.md no longer says 'N items now, M later' of the roadmap's "
-            "outstanding purchases — the claim moved or was reworded, and this "
-            "assertion cannot follow it. Update the pattern or drop the check "
-            "deliberately"
+            (
+                "README.md no longer says 'N items now, M later' of the roadmap's "
+                "outstanding purchases — the claim moved or was reworded, and this "
+                "assertion cannot follow it. Update the pattern or drop the check "
+                "deliberately"
+            )
         ]
 
     line = text[: match.start()].count("\n") + 1
@@ -1398,9 +1343,7 @@ def check_runbook_urls() -> list[str]:
     """
     problems = []
     anchors: dict[pathlib.Path, set[str]] = {}
-    rule_files = sorted((STACK / "prometheus/rules").glob("*.yaml")) + sorted(
-        (STACK / "loki/rules").glob("*.yaml")
-    )
+    rule_files = sorted((STACK / "prometheus/rules").glob("*.yaml")) + sorted((STACK / "loki/rules").glob("*.yaml"))
     for path in rule_files:
         doc = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
         for group in doc.get("groups") or []:
@@ -1416,7 +1359,7 @@ def check_runbook_urls() -> list[str]:
                 if not url.startswith(RUNBOOK_BASE):
                     problems.append(f"{where}: runbook_url must start with {RUNBOOK_BASE}")
                     continue
-                file, _, anchor = url[len(RUNBOOK_BASE):].partition("#")
+                file, _, anchor = url[len(RUNBOOK_BASE) :].partition("#")
                 target = REPO / "docs/runbooks" / file
                 if not target.is_file():
                     problems.append(f"{where}: runbook_url names docs/runbooks/{file}, which does not exist")
@@ -1426,6 +1369,134 @@ def check_runbook_urls() -> list[str]:
                         anchors[target] = markdown_anchors(target.read_text(encoding="utf-8"))
                     if anchor not in anchors[target]:
                         problems.append(f"{where}: docs/runbooks/{file} has no heading for #{anchor}")
+    return problems
+
+
+# Every `](target)` — inline links, images, and the outer target of a linked
+# image `[![alt](img)](target)`, which a `!?\[...\]\(...\)` form misses because
+# it stops at the inner image. Reference definitions are matched separately.
+_INLINE_TARGET = re.compile(r"\]\(([^)]+)\)")
+# A link reference definition at line start: `[label]: target` with only a
+# destination, optionally a quoted title. A footnote (`[^label]:`) or a line
+# whose "target" is followed by unquoted prose is not one — per CommonMark it
+# is a paragraph, so `[^lan]: True in both directions` is not a link.
+_REF_DEF = re.compile(r"""^\s{0,3}\[(?!\^)[^\]]+\]:\s+(\S+)\s*(?:["'(].*)?$""")
+
+
+def markdown_link_targets(text: str) -> list[str]:
+    """Every link target in a Markdown file's prose, skipping fenced code.
+
+    Covers the three forms this repository uses: inline `[text](target)` and
+    `![alt](target)`, the outer target of a linked badge `[![alt](img)](target)`
+    (both the inner image and the outer link are yielded), and reference
+    definitions `[label]: target`. A `](...)` or definition inside a ``` or
+    ~~~ block is an example, not a live link — the same fence rule
+    markdown_anchors uses.
+
+    A reference definition whose target itself opens with `[` is a footnote
+    carrying a nested link (`[^x]: [text](url)`); its real `](url)` is caught by
+    the inline pass, so the `[text` fragment is not treated as a target.
+    """
+    targets: list[str] = []
+    fence = ""
+    for line in text.splitlines():
+        m = re.match(r"(`{3,}|~{3,})", line.lstrip())
+        if m:
+            if not fence:
+                fence = m.group(1)[0]
+            elif m.group(1)[0] == fence:
+                fence = ""
+            continue
+        if fence:
+            continue
+        targets.extend(lm.group(1) for lm in _INLINE_TARGET.finditer(line))
+        ref = _REF_DEF.match(line)
+        if ref:
+            targets.append(ref.group(1))
+    return targets
+
+
+def _tracked_markdown() -> list[pathlib.Path]:
+    """Tracked `*.md` paths, from git rather than a walk of the working tree.
+
+    The convention `check_image_pins.py` sets, and for its reasons: a recursive
+    walk descends into the git worktrees this repository keeps under
+    `.claude/worktrees/` and reports another branch's files, and an untracked
+    scratch `.md` is nobody's concern and must not fail a local run.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-z", "*.md"],
+        cwd=REPO,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return [REPO / rel for rel in out.stdout.split("\0") if rel]
+
+
+def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]:
+    """The broken relative links in one Markdown file's text (pure; testable).
+
+    `rel` is the file's path for messages, `text` its contents, `root` the
+    repository it lives in. External links (`http(s)`, `mailto`, `tel`) are not
+    reached out to. A target that resolves outside `root` fails: GitHub cannot
+    render a link that leaves the repository, so an absolute path or a `../`
+    that escapes the checkout is as broken as a missing file.
+    """
+    problems: list[str] = []
+    here = (root / rel).parent
+    own_anchors = markdown_anchors(text)
+
+    def anchors_of(path: pathlib.Path) -> set[str]:
+        return markdown_anchors(path.read_text(encoding="utf-8"))
+
+    for raw in markdown_link_targets(text):
+        target = raw.strip()
+        if target.startswith("<") and target.endswith(">"):
+            target = target[1:-1].strip()
+        target = target.split()[0] if target.split() else target  # drop a title
+        if not target or target.startswith(("http://", "https://", "mailto:", "tel:")):
+            continue
+        path_part, _, anchor = target.partition("#")
+        if not path_part:  # a same-file anchor, [text](#heading)
+            if anchor and anchor not in own_anchors:
+                problems.append(f"{rel}: #{anchor} is not a heading in this file")
+            continue
+        dest = (here / path_part).resolve()
+        try:
+            dest.relative_to(root.resolve())
+        except ValueError:
+            problems.append(f"{rel}: link to {target} leaves the repository")
+            continue
+        if not dest.exists():
+            problems.append(f"{rel}: link to {target} — {path_part} does not exist")
+            continue
+        if anchor and dest.suffix == ".md" and anchor not in anchors_of(dest):
+            problems.append(f"{rel}: {path_part} has no heading for #{anchor}")
+    return problems
+
+
+def check_relative_links() -> list[str]:
+    """Every relative Markdown link resolves to a file, and its anchor to a heading.
+
+    Two broken links shipped in one week — a template pointing at a mis-typed
+    ADR filename, and an ADR using `../adr/` from `docs/` (which resolves to a
+    repository-root `/adr/` that does not exist). `check_adr_numbers` checks
+    that ADR files are numbered right; nothing checked that a link *to* one
+    lands. This does, the same way `check_runbook_urls` checks a critical
+    alert's `runbook_url`: the target is a file in the tree, inside the
+    repository, and its anchor, if any, is a heading in it.
+
+    Unlike the claim checks, this runs over every tracked Markdown file,
+    records included: a link in `changelog.md` or an ADR that points at a
+    renamed file is broken whether or not the prose around it is a record, so
+    the present-tense scope does not apply to it. The parsing and resolution
+    live in `relative_link_problems`, which `--self-test` exercises directly.
+    """
+    problems: list[str] = []
+    for md in sorted(_tracked_markdown()):
+        rel = str(md.relative_to(REPO))
+        problems += relative_link_problems(rel, md.read_text(encoding="utf-8"), REPO)
     return problems
 
 
@@ -1439,12 +1510,11 @@ def main() -> int:
         ("compute table against docs/network.md", check_compute_table),
         ("image versions in prose (compose.yaml owns them)", check_image_versions),
         ("ADR numbering", check_adr_numbers),
-        ("firewall posture prose against docs/firewall-claims.yaml",
-         check_firewall_posture),
+        ("firewall posture prose against docs/firewall-claims.yaml", check_firewall_posture),
         ("guest claims against each other", check_guest_claims),
-        ("README's outstanding-purchase count against the roadmap's table",
-         check_buy_list),
+        ("README's outstanding-purchase count against the roadmap's table", check_buy_list),
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
+        ("relative Markdown links resolve to a file and an anchor", check_relative_links),
     )
 
     # The registry is the source for README's "N assertions", so adding a
@@ -1494,6 +1564,50 @@ def self_test() -> int:
         ("nor inside a ~~~ fence", "also-not-a-heading" not in got),
         ("a heading after a closed fence is one", "after-the-fence" in got),
     ]
+    # The link parser and resolver check_relative_links depends on. Built as a
+    # temp tree so the resolution, not only the parsing, is exercised.
+    import tempfile
+
+    extracted = markdown_link_targets(
+        "[a](one.md) and ![i](img.png)\n"
+        "[![alt](badge.svg)](outer.md#sec)\n"
+        "[ref]: ../two.md\n"
+        "[^note]: True, and not a link at all\n"
+        "[bad]: also not a link, just prose\n"
+        "```\n[x](skipped.md)\n```\n"
+    )
+    cases += [
+        ("an inline link target is found", "one.md" in extracted),
+        ("an image target is found", "img.png" in extracted),
+        ("a linked badge yields its outer target", "outer.md#sec" in extracted),
+        ("and its inner image target", "badge.svg" in extracted),
+        ("a reference definition is found", "../two.md" in extracted),
+        ("a footnote is not a link", "True," not in extracted),
+        ("prose after a label is not a link", "also" not in extracted),
+        ("a target inside a fence is skipped", "skipped.md" not in extracted),
+    ]
+    with tempfile.TemporaryDirectory() as d:
+        root = pathlib.Path(d)
+        (root / "b.md").write_text("# Top\n## A Section\n")
+        (root / "img.png").write_bytes(b"")
+        text = (
+            "[ok](b.md)\n[anchor-ok](b.md#a-section)\n[img-ok](img.png)\n"
+            "[self-ok](#here)\n# Here\n"
+            "[missing](nope.md)\n[anchor-bad](b.md#ghost)\n"
+            "[self-bad](#ghost)\n[escape](../outside.md)\n"
+        )
+        probs = relative_link_problems("a.md", text, root)
+        joined = " | ".join(probs)
+        cases += [
+            ("a valid file link passes", "b.md —" not in joined),
+            ("a valid cross-file anchor passes", "a-section" not in joined),
+            ("a valid same-file anchor passes", "#here" not in joined),
+            ("a missing file is caught", "nope.md does not exist" in joined),
+            ("a missing cross-file anchor is caught", "no heading for #ghost" in joined),
+            ("a missing same-file anchor is caught", "#ghost is not a heading" in joined),
+            ("a target leaving the repository is caught", "leaves the repository" in joined),
+        ]
+
     failed = 0
     for name, ok in cases:
         failed += not ok

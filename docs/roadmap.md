@@ -58,15 +58,25 @@ Closes when it is empty.
   the mains once to replace the card's 47-minute claim with a number.
   Shares a window with #444 if its parts have landed.
   → [runbook](runbooks/shut-down-on-the-ups.md)
-- **[#182](https://github.com/Gerrrt/HomeLab/issues/182) Authenticate the
-  Prometheus and Loki ingest ports.** Reopened 2026-09-26: #319 closed it by
-  accident. Authored 2026-09-30:
-  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)'s
-  ingest proxy, a token per agent and a reader token. Not yet deployed. The
-  order is the tokens into both SOPS files, the three agents and `trinity`
-  redeployed carrying them, then `make up` on the monitoring host. The issue
-  stays open until `deploy-agent.sh` has shown fresh data from all three agents
-  and the refusal probes are green.
+- **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
+  Home Assistant, for control.** Decided by
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
+  No gate: the HomePods and `trinity` both exist. The work is four
+  reservations and three rules on `morpheus`, then adding each HomePod by
+  address from `trinity`.
+- **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248) The VTech monitor
+  in Home Assistant, by a bridge on Skids.** Decided by
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).
+  Gate: the two purchases in *Everything still to buy*, in order — the used
+  phone first, because the key extraction is the step that decides whether
+  the Pi is ordered at all. Then a reservation, three rows on `morpheus`, and
+  the camera read from `trinity`.
+- **[#1240](https://github.com/Gerrrt/HomeLab/issues/1240) Retire
+  `ring_push_guard`.** Decided by
+  [ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
+  Gate: a Home Assistant release that pins a `ring_doorbell` with the
+  missing-`ding.id` fix (python-ring-doorbell#540 or #556). Until then the
+  patch stays, and the issue tracks it.
 
 The rest of the milestone has no order between its issues.
 
@@ -137,15 +147,11 @@ has been rehearsed on it.
   because a phone away from home cannot reach the tier. The deploy and the
   observed end-to-end check remain
   (→ [runbook](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy));
-  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) Homepage, authored
-  on 2026-09-28 against the running tier: `home.matrix.elysium`, a directory
-  and not a status page, with live numbers only where a read-only token can
-  read them (Immich, Paperless-ngx) or none is needed (Prometheus), and its
-  widget path measured through Caddy with placeholder tokens before the real
-  ones exist. Deployed and reading real numbers since; on 2026-09-29 it took
-  Tokyo Night, groups by VLAN, and four more tiles read from Prometheus (UPS,
-  firewall, iLO, NAS) with no new rule or credential. The restore path is
-  rehearsed already:
+  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) the household's
+  page at `home.matrix.elysium`, a directory and not a status page, with live
+  numbers only where a read-only token can read them (Immich, Paperless-ngx).
+  It was Homepage until [ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md) moved it onto Glance's Household
+  page. The restore path is rehearsed already:
   → [runbook](runbooks/restore-the-sensitive-tier.md).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
@@ -169,7 +175,11 @@ has been rehearsed on it.
   first trigger, the first real photo, fired on 2026-09-28. Until this lands,
   [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
   nightly copy to `oracle` stands in for the library, off-host and not
-  off-estate. When this lands, it supersedes ADR-0064.
+  off-estate. When this lands, it supersedes ADR-0064. **It does not carry
+  Memos yet.** `make household-copy` writes Immich's library and a
+  Paperless export; `memos-data`, which holds real notes since 2026-10-22,
+  has only the nightly volume set on `oracle`. Adding it to the copy is
+  part of this, and Memos' *Durable* row is not met before it is.
 
 ## NAS
 
@@ -185,20 +195,29 @@ built by hand on 2026-09-24 and 25, and
 its authentication generator running and §10 read from Hicks. The SOC followed:
 Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 
-- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) A second way into
-  the lab's secrets.** `secrets/lab.sops.yaml` is in git since #667, and
-  encrypted to one key that lives only on `alexander`; a second recipient or
-  a proved off-box copy, run on that guest.
-- **[#485](https://github.com/Gerrrt/HomeLab/issues/485) PBS.**
-  [ADR-0027](adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md)'s
-  trigger has fired — `smaug` answers, `erebor` is online — and its sync job
-  was designed for a host TrueNAS is not. **Re-read and decided 2026-09-23:**
-  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md) runs PBS on `Saruman` as `golem`
-  (`10.0.30.80`) with its datastore on `erebor/pbs` over NFSv4, and TrueNAS
-  snapshots as the copy it cannot prune. What is left is the build: the
-  guest, the dataset and share, the `2049` pass on `morpheus`, and a verify
-  job the lab can see.
-  → [runbook](runbooks/build-the-backup-guest.md)
+- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) Prove the lab's
+  second key.** `secrets/lab.sops.yaml` is encrypted to the offline technical
+  second as well as `alexander`'s key since 2026-10-07. What remains is
+  `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
+- **[#920](https://github.com/Gerrrt/HomeLab/issues/920) One on-demand VM
+  per dotfiles OS layer.** It ships in four phases
+  ([ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)):
+  1. Debian, Fedora and Windows
+     ([`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md));
+  2. openSUSE and Arch;
+  3. Alpine and Gentoo, from their published images;
+  4. NixOS.
+- **[#921](https://github.com/Gerrrt/HomeLab/issues/921) `garuda`, an
+  analyst workstation.** Kali Purple without its SOC, always on beside `odin`,
+  and the home of `dotfiles-Defense`
+  ([ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+  It ships in three phases:
+  1. Template 910, the guest, its tools and dotfiles
+     ([`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
+  2. Enrolling it in Wazuh and Velociraptor, the first Linux guest in either
+     ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
+  3. OpenVAS on demand, scoped to the domain's six by nftables
+     ([ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md)).
 - **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
   [#529](https://github.com/Gerrrt/HomeLab/issues/529),
   [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
@@ -212,10 +231,11 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
 Closes on BloodHound running where nothing attacks it.
 
 - **A chain, in this order:**
-  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (written,
-  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md);
-  901 built twice and usable, 912 built and to be rebuilt with the
-  `SetupComplete.cmd` fix, 911 not yet built,
+  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (done
+  2026-10-03,
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md):
+  901 Ubuntu, 911 Windows 11 and 912 Server 2025 built from `smaug-iso`,
+  each clone passing `scripts/packer-smoke.sh`, SSH included,
   → [runbook](runbooks/build-the-lab-templates.md); Kali's
   template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
@@ -229,15 +249,22 @@ Closes on BloodHound running where nothing attacks it.
   → [`ansible/`](../ansible/README.md); applied to the hand-built six on
   2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
   all six; closes on a `tofu destroy` and rebuild,
-  so it waits for the six to be declared in `tofu/` with pinned MACs, and for
-  #440's first build) →
+  so it waits for the six to be declared in `tofu/` with pinned MACs; #440's
+  templates exist since 2026-10-03) →
   [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses (the population and the authentication generator are written as
+  weaknesses (the population and the authentication generator are
   `--tags population,authgen`,
-  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md),
-  and not yet applied; the weaknesses are not written) and [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon
-  and Pktmon → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
-  BloodHound, which closes the milestone. All of it runs from `phoenix`
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md);
+  what remains is the rest of
+  [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5, which
+  covers the tiers, the SPN account, the Tier 0 GPO and the shares, and then
+  the weaknesses, each its own tag on top of the population) and
+  [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
+  ([ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md))
+  → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
+  BloodHound ([ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
+  → [runbook](runbooks/build-the-bloodhound-guest.md)), which closes the
+  milestone. All of it runs from `phoenix`
   ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
   → [runbook](runbooks/build-the-jumpbox.md)).
   **#440's templates read their installers from `smaug-iso`**, the ISO store
@@ -255,10 +282,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met — the domain built
-  2026-09-25, #266 and #267 closed 2026-09-27 — so nothing gates the purchase;
-  a shortlist is on the issue. It is still the last purchase on the estate's
-  list.
+  uninstrumented estate teaches nothing. Both are met. What gates the build
+  now is its RAM kit and SATA SSD, in
+  [*Everything still to buy*](#everything-still-to-buy), and its place in the
+  #919 rack move.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -277,9 +304,11 @@ none is in the order until one is taken.
   [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
   and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
   same day. The admin registered and closed registration on 2026-10-02.
-  Nothing is left; #145 closes with this. It holds no real notes until
-  ADR-0023's *Durable* condition is met, which is the tier's condition and
-  not this issue's.
+  Nothing is left; #145 closes with this. It holds real notes since
+  2026-10-22, ahead of ADR-0023's *Durable* condition, by the operator's
+  accepted exception (the changelog of that day). The condition is the
+  tier's and not this issue's, and what it still owes Memos is written on
+  #455 below.
 - **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
   `recipes.matrix.elysium`.** Decided by
   [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
@@ -323,24 +352,49 @@ refund rather than a new drive, and the drive was bought outright on
 ([#558](https://github.com/Gerrrt/HomeLab/issues/558)). It is in
 [`hardware.md`](hardware.md).
 
-**Buy these, and the estate as decided is fully bought.** The table is empty
-as of 2026-09-25. It is kept so that the next decided purchase has somewhere
-to go:
+**Buy these, and the estate as decided is fully bought.** The table was empty
+from 2026-09-25 until `ifrit` was bought on 2026-10-05, short of the spec its
+ADR set; its last two rows are what it still needs. On 2026-10-13 the move
+into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
+its parts here, which had been listed only in its runbook's §0.1, and
+`Saruman`'s memory joined them. Already on hand, so not listed: the frame,
+the VESA mount, `trinity`'s ProDesk tray and the velcro; since 2026-10-15
+the keyboard drawer and `ifrit`'s Tiny mount, both mounted; and since
+2026-10-16 the short patch leads in the VLAN colours and the spare M6 cage
+nuts, which the operator already had.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
+| Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more. StarTech ADJSHELFHDV fits: 19.5–38", 27.5" tray, 330 lb | `smaug` on its side, U5–U9 | [`hardware.md`](hardware.md#planned-a-32u-rack), 2026-10-12 | Before the #919 window |
+| 3 × 1U four-post vented shelf, adjustable to 29" | `prometheus` U10, `oracle` U12, and the KVM at U23 | [`hardware.md`](hardware.md#planned-a-32u-rack); the third on 2026-10-15 | Before the #919 window |
+| 1U horizontal cable manager | U20, between switch and panel | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 1U vented blank | U22, the air gap over the CRS326 | [`hardware.md`](hardware.md#planned-a-32u-rack) | Before the #919 window |
+| 2 × pair of adjustable 1U four-post support rails, spanning 29" post to post. Rack Solutions 1UKIT-109 fits: 10–31.5", 45 lb, with a cabling crossbar | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight | The operator, 2026-10-15; the kit chosen 2026-10-16 | Before the #919 window |
+| 2U four-post rail pair rated above the UPS's weight. Rack Solutions 2UKIT-109 fits: 10–31.75", 75 lb, 18-gauge, with a cabling crossbar | `mjolnir` at U1–U2: the rails it sits on now sag under it | The operator, 2026-10-16 | Before the #919 window |
+| APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
+| Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `ifrit`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | After the #919 window: a management-plane device, not a move part |
+| USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Stick-on LED rack light, USB or battery | The top of the frame, lighting the bottom where the UPS, the DL360 and `smaug` sit | The operator, 2026-10-16 | Any time |
+| Bonding strap, frame to the UPS's ground | The frame's grounding screw; it shipped without a strap | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Cable tester, the basic kind | The in-wall runs to the panel, never tested; the September fault was a plug ([#923](https://github.com/Gerrrt/HomeLab/issues/923)) | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Adhesive D-rings or a short vertical finger duct | The power-side rear post: the move runbook keeps power and data apart, and the horizontal manager serves the data side only | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Preferred before the #919 window; none of the accessories gates it |
+| One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
+| 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | In the #919 window, while the DL360 is out of the rack |
+| 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
+| A used Android phone that KernelSU or Magisk supports (a Pixel), to be rooted, used once and wiped | The one-time extraction of the VTech camera's TUTK license key, UID and channel password ([#1248](https://github.com/Gerrrt/HomeLab/issues/1248)) | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | First: nothing else in #1248 starts until the keys exist |
+| Raspberry Pi 4 or 5, 2 GB or more, with PSU, case and a 32 GB card | `heimdall`, the monitor bridge on Skids at `10.0.20.30` | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | After the extraction succeeds, and not before |
 
-**One more, later, and it is the last:** `ifrit`, the range host — a quiet
-SFF box, NVMe, two socketed DIMM slots with 32 GB fitted, one NIC
+**The last one, bought 2026-10-05:** `ifrit`, the range host — a quiet
+SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
-[#421](https://github.com/Gerrrt/HomeLab/issues/421)). Gated on the domain
-and the SOC, and both are built (#266 and #267 closed 2026-09-27), so nothing
-gates it now; it is still the last purchase on this list. 32 GB is a
-spec the candidate machines do not meet as shipped — the SFF boxes in that
-class ship with 16 GB in two slots — so a SO-DIMM kit is part of that purchase
-and not a later contingency. The model, the CPU and the disk are chosen at the
-till and recorded in [`hardware.md`](hardware.md) afterwards; nothing is named
-here before it is bought.
+[#421](https://github.com/Gerrrt/HomeLab/issues/421)). The box is a
+refurbished ThinkCentre M80q, and it arrived on 2026-10-14. It shipped with
+8 GB and a 256 GB SSD, so the two rows above are still to buy and fit.
+[`hardware.md`](hardware.md) records the box.
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
@@ -490,7 +544,11 @@ them name the condition that would change the answer.
   [#103](https://github.com/Gerrrt/HomeLab/issues/103) closed on. An identity
   provider is also the only route to a second factor for Grafana, Immich and
   AdGuard Home, none of which can carry one themselves — so this decline has a
-  known end, unlike the others here.
+  known end, unlike the others here. **Pocket ID**, the lighter passkey-only
+  provider, has been weighed and changes nothing until a reopen condition
+  fires. It is the first candidate when one does
+  ([#860](https://github.com/Gerrrt/HomeLab/issues/860), the note on
+  [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)).
 
 ## Done
 

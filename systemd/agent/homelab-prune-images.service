@@ -7,6 +7,11 @@
 #
 # Root, because the Docker socket is root's. Like zeek-mirror, it writes no
 # .prom, so the installer verifies it by the service's last result.
+#
+# HARDENING. ProtectSystem=full, ProtectHome and PrivateTmp, with no
+# ReadWritePaths (#849): this unit writes nothing to disk itself. The images are
+# deleted by dockerd, which runs outside this unit's mount namespace; the client
+# here only connects to /run/docker.sock, which ProtectSystem=full leaves alone.
 [Unit]
 Description=HomeLab: remove Docker images no container uses
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
@@ -26,6 +31,9 @@ NoNewPrivileges=true
 RestrictSUIDSGID=true
 LockPersonality=true
 RestrictRealtime=true
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=homelab-prune-images

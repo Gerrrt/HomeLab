@@ -36,7 +36,7 @@ than carrying a second copy that drifts.
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
 | RAM | **16 GiB** | The services at rest fit in 8 GiB, and ADR-0030's heap arithmetic was written for it — the indexer's heap stays 2 GiB, its `mem_limit` 3.5, the manager's 2. But **vulnerability detection breaks that budget on a burst**: it downloads a ~400 MB CVE feed, unpacks it to an ~8.5 GB tar and bulk-indexes it into the indexer, and that import — repeated on the content manager's schedule, not just once — drove an 8 GiB guest into memory+IO thrash that wedged it for minutes at a time on the 2026-09-27 build. 16 GiB is the headroom that import needs; the host has it to give (48 threads, ~70 GiB free), and the extra 8 GiB is burst room and page cache, not heap. Revisit if vulnerability detection is ever turned off |
-| Disk | **Two: 32 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and ~5 GB of images. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
+| Disk | **Two: 48 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and the images: about 8.4 GB live, and during a re-pin a second full set, because a pull needs the old images (still running) and the new ones at once. It was 32 GB until 2026-10-07, when a Wazuh re-pin took `/` to 99% and odin was grown online to 48 ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)); `make up` now removes the images a deploy superseded. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
 > [!IMPORTANT]
@@ -56,6 +56,11 @@ than carrying a second copy that drifts.
 > [ADR-0053](../adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)
 > backs `odin` up, every disk, to PBS with its datastore on `erebor`. Until
 > that is built, this note stands.
+>
+> **History since 2026-10-03.** `golem` is built
+> ([`build-the-backup-guest.md`](build-the-backup-guest.md),
+> [#485](https://github.com/Gerrrt/HomeLab/issues/485)), and `odin` is in its
+> nightly 21:00 job. `odin` has backup as well as revert from that night.
 
 ## 1. Create the VM
 
@@ -69,7 +74,7 @@ qm create 160 \
   --cpu host --cores 4 --sockets 1 \
   --memory 16384 --balloon 0 \
   --scsihw virtio-scsi-single \
-  --scsi0 large_data:32,discard=on,iothread=1,ssd=1 \
+  --scsi0 large_data:48,discard=on,iothread=1,ssd=1 \
   --scsi1 large_data:96,discard=on,iothread=1,ssd=1 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
@@ -120,7 +125,7 @@ alert in `soc.rules.yaml`.
 | Gateway | `10.0.30.1` |
 | DNS | `10.0.30.1` — Unbound on the gateway ([ADR-0010](../adr/0010-keep-the-resolver-on-the-gateway.md)) |
 
-Install OpenSSH. Skip the snap Docker. **Install onto the 32 GB disk only**,
+Install OpenSSH. Skip the snap Docker. **Install onto the 48 GB disk only**,
 and give `ubuntu-lv` the whole volume group as `alexander`'s §2 says. Leave
 the 96 GB disk untouched in the installer. It becomes the data disk next,
 outside LVM, so it can be read on any machine without reassembling a volume
@@ -314,10 +319,16 @@ Skip this and `alloy` restarts on `Couldn't load root certificate … permission
 denied` while every other service is healthy.
 
 > [!NOTE]
-> The generator downloads its tool for the version in `CERT_TOOL_VERSION`
-> (`compose.yaml`), which is the `wazuh/*` images' major.minor. If the run
-> ends with "does not exist in any bucket", that number and the image tags
-> have drifted apart — Dependabot bumps the tags and cannot bump the number.
+> The generator downloads nothing
+> ([ADR-0094](../adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)).
+> It runs with no network, and
+> mints with the cert tool vendored in `stacks/soc/wazuh/certs-tool/`. It
+> refuses to run a tool whose sha256 isn't the one `VENDORED` pins, and says
+> both hashes. That refusal means the tool and `VENDORED` were changed apart:
+> re-vendor rather than edit. When the `wazuh/*` images move to a new
+> major.minor, `scripts/vendor-wazuh-certs-tool.sh <major.minor>` fetches its
+> tool, and `git diff` on that directory is the review. Dependabot bumps the
+> image tags and can't do this part.
 
 ## 7. Open the lab's doors
 
@@ -368,8 +379,9 @@ The indexer initialises its security index from the rendered user database
 (about a minute), the manager waits for the indexer to be healthy and then
 starts fifteen daemons and filebeat (another minute), and the dashboard waits
 for both. Velociraptor generates its config, creates the `admin` account and
-then **downloads the client release from GitHub to build the MSI, deb and
-rpm** — that is the outbound connection you will see, and it is why
+then **downloads the client release from GitHub to build client packages** —
+on `odin` a Windows MSI and a Linux RPM, with no Debian package (read from the
+datastore on 2026-10-10) — that is the outbound connection you will see, and it is why
 `start_period` on that service is two minutes. Three to five minutes to all
 healthy is normal.
 
@@ -487,7 +499,17 @@ things `make validate` cannot see:
 because the value in SOPS is inert from here on). Both are self-signed and
 both browsers will warn; the two leaves from the lab CA are the named
 follow-up in ADR-0030. The existing 50 → 30 rule carries both; no firewall
-change anywhere.
+change anywhere. Both pass through the stack's `caddy`, which serves the
+dashboard's generator leaf on both ports and answers Hicks's `10.0.50.0/24`
+only (#1139). Prove the other half from any VLAN 30 host but `odin` — a
+dotfiles VM, or `alexander`:
+
+```bash
+for p in 443 8889; do curl -sk -o /dev/null -w "$p %{http_code}\n" https://10.0.30.60:$p/; done
+```
+
+Both `403`. A `200` or a `302` there means the UI answers the lab segment
+again: a `ports:` line has come back on `wazuh.dashboard` or `velociraptor`.
 
 **The crossing, in the lab's Grafana** — Explore, Prometheus datasource:
 
@@ -524,10 +546,22 @@ increase(elasticsearch_indices_indexing_index_total{job="wazuh-indexer"}[1h])
 
 Non-zero, even with no agents: the manager indexes its own events and the
 dashboard writes `wazuh-monitoring-*` on a schedule. Zero here with the
-cluster green is `WazuhIngestionStalled`, and it means filebeat on the manager
-cannot reach the indexer — its verification mode is `full`, so a certificate
-issued for a name other than `wazuh.indexer` fails exactly here and nowhere
-visible.
+cluster green is `WazuhIngestionStalled`: nothing at all is writing.
+
+That number cannot tell you that **alerts** arrive, because the dashboard's
+own writes keep it above zero with filebeat dead. Ask the alerts indices
+directly:
+
+```promql
+increase(elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer", index=~"wazuh-alerts-.+"}[1h])
+```
+
+Compare it with `increase(homelab_wazuh_analysisd_alerts_written_total[1h])`,
+which is how many alerts the manager wrote. Alerts written and none indexed is
+`WazuhAlertsNotIndexed`, and it means filebeat on the manager is not shipping.
+Its verification mode is `full`, so a certificate issued for a name other than
+`wazuh.indexer` fails exactly here. The node-wide number above stays healthy
+through it.
 
 ## 11. Agents, by GPO — the second evening, and after #414
 
@@ -541,6 +575,31 @@ visible.
 > them there is an operational step, left to whoever next edits the SOC setup.
 > The rest of this section is the original by-hand procedure, kept for that
 > history and for a domain without the pipeline.
+
+**The pipeline's MSIs come from this guest (#1068).** The stack's `caddy`
+service (container `soc-agent-msi`) serves `${SOC_DATA_DIR}/agent-msi` on port 8448, to the six domain
+addresses (`.50`–`.55`) and `garuda` (`.62`,
+[ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)),
+and nobody else. What it serves is staged by one script, run as root on `odin`
+from the checkout:
+
+```bash
+sudo scripts/stage-agent-msis.sh
+```
+
+It reads the versions and sha256s from
+[`roles/soc_agents/defaults/main.yml`](../../ansible/roles/soc_agents/defaults/main.yml).
+It fetches the Wazuh MSI from the vendor, and finds the Velociraptor MSI this
+server repacked by its hash in the datastore. It refuses either if the hash is
+not the pinned one. For `garuda` it also stages the Wazuh agent `.deb`, pinned
+in `stacks/soc/linux-agents.yaml`, and a Velociraptor client `.deb` this server
+builds with its config inside, whose sha256 it prints for `garuda`'s install to
+check against. Run it once after the first `make up`, and again after any
+bump of either pin. A Velociraptor upgrade that means a new client MSI is two
+steps: run *Server.Utils.CreateMSI*, then move the role's pins to what it
+built. The script never decides that for you. Check from a guest with
+`Invoke-WebRequest -Method Head http://10.0.30.60:8448/<file>`, which should
+give 200. From anywhere else it gives 403.
 
 Both agents go to ADR-0029's six machines through the domain, because the
 domain is the exercise (ADR-0030): a reverted or rebuilt workstation re-enrols
@@ -580,6 +639,26 @@ can be rotated with one `make secrets-edit STACK=soc` and one `make up`.
 
 Confirm in the dashboard: *Agents* shows four active while the servers run
 and six during a session, and each server's `wazuh-alerts-*` count climbs.
+
+**What each agent reads.** Two sources:
+
+- the MSI's own `ossec.conf`, which collects Application, Security and System;
+- the `default` group's shared
+  [`agent.conf`](../../stacks/soc/wazuh/manager/shared/default/agent.conf),
+  which the manager serves. It adds the Sysmon channel that
+  [ADR-0080](../adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)
+  put on every guest (#1035).
+
+An agent picks up a change to the shared file by itself and restarts to apply
+it. To check that one has it, run this on `odin`:
+
+```bash
+docker exec soc-wazuh-manager /var/ossec/bin/agent_groups -S -i <agent id>
+```
+
+It says whether the agent's copy is synced. A process started on an endpoint
+then appears in *Discover* as `rule.groups: sysmon`, with its
+`data.win.eventdata.commandLine`.
 
 ## 12. Write it down
 
@@ -696,7 +775,12 @@ sudo rm -rf /srv/soc-data/velociraptor
   for p in 8000 8889 8003; do nc -z -w 3 10.0.30.60 $p && echo "$p OPEN" || echo "$p closed"; done
   ```
 
-  All three `closed`.
+  Since #1139, `8889` is published by the stack's `caddy`, not by
+  Velociraptor, so with Velociraptor gone the first run still shows
+  `8889 OPEN`: that is Caddy's listener, with nothing behind it. Remove
+  the `:8889` site from `stacks/soc/Caddyfile` and the `8889` line from
+  `caddy`'s `ports:`, `make up STACK=soc`, and run the loop again. Now all
+  three `closed`.
 - The MSI on SYSVOL: delete it. It carries the client config inside it.
 - `docs/network.md`, `stacks/soc/README.md` and ADR-0030's port table stop
   listing 8000, 8889 and 8003 on `odin`. If the service leaves the

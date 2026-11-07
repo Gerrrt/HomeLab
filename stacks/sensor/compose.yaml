@@ -3,20 +3,20 @@
 # carries its logs to the lab's Loki (#437).
 #
 # Deployed on: fenrir (10.0.30.90, VLAN 30 / ImaginationLAN) — a guest on
-#              `Saruman`, VMID 190. NOT BUILT YET. Authored ahead of the guest
-#              the way stacks/soc was ahead of odin. The build, and the reboot
-#              proof that closes #437, is docs/runbooks/build-the-sensor-guest.md.
+#              `Saruman`, VMID 190. Built 2026-09-30 by
+#              docs/runbooks/build-the-sensor-guest.md, which also has the
+#              reboot test for #437. The result, run that day, is under
+#              2026-09-30 in docs/changelog.md.
 # Decided by:  docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md
 #              — why a `tc` mirror on the Linux bridge rather than Open vSwitch,
 #              why a guest of its own, and why the check that the mirror is up
 #              lives on the hypervisor and not here.
-# Deploy with: NOT `make up STACK=sensor`. That target renders a secrets file,
-#              and this stack has none — no service here takes a credential.
-#              On fenrir, from the repository root:
-#                cp stacks/sensor/.env.example stacks/sensor/.env
-#                docker compose -f stacks/sensor/compose.yaml up -d
-#              stacks/media is the other stack deployed this way, for a
-#              different reason (#528); README.md has the procedure.
+# Deploy with: `make up STACK=sensor`, on fenrir, from the repository root.
+#              Since #834 the stack has one secret, Alloy's token for the
+#              lab's ingest proxy, and `make up` renders it from
+#              secrets/sensor.sops.yaml. Before that it had none and was
+#              brought up with plain `docker compose`; README.md has the
+#              one-time secrets-init and secrets-edit steps.
 #
 # WHAT THIS SEES AND WHY. `fenrir` has two NICs. `net0` is on vmbr0 like every
 # other guest and carries this stack's own traffic to alexander. `net1` sits
@@ -103,6 +103,18 @@ services:
       # zeek/ja4/NOTICE says what licenses it.
       - ./zeek/ja4:/zeek/site/ja4:ro
       - zeek-logs:/zeek/logs
+    # stats.log is written every five minutes by misc/stats, which the image's
+    # own `local` loads, and reopened in /zeek/logs on each hourly rotation. A
+    # fresh one says the event loop is turning, which a live PID does not. It
+    # does not say packets arrive: homelab_zeek_mirror_active on the
+    # hypervisor is that check (#845). Eleven minutes is two intervals and a
+    # minute of slack.
+    healthcheck:
+      test: ["CMD-SHELL", "find /zeek/logs/stats.log -mmin -11 | grep -q ."]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 6m
 
   # ---------------------------------------------------------------------------
   # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
@@ -119,6 +131,10 @@ services:
     networks: [sensor]
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: sensor-docker-socket-proxy
+    # stacks/observability's HAProxy config, not the image's template, which
+    # with CONTAINERS=1 also allows /containers/{id}/archive and /export
+    # (Tecnativa/docker-socket-proxy#182). The estate's proxy has the reasoning.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # The estate's allowlist exactly: what docker.alloy's three components
       # were measured to need (#193). NETWORKS is the one that is not obvious;
@@ -147,6 +163,7 @@ services:
       VOLUMES: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../observability/docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     expose:
       - "2375"
     mem_limit: 64m
@@ -156,6 +173,14 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's
+      # docker-socket-proxy has the reasoning.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
 
   # ---------------------------------------------------------------------------
@@ -180,6 +205,15 @@ services:
     logging: *default-logging
     init: true
     pids_limit: 1024
+    # A bound, not a measurement: re-derive from process_resident_memory_bytes
+    # {job="fenrir-alloy"} in the lab's Prometheus after a fortnight, as zeek's
+    # says. (Per-container container_memory_rss is not kept there: the lab's
+    # cAdvisor series are the root cgroup only.) 293 MiB was the peak over
+    # the 6.2 days fenrir had run on 2026-10-07, median 280 — flat, with no
+    # excursion yet — and 1024m is the estate's ~3.5x on top (#114).
+    # The neighbour is zeek's 4096m on an 8 GiB guest (#845).
+    mem_limit: 1024m
+    memswap_limit: 1024m
     networks: [sensor]
     cap_drop: [ALL]
     security_opt:
@@ -218,9 +252,24 @@ services:
       - /rootfs/run:size=64k,mode=0755
     depends_on:
       docker-socket-proxy:
-        condition: service_started
+        condition: service_healthy
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's alloy
+      # has the reasoning.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
 networks:
   sensor:

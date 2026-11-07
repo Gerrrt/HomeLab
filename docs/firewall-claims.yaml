@@ -13,7 +13,7 @@
 # family at all. Those are different rulesets and the same posture.
 #
 # It is deliberately NOT a list of what each segment can reach. The narrow
-# host-and-port exceptions — SNMP to the iLO, SSH to the firewall, the eleven passes
+# host-and-port exceptions — SNMP to the iLO, SSH to the firewall, the passes
 # from Hicks into management — are enumerated in docs/network.md, they change far
 # more often than this does, and every one of them is a rule body. Rule bodies
 # are not published here (docs/security.md, scripts/backup-firewall.sh).

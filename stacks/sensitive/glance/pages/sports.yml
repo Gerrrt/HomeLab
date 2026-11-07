@@ -1,0 +1,75 @@
+# Sports & Markets. The tickers are GLANCE_MARKETS, shown here
+# in full with their charts. The scoreboards are ESPN's public API, no key,
+# one widget per league sharing the first one's template. Logos are left
+# out: they would be the browser fetching from ESPN's CDN.
+- name: Sports & Markets
+  slug: sports
+  width: wide
+  columns:
+    # ---------------------------------------------------------------------
+    - size: full
+      widgets:
+        - type: split-column
+          max-columns: 2
+          widgets:
+            - &scoreboard
+              type: custom-api
+              title: NBA today
+              cache: 2m
+              url: https://site.api.espn.com/apis/site/v2/sports/basketball/nba/scoreboard
+              template: |
+                {{ $events := .JSON.Array "events" }}
+                {{ if eq (len $events) 0 }}
+                  <p>No games today.</p>
+                {{ else }}
+                  <ul class="list list-gap-14 collapsible-container" data-collapse-after="6">
+                  {{ range $events }}
+                    {{ $state := .String "status.type.state" }}
+                    {{ $comps := .Array "competitions.0.competitors" }}
+                    {{ $home := index $comps 0 }}{{ $away := index $comps 0 }}
+                    {{ range $comps }}
+                      {{ if eq (.String "homeAway") "home" }}{{ $home = . }}{{ else }}{{ $away = . }}{{ end }}
+                    {{ end }}
+                    <li class="flex justify-between items-center">
+                      <div>
+                        <div class="size-h4 color-highlight">{{ $away.String "team.abbreviation" }}</div>
+                        <div class="size-h6">{{ $away.String "records.0.summary" }}</div>
+                      </div>
+                      <div class="text-center">
+                        {{ if ne $state "pre" }}
+                          <span class="size-h3 {{ if and (eq $state "post")
+                             (gt ($away.Int "score") ($home.Int "score")) }}
+                          color-highlight{{ end }}">{{ $away.String "score" }}</span>
+                          <span class="size-h6"> · {{ .String "status.type.shortDetail" }} · </span>
+                          <span class="size-h3 {{ if and (eq $state "post")
+                             (gt ($home.Int "score") ($away.Int "score")) }}
+                          color-highlight{{ end }}">{{ $home.String "score" }}</span>
+                        {{ else }}
+                          <span class="size-h6">{{ .String "status.type.shortDetail" }}</span>
+                        {{ end }}
+                      </div>
+                      <div class="text-right">
+                        <div class="size-h4 color-highlight">{{ $home.String "team.abbreviation" }}</div>
+                        <div class="size-h6">{{ $home.String "records.0.summary" }}</div>
+                      </div>
+                    </li>
+                  {{ end }}
+                  </ul>
+                {{ end }}
+            - <<: *scoreboard
+              title: NFL
+              url: https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard
+
+            - <<: *scoreboard
+              title: MLB
+              url: https://site.api.espn.com/apis/site/v2/sports/baseball/mlb/scoreboard
+
+            - <<: *scoreboard
+              title: NHL
+              url: https://site.api.espn.com/apis/site/v2/sports/hockey/nhl/scoreboard
+    # ---------------------------------------------------------------------
+    - size: small
+      widgets:
+        - type: markets
+          cache: 15m
+          markets: ${GLANCE_MARKETS}

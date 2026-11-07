@@ -4,10 +4,10 @@
 # something that reports what happened to it.
 #
 # Deployed on: odin (10.0.30.60, VLAN 30 / ImaginationLAN) — a SECOND guest on
-#              `Saruman`, beside `alexander`. NOT BUILT YET. Authored ahead of
-#              the guest the way stacks/lab was ahead of alexander (#264 landed
-#              a day before #262) and stacks/sensitive ahead of trinity (#415).
-#              The build is docs/runbooks/build-the-soc-guest.md.
+#              `Saruman`, beside `alexander`. Built 2026-09-27 by
+#              docs/runbooks/build-the-soc-guest.md; authored ahead of the
+#              guest, the way stacks/lab was ahead of alexander (#264 landed a
+#              day before #262) and stacks/sensitive ahead of trinity (#415).
 # Decided by:  docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
 #              — why a second guest and not alexander (Wazuh's stated minimums
 #              are six gigabytes before the dashboard, on an 8 GiB guest already
@@ -77,7 +77,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.8@sha256:929179d223dc44e40c2e5c8bdbd1df19c6f68ab8f4ac255dfce98d92ee831a17
+    image: wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
     container_name: soc-wazuh-indexer
     hostname: wazuh.indexer
     # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
@@ -90,6 +90,22 @@ services:
     # grow with it.
     mem_limit: 3584m
     memswap_limit: 3584m
+    # DIFFERENCE 5: every capability dropped and no-new-privileges, which
+    # upstream's compose sets on none of the three (#845). Measured on odin
+    # on 2026-10-07: this image runs as wazuh-indexer (uid 1000), and every
+    # process in it — docker-init, sh, java — had CapEff 0000000000000000, so
+    # the drop takes away only the bounding set: the estate's "belt and
+    # braces" case on its prometheus, and the same reasoning.
+    #
+    # NOT read_only. `docker diff` on the running container: the entrypoint
+    # creates config/opensearch.keystore (bootstrap.password, kept across
+    # starts) in the directory where the image ships jvm.options,
+    # log4j2.properties and the security plugin's defaults, so a tmpfs over
+    # config/ hides those and the keystore has no setting to live elsewhere.
+    # It also writes /var/log/wazuh-indexer, which grows, .cache/JNA and /tmp.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -155,7 +171,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.8@sha256:6b53d4cc5c013b08157471d11f7a7c2c45f9e8238f3958e3b2f04ec1773ecbd4
+    image: wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
     container_name: soc-wazuh-manager
     hostname: wazuh.manager
     # DIFFERENCE 3: no docker-init in front of this one. The image's entrypoint
@@ -168,6 +184,43 @@ services:
     pids_limit: 1024
     mem_limit: 2048m
     memswap_limit: 2048m
+    # DIFFERENCE 6: seven capabilities of Docker's default fourteen, each
+    # measured rather than taken from the documentation (#845). s6, filebeat,
+    # authd, execd, logcollector, modulesd and syscheckd run as root here;
+    # remoted, analysisd, wazuh-db, monitord and the API run as wazuh (999).
+    # A throwaway FIRST boot on odin on 2026-10-07 — fresh volumes, internal
+    # network, the real ossec.conf — was repeated with one capability more or
+    # less until it matched an uncapped control run exactly (the same ten
+    # daemons up, an API token issued), and then with each of the seven taken
+    # away in turn. Every removal broke the boot; this is what failed:
+    #
+    #   CHOWN, FOWNER  the init's `cp -ar` restoring /var/ossec/queue, and the
+    #                  API's chmod of rbac.db: EPERM on files root does not own
+    #   DAC_OVERRIDE   root reading /var/ossec/etc, which is 999's and 0770
+    #   SETUID/SETGID  the daemons dropping from root to wazuh — "(1131)
+    #                  Unable to switch to user" and "(1130) … to group"
+    #   SYS_CHROOT     analysisd, remoted and the rest still chroot to
+    #                  /var/ossec — "(1132): Unable to chroot"
+    #   KILL           wazuh-control's `kill -0` on daemons running as 999,
+    #                  which is how the init decides apid "did not start
+    #                  correctly" and gives up on the whole manager
+    #
+    # The first boot is the case that needs most (it is the one that chowns),
+    # so the same set covers a warm start; it is also exactly scratch's first
+    # and only boot. Dropped: FSETID, MKNOD, NET_RAW, NET_BIND_SERVICE (1514,
+    # 1515 and 55000 are not privileged ports), SETPCAP, SETFCAP, AUDIT_WRITE.
+    #
+    # NOT read_only. s6-overlay writes /run, and the cont-init scripts rewrite
+    # /etc/services.d and /etc/cont-init.d; the daemons write /var/ossec/stats
+    # and the pid files in /var/ossec/var/run, and something runs dnf,
+    # touching /var/lib/dnf and /var/cache/dnf — 320 paths in `docker diff`,
+    # 248 of them outside /run.
+    # Covering that in tmpfs would be a second copy of the image's layout to
+    # keep in step with every bump.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID, SYS_CHROOT]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -223,9 +276,25 @@ services:
       # container's environment.
       - ./wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
       - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+      # The `default` group's shared agent config: every Windows agent also
+      # reads the Sysmon channel (#1035). The agents pull it from here, so
+      # nothing on the guests changes. The file says why it lives here.
+      - ./wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
+      # The lab's own rules, over the image's sample local_rules.xml: the
+      # #449 weaknesses raise alerts that name them, and PowerShell's own
+      # probe file stops raising "malware dropped" (#1077).
+      - ./wazuh/manager/rules/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml:ro
     ports:
       # Agent traffic and enrolment: the six domain machines are the off-host
       # consumers (ADR-0012), and they share this segment, so no firewall rule.
+      #
+      # DIFFERENCE 8: published on the segment, where the lab's Prometheus and
+      # Loki went to loopback behind a token proxy (#834). A proxy has nothing
+      # to add here: these listeners authenticate for themselves. Enrolment
+      # on 1515 needs authd.pass (above) and issues each agent its own key, and
+      # 1514 carries only traffic encrypted to a key enrolment issued. Those
+      # are what stand between the segment and the manager, as the token does
+      # for the lab's stores. BIND_ADDR narrows it to odin's own address.
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
     # 55000 is the API: the dashboard reaches it on this network and nothing
@@ -259,11 +328,40 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.8@sha256:b8e3d43711f29596dad12051a548abd0ed84692544f451d14ac2fc0c0b6a85c8
+    image: wazuh/wazuh-dashboard:4.14.8@sha256:dd338d22355e8f0cdf8cc97d5b928539d56061b83c3274a79059e60ad5b8ac14
     container_name: soc-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
     memswap_limit: 1024m
+    # DIFFERENCE 7: the estate's whole block — no capabilities, no new
+    # privileges, read-only (#845). Runs as wazuh-dashboard (uid 1000) with
+    # CapEff 0. Every write `docker diff` showed lands in a tmpfs, and a
+    # read-only copy booted on odin on 2026-10-07 against the live indexer:
+    # login page 200, the Wazuh API reached, templates updated, no EROFS or
+    # EACCES. What each tmpfs is for:
+    #
+    #   config/   the entrypoint runs `opensearch-dashboards-keystore create`
+    #             on EVERY start, so the keystore is never state; the image's
+    #             own config/certs (the demo pair) is hidden and unused
+    #   data/     data/uuid. A new server uuid per start costs nothing here
+    #   data/wazuh/downloads, data/wazuh/logs
+    #             created by the app at start. Their own mounts, owned by
+    #             1000, because Docker makes the mount point for the
+    #             dashboard-config volume below as root, and 1000 cannot then
+    #             mkdir beside it — that was the first boot's fatal error.
+    #             downloads is where a CSV export lands; 64m bounds one.
+    #
+    # All of it is memory charged to the 1024m above.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /usr/share/wazuh-dashboard/config:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data/wazuh/downloads:uid=1000,gid=1000,mode=0755,size=64m
+      - /usr/share/wazuh-dashboard/data/wazuh/logs:uid=1000,gid=1000,mode=0775,size=16m
+      - /tmp:size=64m
     environment:
       INDEXER_USERNAME: admin
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/soc.sops.yaml}
@@ -289,12 +387,13 @@ services:
       - ./wazuh/dashboard/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml:ro
       - dashboard-config:/usr/share/wazuh-dashboard/data/wazuh/config
       - dashboard-custom:/usr/share/wazuh-dashboard/plugins/wazuh/public/assets/custom
-    ports:
-      # A browser on Hicks, over the 50 -> 30 rule that already exists — the
-      # same call stacks/lab made for its Grafana. Self-signed from the
-      # generator for now; a leaf from the lab CA is the named follow-up in
-      # ADR-0030, not a prerequisite.
-      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:5601"
+    # NOT published (#1139). Its consumer is a browser on Hicks, but a port
+    # published here answered all of VLAN 30, the six the SOC watches
+    # included, and pfSense never sees that traffic to filter it. The stack's
+    # caddy publishes odin's :443 instead, answers Hicks's /24 only, and
+    # proxies to this over the soc network. See the Caddyfile.
+    expose:
+      - "5601"
     depends_on:
       wazuh.indexer:
         condition: service_healthy
@@ -326,7 +425,7 @@ services:
   # ---------------------------------------------------------------------------
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.2@sha256:fa7ecaee0a2861ed4add94c0aa9fc3e62dad6d320b07de63e08776f9104b33d1
+    image: ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:6ffb1bd412bad0e280715da19f48491e7ce57068a9840433aaeed8831c2c9ae1
     container_name: soc-velociraptor
     pids_limit: 1024
     # A single Go binary; ADR-0030 sizes it at "a few hundred megabytes of
@@ -370,14 +469,16 @@ services:
       - ./velociraptor/etc:/etc/velociraptor
       - velociraptor-datastore:/datastore
     ports:
-      # 8000: the client frontend — the six endpoints. 8889: the GUI — a
-      # browser on Hicks; it authenticates. 8003: metrics — the lab's
-      # Prometheus on alexander, genuinely off-host, and "a residual rather
-      # than a solved problem" in ADR-0030's words: /metrics is unauthenticated
-      # and so is everything else on that listener. 8001, the gRPC API, has no
-      # consumer and stays on the container's loopback.
+      # 8000: the client frontend — the six endpoints. 8003: metrics — the
+      # lab's Prometheus on alexander, genuinely off-host, and "a residual
+      # rather than a solved problem" in ADR-0030's words: /metrics is
+      # unauthenticated and so is everything else on that listener. 8001, the
+      # gRPC API, has no consumer and stays on the container's loopback.
+      #
+      # 8889, the GUI, is NOT published from here (#1139): the stack's caddy
+      # publishes odin's :8889, answers Hicks's /24 only, and proxies to this
+      # over the soc network — the dashboard's reason, in its ports comment.
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_FRONTEND_PORT:-8000}:8000"
-      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_METRICS_PORT:-8003}:8003"
     healthcheck:
       # The same endpoint the lab scrapes, over plain http, from the busybox
@@ -388,8 +489,90 @@ services:
       timeout: 5s
       retries: 3
       # The first start generates the config, creates the admin user and then
-      # builds the client MSI, deb and rpm from the release on GitHub.
+      # builds client packages from the release on GitHub. On odin they were a
+      # Windows MSI and a Linux RPM, with no Debian package among them (read
+      # from the datastore, 2026-10-10); garuda's .deb is built by
+      # scripts/stage-agent-msis.sh instead (ADR-0092).
       start_period: 120s
+
+  # ---------------------------------------------------------------------------
+  # The agent installers (#1068, ADR-0092). roles/soc_agents installs the Wazuh
+  # agent and the Velociraptor client on the six directly, and needs both MSIs
+  # at a URL they can reach; garuda installs the same two as Debian packages by
+  # its runbook. Nothing in the image builds them: scripts/stage-agent-msis.sh
+  # puts all four in ${SOC_DATA_DIR}/agent-msi on this guest, the vendor ones
+  # checked against their pins, and this serves that directory read-only. The
+  # Caddyfile answers ADR-0029's six addresses and garuda's, and refuses
+  # everyone else, because each Velociraptor package carries the client's
+  # enrolment config.
+  #
+  # The estate's Caddy, at the digest stacks/lab runs, hardened the same way:
+  # a numeric user, a read-only root, every capability dropped but one. 8448 is
+  # above 1024 and needs no privilege to bind, but the image's caddy binary
+  # carries cap_net_bind_service as a FILE capability, and the kernel refuses
+  # to exec a binary whose file capabilities are outside the bounding set: with
+  # [ALL] dropped and no-new-privileges, the first deploy on odin crash-looped
+  # on "exec caddy failed: Operation not permitted". So NET_BIND_SERVICE is
+  # kept, as the ingest proxy keeps it, for the exec rather than the bind. The service is `caddy`,
+  # as in stacks/lab, because scripts/check_caddyfile.sh validates a stack's
+  # Caddyfile against the image of the service by that name.
+  #
+  # Since #1139 it is also the front door to the two web UIs, the Wazuh
+  # dashboard on odin's :443 and the Velociraptor GUI on :8889, answering
+  # Hicks's /24 and nothing else; the Caddyfile says why the filter has to be
+  # here. The container keeps its name: four files call it soc-agent-msi.
+  # ---------------------------------------------------------------------------
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
+    container_name: soc-agent-msi
+    # 1000, not 65534, since #1139: the browser-facing leaf is the dashboard's
+    # own from the Wazuh generator, which writes its key 0400 owned by 1000,
+    # the uid the dashboard runs as (build-the-soc-guest.md §6). The MSIs are
+    # 0644 (stage-agent-msis.sh), so 1000 reads them as 65534 did.
+    user: "1000:1000"
+    pids_limit: 64
+    # 64m served two static files. Proxying two UIs streams rather than
+    # buffers, but a ceiling picked for a file server is not one for a proxy
+    # carrying the dashboard's bundles, so double it until measured.
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=1000,gid=1000
+      - /config:size=1m,uid=1000,gid=1000
+      - /tmp:size=1m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${SOC_DATA_DIR:-/srv/soc-data}/agent-msi:/srv/agent-msi:ro
+      # The browser-facing leaf on :443 and :8889, and the root the dashboard
+      # upstream is verified against. Mounted where scripts/check_caddyfile.sh
+      # mounts its throwaway pair, so the check proves these paths.
+      - ./wazuh/certs/wazuh.dashboard.pem:/etc/caddy/tls/cert.pem:ro
+      - ./wazuh/certs/wazuh.dashboard-key.pem:/etc/caddy/tls/key.pem:ro
+      - ./wazuh/certs/root-ca.pem:/etc/caddy/tls/ca.pem:ro
+    ports:
+      # The six domain guests fetch from here during `--tags soc`. Fixed, not
+      # a tunable: ansible/inventory/group_vars/all.yaml names this port in
+      # both URLs, and a second copy of a number is how they drift apart.
+      - "${BIND_ADDR:-0.0.0.0}:8448:8448"
+      # The two UIs (#1139), on the host ports they were published on before,
+      # so a bookmark on Hicks and the start page's links still work. 8443 inside,
+      # so nothing below 1024 is bound in the container.
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:8443"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
+    # No depends_on on either UI: Caddy resolves an upstream per request, and
+    # the MSIs must not wait on the indexer's two-minute start.
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8448/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Docker socket proxy (#836). The estate's docker-socket-proxy (#193); its
@@ -404,6 +587,10 @@ services:
     <<: *service-defaults
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: soc-docker-socket-proxy
+    # stacks/observability's HAProxy config, not the image's template, which
+    # with CONTAINERS=1 also allows /containers/{id}/archive and /export
+    # (Tecnativa/docker-socket-proxy#182). The estate's proxy has the reasoning.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # The estate's allowlist exactly: what docker.alloy's three components
       # were measured to need (#193). NETWORKS is the one that is not obvious;
@@ -432,6 +619,7 @@ services:
       VOLUMES: 0
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ../observability/docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     expose:
       - "2375"
     mem_limit: 64m
@@ -441,6 +629,14 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's
+      # docker-socket-proxy has the reasoning.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Collection agent for this guest — and the first genuine off-host client
@@ -459,6 +655,16 @@ services:
     image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
     container_name: soc-alloy
     pids_limit: 1024
+    # A bound, not a measurement: re-derive from process_resident_memory_bytes
+    # {job="odin-alloy"} in the lab's Prometheus after a fortnight, as zeek's
+    # says. (Per-container container_memory_rss is not kept there: the lab's
+    # cAdvisor series are the root cgroup only.) 299 MiB was the peak over
+    # the 9.7 days odin had run on 2026-10-07, median 287 — flat, with no
+    # excursion yet — and 1024m is the estate's ~3.5x on top (#114).
+    # The neighbour is why it matters: an unbounded Alloy that runs away is
+    # what the kernel OOM-kills wazuh.indexer for (#845).
+    mem_limit: 1024m
+    memswap_limit: 1024m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -512,11 +718,26 @@ services:
       - /rootfs/run:size=64k,mode=0755
     depends_on:
       docker-socket-proxy:
-        condition: service_started
+        condition: service_healthy
     ports:
       # Debug UI, loopback only. No syslog receiver: syslog.alloy is not
       # mounted above, for the reason stacks/lab gives.
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
+    healthcheck:
+      # The estate's probe (#845); stacks/observability/compose.yaml's alloy
+      # has the reasoning.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   # ---------------------------------------------------------------------------
   # The certificate generator, behind a profile: `make up` neither starts nor
@@ -525,20 +746,31 @@ services:
   # a bare `docker run` in the runbook because every image this repository
   # runs must come from a compose.yaml (check_image_pins.py, #65).
   #
-  # CERT_TOOL_VERSION is the major.minor of the wazuh/* images above and the
-  # one thing Dependabot cannot keep in step: it names the script the generator
-  # downloads at run time. A bump to 4.15 changes this line in the same PR.
+  # The image's own entrypoint is NOT run (#1008, ADR-0094). It downloads the
+  # cert tool at run time with no checksum, falls back silently to Wazuh's dev
+  # bucket, and sources the result as root over the certificate directory.
+  # scripts/wazuh-certs-mint.sh runs the tool vendored in wazuh/certs-tool/
+  # instead, refuses one whose sha256 isn't the one VENDORED pins, and does the
+  # same copy and chown steps after it. With no network at all, there is no
+  # download to fall back from.
+  #
+  # The vendored tool is the one thing Dependabot cannot keep in step with the
+  # wazuh/* major.minor above: a bump to 4.15 runs
+  # `scripts/vendor-wazuh-certs-tool.sh 4.15` in the same PR, and that diff
+  # is the review.
   # ---------------------------------------------------------------------------
   wazuh.certs-generator:
     image: wazuh/wazuh-certs-generator:0.0.4@sha256:369b4d58509aab074b188596870c81584f7120e653d9ef83c591f0f785dcf325
     container_name: soc-wazuh-certs-generator
     profiles: ["certs"]
     logging: *default-logging
-    environment:
-      CERT_TOOL_VERSION: "4.14"
+    network_mode: none
+    entrypoint: ["/bin/bash", "/wazuh-certs-mint.sh"]
     volumes:
       - ./wazuh/certs:/certificates
       - ./wazuh/certs.yml:/config/certs.yml:ro
+      - ./wazuh/certs-tool:/certs-tool:ro
+      - ../../scripts/wazuh-certs-mint.sh:/wazuh-certs-mint.sh:ro
 
 # One network. Everything that talks to the indexer does so here; the only
 # things published are the ones with a client on the other side of the

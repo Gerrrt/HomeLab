@@ -1,0 +1,13 @@
+[Unit]
+Description=HomeLab: Wazuh manager state, for the lab's Prometheus
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/scripts/collect-wazuh-manager-state.sh
+
+[Timer]
+Unit=homelab-wazuh-manager-state.service
+OnCalendar=*:0/5
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

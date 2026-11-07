@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: Proxmox Backup Server task state
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-backup-guest.md
+
+[Timer]
+Unit=homelab-pbs-task-state.service
+# Hourly. The jobs it reports on run daily (prune, the 21:00 backup) and weekly
+# (verify, garbage collection), so an hour is soon enough to see a failure and
+# cheap: one snapshot listing over NFS. PbsTaskStateStale allows three missed
+# runs.
+OnCalendar=*:17
+RandomizedDelaySec=120
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

@@ -2,9 +2,10 @@
 #
 # The flags mirror the as-run `qm create` in build-the-lab-domain.md §1 and
 # build-the-jumpbox.md §1: host CPU, no balloon, virtio-scsi-single, the disk on
-# large_data with discard, iothread and ssd, vmbr0 untagged, the agent on. A
-# guest built here and a guest built by hand should be indistinguishable in
-# `qm config`, apart from the pool.
+# large_data with discard, iothread and ssd, vmbr0 untagged, the agent on, q35
+# and OVMF with an EFI disk, and for Windows a TPM. A guest built here and a
+# guest built by hand should be indistinguishable in `qm config`, apart from
+# the pool.
 terraform {
   required_providers {
     proxmox = {
@@ -35,6 +36,38 @@ resource "proxmox_virtual_environment_vm" "this" {
     type = var.linux ? "l26" : "win11"
   }
 
+  # Every template packer/ builds is q35 and OVMF with an EFI disk, and the
+  # provider's own default is SeaBIOS: left unset, a clone could come up with
+  # no bootable disk. Windows 11 also refuses to boot without TPM 2.0 and
+  # Secure Boot (build-the-lab-domain.md §1). Saying so here keeps the provider
+  # from "correcting" what the template already has.
+  bios    = "ovmf"
+  machine = "q35"
+
+  efi_disk {
+    datastore_id      = var.datastore
+    file_format       = "raw"
+    type              = "4m"
+    pre_enrolled_keys = var.secure_boot
+  }
+
+  dynamic "tpm_state" {
+    for_each = var.linux ? [] : [1]
+    content {
+      datastore_id = var.datastore
+      version      = "v2.0"
+    }
+  }
+
+  # Pinned for the bought Windows 11 Pro endpoints: the digital entitlement is
+  # keyed to the hardware ID, and the SMBIOS UUID is most of what a VM has.
+  dynamic "smbios" {
+    for_each = var.smbios_uuid == null ? [] : [1]
+    content {
+      uuid = var.smbios_uuid
+    }
+  }
+
   cpu {
     type    = "host"
     cores   = var.cores
@@ -61,12 +94,24 @@ resource "proxmox_virtual_environment_vm" "this" {
     bridge   = var.bridge
     model    = "virtio"
     firewall = false
+    # Pinned, because morpheus's reservations are keyed by MAC and the
+    # inventory's addresses are only true while they hold (ADR-0077 decision 6).
+    mac_address = var.mac_address
     # No vlan_id: VLAN 30 is untagged on vmbr0, and a tag here breaks
     # networking (packer/variables.pkr.hcl says the same).
   }
 
   agent {
     enabled = true
+  }
+
+  # Only where a guest asks: leaving the block out keeps Proxmox's default and
+  # every other guest's plan unchanged.
+  dynamic "vga" {
+    for_each = var.vga == null ? [] : [var.vga]
+    content {
+      type = vga.value
+    }
   }
 
   # A Linux clone takes its user, key, password and address from the cloud-init
@@ -92,4 +137,31 @@ resource "proxmox_virtual_environment_vm" "this" {
   # Without the agent answering, a shutdown request is ignored and the destroy
   # waits out its timeout. A guest being destroyed has nothing to save.
   stop_on_destroy = true
+
+  # Not purged on destroy, against the provider's default. A purge removes the
+  # VMID from every backup job (and replication and HA), so the #448 rebuild
+  # and a `-replace` of the endpoints each took guests out of `golem-nightly`
+  # with nothing saying so; on 2026-10-10 the job held only odin. A replaced
+  # guest comes back at the same VMID and stays selected. A guest destroyed for
+  # good leaves its VMID in the job, where vzdump's nightly error names it,
+  # until its teardown takes it out (build-the-backup-guest.md §8).
+  # GuestNotInBackupJob catches what this cannot.
+  purge_on_destroy = false
+
+  # Not set here, and never changed from here. Proxmox asks for Sys.Modify on
+  # `/` to set a guest's `startup` (PVE::API2::Qemu), a host-wide privilege
+  # ADR-0043 keeps from phoenix. The #448 rebuild's first apply was refused
+  # with 403 on exactly this. Root on Saruman sets the order after an apply
+  # (build-the-lab-domain.md, "Rebuild from the pipeline"); the guests.tf
+  # output `startup_orders` says what to set.
+  #
+  # `started` is ignored too. The provider's default is true, so a guest is
+  # started when it is created (its first boot) and then never touched again
+  # from here. Without this, every plan that met a stopped on-demand guest
+  # (ADR-0079: carbuncle, siren, and the dotfiles VMs of ADR-0090) proposed
+  # `started = false -> true`, and an untargeted apply would boot it. Whether a
+  # guest is up is the operator's, and HypervisorGuestStopped's, not tofu's.
+  lifecycle {
+    ignore_changes = [startup, started]
+  }
 }

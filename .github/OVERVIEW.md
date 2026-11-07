@@ -19,7 +19,7 @@ standard as the rest, and linted by `actionlint` and `zizmor` in
 | --- | --- | --- |
 | [`ci.yml`](workflows/ci.yml) — **CI** | pushes to `main`, every pull request, by hand | **Lint**: [`scripts/lint.sh`](../scripts/lint.sh). **Validate configs**: the checks [`scripts/validate.sh`](../scripts/validate.sh) runs for `make validate`, as individual steps calling the same scripts rather than the wrapper. **Boot hardened services**: starts Home Assistant, ntfy, linkding, Stirling-PDF and Actual under their real hardening and waits for each to be healthy. **Secret scan**: gitleaks over the whole history |
 | [`close-keywords.yml`](workflows/close-keywords.yml) — **Close keywords** | every pull request | **No close keyword in prose**: fails a title, body or commit whose `Closes #N` would close an issue the sentence says stays open ([`check_close_keywords.py`](../scripts/check_close_keywords.py)) |
-| [`digests.yml`](workflows/digests.yml) — **Digest drift** | Mondays 07:00 UTC, by hand | **Pinned digests still match the registry**: catches a tag moved under a pin. **The ruleset on main matches `rulesets/main.json`**: catches a ruleset edited in the UI |
+| [`digests.yml`](workflows/digests.yml) — **Digest drift** | Mondays 07:00 UTC, by hand | **Pinned digests still match the registry**: catches a tag moved under a pin. **Pinned tool versions are current**: says when the Packer plugin or a Galaxy collection has a newer release, the pins Dependabot cannot read. **The ruleset on main matches `rulesets/main.json`**: catches a ruleset edited in the UI |
 
 Every workflow pins its actions by commit SHA, with the version in a comment
 for Dependabot. Each starts from `contents: read` and checks out with
@@ -57,8 +57,18 @@ difference made in the UI.
   `stacks/`. Each bump changes a tag and its digest together, and
   [`scripts/check_docs.py`](../scripts/check_docs.py) bans image versions in
   prose, so `compose.yaml` stays the only place a version is written.
-- **`ansible/`'s Python pins, monthly.**
+- **`ansible/`'s and `scripts/`'s Python pins, monthly.** `scripts/` holds
+  PyYAML, hash-pinned, and yamllint.
+- **The OpenTofu provider in `tofu/`, monthly.**
 - **The workflows' actions, weekly.**
+
+`stacks/soc` and `stacks/scratch` share one entry, so a Wazuh release is one PR
+to both: scratch mounts soc's config, and
+[`scripts/check_image_pins.py`](../scripts/check_image_pins.py) fails an image
+that runs another stack's config on a different pin. Alloy, which four stacks
+run on observability's `config.alloy`, still arrives as one PR per stack, so
+put the bump to all four on one PR. The Packer plugin and the Galaxy
+collections have no Dependabot ecosystem; `digests.yml` reports them weekly.
 
 A red Dependabot PR is usually a stale base rather than a bad bump. Ask
 Dependabot to rebase it before reading the failure.

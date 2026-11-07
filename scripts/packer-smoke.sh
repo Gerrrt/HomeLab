@@ -26,8 +26,9 @@
 #
 # WHAT IT NEEDS. phoenix.env sourced (PROXMOX_URL, PROXMOX_TOKEN_ID,
 # PROXMOX_TOKEN_SECRET), curl and jq, and PhoenixBuilder holding VM.Clone,
-# VM.Allocate, VM.Config.Cloudinit, VM.PowerMgmt, VM.Audit and, on PVE 9,
-# VM.GuestAgent.Audit for the agent reads.
+# VM.Allocate, VM.Config.Cloudinit, VM.Config.Options (the tag below),
+# VM.PowerMgmt, VM.Audit and, on PVE 9, VM.GuestAgent.Audit for the agent
+# reads.
 #
 # Usage:
 #   scripts/packer-smoke.sh <template-vmid> [--vmid N] [--name NAME] [--keep]
@@ -64,7 +65,6 @@ command -v jq >/dev/null || die "jq is required (apt install jq)"
 
 NODE="${PROXMOX_NODE:-Saruman}"
 SSH_KEY="${SSH_KEY:-${HOME}/.ssh/id_ed25519}"
-AUTH="Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}"
 
 # Verified TLS, as packer/variables.pkr.hcl does: the token rides in a header,
 # and a guest on VLAN 30 that answered for Saruman would otherwise collect it.
@@ -72,9 +72,15 @@ AUTH="Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}"
 # PROXMOX_CA_FILE points at a copy instead, for a host where it is not.
 CURL_TLS=()
 [[ -n "${PROXMOX_CA_FILE:-}" ]] && CURL_TLS=(--cacert "${PROXMOX_CA_FILE}")
+
+# The token goes to curl as config on stdin (-K -), never as -H: an argument is
+# readable by every user on phoenix in ps and /proc/*/cmdline for as long as
+# the request runs (#846). printf is a builtin, so it never has an argv of its
+# own. The same pattern as deploy-agent.sh's mon_curl.
 api() {
   local method="$1" path="$2"; shift 2
-  curl -fsS "${CURL_TLS[@]}" -X "${method}" -H "${AUTH}" "$@" "${PROXMOX_URL}${path}"
+  printf 'header = "Authorization: PVEAPIToken=%s=%s"\n' "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" \
+    | curl -K - -fsS "${CURL_TLS[@]}" -X "${method}" "$@" "${PROXMOX_URL}${path}"
 }
 
 wait_task() {
@@ -116,6 +122,17 @@ upid="$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \
 trap cleanup EXIT
 wait_task "${upid}"
 ok "cloned"
+
+# Tagged `disposable` (ADR-0071), the way tofu tags its proof guest. A template
+# is stopped, so its clone sits stopped until it boots below, and a clone that
+# HypervisorGuestStopped can see went pending on every smoke run. Disposable
+# guests are outside that rule. The tag also makes a clone that outlives its
+# run visible: --keep, or a destroy that failed, is DisposableGuestOutlived's
+# case at a fortnight, instead of a VMID 999 nobody is watching. Set before
+# boot, so the hypervisor's collector never sees the clone untagged.
+api PUT "/nodes/${NODE}/qemu/${CLONE}/config" \
+  --data-urlencode "tags=disposable;smoke" >/dev/null
+ok "tagged disposable"
 
 if [[ "${ostype}" == l26 ]]; then
   # Proxmox wants sshkeys URL-encoded inside the form value, hence the jq @uri
@@ -194,6 +211,14 @@ else
   got="$(ssh_hostname Administrator)" || die "Administrator@${addr} admitted no SSH login in three minutes"
   [[ "${got,,}" == "${host,,}" ]] || die "ssh Administrator@${addr} printed ${got}, expected ${host}"
   ok "phoenix's key opens Administrator@${addr}"
+  # #1099: Setup caches the answer files (with the build/AutoLogon password in
+  # plaintext) in Panther, readable by Users. SetupComplete.cmd deletes them and
+  # refuses to start the agent if either survives, so reaching here already means
+  # they are gone; assert it over SSH anyway, so a scrub regression cannot ship a
+  # usable template silently.
+  leak="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no "Administrator@${addr}" 'powershell -NoProfile -Command "if ((Test-Path C:\Windows\Panther\unattend.xml) -or (Test-Path C:\Windows\Panther\unattend-original.xml)) { Write-Output LEAK }"' 2>/dev/null | tr -d '\r')"
+  [[ -z "${leak}" ]] || die "Panther answer files still present on ${addr} (#1099): the plaintext build password is readable by Users"
+  ok "Panther answer files scrubbed (#1099)"
 fi
 
 printf '\n\033[0;32mtemplate %s is usable\033[0m\n' "${TEMPLATE}"

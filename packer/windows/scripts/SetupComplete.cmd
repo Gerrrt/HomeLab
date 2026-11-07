@@ -1,11 +1,12 @@
 @echo off
 rem Runs once on a CLONE, at the end of its first Setup, as SYSTEM.
 rem
-rem Closes what bootstrap.ps1 opened for the build: the HTTP Basic WinRM
-rem listener, its firewall rule, and the service. Then starts the one way in a
+rem Makes sure what bootstrap.ps1 opened for the build is gone (the sysprep
+rem task removed most of it first): the HTTPS WinRM listener, its rule and
+rem certificate, Basic auth, and the service. Then starts the one way in a
 rem clone keeps: OpenSSH, key-only, admitting phoenix alone, which openssh.ps1
-rem installed disabled in the template (ADR-0077). Its first start here is what
-rem generates this clone's own host keys.
+rem installed disabled in the template (ADR-0077). Its first start here is
+rem what generates this clone's own host keys.
 rem
 rem `call winrm`, NEVER BARE `winrm`. winrm is itself a batch file
 rem (System32\winrm.cmd, around cscript winrm.vbs), and in cmd one batch file
@@ -35,19 +36,28 @@ echo %DATE% %TIME% start>> "%LOG%"
 rem WinRM has to be RUNNING to be reconfigured. On a clone it is a delayed
 rem start and has not come up yet when this runs: on 911's first clone
 rem (2026-10-03) every winrm and WSMan call below failed "the client cannot
-rem connect", so the build's HTTP listener, Basic auth and unencrypted
-rem traffic stayed in its configuration behind a disabled service, ready to
-rem return if anyone re-enabled it. `net start` waits until it is running.
+rem connect", so the build's listener and Basic auth stayed in its
+rem configuration behind a disabled service, ready to return if anyone
+rem re-enabled it. `net start` waits until it is running.
 echo %TIME% WinRM: start, so it can be reconfigured>> "%LOG%"
 net start WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-echo %TIME% winrm: delete the build's HTTP listener>> "%LOG%"
-call winrm delete winrm/config/Listener?Address=*+Transport=HTTP>> "%LOG%" 2>&1
+rem A BACKSTOP. The sysprep task ran packer-close-winrm.ps1 (sysprep.ps1)
+rem before generalising: the build's HTTPS listener and rule, and the
+rem certificate, its private key deleted first. This runs the same script
+rem again, so whatever is still here goes the same way, and it appends to the
+rem same packer-close-winrm.log. It exits 1 if any of the three is left,
+rem including a certificate it kept because its key could not be deleted, so
+rem rc=0 means none is on this clone (#846).
+echo %TIME% packer-close-winrm.ps1: the build's HTTPS listener, its rule and certificate>> "%LOG%"
+powershell -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "%WINDIR%\Temp\packer-close-winrm.ps1">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
-echo %TIME% powershell: firewall rule, Basic auth, unencrypted>> "%LOG%"
-powershell -NoProfile -NonInteractive -Command "Remove-NetFirewallRule -Name 'packer-winrm-http' -ErrorAction SilentlyContinue; Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force; Set-Item WSMan:\localhost\Service\AllowUnencrypted $false -Force">> "%LOG%" 2>&1
+rem AllowUnencrypted is not touched: the build never turns it on, and setting
+rem it fails on the Public network a clone starts on.
+echo %TIME% powershell: Basic auth off>> "%LOG%"
+powershell -NoProfile -NonInteractive -Command "Set-Item WSMan:\localhost\Service\Auth\Basic $false -Force">> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 echo %TIME% WinRM: disable and stop>> "%LOG%"
@@ -56,13 +66,21 @@ sc.exe stop WinRM>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
 del /q "%WINDIR%\Panther\unattend-oobe.xml">> "%LOG%" 2>&1
+rem The specialize/oobe answer files Setup copies into Panther carry the
+rem build password (and, since #1093, the AutoLogon password) in plaintext,
+rem and are readable by BUILTIN\Users (#1099). Setup is done by now, so they
+rem are vestigial; delete them before any user can log on.
+del /q "%WINDIR%\Panther\unattend.xml">> "%LOG%" 2>&1
+del /q "%WINDIR%\Panther\unattend-original.xml">> "%LOG%" 2>&1
 
 rem What sysprep.ps1 left to run sysprep outside the build's WinRM session.
 rem The task has no trigger and cannot run again, but it has no business in
-rem a guest.
-echo %TIME% packer-sysprep: delete the task and its .cmd>> "%LOG%"
+rem a guest. packer-close-winrm.log stays: it is what the sysprep task did to
+rem the build's WinRM, and holds nothing secret.
+echo %TIME% packer-sysprep: delete the task, its .cmd and its .ps1>> "%LOG%"
 schtasks.exe /delete /tn packer-sysprep /f>> "%LOG%" 2>&1
 del /q "%WINDIR%\Temp\packer-sysprep.cmd">> "%LOG%" 2>&1
+del /q "%WINDIR%\Temp\packer-close-winrm.ps1">> "%LOG%" 2>&1
 
 rem The account phoenix's key logs in as must be enabled. Client Windows
 rem disables the built-in Administrator by default, and generalising puts
@@ -83,6 +101,14 @@ sc.exe config sshd start= auto>> "%LOG%" 2>&1
 sc.exe start sshd>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 
+rem Readiness invariant (#1099): the Panther answer files MUST be gone before
+rem the agent signals ready. If either survived the delete above, do NOT start
+rem QEMU-GA: packer-smoke.sh then times out and the rebuild fails loudly rather
+rem than shipping a clone whose plaintext build/AutoLogon password is readable
+rem by BUILTIN\Users. The smoke test also asserts their absence over SSH.
+if exist "%WINDIR%\Panther\unattend.xml" goto scrubfail
+if exist "%WINDIR%\Panther\unattend-original.xml" goto scrubfail
+
 rem Last: the guest agent, which sysprep.ps1 disabled so that it could not
 rem answer before this script had run, sshd included. Its first answer is the
 rem readiness signal scripts/packer-smoke.sh waits for.
@@ -91,3 +117,8 @@ sc.exe config QEMU-GA start= auto>> "%LOG%" 2>&1
 sc.exe start QEMU-GA>> "%LOG%" 2>&1
 >> "%LOG%" echo %TIME%   rc=%ERRORLEVEL%
 echo %DATE% %TIME% done>> "%LOG%"
+goto :eof
+
+:scrubfail
+echo %DATE% %TIME% ABORT: a Panther answer file survived the scrub (#1099); refusing to start QEMU-GA>> "%LOG%"
+exit /b 1

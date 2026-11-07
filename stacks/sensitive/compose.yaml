@@ -24,8 +24,9 @@
 # Valkey — each in Home Assistant's shape, Paperless-ngx (#133) the fourth,
 # as three, and Vaultwarden (#131) the fifth — the one whose volume is the
 # vault, and the reason scripts/backup-volumes.sh learned this stack.
-# Homepage (#137) is the sixth, and the household's page of links to the other
-# five. ntfy (#136) is the seventh, and where the estate's alerts now arrive.
+# Homepage (#137) was the sixth, the household's page of links to the other
+# five, until ADR-0103 retired it for Glance's Household page. ntfy (#136) is
+# the seventh, and where the estate's alerts now arrive.
 # Miniflux (#147) is the eighth, and the first beyond ADR-0008's nine —
 # ADR-0057 decided it before it was written here. Memos (#145) is the ninth,
 # decided by ADR-0059, and Mealie (#146) the tenth, decided by ADR-0060.
@@ -35,6 +36,9 @@
 # same way (ADR-0062).
 # Stirling-PDF (#143) is the thirteenth, and the sixth beyond those nine:
 # ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
+# Mosquitto and ring-mqtt are the fourteenth, as two services: the Ring
+# Alarm's way into Home Assistant, decided by ADR-0104, and the reason for
+# DIFFERENCE 14, the tier's second and third networks.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -45,7 +49,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are thirteen such places, each marked DIFFERENCE.
+# the sibling file. There are fourteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -100,7 +104,7 @@ services:
   # would have been reachable by every other container on this network.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    image: caddy:2.11.7@sha256:f2a1290d0463aad60660d4ec134943f183ee2a5f6c3eb7bf32dd984f2f020772
     container_name: sensitive-caddy
     # A fixed address, for one reader: Home Assistant's `trusted_proxies`
     # names the proxy it will believe X-Forwarded-For from, and "whatever
@@ -134,6 +138,7 @@ services:
           - links.matrix.elysium
           - actual.matrix.elysium
           - pdf.matrix.elysium
+          - start.matrix.elysium
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -358,14 +363,29 @@ services:
   # integration here that needs one. It arrives as an environment variable,
   # read with `!env_var`, rather than in a /config/secrets.yaml rendered from
   # SOPS, which is what this comment used to plan. The environment is how
-  # Homepage and AdGuard beside it take theirs, it needs no rendered file or
+  # Glance and AdGuard beside it take theirs, it needs no rendered file or
   # mount, and `!env_var` is Home Assistant's own YAML tag for it. If a
   # second credential ever arrives, the secrets.yaml plan becomes worth its
   # mount.
+  #
+  # HA_MEDIATV_MAC comes by the same route and is not a credential. It is the
+  # TV's full MAC, which packages/mediatv.yaml's Wake-on-LAN call needs and
+  # docs/security.md keeps out of the repository (ADR-0097, #1218). It sits in
+  # SOPS because that is where a withheld value lives, so it does not count
+  # towards the secrets.yaml plan above.
+  #
+  # REQUESTS_CA_BUNDLE is how that sensor verifies the proxy, which serves
+  # https under the estate CA (#764, ADR-0086). Home Assistant builds every
+  # client SSL context from it when set, certifi otherwise, and it replaces
+  # certifi rather than adding to it, so the bundle is the host's public roots
+  # plus the estate CA. scripts/render-trust-bundles.sh writes it and has the
+  # reasoning.
   home-assistant:
     <<: *service-defaults
-    image: ghcr.io/home-assistant/home-assistant:2026.9.4@sha256:3e6710a7ab2a61311d9d899b719f6c3657791c63e8f4942cec4ebc42401d6b76
+    image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
     container_name: sensitive-home-assistant
+    # `mqtt` as well, for the broker (DIFFERENCE 14, ADR-0104).
+    networks: [sensitive, mqtt]
     init: false
     # A ceiling to catch a leak, not a measurement: #114's method — median and
     # peak over a fortnight of real use — replaces it once the tier runs. The
@@ -385,7 +405,9 @@ services:
       - /run:size=16m,exec
     environment:
       S6_READ_ONLY_ROOT: "1"
+      REQUESTS_CA_BUNDLE: /etc/home-assistant/ca-bundle.pem
       HA_PROMETHEUS_AUTHORIZATION: ${HA_PROMETHEUS_AUTHORIZATION:?set in secrets/sensitive.sops.yaml}
+      HA_MEDIATV_MAC: ${HA_MEDIATV_MAC:?set in secrets/sensitive.sops.yaml}
     volumes:
       - home-assistant-config:/config
       # The config is the repository's; the volume is the application's. A
@@ -394,6 +416,11 @@ services:
       # here, so `make up` runs check_mounted_config.py --fix for it (#355).
       - ./home-assistant/configuration.yaml:/config/configuration.yaml:ro
       - ./home-assistant/packages:/config/packages:ro
+      # One custom integration, ours, reviewed here and read-only: the local
+      # fix for the Ring push parser (ADR-0101). Not a HACS or add-on
+      # channel: nothing is installed into this directory at run time.
+      - ./home-assistant/custom_components:/config/custom_components:ro
+      - ./.rendered/home-assistant-ca.pem:/etc/home-assistant/ca-bundle.pem:ro
     expose:
       - "8123"
     # The recorder flushes on shutdown; cut it off at compose's default 10s
@@ -413,6 +440,166 @@ services:
       # recorder repair after an unclean stop, which is the slow start that
       # matters.
       start_period: 90s
+
+  # ---------------------------------------------------------------------------
+  # Mosquitto and ring-mqtt — the Ring Alarm into Home Assistant (ADR-0104)
+  # ---------------------------------------------------------------------------
+  # Home Assistant's core Ring integration carries the cameras and the
+  # doorbell, but not the Ring Alarm: its base station, contact and motion
+  # sensors, keypads and arming live behind Ring's alarm websocket, which that
+  # integration's library does not speak. ring-mqtt does, and publishes them
+  # to an MQTT broker with Home Assistant discovery. Two services, then: a
+  # broker, and the bridge. ADR-0104 is the decision and its trade.
+  #
+  # DIFFERENCE 14: two more networks, and neither is `sensitive`.
+  #
+  #   mqtt         internal, no gateway. The broker is on it alone with its
+  #                two clients, Home Assistant and ring-mqtt, so it can reach
+  #                nothing and no other service here can open 1883. The broker
+  #                carries the alarm's arming commands.
+  #   ring-egress  ring-mqtt's way out to Ring's cloud, and nothing else is on
+  #                it. ring-mqtt is deliberately not on `sensitive`: while it
+  #                has no Ring token, or its saved one fails, it serves an
+  #                unauthenticated sign-in page on 55123 on every interface,
+  #                and a service beside it could start a Ring sign-in of its
+  #                own there. On this network there is no one beside it; on
+  #                `mqtt` there are the broker and Home Assistant, which holds
+  #                the same Ring sign-in already.
+  #
+  # Each client also signs in to the broker as its own user, and the ACL keeps
+  # ring-mqtt to its two topic trees, so a compromised bridge cannot publish
+  # as anything else.
+  #
+  # Nothing is persisted. Retained discovery and state live in the broker's
+  # memory, and ring-mqtt republishes all of it when Home Assistant's birth
+  # message arrives on homeassistant/status, which it does after either side
+  # restarts. So the broker is read-only with no volume at all.
+  #
+  # The password file is built on every start from the environment, the
+  # pattern DIFFERENCE 12 set for ntfy: plaintext into a tmpfs under umask
+  # 077, hashed in place by `mosquitto_passwd -U` (argon2id), then the broker
+  # is exec'd. Changing a password in SOPS and `make up` is the rotation; Home
+  # Assistant's copy is entered once in its MQTT integration and must be
+  # changed there too.
+  mosquitto:
+    <<: *service-defaults
+    image: eclipse-mosquitto:2.1.2-alpine@sha256:38c0da4f2ef84284d47b3b3eeea1cb3bdeabe81ee10caf0cd5c5ff61ee3ea408
+    container_name: sensitive-mosquitto
+    networks: [mqtt]
+    user: "1883:1883"
+    # Two clients and a few hundred retained messages; a ceiling for a leak.
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /mosquitto/run:size=1m,uid=1883,gid=1883,mode=0700
+      # mosquitto_passwd -U writes its temporary copy here.
+      - /tmp:size=1m
+    environment:
+      MQTT_HA_PASSWORD: ${MQTT_HA_PASSWORD:?set in secrets/sensitive.sops.yaml}
+      MQTT_RING_PASSWORD: ${MQTT_RING_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        umask 077
+        printf 'homeassistant:%s\nring-mqtt:%s\n' "$$MQTT_HA_PASSWORD" "$$MQTT_RING_PASSWORD" > /mosquitto/run/passwd
+        mosquitto_passwd -U /mosquitto/run/passwd
+        exec mosquitto -c /mosquitto/config/mosquitto.conf
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - ./mosquitto/acl:/mosquitto/config/acl:ro
+    expose:
+      - "1883"
+    healthcheck:
+      # The listener answers. A login would be the stronger claim, but it
+      # would put a password on the healthcheck's command line, where
+      # `docker inspect` shows it to anyone who can run it.
+      test: ["CMD", "nc", "-z", "127.0.0.1", "1883"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  # ring-mqtt runs as plain Node, not through the image's s6 /init. That init
+  # only sets RUNMODE and DEBUG and execs `ring-mqtt.js` (its services.d run
+  # script, read in the pinned image on 2026-10-22), but it needs root to
+  # start, and with BRANCH=latest or dev it would `git pull` a newer ring-mqtt
+  # at run time. Neither is wanted. So: the image's own Node, as RENDER_UID,
+  # read-only, with the two variables that init would have set.
+  #
+  # ring-mqtt reads one file, /data/config.json, and that file holds the
+  # broker password inside mqtt_url. It is written to a tmpfs on every start
+  # from the environment and linked into /data, so the password is never on
+  # a disk. /data itself is a volume for the one thing ring-mqtt must keep:
+  # ring-state.json, Ring's refresh token, which Ring rotates and ring-mqtt
+  # writes back. It is the Ring location owner's sign-in, held the way Home
+  # Assistant's own Ring entry holds it in /config/.storage, and it never
+  # passes through SOPS. The first one is made by hand, once, with 2FA:
+  # docs/runbooks/connect-the-ring-alarm.md.
+  #
+  # enable_cameras is false: the cameras and doorbell are the core
+  # integration's, and with it false ring-mqtt neither lists them nor starts
+  # its bundled go2rtc, so nothing listens on 8554. Its token web UI on 55123
+  # starts only when it has no working token. It has no authentication, which
+  # is why ring-mqtt is on a network of its own (DIFFERENCE 14), and the
+  # runbook signs in with `docker exec` instead.
+  ring-mqtt:
+    <<: *service-defaults
+    image: tsightler/ring-mqtt:5.9.3@sha256:4a4e0db460d7023aa5851ff25491401fd23b2fd153b7269af481f0953cd6f00a
+    container_name: sensitive-ring-mqtt
+    # Not `sensitive`: DIFFERENCE 14 says why.
+    networks: [ring-egress, mqtt]
+    user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
+    # A ceiling for a leak. The numbers there are: 48 MiB at idle on the
+    # pinned image before a Ring sign-in, 2026-10-22, and 60 MiB two minutes
+    # after a start with the alarm's fourteen devices loaded, 2026-10-26.
+    mem_limit: 256m
+    memswap_limit: 256m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m
+      - /run/ring-mqtt:size=1m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render},mode=0700
+    working_dir: /app/ring-mqtt
+    environment:
+      RUNMODE: docker
+      DEBUG: ring-*
+      MQTT_RING_PASSWORD: ${MQTT_RING_PASSWORD:?set in secrets/sensitive.sops.yaml}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        umask 077
+        cat > /run/ring-mqtt/config.json <<EOF
+        {
+          "mqtt_url": "mqtt://ring-mqtt:$$MQTT_RING_PASSWORD@mosquitto:1883",
+          "mqtt_options": "",
+          "livestream_user": "",
+          "livestream_pass": "",
+          "disarm_code": "",
+          "enable_cameras": false,
+          "enable_modes": false,
+          "enable_panic": false,
+          "hass_topic": "homeassistant/status",
+          "ring_topic": "ring",
+          "location_ids": []
+        }
+        EOF
+        ln -sfn /run/ring-mqtt/config.json /data/config.json
+        exec node ./ring-mqtt.js
+    volumes:
+      - ring-mqtt-data:/data
+    # No healthcheck: the one process is Node under docker-init, so when it
+    # dies the container stops and restarts, and nothing depends on it.
+    # Whether it reached Ring is in its log and in Home Assistant, where the
+    # alarm's entities go unavailable.
+    stop_grace_period: 15s
 
   # ---------------------------------------------------------------------------
   # AdGuard Home — the DNS filter Unbound forwards to (#135, ADR-0010)
@@ -466,11 +653,19 @@ services:
     <<: *service-defaults
     image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
     container_name: sensitive-adguard
-    # 5x the measured 95 MiB RSS with both blocklists loaded (433k rules,
-    # 2026-09-09). A list refresh briefly holds the old and new copies, and
-    # the bound is for a leak, not a budget.
-    mem_limit: 512m
-    memswap_limit: 512m
+    # Was 512m: 5x the measured 95 MiB RSS with two blocklists (433k rules,
+    # 2026-09-09). The threat-intelligence list adds 1.56M rules. Measured on
+    # the pinned image, 2026-10-09, cgroup memory.peak:
+    #   fresh boot, three lists downloaded and loaded      ~440 MiB
+    #   boot on day-old lists, then the refresh replacing
+    #   all three while the old copies still serve          772 MiB
+    # The second is the daily refresh, and the number to size for. Production
+    # ran ~53 MiB above a fresh boot's peak with two lists (207 against 154
+    # MiB, cache and query log), so ~830 MiB is the expected worst case.
+    # 1.5g is ~1.8x that: the bound is for a leak, not a budget, this is the
+    # house's only forwarder, and trinity has 32 GB.
+    mem_limit: 1536m
+    memswap_limit: 1536m
     user: "65534:65534"
     cap_drop: [ALL]
     cap_add: [NET_BIND_SERVICE]
@@ -570,7 +765,7 @@ services:
   # larger, to bound a leak rather than to size.
   vaultwarden:
     <<: *service-defaults
-    image: vaultwarden/server:1.37.3@sha256:1587c45feaa479f1f5e8af3b00eded36bff77bcf1880cf8dbf0541706dd470e0
+    image: vaultwarden/server:1.37.4@sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055
     container_name: sensitive-vaultwarden
     mem_limit: 256m
     memswap_limit: 256m
@@ -719,7 +914,7 @@ services:
   # 128m: 14 MiB and ten tasks on that boot. Ten times, to bound a leak.
   ntfy:
     <<: *service-defaults
-    image: binwiederhier/ntfy:v2.28.0@sha256:6ef4b819f722fccdc036af611c4774cfdc2de821ab74fdd48bbf4c9d6f8973da
+    image: binwiederhier/ntfy:v2.29.0@sha256:4c599cf0818965782f93f652bd843e92714992e84d6b88ad17713dc0951cda1f
     container_name: sensitive-ntfy
     command: ["serve"]
     mem_limit: 128m
@@ -828,7 +1023,7 @@ services:
   # — and move the number and this paragraph together.
   immich-server:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-server:v3.2.4@sha256:d317916b28090c33eb36b308464ea391f8b7df1d850fcfea227a39ec879718c2
+    image: ghcr.io/immich-app/immich-server:v3.3.3@sha256:bae7664ff3aa4c2c1fcbdcdd86b40b105643c5f861f3e6a770fc760089f25862
     container_name: sensitive-immich-server
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
@@ -893,7 +1088,7 @@ services:
 
   immich-machine-learning:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-machine-learning:v3.2.4@sha256:e16c2f166a8174901959fdf85e2e4c7bd1ebc4b37e0b6655de97c41408a260c4
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.1@sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed
     container_name: sensitive-immich-machine-learning
     # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
     # switch (#132: "consider disabling the machine-learning container
@@ -1005,8 +1200,16 @@ services:
     # the database on restart, which is why upstream gives it no volume and
     # why /data here is a tmpfs. A full semver tag where upstream pins the
     # major alone, so that Dependabot has something to move.
-    image: valkey/valkey:9.1.2@sha256:418652cfb58ef879d4978c33553735d7147016032d5aefaa14c828e611eb9dfd
+    #
+    # The Alpine variant, the one paperless-broker runs, not the Debian one
+    # upstream's compose names: the Debian 9.1.2 carried libssl3t64 and
+    # libpcre2-8-0 that Debian had fixed and the image had not taken (#1006),
+    # and one variant for both brokers is one thing to rebuild and rescan.
+    image: valkey/valkey:9.1.2-alpine@sha256:48332870af354a799964c0012ae1194a0bf2bf894eb508f945810596dc2d8d11
     container_name: sensitive-immich-valkey
+    # As paperless-broker: the image's entrypoint is `tini --
+    # docker-entrypoint.sh`, an init of its own. One init is enough.
+    init: false
     mem_limit: 256m
     memswap_limit: 256m
     user: "999:999"
@@ -1097,7 +1300,7 @@ services:
   # --if-needed` the container runs before the webserver listens.
   paperless:
     <<: *service-defaults
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.2.1@sha256:5fa76604a81df6945086e0837b14b56543d137e8ce4f311cc5d9ebe907e74e79
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.2@sha256:d232cba37cc0bab0d6c6581ecd320383b7a6f49f33e0fd16adda4d009eb600dd
     container_name: sensitive-paperless
     # DIFFERENCE 5 again: s6-overlay as PID 1, and the same measured refusal
     # as home-assistant's — booted with the shared default, the container
@@ -1198,7 +1401,7 @@ services:
   # application's: shared_buffers defaults to 128 MB and this is four times it.
   paperless-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     container_name: sensitive-paperless-db
     user: "999:999"
     mem_limit: 512m
@@ -1322,7 +1525,7 @@ services:
   # ceiling of four is counting on.
   stirling-pdf:
     <<: *service-defaults
-    image: stirlingtools/stirling-pdf:3.0.0@sha256:66b6edb8ee62e307a8b335166e8931a6e65b39c9bf73b5e517fbfe9c613ba221
+    image: stirlingtools/stirling-pdf:3.1.0@sha256:b5b9e400c086e5334a4947a0d7cd589808f743f29267d7f41c18200cf4bc48b4
     container_name: sensitive-stirling-pdf
     # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
     # /scripts/init.sh`, an init of its own.
@@ -1388,7 +1591,16 @@ services:
       # Appended after the image's own JVM flags, and HotSpot takes the last of
       # a repeated flag: no heap dump, and 40 % where the entrypoint would say
       # 70. Both were read back from the running JVM's environment.
-      JAVA_CUSTOM_OPTS: -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+      #
+      # jpdfium.native.cacheDir (3.0.2, #952): Stirling's PDF engine now unpacks
+      # libpdfium.so into ~/.cache and loads it from there. The home tmpfs
+      # above is noexec, Docker's default, so the load failed with "failed to
+      # map segment from shared object" and the app never started. /tmp is the
+      # one tmpfs that is exec on purpose (DIFFERENCE 13), so the library goes
+      # there and the home directory stays non-executable.
+      JAVA_CUSTOM_OPTS: >-
+        -XX:-HeapDumpOnOutOfMemoryError -XX:MaxRAMPercentage=40
+        -Djpdfium.native.cacheDir=/tmp/jpdfium
     volumes:
       - stirling-pdf-configs:/configs
       # The entrypoint symlinks this script into /usr/local/bin under
@@ -1411,107 +1623,103 @@ services:
       start_period: 120s
 
   # ---------------------------------------------------------------------------
-  # Homepage — the household's front page (#137)
+  # Glance — the start page and the household's page (ADR-0098, ADR-0100,
+  # ADR-0103)
   # ---------------------------------------------------------------------------
-  # What exists on this tier and where it lives, at https://home.matrix.elysium
-  # — the entry point for the people who live here, as
-  # docs/runbooks/successor-handover.md is for whoever runs it next. A
-  # directory, not a status page: homepage/settings.yaml says why there are no
-  # status dots, and homepage/services.yaml which tiles read live numbers and
-  # why the rest are links. The four YAML files are the whole configuration,
-  # in the repository and mounted read-only; nothing about the page lives in a
-  # database or a volume, so there is nothing to back up and no sentinel.
+  # What the operator's browser opens to, at https://start.matrix.elysium: a
+  # page per subject — Home, Read, Watch, Sports & Markets, Homelab, Network &
+  # Storage and Maintenance — each a file under glance/pages/, all read from
+  # Prometheus or a public API. And the household's directory, at
+  # https://home.matrix.elysium, which Caddy sends to the Household page; it
+  # replaced Homepage (#137) under ADR-0103. glance/ is the whole
+  # configuration, in the repository and mounted read-only, except the
+  # operator's own lists, which come from SOPS. Nothing lives in a volume, so
+  # there is nothing to back up and no sentinel.
   #
-  # NO DOCKER SOCKET, although upstream's example mounts one for its container
-  # integration. A read-only mount of docker.sock is still the full Docker API
-  # — root on trinity, and every volume on this tier — handed to a page with
-  # no login at all (ADR-0022 re-accepts the SSO deferral for it on exactly
-  # that basis). Container state is what the Alloy agent already reports.
+  # NO DOCKER SOCKET: the Docker Containers widget would hand the full
+  # Docker API — root on trinity — to a page with no login.
   #
-  # As the operator, like Paperless: the mounted files are the checkout's,
-  # readable by whoever ran `make up`. With `user:` set the entrypoint's
-  # PUID/PGID branch is never taken — it chowns nothing and execs node as
-  # given — so nothing needs a capability and all are dropped.
+  # As the operator: the image has no USER and would run as
+  # root, and it needs nothing root has. Measured on the pinned image on
+  # trinity, 2026-10-19, with exactly these options and every widget loaded
+  # three times: read-only root with no tmpfs at all — `docker diff` showed
+  # only the two mount points — CapEff 0, 13–14 MiB and 9 tasks. Both pages
+  # of the second version (2026-10-21) loaded the same way held it at 14 MiB;
+  # 96m leaves room for a large Reddit or Fever answer in flight, and is a
+  # ceiling for a leak, not a size.
   #
-  # Read-only root, and the two places the image writes, both found by running
-  # the pinned image with exactly these options on trinity (2026-09-28):
-  # /app/config, which does not exist in the image — the entrypoint would
-  # `ln -s /config /app/config` on the root filesystem if it were missing,
-  # and Homepage copies its sample of any config file that is missing into it,
-  # some at start and the rest on the first page load — and Next.js's cache
-  # under /app/.next. Both tmpfs; the five config files that render are
-  # single-file mounts over the first, and bookmarks.yaml is among them for a
-  # reason the first deploy found: without it the sample was served, three
-  # links to GitHub, Reddit and YouTube on the household's page. custom.css is
-  # the Tokyo Night theme, mounted for the same reason. The samples still
-  # copied — custom.js (empty), docker, kubernetes, proxmox — configure
-  # integrations this page does not use, and render nothing. `make up` pins
-  # the mounts' inodes through check_mounted_config.py like every other one
-  # (#355). LOG_TARGETS
-  # keeps logs on stdout, where every other container's are, rather than in a
-  # logs/ directory under the tmpfs. `docker diff` after serving the page and
-  # every widget showed nothing written but those mount points; CapEff 0.
+  # TRUST. A static Go binary, so Go's own rules: the image's
+  # /etc/ssl/certs/ca-certificates.crt is still read for the public roots
+  # Reddit, Hacker News and Open-Meteo need, and SSL_CERT_DIR ADDS the files
+  # in that directory. The one file there is the tier's root and the estate
+  # CA, written by
+  # render-trust-bundles.sh: the first for step-ca's leaves on every
+  # *.matrix.elysium name (which resolve to Caddy through its aliases), the
+  # second for the ingest proxy's leaf on 10.0.99.20:9090. Measured the same
+  # day: every household health path answered through Caddy, and Prometheus
+  # and Miniflux's Fever endpoint each refused a placeholder key over
+  # verified TLS.
   #
-  # The widget credentials are three SOPS values handed in as HOMEPAGE_VAR_*,
-  # the prefix Homepage substitutes into services.yaml as {{HOMEPAGE_VAR_…}},
-  # and each is scoped read-only at the service that issued it
-  # (secrets/sensitive.example.yaml has the steps). The widgets call the
-  # tier's public names, which resolve to Caddy on this network through its
-  # aliases; NODE_EXTRA_CA_CERTS is the tier's root, the same file Caddy
-  # mounts, so Node trusts step-ca's leaves. Measured the same day: with
-  # placeholder tokens Immich and Paperless each answered 401 through Caddy —
-  # name, TLS and Host all good — and Prometheus answered from 10.0.99.20:9090,
-  # the /24 this host shares with it. Since #182 that port is the estate's
-  # ingest proxy, and the Prometheus widgets send the reader token.
+  # The four credentials come from SOPS and Glance substitutes them into
+  # the config as ${…}, each able to read and nothing else: the Prometheus
+  # reader token (query only), the Fever key of Miniflux's `glance` user
+  # (which follows nothing but public feeds), and, for the Household page's
+  # two numbers, an Immich key with `server.statistics` alone and the token of
+  # Paperless's view-only `homepage` user. secrets/sensitive.example.yaml has
+  # the steps for each.
   #
-  # HOMEPAGE_ALLOWED_HOSTS is the Host check on Homepage's API; any other Host
-  # gets a 400. Loopback on 3000 is always admitted, which is what the
-  # healthcheck below relies on.
-  #
-  # 256m: 101 MiB and 12 tasks after serving the page and all three widgets.
-  # A ceiling for a leak, not a size. No depends_on, for Vaultwarden's reason.
-  homepage:
+  # No depends_on, for Vaultwarden's reason.
+  glance:
     <<: *service-defaults
-    image: ghcr.io/gethomepage/homepage:v2.4.0@sha256:643bd0be730d40f69d58028a55d1a896739333e8815786df42bc97f109ecbe61
-    container_name: sensitive-homepage
+    image: glanceapp/glance:v0.8.7@sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+    container_name: sensitive-glance
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
-    mem_limit: 256m
-    memswap_limit: 256m
+    mem_limit: 96m
+    memswap_limit: 96m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
     read_only: true
-    tmpfs:
-      - /app/config:size=4m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render},mode=0700
-      - /app/.next/cache:size=64m,uid=${RENDER_UID:?run make render},gid=${RENDER_GID:?run make render}
-      - /tmp:size=16m
     environment:
-      HOMEPAGE_ALLOWED_HOSTS: home.matrix.elysium
-      LOG_TARGETS: stdout
-      NODE_EXTRA_CA_CERTS: /etc/homepage/tier-ca.pem
-      HOMEPAGE_VAR_IMMICH_API_KEY: ${HOMEPAGE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
-      HOMEPAGE_VAR_PAPERLESS_TOKEN: ${HOMEPAGE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
-      # The estate's Prometheus reader token (#182). services.yaml sends it
-      # from the five widgets that read 10.0.99.20:9090.
-      HOMEPAGE_VAR_PROMETHEUS_TOKEN: ${HOMEPAGE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      SSL_CERT_DIR: /etc/glance/certs
+      GLANCE_PROMETHEUS_TOKEN: ${GLANCE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      GLANCE_MINIFLUX_FEVER_KEY: ${GLANCE_MINIFLUX_FEVER_KEY:?set in secrets/sensitive.sops.yaml}
+      GLANCE_IMMICH_API_KEY: ${GLANCE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
+      GLANCE_PAPERLESS_TOKEN: ${GLANCE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      # The operator's own lists, one-line JSON that Glance substitutes into
+      # pages/home.yml (ADR-0100). Not credentials: in SOPS because this
+      # repository is public and they describe a person.
+      GLANCE_MARKETS: ${GLANCE_MARKETS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_BOOKMARKS: ${GLANCE_BOOKMARKS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_VIDEO_TABS: ${GLANCE_VIDEO_TABS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_REDDIT_TABS: ${GLANCE_REDDIT_TABS:?set in secrets/sensitive.sops.yaml}
     volumes:
-      - ./homepage/settings.yaml:/app/config/settings.yaml:ro
-      - ./homepage/services.yaml:/app/config/services.yaml:ro
-      - ./homepage/widgets.yaml:/app/config/widgets.yaml:ro
-      - ./homepage/bookmarks.yaml:/app/config/bookmarks.yaml:ro
-      - ./homepage/custom.css:/app/config/custom.css:ro
-      - ../../certificates/tier-ca.pem:/etc/homepage/tier-ca.pem:ro
+      # Each config file on its own, not the directory: a single-file mount
+      # is pinned by check_mounted_config.py, so `make up` recreates Glance
+      # when one changes. A directory mount would show the container a
+      # replaced file whose old inode Glance's watcher still holds.
+      - ./glance/glance.yml:/app/config/glance.yml:ro
+      - ./glance/pages/home.yml:/app/config/pages/home.yml:ro
+      - ./glance/pages/read.yml:/app/config/pages/read.yml:ro
+      - ./glance/pages/watch.yml:/app/config/pages/watch.yml:ro
+      - ./glance/pages/sports.yml:/app/config/pages/sports.yml:ro
+      - ./glance/pages/homelab.yml:/app/config/pages/homelab.yml:ro
+      - ./glance/pages/network.yml:/app/config/pages/network.yml:ro
+      - ./glance/pages/maintenance.yml:/app/config/pages/maintenance.yml:ro
+      - ./glance/pages/household.yml:/app/config/pages/household.yml:ro
+      # Static icons (assets/icons/NOTICE); nothing watches them.
+      - ./glance/assets:/app/config/assets:ro
+      - ./.rendered/glance-ca.pem:/etc/glance/certs/ca.pem:ro
     expose:
-      - "3000"
+      - "8080"
     healthcheck:
-      # The image's own HEALTHCHECK, written out with the port literal where
-      # the image's uses $PORT in a shell form. busybox wget; --probe proves
-      # it is in the image.
-      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:3000/api/healthcheck"]
+      # Glance's own health endpoint; the image has no HEALTHCHECK. busybox
+      # wget; --probe proves it is in the image.
+      test: ["CMD", "wget", "--spider", "-q", "http://127.0.0.1:8080/api/healthz"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 20s
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Miniflux — the feed reader (#147), the first of the tier extras
@@ -1616,7 +1824,7 @@ services:
   # cleanup job archives after 60 days read and 180 unread.
   miniflux-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
+    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
     container_name: sensitive-miniflux-db
     user: "999:999"
     mem_limit: 512m
@@ -1650,7 +1858,7 @@ services:
   # Beyond ADR-0008's nine, so decided before it was authored, and a service
   # people other than the operator open on purpose, from a phone in the kitchen. Hence
   # a name that says what it is for, https://recipes.matrix.elysium, the way
-  # Homepage's is `home` rather than `homepage`. Vaultwarden's shape otherwise:
+  # the household's page is `home`. Vaultwarden's shape otherwise:
   # `expose:` and no `ports:`, reached from Hicks only through Caddy's 443.
   #
   # Root with EVERY capability dropped, for DIFFERENCE 2's measured reason: in
@@ -1705,7 +1913,7 @@ services:
   # rather than to size. No depends_on, for Vaultwarden's reason.
   mealie:
     <<: *service-defaults
-    image: ghcr.io/mealie-recipes/mealie:v3.28.0@sha256:8b02290f4d1806f02acac6f25f6d48a3c965612fda1f8e914d5af533276f8688
+    image: ghcr.io/mealie-recipes/mealie:v3.29.0@sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc
     container_name: sensitive-mealie
     mem_limit: 1024m
     memswap_limit: 1024m
@@ -1885,7 +2093,7 @@ services:
   # depends_on, for Vaultwarden's reason.
   actual:
     <<: *service-defaults
-    image: actualbudget/actual-server:26.9.0-alpine@sha256:1c14eef351234f4b5dd0433865b5de89d70bdbdc57368d5b07e910662c6498f9
+    image: actualbudget/actual-server:26.10.0-alpine@sha256:67b1b5e9584e3e143b4f5c41e52b4506ed9cdd1072392d5ab5369f2d4fd0bffd
     container_name: sensitive-actual
     user: "1001:1001"
     mem_limit: 1g
@@ -1939,12 +2147,21 @@ networks:
       config:
         - subnet: 172.28.99.0/24
           ip_range: 172.28.99.128/25
+  # DIFFERENCE 14: the broker's network. Internal, so no gateway and no route
+  # out, and only the services that name it can reach what is on it.
+  mqtt:
+    driver: bridge
+    internal: true
+  # DIFFERENCE 14 again: ring-mqtt's own way out, with no other member.
+  ring-egress:
+    driver: bridge
 
 volumes:
   caddy-data:
   caddy-config:
   step-ca-data:
   home-assistant-config:
+  ring-mqtt-data:
   adguard-work:
   # Immich's metadata: every album, face, tag and the path of every original.
   # The originals are on the USB disk (DIFFERENCE 9); this is the SSD half.

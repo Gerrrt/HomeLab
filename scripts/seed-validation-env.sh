@@ -43,6 +43,9 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
 {
   echo "GRAFANA_ADMIN_PASSWORD=validation-only"
   echo "GRAFANA_RENDERER_TOKEN=validation-only"
+  # speedtest-tracker refuses an APP_KEY that is not base64 of 32 bytes, so
+  # the placeholder has that shape; it is all zeroes and encrypts nothing.
+  echo "SPEEDTEST_APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
   # Distinct from each other, because the ingest proxy's map refuses a
   # duplicate key at start and a boot of it should get past that.
   echo "INGEST_TOKEN_ORACLE=validation-only-oracle"
@@ -52,9 +55,15 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "INGEST_TOKEN_ODIN=validation-only-odin"
   echo "INGEST_TOKEN_PHOENIX=validation-only-phoenix"
   echo "INGEST_TOKEN_FENRIR=validation-only-fenrir"
+  echo "INGEST_TOKEN_GOLEM=validation-only-golem"
+  echo "INGEST_TOKEN_EDEN=validation-only-eden"
+  echo "INGEST_TOKEN_GARUDA=validation-only-garuda"
   echo "INGEST_TOKEN=validation-only-client"
-  echo "HOMEPAGE_PROMETHEUS_TOKEN=validation-only"
+  echo "GLANCE_PROMETHEUS_TOKEN=validation-only"
   echo "HA_PROMETHEUS_AUTHORIZATION=Bearer validation-only"
+  echo "HA_MEDIATV_MAC=00:00:5e:00:53:00"
+  echo "MQTT_HA_PASSWORD=validation-only-ha"
+  echo "MQTT_RING_PASSWORD=validation-only-ring"
   echo "STEPCA_PASSWORD=validation-only"
   echo "ADGUARD_ADMIN_PASSWORD_HASH=validation-only"
   echo "IMMICH_DB_PASSWORD=validation-only"
@@ -64,8 +73,17 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "STIRLING_ADMIN_PASSWORD=validation-only"
   echo "VAULTWARDEN_ADMIN_TOKEN=validation-only"
   echo "LINKDING_SUPERUSER_PASSWORD=validation-only"
-  echo "HOMEPAGE_IMMICH_API_KEY=validation-only"
-  echo "HOMEPAGE_PAPERLESS_TOKEN=validation-only"
+  echo "GLANCE_IMMICH_API_KEY=validation-only"
+  echo "GLANCE_PAPERLESS_TOKEN=validation-only"
+  echo "GLANCE_MINIFLUX_FEVER_KEY=validation-only"
+  # Glance's own lists are substituted into YAML, so a placeholder string
+  # would not parse: each is the smallest valid list of its kind (ADR-0100),
+  # single-quoted as render-config.sh writes them. The bookmark title holds a
+  # " #", which an unquoted value would turn into a comment.
+  echo "GLANCE_MARKETS='[{\"symbol\":\"SPY\",\"name\":\"S&P 500\"}]'"
+  echo "GLANCE_BOOKMARKS='[{\"title\":\"Example #1\",\"links\":[{\"title\":\"Example\",\"url\":\"https://example.com\"}]}]'"
+  echo "GLANCE_VIDEO_TABS='[{\"type\":\"videos\",\"title\":\"Example\",\"channels\":[\"UCR-DXc1voovS8nhAvccRZhg\"]}]'"
+  echo "GLANCE_REDDIT_TABS='[{\"type\":\"reddit\",\"subreddit\":\"homelab\"}]'"
   # ntfy validates these at start and exits on a malformed one, so a boot of
   # it (check_hardened_boot.sh) needs them well-formed: a real bcrypt hash —
   # of the string "validation-only", from the pinned image's `ntfy user
@@ -85,6 +103,9 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "DASHBOARD_PASSWORD=validation-only"
   echo "API_PASSWORD=validation-only"
   echo "VELOCIRAPTOR_INITIAL_ADMIN_PASSWORD=validation-only"
+  echo "BLOODHOUND_DB_PASSWORD=validation-only"
+  echo "BLOODHOUND_ADMIN_PASSWORD=Validation-only-1!"
+  echo "BLOODHOUND_JWT_SIGNING_KEY=validation-only"
   # RENDER_UID/GID are written to .env by render-config.sh from the deploying
   # user, so they are host-specific and deliberately absent from .env.example.
   echo "RENDER_UID=65534"

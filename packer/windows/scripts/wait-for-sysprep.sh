@@ -19,15 +19,17 @@
 # minutes later. Every request has its own timeout and the loop runs to a
 # clock, so neither case can hang.
 #
-# Environment, from windows.pkr.hcl: PROXMOX_URL, PROXMOX_TOKEN_ID,
-# PROXMOX_TOKEN_SECRET, NODE, VMID. TLS is verified, as packer-smoke.sh does,
-# with PROXMOX_CA_FILE for a host whose trust store lacks the cluster CA.
+# Environment: PROXMOX_URL, PROXMOX_TOKEN_ID, NODE and VMID from windows.pkr.hcl,
+# and PROXMOX_TOKEN_SECRET inherited from packer's own environment (phoenix.env,
+# exported), never passed by windows.pkr.hcl, which would put it on argv. TLS
+# is verified, as packer-smoke.sh does, with PROXMOX_CA_FILE for a host whose
+# trust store lacks the cluster CA.
 set -euo pipefail
 
 die() { printf '\nwait-for-sysprep: %s\n' "$*" >&2; exit 1; }
 
 for v in PROXMOX_URL PROXMOX_TOKEN_ID PROXMOX_TOKEN_SECRET NODE VMID; do
-  [[ -n "${!v:-}" ]] || die "${v} is unset"
+  [[ -n "${!v:-}" ]] || die "${v} is unset (PROXMOX_TOKEN_SECRET comes from packer's environment: set -a; . ~/.config/proxmox/phoenix.env; set +a)"
 done
 command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required (apt install jq)"
@@ -41,10 +43,12 @@ CURL_TLS=()
 
 # Prints the VM's status, or fails with the reason on stderr. A status that is
 # not a word (an error page, an empty body) is a failed read, not a state.
+# The token is curl config on stdin, not -H, so it is never in this poll's argv
+# for ps on phoenix to show, 180 times a build (#846).
 status() {
   local body s
-  body="$(curl -fsS --connect-timeout 10 --max-time 30 "${CURL_TLS[@]}" \
-    -H "Authorization: PVEAPIToken=${PROXMOX_TOKEN_ID}=${PROXMOX_TOKEN_SECRET}" \
+  body="$(printf 'header = "Authorization: PVEAPIToken=%s=%s"\n' "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" \
+    | curl -K - -fsS --connect-timeout 10 --max-time 30 "${CURL_TLS[@]}" \
     "${PROXMOX_URL}/nodes/${NODE}/qemu/${VMID}/status/current" 2>&1)" \
     || { printf '%s' "${body}"; return 1; }
   s="$(jq -r '.data.status // empty' <<<"${body}" 2>/dev/null)" || true

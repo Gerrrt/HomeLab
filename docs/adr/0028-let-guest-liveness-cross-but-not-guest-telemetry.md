@@ -12,6 +12,16 @@
 > metric produced inside it", and it is treated as hostile input. Run state is
 > unchanged, as is everything else in the right-hand column. The text here is
 > left as written, per ADR-0001.
+>
+> Widened again by
+> [ADR-0088](0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md),
+> 2026-10 ([#858](https://github.com/Gerrrt/HomeLab/issues/858)): for a fixed
+> list of named lab services, the lab Prometheus, Zeek, the Wazuh manager and
+> Velociraptor, one bit now crosses, whether Docker calls the container `running
+> healthy`. It is read on `Saruman` with one fixed `docker inspect` through
+> `qm guest exec`. This closes the half the first consequence below leaves
+> open, for those services only. Everything else in "What services it runs,
+> and their health" stays in the lab.
 
 ## Context
 

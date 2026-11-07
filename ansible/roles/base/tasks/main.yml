@@ -79,10 +79,25 @@
   poll: 0
   register: base_static
 
+# Dropping the DHCP address kills the session the task above ran in, and
+# ssh's ControlPersist master for this host dies with it without noticing.
+# A connection made in the next few seconds dies the same way: on leviathan
+# sshd accepted one 5 s after the change, and Windows' network state then
+# churned for another 11 s ("Network State Change Fired", then Identified).
+# wait_for_connection retried down that dead master until it timed out, which
+# is how the #448 rebuild lost both DCs ("Data could not be sent to remote
+# host") with the address correctly set. Hence a reset here, a 30 s delay
+# below, and ServerAlive in group_vars so a master that does stall is dropped.
+# Unconditional, because reset_connection ignores `when`; on a guest whose
+# address was already static it only closes a connection the next task
+# reopens.
+- name: Drop the connection the address change broke
+  ansible.builtin.meta: reset_connection
+
 - name: Wait for the DC to answer at its static address
   ansible.builtin.wait_for_connection:
-    delay: 5
-    timeout: 120
+    delay: 30
+    timeout: 180
   when: base_static.ansible_job_id is defined
 
 - name: Collect the result of the address change
@@ -123,6 +138,73 @@
     password_never_expires: true
   when: not domain_role_is_dc
   no_log: true
+
+# What the template's build left behind (#1099): Setup's untouched copy of the
+# build's answer file, with the build password in plaintext, twice, readable by
+# BUILTIN\Users. It was on all seven Windows guests on 2026-10-09 (six domain
+# guests and dot-windows), created at template build time, so every clone of
+# a 911 or 912 built before #1099 inherited it. The password stops opening
+# the local Administrator once the task above has run, but the template reuses
+# it, so it is still worth reading on any guest this has not touched yet.
+# Panther\unattend.xml stays: Setup scrubbed its password. unattend-oobe.xml,
+# the answer sysprep uses on a clone's first boot, carries the build password
+# in plaintext too; SetupComplete.cmd deletes it, and this backs that up.
+- name: Remove Setup's plaintext copies of the build answer files
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - C:\Windows\Panther\unattend-original.xml
+    - C:\Windows\Panther\unattend-oobe.xml
+
+# What the template's build left behind (#846). Packer's WinRM ran over HTTPS on
+# a self-signed certificate, FriendlyName packer-winrm, made in bootstrap.ps1.
+# Templates built before #1031 left it on every clone, the same one on each
+# clone of a template; since #1031 the sysprep task removes it before
+# generalising. On the six rebuilt on 2026-10-07 the private key was already
+# gone ("Missing stored keyset": sysprep does not keep it), so what remains is a
+# public certificate. Still removed, so that verify.yml can hold the guest to
+# having none.
+#
+# Never orphan a key: a key that opens is deleted through its provider first.
+# One that cannot be opened lets the certificate go only once certutil says
+# the keyset is missing AND the key store has no such container; anything else
+# fails the task and keeps the certificate that names the key.
+- name: Remove the build's WinRM certificate, its private key first
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param()
+      $Ansible.Changed = $false
+      $crypto = 'System.Security.Cryptography'
+      $certs = @(Get-ChildItem -Path Cert:\LocalMachine\My | Where-Object FriendlyName -eq 'packer-winrm')
+      foreach ($c in $certs) {
+        $Ansible.Changed = $true
+        if ($Ansible.CheckMode) { continue }
+        if ($c.HasPrivateKey) {
+          $k = $null
+          try { $k = ("$crypto.X509Certificates.RSACertificateExtensions" -as [type])::GetRSAPrivateKey($c) } catch { }
+          if ($k -is ("$crypto.RSACng" -as [type])) {
+            $k.Key.Delete()
+          } elseif ($k -is ("$crypto.RSACryptoServiceProvider" -as [type])) {
+            $k.PersistKeyInCsp = $false; $k.Clear()
+          } else {
+            $info = @(certutil -store My $c.Thumbprint)
+            $m = ($info | Select-String -Pattern 'Key Container = (.+)$' | Select-Object -First 1).Matches
+            $name = if ($m) { $m[0].Groups[1].Value.Trim() } else { '' }
+            $ksp = ("$crypto.CngProvider" -as [type])::MicrosoftSoftwareKeyStorageProvider
+            $machine = ("$crypto.CngKeyOpenOptions" -as [type])::MachineKey
+            $exists = $name -and ("$crypto.CngKey" -as [type])::Exists($name, $ksp, $machine)
+            if ($exists -or -not ($info -match 'Missing stored keyset')) {
+              throw "packer-winrm $($c.Thumbprint): its key did not open and is not confirmed gone; kept"
+            }
+          }
+        }
+        Remove-Item -Path ('Cert:\LocalMachine\My\' + $c.Thumbprint) -Force
+      }
+  # Its own tag as well as base's, so the six rebuilt before #1031 can be
+  # cleaned without re-running the rest of base: --tags packer_cert.
+  tags: [packer_cert]
 
 # Where the roles after this one put what they download and place, so that
 # everything Ansible owns on a guest is in one directory.

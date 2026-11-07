@@ -40,7 +40,7 @@
     {
       "type": "table",
       "title": "Stack alerts",
-      "description": "Firing and pending alerts carrying component=stack, from the ALERTS series Prometheus exposes for its own rules. Empty is the good state. Silences live in Alertmanager and are not reflected here — see dashboards/README.md.",
+      "description": "One row per firing or pending alert, always the same six columns. Raw, each rule's own labels became a column apiece, empty on most rows (#888). Host is the first of host, instance. Subject is every identifying label the alert carries, in the order integration, job, reason, failure, health_type, rule_group, alert, id, issue, written as \"name value\" and comma-separated, so two alerts that differ in any of them stay two rows. Either column reads — when the alert has none. The full label set is in Alertmanager.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -59,7 +59,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "ALERTS{component=\"stack\",alertstate=~\"firing|pending\"}",
+          "expr": "max by (alertname, alertstate, severity, category, where, subject) (label_replace(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_replace(label_join(label_replace(label_join(ALERTS{component=\"stack\",alertstate=~\"firing|pending\"}, \"fold_tmp\", \"|\", \"where\", \"host\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"fold_tmp\", \"|\", \"where\", \"instance\"), \"where\", \"$1\", \"fold_tmp\", \"\\\\|(.+)\"), \"where\", \"—\", \"where\", \"\"), \"fold_tmp\", \"|\", \"subject\", \"integration\"), \"subject\", \"integration $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, integration $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"job\"), \"subject\", \"job $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, job $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"reason\"), \"subject\", \"reason $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, reason $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"failure\"), \"subject\", \"failure $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, failure $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"health_type\"), \"subject\", \"health_type $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, health_type $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"rule_group\"), \"subject\", \"rule_group $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, rule_group $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"alert\"), \"subject\", \"alert $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, alert $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"id\"), \"subject\", \"id $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, id $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"fold_tmp\", \"|\", \"subject\", \"issue\"), \"subject\", \"issue $1\", \"fold_tmp\", \"\\\\|(.+)\"), \"subject\", \"$1, issue $2\", \"fold_tmp\", \"(.+)\\\\|(.+)\"), \"subject\", \"—\", \"subject\", \"\"))",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -73,23 +73,23 @@
           "options": {
             "excludeByName": {
               "Time": true,
-              "__name__": true,
-              "Value": true,
-              "component": true,
-              "job": true,
-              "monitor": true,
-              "site": true,
-              "role": true
+              "Value": true
             },
-            "indexByName": {},
+            "indexByName": {
+              "alertname": 0,
+              "alertstate": 1,
+              "severity": 2,
+              "category": 3,
+              "where": 4,
+              "subject": 5
+            },
             "renameByName": {
               "alertname": "Alert",
               "alertstate": "State",
               "severity": "Severity",
               "category": "Category",
-              "instance": "Instance",
-              "integration": "Integration",
-              "rule_group": "Rule group"
+              "where": "Host",
+              "subject": "Subject"
             }
           }
         }
@@ -630,7 +630,7 @@
     {
       "type": "table",
       "title": "Every target",
-      "description": "Every up series the stack holds, with how long its scrape took and how many samples it returned. Samples is the column that matters: cAdvisor reporting one series where it should report hundreds is invisible in Up and obvious here (#12). Remote-written jobs show their last pushed value, which is why Staleness sits beside it.",
+      "description": "Every up series the stack holds, with how long its scrape took and how many samples it returned. Samples is the column that matters: cAdvisor reporting one series where it should report hundreds is invisible in Up and obvious here (#12). Remote-written jobs show their last pushed value, which is why Staleness sits beside it.\n\nUp is `min by (job, instance)`, the same grouping as the other three columns, so a job's extra labels (check, scope, renewal, …) never become half-empty columns. Min, not max: blackbox-dns has two /probe scrapes at one address, liveness and filtering, and the row reads down if either scrape fails. For blackbox jobs Up is the scrape of the exporter, not the probe's result: a check that fails reports probe_success 0 with Up still 1. Probe results are watched by the dns and blackbox rules, not by this column.",
       "datasource": {
         "type": "prometheus",
         "uid": "prometheus"
@@ -649,7 +649,7 @@
           },
           "editorMode": "code",
           "exemplar": false,
-          "expr": "up",
+          "expr": "min by (job, instance) (up)",
           "legendFormat": "",
           "range": false,
           "instant": true,
@@ -711,13 +711,7 @@
               "Time": true,
               "__name__": true,
               "site": true,
-              "monitor": true,
-              "device": true,
-              "host": true,
-              "name": true,
-              "role": true,
-              "via": true,
-              "vlan": true
+              "monitor": true
             },
             "indexByName": {
               "job": 0,

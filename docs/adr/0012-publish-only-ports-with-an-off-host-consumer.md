@@ -2,6 +2,15 @@
 
 **Status:** Accepted · 2026-08
 
+> [!NOTE]
+> The Alloy syslog row below is out of date. Its port is now **6514/tcp, TLS with
+> morpheus's pinned client certificate**, bound to `${INGEST_BIND_ADDR}`. The
+> 1514/udp listener, and the 514 published beside it, were removed because a
+> UDP source can be forged from VLAN 99
+> ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)). The decision, to
+> publish only what something off-host uses, is unchanged. The text below is
+> left as written, per ADR-0001.
+
 ## Context
 
 The observability stack published five ports on `${BIND_ADDR:-0.0.0.0}` because

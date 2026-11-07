@@ -45,6 +45,13 @@ and the pair is strictly stronger than the single check it replaces:
     That is what still catches an array naming a service nothing has, which is
     the case the old "not defined" message existed for.
 
+Three checks here are about hardening rather than health, because this is the
+script that already parses every service: no path to the Docker socket except
+through the proxy (#836), no long-running service without
+`no-new-privileges` unless NNP_EXEMPT records why (#845), and no official
+postgres that starts as anyone but 999:999, which the CVE scan's gosu skip
+stands on (#995).
+
 The completeness half is only claimed when this script discovered the stacks
 itself, which it does when given no paths. Explicit paths mean the caller chose
 the scope, and no claim about the whole repository can follow from a subset.
@@ -53,6 +60,7 @@ Usage: scripts/check_compose_health.py [--probe] [--proof-cache <path>] [compose
        scripts/check_compose_health.py --self-test
        scripts/check_compose_health.py --cross-stack
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -64,22 +72,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from typing import Callable
+from collections.abc import Callable
 
-# PyYAML is not guaranteed on a clean runner, and this script gates CI. Install
-# it rather than failing a green compose file on a missing library — the same
-# thing scripts/check_loki_rules.sh does, for the same reason.
-try:
-    import yaml
-except ModuleNotFoundError:
-    print("installing PyYAML", file=sys.stderr)
-    if subprocess.run(
-        [sys.executable, "-m", "pip", "install", "--quiet",
-         "--disable-pip-version-check", "pyyaml"],
-        check=False,
-    ).returncode:
-        sys.exit("PyYAML is required and could not be installed")
-    import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = pathlib.Path(__file__).resolve().parent.parent
 DEFAULT = REPO / "stacks/observability/compose.yaml"
@@ -108,7 +107,7 @@ DISTROLESS_MARKERS = ("distroless", "/static", "scratch")
 # loki, deliberately"). Probing it is what stops the prose going stale. If one
 # of these ever turns up present, the fix is to delete the entry and give the
 # service the healthcheck it can now support.
-ABSENT_BINARIES = {"loki": (SHELL, "wget")}
+ABSENT_BINARIES = {"loki": (SHELL, "wget"), "bloodhound": (SHELL, "wget")}
 
 # Bounds a probe that blocks rather than exits. --network none already makes a
 # network binary fail instantly; this covers everything else. Same env-override
@@ -122,7 +121,7 @@ PROBE_TIMEOUT = int(os.environ.get("PROBE_TIMEOUT", "60"))
 #   exec: "/bin/sh": stat /bin/sh: no such file or directory
 NOT_FOUND = re.compile(
     r"executable file not found|no such file or directory|exec format error",
-    re.I,
+    re.IGNORECASE,
 )
 PROBE_COUNTER = itertools.count()
 NUMERIC_USER = re.compile(r"\d+(:\d+)?")
@@ -140,7 +139,7 @@ NUMERIC_USER = re.compile(r"\d+(:\d+)?")
 # (#73). It catches a port changing here and not there, a service being added to
 # the reload list without a healthcheck to probe, and /-/healthy moving.
 RELOAD_SCRIPT = REPO / "scripts/reload-config.sh"
-RELOAD_SERVICES = re.compile(r"^SERVICES=\((.*?)^\)", re.M | re.S)
+RELOAD_SERVICES = re.compile(r"^SERVICES=\((.*?)^\)", re.MULTILINE | re.DOTALL)
 RELOAD_ENTRY = re.compile(r"^\s*([A-Za-z0-9_.-]+):(\d+)\s*$")
 RELOAD_PROBE_PATH = "/-/healthy"
 
@@ -181,7 +180,7 @@ def healthcheck_binary(test: object) -> tuple[str | None, str | None]:
     if test[0] == "CMD":
         if len(test) > 1:
             return str(test[1]), None
-        return None, "healthcheck test is [\"CMD\"] with no command after it"
+        return None, 'healthcheck test is ["CMD"] with no command after it'
     # The compose spec requires the first element to be NONE, CMD or CMD-SHELL.
     # A bare list is not a shorthand — it is a typo that `docker compose config`
     # accepts, and it walked straight past the previous version of this check.
@@ -206,8 +205,10 @@ def reload_entries() -> tuple[list[tuple[str, str]], list[str]]:
     block = RELOAD_SERVICES.search(source)
     if not block:
         return [], [
-            f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
-            f"it was reshaped, and this check has been reading nothing ever since"
+            (
+                f"could not find the SERVICES=( ... ) array in {RELOAD_SCRIPT.name} — "
+                f"it was reshaped, and this check has been reading nothing ever since"
+            )
         ]
 
     problems: list[str] = []
@@ -279,9 +280,7 @@ def reload_probe_problems(services: dict, compose_name: str) -> list[str]:
 def docker_unavailable() -> str | None:
     """An error message if --probe cannot run, None if it can."""
     try:
-        proc = subprocess.run(
-            ["docker", "info"], capture_output=True, check=False
-        )
+        proc = subprocess.run(["docker", "info"], capture_output=True, check=False)
     except (FileNotFoundError, OSError):
         proc = None
     if proc is not None and proc.returncode == 0:
@@ -335,9 +334,7 @@ def is_digest_pinned(image: str) -> bool:
 
 def prober_sha256() -> str:
     """A hash of this file, so a proof cannot outlive the logic that made it."""
-    return hashlib.sha256(
-        pathlib.Path(__file__).resolve().read_bytes()
-    ).hexdigest()
+    return hashlib.sha256(pathlib.Path(__file__).resolve().read_bytes()).hexdigest()
 
 
 def load_proofs(path: pathlib.Path | None) -> set[tuple[str, str, str]]:
@@ -355,8 +352,8 @@ def load_proofs(path: pathlib.Path | None) -> set[tuple[str, str, str]]:
         return set()
     if not lines or lines[0].strip() != PROOF_CACHE_HEADER:
         return set()
-    logic = next((l for l in lines if l.startswith(PROOF_CACHE_LOGIC)), "")
-    if logic[len(PROOF_CACHE_LOGIC):].strip() != prober_sha256():
+    logic = next((line for line in lines if line.startswith(PROOF_CACHE_LOGIC)), "")
+    if logic[len(PROOF_CACHE_LOGIC) :].strip() != prober_sha256():
         note("proof cache was written by a different prober — proving again")
         return set()
     proofs = set()
@@ -373,9 +370,7 @@ def save_proofs(path: pathlib.Path | None, proofs: set[tuple[str, str, str]]) ->
     """Write the proofs held after this run. Never fatal — see load_proofs."""
     if path is None:
         return
-    body = "\n".join(
-        "\t".join(entry) for entry in sorted(proofs) if is_digest_pinned(entry[0])
-    )
+    body = "\n".join("\t".join(entry) for entry in sorted(proofs) if is_digest_pinned(entry[0]))
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
@@ -413,15 +408,15 @@ def ensure_image(
     ever taken outside CI. They are keyword-only and default to the real
     things, so the one production caller is unchanged.
     """
-    if not run(
-        ["docker", "image", "inspect", image], capture_output=True, check=False
-    ).returncode:
+    if not run(["docker", "image", "inspect", image], capture_output=True, check=False).returncode:
         return None
     note(f"pulling {image}")
     for pause in (*PULL_RETRY_PAUSES, None):
         proc = run(
             ["docker", "pull", "--quiet", image],
-            capture_output=True, text=True, check=False,
+            capture_output=True,
+            text=True,
+            check=False,
         )
         if not proc.returncode:
             return None
@@ -435,9 +430,7 @@ def ensure_image(
     return last  # not reached: the final attempt returns above
 
 
-def probe_binary(
-    image: str, binary: str, user: str | None
-) -> tuple[str, str]:
+def probe_binary(image: str, binary: str, user: str | None) -> tuple[str, str]:
     """Exec `binary` inside `image`. Returns (verdict, detail).
 
     Verdicts: present, absent, unusable, undecidable, error.
@@ -458,13 +451,18 @@ def probe_binary(
     """
     name = f"compose-health-probe-{os.getpid()}-{next(PROBE_COUNTER)}"
     command = [
-        "docker", "run", "--rm",
+        "docker",
+        "run",
+        "--rm",
         # No network, so a probe binary that would dial something fails at once
         # instead of blocking on a connect — and so this can never touch the
         # network under test.
-        "--network", "none",
-        "--pull", "never",
-        "--name", name,
+        "--network",
+        "none",
+        "--pull",
+        "never",
+        "--name",
+        name,
     ]
     # Run as the uid the healthcheck would, when compose names one literally, so
     # "present but not executable by that user" is caught too. The ${RENDER_UID}
@@ -474,12 +472,15 @@ def probe_binary(
     command += ["--entrypoint", binary, image]
     try:
         proc = subprocess.run(
-            command, capture_output=True, text=True,
-            stdin=subprocess.DEVNULL, timeout=PROBE_TIMEOUT,
+            command,
+            capture_output=True,
+            text=True,
+            stdin=subprocess.DEVNULL,
+            timeout=PROBE_TIMEOUT,
+            check=False,
         )
     except subprocess.TimeoutExpired:
-        subprocess.run(["docker", "rm", "-f", name],
-                       capture_output=True, check=False)
+        subprocess.run(["docker", "rm", "-f", name], capture_output=True, check=False)
         # It got far enough to block, so it exists.
         return "present", f"still running after {PROBE_TIMEOUT}s"
 
@@ -528,7 +529,7 @@ def bind_source_problems(compose_path: pathlib.Path, services: dict) -> list[str
     """
     problems = []
     for name, svc in services.items():
-        for volume in ((svc or {}).get("volumes") or []):
+        for volume in (svc or {}).get("volumes") or []:
             if not isinstance(volume, str):
                 continue
             source = volume.split(":")[0]
@@ -558,7 +559,7 @@ SOCKET_PROXY_IMAGE = "tecnativa/docker-socket-proxy:"
 def _mounts(svc: dict) -> tuple[list[tuple[str, str]], set[str]]:
     """(source, target) for each bind, and the set of tmpfs targets."""
     binds, tmpfs = [], set()
-    for volume in (svc.get("volumes") or []):
+    for volume in svc.get("volumes") or []:
         if isinstance(volume, str):
             parts = volume.split(":")
             binds.append((parts[0], parts[1] if len(parts) > 1 else parts[0]))
@@ -568,7 +569,7 @@ def _mounts(svc: dict) -> tuple[list[tuple[str, str]], set[str]]:
             else:
                 binds.append((str(volume.get("source", "")), str(volume.get("target", ""))))
     entries = svc.get("tmpfs") or []
-    for entry in ([entries] if isinstance(entries, str) else entries):
+    for entry in [entries] if isinstance(entries, str) else entries:
         tmpfs.add(str(entry).split(":")[0].rstrip("/"))
     return binds, tmpfs
 
@@ -622,6 +623,201 @@ def socket_mount_problems(services: dict) -> list[str]:
     return problems
 
 
+# Where every socket proxy reads its HAProxy config from, and how it is told to
+# (Tecnativa/docker-socket-proxy#182). The image's own template allows the
+# whole /containers prefix whenever CONTAINERS=1, which includes the GET
+# endpoints that copy files out of a container. The repository's copy allows
+# three paths instead. That copy only applies if haproxy is pointed at it, so a
+# proxy that drops either line below runs the image's template again, still
+# looks healthy, and still serves every request Alloy makes.
+SOCKET_PROXY_CONFIG_DIR = REPO / "stacks/observability/docker-socket-proxy"
+SOCKET_PROXY_CONFIG_TARGET = "/usr/local/etc/socket-proxy"
+SOCKET_PROXY_COMMAND = ["haproxy", "-f", f"{SOCKET_PROXY_CONFIG_TARGET}/haproxy.cfg"]
+
+
+def socket_proxy_config_problems(compose_path: pathlib.Path, services: dict) -> list[str]:
+    """A socket proxy that is not running the repository's HAProxy config.
+
+    Both halves are needed. The mount alone changes nothing, because the image
+    starts haproxy on the /tmp copy of its own template. The command alone
+    fails at start, which at least is loud. The mount is a directory, not the
+    file, so a `git checkout` that replaces the file is seen at once instead of
+    leaving the container on the old inode (check_mounted_config.py's #355).
+    Read-only, because nothing in the proxy should be able to rewrite its own
+    rules.
+
+    Keyed on the image, like socket_mount_problems, so a renamed proxy is still
+    checked.
+    """
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        if not str(svc.get("image", "")).startswith(SOCKET_PROXY_IMAGE):
+            continue
+        at_target = False
+        for volume in svc.get("volumes") or []:
+            if not isinstance(volume, str):
+                continue
+            parts = volume.split(":")
+            if len(parts) < 2 or parts[1].rstrip("/") != SOCKET_PROXY_CONFIG_TARGET:
+                continue
+            at_target = True
+            source = (compose_path.resolve().parent / parts[0]).resolve()
+            if source != SOCKET_PROXY_CONFIG_DIR.resolve():
+                problems.append(
+                    f"{name} mounts {parts[0]} at {SOCKET_PROXY_CONFIG_TARGET}, but the "
+                    f"socket proxies' config is {SOCKET_PROXY_CONFIG_DIR.relative_to(REPO)}"
+                )
+            elif "ro" not in (parts[2].split(",") if len(parts) > 2 else []):
+                problems.append(f"{name} mounts its HAProxy config read-write; add :ro")
+        if not at_target:
+            problems.append(
+                f"{name} does not mount {SOCKET_PROXY_CONFIG_DIR.relative_to(REPO)} at "
+                f"{SOCKET_PROXY_CONFIG_TARGET}, so it runs the image's own template, "
+                f"where CONTAINERS=1 also allows /containers/{{id}}/archive and /export "
+                f"(Tecnativa/docker-socket-proxy#182)"
+            )
+        if svc.get("command") != SOCKET_PROXY_COMMAND:
+            problems.append(
+                f"{name} has command {svc.get('command')!r}, not {SOCKET_PROXY_COMMAND!r}. "
+                f"Without it haproxy reads the image's template, whatever is mounted"
+            )
+    return problems
+
+
+# Every long-running service carries `no-new-privileges` (#845). The estate
+# put it on every service in #186, the sensitive tier on every one of its own,
+# and then three stacks on VLAN 30 — the segment that exists to hold attackers —
+# shipped nine services without it, because nothing looked. It is free: it
+# stops execve from ever raising privilege, so a setuid binary a later image
+# bump brings cannot be used, and a service that does not need it to start
+# loses nothing.
+#
+# "Long-running" is a restart policy, not the absence of a profile: `renderer`
+# is profiled and still runs for as long as the `capture` profile is up, while
+# the one-shot lint and scan tools have no restart policy at all.
+#
+# An exemption is a reason, written here, keyed by (stack directory, service)
+# because `wazuh.manager` in soc and in scratch are two services. Like
+# ABSENT_BINARIES, it is checked in both directions by --cross-stack: an entry
+# for a service that is gone, or that has since gained the option, is stale.
+#
+# Empty since #954, and meant to stay that way: its one entry, `renderer`, was
+# measured and now carries the option like everything else. An entry here is a
+# finding with a reason, never a way to make CI green.
+NNP_EXEMPT: dict[tuple[str, str], str] = {}
+LONG_RUNNING_RESTARTS = {"always", "unless-stopped", "on-failure"}
+
+
+def has_no_new_privileges(svc: dict) -> bool:
+    """True if security_opt sets no-new-privileges, in either spelling."""
+    for opt in svc.get("security_opt") or []:
+        opt = str(opt).replace("=", ":")
+        if opt == "no-new-privileges" or opt == "no-new-privileges:true":
+            return True
+    return False
+
+
+def privilege_problems(services: dict, stack: str, exempt: dict[tuple[str, str], str] | None = None) -> list[str]:
+    """A long-running service without no-new-privileges and no recorded reason.
+
+    `exempt` is NNP_EXEMPT unless --self-test hands it a fixture, so the
+    fixtures do not depend on what the real allowlist happens to hold.
+    """
+    exempt = NNP_EXEMPT if exempt is None else exempt
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        restart = str(svc.get("restart", "no")).split(":")[0]
+        if restart not in LONG_RUNNING_RESTARTS:
+            continue
+        if has_no_new_privileges(svc) or str(exempt.get((stack, name), "")).strip():
+            continue
+        problems.append(
+            f"{name} is long-running (restart: {restart}) but does not set "
+            f"`security_opt: [no-new-privileges:true]`. It costs nothing and "
+            f"stops a setuid binary from ever raising privilege; add it, or "
+            f"record why not in NNP_EXEMPT in {pathlib.Path(__file__).name} (#845)"
+        )
+    return problems
+
+
+# scripts/scan-images.sh skips /usr/local/bin/gosu in every repository
+# scripts/gosu-skip.txt lists (#995, #980), on the grounds that gosu never runs
+# here: the entrypoint calls it only when the container starts as root. That
+# holds only while every such service starts as this user, so it is asserted
+# rather than assumed. Both read the same file and take the repository the
+# same way, the reference less its digest and tag, so they select the same refs.
+GOSU_SKIP_FILE = REPO / "scripts/gosu-skip.txt"
+GOSU_SKIP_USER = "999:999"
+
+
+def gosu_skip_repos(path: pathlib.Path = GOSU_SKIP_FILE) -> set[str]:
+    """The repositories in scripts/gosu-skip.txt, comments and blanks removed."""
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return {line.strip() for line in lines if line.strip() and not line.strip().startswith("#")}
+
+
+def image_repository(image: str) -> str:
+    """`repo[:tag][@digest]` to `repo`, as scan-images.sh's `${name%:*}` does."""
+    name = image.split("@", 1)[0]
+    return name.rsplit(":", 1)[0] if ":" in name.rsplit("/", 1)[-1] else name
+
+
+def gosu_skip_user_problems(services: dict, repos: set[str] | None = None) -> list[str]:
+    """A service whose gosu the scan skips that would start as root and run it.
+
+    `repos` is gosu-skip.txt unless --self-test hands it a fixture.
+    """
+    repos = gosu_skip_repos() if repos is None else repos
+    problems = []
+    for name, svc in services.items():
+        svc = svc or {}
+        repo = image_repository(str(svc.get("image", "")))
+        if repo not in repos:
+            continue
+        user = str(svc.get("user", "")).strip()
+        if user != GOSU_SKIP_USER:
+            problems.append(
+                f"{name} runs {repo} as {user or 'the image default, root'}, "
+                f'not `user: "{GOSU_SKIP_USER}"`. scripts/scan-images.sh skips gosu in '
+                f"{repo} because gosu never runs when the container starts as "
+                f"{GOSU_SKIP_USER}; started any other way it does, and its CVEs would be "
+                f"hidden. Set the user, or take {repo} out of scripts/gosu-skip.txt (#995)"
+            )
+    return problems
+
+
+def nnp_exempt_problems(exempt: dict[tuple[str, str], str], by_stack: dict[tuple[str, str], dict]) -> list[str]:
+    """NNP_EXEMPT entries that no longer hold, given every stack's services.
+
+    Three ways an entry goes wrong, and each one leaves a service without
+    no-new-privileges while the guard stays green: it records no reason, its
+    service has gone, or its service now sets the option and the entry
+    excuses nothing. Split out of cross_stack_problems() so --self-test can
+    drive it without the real stacks.
+    """
+    problems = []
+    for (stack, name), reason in exempt.items():
+        svc = by_stack.get((stack, name))
+        if not str(reason or "").strip():
+            problems.append(
+                f"NNP_EXEMPT excuses {name} in stacks/{stack} with no reason — "
+                f"an exemption is the reason, so a blank one is no exemption"
+            )
+        if svc is None:
+            problems.append(
+                f"NNP_EXEMPT names {name} in stacks/{stack}, which does not "
+                f"exist — the reason it records has gone with the service"
+            )
+        elif has_no_new_privileges(svc):
+            problems.append(
+                f"NNP_EXEMPT still excuses {name} in stacks/{stack}, which now "
+                f"sets no-new-privileges — delete the entry"
+            )
+    return problems
+
+
 def cross_stack_problems() -> list[str]:
     """Names this file asserts about, checked against every stack at once.
 
@@ -638,19 +834,25 @@ def cross_stack_problems() -> list[str]:
     try:
         listed = subprocess.run(
             [str(REPO / "scripts/stacks.sh"), "--paths"],
-            capture_output=True, text=True, check=True,
+            capture_output=True,
+            text=True,
+            check=True,
         ).stdout.split()
     except (OSError, subprocess.CalledProcessError) as exc:
         err = (getattr(exc, "stderr", "") or str(exc)).strip()
         return [f"could not list stacks: {err}"]
 
     declared: set[str] = set()
+    by_stack: dict[tuple[str, str], dict] = {}
     for entry in listed:
         compose_path = REPO / entry / "compose.yaml"
         compose = yaml.safe_load(compose_path.read_text(encoding="utf-8"))
-        declared |= set(compose.get("services") or {})
+        services = compose.get("services") or {}
+        declared |= set(services)
+        for name, svc in services.items():
+            by_stack[(compose_path.parent.name, name)] = svc or {}
 
-    problems: list[str] = []
+    problems: list[str] = nnp_exempt_problems(NNP_EXEMPT, by_stack)
     entries, problems_from_parse = reload_entries()
     problems += problems_from_parse
     for name, _port in entries:
@@ -682,9 +884,7 @@ SELF_TEST_IMAGE = "example.invalid/self-test"
 THROTTLED = "toomanyrequests: retry-after: 694.632us, allowed: 44000/minute"
 
 
-def _completed(
-    returncode: int, stdout: str = "", stderr: str = ""
-) -> subprocess.CompletedProcess:
+def _completed(returncode: int, stdout: str = "", stderr: str = "") -> subprocess.CompletedProcess:
     """What subprocess.run actually returns, not a look-alike.
 
     The real class, so any attribute the loop grows is supplied by the stdlib
@@ -694,9 +894,7 @@ def _completed(
     text=True being dropped — that turns the streams to bytes and makes the
     `toomanyrequests` test raise TypeError rather than miss.
     """
-    return subprocess.CompletedProcess(
-        args=["docker"], returncode=returncode, stdout=stdout, stderr=stderr
-    )
+    return subprocess.CompletedProcess(args=["docker"], returncode=returncode, stdout=stdout, stderr=stderr)
 
 
 def _ensure(
@@ -755,15 +953,17 @@ def self_test() -> int:
 
     # 2. The ordinary case: one attempt, no pause. A loop that slept on success
     #    would add 85 s to every image in every stack.
-    check("a clean pull neither retries nor sleeps", (None, 1, []),
-          _ensure(attempts=(_completed(0),)))
+    check("a clean pull neither retries nor sleeps", (None, 1, []), _ensure(attempts=(_completed(0),)))
 
     # 3. THE POINT. ghcr.io throttles a runner's shared egress by the minute, so
     #    one refusal is not a verdict on the healthcheck the pull exists to
     #    probe. A throttled first attempt followed by a clean second is a
     #    success, and it costs exactly one pause.
-    check("one toomanyrequests then success is a success", (None, 2, [5]),
-          _ensure(attempts=(_completed(1, stderr=THROTTLED), _completed(0))))
+    check(
+        "one toomanyrequests then success is a success",
+        (None, 2, [5]),
+        _ensure(attempts=(_completed(1, stderr=THROTTLED), _completed(0))),
+    )
 
     # 4. 2026-09-21, the run #602 is about: every attempt throttled. Four
     #    attempts, three pauses — nothing sleeps after the last — on the 5/20/60
@@ -775,48 +975,56 @@ def self_test() -> int:
     #    The literal 5/20/60, not list(PULL_RETRY_PAUSES) — asserting the
     #    constant against itself would pass for any value. Shortening the budget
     #    should mean changing this line and saying why in the diff.
-    exhausted = _ensure(
-        attempts=tuple(_completed(1, stderr=THROTTLED) for _ in range(4))
-    )
-    check("four throttled attempts pause 5, 20 and 60 and then stop",
-          (4, [5, 20, 60]), (exhausted[1], exhausted[2]))
-    check("an exhausted retry reports what the registry last said",
-          THROTTLED, exhausted[0])
+    exhausted = _ensure(attempts=tuple(_completed(1, stderr=THROTTLED) for _ in range(4)))
+    check("four throttled attempts pause 5, 20 and 60 and then stop", (4, [5, 20, 60]), (exhausted[1], exhausted[2]))
+    check("an exhausted retry reports what the registry last said", THROTTLED, exhausted[0])
 
     # 5. THE OTHER HALF, and the one a naive retry gets wrong: a bad digest or a
     #    missing tag is reported on the FIRST attempt with no pause at all.
     #    Waiting 85 s to re-learn that a manifest does not exist is 85 s of CI
     #    spent on an answer that cannot change.
     unknown = "Error response from daemon: manifest unknown"
-    check("a non-throttle failure is reported without waiting",
-          (unknown, 1, []), _ensure(attempts=(_completed(1, stderr=unknown),)))
+    check(
+        "a non-throttle failure is reported without waiting",
+        (unknown, 1, []),
+        _ensure(attempts=(_completed(1, stderr=unknown),)),
+    )
 
     # 6. The registry's casing is the registry's business. The match is on the
     #    lowered output, so a day when ghcr.io shouts is still a retry.
-    check("TOOMANYREQUESTS in any casing still retries", (None, 2, [5]),
-          _ensure(attempts=(_completed(1, stderr="TOOMANYREQUESTS: Too Many Requests"),
-                            _completed(0))))
+    check(
+        "TOOMANYREQUESTS in any casing still retries",
+        (None, 2, [5]),
+        _ensure(attempts=(_completed(1, stderr="TOOMANYREQUESTS: Too Many Requests"), _completed(0))),
+    )
 
     # 7. The LAST line. docker pull leads with a summary and ends with the
     #    diagnostic, so reporting the first line would report the summary.
-    check("a multi-line failure reports its last line", "denied: permission denied",
-          _ensure(attempts=(_completed(1, stderr="Error response from daemon:\n"
-                                                 "denied: permission denied"),))[0])
+    check(
+        "a multi-line failure reports its last line",
+        "denied: permission denied",
+        _ensure(attempts=(_completed(1, stderr="Error response from daemon:\ndenied: permission denied"),))[0],
+    )
 
     # 8. A failure that says nothing is not assumed to be a throttle, and the
     #    caller never prints "could not pull X: " with nothing after the colon.
-    check("a silent failure falls back to the exit code",
-          ("docker pull exited 7", 1, []), _ensure(attempts=(_completed(7),)))
+    check(
+        "a silent failure falls back to the exit code",
+        ("docker pull exited 7", 1, []),
+        _ensure(attempts=(_completed(7),)),
+    )
 
     # 9. docker has put its diagnostic on stdout before, so the throttle is
     #    looked for there too when stderr is empty.
-    check("the registry's wording is read from stdout as well", (None, 2, [5]),
-          _ensure(attempts=(_completed(1, stdout=THROTTLED), _completed(0))))
+    check(
+        "the registry's wording is read from stdout as well",
+        (None, 2, [5]),
+        _ensure(attempts=(_completed(1, stdout=THROTTLED), _completed(0))),
+    )
 
     # 10. The constant's own comment claims 85 s in all. This is the only thing
     #     holding that prose to the number.
-    check("the retry budget is the 85 s the constant claims", 85,
-          sum(PULL_RETRY_PAUSES))
+    check("the retry budget is the 85 s the constant claims", 85, sum(PULL_RETRY_PAUSES))
 
     # --- the proof cache ---------------------------------------------------
     #
@@ -857,12 +1065,9 @@ def self_test() -> int:
         #     probe_binary would leave every stale verdict in place and the next
         #     run would prove nothing while reporting success.
         save_proofs(cache, entries)
-        poisoned = cache.read_text(encoding="utf-8").replace(
-            prober_sha256(), "0" * 64
-        )
+        poisoned = cache.read_text(encoding="utf-8").replace(prober_sha256(), "0" * 64)
         cache.write_text(poisoned, encoding="utf-8")
-        check("a proof made by a different prober is discarded", set(),
-              load_proofs(cache))
+        check("a proof made by a different prober is discarded", set(), load_proofs(cache))
 
         # 17. Anything unreadable is no proofs rather than an exception. A cache
         #     is an optimisation; a corrupt one must cost a slow run, never a
@@ -870,8 +1075,7 @@ def self_test() -> int:
         cache.write_text("not a proof cache at all\n", encoding="utf-8")
         check("a file with the wrong header holds nothing", set(), load_proofs(cache))
         cache.write_text(
-            f"{PROOF_CACHE_HEADER}\n{PROOF_CACHE_LOGIC}{prober_sha256()}\n"
-            "garbage\twith\ttoo\tmany\tfields\n\n",
+            f"{PROOF_CACHE_HEADER}\n{PROOF_CACHE_LOGIC}{prober_sha256()}\ngarbage\twith\ttoo\tmany\tfields\n\n",
             encoding="utf-8",
         )
         check("a malformed row is dropped, not fatal", set(), load_proofs(cache))
@@ -881,8 +1085,7 @@ def self_test() -> int:
         #     be there on the first run of a branch.
         nested = pathlib.Path(tmp) / "a" / "b" / "proofs.txt"
         save_proofs(nested, entries)
-        check("a cache in a missing directory is still written", entries,
-              load_proofs(nested))
+        check("a cache in a missing directory is still written", entries, load_proofs(nested))
 
     # 19-22. The socket guard (#836). A bare mount fails, :ro or not, and in
     #        the long form too; the proxy's own mount, by image, passes.
@@ -890,30 +1093,235 @@ def self_test() -> int:
     # image string here is a pin outside compose.yaml, which
     # check_image_pins.py rightly refuses.
     proxy = SOCKET_PROXY_IMAGE + "fixture"
-    check("a bare socket mount is root, even :ro", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
-    check("the long form is the same mount", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": [{"type": "bind", "source": "/var/run/docker.sock",
-                                "target": "/var/run/docker.sock", "read_only": True}]}})))
-    check("the proxy may hold it, whatever it is called", 0, len(socket_mount_problems(
-        {"anything": {"image": proxy,
-                      "volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})))
-    check("another path that only mentions docker is fine", 0, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/var/lib/docker/containers:/c:ro"]}})))
-    check("/run/docker.sock is the same socket", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/run/docker.sock:/var/run/docker.sock:ro"]}})))
-    check("/run/docker.sock in the long form too", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": [{"type": "bind", "source": "/run/docker.sock",
-                                "target": "/var/run/docker.sock"}]}})))
-    check("mounting /run carries the socket along", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/run:/host/run:ro"]}})))
-    check("the host's / without /run masked reaches the socket", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/:/rootfs:ro"]}})))
-    check("the host's / with <target>/run masked is fine", 0, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/rootfs/run:size=64k"]}})))
-    check("a mask at the wrong path does not count", 1, len(socket_mount_problems(
-        {"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/run:size=64k"]}})))
+    check(
+        "a bare socket mount is root, even :ro",
+        1,
+        len(socket_mount_problems({"alloy": {"volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}})),
+    )
+    check(
+        "the long form is the same mount",
+        1,
+        len(
+            socket_mount_problems(
+                {
+                    "alloy": {
+                        "volumes": [
+                            {
+                                "type": "bind",
+                                "source": "/var/run/docker.sock",
+                                "target": "/var/run/docker.sock",
+                                "read_only": True,
+                            }
+                        ]
+                    }
+                }
+            )
+        ),
+    )
+    check(
+        "the proxy may hold it, whatever it is called",
+        0,
+        len(
+            socket_mount_problems(
+                {"anything": {"image": proxy, "volumes": ["/var/run/docker.sock:/var/run/docker.sock:ro"]}}
+            )
+        ),
+    )
+    check(
+        "another path that only mentions docker is fine",
+        0,
+        len(socket_mount_problems({"alloy": {"volumes": ["/var/lib/docker/containers:/c:ro"]}})),
+    )
+    check(
+        "/run/docker.sock is the same socket",
+        1,
+        len(socket_mount_problems({"alloy": {"volumes": ["/run/docker.sock:/var/run/docker.sock:ro"]}})),
+    )
+    check(
+        "/run/docker.sock in the long form too",
+        1,
+        len(
+            socket_mount_problems(
+                {
+                    "alloy": {
+                        "volumes": [{"type": "bind", "source": "/run/docker.sock", "target": "/var/run/docker.sock"}]
+                    }
+                }
+            )
+        ),
+    )
+    check(
+        "mounting /run carries the socket along",
+        1,
+        len(socket_mount_problems({"alloy": {"volumes": ["/run:/host/run:ro"]}})),
+    )
+    check(
+        "the host's / without /run masked reaches the socket",
+        1,
+        len(socket_mount_problems({"alloy": {"volumes": ["/:/rootfs:ro"]}})),
+    )
+    check(
+        "the host's / with <target>/run masked is fine",
+        0,
+        len(socket_mount_problems({"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/rootfs/run:size=64k"]}})),
+    )
+    check(
+        "a mask at the wrong path does not count",
+        1,
+        len(socket_mount_problems({"alloy": {"volumes": ["/:/rootfs:ro"], "tmpfs": ["/run:size=64k"]}})),
+    )
 
+    # 22a-22e. The proxy runs the repository's HAProxy config, not the image's
+    #          (Tecnativa/docker-socket-proxy#182). Both the directory mount,
+    #          read-only, and the command are required.
+    here = REPO / "stacks/lab/compose.yaml"
+    good = {
+        "image": proxy,
+        "volumes": [
+            "/var/run/docker.sock:/var/run/docker.sock:ro",
+            f"../observability/docker-socket-proxy:{SOCKET_PROXY_CONFIG_TARGET}:ro",
+        ],
+        "command": list(SOCKET_PROXY_COMMAND),
+    }
+    check("a proxy on the repository's config passes", [], socket_proxy_config_problems(here, {"p": good}))
+    check(
+        "a proxy without the mount runs the image's template",
+        1,
+        len(socket_proxy_config_problems(here, {"p": {**good, "volumes": good["volumes"][:1]}})),
+    )
+    check(
+        "a proxy without the command ignores the mount",
+        1,
+        len(socket_proxy_config_problems(here, {"p": {k: v for k, v in good.items() if k != "command"}})),
+    )
+    check(
+        "a read-write config mount fails",
+        1,
+        len(
+            socket_proxy_config_problems(
+                here,
+                {"p": {**good, "volumes": [good["volumes"][0], good["volumes"][1].removesuffix(":ro")]}},
+            )
+        ),
+    )
+    check(
+        "the config from anywhere else fails",
+        1,
+        len(
+            socket_proxy_config_problems(
+                here, {"p": {**good, "volumes": [good["volumes"][0], f"./proxy:{SOCKET_PROXY_CONFIG_TARGET}:ro"]}}
+            )
+        ),
+    )
+
+    # 23-28. The no-new-privileges guard (#845). Keyed on the restart policy,
+    #        so a profile is no way past it and a one-shot tool is not caught.
+    nnp = ["no-new-privileges:true"]
+    fixture_exempt = {("observability", "renderer"): "a fixture reason"}
+    check(
+        "a long-runner without no-new-privileges fails",
+        1,
+        len(privilege_problems({"loki": {"restart": "unless-stopped"}}, "lab", {})),
+    )
+    check(
+        "a profile does not excuse a long-runner",
+        1,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped", "profiles": ["capture"]}}, "lab", {})),
+    )
+    check(
+        "a one-shot with no restart policy is not long-running",
+        0,
+        len(privilege_problems({"gitleaks": {"profiles": ["scan"]}}, "observability", {})),
+    )
+    check(
+        "an NNP_EXEMPT entry is honoured for its own stack",
+        0,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "observability", fixture_exempt)),
+    )
+    check(
+        "an NNP_EXEMPT entry does not leak to another stack",
+        1,
+        len(privilege_problems({"renderer": {"restart": "unless-stopped"}}, "lab", fixture_exempt)),
+    )
+    check(
+        "both spellings of the option count",
+        0,
+        len(
+            privilege_problems(
+                {
+                    "a": {"restart": "always", "security_opt": nnp},
+                    "b": {"restart": "on-failure:3", "security_opt": ["no-new-privileges"]},
+                    "c": {"restart": "always", "security_opt": ["no-new-privileges=true"]},
+                },
+                "lab",
+                {},
+            )
+        ),
+    )
+
+    # 29-33. NNP_EXEMPT itself (#845 review). Each stale shape leaves a
+    #        service without the option while the guard stays green.
+    long_runner = {"restart": "unless-stopped"}
+    check(
+        "a reasoned exemption for a service that exists is fine",
+        0,
+        len(nnp_exempt_problems({("s", "a"): "measured: it needs X"}, {("s", "a"): long_runner})),
+    )
+    check("a blank reason is rejected", 1, len(nnp_exempt_problems({("s", "a"): "  "}, {("s", "a"): long_runner})))
+    check("an exemption for a service that is gone is stale", 1, len(nnp_exempt_problems({("s", "gone"): "why"}, {})))
+    check(
+        "an exemption for a service that now sets the option is stale",
+        1,
+        len(nnp_exempt_problems({("s", "a"): "why"}, {("s", "a"): {**long_runner, "security_opt": nnp}})),
+    )
+    check("the real NNP_EXEMPT has a reason for every entry", True, all(str(r).strip() for r in NNP_EXEMPT.values()))
+
+    # 34-41. A listed repository starts as 999:999, the condition
+    #        scan-images.sh's gosu skip stands on (#995, #980). The fixture list
+    #        stands in for gosu-skip.txt; the last two read the real one.
+    listed = {"postgres", "ghcr.io/immich-app/postgres"}
+    pg = "postgres:18.6@sha256:" + "0" * 64
+    immich = "ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:" + "0" * 64
+    check(
+        "postgres as 999:999 passes", 0, len(gosu_skip_user_problems({"db": {"image": pg, "user": "999:999"}}, listed))
+    )
+    check("postgres with no user starts as root", 1, len(gosu_skip_user_problems({"db": {"image": pg}}, listed)))
+    check(
+        "postgres as another user fails",
+        1,
+        len(gosu_skip_user_problems({"db": {"image": pg, "user": "70:70"}}, listed)),
+    )
+    check(
+        "a second listed repository is held to it too",
+        1,
+        len(gosu_skip_user_problems({"db": {"image": immich}}, listed)),
+    )
+    check(
+        "an unlisted image that only contains the word is not held to it",
+        0,
+        len(gosu_skip_user_problems({"db": {"image": "ghcr.io/example/postgres:17"}}, listed)),
+    )
+    check(
+        "a registry port is not taken for a tag",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres:17"),
+    )
+    check("gosu-skip.txt lists the official image", True, "postgres" in gosu_skip_repos())
+    check(
+        "gosu-skip.txt's entries carry no tag or digest",
+        True,
+        all(image_repository(r) == r and "@" not in r for r in gosu_skip_repos()),
+    )
+    check(
+        "a listed registry with a port is its own repository",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres"),
+    )
+    check(
+        "and so is one pinned by digest alone",
+        "registry:5000/postgres",
+        image_repository("registry:5000/postgres@sha256:" + "0" * 64),
+    )
     return failed
 
 
@@ -934,7 +1342,7 @@ def main() -> int:
             print("--proof-cache needs a path", file=sys.stderr)
             return 1
         proof_cache = pathlib.Path(argv[at + 1])
-        del argv[at:at + 2]
+        del argv[at : at + 2]
         if not probe:
             # The cache records what --probe proved. Accepting it without
             # --probe would write an empty file over a good one and look like a
@@ -970,6 +1378,9 @@ def main() -> int:
 
     problems += bind_source_problems(path, services)
     problems += socket_mount_problems(services)
+    problems += socket_proxy_config_problems(path, services)
+    problems += privilege_problems(services, path.resolve().parent.name)
+    problems += gosu_skip_user_problems(services)
 
     for name, svc in services.items():
         svc = svc or {}
@@ -984,9 +1395,7 @@ def main() -> int:
 
             target_svc = services.get(target)
             if target_svc is None:
-                problems.append(
-                    f"{name} depends on {target}, which is not defined in this file"
-                )
+                problems.append(f"{name} depends on {target}, which is not defined in this file")
             elif not target_svc.get("healthcheck"):
                 problems.append(
                     f"{name} waits for {target} to become healthy, but {target} "
@@ -1014,10 +1423,7 @@ def main() -> int:
 
         binary, reason = healthcheck_binary(check.get("test"))
         if reason:
-            problems.append(
-                f"{name}: {reason} — a healthcheck docker cannot run leaves "
-                f"{name} 'starting' forever"
-            )
+            problems.append(f"{name}: {reason} — a healthcheck docker cannot run leaves {name} 'starting' forever")
             continue
         if binary is None:
             continue
@@ -1039,9 +1445,7 @@ def main() -> int:
             continue
 
         user = str(svc.get("user", ""))
-        targets.append(
-            (name, image, binary, user if NUMERIC_USER.fullmatch(user) else None)
-        )
+        targets.append((name, image, binary, user if NUMERIC_USER.fullmatch(user) else None))
 
     # The inverse: binaries compose.yaml claims are absent, which is why the
     # service in question has no healthcheck at all. Checked in both directions
@@ -1093,27 +1497,16 @@ def main() -> int:
         proven = set(held)
 
         def already_proved(image: str, binary: str, user: str | None) -> bool:
-            return (
-                proof_cache is not None
-                and is_digest_pinned(image)
-                and (image, binary, user or "") in held
-            )
+            return proof_cache is not None and is_digest_pinned(image) and (image, binary, user or "") in held
 
         # Only images with something still to prove are worth pulling. On a diff
         # that moved no pin this is empty, and the step touches no registry at
         # all — which is the whole point (#602).
         images = {image for _, image, _, _ in targets + claims}
-        needed = {
-            image
-            for name, image, binary, user in targets + claims
-            if not already_proved(image, binary, user)
-        }
+        needed = {image for name, image, binary, user in targets + claims if not already_proved(image, binary, user)}
         carried = len(images) - len(needed)
         if carried:
-            note(
-                f"{carried} of {len(images)} image(s) already proved at this "
-                f"digest — not pulled"
-            )
+            note(f"{carried} of {len(images)} image(s) already proved at this digest — not pulled")
         pulled: dict[str, str | None] = {}
         for image in sorted(needed):
             pulled[image] = ensure_image(image)
@@ -1123,10 +1516,7 @@ def main() -> int:
                 continue
             failure = pulled[image]
             if failure:
-                problems.append(
-                    f"could not pull {image} to probe {name}'s healthcheck: "
-                    f"{failure}"
-                )
+                problems.append(f"could not pull {image} to probe {name}'s healthcheck: {failure}")
                 continue
             verdict, detail = probe_binary(image, binary, user)
             probed += 1
@@ -1158,10 +1548,7 @@ def main() -> int:
                 continue
             failure = pulled[image]
             if failure:
-                problems.append(
-                    f"could not pull {image} to check {name} still has no "
-                    f"{binary}: {failure}"
-                )
+                problems.append(f"could not pull {image} to check {name} still has no {binary}: {failure}")
                 continue
             verdict, detail = probe_binary(image, binary, user)
             probed += 1
@@ -1193,8 +1580,7 @@ def main() -> int:
 
     if problems:
         print(
-            f"\n{len(problems)} unsatisfiable health dependency/dependencies "
-            f"in {path.name}",
+            f"\n{len(problems)} problem(s) in {path.name}",
             file=sys.stderr,
         )
         return 1
@@ -1215,10 +1601,7 @@ def main() -> int:
         # The count is the point. A probe loop that silently stopped matching
         # anything would otherwise print this same green line having done
         # nothing at all.
-        summary += (
-            f"; {probed} binary/binaries exec'd inside {len(needed)} pinned "
-            f"image(s) in {elapsed:.0f}s"
-        )
+        summary += f"; {probed} binary/binaries exec'd inside {len(needed)} pinned image(s) in {elapsed:.0f}s"
         # Said separately and never folded into the count above, because the two
         # are different claims: one is work this run did, the other is work an
         # earlier run did against bytes that cannot have changed since. A single
@@ -1229,10 +1612,7 @@ def main() -> int:
                 f"earlier run at the same digest and were not pulled"
             )
     else:
-        summary += (
-            " (images NOT probed — pass --probe to exec each healthcheck binary "
-            "inside its image)"
-        )
+        summary += " (images NOT probed — pass --probe to exec each healthcheck binary inside its image)"
     print(summary)
     return 0
 

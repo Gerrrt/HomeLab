@@ -1,0 +1,47 @@
+---
+# Inherited audit entries on the domain head (#1077), compare-first: the SACL
+# is written only when an entry is missing, so a second run changes nothing.
+# Primary DC only, where the AD module is local. Auditing records; it changes
+# nothing an exercise can reach, so it is not hardening (ansible/README.md).
+- name: The domain head audits the attribute writes the weaknesses make
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([object[]]$Writes)
+      Import-Module ActiveDirectory
+      $Ansible.Changed = $false
+      $schema = (Get-ADRootDSE).schemaNamingContext
+      function Guid-Of([string]$name) {
+        $o = Get-ADObject -SearchBase $schema -Filter "lDAPDisplayName -eq '$name'" -Properties schemaIDGUID
+        if (-not $o) { throw "no schema object named $name" }
+        [guid]$o.schemaIDGUID
+      }
+      $path = "AD:\" + (Get-ADDomain).DistinguishedName
+      $acl = Get-Acl -Audit -Path $path
+      $everyone = New-Object System.Security.Principal.SecurityIdentifier('S-1-1-0')
+      $missing = @()
+      foreach ($w in $Writes) {
+        $attr = Guid-Of $w.attribute
+        $class = Guid-Of $w.object_class
+        $have = $acl.Audit | Where-Object {
+          $_.IdentityReference.Translate([System.Security.Principal.SecurityIdentifier]) -eq $everyone -and
+          $_.AuditFlags -eq 'Success' -and
+          ($_.ActiveDirectoryRights -band [System.DirectoryServices.ActiveDirectoryRights]::WriteProperty) -and
+          $_.ObjectType -eq $attr -and $_.InheritedObjectType -eq $class -and
+          $_.InheritanceType -eq 'Descendents'
+        }
+        if (-not $have) {
+          $missing += "$($w.attribute) on $($w.object_class)"
+          $acl.AddAuditRule((New-Object System.DirectoryServices.ActiveDirectoryAuditRule(
+            $everyone, [System.DirectoryServices.ActiveDirectoryRights]::WriteProperty,
+            [System.Security.AccessControl.AuditFlags]::Success, $attr,
+            [System.DirectoryServices.ActiveDirectorySecurityInheritance]::Descendents, $class)))
+        }
+      }
+      if ($missing) {
+        $Ansible.Changed = $true
+        if (-not $Ansible.CheckMode) { Set-Acl -Path $path -AclObject $acl }
+      }
+      $missing
+    parameters:
+      Writes: "{{ ds_audit_attribute_writes }}"

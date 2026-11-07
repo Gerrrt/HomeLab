@@ -1,0 +1,41 @@
+# Daily removal of Zeek's rotated logs past their retention, on fenrir (#850).
+#
+# This was a hand-typed /etc/cron.d line in build-the-sensor-guest.md: not in the
+# repository, so a rebuilt fenrir did not get it, and silent when it failed or
+# stopped — the first sign would have been /srv/sensor-data filling. Now it ships
+# from here through scripts/install-agent-collectors.sh, whose requirement for
+# this row is the archive directory itself, so it lands on fenrir and nowhere else.
+#
+# RETENTION IS RECORDED HERE AND ONLY HERE. ZEEK_ARCHIVE_RETENTION_DAYS is the
+# number; the runbook points at this file rather than repeating it.
+#
+# Wrapped in run-scheduled.sh, unlike every other agent unit, because this one
+# CAN be watched: fenrir's Alloy (stacks/sensor) reads the textfile directory
+# and writes to the lab's Prometheus on alexander, where ScheduledJobFailed,
+# ScheduledJobStale and ScheduledJobNeverRan in lab.rules.yaml read the result.
+# The installer ships the wrapper as /usr/local/bin/homelab-run-scheduled.
+#
+# Root, because Zeek's container writes the archive as root.
+[Unit]
+Description=HomeLab: prune Zeek's archive past its retention
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+ConditionPathIsDirectory=/srv/sensor-data/zeek/archive
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+Environment=ZEEK_ARCHIVE_DIR=/srv/sensor-data/zeek/archive
+Environment=ZEEK_ARCHIVE_RETENTION_DAYS=14
+ExecStart=/usr/local/bin/homelab-run-scheduled --job zeek-archive-prune -- /usr/bin/find ${ZEEK_ARCHIVE_DIR} -type f -mtime +${ZEEK_ARCHIVE_RETENTION_DAYS} -delete
+TimeoutStartSec=1800
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-zeek-archive-prune

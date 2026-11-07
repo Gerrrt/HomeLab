@@ -1,0 +1,204 @@
+---
+# Presence: what the house does as the adults come and go.
+#
+# zone.home counts the people whose phones are home (the two `person`
+# entities, each tracked by a phone with the Companion app). Three things
+# follow it:
+#
+#   - Indoor cameras: their Ring motion detection is off while anyone is
+#     home and back on once nobody is, so the house is not filmed and
+#     alerted on while people are living in it. The doorbell and outdoor
+#     cameras are untouched.
+#   - Everyone's left (ten minutes after the last phone leaves): the lights
+#     and the TV go off, the thermostat goes to away, and "House is empty"
+#     turns on.
+#   - First one home: "House is empty" turns off, the thermostat goes back
+#     to its schedule, and after dark the shared rooms' lights come on.
+#
+# "House is empty" is kept across restarts, and both automations reconcile
+# when Home Assistant starts, so a restart during the ten-minute wait, or an
+# arrival while it was down, still ends right. The sunset lights
+# (lighting.yaml) and show time (tv_room_evening.yaml) skip while it is on,
+# so a schedule does not light an empty house.
+#
+# The cameras are reached through the label `indoor_camera_motion`, on the
+# indoor cameras' motion-detection switches, set in the UI.
+# docs/security.md keeps which camera covers which room out of the
+# repository.
+#
+# Phones are not people. If someone without a tracked phone is home (a
+# babysitter with the child, a guest), "Someone else is home" stops the
+# everyone's-left actions, and turning it on ends an away already set. It does not change the cameras:
+# with the adults out, motion alerts are often what they want. It is not
+# turned back off automatically.
+#
+# The thermostat's away is the Honeywell integration's: a permanent hold at
+# the away temperatures set in the integration's options (61 °F heat by
+# default). On a heat pump a large setback costs more to recover than it
+# saves, so the away heat temperature should sit only a few degrees under
+# the schedule's, set in the UI. The schedule itself is untouched, and
+# leaving away returns to it.
+
+input_boolean:
+  someone_else_home:
+    name: Someone else is home
+    icon: mdi:account-child
+  # Set and cleared by the automations below. Restored across restarts.
+  house_empty:
+    name: House is empty
+    icon: mdi:home-export-outline
+
+automation:
+  - id: indoor_cameras_follow_presence
+    alias: Indoor cameras follow presence
+    description: Indoor cameras' Ring motion detection is off while anyone is home, on once nobody is.
+    mode: restart
+    triggers:
+      - trigger: state
+        entity_id: zone.home
+      # Reconcile after a restart, and when the label is first assigned the
+      # next count change catches it.
+      - trigger: homeassistant
+        event: start
+    conditions:
+      - "{{ states('zone.home') | is_number }}"
+    actions:
+      - action: "switch.turn_{{ 'off' if states('zone.home') | int > 0 else 'on' }}"
+        continue_on_error: true
+        target:
+          label_id: indoor_camera_motion
+
+  - id: everyone_left
+    alias: Everyone left
+    description: Ten minutes after the last phone leaves, lights and TV off and the thermostat to away.
+    mode: single
+    triggers:
+      # Ten minutes, so a phone that drops its location for a moment does not
+      # empty the house.
+      - trigger: numeric_state
+        entity_id: zone.home
+        below: 1
+        for: "00:10:00"
+        id: left
+      # A restart or reload drops a pending ten minutes. If the house was
+      # left empty and not yet marked, the wait starts again from here.
+      - trigger: homeassistant
+        event: start
+        id: reconcile
+      - trigger: event
+        event_type: automation_reloaded
+        id: reconcile
+    conditions:
+      - "{{ states('zone.home') | is_number and states('zone.home') | int == 0 }}"
+      - condition: state
+        entity_id: input_boolean.house_empty
+        state: "off"
+      - condition: state
+        entity_id: input_boolean.someone_else_home
+        state: "off"
+    actions:
+      - if: "{{ trigger.id == 'reconcile' }}"
+        then:
+          - wait_for_trigger:
+              - trigger: numeric_state
+                entity_id: zone.home
+                above: 0
+            timeout: "00:10:00"
+            continue_on_timeout: true
+          - condition: template
+            value_template: "{{ wait.trigger is none }}"
+          - condition: state
+            entity_id: input_boolean.someone_else_home
+            state: "off"
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.house_empty
+      # Movie mode would put the TV room's lights back a minute after the TV
+      # goes off (movie_mode.yaml), so it is cleared first.
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.movie_mode
+      # Every individual Hue light that dims. Groups are left out, because a
+      # Hue room holding a smart plug would switch the plug off with it, and
+      # the on/off-only lights (the plugs) keep whatever they power.
+      - action: light.turn_off
+        target:
+          entity_id: >-
+            {{ integration_entities('hue')
+               | select('match', 'light\.')
+               | reject('is_state_attr', 'is_hue_group', true)
+               | reject('is_state_attr', 'supported_color_modes', ['onoff'])
+               | list }}
+        data:
+          transition: 10
+      - action: climate.set_preset_mode
+        continue_on_error: true
+        target:
+          entity_id: climate.thermostat
+        data:
+          preset_mode: away
+      - if:
+          - condition: state
+            entity_id: media_player.tv_room_lg_webos_tv_oled
+            state: "on"
+        then:
+          - action: media_player.turn_off
+            continue_on_error: true
+            target:
+              entity_id: media_player.tv_room_lg_webos_tv_oled
+
+  - id: first_one_home
+    alias: First one home
+    description: The thermostat back to its schedule, and after dark the shared rooms' lights on.
+    mode: single
+    triggers:
+      - trigger: numeric_state
+        entity_id: zone.home
+        above: 0
+        id: arrived
+      # Someone may have come home while Home Assistant was down.
+      - trigger: homeassistant
+        event: start
+        id: reconcile
+      - trigger: event
+        event_type: automation_reloaded
+        id: reconcile
+      - trigger: state
+        entity_id: input_boolean.someone_else_home
+        to: "on"
+        id: someone_else
+    conditions:
+      - condition: state
+        entity_id: input_boolean.house_empty
+        state: "on"
+      - "{{ trigger.id == 'someone_else' or states('zone.home') | int(0) > 0 }}"
+    actions:
+      - action: input_boolean.turn_off
+        target:
+          entity_id: input_boolean.house_empty
+      - if:
+          - condition: state
+            entity_id: climate.thermostat
+            attribute: preset_mode
+            state: away
+        then:
+          - action: climate.set_preset_mode
+            continue_on_error: true
+            target:
+              entity_id: climate.thermostat
+            data:
+              preset_mode: none
+      # Lights for a real arrival only, not for a restart or the switch.
+      - if:
+          - "{{ trigger.id == 'arrived' }}"
+          - condition: state
+            entity_id: sun.sun
+            state: below_horizon
+        then:
+          - action: light.turn_on
+            target:
+              entity_id: light.evening_lights
+            data:
+              brightness_pct: 60
+              color_temp_kelvin: 2700
+              transition: 10

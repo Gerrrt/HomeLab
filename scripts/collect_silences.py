@@ -60,6 +60,7 @@ Environment:
   ALERTMANAGER_URL   default http://127.0.0.1:9093 — loopback only (ADR-0012)
   TEXTFILE_DIR       default /var/lib/node_exporter/textfile_collector
 """
+
 from __future__ import annotations
 
 import argparse
@@ -87,8 +88,7 @@ HELP = {
     EXPIRES: "Unix time this active or pending Alertmanager silence ends. "
     "issue is the number a comment starting with #NNN names; absent when it "
     "names none.",
-    STARTS: "Unix time this active or pending Alertmanager silence began, "
-    "or will begin.",
+    STARTS: "Unix time this active or pending Alertmanager silence began, or will begin.",
 }
 
 
@@ -191,6 +191,7 @@ def write(text: str, textfile_dir: str) -> str:
 
 # --- fixtures ---------------------------------------------------------------
 
+
 def _silence(**overrides: object) -> dict:
     base: dict = {
         "id": "01cb81d7-5e19-4e6d-b386-f5c8c843032b",
@@ -220,62 +221,70 @@ def self_test() -> int:
             failed = 1
 
     # 1. The convention: the comment begins with the owning issue.
-    check("issue parsed from a comment that starts with #NNN", "531",
-          issue_of("#531 owns this. Known finding from #454."))
+    check(
+        "issue parsed from a comment that starts with #NNN", "531", issue_of("#531 owns this. Known finding from #454.")
+    )
     # 2. THE TRAP. Both live silences on 2026-09-20 cited an issue in their
     #    prose, and it was a closed one that did not own the expiry. A parser
     #    that took the first #NNN anywhere would have called them owned.
-    check("an issue cited mid-comment is not an owner", "",
-          issue_of("Known finding from #454, measured 2026-09-12 and unchanged."))
+    check(
+        "an issue cited mid-comment is not an owner",
+        "",
+        issue_of("Known finding from #454, measured 2026-09-12 and unchanged."),
+    )
     # 3. Leading whitespace is tolerated; a pasted comment often has it.
     check("leading whitespace before #NNN is fine", "7", issue_of("  #7 x"))
     # 4. A number that runs into letters is not an issue reference.
     check("#12abc is not an issue", "", issue_of("#12abc fits nothing"))
     # 5. An expired silence is not emitted at all.
-    check("an expired silence is omitted", 0,
-          render([_silence(status={"state": "expired"})]).count("{"))
+    check("an expired silence is omitted", 0, render([_silence(status={"state": "expired"})]).count("{"))
     # 6. A pending silence is emitted; the age guard in the rule is what keeps
     #    it quiet, not this collector.
-    check("a pending silence is emitted", 2,
-          render([_silence(status={"state": "pending"})]).count("{"))
+    check("a pending silence is emitted", 2, render([_silence(status={"state": "pending"})]).count("{"))
     # 7. A regex matcher's value carries backslashes and may carry quotes;
     #    both must survive the exposition format verbatim.
-    regex = _silence(matchers=[{"name": "alertname", "value": 'Ilo\\w+|Ilo"Write"',
-                                "isRegex": True, "isEqual": True}])
-    check("regex matcher value is escaped", 'alert="Ilo\\\\w+|Ilo\\"Write\\"",issue="531"',
-          labels_of(regex).rsplit(",", 1)[0])
+    regex = _silence(matchers=[{"name": "alertname", "value": 'Ilo\\w+|Ilo"Write"', "isRegex": True, "isEqual": True}])
+    check(
+        "regex matcher value is escaped",
+        'alert="Ilo\\\\w+|Ilo\\"Write\\"",issue="531"',
+        labels_of(regex).rsplit(",", 1)[0],
+    )
     # 8. No alertname matcher: no alert label, rather than alert="".
-    check("no alertname matcher yields no alert label", 'issue="531",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"',
-          labels_of(_silence(matchers=[{"name": "instance", "value": "oracle",
-                                        "isRegex": False, "isEqual": True}])))
+    check(
+        "no alertname matcher yields no alert label",
+        'issue="531",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"',
+        labels_of(_silence(matchers=[{"name": "instance", "value": "oracle", "isRegex": False, "isEqual": True}])),
+    )
     # 9. No issue: no issue label, so {issue=""} in the rule matches its absence.
-    check("no owning issue yields no issue label", 'alert="HostBatteryHealthLow",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"',
-          labels_of(_silence(comment="Known finding from #454.")))
+    check(
+        "no owning issue yields no issue label",
+        'alert="HostBatteryHealthLow",id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"',
+        labels_of(_silence(comment="Known finding from #454.")),
+    )
     # 10. Alertmanager's timestamp shape, with and without excess precision.
-    check("strfmt.DateTime parses to Unix seconds", 1791434071,
-          parse_time("2026-10-08T04:34:31.000Z"))
-    check("nine fractional digits are tolerated", 1791434071,
-          parse_time("2026-10-08T04:34:31.123456789Z"))
+    check("strfmt.DateTime parses to Unix seconds", 1791434071, parse_time("2026-10-08T04:34:31.000Z"))
+    check("nine fractional digits are tolerated", 1791434071, parse_time("2026-10-08T04:34:31.123456789Z"))
     # 11. Zero live silences still produce a fresh file with HELP and TYPE, so
     #     "no silences" is a stated fact rather than a missing one.
-    check("zero silences still render HELP and TYPE", 4,
-          render([_silence(status={"state": "expired"})]).count("# "))
+    check("zero silences still render HELP and TYPE", 4, render([_silence(status={"state": "expired"})]).count("# "))
     # 12. The whole line, once, exactly as Prometheus will read it.
-    check("a live silence renders both gauges",
-          'homelab_silence_expires_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",'
-          'id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"} 1791434071\n'
-          'homelab_silence_starts_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",'
-          'id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"} 1789686663',
-          "\n".join(line for line in render([_silence()]).splitlines() if not line.startswith("#")))
+    check(
+        "a live silence renders both gauges",
+        'homelab_silence_expires_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",'
+        'id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"} 1791434071\n'
+        'homelab_silence_starts_timestamp_seconds{alert="HostBatteryHealthLow",issue="531",'
+        'id="01cb81d7-5e19-4e6d-b386-f5c8c843032b"} 1789686663',
+        "\n".join(line for line in render([_silence()]).splitlines() if not line.startswith("#")),
+    )
     return failed
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    ap.add_argument("--print", action="store_true", dest="print_only",
-                    help="write to stdout instead of the textfile directory")
-    ap.add_argument("--self-test", action="store_true",
-                    help="run the embedded fixtures")
+    ap.add_argument(
+        "--print", action="store_true", dest="print_only", help="write to stdout instead of the textfile directory"
+    )
+    ap.add_argument("--self-test", action="store_true", help="run the embedded fixtures")
     args = ap.parse_args()
     if args.self_test:
         return self_test()
@@ -288,8 +297,10 @@ def main() -> int:
         return 0
     path = write(text, os.environ.get("TEXTFILE_DIR", "/var/lib/node_exporter/textfile_collector"))
     states = [s.get("status", {}).get("state") for s in silences]
-    print(f"silence-state active={states.count('active')} pending={states.count('pending')} "
-          f"expired={states.count('expired')} file={path}")
+    print(
+        f"silence-state active={states.count('active')} pending={states.count('pending')} "
+        f"expired={states.count('expired')} file={path}"
+    )
     return 0
 
 

@@ -2,6 +2,17 @@
 
 **Status:** Accepted · 2026-09
 
+> [!NOTE]
+> The TLS metadata this ADR names (SNI, certificate subjects and issuers, and
+> whether a chain validates) gained fingerprints on 2026-10-04. `fenrir`'s
+> `ssl.log` has carried a JA4 and JA4S per handshake since then, and `conn.log`,
+> `http.log`, `ja4ssh.log` and `ja4d.log` carry the rest of JA4+
+> ([#776](https://github.com/Gerrrt/HomeLab/issues/776)). They come from
+> FoxIO's scripts, vendored into the stack rather than built into an image, as
+> [ADR-0069](0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)
+> decides. [`stacks/sensor/README.md`](../../stacks/sensor/README.md) has the
+> query that reads them. The text below is left as written, per ADR-0001.
+
 ## Context
 
 Suricata runs on `morpheus` ([ADR-0006](0006-detect-at-the-chokepoint.md))

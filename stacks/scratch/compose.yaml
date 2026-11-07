@@ -71,12 +71,16 @@ x-service-defaults: &service-defaults
 services:
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.8@sha256:929179d223dc44e40c2e5c8bdbd1df19c6f68ab8f4ac255dfce98d92ee831a17
+    image: wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
     container_name: scratch-wazuh-indexer
     hostname: wazuh.indexer
     pids_limit: 4096
     mem_limit: 3584m
     memswap_limit: 3584m
+    # soc's DIFFERENCE 5: no capabilities, not read_only (#845).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -119,13 +123,20 @@ services:
 
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.8@sha256:6b53d4cc5c013b08157471d11f7a7c2c45f9e8238f3958e3b2f04ec1773ecbd4
+    image: wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
     container_name: scratch-wazuh-manager
     hostname: wazuh.manager
     init: false
     pids_limit: 1024
     mem_limit: 2048m
     memswap_limit: 2048m
+    # soc's DIFFERENCE 6: the seven measured capabilities, not read_only
+    # (#845). They were measured on a FIRST boot, which is the only kind of
+    # boot this guest has.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID, SYS_CHROOT]
+    security_opt:
+      - no-new-privileges:true
     ulimits:
       memlock:
         soft: -1
@@ -161,6 +172,11 @@ services:
       - ./wazuh/certs/wazuh.manager-key.pem:/etc/ssl/filebeat.key:ro
       - ../soc/wazuh/manager/ossec.conf:/wazuh-config-mount/etc/ossec.conf:ro
       - ./wazuh/manager/.rendered/authd.pass:/wazuh-config-mount/etc/authd.pass:ro
+      # odin's shared agent config too, so a Windows agent enrolled here reads
+      # its Sysmon channel as it would on odin (#1035).
+      - ../soc/wazuh/manager/shared/default/agent.conf:/wazuh-config-mount/etc/shared/default/agent.conf:ro
+      # odin's local rules too, so an investigation here alerts as odin would (#1077).
+      - ../soc/wazuh/manager/rules/local_rules.xml:/wazuh-config-mount/etc/rules/local_rules.xml:ro
     ports:
       # The agents of whatever is being investigated. Enrolment still needs the
       # password (soc's ossec.conf, mounted above): a disposable store is still
@@ -183,11 +199,23 @@ services:
 
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.8@sha256:b8e3d43711f29596dad12051a548abd0ed84692544f451d14ac2fc0c0b6a85c8
+    image: wazuh/wazuh-dashboard:4.14.8@sha256:dd338d22355e8f0cdf8cc97d5b928539d56061b83c3274a79059e60ad5b8ac14
     container_name: scratch-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
     memswap_limit: 1024m
+    # soc's DIFFERENCE 7: the estate's whole block, read-only with these tmpfs
+    # mounts; soc's file says what each one holds (#845).
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /usr/share/wazuh-dashboard/config:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data:uid=1000,gid=1000,mode=0750,size=1m
+      - /usr/share/wazuh-dashboard/data/wazuh/downloads:uid=1000,gid=1000,mode=0755,size=64m
+      - /usr/share/wazuh-dashboard/data/wazuh/logs:uid=1000,gid=1000,mode=0775,size=16m
+      - /tmp:size=64m
     environment:
       INDEXER_USERNAME: admin
       INDEXER_PASSWORD: ${INDEXER_PASSWORD:?set in secrets/scratch.sops.yaml}
@@ -225,7 +253,7 @@ services:
 
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.2@sha256:fa7ecaee0a2861ed4add94c0aa9fc3e62dad6d320b07de63e08776f9104b33d1
+    image: ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:6ffb1bd412bad0e280715da19f48491e7ce57068a9840433aaeed8831c2c9ae1
     container_name: scratch-velociraptor
     pids_limit: 1024
     mem_limit: 1024m
@@ -272,11 +300,15 @@ services:
     container_name: scratch-wazuh-certs-generator
     profiles: ["certs"]
     logging: *default-logging
-    environment:
-      CERT_TOOL_VERSION: "4.14"
+    # soc's offline, hash-pinned mint, and its vendored tool (ADR-0094). See
+    # the same service in stacks/soc/compose.yaml for why.
+    network_mode: none
+    entrypoint: ["/bin/bash", "/wazuh-certs-mint.sh"]
     volumes:
       - ./wazuh/certs:/certificates
       - ../soc/wazuh/certs.yml:/config/certs.yml:ro
+      - ../soc/wazuh/certs-tool:/certs-tool:ro
+      - ../../scripts/wazuh-certs-mint.sh:/wazuh-certs-mint.sh:ro
 
 networks:
   scratch:

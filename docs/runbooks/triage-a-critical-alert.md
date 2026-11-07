@@ -51,6 +51,23 @@ the host it lives on and how it was probed (`via`).
   (`make certs ARGS=--list` reads only the local PEM files, and says nothing
   about the sensitive tier's ACME leaves.)
 
+## SiteDown
+
+A household site behind `trinity`'s Caddy has not answered its blackbox probe
+for ten minutes. The ten is deliberate: a `make up STACK=sensitive` restarting
+the service is not an outage. The alert names the site; all of them arrive as
+one notification.
+
+- **One site firing:** the service behind it is down and Caddy is answering
+  502 for it. `make ps STACK=sensitive` on `trinity`, then
+  `docker logs sensitive-<service>`.
+- **Every site firing, with `EndpointUnreachable` for `ntfy`:** Caddy itself,
+  or `trinity`. Check `sensitive-caddy` first; if the host does not answer,
+  see [InstanceDown](#instancedown).
+- **A certificate that no longer verifies** looks exactly like this. If
+  `TlsAcmeRenewalStalled` fired first, it is that: see
+  [`build-the-tier-ca.md`](build-the-tier-ca.md).
+
 ## BlackboxExporterDown
 
 No probe is running, so every endpoint alert has stopped being evaluated.

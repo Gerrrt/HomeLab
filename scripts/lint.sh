@@ -14,15 +14,20 @@
 # it. The self-check at the bottom asserts the callers really do call it,
 # because one definition only helps for as long as nothing routes around it.
 #
-# actionlint, editorconfig-checker, packer and tofu run from images pinned in
-# stacks/observability/compose.yaml behind the `lint` profile, for the same
-# reason `archiver` and `gitleaks` are there: an image this repository runs must
-# be one Dependabot bumps and `make pin-digests` can re-digest (#65). yamllint,
-# markdownlint-cli2 and shellcheck keep their binary/pipx/npx runners — CI has
-# used those exact runners for as long as this job has existed, and they need no
-# install to be reachable.
+# Every linter here runs at a version this repository pins (#848). actionlint,
+# editorconfig-checker, zizmor, markdownlint-cli2, shellcheck, packer and tofu
+# run from images pinned in stacks/observability/compose.yaml behind the `lint`
+# profile, for the same reason `archiver` and `gitleaks` are there: an image
+# this repository runs must be one Dependabot bumps and `make pin-digests` can
+# re-digest (#65). markdownlint-cli2 and shellcheck were the last two to move:
+# they ran from `npx --yes` and the runner's apt package, so the version that
+# judged a pull request was whatever npm or Ubuntu served that day.
 #
-# ansible-lint joins the pipx side, and not by preference. The only images of it
+# yamllint publishes no image of its own, so it runs from `pipx run --spec`,
+# with the version read from scripts/requirements-lint.txt, which Dependabot's
+# pip entry for /scripts bumps.
+#
+# ansible-lint is on the pipx side too, and not by preference. The only images of it
 # on Docker Hub are third-party rebuilds without upstream's version numbers, and
 # scripts/pin-digests.sh resolves Docker Hub alone, so the upstream ghcr.io image
 # could not be digest-pinned here. Its version is pinned instead in
@@ -55,11 +60,15 @@
 #   - markdownlint-cli2 globs `**/*.md`, which DOES match dot directories, so
 #     its exclusions live in .markdownlint-cli2.yaml
 #   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
+#   - ruff walks `.` but honours .gitignore, which already names every one of
+#     those trees. Verified with --show-files: the tracked .py files and
+#     nothing else, with worktrees present
 #   - packer is handed packer/ — one directory, cannot wander
 #   - tofu is handed tofu/, the same way
 #   - ansible-lint is handed ansible/ and told it is the project directory, so
 #     it reads ansible/requirements.yml and installs the collections into
-#     ansible/.ansible/ (gitignored, and excluded from yamllint above)
+#     ansible/.ansible/ (gitignored, and excluded from yamllint above). Its
+#     rule set is ansible/.ansible-lint's profile, not the version's default
 #   - actionlint reads only <repo root>/.github/workflows. Verified with
 #     -verbose: it lints 2 files with a worktree present, not 4
 #   - editorconfig-checker is handed a `git ls-files` list built below, so it
@@ -113,24 +122,63 @@ have_docker() { have docker && docker info >/dev/null 2>&1; }
 # for a globally installed binary and gave up. Two red CI runs were spent on
 # defects a local run could have caught, and reported as passing instead.
 #
-# So: prefer the real binary, fall back to the runner CI uses. For actionlint
-# and editorconfig-checker that runner is the pinned image from compose.yaml —
-# neither has a pipx/npx equivalent worth trusting, and an image this repository
-# runs has to come from compose.yaml anyway.
+# That fix preferred a binary on PATH and fell back to the runner CI used. #848
+# turned the order round: the pinned runner comes first, everywhere. A binary
+# on PATH is whatever version that machine happens to have, and on a GitHub
+# runner the preinstalled yamllint and shellcheck would have outranked every
+# pin. A PATH binary is now only the last resort of a local run, and is
+# reported as unpinned when it is used. --require-all (CI) never takes it.
 #
 # Sets an array rather than returning a string to word-split: the docker forms
 # embed ${REPO_ROOT}, and word-splitting a path is how that breaks on the first
 # directory with a space in it.
 RUNNER=()
+UNPINNED=0
 runner_for() {
-  local tool="$1" img
   RUNNER=()
-  if have "${tool}"; then RUNNER=("${tool}"); return 0; fi
+  UNPINNED=0
+  pinned_runner_for "$1" && return 0
+  if ! ((REQUIRE_ALL)) && have "$1"; then
+    RUNNER=("$1")
+    UNPINNED=1
+    return 0
+  fi
+  return 1
+}
+
+# Every container below runs with --network none except tofu's. A linter reads
+# files and prints, and on a fork PR the files are the author's. A linter with
+# a parsing bug should then have nothing to reach. Triage of the linter images'
+# CVEs had been saying "no network" while every runner had a network (#1001,
+# #1013). tofu keeps one because `init` fetches the providers that `validate`
+# needs, and the three tofu calls share this runner.
+pinned_runner_for() {
+  local tool="$1" img
   case "${tool}" in
     yamllint)
-      if have pipx; then RUNNER=(pipx run yamllint); return 0; fi ;;
+      # Same shape as ansible-lint below: the pin file is the only place the
+      # version is written.
+      if have pipx; then
+        RUNNER=(pipx run --spec "$(grep -E '^yamllint==' scripts/requirements-lint.txt)" yamllint)
+        return 0
+      fi ;;
     markdownlint-cli2)
-      if have npx; then RUNNER=(npx --yes markdownlint-cli2); return 0; fi ;;
+      # The entrypoint IS markdownlint-cli2, and with no arguments it reads its
+      # globs from .markdownlint-cli2.yaml at the mount root. --user only so the
+      # uid matches the checkout's owner; it writes nothing.
+      if have_docker; then
+        img="$(./scripts/image-for.sh markdownlint-cli2)"
+        RUNNER=(docker run --rm --network none --user "$(id -u):$(id -g)" -v "${REPO_ROOT}:/workdir:ro" -w /workdir "${img}")
+        return 0
+      fi ;;
+    shellcheck)
+      # The entrypoint IS shellcheck. Handed relative paths from the caller,
+      # which is why the working directory is the mount.
+      if have_docker; then
+        img="$(./scripts/image-for.sh shellcheck)"
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/mnt:ro" -w /mnt "${img}")
+        return 0
+      fi ;;
     ansible-lint)
       # The spec is read from the pin file rather than written here, so that
       # file stays the only place the version appears. requirements.txt goes in
@@ -141,13 +189,20 @@ runner_for() {
                 --spec "$(grep -E '^ansible-lint==' ansible/requirements-lint.txt)" ansible-lint)
         return 0
       fi ;;
+    ruff)
+      # Same route as ansible-lint, and the pin file is again the only place
+      # the version appears (#853).
+      if have pipx; then
+        RUNNER=(pipx run --spec "$(grep -E '^ruff==' scripts/requirements-lint.txt)" ruff)
+        return 0
+      fi ;;
     actionlint)
       # No --user: this image's entrypoint IS actionlint and it already drops to
       # USER guest. It locates .github/workflows by walking up to the .git
       # directory, which is why the whole repository is mounted.
       if have_docker; then
         img="$(./scripts/image-for.sh actionlint)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
     zizmor)
@@ -156,7 +211,7 @@ runner_for() {
       # result does not depend on the network (#839).
       if have_docker; then
         img="$(./scripts/image-for.sh zizmor)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/repo:ro" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/repo:ro" -w /repo "${img}")
         return 0
       fi ;;
     editorconfig-checker)
@@ -175,7 +230,7 @@ runner_for() {
       # all have to be visible from inside it.
       if have_docker; then
         img="$(./scripts/image-for.sh editorconfig-checker)"
-        RUNNER=(docker run --rm -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
+        RUNNER=(docker run --rm --network none -v "${REPO_ROOT}:/check" -w /check "${img}" editorconfig-checker)
         return 0
       fi ;;
     packer)
@@ -185,14 +240,15 @@ runner_for() {
       # and `validate -syntax-only` stops before plugins are loaded (ADR-0074).
       if have_docker; then
         img="$(./scripts/image-for.sh packer)"
-        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        RUNNER=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
     tofu)
-      # Same shape as packer: the entrypoint IS tofu, and --user so that the
-      # provider cache `init` writes under tofu/.terraform/ (gitignored) is not
-      # root-owned on a workstation. That cache outlives the run, so the linters
-      # that walk the tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
+      # Same shape as packer, but with a network: `init` below downloads the
+      # providers. The entrypoint IS tofu, and --user so that the provider cache
+      # `init` writes under tofu/.terraform/ (gitignored) is not root-owned on a
+      # workstation. That cache outlives the run, so the linters that walk the
+      # tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
       if have_docker; then
         img="$(./scripts/image-for.sh tofu)"
         RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")
@@ -206,11 +262,8 @@ runner_for() {
 # engine. Say what to install.
 hint_for() {
   case "$1" in
-    yamllint)          printf 'pip install yamllint, or install pipx' ;;
-    markdownlint-cli2) printf 'npm i -g markdownlint-cli2, or install npx' ;;
-    shellcheck)        printf 'apt install shellcheck' ;;
-    ansible-lint)      printf 'pip install -r ansible/requirements-lint.txt, or install pipx' ;;
-    *)                 printf 'needs a docker daemon, or the binary on PATH' ;;
+    yamllint|ansible-lint|ruff) printf 'install pipx' ;;
+    *)                          printf 'needs a docker daemon' ;;
   esac
 }
 
@@ -229,8 +282,17 @@ run_linter() {
   # paying that twice just to see the message is a poor trade.
   local out rc=0
   out="$("${RUNNER[@]}" "$@" 2>&1)" || rc=$?
+  # LINT_FAIL_ON: a pattern that fails a run exiting 0. For a tool that only
+  # warns about the one thing it was invoked to refuse; see tofu init below.
+  if ((rc == 0)) && [[ -n "${LINT_FAIL_ON:-}" ]] && grep -qF -- "${LINT_FAIL_ON}" <<<"${out}"; then
+    rc=1
+  fi
   if ((rc == 0)); then
-    pass "${tool}"
+    if ((UNPINNED)); then
+      pass "${tool} (a local binary, NOT the pinned version: $(hint_for "${tool}") to run that)"
+    else
+      pass "${tool}"
+    fi
   else
     printf '%s\n' "${out}"
     fail "${tool}"
@@ -247,6 +309,11 @@ run_linter yamllint --strict .
 # No arguments: the globs live in .markdownlint-cli2.yaml.
 run_linter markdownlint-cli2
 run_linter shellcheck scripts/*.sh
+# Two calls, one tool, as with packer: check is what the code does (#853), and
+# format is how it is laid out (#938). Both read ruff.toml. --diff so a failure
+# shows the fix, and `ruff format scripts/` applies it.
+run_linter ruff check .
+run_linter ruff format --check --diff .
 # No arguments: actionlint finds the workflows from the repository root.
 run_linter actionlint
 run_linter zizmor --offline .github/workflows
@@ -260,8 +327,16 @@ run_linter packer validate -syntax-only packer/
 # match the committed .terraform.lock.hcl fails here instead of being quietly
 # re-pinned. Whether the state is encrypted is not a lint question; that is
 # scripts/check-tofu-state-encryption.sh --self-test, in self-tests.sh.
+#
+# -lockfile=readonly does not fail on a lock that disagrees with versions.tf: it
+# prints "Changes to the provider selections were detected, but not saved" and
+# exits 0. Dependabot's first provider bump (#961) left the lock that way, with
+# constraints still on the old version and one zh: hash missing, and merged
+# green. So that warning is a failure here. The fix for a red bump is
+# `tofu -chdir=tofu init -upgrade -backend=false`, committed onto its PR.
 run_linter tofu fmt -check -diff -recursive tofu/
-run_linter tofu -chdir=tofu init -backend=false -input=false -lockfile=readonly
+LINT_FAIL_ON='Changes to the provider selections were detected' \
+  run_linter tofu -chdir=tofu init -backend=false -input=false -lockfile=readonly
 run_linter tofu -chdir=tofu validate
 # ansible/ (ADR-0077). Includes ansible-playbook's own syntax check, which needs
 # the pinned collections — hence --project-dir, which makes ansible-lint install

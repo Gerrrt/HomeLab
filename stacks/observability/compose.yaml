@@ -190,10 +190,10 @@ x-service-defaults: &service-defaults
 # in containers.rules.yaml is the limit-relative complement these numbers make
 # possible, and it has its own promtool test for the same reason.
 #
-# Not set on renderer, archiver, gitleaks, actionlint, editorconfig-checker, packer or
-# tofu: all seven sit behind profiles, none runs in a normal deploy, and there is
-# nothing running to measure. An unmeasured ceiling on a headless Chromium is
-# the guess this block exists to avoid.
+# Not set on renderer, archiver, gitleaks, trivy, actionlint, editorconfig-checker,
+# zizmor, packer or tofu: all nine sit behind profiles, none runs in a normal
+# deploy, and there is nothing running to measure. An unmeasured ceiling on a
+# headless Chromium is the guess this block exists to avoid.
 
 services:
   # ---------------------------------------------------------------------------
@@ -311,9 +311,9 @@ services:
       # Loopback only. Prometheus authenticates nothing: whatever reaches this
       # port can read every metric and inject more through the remote-write
       # receiver. The off-host clients (the agents on oracle, trinity and
-      # Saruman, and Homepage and Home Assistant on trinity) reach it through
-      # `caddy` below, which holds the host's address on the same port number
-      # and wants a token first (#182, ADR-0067). Loopback stays open for the
+      # Saruman, and Glance and Home Assistant on trinity) reach it
+      # through `caddy` below, which holds the host's address on the same port
+      # number and wants a token first (#182, ADR-0067). Loopback stays open for the
       # host's own timers and for the runbooks' `curl localhost:9090`. A local
       # user on this host is already past anything a token could stop.
       - "127.0.0.1:${PROMETHEUS_PORT:-9090}:9090"
@@ -409,12 +409,23 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
-    # No tmpfs needed, and this one was designed for it: loki-config.yaml puts
-    # `rule_path: /loki/rules-temp` inside the data volume on purpose, with a
-    # comment saying why. Verified rather than trusted — a read-only copy was
-    # watched evaluating the real rule files and writing its temporary rule
-    # state into the volume.
+    # loki-config.yaml puts `rule_path: /loki/rules-temp` inside the data
+    # volume on purpose, and #186 verified that a read-only copy evaluates the
+    # real rule files and writes its rule state there.
+    #
+    # What that test could not see is retention (#845's day-run, 2026-10-07).
+    # The compactor opens each deletion-marker file in os.TempDir, which is
+    # /tmp, before it applies retention. On a read-only root that fails with
+    # "failed to create marker writer: open /tmp/<n>: read-only file system",
+    # every pass, so retention_period was never enforced and nothing past it
+    # was deleted. That path only runs once there is data older than the
+    # period to mark, which no short boot test reaches. The lab's Loki showed
+    # it within hours of being made read-only. /tmp is a tmpfs for that reason
+    # alone. 64m, because markers are chunk IDs, a few KB per table per pass;
+    # it is charged to the mem_limit above.
     read_only: true
+    tmpfs:
+      - /tmp:size=64m
     command: -config.file=/etc/loki/loki-config.yaml
     volumes:
       - ./loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
@@ -469,8 +480,9 @@ services:
   # the same pinned image as stacks/sensitive's, and Dependabot moves both.
   #
   # Non-root, unlike the sensitive tier's Caddy, because nothing here needs a
-  # certificate store. `auto_https off` and `admin off` mean nothing is
-  # written to /data or /config. They are tmpfs so the image's paths exist,
+  # certificate store: the leaf below is a file, issued by gen-certs.sh like
+  # Grafana's, not one Caddy obtains. `auto_https off` and `admin off` mean
+  # nothing is written to /data or /config. They are tmpfs so the image's paths exist,
   # and `docker diff` after a boot and a full request matrix showed nothing
   # written anywhere. NET_BIND_SERVICE stays in the bounding set for a
   # measured reason, not to bind a low port (9090, 3100 and 2020 are not
@@ -485,11 +497,21 @@ services:
   # The tokens are in the environment, so `docker inspect` can read them. That
   # is the same exposure class as GRAFANA_ADMIN_PASSWORD, and the Caddyfile's
   # `{$VAR}` form needs no rendered file.
+  #
+  # The leaf is prometheus.matrix.elysium, with 10.0.99.20 as an IP SAN because
+  # every client dials the address (#764). Its key is 0640 and owned by the
+  # operator who ran gen-certs.sh, so the proxy joins that group, the way
+  # grafana does for its own leaf. It is mounted ahead of the Caddyfile serving
+  # it: the first PR of #764 lands the mount and the clients' trust, and the
+  # second turns TLS on, so a key the proxy cannot read is found while every
+  # client still speaks http.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.4@sha256:0c994536bddb66445885237f1a5dcc1916bccea922661c76b4e9fc24061f9b52
+    image: caddy:2.11.7@sha256:685ae3d7c34d9b5f8caeddc5d14051db7bbd88ff1f5a2fa0c16bd8ca328fb7af
     container_name: ingest-proxy
     user: "65534:65534"
+    group_add:
+      - "${RENDER_GID:?run make render}"
     mem_limit: 64m
     memswap_limit: 64m
     cap_drop: [ALL]
@@ -508,6 +530,8 @@ services:
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../certificates/prometheus.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/prometheus.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
     ports:
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${PROMETHEUS_PORT:-9090}:9090"
       - "${INGEST_BIND_ADDR:-10.0.99.20}:${LOKI_PORT:-3100}:3100"
@@ -578,7 +602,7 @@ services:
   # ---------------------------------------------------------------------------
   blackbox-exporter:
     <<: *service-defaults
-    image: prom/blackbox-exporter:v0.28.0@sha256:e753ff9f3fc458d02cca5eddab5a77e1c175eee484a8925ac7d524f04366c2fc
+    image: prom/blackbox-exporter:v0.29.0@sha256:9613f2884689b6fad9f1939f6a3b0388c93a022cfaededb19545b329b5c83dea
     container_name: blackbox-exporter
     # 65534, and this line is here because the image does not supply one:
     # prom/blackbox-exporter:v0.28.0 sets no USER, so without it this container
@@ -621,7 +645,9 @@ services:
     # prom/blackbox-exporter:v0.28.0 sets no USER in its image config and
     # nothing above sets `user:`. The issue asserted the image runs as `nobody`.
     # It does not, so this line is here on its own merits rather than as a
-    # formality.
+    # formality. Re-read on v0.29.0 (2026-10-07): still no USER, the same
+    # entrypoint and port, and busybox wget still present, so this block and
+    # the healthcheck stand as written.
     #
     # Nothing in blackbox.yaml needs a capability. There is no `icmp` prober
     # defined — the seven modules are four http, one tcp_connect and two dns —
@@ -672,12 +698,101 @@ services:
       start_period: 20s
 
   # ---------------------------------------------------------------------------
+  # Scheduled internet speed tests (#914). Runs Ookla's CLI every 30 minutes,
+  # keeps the history in its own UI, and serves the latest result at
+  # /prometheus for internet.rules.yaml and the Internet dashboard. One test
+  # source, two views: a second scheduler would double the traffic and the
+  # two would interfere with each other's measurements.
+  # ---------------------------------------------------------------------------
+  speedtest-tracker:
+    <<: *service-defaults
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.0@sha256:1eeed2307699c083407bd4c1eb86f14d5179f9e1cd960f57d4cbab6f1f8b8a42
+    container_name: speedtest-tracker
+    # No docker-init. The linuxserver image is built on s6-overlay, whose
+    # suexec refuses to start anywhere but PID 1 — "s6-overlay-suexec: fatal:
+    # can only run as pid 1", exit 100, measured with the default above. s6
+    # is itself a reaping init, so what #71 put `init: true` there for is
+    # still true of this container.
+    init: false
+    # No `user:`. s6 starts as root, chowns /config and drops every process
+    # that does work (nginx, php-fpm, the queue worker that runs the test) to
+    # PUID/PGID. Those are the operator's, for the same reason grafana takes
+    # RENDER_GID: the leaf key below is 0640 and nginx has to read it. This is
+    # the stack's one image that cannot run under a non-root uid from the
+    # start; docs/security.md says so.
+    environment:
+      PUID: "${RENDER_UID:?run make render}"
+      PGID: "${RENDER_GID:?run make render}"
+      TZ: America/Los_Angeles
+      APP_KEY: ${SPEEDTEST_APP_KEY:?set in secrets/observability.sops.yaml}
+      APP_URL: https://speedtest.matrix.elysium:${SPEEDTEST_PORT:-8443}
+      DB_CONNECTION: sqlite
+      # Every 30 minutes. The plan's data is unlimited, so the cost is ~20
+      # seconds of saturated link per test, not a cap.
+      SPEEDTEST_SCHEDULE: "*/30 * * * *"
+      # Prometheus holds the long history; the UI needs a year.
+      PRUNE_RESULTS_OLDER_THAN: "365"
+    # 3x the anon peak plus opcache's whole segment: 3 x 76.5 + 128 = 358.
+    # Re-measured 2026-10-10 on the live container with the link fixed (#914)
+    # and tests at 750-940 Mbit/s down (#924). Anon memory, sampled twice a
+    # second across the 13:00 and 13:30 tests — which a one-minute scrape can
+    # step over — peaked at 76.5 MiB in the test's first second; cAdvisor's
+    # RSS peaked at 58 over every test since 2026-10-06. Full rate stayed
+    # under the 130 MiB RSS the 2026-10-05 scratch boots recorded at 2 Mbit/s.
+    #
+    # SIZED FROM RSS above leaves out one term here: shmem. php-fpm maps a
+    # 128 MiB shared /dev/zero segment (opcache.memory_consumption), 90 MiB of
+    # it touched so far. It is charged to this cgroup as file memory, so
+    # cAdvisor's RSS misses it, and with no swap (memswap_limit below) the
+    # kernel cannot reclaim it. It cannot grow past 128, so it is added flat
+    # rather than multiplied. The rest of the 288 MiB cgroup memory.peak and
+    # 171 MiB working set is ordinary page cache, which is reclaimable.
+    mem_limit: 384m
+    memswap_limit: 384m
+    # Measured, not guessed: CapEff 0x4cb with these, and the container came
+    # up healthy and ran two complete tests. s6 needs CHOWN, FOWNER and
+    # DAC_OVERRIDE to prepare /config and SETUID/SETGID to drop to PUID;
+    # nginx binds 80 and 443. no-new-privileges holds because s6 drops with
+    # setuid(2), not a setuid binary.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID, NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      # SQLite database, nginx and php config the image writes on first
+      # boot, and its logs. A writable root is required for the same reason.
+      - speedtest-data:/config
+      # The lab CA's leaf, mounted over the self-signed pair the image would
+      # otherwise generate ("using keys found in /config/keys"). Never the CA
+      # key. Read-only inside the writable volume, and s6's first-boot chown
+      # of /config did not trip over them: measured healthy with this shape.
+      - ../../certificates/speedtest.matrix.elysium.pem:/config/keys/cert.crt:ro
+      - ../../certificates/speedtest.matrix.elysium-key.pem:/config/keys/cert.key:ro
+    # 80 for Prometheus on the compose network; 443 is the UI, published
+    # for the operator's browser and behind the app's own login.
+    expose:
+      - "80"
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${SPEEDTEST_PORT:-8443}:443"
+    healthcheck:
+      # curl ships in the image; check_compose_health.py --probe proves it.
+      # /api/healthcheck answers 200 without a login, on plain HTTP.
+      test: ["CMD", "curl", "-fsS", "-o", "/dev/null", "http://localhost/api/healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
   # Visualisation. Datasources and dashboards are provisioned from files, so a
   # wiped volume costs nothing but annotations — the dashboards are in git.
   # ---------------------------------------------------------------------------
   grafana:
     <<: *service-defaults
-    image: grafana/grafana-oss:13.0.2@sha256:5dad0df181cb644a14e13617b913b261a54f7d4fd4510721dba420929f35bea2
+    # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
+    # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
+    # the old repository's last tag went stale with no bump to follow (#988).
+    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
     container_name: grafana
     # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 139
     # MiB median, and three excursions past 350 MiB RSS in fourteen days (540,
@@ -687,7 +802,8 @@ services:
     # not to the median: there is no excursion here to discount.
     #
     # 1280M rather than 1024M leaves room for a path this window did not
-    # exercise. `make screenshots` asks Grafana to serve a 4582px render, and
+    # exercise. `make screenshots` asks Grafana to serve renders up to
+    # MAX_HEIGHT (7000px) tall, and
     # the `capture` profile was never up for long enough to measure it — the
     # renderer's own working set peaked at 24 MiB over the fourteen days, which
     # is a container that started and stopped, not one that rendered. The
@@ -865,9 +981,18 @@ services:
     <<: *service-defaults
     image: tecnativa/docker-socket-proxy:v0.5.0@sha256:1f5038b54f06c3e18422902cf00ba21803d1c97805aae032e5e6673d532d3459
     container_name: docker-socket-proxy
+    # The repository's HAProxy config, not the image's template: with
+    # CONTAINERS=1 the template also allows /containers/{id}/archive, /export,
+    # /top and /changes, all GETs, which copy files out of any container as
+    # root (Tecnativa/docker-socket-proxy#182). docker-socket-proxy/haproxy.cfg
+    # allows the three /containers paths the clients use and nothing else under
+    # it; its header has the measurement. The env flags below still decide
+    # everything else, exactly as they did. check_compose_health.py requires
+    # this command and the mount below on every proxy.
+    command: ["haproxy", "-f", "/usr/local/etc/socket-proxy/haproxy.cfg"]
     environment:
       # What Alloy reads.
-      CONTAINERS: 1   # /containers/json and /containers/{id}/json — names, labels
+      CONTAINERS: 1   # /containers/json, /containers/{id}/json and /logs, and only those
       IMAGES: 1       # cAdvisor resolves image names for its series
       INFO: 1         # /info, which cAdvisor calls on startup
       VERSION: 1      # /version, the API handshake every client makes first
@@ -906,6 +1031,9 @@ services:
       # The socket now stops here. This container is the trust boundary, and it
       # is a 4 MB HAProxy with no network listener beyond the compose bridge.
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      # A directory, not the file, so a git checkout that replaces the file is
+      # not left behind on the old inode (#355).
+      - ./docker-socket-proxy:/usr/local/etc/socket-proxy:ro
     # Not published. The only client is Alloy, on this network.
     expose:
       - "2375"
@@ -931,6 +1059,17 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    healthcheck:
+      # GET /version, which the allowlist above admits (#845). Not
+      # `wget --spider`: that sends HEAD, the GET-only rule refuses it, and a
+      # working proxy would read as unhealthy. The request goes through to the
+      # socket, so this says the proxy AND the daemon behind it answer. busybox
+      # wget from the haproxy Alpine base; --probe proves it.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:2375/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   alloy:
     <<: *service-defaults
@@ -1031,6 +1170,10 @@ services:
       # first second and ContainerRestartLoop fires, rather than coming up and
       # collecting nothing.
       - "473"
+      # The operator's gid, for the TLS syslog key (#1049): 0640 and owned by
+      # whoever ran gen-certs.sh, and root here has no DAC_OVERRIDE to read
+      # past that. The ingest proxy and Grafana read their keys the same way.
+      - "${RENDER_GID:?run make render}"
     # Without this the cAdvisor exporter reports exactly one series, id="/",
     # and every per-container metric is missing — which is what the Docker
     # Containers dashboard and four of the nine rules in containers.rules.yaml
@@ -1082,49 +1225,82 @@ services:
       # holds every container's logs, so an unread mount of it is pure reach.
       - /var/log:/var/log:ro
       - /:/rootfs:ro
+      # The TLS syslog listener (#1049): its own leaf, syslog.matrix.elysium
+      # with 10.0.99.20 as an IP SAN, whose key is mounted into nothing else,
+      # and morpheus's client certificate, which syslog.alloy pins as the only
+      # one it accepts. Both are issued on this host before the first `make
+      # up` that carries these lines (ship-firewall-logs.md §1).
+      #
+      # Long form so that create_host_path can be off, as stacks/sensitive
+      # does. Short form would have Docker create a DIRECTORY at a missing
+      # certificate path, inside certificates/, and Alloy would then fail on
+      # a directory where a file should be. Off, the deploy stops and names
+      # the missing file instead.
+      - type: bind
+        source: ../../certificates/syslog.matrix.elysium.pem
+        target: /etc/syslog-tls/cert.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../certificates/syslog.matrix.elysium-key.pem
+        target: /etc/syslog-tls/key.pem
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ../../certificates/morpheus.matrix.elysium.pem
+        target: /etc/syslog-tls/morpheus.pem
+        read_only: true
+        bind:
+          create_host_path: false
     ports:
       - "127.0.0.1:${ALLOY_PORT:-12345}:12345"
-      # Network syslog for devices that cannot run an agent — morpheus today.
+      # Network syslog for devices that cannot run an agent: morpheus today.
       # Unlike the debug UI above this must be reachable off-host, so it binds
-      # to BIND_ADDR. pfSense sends UDP by default.
+      # to INGEST_BIND_ADDR, the management address senders already reach. It
+      # used to be BIND_ADDR, which is 0.0.0.0 and so took it to every interface
+      # this host has (#844).
       #
-      # The container side is 1514, and the reason is NOT that it cannot bind a
-      # privileged port — it can. Measured here 2026-09-05 (Docker 29.8.0, the
-      # pinned alloy digest): uid 0 with CapEff 0000000000000000, and Docker
-      # sets net.ipv4.ip_unprivileged_port_start=0 in the container's network
-      # namespace, so the privileged range inside it is empty and
-      # CAP_NET_BIND_SERVICE is never consulted for any port. The cap_drop above
-      # is doing what #188 intended; it just has no bearing on which ports Alloy
-      # can bind. Two earlier versions of this comment gave a wrong reason —
-      # first "does not run as root" (#188), then the capability (#290).
+      # Which senders are STORED is decided in alloy/syslog.alloy, not here.
+      # Its loki.relabel.network_syslog lists them, and every other line is
+      # dropped and counted. The binding only narrows who can reach the port.
       #
-      # 1514 stays anyway, on a reason that does hold: that sysctl is a daemon
-      # *default*. It is settable per container and has not always been what it
-      # is now, so a container-side :514 would rest on something a future
-      # daemon default or a hardening pass could take away — silently, as a bind
-      # failure at start. Nothing needs the container side to be 514.
-      #
-      # The host side is free to be 514, because dockerd binds it as root before
-      # Alloy is involved. Verified end to end on this host 2026-09-05:
-      # 127.0.0.1:514 published to a --cap-drop ALL container, packet delivered.
-      #
-      # TWO HOST PORTS, NOT ONE, AND THE SECOND IS WHY THIS COMMENT CHANGED.
-      # It previously said a device that can only send to the standard port is
-      # "accommodated by SYSLOG_PORT=514 in .env and nothing else". That advice
-      # was wrong in a way that would not have shown up until logs went missing:
-      # SYSLOG_PORT does not ADD a port, it MOVES the only one. pfSense is
-      # already sending to it, and on 2026-09-06 that stream was the busiest in
-      # Loki — filterlog block events at roughly 250-350 per five minutes across
-      # em0, igc0.10 and igc0.20. Repointing SYSLOG_PORT would have taken
-      # morpheus's firewall log off the air silently, since a UDP sender gets no
-      # error from a port nobody is bound to.
-      #
-      # So the standard port is published alongside rather than instead. Both
-      # map to the same container listener, so Alloy needs no config change and
-      # neither sender has to move. Gerrrt/Lemmiwinks#161.
-      - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_PORT:-1514}:1514/udp"
-      - "${BIND_ADDR:-0.0.0.0}:${SYSLOG_STD_PORT:-514}:1514/udp"
+      # TLS ONLY, with a required client certificate (#1049). 6514 is RFC
+      # 5425's port. It used to sit beside two UDP publishes, 1514 and the
+      # standard 514, both mapped to one UDP listener. Those went once morpheus
+      # had sent here for a day, because a UDP source address can be forged
+      # from VLAN 99 and #844's allowlist could not tell morpheus from
+      # something claiming to be it. Nothing else was ever stored over UDP: the
+      # allowlist named morpheus alone. A device that can only speak UDP
+      # syslog now has no way in, which is the point. Bringing one in needs its
+      # own decision, not a port reopened here.
+      - "${INGEST_BIND_ADDR:-10.0.99.20}:${SYSLOG_TLS_PORT:-6514}:6514/tcp"
+    healthcheck:
+      # /-/ready over bash's /dev/tcp (#845). The image is Ubuntu with neither
+      # curl nor wget, so bash is the client, and check_compose_health.py
+      # --probe proves bash is still in the image after a bump. /-/ready
+      # answers 503 until the config graph has loaded and 200 after, so this
+      # says the agent is running its config rather than that a process
+      # exists. It does not say the pushes land; the receiving end's alerts
+      # (InstanceDown, LokiIngestionStalled) still say that.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/12345
+          && printf 'GET /-/ready HTTP/1.0\r\n\r\n' >&3
+          && head -n1 <&3 | grep -q ' 200 '
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
+      # Healthy, now that it can say so (#845): without the proxy every
+      # docker.alloy component fails while the agent itself reports fine.
+      docker-socket-proxy:
+        condition: service_healthy
       # service_started for loki, for the same reason as grafana above: the
       # distroless image cannot report health. Alloy retries a failed push with
       # backoff and buffers in the meantime, so racing Loki's startup is safe.
@@ -1153,7 +1329,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.5@sha256:76542ccc4c045e5ff9f80f87b25de6fcc71b31222172de5031a8ceba33772ee1
+    image: grafana/grafana-image-renderer:v5.12.7@sha256:a643fd3ee669ff1b6927d5589c37ee1078b52fc76cea9a7bf8e247357e9d9dd1
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
@@ -1183,10 +1359,17 @@ services:
       # A render taller than this is silently clamped to it, and the dashboard
       # is cropped rather than refused — the same truncation the height
       # derivation in capture-screenshots.sh exists to avoid, reintroduced one
-      # layer down. The default is 3000 and `homelab-stack` is 4582px, so the
-      # whole Alloy row fell off the bottom of a capture that reported success.
-      # Keep this and MAX_HEIGHT in capture-screenshots.sh in step.
-      BROWSER_MAX_HEIGHT: 5000
+      # layer down. The default 3000 cut `homelab-stack`'s whole Alloy row off a
+      # capture that reported success. It was 5000 until 2026-10-08, when
+      # homelab-stack reached 4886px. 7000 is measured, on v5.12.5: that
+      # digest, hardened as below, rendered 1600x7000 in its 1 GB /dev/shm at
+      # about 22 MiB RSS. v5.12.6 (#987's security rebuild: Chromium, Go,
+      # golang.org/x/net and the Debian base) has not been re-measured at 7000.
+      # On 2026-10-10 it rendered all six dashboards at full height, the
+      # tallest homelab-stack at 1600x4926. It must equal MAX_HEIGHT in
+      # capture-screenshots.sh, and `capture-screenshots.sh --check` (in CI)
+      # fails if it does not, or if a captured dashboard has outgrown it.
+      BROWSER_MAX_HEIGHT: 7000
       LOG_LEVEL: info
     # Deliberately not published. The only client is Grafana, on this network.
     expose:
@@ -1202,6 +1385,31 @@ services:
     # rather than inherited so that the shared default cannot quietly break a
     # `make screenshots` run, and it is high enough that it should not bind.
     pids_limit: 4096
+    # The estate's capability drop and no-new-privileges, the last long-running
+    # service to get them (#954). The image runs as nonroot (uid 65532) with
+    # CapEff 0, so the drop clears the bounding set only — prometheus's
+    # "belt and braces" case. no-new-privileges is the half that matters: the
+    # image ships thirteen setuid binaries (su, mount, passwd, chrome-sandbox
+    # among them), and this makes every one of them inert.
+    #
+    # Chromium's own sandbox is not what this trades away. The renderer starts
+    # it with --no-sandbox unless BROWSER_SANDBOX is set, so the setuid
+    # chrome-sandbox helper is never used either way, and its namespaced mode
+    # (which would want SYS_ADMIN) is off too.
+    #
+    # Measured 2026-10-07 on alexander, with v5.12.5's digest on the lab's
+    # bridge rendering the lab Grafana: a control run and this hardened run
+    # returned byte-identical outputs (a 559,214-byte PNG and a 53,256-byte
+    # PDF), and the hardened one rendered 1600x4600 three times over in
+    # 1 GiB of /dev/shm, with no error in its log. The end-to-end proof followed
+    # on 2026-10-08: `make screenshots` on this host, with the renderer
+    # inspected as capdrop=[ALL] and no-new-privileges, rendered all five
+    # dashboards, the tallest (homelab-stack) at 1600x4886 (#954). v5.12.6
+    # keeps the same user (65532), entrypoint and port, read from its image
+    # config, but these runs have not been repeated on it.
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
   # ---------------------------------------------------------------------------
   # tar and gzip for scripts/backup-volumes.sh. NOT part of the running stack:
@@ -1236,7 +1444,7 @@ services:
   # ---------------------------------------------------------------------------
   archiver:
     profiles: ["backup"]
-    image: debian:13-slim@sha256:a99cfc517144bc59b1978475ec53b46ecabec7e43635402ee5b77cc54cd1b20a
+    image: debian:13-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
     command: ["true"]
 
   # ---------------------------------------------------------------------------
@@ -1262,6 +1470,23 @@ services:
     command: ["version"]
 
   # ---------------------------------------------------------------------------
+  # trivy for the weekly CVE scan (.github/workflows/cve-scan.yml, #852). Behind
+  # the `scan` profile beside gitleaks, and here for the same reason: a scanner
+  # pinned anywhere but this file is one Dependabot never bumps, and a stale
+  # vulnerability database's scanner is how a green report goes wrong quietly.
+  #
+  # scripts/scan-images.sh runs it against every digest pinned across stacks/,
+  # reading each one from the registry with --image-src remote, so it needs no
+  # pull and no daemon storage, as pin-digests.sh needs none.
+  #
+  # Its entrypoint IS trivy, so `--version` is the harmless no-op.
+  # ---------------------------------------------------------------------------
+  trivy:
+    profiles: ["scan"]
+    image: aquasec/trivy:0.76.0@sha256:2416d1f74045b57274df1a340eee6b510cacd73c66a6ccb8da092b117eb7d222
+    command: ["--version"]
+
+  # ---------------------------------------------------------------------------
   # actionlint and editorconfig-checker for scripts/lint.sh. NOT part of the
   # running stack: both sit behind the `lint` profile, so `make up` neither
   # starts nor pulls them, and `docker compose ps` shows nine services as before.
@@ -1273,9 +1498,9 @@ services:
   # at all. Two linters whose first and only feedback was a red build. That is
   # half of #68.
   #
-  # Docker Hub rather than ghcr.io on purpose: scripts/pin-digests.sh resolves
-  # through auth.docker.io and registry-1.docker.io only, so a ghcr.io reference
-  # could not be digest-pinned here and would then fail CI's digest assertion.
+  # Docker Hub was chosen when scripts/pin-digests.sh resolved through
+  # registry-1.docker.io only. It reads the registry host off the reference now,
+  # so ghcr.io pins (zizmor below) resolve too; the choice is history, not a rule.
   #
   # The two `command:` lines differ because the images do. actionlint's
   # entrypoint IS actionlint, so `-version` is the harmless no-op if it is ever
@@ -1299,7 +1524,22 @@ services:
   # leaving the token in .git/config. Its entrypoint IS zizmor.
   zizmor:
     profiles: ["lint"]
-    image: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+    image: ghcr.io/zizmorcore/zizmor:1.31.1@sha256:42d409dbb851d4c5d35a058cf042b828bea1e3f2884378c526eb0974780e18d9
+    command: ["--version"]
+
+  # markdownlint-cli2 and shellcheck (#848). They ran from `npx --yes` and the
+  # runner's apt package, so the version that judged a pull request was
+  # whatever npm or Ubuntu served that day, and nothing here could bump it.
+  # Upstream's own images, from Docker Hub for pin-digests.sh's reason above.
+  # Both entrypoints ARE the linter.
+  markdownlint-cli2:
+    profiles: ["lint"]
+    image: davidanson/markdownlint-cli2:v0.23.3@sha256:d5f3f3f04b2e285dcbcdcd13b4454d119e273e3c393a9dabd163dba4abad526d
+    command: ["--help"]
+
+  shellcheck:
+    profiles: ["lint"]
+    image: koalaman/shellcheck:v0.11.0@sha256:61862eba1fcf09a484ebcc6feea46f1782532571a34ed51fedf90dd25f925a8d
     command: ["--version"]
 
   # ---------------------------------------------------------------------------
@@ -1351,3 +1591,4 @@ volumes:
   loki-data:
   grafana-data:
   alloy-data:
+  speedtest-data:

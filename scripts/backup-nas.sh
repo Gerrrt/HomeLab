@@ -384,8 +384,9 @@ case "${MODE}" in
       die "no complete sets in ${OUT_DIR}"
     fi
     # Each set against its own MANIFEST, not against NAS_ARCHIVES — see WHY
-    # IT SOURCES backup-volumes.sh. A set whose MANIFEST lists nothing falls
-    # back to the full list inside verify_set() and fails there, loudly.
+    # IT SOURCES backup-volumes.sh. A set whose MANIFEST lists nothing hands
+    # verify_set() an empty list, which re-reads that MANIFEST, finds it
+    # empty and fails there, loudly ("the MANIFEST lists no volumes").
     for t in "${targets[@]}"; do
       mapfile -t held < <(manifest_volumes "${t}")
       verify_set "${t}" "${held[@]}" || failed=1

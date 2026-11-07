@@ -141,10 +141,17 @@ fi
 # ---------------------------------------------------------------------------
 head_ "Prometheus"
 # ---------------------------------------------------------------------------
+# The docker fallbacks below (promtool, amtool, alloy, gitleaks) run with
+# --network none, as lint.sh's linters do: each one reads files from the mount
+# and needs nothing else, and on a fork PR those files are the author's. For
+# the same reason the mount is read-only and alloy and gitleaks, whose images
+# run as root, run as the caller: a tool those files subvert must not be able
+# to rewrite scripts/ that this script then runs on the host, such as
+# gitleaks-history.sh straight after the working-tree scan.
 if have promtool; then
   PROMTOOL=(promtool)
 elif have_docker; then
-  PROMTOOL=(docker run --rm --entrypoint promtool -v "${REPO_ROOT}:/repo" -w /repo "${PROM_IMAGE}")
+  PROMTOOL=(docker run --rm --network none --entrypoint promtool -v "${REPO_ROOT}:/repo:ro" -w /repo "${PROM_IMAGE}")
 else
   PROMTOOL=()
 fi
@@ -224,8 +231,8 @@ head_ "Alertmanager"
 if have amtool; then
   AMTOOL=(amtool)
 elif have_docker; then
-  AMTOOL=(docker run --rm --entrypoint amtool \
-          -v "${REPO_ROOT}:/repo" -w /repo "${AM_IMAGE}")
+  AMTOOL=(docker run --rm --network none --entrypoint amtool \
+          -v "${REPO_ROOT}:/repo:ro" -w /repo "${AM_IMAGE}")
 else
   AMTOOL=()
 fi
@@ -313,7 +320,8 @@ head_ "Alloy"
 if have alloy; then
   ALLOY=(alloy)
 elif have_docker; then
-  ALLOY=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
+  ALLOY=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+         -v "${REPO_ROOT}:/repo:ro" -w /repo --entrypoint alloy "${ALLOY_IMAGE}")
 else
   ALLOY=()
 fi
@@ -425,8 +433,55 @@ for stack in "${STACKS[@]}"; do
   else
     FAILED=1
   fi
+  # Parsing is not matching: a regex no device line satisfies passes the check
+  # above. The behaviour tests push fixture lines and assert what fires (#843).
+  # Same skips contract — no loki and no docker is a recorded skip, not a pass.
+  if python3 scripts/test_loki_rules.py --stack "${stack}" --skips-file "${LOKI_SKIPS}"; then
+    :
+  else
+    FAILED=1
+  fi
 done
 SKIPPED=$((SKIPPED + $(wc -l < "${LOKI_SKIPS}")))
+
+# ---------------------------------------------------------------------------
+head_ "Syslog senders"
+# ---------------------------------------------------------------------------
+# A spoofed line from an unlisted address must not reach Loki, and a message
+# must not choose its own `host` (#844). Same skips contract as the Loki checks
+# above: no docker is a recorded skip, never a pass.
+SYSLOG_SKIPS="$(mktemp)"
+if ! ./scripts/check_syslog_senders.sh --skips-file "${SYSLOG_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${SYSLOG_SKIPS}")))
+rm -f "${SYSLOG_SKIPS}"
+
+# ---------------------------------------------------------------------------
+head_ "Docker socket proxy"
+# ---------------------------------------------------------------------------
+# CONTAINERS=1 must allow what Alloy reads and not archive, export or top,
+# which copy files out of any container as root (Tecnativa/docker-socket-proxy
+# #182). Boots the pinned proxy on its committed config. Same skips contract.
+PROXY_SKIPS="$(mktemp)"
+if ! ./scripts/check_socket_proxy.sh --skips-file "${PROXY_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${PROXY_SKIPS}")))
+rm -f "${PROXY_SKIPS}"
+
+# ---------------------------------------------------------------------------
+head_ "gosu skip"
+# ---------------------------------------------------------------------------
+# scan-images.sh skips gosu in the repositories scripts/gosu-skip.txt lists,
+# on the claim that their entrypoints call it only as root. Boots each pinned
+# one as 999:999 with a stand-in gosu, plus a root control (#995, #980).
+GOSU_SKIPS="$(mktemp)"
+if ! ./scripts/check_gosu_skip.sh --skips-file "${GOSU_SKIPS}"; then
+  FAILED=1
+fi
+SKIPPED=$((SKIPPED + $(wc -l < "${GOSU_SKIPS}")))
+rm -f "${GOSU_SKIPS}"
 
 # ---------------------------------------------------------------------------
 head_ "Caddyfiles"
@@ -448,6 +503,17 @@ done
 SKIPPED=$((SKIPPED + $(wc -l < "${CADDY_SKIPS}")))
 
 # ---------------------------------------------------------------------------
+head_ "Glance"
+# ---------------------------------------------------------------------------
+# glance/glance.yml through the pinned image's own `config:validate`, for the
+# Caddyfile's reason: Glance refuses a bad config at start, behind a
+# healthcheck that never goes green (ADR-0098).
+GLANCE_SKIPS="$(mktemp)"
+./scripts/check_glance_config.sh --skips-file "${GLANCE_SKIPS}" || FAILED=1
+SKIPPED=$((SKIPPED + $(wc -l < "${GLANCE_SKIPS}")))
+rm -f "${GLANCE_SKIPS}"
+
+# ---------------------------------------------------------------------------
 head_ "Grafana dashboards"
 # ---------------------------------------------------------------------------
 if have python3; then
@@ -458,6 +524,16 @@ if have python3; then
       fail "${stack}: dashboard JSON and datasource references"
     fi
   done
+  # The screenshots render each dashboard at a height derived from its JSON,
+  # under a ceiling the renderer silently clamps to. A dashboard that outgrows
+  # it would be cropped on the monitoring host while the capture reports
+  # success, so the PR that grows it fails here instead (#954).
+  if heights_out="$(./scripts/capture-screenshots.sh --check 2>&1)"; then
+    pass "screenshot heights fit under the renderer's BROWSER_MAX_HEIGHT"
+  else
+    printf '%s\n' "${heights_out}"
+    fail "screenshot heights: a captured dashboard outgrew the renderer, or MAX_HEIGHT and BROWSER_MAX_HEIGHT disagree"
+  fi
 
   # A panel query that does not parse shows as an empty panel, not an error, so
   # nothing about a broken dashboard is loud. This was CI-only until #175.
@@ -693,26 +769,37 @@ fi
 # and its absence here meant both scans skipped on a host with docker running
 # and the pinned image one `docker run` away — while CI ran them every push.
 # Silently, because a skip was all it printed (#68).
+#
+# In a git worktree, .git is a file naming a directory under the main
+# checkout's .git, outside REPO_ROOT. Mounting REPO_ROOT alone left git in the
+# container with nothing to read, and gitleaks exits 0 when git fails: it logs
+# the error, reports "0 commits scanned" and "no leaks found". So the common
+# git directory is mounted at its own absolute path, which is where the .git
+# file points. In the main checkout that mount goes unused.
 if have gitleaks; then
   GITLEAKS=(gitleaks)
 elif have_docker; then
-  GITLEAKS=(docker run --rm -v "${REPO_ROOT}:/repo" -w /repo "${GITLEAKS_IMAGE}")
+  GIT_COMMON="$(git -C "${REPO_ROOT}" rev-parse --path-format=absolute --git-common-dir)"
+  # Read-only and as the caller: see the note at the top of the Prometheus section.
+  GITLEAKS=(docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "${REPO_ROOT}:/repo:ro" -v "${GIT_COMMON}:${GIT_COMMON}:ro" -w /repo "${GITLEAKS_IMAGE}")
 else
   GITLEAKS=()
 fi
 
 if ((${#GITLEAKS[@]})); then
-  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml >/dev/null 2>&1; then
+  if "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml >/dev/null 2>&1; then
     pass "gitleaks (working tree)"
   else
-    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks.toml
+    "${GITLEAKS[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml
     fail "gitleaks (working tree)"
   fi
 
-  if "${GITLEAKS[@]}" detect --no-banner --redact -c .gitleaks.toml --log-opts="--all" >/dev/null 2>&1; then
-    pass "gitleaks (full history)"
+  # The same script CI runs, which also refuses a scan of zero commits.
+  if HISTORY_OUT="$(./scripts/gitleaks-history.sh "${GITLEAKS[@]}")"; then
+    pass "gitleaks (full history): ${HISTORY_OUT##*$'\n'}"
   else
-    "${GITLEAKS[@]}" detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
+    printf '%s\n' "${HISTORY_OUT}"
     fail "gitleaks (full history)"
   fi
 else
@@ -739,6 +826,28 @@ if ./scripts/check-tracked-artefacts.sh >/dev/null; then
 else
   ./scripts/check-tracked-artefacts.sh || true
   fail "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
+fi
+
+# The Wazuh cert tool the certs profile mints with is vendored and pinned by its
+# sha256 (ADR-0094). scripts/wazuh-certs-mint.sh refuses a mismatch at mint
+# time, which is the rare, urgent day. This says so on every validate instead.
+if ./scripts/vendor-wazuh-certs-tool.sh --check >/dev/null; then
+  pass "the vendored Wazuh cert tool is the one VENDORED pins"
+else
+  ./scripts/vendor-wazuh-certs-tool.sh --check || true
+  fail "the vendored Wazuh cert tool is the one VENDORED pins"
+fi
+
+# The one .pem .gitignore lets through (#764): it must be the estate CA's
+# certificate and nothing else, and on the monitoring host the same one as
+# certificates/ca.pem. The self-test first, because a check that has never
+# been seen to fail proves nothing — the tracked-artefact check's lesson.
+if ./scripts/check_ingest_ca.sh --self-test >/dev/null && ./scripts/check_ingest_ca.sh >/dev/null; then
+  pass "the committed ingest CA is one CA certificate, the estate's"
+else
+  ./scripts/check_ingest_ca.sh --self-test | grep FAIL || true
+  ./scripts/check_ingest_ca.sh || true
+  fail "the committed ingest CA is one CA certificate, the estate's"
 fi
 
 printf '\n'

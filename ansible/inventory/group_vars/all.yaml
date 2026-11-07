@@ -9,6 +9,24 @@ ansible_connection: ssh
 ansible_shell_type: powershell
 ansible_user: Administrator
 ansible_ssh_private_key_file: ~/.ssh/id_ed25519
+# Host keys are checked against ansible/.known_hosts and nothing else, not
+# ~/.ssh/known_hosts and not whatever the network presents first.
+# scripts/lab-known-hosts.sh writes that file from each guest's own key, read
+# through the Proxmox guest agent; run it after any of the six is rebuilt
+# (ADR-0085, which amends ADR-0077 decision 2). inventory_dir is
+# ansible/inventory, so this holds for ad-hoc `ansible` as well as for every
+# playbook.
+#
+# ServerAlive: a connection whose peer went quiet is dropped within ~15 s, so
+# a retry gets a fresh one instead of queueing behind a ControlPersist master
+# that will never answer. A DC's address change does exactly that (the #448
+# rebuild lost both DCs to it, roles/base).
+ansible_ssh_common_args: >-
+  -o UserKnownHostsFile={{ inventory_dir }}/../.known_hosts
+  -o GlobalKnownHostsFile=/dev/null
+  -o StrictHostKeyChecking=yes
+  -o ServerAliveInterval=5
+  -o ServerAliveCountMax=3
 
 # --- ADR-0029, encoded, not re-decided --------------------------------------
 lab_domain: ad.matrix.elysium
@@ -28,6 +46,9 @@ lab_functional_level: WinThreshold
 # domain's, so one variable is the truth for both.
 lab_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ADMIN_PASSWORD') }}"
 lab_dsrm_password: "{{ lookup('ansible.builtin.env', 'LAB_DSRM_PASSWORD') }}"
+# labadmin's, on the two endpoints (roles/endpoint_admin). Set only when the
+# account is made, so on the hand-built pair it changes nothing.
+lab_endpoint_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_ENDPOINT_ADMIN_PASSWORD') }}"
 
 # --- The population (#449) ----------------------------------------------------
 # ansible/population/population.yaml is committed and holds no passwords. Each
@@ -54,7 +75,9 @@ windows_exporter_sha256: 0aadce6afb20182b678bfca9e8f2e8464ef48c469b28b4cf02e99d8
 windows_exporter_product_id: "{130B5CF0-5B4F-4E85-AE10-3B9CB3FAB69B}"
 windows_exporter_collectors: cpu,logical_disk,memory,net,os,service,system,time,textfile
 windows_exporter_textfile_dir: C:\ProgramData\windows_exporter\textfile
-# alexander, the lab Prometheus. The only source the 9182 rule admits.
+# The port the exporter listens on, and the one its firewall rule opens.
+windows_exporter_port: 9182
+# alexander, the lab Prometheus. The only source that rule admits.
 windows_exporter_scraper: 10.0.30.40
 
 # --- The skeleton #414 built by hand (runbook §5), reproduced so the #448 ------
@@ -67,3 +90,72 @@ lab_tier_admin_password: "{{ lookup('ansible.builtin.env', 'LAB_TIER_ADMIN_PASSW
 # The Wazuh enrolment password, from phoenix.env rather than readable in SYSVOL
 # as the deploy GPO left it (build-the-soc-guest.md §11, now roles/soc_agents).
 lab_wazuh_registration_password: "{{ lookup('ansible.builtin.env', 'LAB_WAZUH_REGISTRATION_PASSWORD') }}"
+# Where the six fetch the two agent MSIs: the SOC stack's caddy service on odin
+# (container soc-agent-msi), which answers these six addresses and garuda's
+# (#1068, ADR-0092; garuda takes two .debs by its runbook, not from here). It serves what
+# scripts/stage-agent-msis.sh put there, named by the pinned versions in
+# roles/soc_agents/defaults/main.yml, so a bump there needs that script re-run
+# on odin and nothing here.
+soc_agents_msi_base: http://10.0.30.60:8448
+soc_agents_wazuh_msi_url: "{{ soc_agents_msi_base }}/wazuh-agent-{{ soc_agents_wazuh_version }}.msi"
+soc_agents_velociraptor_msi_url: >-
+  {{ soc_agents_msi_base }}/velociraptor-client-{{ soc_agents_velociraptor_version }}.msi
+
+# --- #449's deliberate weaknesses (ADR-0083) --------------------------------
+# Each weakness is one tag on lab-domain.yml, with its own
+# weakness_<name>_state (default absent, in the role). These are the fixed
+# identifiers the roles set and verify.yml proves — one source of truth for
+# both, so the proof cannot drift from the thing it proves.
+#
+# The weak password is deliberately crackable: that is the exercise, not an
+# accident, for the two roasting weaknesses, and the login that drives the
+# dcsync and delegation exercises. Like every secret it comes from phoenix.env,
+# never this tree, and the dedicated accounts share it. A role refuses to
+# enable a weakness while it is unset. Nothing is enabled by default: a plain
+# run leaves all six absent, which is #449's negative test.
+lab_weak_password: "{{ lookup('ansible.builtin.env', 'LAB_WEAK_PASSWORD') }}"
+# The dedicated accounts model Tier 1 service identities, so they live in the
+# Tier 1 OU the skeleton already owns; absent deletes them and the OU stays.
+lab_weakness_ou: "OU=Tier1,{{ lab_domain_dn }}"
+
+# kerberoast: an SPN on an account with a crackable password (ADR-0029 names
+# ramuh as the host). asreproast: pre-auth disabled on an account.
+lab_weakness_kerberoast_account: svc-sql
+lab_weakness_kerberoast_spn: "MSSQLSvc/ramuh.{{ lab_domain }}:1433"
+lab_weakness_asreproast_account: svc-backup
+
+# dcsync: the two replication extended rights on the domain head, granted to a
+# non-DA account.
+lab_weakness_dcsync_account: svc-sync
+
+# ucd: unconstrained delegation on a member server (DCs are trusted for it by
+# default, so only a member server teaches anything). The computer object is
+# never created or deleted — the flag is set and cleared.
+lab_weakness_ucd_computer: RAMUH
+
+# cd: Kerberos-only constrained delegation. svc-web (its own SPN, so it is
+# usable for S4U) may delegate to titan's CIFS.
+lab_weakness_cd_account: svc-web
+lab_weakness_cd_spn: "HTTP/web.{{ lab_domain }}"
+lab_weakness_cd_target_spn: "CIFS/titan.{{ lab_domain }}"
+
+# rbcd: titan (the resource) trusts a principal we control to act on its
+# behalf. svc-rbcd is a user with an SPN rather than a computer account, so it
+# takes the shared weak password cleanly and is still usable for S4U.
+lab_weakness_rbcd_account: svc-rbcd
+lab_weakness_rbcd_spn: "HOST/svc-rbcd.{{ lab_domain }}"
+lab_weakness_rbcd_resource: TITAN
+# --- Sysmon (#450, ADR-0080) -------------------------------------------------
+# Microsoft publishes Sysmon at one unversioned URL, so this pin goes stale the
+# day a new release ships. roles/sysmon then fails at the checksum, before
+# anything is installed; the fix is to read the new zip's version and sha256 and
+# move both here. A domain that already runs the pinned version never downloads,
+# so a stale pin only stops a rebuild or a new guest.
+sysmon_version: "15.22"
+sysmon_zip_sha256: 00ecf1b46aec99299d3ae0bca79dc621458bd014b20b509d7c5c8e8c8611aa54
+# The vendored config's sha256, read from VENDORED rather than written twice.
+# Sysmon records the hash of the file it was configured from as ConfigHash, so
+# roles/sysmon reapplies on a mismatch and verify.yml fails on one.
+sysmon_config_sha256: >-
+  {{ lookup('ansible.builtin.file', playbook_dir ~ '/roles/sysmon/files/VENDORED')
+     | regex_search('sha256: ([0-9a-f]{64})', '\1') | first }}

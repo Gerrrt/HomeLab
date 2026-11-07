@@ -180,9 +180,12 @@ tests:
               summary: "oracle-metrics on oracle has stopped reporting"
               description: >-
                 This job arrives by remote_write, so nothing scrapes it and
-                InstanceDown cannot see it — it has simply stopped pushing.
-                Either the Alloy agent on oracle is down or it cannot reach this
-                host. Metrics from it are being lost, not queued.
+                InstanceDown cannot see it — it has simply stopped arriving.
+                Either Alloy on oracle is not collecting this job, and those
+                samples are not being taken: the whole agent is down (AlloyDown
+                says so), or this one collector failed while the rest reports.
+                Or Alloy cannot reach this host, and its metrics wait in its
+                write-ahead log and are sent when it can, for a bounded time.
 
   # --- RemoteWriteJobStale: quiet while the agent is pushing ----------------
   # The production state. Without this case the rule would pass its test while
@@ -210,6 +213,78 @@ tests:
     alert_rule_test:
       - eval_time: 60m
         alertname: RemoteWriteJobStale
+        exp_alerts: []
+
+  # --- AlloyDown: fires when a host's agent stops pushing -------------------
+  # The 2026-10-07 shape: all three of the host's jobs stop together. The
+  # series end at 30m and age out of the instant selector at 35m, after which
+  # the alert is pending until 45m. The 40m assertion pins `for: 10m`: without
+  # it a `for: 0m` mutation survives, the trap ScrapeTargetDisappeared's
+  # header records. Only the self-scrape job is in the result, one alert per
+  # host, however many jobs the host was pushing.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x30"
+      - series: 'up{job="trinity-metrics",instance="trinity"}'
+        values: "1x30"
+      - series: 'up{job="integrations/cadvisor",instance="trinity"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: AlloyDown
+        exp_alerts: []
+      - eval_time: 60m
+        alertname: AlloyDown
+        exp_alerts:
+          - exp_labels:
+              alertname: AlloyDown
+              instance: trinity
+              component: stack
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Alloy on trinity has stopped reporting"
+              description: >-
+                Nothing from trinity has arrived for over ten minutes: its
+                metrics, its container and journal logs, and on the
+                monitoring host the network syslog too. On trinity, run
+                `docker ps -a --filter name=alloy`. Exited, with no restart,
+                means something stopped it, and nothing is being collected
+                while it stays down. Check `docker inspect alloy` for
+                FinishedAt and OOMKilled, then `docker start alloy` and confirm
+                `/-/ready` on :12345. If it is running, it cannot reach the
+                ingest proxy on the monitoring host. Its metrics wait in its
+                write-ahead log and are sent when it can, for a bounded time.
+                If the host is off, nothing is wrong with Alloy.
+
+  # --- AlloyDown: quiet while the agent is pushing --------------------------
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x70"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: AlloyDown
+        exp_alerts: []
+
+  # --- AlloyDown: quiet when one collected job stops and Alloy does not ------
+  # A broken cAdvisor or node exporter collector while the agent keeps pushing
+  # its own self-scrape is RemoteWriteJobStale's alone. This case is what stops
+  # the rule being aggregated per job, which would fire for the cAdvisor job
+  # here and duplicate RemoteWriteJobStale. Widening the selector to every
+  # pushed job is NOT caught, and need not be: aggregated by instance, any job
+  # still reporting keeps the host present, so it is equivalent unless the
+  # self-scrape alone stops, which Alloy has no way to do.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="trinity-alloy",instance="trinity"}'
+        values: "1x70"
+      - series: 'up{job="integrations/cadvisor",instance="trinity"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 60m
+        alertname: AlloyDown
         exp_alerts: []
 
   # --- ScrapeTargetDisappeared: fires when the target stops being a target --
@@ -824,13 +899,13 @@ tests:
   # healthy.
   - interval: 1m
     input_series:
-      - series: 'prometheus_remote_storage_samples_failed_total{instance="oracle",job="oracle-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="oracle",job="oracle-alloy",url="https://10.0.99.20:9090/api/v1/write"}'
         values: "0+3x40"
       - series: 'prometheus_remote_storage_samples_failed_total{instance="prometheus",job="prometheus-alloy",url="http://prometheus:9090/api/v1/write"}'
         values: "0+2x40"
       - series: 'prometheus_remote_storage_samples_failed_total{instance="alloy:12345",job="alloy",url="http://prometheus:9090/api/v1/write"}'
         values: "0+2x40"
-      - series: 'prometheus_remote_storage_samples_failed_total{instance="trinity",job="trinity-alloy",url="http://10.0.99.20:9090/api/v1/write"}'
+      - series: 'prometheus_remote_storage_samples_failed_total{instance="trinity",job="trinity-alloy",url="https://10.0.99.20:9090/api/v1/write"}'
         values: "0+0x40"
     alert_rule_test:
       - eval_time: 12m
@@ -849,7 +924,10 @@ tests:
               dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on oracle is failing to remote-write some samples"
               description: >-
-                Metrics from oracle are being lost, not queued. On the host, `docker
+                Metrics from oracle are being lost, not queued:
+                this counts samples the receiver refused outright, which
+                remote_write does not retry. (Failures it can recover from are
+                retried and do not count here.) On the host, `docker
                 logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
                 `journalctl -u alloy` for a native agent) gives the status the
                 receiver returned: 401 is the ingest token, 400 out-of-order or too
@@ -864,7 +942,10 @@ tests:
               dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
               summary: "Alloy on prometheus is failing to remote-write some samples"
               description: >-
-                Metrics from prometheus are being lost, not queued. On the host,
+                Metrics from prometheus are being lost, not queued:
+                this counts samples the receiver refused outright, which
+                remote_write does not retry. (Failures it can recover from are
+                retried and do not count here.) On the host,
                 `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'` (or
                 `journalctl -u alloy` for a native agent) gives the status the
                 receiver returned: 401 is the ingest token, 400 out-of-order or too
@@ -984,7 +1065,14 @@ tests:
               summary: "Loki has received no log lines for 30 minutes"
               description: >-
                 Either every Alloy agent is down or the push endpoint is
-                unreachable. Logs are being lost, not queued indefinitely.
+                unreachable. A running agent retries a failed push for a few
+                minutes, then drops the batch: those lines are lost. A stopped
+                agent's file and Docker sources resume from their saved positions
+                when it starts, unless the logs rotated away meanwhile. Its
+                journal source resumes only after an outage under 24 hours (its
+                max_age); after a longer one, those journal lines are skipped.
+                Loki refuses any line older than 168 hours.
+                Network syslog sent while it is down is gone.
 
   # LokiIngestionStalled: lines still arriving is quiet.
   - interval: 1m

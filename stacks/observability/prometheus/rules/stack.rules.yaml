@@ -128,7 +128,14 @@ groups:
           summary: "Loki has received no log lines for 30 minutes"
           description: >-
             Either every Alloy agent is down or the push endpoint is
-            unreachable. Logs are being lost, not queued indefinitely.
+            unreachable. A running agent retries a failed push for a few
+            minutes, then drops the batch: those lines are lost. A stopped
+            agent's file and Docker sources resume from their saved positions
+            when it starts, unless the logs rotated away meanwhile. Its journal
+            source resumes only after an outage under 24 hours (its max_age);
+            after a longer one, those journal lines are skipped. Loki refuses
+            any line older than 168 hours.
+            Network syslog sent while it is down is gone.
 
       # --- The Loki ruler (#837) --------------------------------------------
       #
@@ -291,9 +298,75 @@ groups:
           summary: "{{ $labels.job }} on {{ $labels.instance }} has stopped reporting"
           description: >-
             This job arrives by remote_write, so nothing scrapes it and
-            InstanceDown cannot see it — it has simply stopped pushing. Either
-            the Alloy agent on {{ $labels.instance }} is down or it cannot reach
-            this host. Metrics from it are being lost, not queued.
+            InstanceDown cannot see it — it has simply stopped arriving.
+            Either Alloy on {{ $labels.instance }} is not collecting this job,
+            and those samples are not being taken: the whole agent is down
+            (AlloyDown says so), or this one collector failed while the rest
+            reports. Or Alloy cannot reach this host, and its metrics wait in
+            its write-ahead log and are sent when it can, for a bounded time.
+
+      - alert: AlloyDown
+        # ONE ALERT THAT SAYS "THE AGENT IS DOWN", per host, by name.
+        #
+        # On 2026-10-07 the production alloy on this host was stopped (exit
+        # 137, not OOM, and `unless-stopped` did not bring it back) and stayed
+        # down for 47 minutes. What fired said nothing of the kind:
+        # InstanceDown for `alloy:12345`, three RemoteWriteJobStale, one per
+        # pushed job, and FirewallLogsStopped. ContainerGone, which lists
+        # `alloy` by name, cannot fire for it at all: cAdvisor runs inside
+        # Alloy, so the host's container series stop with it, and that rule's
+        # last line reads a host with no container series as a dead host.
+        #
+        # `<host>-alloy` is Alloy's own self-scrape, pushed like everything
+        # else, and every agent host has exactly one (config.alloy builds the
+        # name). It goes when Alloy goes, so it stands for the agent where the
+        # other two jobs stand for what the agent collects. This is
+        # RemoteWriteJobStale's shape, for the same reason: `up == 0` cannot see
+        # a pusher stop, and the range sees through staleness.
+        #
+        # 10m, against RemoteWriteJobStale's 15m, so this is already firing
+        # when those would start. Alertmanager's inhibit_rules then hold back
+        # the host's per-job RemoteWriteJobStale. On an agent host, one dead
+        # agent is therefore one notification that names the fix. NOT on the
+        # monitoring host: Prometheus scrapes alloy:12345 there directly, so
+        # InstanceDown pages critical at 5m, before this can fire, and the Loki
+        # rules that read its logs (FirewallLogsStopped) follow. That is left as
+        # it is on purpose. InstanceDown is the fastest signal this host has,
+        # and holding it back for this one would page later. Here this alert
+        # adds the fix and replaces the three RemoteWriteJobStale. A job that stops while Alloy keeps
+        # reporting (a broken cAdvisor, a node exporter collector) is still
+        # RemoteWriteJobStale's, and this stays quiet for it.
+        #
+        # It needs no silences for throwaway containers: it never looks at
+        # containers, only at the one job each real agent pushes. What it
+        # cannot tell apart is an agent that stopped from a host that is off
+        # or cut off. Both stop the push, so the description says to look
+        # before starting anything. The 24h window is RemoteWriteJobStale's,
+        # with the same known cost: a host that stays away longer resolves
+        # this falsely at 24h.
+        expr: |
+          count by (instance) (count_over_time(up{job=~".+-alloy"}[24h]))
+          unless
+          count by (instance) (up{job=~".+-alloy"})
+        for: 10m
+        labels:
+          component: stack
+          severity: warning
+          category: availability
+        annotations:
+          summary: "Alloy on {{ $labels.instance }} has stopped reporting"
+          description: >-
+            Nothing from {{ $labels.instance }} has arrived for over ten
+            minutes: its metrics, its container and journal logs, and on the
+            monitoring host the network syslog too. On {{ $labels.instance }},
+            run `docker ps -a --filter name=alloy`. Exited, with no restart,
+            means something stopped it, and nothing is being collected while it
+            stays down. Check `docker inspect alloy` for FinishedAt and
+            OOMKilled, then `docker start alloy` and confirm `/-/ready` on
+            :12345. If it is running, it cannot reach the ingest proxy on the
+            monitoring host. Its metrics wait in its write-ahead log and are
+            sent when it can, for a bounded time. If the host is off, nothing is
+            wrong with Alloy.
 
       - alert: ScrapeTargetDisappeared
         # THE MIRROR OF RemoteWriteJobStale, for the one host that is pulled.
@@ -385,6 +458,20 @@ groups:
         # its rejection landed at 02:54:15. The replayed entries are duplicates
         # already in the store, so nothing was lost — Loki refusing them is the
         # system working.
+        #
+        # THOSE ARE LOKI'S NAMES, NOT THIS ALERT'S. They are the `reason` label
+        # of loki_discarded_samples_total. This rule reads Alloy's counter,
+        # whose `reason` is one of batch_too_large, ingester_error,
+        # queue_is_full, rate_limited and stream_limited (Alloy v1.20.1). A 429
+        # from Loki is rate_limited and a 413 is batch_too_large; the rest,
+        # including the "too old" and "too far behind" refusals a replay draws,
+        # fall to ingester_error. So a restart replay arrives here as
+        # `reason="ingester_error"`. On 2026-10-07 at 15:42 one Alloy restart
+        # dropped about 90,000 entries that way, from `alloy` and
+        # `prometheus-alloy`, while Loki counted the same burst as
+        # greater_than_max_sample_age and too_far_behind. It was pending for 15
+        # minutes and never fired. To see which limit Loki applied, ask Loki's
+        # counter, as the description says.
         #
         # An earlier version of this rule excluded too_far_behind by name. That
         # was the wrong axis: it silenced one flavour of a benign event while
@@ -636,7 +723,10 @@ groups:
           dashboard: "Observability Stack (/d/homelab-stack) › Alloy › Remote-write throughput"
           summary: "Alloy on {{ $labels.instance }} is failing to remote-write some samples"
           description: >-
-            Metrics from {{ $labels.instance }} are being lost, not queued. On
+            Metrics from {{ $labels.instance }} are being lost, not queued:
+            this counts samples the receiver refused outright, which remote_write
+            does not retry. (Failures it can recover from are retried and do not
+            count here.) On
             the host, `docker logs alloy 2>&1 | grep -i 'remote_write\|non-recoverable'`
             (or `journalctl -u alloy` for a native agent) gives the status the
             receiver returned: 401 is the ingest token, 400 out-of-order or too

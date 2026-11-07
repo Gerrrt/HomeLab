@@ -23,7 +23,7 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | --- | --- | --- | --- | --- | --- |
 | WAN | — | — | ISP-assigned | Uplink | — |
 | LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
-| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 |
+| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 and 40 |
 | [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 30, named ports on 99[^hicks] |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
@@ -201,6 +201,29 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   the reservation that pins `bifrost`, and tested from `trinity` the same day:
   Home Assistant paired, the pass carried 430 packets on 443, and all four #223
   tripwires stayed at 0.
+- **Three more rows into Skids, in force since 2026-10-21:** `10.0.99.40 →
+  10.0.20.21–.24` (alias `HomePods`) on `5353/udp`, `7000/tcp` and
+  `49152–65535/tcp`, above *Block access to Skids*, for Home Assistant's
+  control of the HomePods. An outbound NAT on the Skids interface sends that
+  traffic as `10.0.20.1`, because the HomePods ignore discovery from another
+  subnet. The
+  Skids notes and
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
+  give the reasons.
+- **Three rows into Skids, decided and not yet created:** `10.0.99.40 →
+  10.0.20.30` on `8554/tcp` and `22/tcp`, and `10.0.99.20 → 10.0.20.30` on
+  `9100/tcp`, above *Block access to Skids*, for `heimdall`, the Raspberry
+  Pi that will bridge the VTech monitor's stream to Home Assistant, be
+  scraped by `prometheus` and be maintained from `trinity`.
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md)
+  records the decision; [#1248](https://github.com/Gerrrt/HomeLab/issues/1248) creates them after the
+  reservation.
+- **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
+  `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
+  (reject), above *Block access to CasaBonita*. They let Home Assistant drive
+  and wake `mediatv`, as tested on 2026-10-19 from standby. The CasaBonita notes and
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  give the reasons.
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
@@ -233,8 +256,11 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.50.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| desktop-01 | `10.0.50.20` | `04:42:1a:xx:xx:xx` | ASUS ROG Strix X570-E[^Desktop1] | Windows 11 | Upper floor | Desktop |
-| desktop-02 | `10.0.50.90` | `04:42:1a:xx:xx:xx` | ASUS ROG Crosshair VIII[^Desktop2] | Windows 11 | Lower floor | Desktop |
+| eero-trusted-1 | `10.0.50.11` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
+| eero-trusted-2 | `10.0.50.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
+| eero-trusted-3 | `10.0.50.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Basement | Wi-Fi |
+| desktop-01 | `10.0.50.20` | `04:42:1a:xx:xx:xx` | ASUS ROG Strix X570-E[^Desktop1] | Windows 11 | Main floor | Desktop |
+| desktop-02 | `10.0.50.90` | `04:42:1a:xx:xx:xx` | ASUS ROG Crosshair VIII[^Desktop2] | Windows 11 | Basement | Desktop |
 | laptop-01 | `10.0.50.10` | `04:ed:33:xx:xx:xx` | HP Pavilion Gaming[^Pavillion] | Windows 11 | Roaming | Laptop |
 | laptop-02 | `10.0.50.80` | `4c:ea:41:xx:xx:xx` | Apple MacBook Pro[^MacBook] | macOS 26 | Roaming | Laptop |
 | workstation-01 | `10.0.50.69` | `e8:f6:73:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
@@ -242,15 +268,12 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.112` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
-| eero-trusted-1 | `10.0.50.104` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
-| eero-trusted-2 | `10.0.50.110` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
-| eero-trusted-3 | `10.0.50.111` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Lower floor | Wi-Fi |
 
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
 - **What this segment reaches on Winterfell is a list of destinations, not the
-  segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
+  segment.** Twelve passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
 
   | Destination | Ports |
@@ -258,8 +281,8 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   | `10.0.99.0/24` — the segment | `22/tcp`, ICMP echo |
   | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
   | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
-  | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana |
-  | `10.0.99.30` — `oracle` | `80/tcp` the wiki (443 until 2026-09-30, when nothing had listened on it; [#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
+  | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana, `8443/tcp` speedtest-tracker's UI (since 2026-10-06, [#914](https://github.com/Gerrrt/HomeLab/issues/914)) |
+  | `10.0.99.30` — `oracle` | `80/tcp` the wiki, Wiki.js over plain http (443 until 2026-09-30, when nothing had listened on it; [#251](https://github.com/Gerrrt/HomeLab/issues/251)). **After [#847](https://github.com/Gerrrt/HomeLab/issues/847)'s cutover** 80 only redirects, and `443/tcp` comes back for the wiki's Caddy: add it before that deploy ([`stacks/wiki/README.md`](../stacks/wiki/README.md#tls)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
 
   **The source is the segment, not named hosts.** Every one of those passes is
@@ -290,8 +313,10 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   only rule between them; *Block access to Winterfell* now drops them. They are
   also authenticated since [#182](https://github.com/Gerrrt/HomeLab/issues/182):
   an ingest proxy holds both, and serves a push only to an agent token and a
-  query only to the reader token. So the firewall is no longer the only thing
-  between a Hicks workstation and the metric and log stores.
+  query only to the reader token, over TLS since
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764). So the firewall is no
+  longer the only thing between a Hicks workstation and the metric and log
+  stores.
   `10.0.30.110` keeps its explicit pass for `Saruman`'s Alloy agent, which now
   presents `Saruman`'s own token.
 - **ImaginationLAN is reached entire**, on every protocol and port, by
@@ -327,10 +352,10 @@ Televisions and consoles. Internet only.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.40.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Lower floor | Console |
-| hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Lower floor | Console |
+| nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Basement | Console |
+| hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Basement | Console |
 | smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Media room | NAS |
-| mediatv | `10.0.40.100` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
+| mediatv | `10.0.40.40` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
 | streambox | `10.0.40.101` | `f0:46:3b:xx:xx:xx` | Xumo Stream Box[^StreamBox] | entOS | Media room | Streaming |
 
 ### Notes
@@ -384,16 +409,43 @@ Televisions and consoles. Internet only.
   [#523](https://github.com/Gerrrt/HomeLab/issues/523)). It was created on
   2026-09-23 by `build-the-nas.md` §5, and a Hicks workstation has mounted the
   share through it. With 4533 and 13378, seven exist from Hicks and
-  Winterfell. **One more is from ImaginationLAN, and it exists, which makes
-  eight.** `Allow NFS from Saruman to smaug`,
+  Winterfell. **Two more are from ImaginationLAN, and both exist, which
+  makes nine.** `Allow NFS from Saruman to smaug`,
   `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
   its ISO store for Packer
   ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
   [#446](https://github.com/Gerrrt/HomeLab/issues/446)). It was created on
   2026-10-01 by `build-the-nas.md` §5b, directly above `igc0.30`'s *Block
   access to CasaBonita*. `Saruman` has mounted the share through it, and
-  `alexander` is refused. `golem`'s `2049` pass (ADR-0053) goes above the
-  same block when it is built.
+  `alexander` is refused. `Allow NFS from golem to smaug`,
+  `10.0.30.80 → 10.0.40.30:2049`, carries `golem`'s PBS datastore on
+  `erebor/pbs`
+  ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md),
+  [#485](https://github.com/Gerrrt/HomeLab/issues/485)). It was created on
+  2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
+  §4, directly above the same block. `golem` has mounted the share through
+  it, and `alexander` is refused.
+- **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
+  `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
+  webOS integration and `9/udp` for the magic packet that wakes the TV, and
+  **rejecting** `3000/tcp` so the integration falls back to TLS instead of
+  sending its pairing key in clear. All three sit above *Block access to
+  CasaBonita* on Winterfell's interface. `morpheus` also holds a static ARP
+  entry for the TV, on its reservation, so the unicast wake can reach it
+  asleep. The entry was added on 2026-10-19. The TV's address is a Kea reservation
+  at `.40` since 2026-10-19, below the pool. Before that it held `.100`, the
+  pool's first address, by lease.
+  [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
+  records the reading. They were created under
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218) and probed from
+  `trinity` the same day: `3001` answers TLS 1.2, `3000` is refused at once,
+  and Home Assistant paired with every connection on `3001`. The wake
+  (`packages/mediatv.yaml`) was deployed the same evening, and it woke the
+  TV from standby. A capture in Home Assistant's network namespace showed
+  one magic packet to `10.0.40.40:9/udp` per press. With *Quick Start+* on,
+  the TV keeps its network up in standby, so that test never needed the
+  static ARP entry. A wake with the TV's network fully down has not been
+  tried.
 - **What answers on `9100` is `node_exporter`**, which makes this the one host
   in the estate that Prometheus *scrapes* rather than is pushed to
   ([#256](https://github.com/Gerrrt/HomeLab/issues/256),
@@ -427,6 +479,7 @@ Where things get broken on purpose.
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
+| golem | `10.0.30.80` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Proxmox Backup Server 4 | Rack U3 | Backups (PBS) |
 | odin | `10.0.30.60` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Security tooling (SOC) |
 | bahamut | `10.0.30.50` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller (PDC) |
 | leviathan | `10.0.30.51` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows Server 2025 | Rack U3 | Lab domain controller |
@@ -435,6 +488,16 @@ Where things get broken on purpose.
 | carbuncle | `10.0.30.54` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | siren | `10.0.30.55` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro | Rack U3 | Lab domain endpoint |
 | fenrir | `10.0.30.90` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Zeek sensor |
+| eden | `10.0.30.41` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | BloodHound CE (on demand) |
+| garuda | `10.0.30.62` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Kali Linux Rolling | Rack U3 | Analyst workstation (Kali Purple, without its SOC) |
+| dot-debian | `10.0.30.91` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Debian 13 | Rack U3 | Dotfiles test VM, on demand |
+| dot-fedora | `10.0.30.92` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Fedora Server 44 | Rack U3 | Dotfiles test VM, on demand |
+| dot-opensuse | `10.0.30.93` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | openSUSE Tumbleweed | Rack U3 | Dotfiles test VM, on demand |
+| dot-arch | `10.0.30.94` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Arch Linux | Rack U3 | Dotfiles test VM, on demand |
+| dot-alpine | `10.0.30.95` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Alpine Linux 3.24 | Rack U3 | Dotfiles test VM, on demand |
+| dot-gentoo | `10.0.30.96` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Gentoo Linux (systemd) | Rack U3 | Dotfiles test VM, on demand |
+| dot-nixos | `10.0.30.97` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | NixOS 26.05 | Rack U3 | Dotfiles test VM, on demand |
+| dot-windows | `10.0.30.98` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Windows 11 Pro (unactivated) | Rack U3 | Dotfiles test VM, on demand |
 
 ### Notes
 
@@ -444,7 +507,9 @@ Where things get broken on purpose.
   Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the
   #223 tripwire and *Allow internet*. A pass from this segment to `smaug`
   goes directly above it. `Allow NFS from Saruman to smaug` does, since
-  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
+  2026-10-01 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)),
+  and `Allow NFS from golem to smaug` does, since 2026-10-03
+  ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
   [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4
   asked for this block to be named here.
 - `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
@@ -496,6 +561,66 @@ Where things get broken on purpose.
   `.90` is taken or reserved, and sits in `odin`'s decade because it runs
   `odin`'s stack. While it exists it is a static below the DHCP pool, like
   `odin`, and it gets no firewall rule the segment does not already have.
+- `garuda` is at `10.0.30.62`, VMID 162, Defense's analyst workstation of
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md),
+  **built 2026-10-10** as a full clone of template 910
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
+  It is off-decade for `diabolos`'s reason, in `odin`'s decade beside the SOC it
+  works from. It is a Kea reservation by the MAC pinned in `tofu/guests.tf`,
+  always on and not tagged `on-demand`. It is not a lab-domain member, so it
+  resolves at `10.0.30.1`. It needs no rule of its own: Hicks reaches its
+  console through `Saruman`, its Alloy pushes to `alexander` within the
+  segment, its Wazuh agent and Velociraptor client report to `odin` within
+  the segment
+  ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)),
+  and it reaches the internet for packages. OpenVAS scans the lab domain's six,
+  `.50`–`.55`, from here and nothing else: while a scan runs, the scanner runs
+  in a network namespace whose only interface to the segment is a macvlan at
+  **`10.0.30.63`**, filtered by an nftables `netdev` egress rule that drops
+  every frame — IP, ARP or raw — to any other address
+  ([ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md)).
+  `.63` is below the DHCP pool and set statically, so morpheus needs no
+  reservation; it answers ARP only while a scan is up. A scan that reached
+  another segment would be a `LabSegmentReachedInternalNetwork`, which is never
+  silenced for a scan.
+- `10.0.30.91`–`.98`, VMIDs 191–198, are the dotfiles test VMs of
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md)), one
+  per dotfiles OS layer: `.91` `dot-debian`, `.92` `dot-fedora`, `.93`
+  `dot-opensuse`, `.94` `dot-arch`, `.95` `dot-alpine`, `.96` `dot-gentoo`,
+  `.97` `dot-nixos`, `.98` `dot-windows`. `.91`, `.92` and `.98` were built
+  on 2026-10-08 and `.93`–`.97` on 2026-10-09, and are in the table above.
+  They are off-decade for `diabolos`'s reason,
+  in `fenrir`'s decade because it is the one with eight free addresses. Each
+  is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
+  between runs and tagged `on-demand`, and are not lab-domain members, so
+  they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
+  the internet for packages and `git clone`, and `phoenix` reaches them
+  within the segment.
+- `10.0.30.99` is held only while template 907, 908 or 909 builds: those
+  builds (`packer/alpine.pkr.hcl`, `packer/gentoo.pkr.hcl`,
+  `packer/nixos.pkr.hcl`) give their machine this fixed address, because
+  neither the cloud images nor the NixOS ISO carry a guest agent to report a
+  DHCP one. It is otherwise unused. Give it to nothing else, or those
+  builds collide with it (#920 phase 3).
+- `eden` is at `10.0.30.41`, VMID 141, the BloodHound CE server of
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md), **built
+  2026-10-07** as a full clone of template 901
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  It is off-decade for `diabolos`'s reason: every `.x0` is taken. It sits in
+  `alexander`'s decade, beside the other lab guest that serves a UI to a human.
+  It is off between sessions and tagged `on-demand`, so an absence from the
+  segment is normal. Every path it needs is already open:
+  - a collector on the domain uploads to it within the segment;
+  - Hicks reaches its UI on `8443` over the existing rule;
+  - its Alloy pushes to `alexander`.
+
+  So it adds no firewall rule. It resolves at the gateway like `alexander`. It
+  reads nothing from AD's DNS, because the collector does the domain's
+  lookups and uploads the result.
 - `odin` is at `10.0.30.60` — a static below `.100`, continuing the decade
   spacing — for [`stacks/soc`](../stacks/soc): Wazuh and Velociraptor, the
   security half of ADR-0007, placed there by
@@ -506,7 +631,11 @@ Where things get broken on purpose.
   covers it — and ADR-0029's six machines enrol to it as agents by GPO, the
   step that closes [#266](https://github.com/Gerrrt/HomeLab/issues/266) and
   [#267](https://github.com/Gerrrt/HomeLab/issues/267). Every path it needs is
-  intra-segment, so it adds no firewall rule.
+  intra-segment, so it adds no firewall rule. The same fact cuts the other
+  way: no firewall stands between it and the rest of the lab either. So its
+  two web UIs, the Wazuh dashboard on `443` and Velociraptor on `8889`, are
+  published by its Caddy, which answers Hicks only
+  ([#1139](https://github.com/Gerrrt/HomeLab/issues/1139)).
 - A third guest, `phoenix`, is at `10.0.30.70` — the next decade — as
   the deployment host: the Proxmox API token, the SSH key and the checkout
   that the Packer, OpenTofu and Ansible work after
@@ -559,7 +688,9 @@ Where things get broken on purpose.
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
   only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
   the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
-  host try and the token is what gets it served.
+  host try and the token is what gets it served. The push is TLS under the
+  estate CA (#764), so the token is not readable at the firewall that forwards
+  it.
 - **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
   other static in the estate lives below `.100`; this one is at `.110`, and the
   ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no
@@ -621,18 +752,18 @@ the least trusted.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.20.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| eero-iot-1 | `10.0.20.101` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Upper floor | Wi-Fi mesh |
-| eero-iot-2 | `10.0.20.102` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
-| eero-iot-3 | `10.0.20.103` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Lower floor | Wi-Fi mesh |
+| eero-iot-1 | `10.0.20.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-iot-2 | `10.0.20.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Basement | Wi-Fi mesh |
+| eero-iot-3 | `10.0.20.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | bifrost | `10.0.20.20` | `ec:b5:fa:xx:xx:xx` | Philips Hue Bridge[^Huebridge] | — | Main floor | Lighting |
-| speaker-01…04 | `.113`, `.124`, `.128`, `.132` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
-| assistant-01…05 | `.105`, `.109`, `.114`, `.133`, `.144` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
-| camera-01…07 | `.112`, `.118`, `.119`, `.126`, `.130`, `.145`, `.146` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
-| alarm-hub | `10.0.20.121` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
-| monitor-01 | `10.0.20.117` | `a4:97:5c:xx:xx:xx` | VTech camera[^Monitor] | — | Upper floor | Baby monitor |
-| monitor-02 | `10.0.20.149` | `a4:97:5c:xx:xx:xx` | VTech tablet[^Monitor] | — | Upper floor | Baby monitor |
-| appliance-01 | `10.0.20.108` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
-| appliance-02 | `10.0.20.115` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Upper floor | Appliance |
+| speaker-01…03 | `10.0.20.21`–`.23` | `d4:90:9c:xx:xx:xx`, `94:ea:32:xx:xx:xx`, `f4:34:f0:xx:xx:xx` | Apple HomePod[^homepod] | audioOS | Various | Assistant |
+| assistant-01…05 | `.103`, `.107`, `.111`, `.145` | `74:d4:23:xx:xx:xx`, `58:a8:e8:xx:xx:xx`, `1c:fe:2b:xx:xx:xx`, `4c:ef:c0:xx:xx:xx`, `68:b6:91:xx:xx:xx` | Amazon Echo[^echo] | FireOS | Various | Assistant |
+| camera-01…09 | `.100`, `.102`, `.116`, `.117`, `.125`, `.126`, `.178`, `.179`, `.181` | `10:08:2c:xx:xx:xx`, `b4:bc:7c:xx:xx:xx`, `3c:e1:a1:xx:xx:xx`, `54:e0:19:xx:xx:xx`, `5c:47:5e:xx:xx:xx`, `18:7f:88:xx:xx:xx` | Ring cameras, floodlights, doorbell[^floodlight] [^doorbell] [^camera] | — | Interior & exterior | Camera |
+| alarm-hub | `10.0.20.108` | `2c:6b:7d:xx:xx:xx` | Ring Alarm Base Station[^basestation] | — | Main floor | Hub |
+| monitor-01…02 | `.101`, `.104` | `a4:97:5c:xx:xx:xx` | VTech camera and tablet[^Monitor] | — | Main floor | Baby monitor |
+| appliance-01 | `10.0.20.189` | `c0:49:ef:xx:xx:xx` | Litter-Robot 4[^litterrobot] | — | Utility | Appliance |
+| appliance-02 | `10.0.20.109` | `50:8b:b9:xx:xx:xx` | Tuya white-noise machine[^Whitenoise] | — | Main floor | Appliance |
+| appliance-03 | `10.0.20.122` | `00:d0:2d:xx:xx:xx` | Honeywell THM6000R RedLINK internet gateway, for the thermostat; wired to an eero's port | — | Bedroom | Appliance |
 
 ### Notes
 
@@ -649,16 +780,54 @@ the least trusted.
   above, the [#223](https://github.com/Gerrrt/HomeLab/issues/223) tripwire and
   the egress rule stay as they are, and the tripwire's counter — zero — is
   the test that the return traffic rides state and never reaches them. Skids
-  stays terminal outbound, and is no longer terminal inbound, for one host
-  on two ports.
-- **One address here is reserved: `bifrost` at `10.0.20.20`**, below the
-  `.100–.200` pool, since 2026-09-28. Every other device above sits inside
-  the pool by lease, so its row is what it had when it was read, not what it
-  will have. The build proved why the rule's destination could not be one of
+  stays terminal outbound. It is no longer terminal inbound, for `trinity`
+  alone: to the Hue bridge on two ports since 2026-09-28, and to the HomePods
+  on ADR-0099's three rows since 2026-10-21. The HomePod rows are in force
+  and reach the devices. Adding the HomePods in Home Assistant is a separate
+  matter, waiting on pyatv.
+- **Seven addresses here are reserved, all below the `.100–.200` pool:**
+  `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
+  `.11`–`.13` since 2026-10-20
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), and three
+  HomePods at `.21`–`.23` since 2026-10-21
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Every other
+  device above sits inside the pool by lease, so its row is what it had when
+  it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
   `.113`, and `.104` went to another device.
+- **Three more rows from `trinity`, in force since 2026-10-21:** `10.0.99.40 →
+  10.0.20.21–.24` on `5353/udp`, `7000/tcp` and `49152–65535/tcp`, so Home
+  Assistant can control the HomePods (play, pause, volume, what's playing)
+  and not stream audio to them. Three are reserved at `.21`–`.23`, beside
+  `bifrost`, since 2026-10-21. They were reset and set up again that day,
+  and the fourth has not been set up again yet. `.24` is kept for it, and the
+  rows cover it already.
+  Traffic matching them is translated on its way out of the Skids interface,
+  from `10.0.99.40` to `10.0.20.1`, because the HomePods ignore mDNS queries
+  from another subnet. With that, discovery from `trinity` finds all three.
+  [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
+  records the reading, the NAT and why audio stays out.
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them. Adding
+  the HomePods in Home Assistant waits on
+  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
+  because the config flow's scan asks only for a service HomePods do not
+  answer.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
+- **The pool rows above were read from `morpheus`'s lease table on
+  2026-10-27 and again on 2026-10-28.** All but two of the pool addresses
+  the table carried had changed since their rows were written, the base
+  station's with its re-enrolment of 2026-10-25, which is what the rule
+  above looks like in practice. The eighth Ring camera, added 2026-10-25,
+  and the ninth, a floodlight connected 2026-10-28, are in the camera row;
+  the first read's eight Ring leases were matched to Home Assistant's eight
+  Ring devices by prefix, the ninth is the one lease the second read added,
+  and neither new camera brought a prefix the row did not already list. One
+  Echo held no lease at either read, so `assistant-01…05` carries four
+  addresses. The two VTech units share a prefix and cannot be told apart in
+  a lease table, so they share a row. One lease at each read matched no
+  row: a locally administered address, which is how a phone or watch joins
+  a Wi-Fi network it does not trust. It is not in the table.
 
 [^Huebridge]: [Philips Hue Bridge](https://www.philips-hue.com/en-us/p/hue-bridge/046677458478)
 [^echo]: [Amazon Echo](https://www.amazon.com/dp/B07XKF5RM3)
@@ -673,6 +842,14 @@ the least trusted.
 
 ---
 
+- **One more reservation is decided and not yet made:** `heimdall` at
+  `10.0.20.30`, a Raspberry Pi that will run the VTech monitor's bridge, and
+  the first general-purpose computer on this segment. It joins the table
+  above when it exists, and the three rows that reach it are in the
+  Winterfell notes.
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md);
+  [#1248](https://github.com/Gerrrt/HomeLab/issues/1248).
+
 ## Degens — VLAN 10 — Guest
 
 🟣 **Purple** on the rack.
@@ -680,8 +857,8 @@ the least trusted.
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.10.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| eero-guest-1 | `10.0.10.10` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
-| eero-guest-2 | `10.0.10.101` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-guest-1 | `10.0.10.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
+| eero-guest-2 | `10.0.10.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 
 ### Notes
 

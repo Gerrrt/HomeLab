@@ -187,6 +187,20 @@ mapfile -t refs < <(awk '
 ' "${COMPOSE}")
 ((${#refs[@]} > 0)) || die "no image: lines found in ${COMPOSE}"
 
+# One entry per distinct reference. Two services pinning the same image (the
+# sensitive stack's two postgres:18.6) are one replace below, which rewrites
+# both lines. Before this, the second entry found its old text already gone and
+# died with "expected to find", which under `make pin-digests` stopped the loop
+# before the stacks after it.
+declare -A seen=()
+declare -a unique=()
+for ref in "${refs[@]}"; do
+  [[ -n "${seen[${ref}]+x}" ]] && continue
+  seen[${ref}]=1
+  unique+=("${ref}")
+done
+refs=("${unique[@]}")
+
 changed=0
 declare -a updates=()
 

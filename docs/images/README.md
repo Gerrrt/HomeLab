@@ -12,8 +12,8 @@ out rather than illustrated.
 
 ## What is here now
 
-Five images, captured in a single run on 2026-10-04 over a 24-hour window. One
-run rather than five afternoons: a set shot at the same moment is comparable,
+Six images, captured in a single run on 2026-10-10 over a 24-hour window. One
+run rather than six afternoons: a set shot at the same moment is comparable,
 and a gap in one of them is visible against the others.
 
 Which file holds which dashboard is in the table under "Capturing them" below,
@@ -23,29 +23,29 @@ Some things in them are real and should not be tidied away. A screenshot of a
 stack with nothing wrong would be the less honest picture, so each of these is
 recorded here instead of being cropped out:
 
-- **`host-overview.png`:** the alert table shows `HypervisorGuestStopped` for
-  the Packer templates 901 and 911. Templates never run, so this is the rule
-  needing a template exclusion, not a guest that died ([#885](https://github.com/Gerrrt/HomeLab/issues/885)).
-- **`network-snmp.png`:**
-  - *Firewall uptime* reads 12 years. `pfStatusRuntime` is in hundredths of a
-    second and the panel treats it as seconds, so the value is about 44 days
-    ([#886](https://github.com/Gerrrt/HomeLab/issues/886)).
-  - The firewall's *Filesystem usage* panel says *No data*. #873 added it, and
-    on the day of the capture the running stack was not yet collecting
-    `hrStorage` from `morpheus`: the exporter had not loaded the config that
-    adds it ([#887](https://github.com/Gerrrt/HomeLab/issues/887)).
-  - The iLO *Hardware health* table shows raw `cpqHeTemperature` column names
-    ([#888](https://github.com/Gerrrt/HomeLab/issues/888)).
-  - The `IloBatteryCondition` fault the 2026-08-22 capture showed is gone: the
-    pack was replaced on 2026-09-02.
-- **`ups-power.png`:**
-  - It now shows measured values under the banner that records the pack being
-    fitted and proven.
-  - *Input frequency* reads 600: the card reports tenths of a hertz and the
-    panel does not divide ([#889](https://github.com/Gerrrt/HomeLab/issues/889)).
-- **`observability-stack.png`:** this is its first capture. The step in
-  ingestion near 22:00 is the stack being redeployed two hours before the
-  shot.
+- **`host-overview.png`:** the alert table shows `HostBatteryTempNotMeasured`
+  for `oracle` and `prometheus`. It is `info` on purpose: neither laptop pack
+  reports a temperature, and the rule says so for as long as that is true (the
+  comment above it in `host.rules.yaml` has why). The `HypervisorGuestStopped`
+  rows for the Packer templates the 2026-10-04 set showed are gone
+  ([#885](https://github.com/Gerrrt/HomeLab/issues/885)).
+- **`docker-containers.png`:** `memtest-ag2` and `memtest-ag3` lead three of
+  the legends. They were scratch containers measuring an image's memory, and
+  were removed before this was written.
+- **`internet.png`:** this is its first capture. The download dips near 20:00,
+  07:00 and late morning and the 32 % loss spike near 09:00 are real tests and real loss,
+  not render artefacts; WAN receive errors stayed at zero throughout, so they
+  are not the #914 cable.
+
+The 2026-10-04 set recorded four panel faults that this one shows fixed:
+*Firewall uptime* reading 12 years ([#886](https://github.com/Gerrrt/HomeLab/issues/886)),
+the firewall's *Filesystem usage* saying *No data* ([#887](https://github.com/Gerrrt/HomeLab/issues/887)),
+raw `cpqHeTemperature` column names in the iLO *Hardware health* table
+([#888](https://github.com/Gerrrt/HomeLab/issues/888)), and *Input frequency*
+reading 600 ([#889](https://github.com/Gerrrt/HomeLab/issues/889)). Every image in
+that set also lost its last legend row: the kiosk footer covered the bottom
+~40px, which the height formula did not allow for until this capture
+([#924](https://github.com/Gerrrt/HomeLab/issues/924)).
 
 The set before this one was shot on 2026-08-22 and showed `mjolnir` with no
 battery fitted. The Container inventory panel in an earlier set published the
@@ -61,7 +61,7 @@ make screenshots
 ```
 
 `scripts/capture-screenshots.sh` starts the `capture` profile's renderer, shoots
-five of the seven dashboards over a 24-hour window, and stops the renderer
+six of the eight dashboards over a 24-hour window, and stops the renderer
 again. Nothing is left running, and `docker compose ps` shows the same services
 afterwards as before. The renderer carries `homelab.logs=off`, the label the
 estate's other throwaway containers use. That keeps `ContainerGone` from paging
@@ -79,13 +79,17 @@ drift:
 | `network-snmp.png` | Network & Firewall |
 | `ups-power.png` | UPS & Power |
 | `observability-stack.png` | Observability Stack |
+| `internet.png` | Internet |
 
 Height is derived per dashboard from its own JSON, so adding a panel makes the
-screenshot taller instead of pushing the new panel out of frame — up to
-`BROWSER_MAX_HEIGHT` on the renderer, above which the request is silently
-clamped and the crop comes back. `homelab-stack` is 4582px against a default of
-3000, which is why `compose.yaml` raises it and `MAX_HEIGHT` in the script
-matches. A dashboard that outgrows 5000 needs both moved again.
+screenshot taller instead of pushing the new panel out of frame. The ceiling is
+`BROWSER_MAX_HEIGHT` on the renderer (7000 in `compose.yaml`), above which a
+request is silently clamped and the crop comes back. `MAX_HEIGHT` in the script
+must equal it. A dashboard taller than that is refused rather than cropped:
+the script stops before rendering anything, and `capture-screenshots.sh
+--check`, run in CI, fails the PR that grows it. To move the ceiling, raise
+both numbers together, after measuring the pinned renderer at the new height
+([#954](https://github.com/Gerrrt/HomeLab/issues/954) has how).
 
 Overwrite the existing files in place. The root `README.md` references them
 by name, so a re-shoot needs no edit there — but it does need the checklist
@@ -104,7 +108,7 @@ correct fix for a bad window, not cropping.
 
 ## What is not captured, and why
 
-There are seven dashboards and five screenshots. `homelab-logs` and
+There are eight dashboards and six screenshots. `homelab-logs` and
 `homelab-security` are excluded on purpose and always will be.
 
 ### `homelab-logs` is excluded on purpose

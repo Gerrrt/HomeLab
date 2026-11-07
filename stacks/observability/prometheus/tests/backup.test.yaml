@@ -73,6 +73,68 @@ tests:
                 `journalctl -u homelab-job-stale.service` on prometheus —
                 docs/runbooks/schedule-maintenance.md.
 
+  # --- ScheduledJobStaleCritical: three periods, never under a day ----------
+  #
+  # The same two jobs. job-stale's allowance is 1h, so one and a half of it
+  # is 90m — and the rule floors at a day, so the line is 24h plus the 30m
+  # `for`: quiet at 2h (which is what asserts the floor is there), pending at
+  # 24h20m, firing at 25h. job-fresh's allowance is 100000s, so its line is
+  # 150000s, about 41h40m, and it is quiet throughout. The second case feeds
+  # a human-only job far past both lines, which is SecretsKeyBackupUnproven's
+  # business and not a page to read an empty journal.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="job-stale", instance="prometheus"}'
+        values: "0+0x1560"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="job-fresh", instance="prometheus"}'
+        values: "0+0x1560"
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-stale", instance="prometheus"}'
+        values: "3600+0x1560"
+      - series: 'homelab_job_max_age_seconds{homelab_job="job-fresh", instance="prometheus"}'
+        values: "100000+0x1560"
+    alert_rule_test:
+      # Past 90m, which 1.5 × 3600s alone would page on. The floor says no.
+      - eval_time: 2h
+        alertname: ScheduledJobStaleCritical
+        exp_alerts: []
+
+      # Over the day at 24h, pending until 24h30m.
+      - eval_time: 24h20m
+        alertname: ScheduledJobStaleCritical
+        exp_alerts: []
+
+      - eval_time: 25h
+        alertname: ScheduledJobStaleCritical
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobStaleCritical
+              homelab_job: job-stale
+              instance: prometheus
+              component: backup
+              severity: critical
+              category: correctness
+            exp_annotations:
+              summary: "job-stale has not succeeded in 1d 1h 0m 0s — three periods"
+              description: >-
+                This job has been stale for three of its own periods, and at
+                least a day. Either the timer is gone or every run since has
+                failed, and the warning for it has been repeating on the
+                in-house channel unanswered. Check
+                `systemctl list-timers 'homelab-*'` and
+                `journalctl -u homelab-job-stale.service` on prometheus.
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/schedule-maintenance.md#if-something-goes-wrong"
+
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "0+0x1560"
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "3600+0x1560"
+    alert_rule_test:
+      - eval_time: 25h
+        alertname: ScheduledJobStaleCritical
+        exp_alerts: []
+
   # --- ScheduledJobStale: a second host joins one-to-one --------------------
   #
   # trinity declares its own threshold in its own textfile directory (#404

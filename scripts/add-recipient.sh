@@ -127,26 +127,40 @@ fi
 # That also makes the ADR-0020 mistake structurally impossible: the lab rule
 # does not list the estate's recipient, so `--stack observability` cannot land
 # in it, and vice versa.
-ANCHOR="${CURRENT[0]}"
-
-mapfile -t ANCHOR_LINES < <(grep -nE "^[[:space:]]+${ANCHOR},?[[:space:]]*$" "${SOPS_CONFIG}" | cut -d: -f1)
-
-if ((${#ANCHOR_LINES[@]} == 0)); then
-  die "secrets/${STACK}.sops.yaml is encrypted to
-  ${ANCHOR}
+#
+# THE ANCHOR IS THE FIRST RECIPIENT LISTED IN EXACTLY ONE RULE. ADR-0024's
+# technical second is shared on purpose: the estate, sensitive and lab rules
+# all hold it (#835, #671), so it names no rule and cannot be the anchor. This
+# took CURRENT[0] until #671, and age19mkg... sorts first among age keys, so
+# every file holding the second was refused here as a collapsed rule. A file
+# ALL of whose keys are shared still is refused: that is the collapse.
+ANCHOR=""
+ANCHOR_LINES=()
+for key in "${CURRENT[@]}"; do
+  mapfile -t lines < <(grep -nE "^[[:space:]]+${key},?[[:space:]]*$" "${SOPS_CONFIG}" | cut -d: -f1)
+  if ((${#lines[@]} == 0)); then
+    die "secrets/${STACK}.sops.yaml is encrypted to
+  ${key}
 but no creation_rule in .sops.yaml lists that key.
 
 The policy and the ciphertext disagree, and this script cannot tell which one is
 right. Fix .sops.yaml by hand — the recipients the file actually uses are:
 $(printf '  %s\n' "${CURRENT[@]}")"
-fi
+  fi
+  if [[ -z "${ANCHOR}" ]] && ((${#lines[@]} == 1)); then
+    ANCHOR="${key}"
+    ANCHOR_LINES=("${lines[@]}")
+  fi
+done
 
-if ((${#ANCHOR_LINES[@]} > 1)); then
-  die "${ANCHOR}
-appears in ${#ANCHOR_LINES[@]} creation_rules in .sops.yaml (lines: ${ANCHOR_LINES[*]}).
+if [[ -z "${ANCHOR}" ]]; then
+  die "every recipient of secrets/${STACK}.sops.yaml appears in more than one
+creation_rule in .sops.yaml:
+$(printf '  %s\n' "${CURRENT[@]}")
 
-One key covering two rules is the collapse those rules exist to prevent —
-bootstrap.sh refuses the same thing. Untangle .sops.yaml by hand first."
+A file whose keys all cover other rules has no rule of its own — the collapse
+those rules exist to prevent, and bootstrap.sh refuses the same thing. Untangle
+.sops.yaml by hand first."
 fi
 
 LINE="${ANCHOR_LINES[0]}"

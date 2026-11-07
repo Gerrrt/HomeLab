@@ -418,22 +418,32 @@ tests:
   # still reporting. It fires once the series is stale (5m) and the `for` (10m)
   # has run. Beside it, on the same host:
   #   - a homelab.logs=off throwaway that exits by design, which must not fire;
-  #   - immich, recreated by a `make up` with a 3-minute gap, which must not fire.
+  #   - immich, recreated by a `make up` with a 3-minute gap, which must not fire;
+  #   - (#901) a bare `docker run` container with a random name and no compose
+  #     project, and a compose service in a project nothing deploys (mfscratch),
+  #     both gone at 20m — the two shapes of 2026-10-04's 352 alerts. Neither
+  #     may fire.
+  # The services carry the project label they have in production; alloy, run
+  # by deploy-agent.sh outside compose, carries none and is still watched.
   # oracle: every series stops at once. A dead host is InstanceDown's, so
   # nothing here may fire for it.
   - interval: 1m
     input_series:
       - series: 'container_last_seen{name="alloy",instance="trinity"}'
         values: "1+60x80"
-      - series: 'container_last_seen{name="vaultwarden",instance="trinity"}'
+      - series: 'container_last_seen{name="vaultwarden",instance="trinity",container_label_com_docker_compose_project="sensitive"}'
         values: "1+60x30 _x50"
-      - series: 'container_last_seen{name="archiver-1",instance="trinity",container_label_homelab_logs="off"}'
+      - series: 'container_last_seen{name="archiver-1",instance="trinity",container_label_com_docker_compose_project="observability",container_label_homelab_logs="off"}'
         values: "1+60x10 _x70"
-      - series: 'container_last_seen{name="immich-server",instance="trinity"}'
+      - series: 'container_last_seen{name="immich-server",instance="trinity",container_label_com_docker_compose_project="sensitive"}'
         values: "1+60x20 _x3 1500+60x57"
+      - series: 'container_last_seen{name="zen_bohr",instance="trinity"}'
+        values: "1+60x20 _x60"
+      - series: 'container_last_seen{name="mfscratch-db-1",instance="trinity",container_label_com_docker_compose_project="mfscratch"}'
+        values: "1+60x20 _x60"
       - series: 'container_last_seen{name="alloy",instance="oracle"}'
         values: "1+60x30 _x50"
-      - series: 'container_last_seen{name="wiki",instance="oracle"}'
+      - series: 'container_last_seen{name="wiki",instance="oracle",container_label_com_docker_compose_project="wiki"}'
         values: "1+60x30 _x50"
     alert_rule_test:
       - eval_time: 40m
@@ -455,6 +465,147 @@ tests:
               description: >-
                 It was running within the last week and is not running now. `docker ps
                 -a --filter name=vaultwarden` on trinity shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+
+  # --- ContainerGone (#901): every watched project, and standalone alloy, fires
+  #
+  # One stopped container per project the rule watches, plus an `alloy` with no
+  # project (deploy-agent.sh's), all gone at 10m on a host that `keepalive`
+  # keeps reporting. A typo or a dropped name in the project list, or in the
+  # alloy branch, loses its alert here rather than in production.
+  - interval: 1m
+    input_series:
+      - series: 'container_last_seen{name="keepalive",instance="testhost"}'
+        values: "1+60x40"
+      - series: 'container_last_seen{name="prom-svc",instance="testhost",container_label_com_docker_compose_project="observability"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="sens-svc",instance="testhost",container_label_com_docker_compose_project="sensitive"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="wiki-svc",instance="testhost",container_label_com_docker_compose_project="wiki"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="lab-svc",instance="testhost",container_label_com_docker_compose_project="lab"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="soc-svc",instance="testhost",container_label_com_docker_compose_project="soc"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="sensor-svc",instance="testhost",container_label_com_docker_compose_project="sensor"}'
+        values: "1+60x10 _x30"
+      - series: 'container_last_seen{name="alloy",instance="testhost"}'
+        values: "1+60x10 _x30"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: ContainerGone
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: alloy
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container alloy on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=alloy` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: lab-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container lab-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=lab-svc` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: prom-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container prom-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=prom-svc` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: sens-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container sens-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=sens-svc` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: sensor-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container sensor-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=sensor-svc` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: soc-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container soc-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=soc-svc` on testhost shows how it exited; `make
+                up` for its stack starts it. If it was removed on purpose, silence
+                this with the issue that removed it: it stops on its own seven days
+                after the container was last seen.
+          - exp_labels:
+              alertname: ContainerGone
+              instance: testhost
+              name: wiki-svc
+              component: containers
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: >-
+                Container wiki-svc on testhost has stopped and not come back
+              description: >-
+                It was running within the last week and is not running now. `docker ps
+                -a --filter name=wiki-svc` on testhost shows how it exited; `make
                 up` for its stack starts it. If it was removed on purpose, silence
                 this with the issue that removed it: it stops on its own seven days
                 after the container was last seen.

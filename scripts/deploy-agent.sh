@@ -57,6 +57,12 @@
 # never — it is the listener morpheus sends to, and it belongs on the
 # monitoring host alone. The header of alloy/config.alloy has the reasoning.
 #
+# ingest-ca.pem, the estate CA's certificate, goes with them when the target
+# pushes to the estate's proxy, and INGEST_CA_FILE names it (#764): the writers
+# verify an https endpoint against it. It is committed, so the Mac's checkout
+# has it too. It does not go to a host of the lab's proxy, which has its own
+# CA question (stacks/lab/README.md) and serves plain http meanwhile.
+#
 # The token
 # ---------
 # 9090 and 3100 on the monitoring host are its ingest proxy, which passes a
@@ -129,6 +135,8 @@ case "$RUNTIME" in ""|docker|native) ;; *) die "--runtime must be docker or nati
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ALLOY_DIR="${REPO_ROOT}/stacks/observability/alloy"
 [[ -f "${ALLOY_DIR}/config.alloy" ]] || die "no config.alloy under ${ALLOY_DIR}"
+PROXY_DIR="${REPO_ROOT}/stacks/observability/docker-socket-proxy"
+[[ -f "${PROXY_DIR}/haproxy.cfg" ]] || die "no haproxy.cfg under ${PROXY_DIR}"
 
 # The one place a version lives is compose.yaml; both runtimes read it from
 # there. `--tag-only` strips the digest for the .deb URL; the docker runtime
@@ -141,8 +149,19 @@ tag="$("${REPO_ROOT}/scripts/image-for.sh" --tag-only alloy)"
 VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
 
-LOKI_URL="http://${MON}:3100/loki/api/v1/push"
-PROMETHEUS_REMOTE_WRITE_URL="http://${MON}:9090/api/v1/write"
+# The estate's proxy serves https under the estate CA (#764); the lab's still
+# serves http. CURL_CA is what every curl below adds to reach the same proxy
+# the agent will: the committed CA, so the Mac verifies exactly what the agent
+# does, with no certificates/ directory on it.
+ESTATE_MON="10.0.99.20"
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  SCHEME="https"; CURL_CA=(--cacert "${ALLOY_DIR}/ingest-ca.pem")
+else
+  SCHEME="http"; CURL_CA=()
+fi
+MON_URL="${SCHEME}://${MON}"
+LOKI_URL="${MON_URL}:3100/loki/api/v1/push"
+PROMETHEUS_REMOTE_WRITE_URL="${MON_URL}:9090/api/v1/write"
 
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET")
 
@@ -172,6 +191,15 @@ fi
 # Which files this host gets. Never syslog.alloy — see the header.
 FILES=(config.alloy)
 [[ "$RUNTIME" == docker ]] && FILES+=(docker.alloy)
+# The estate's CA, at the path the agent will read it from: /etc/alloy is the
+# config directory on both runtimes, and Alloy loads only *.alloy from it
+# (measured on the pinned image with a .pem beside the config).
+INGEST_CA_FILE=""
+if [[ "${MON}" == "${ESTATE_MON}" ]]; then
+  [[ -f "${ALLOY_DIR}/ingest-ca.pem" ]] || die "no ingest-ca.pem under ${ALLOY_DIR} — it is committed; is this checkout current?"
+  FILES+=(ingest-ca.pem)
+  INGEST_CA_FILE="/etc/alloy/ingest-ca.pem"
+fi
 
 pass "target ${HOST} · runtime ${RUNTIME} · alloy ${VERSION} · files ${FILES[*]}"
 
@@ -184,7 +212,6 @@ TOKEN_KEY="INGEST_TOKEN_$(printf '%s' "$HOST" | tr '[:lower:]' '[:upper:]' | tr 
 # and exits if sops cannot decrypt, so it runs in a subshell and only the two
 # values come back out. Its stderr is left alone: it says why a decrypt
 # failed, and it never prints a value.
-ESTATE_MON="10.0.99.20"
 # Where a refused token's other half lives, for the messages below: the
 # estate's proxy and file, or the lab's (#834).
 if [[ "${MON}" == "${ESTATE_MON}" ]]; then
@@ -223,10 +250,16 @@ pass "agent token ${TOKEN_KEY} loaded (${#INGEST_TOKEN} characters)"
 # ---------------------------------------------------------------------------
 STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy.XXXXXX')"
 [[ "$STAGE" == /tmp/alloy-deploy.* ]] || die "unexpected stage directory '${STAGE}'"
-cleanup() { "${SSH[@]}" "rm -rf '${STAGE}'" >/dev/null 2>&1 || true; }
+# The socket proxy's HAProxy config, in a stage of its own because the Alloy
+# step below copies everything in STAGE into alloy-config. Staged whatever the
+# runtime, like PROXY_IMAGE, because a native host simply never uses it.
+PROXY_STAGE="$("${SSH[@]}" 'mktemp -d /tmp/alloy-deploy-proxy.XXXXXX')"
+[[ "$PROXY_STAGE" == /tmp/alloy-deploy-proxy.* ]] || die "unexpected stage directory '${PROXY_STAGE}'"
+cleanup() { "${SSH[@]}" "rm -rf '${STAGE}' '${PROXY_STAGE}'" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
 tar -C "$ALLOY_DIR" -cf - "${FILES[@]}" | "${SSH[@]}" "tar -C '${STAGE}' -xf -"
+tar -C "$PROXY_DIR" -cf - haproxy.cfg | "${SSH[@]}" "tar -C '${PROXY_STAGE}' -xf -"
 
 # A truncated config does not fail loudly — Alloy starts and collects less —
 # so the copy is checked, not assumed. cksum is POSIX and prints the same on
@@ -237,7 +270,10 @@ for f in "${FILES[@]}"; do
   remote_sum="$("${SSH[@]}" "cksum < '${STAGE}/${f}'")"
   [[ "$local_sum" == "$remote_sum" ]] || die "${f} differs after copy (local ${local_sum}, remote ${remote_sum})"
 done
-pass "staged ${FILES[*]} in ${STAGE}"
+local_sum="$(cksum < "${PROXY_DIR}/haproxy.cfg")"
+remote_sum="$("${SSH[@]}" "cksum < '${PROXY_STAGE}/haproxy.cfg'")"
+[[ "$local_sum" == "$remote_sum" ]] || die "haproxy.cfg differs after copy (local ${local_sum}, remote ${remote_sum})"
+pass "staged ${FILES[*]} in ${STAGE}, and haproxy.cfg in ${PROXY_STAGE}"
 
 # ---------------------------------------------------------------------------
 # Everything host-side, in one shell on the host
@@ -333,11 +369,12 @@ docker)
   # The config lives in a named volume, populated from the stage by the image
   # that is about to run it — no second image, nothing unpinned, no sudo. Stale
   # files are removed first so a host that stops being a Docker host does not
-  # keep loading docker.alloy.
+  # keep loading docker.alloy, and one moved to the lab's proxy does not keep
+  # the estate's CA. The stage holds exactly FILES, so /src/* is that list.
   docker volume create alloy-config >/dev/null
   docker volume create alloy-data >/dev/null
   docker run --rm -v alloy-config:/dst -v "${STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
-    -c 'rm -f /dst/*.alloy && cp /src/*.alloy /dst/ && chmod 0644 /dst/*.alloy'
+    -c 'rm -f /dst/*.alloy /dst/*.pem && cp /src/* /dst/ && chmod 0644 /dst/*'
 
   # node_exporter reads this on every scrape and logs level=error while it is
   # missing — which would hold the gate below shut forever. Same privilege
@@ -359,6 +396,13 @@ docker)
   docker pull "$PROXY_IMAGE" >/dev/null
   docker network inspect alloy >/dev/null 2>&1 || docker network create alloy >/dev/null
   docker rm -f alloy alloy-socket-proxy >/dev/null 2>&1 || true
+  # compose.yaml's HAProxy config, which allows three /containers paths where
+  # the image's template allows the whole prefix, archive and export included
+  # (Tecnativa/docker-socket-proxy#182). A volume for the alloy-config reason:
+  # no root-owned bind mount, and the running config is the shipped one.
+  docker volume create alloy-socket-proxy-config >/dev/null
+  docker run --rm -v alloy-socket-proxy-config:/dst -v "${PROXY_STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
+    -c 'rm -f /dst/* && cp /src/haproxy.cfg /dst/ && chmod 0644 /dst/haproxy.cfg'
   docker run -d --name alloy-socket-proxy \
     --network alloy \
     --restart unless-stopped \
@@ -371,7 +415,8 @@ docker)
     -e NODES=0 -e PLUGINS=0 -e SECRETS=0 -e SERVICES=0 -e SESSION=0 -e SWARM=0 \
     -e SYSTEM=0 -e TASKS=0 -e VOLUMES=0 \
     -v /var/run/docker.sock:/var/run/docker.sock:ro \
-    "$PROXY_IMAGE" >/dev/null
+    -v alloy-socket-proxy-config:/usr/local/etc/socket-proxy:ro \
+    "$PROXY_IMAGE" haproxy -f /usr/local/etc/socket-proxy/haproxy.cfg >/dev/null
   require_stable "[[ \$(docker inspect -f '{{.State.Running}}' alloy-socket-proxy 2>/dev/null) == true ]]"
   pass "alloy-socket-proxy running"
 
@@ -381,7 +426,7 @@ docker)
   # before changing anything here; each line below has a measured reason there.
   # No --hostname: ALLOY_HOSTNAME does the labelling, and a container hostname
   # registers a DNS name (config.alloy header). No /var/lib/docker/containers:
-  # nothing reads it (#188). 1514/udp is not published: syslog.alloy is not
+  # nothing reads it (#188). No syslog port is published: syslog.alloy is not
   # shipped, so there is nothing listening. /rootfs/run is masked, for the
   # reason compose.yaml's alloy gives: /:/rootfs:ro otherwise carries
   # /rootfs/run/docker.sock, a read-only mount does not stop connect(), and
@@ -402,6 +447,7 @@ docker)
     -e LOKI_URL \
     -e PROMETHEUS_REMOTE_WRITE_URL \
     -e INGEST_TOKEN \
+    -e INGEST_CA_FILE \
     -e DOCKER_API=tcp://alloy-socket-proxy:2375 \
     -v alloy-config:/etc/alloy:ro \
     -v alloy-data:/var/lib/alloy/data \
@@ -459,8 +505,12 @@ native)
   # Only the files this host was sent. A stale docker.alloy left behind would
   # be loaded — a directory is one config — and log errors every interval.
   $SUDO install -d -m 0755 /etc/alloy /var/lib/node_exporter/textfile_collector
-  $SUDO find /etc/alloy -maxdepth 1 -name '*.alloy' -delete
+  # The CA likewise, so a host moved to the lab's proxy does not keep it.
+  $SUDO find /etc/alloy -maxdepth 1 \( -name '*.alloy' -o -name '*.pem' \) -delete
   $SUDO install -m 0644 -o root -g root "${STAGE}"/*.alloy /etc/alloy/
+  if [[ -n "${INGEST_CA_FILE}" ]]; then
+    $SUDO install -m 0644 -o root -g root "${STAGE}/ingest-ca.pem" "${INGEST_CA_FILE}"
+  fi
 
   # The unit reads this as its EnvironmentFile, so every line reaches the
   # process — CONFIG_FILE and CUSTOM_ARGS are the package's own, the rest are
@@ -482,6 +532,7 @@ ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"
 PROMETHEUS_REMOTE_WRITE_URL="${PROMETHEUS_REMOTE_WRITE_URL}"
 INGEST_TOKEN="${INGEST_TOKEN}"
+INGEST_CA_FILE="${INGEST_CA_FILE}"
 ALLOY_ROOTFS="/"
 DEFAULTS
 
@@ -502,12 +553,12 @@ DEFAULTS
   pass "alloy.service active as $(systemctl show -p User --value alloy 2>/dev/null || echo '?')"
   require_quiet "journalctl -u alloy --since '60 seconds ago' --no-pager -o cat"
 
-  info "listening sockets (expect 12345 on loopback only, and no 1514):"
-  ss -ltnup 2>/dev/null | grep -E ':(12345|1514)\b' >&2 || true
+  info "listening sockets (expect 12345 on loopback only, and no 1514 or 6514):"
+  ss -ltnup 2>/dev/null | grep -E ':(12345|1514|6514)\b' >&2 || true
   ;;
 esac
 REMOTE
-} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' bash -s"
+} | "${SSH[@]}" "IMAGE='${IMAGE}' PROXY_IMAGE='${PROXY_IMAGE}' VERSION='${VERSION}' STAGE='${STAGE}' PROXY_STAGE='${PROXY_STAGE}' RUNTIME='${RUNTIME}' LOKI_URL='${LOKI_URL}' PROMETHEUS_REMOTE_WRITE_URL='${PROMETHEUS_REMOTE_WRITE_URL}' INGEST_CA_FILE='${INGEST_CA_FILE}' bash -s"
 
 # ---------------------------------------------------------------------------
 # Did it arrive? Asked of the monitoring host, not the agent.
@@ -521,17 +572,31 @@ REMOTE
 #
 #   - a sample from every expected job, timestamped after the new agent
 #     passed its checks above (the old one was gone by then);
-#   - a Loki line for this host, timestamped after the same moment;
+#   - a Loki line for this host that the deploy itself wrote: a marker sent
+#     with logger(1) on the target once the agent is up, looked for by its
+#     exact text. Asking for "any line newer than the deploy" failed on a
+#     quiet host: golem, an idle backup server, logged nothing in the three
+#     minutes, so a working agent read as a broken one (2026-10-04). The
+#     marker travels the host's own logging (journald, and rsyslog where it
+#     runs), so it arrives exactly when the host's logs are being shipped;
 #   - no rise in the agent's own loki_write_dropped_entries_total, which is
 #     where a refused log push is counted. A refused metric push cannot be
 #     counted this way, because the counter would travel on the refused path.
 #     The first check is what catches that.
 #
-# Timestamps are the agent host's clock. A skew of more than the three-minute
-# wait makes this fail, which is a fault worth hearing about anyway.
+# ARRIVED_AFTER is this machine's clock; a sample's timestamp is the agent
+# host's. A skew of more than the three-minute wait makes the Prometheus half
+# fail, which is a fault worth hearing about anyway. The marker is found by
+# its text, not its time, so the Loki half searches from ten minutes before
+# the deploy to ten minutes after the wait ends. Loki stamps a line with the
+# target's clock, so a target running fast puts the marker in the future: an
+# end left to default (Loki's now) missed it, which a review of #908 caught.
+# Skew of up to ten minutes either way is tolerated; more than that fails.
 ARRIVED_AFTER="$(date +%s)"
 promql="up{instance=\"${HOST}\"}"
 logql="{host=\"${HOST}\"}"
+MARKER="homelab-deploy-check ${HOST} ${ARRIVED_AFTER}-$$-${RANDOM}"
+marker_logql="{host=\"${HOST}\"} |= \"${MARKER}\""
 expected=2
 [[ "$RUNTIME" == docker ]] && expected=3   # + integrations/cadvisor
 
@@ -539,19 +604,30 @@ expected=2
 # on a command line.
 mon_curl() {
   printf 'header = "Authorization: Bearer %s"\n' "${INGEST_TOKEN_READER}" \
-    | curl -K - -fsS --max-time 10 "$@"
+    | curl -K - -fsS --max-time 10 ${CURL_CA[@]+"${CURL_CA[@]}"} "$@"
 }
 
 arrival_failed=0
 if ((VERIFY)); then
   if [[ -z "${INGEST_TOKEN_READER:-}" ]]; then
     warn "no reader token (INGEST_TOKEN_READER) — skipping the arrival check; run it by hand with the queries below"
-  elif ! curl -fsS --max-time 5 "http://${MON}:9090/-/ready" >/dev/null 2>&1; then
-    warn "${MON}:9090 is not reachable from here; skipping the arrival check"
-  elif ! mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
+  elif ! curl -fsS --max-time 5 ${CURL_CA[@]+"${CURL_CA[@]}"} "${MON_URL}:9090/-/ready" >/dev/null 2>&1; then
+    warn "${MON_URL}:9090 is not reachable from here, or its certificate does not verify against ${CURL_CA[1]:-nothing}; skipping the arrival check"
+  elif ! mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
     warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
   else
-    info "waiting for data newer than the deploy from ${HOST} in Prometheus and Loki at ${MON} (up to 3 min)"
+    # The marker. logger(1) is util-linux, present on every target this ships
+    # to, and needs no root. If it is missing anyway, fall back to asking for
+    # any line newer than the deploy, and say that a quiet host can fail that.
+    loki_query="${marker_logql}"; loki_since=$((ARRIVED_AFTER - 600)); loki_what="the deploy's marker line"
+    loki_until=$((ARRIVED_AFTER + 180 + 600))   # the 3-minute wait, plus the skew allowance
+    marker_sent=1
+    if ! "${SSH[@]}" "logger -t homelab-deploy-check '${MARKER}'" 2>/dev/null; then
+      warn "could not run logger on ${HOST}; looking for any line newer than the deploy instead, which an idle host can fail"
+      loki_query="${logql}"; loki_since="${ARRIVED_AFTER}"; loki_what="a line newer than the deploy"
+      marker_sent=0
+    fi
+    info "waiting for data newer than the deploy from ${HOST} in Prometheus, and ${loki_what} in Loki, at ${MON} (up to 3 min)"
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
     deadline=$((SECONDS + 180)); jobs=0; in_loki=0
     while ((SECONDS < deadline)); do
@@ -559,11 +635,12 @@ if ((VERIFY)); then
       # matches nothing and exits 1, pipefail makes that the pipeline's
       # status, and set -e ended the whole script here with no word said
       # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
-      jobs="$(mon_curl "http://${MON}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
+      jobs="$(mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
       jobs="${jobs:-0}"
-      if mon_curl -G "http://${MON}:3100/loki/api/v1/query_range" \
-           --data-urlencode "query=${logql}" --data-urlencode "start=${ARRIVED_AFTER}000000000" \
+      if mon_curl -G "${MON_URL}:3100/loki/api/v1/query_range" \
+           --data-urlencode "query=${loki_query}" --data-urlencode "start=${loki_since}000000000" \
+           --data-urlencode "end=${loki_until}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
            | grep -q '"values":\[\['; then
         in_loki=1
@@ -578,12 +655,16 @@ if ((VERIFY)); then
       arrival_failed=1
     fi
     if ((in_loki)); then
-      pass "Loki has a line newer than the deploy for host=\"${HOST}\""
+      pass "Loki has ${loki_what} for host=\"${HOST}\""
     else
-      warn "Loki has no line newer than the deploy for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      if ((marker_sent)); then
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100. The marker was logged on ${HOST} as: ${MARKER}"
+      else
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+      fi
       arrival_failed=1
     fi
-    dropped="$(mon_curl "http://${MON}:9090/api/v1/query" \
+    dropped="$(mon_curl "${MON_URL}:9090/api/v1/query" \
                  --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
                | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
     if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then

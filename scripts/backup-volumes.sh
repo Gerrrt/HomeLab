@@ -141,6 +141,8 @@
 #   scripts/backup-volumes.sh --verify-only --all   re-verify every retained set, here and there
 #   scripts/backup-volumes.sh --verify-only --set <STAMP> [--only vol,vol]
 #   scripts/backup-volumes.sh --prune               apply retention only, both sides
+#   scripts/backup-volumes.sh --self-test           back up, verify and refuse, against a
+#                                                   throwaway volume and keys (#854)
 #
 # Environment:
 #   STACK              default observability   selects stacks/<STACK>/compose.yaml
@@ -154,6 +156,85 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# ---------------------------------------------------------------------------
+# --self-test (#854)
+#
+# The real script, run end to end with real age and real docker against a
+# throwaway repository, volume and keys — scripts/volume-selftest-fixture.sh
+# says what it builds. Only when RUN as --self-test: five scripts source this
+# file, with their own arguments still in "$@", and one of them asking for its
+# own self-test must not get this one.
+#
+# What it holds the script to:
+#   - a backup writes a set whose MANIFEST names both recipients and the
+#     sha256 of what is on disk;
+#   - the set opens with EITHER recipient's key and not with a third — the
+#     property the two-recipient rule (#835) exists for, which until this was
+#     asserted only about the secrets file and never about an archive;
+#   - a flipped byte, an archive without its sentinel, an archive carrying
+#     another volume's, and a project whose volume does not exist all refuse.
+# ---------------------------------------------------------------------------
+if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
+  # shellcheck source=scripts/volume-selftest-fixture.sh
+  source "${REPO_ROOT}/scripts/volume-selftest-fixture.sh"
+  vf_setup "${REPO_ROOT}" || exit 0
+  ENV=(STACK=observability COMPOSE_FILE= TEXTFILE_DIR="${VF}/no-textfile")
+
+  vf_volume "${VF_P}a" grafana
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}a" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "backs up a volume, encrypted and verified" 0 "wrote backups/volumes/"
+  STAMP="$(vf_newest_set)"
+  SET="${VF_REPO}/backups/volumes/${STAMP}"
+  check "  the MANIFEST names both recipients" \
+    "$(awk -F'\t' '$1 == "recipient" { print $2 }' "${SET}/MANIFEST" | tr , '\n' | sort | paste -sd,)" \
+    "$(printf '%s\n' "${VF_R1}" "${VF_R2}" | sort | paste -sd,)"
+  check "  and the sha256 of the archive on disk" \
+    "$(awk -F'\t' '$1 == "grafana-data" { print $5 }' "${SET}/MANIFEST")" \
+    "$(sha256sum "${SET}/grafana-data.tar.gz.age" | awk '{ print $1 }')"
+  check "  and the project it was taken from" \
+    "$(awk -F'\t' '$1 == "project" { print $2 }' "${SET}/MANIFEST")" "${VF_P}a"
+
+  # The two-recipient property, on an archive (#835).
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set opens with the first recipient's key" 0 "--local-only"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K2}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set opens with the second recipient's key" 0 "--local-only"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K3}" -- backup-volumes.sh --verify-only --set "${STAMP}" --local-only
+  expect "the set does not open with a key it was not encrypted to" 1 "verification FAILED"
+
+  # A copy of the set, one byte changed. age's AEAD is what refuses it.
+  cp -a "${SET}" "${VF_REPO}/backups/volumes/20000101T000000Z"
+  vf_flip "${VF_REPO}/backups/volumes/20000101T000000Z/grafana-data.tar.gz.age"
+  vf_run "${ENV[@]}" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --verify-only --set 20000101T000000Z --local-only
+  expect "a flipped byte does not verify" 1 "FAILED to decrypt or read"
+  rm -rf "${VF_REPO}/backups/volumes/20000101T000000Z"
+
+  vf_volume "${VF_P}u" unmarked
+  vf_new_second
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}u" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses an archive without the volume's sentinel" 1 "grafana.db is not in the archive"
+  check "  and writes no MANIFEST for it" "$(vf_newest_set)" "${STAMP}"
+
+  vf_volume "${VF_P}f" foreign
+  vf_new_second
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}f" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses an archive carrying another volume's sentinel" 1 "carries the sentinel of"
+
+  # `docker run -v` would create the volume empty; the inspect before it is
+  # what keeps a wrong project name from writing a plausible empty archive.
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}missing" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses a project whose volume does not exist" 1 "no volume ${VF_P}missing_grafana-data"
+  vf_exists "${VF_P}missing_grafana-data" && VF_VOLUMES+=("${VF_P}missing_grafana-data")
+  check "  and does not create it" "$(vf_exists "${VF_P}missing_grafana-data" && echo created || echo absent)" absent
+
+  printf 'placeholder: ENC[AES256_GCM,data:fixture,type:str]\n' > "${VF_REPO}/secrets/observability.sops.yaml"
+  vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}a" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
+  expect "refuses a stack with no recipients to encrypt to" 1 "no age recipients"
+
+  exit "${fail}"
+fi
+
 STACK="${STACK:-observability}"
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
@@ -451,6 +532,14 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # running 3.2.1 on trinity on 2026-10-01, into the container's /tmp and
 # removed after: those two files and nothing else, because no document had
 # been imported yet. No volume here has a top-level manifest.json.
+#
+# speedtest-data (#914) is speedtest-tracker's /config: the SQLite database
+# with every result and the app's settings, including the Prometheus switch
+# the scrape depends on. Read off a first boot of the pinned 1.15.0 on
+# 2026-10-05: database.sqlite, .migrations, keys, log, nginx, php and www at
+# the top level. database.sqlite is created by the first boot's migrations and
+# no other volume carries one. keys/ holds only the mount points of the
+# read-only leaf; the leaf itself lives in certificates/ and is not archived.
 declare -A SENTINEL=(
   [prometheus-data]="./chunks_head"
   [loki-data]="./chunks"
@@ -479,6 +568,7 @@ declare -A SENTINEL=(
   [immich-library]="./library/.immich"
   [wiki-db]="toc.dat"
   [paperless-documents]="./manifest.json"
+  [speedtest-data]="./database.sqlite"
 )
 
 # Reported when absent, never fatal. These cover the fresh-volume case, where
@@ -526,6 +616,7 @@ declare -A COMPANIONS=(
   [immich-library]="./upload/.immich ./profile/.immich ./backups/.immich ./thumbs/.immich ./encoded-video/.immich"
   [wiki-db]="restore.sql"
   [paperless-documents]="./metadata.json"
+  [speedtest-data]="./.migrations ./nginx ./php"
 )
 
 # Volumes archived by NOTHING, each with the reason — the third table, and
@@ -569,11 +660,17 @@ declare -A COMPANIONS=(
 # enrolment and any account added in the UI since, which is a re-enrolment,
 # not a record lost. The nightly SQL dump Stirling writes into the same volume
 # is left out for the same reason.
+# ring-mqtt-data (ADR-0104) holds ring-mqtt's state file, whose one thing of
+# value is Ring's refresh token, and Ring rotates that token as it is used. A
+# copy from last night is usually already spent, and restoring it would put a
+# live credential back for nothing. A rebuild is one sign-in with 2FA:
+# docs/runbooks/connect-the-ring-alarm.md.
 declare -A DISPOSABLE=(
   [immich-model-cache]="a model cache immich-machine-learning re-downloads on first use"
   [adguard-work]="blocklists, stats and a query log AdGuard rebuilds; archiving it would stop the house's only DNS forwarder"
   [ntfy-data]="users re-provisioned from SOPS on every start, and twelve hours of notifications already delivered"
   [stirling-pdf-configs]="an admin rebuilt from SOPS and settings from the environment; documents are never on it"
+  [ring-mqtt-data]="a Ring refresh token Ring rotates in use; a rebuild is one sign-in from the runbook"
   [jellyfin-cache]="transcode scratch and image caches Jellyfin regenerates on demand"
 )
 
@@ -1193,12 +1290,43 @@ verify() {
   return 0
 }
 
+# When a volume joined the stack, as the first set stamp that must hold it.
+# A volume with no row here has been in every retained set and must be in
+# every one. verify_set() excuses a set for lacking a volume only when the
+# set is older than that volume's row — absence from a MANIFEST alone is not
+# proof of age, because a damaged MANIFEST that kept some rows reads the same
+# (#917 review). Add a row when a volume is added to compose.yaml; stamps
+# compare as strings because is_stamp() fixes their shape.
+declare -A VOLUME_SINCE=(
+  [speedtest-data]="20261006T000000Z"   # #915, deployed 2026-10-06 02:13Z
+)
+
+# Without --only, a set is held to what its own MANIFEST says it archived, as
+# verify_remote_archives already does, plus every current volume the set is
+# not older than. The first half is the fix for speedtest-data (#914): it
+# arrived on 2026-10-06, and the next --verify-only --all called every set
+# before it incomplete ("no archive in …"), raising ScheduledJobFailed over
+# backups that were whole. The second half keeps that from becoming a hole:
+# a set missing a volume it should hold — by VOLUME_SINCE — still fails.
 verify_set() {
   local d="$1"; shift
   local lenient=0 vol failed=0
-  local -a want=("$@")
-  ((${#want[@]})) || want=("${VOLUMES[@]}")
+  local -a want=("$@") listed=()
   [[ -d ${d} ]] || die "no such set: ${d}"
+  if ((${#want[@]} == 0)); then
+    mapfile -t listed < <(manifest_volumes "${d}")
+    ((${#listed[@]})) || { red "$(basename "${d}"): the MANIFEST lists no volumes"; return 1; }
+    want=("${listed[@]}")
+    for vol in "${VOLUMES[@]}"; do
+      [[ " ${listed[*]} " == *" ${vol} "* ]] && continue
+      if [[ -n ${VOLUME_SINCE[${vol}]:-} && "$(basename "${d}")" < "${VOLUME_SINCE[${vol}]}" ]]; then
+        info "${vol}: not in $(basename "${d}") — the set predates it (${VOLUME_SINCE[${vol}]}); the next backup takes it"
+      else
+        red "${vol}: missing from $(basename "${d}")'s MANIFEST, and the set is not older than the volume"
+        failed=1
+      fi
+    done
+  fi
   [[ "$(manifest_field "${d}" mode)" == hot ]] && lenient=1
   info "verifying $(basename "${d}")"
   for vol in "${want[@]}"; do

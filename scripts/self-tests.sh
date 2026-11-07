@@ -31,6 +31,13 @@
 #   collect-guest-disk-state.sh  get-fsinfo from a guest agent, which is
 #                             hostile input (ADR-0070): a forged mountpoint, bad
 #                             sizes and a flood of filesystems can only be faked
+#   collect-guest-service-state.sh  docker inspect through a guest agent, also
+#                             hostile input (ADR-0088): a stopped service, a
+#                             hung agent and a guest that pads the right answer
+#                             cannot be staged on demand
+#   collect-wazuh-manager-state.sh  the Wazuh manager's state files and
+#                             agent_control JSON; a removed state file (both
+#                             say they will be deprecated) cannot be staged
 #   collect-gateway-state.sh  the gateway parse, for morpheus
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
@@ -48,6 +55,12 @@
 #                             tree. /dev/shm is a refusal FIXTURE here, not a
 #                             destination: a different filesystem that is still
 #                             this host's RAM, which is the #596 regression (#610)
+#   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
+#                             clone never shows the zero-commit scan that the
+#                             fixture for the worktree regression stages
+#   wazuh-certs-mint.sh       runs only inside the cert generator, on the rare day
+#                             the SOC's CA is minted; its refusal of an unpinned
+#                             tool can't wait for that day to be seen (#1008)
 #   collect_silences.py       `issue` is read only from a comment that BEGINS with
 #                             #NNN, and the fixture that fails otherwise is the
 #                             point (#575)
@@ -57,6 +70,18 @@
 #   check_close_keywords.py   the phrases that closed issues by accident are
 #                             history; a live PR shows only the one in front of
 #                             it, so each phrase is kept as a fixture (#672)
+#   converge.sh               every refusal that keeps a bad `main` off a host:
+#                             an unsigned tip, a wrong or revoked key, a dirty
+#                             tree, a non-fast-forward, red CI. None can be
+#                             staged on a deployment host, and each was tested
+#                             only by never having fired (#854)
+#   backup-volumes.sh         a real backup of a throwaway volume with real age:
+#                             the set opens with either recipient's key and not
+#                             a third's (#835), and the refusals refuse (#854)
+#   restore-volumes.sh        the path taken on the worst day: restored into a
+#                             second volume and compared byte for byte, the
+#                             safety net rolled back (#854). These two need
+#                             docker and age, so they SKIP where either is absent
 #
 # The list above is prose. What runs is DISCOVERED, because a hand-kept list is a
 # second copy of one fact and this repository has already paid for that: when
@@ -119,13 +144,18 @@ have() { command -v "$1" >/dev/null 2>&1; }
 # than the string is what keeps a usage line or a comment from being mistaken
 # for a suite — and a script that advertises the flag without handling it fails
 # below when it is run, which is the loud direction.
-SELF_TEST_DISPATCH='(== *"--self-test"|--self-test\)|add_argument\("--self-test"|"--self-test" in )'
+#
+# The argparse shape allows whitespace, newlines included, after the paren, and
+# grep -z reads each file as one record so that it can: ruff format puts a long
+# add_argument call's arguments on lines of their own, and the one-line pattern
+# this replaced lost gen_population.py's 15 fixtures without a word (#938).
+SELF_TEST_DISPATCH='(== *"--self-test"|--self-test\)|add_argument\([[:space:]]*"--self-test"|"--self-test" in )'
 
 suites=()
 while IFS= read -r f; do
   [[ "${f}" == "scripts/self-tests.sh" ]] && continue
   [[ -f "${f}" ]] || continue
-  grep -qE "${SELF_TEST_DISPATCH}" "${f}" 2>/dev/null && suites+=("${f}")
+  grep -qzE "${SELF_TEST_DISPATCH}" "${f}" 2>/dev/null && suites+=("${f}")
 done < <(git ls-files scripts 2>/dev/null || find scripts -type f)
 
 if ((LIST_ONLY)); then

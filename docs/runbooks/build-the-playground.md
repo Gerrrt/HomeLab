@@ -41,11 +41,14 @@ decision and on this runbook.
 | [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | **Armed and verified 2026-09-08**, and nothing here re-arms it. §8 and §9 assume it is already live | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
 | [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | **Decided: it stays** ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)), **and the hardening that decision named was done 2026-09-09** — IPMI-over-LAN, SSH and iLO Federation off, the BMC's credential shared with nothing in the house, its security log read for a baseline, and the redundant `10.0.30.10 → 10.0.99.20/udp` return-path rule deleted from `morpheus`. Read [`SECURITY.md`](../../SECURITY.md)'s row for it rather than doing it again | Before §5 puts a Kali VM in its broadcast domain, the BMC already in that domain has to be the hardened one. A decision taken afterwards is taken under a fact that is already true |
 
-So what remains ahead of §1 is the machine. `ifrit` is unpurchased, and
-nothing gates the purchase any longer: it is still the **last** purchase on the
-estate's list. ADR-0017 and #421 carry the spec to buy against — and, since
-2026-10-01, a priced shortlist — and nothing below this section can be started
-without the box.
+So what remains ahead of §1 is the machine. `ifrit` was bought on 2026-10-05,
+a refurbished ThinkCentre M80q, and arrived on 2026-10-14. It is not ready
+yet: ADR-0017 asks for 32 GB of socketed RAM and a flash disk, which
+[ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
+makes a SATA SSD in the Tiny's bay, and the parts chosen for that are still
+to fit. [`hardware.md`](../hardware.md) lists what
+is still to buy and fit, and #421 tracks the build. Nothing below this section
+can be started until they are in.
 
 You will also need a free Green access port on `neo` and an outlet on the PDU.
 `ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed
@@ -69,10 +72,30 @@ untagged VLAN 30. **No trunk, no tagged port** — ADR-0014 applies ADR-0007's
 constraint on `Saruman` to `ifrit` by name, and a VLAN-aware bridge here is
 listed as a reason to reopen that ADR.
 
-Install Proxmox VE. Take the defaults; the only thing worth deciding at install
-time is the filesystem, and there is one disk, so it is ext4 or a single-disk
-ZFS root. ZFS is worth it here for one reason: the range's whole operating model
-is snapshot and revert.
+Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
+([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)).
+At the installer's target-disk step pick the M.2 by name, which it shows as
+the `nvme` device, and leave the SATA drive unselected. ext4 is enough for a
+root disk that holds nothing the range churns; the snapshots happen on the
+other drive. Take the defaults otherwise.
+
+Then make the SATA SSD the guest storage, because the installer does not.
+From the node's shell, with the SSD's `by-id` name substituted:
+
+```bash
+ls -l /dev/disk/by-id/ | grep -i ata-
+zpool create -o ashift=12 range /dev/disk/by-id/ata-<the 1 TB SSD>
+pvesm add zfspool range --pool range --content images,rootdir --sparse 1
+pvesm status
+```
+
+**You should see** `range` active beside `local` and the M.2's own
+`local-lvm`. A single-disk pool with no redundancy is the point: ADR-0017
+said "not a mirror", and the range is maintained by nobody. From here on,
+**every template, the attack VM and every target gets its disk on `range`**:
+pick it in the *Storage* field when creating each VM, and §6's `clean`
+snapshot is then a ZFS snapshot on that pool. Nothing of the range goes on
+the M.2.
 
 Record what you actually bought in [`hardware.md`](../hardware.md) — the CPU,
 the memory kit and the disk capacity are chosen at the till and written down
@@ -369,6 +392,7 @@ has never fired is a rule nobody knows can.
 
 One VM, and it is the only guest with a leg on both bridges.
 
+- **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at
   this address, so it does not get a reservation.
 - **`net1` on `vmbr1`** — `172.30.30.10/24`, **no gateway**.
@@ -403,8 +427,9 @@ into the estate already need on `Saruman`.
 
 ## 6. The targets
 
-Each target attaches to **`vmbr1` and nothing else**, takes a static address
-from `172.30.30.100` upward, and has **no default route**. Every image insisting
+Each target attaches to **`vmbr1` and nothing else**, keeps its disk on
+**`range`** (§1), takes a static address from `172.30.30.100` upward, and has
+**no default route**. Every image insisting
 on DHCP gets a static override before its first boot on the bridge — ADR-0017
 declines to run a DHCP server here, because the obvious place to run one is the
 dual-homed VM, and a DHCP server that binds the wrong interface there is rogue
@@ -535,7 +560,7 @@ Addresses are parsed at query time rather than indexed, per
 | Everything on `vmbr1` can reach everything else and nothing outside | Working as designed | — |
 | `Saruman` stops appearing in Loki after §3 | The pass rule still names `.110` | §3, step 2 |
 | Kea hands `10.0.30.30` to something else | The reservation was not added | §2 |
-| The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §5 |
+| The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §7 |
 
 ---
 

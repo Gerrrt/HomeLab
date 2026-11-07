@@ -1,8 +1,8 @@
 ---
 # The two GPOs #414 built by hand that are not the SOC deploy ones
-# (build-the-lab-domain.md §5, §6). Each is reproduced from its live settings
-# file, exactly: the role writes nothing when the GPO already matches, so a run
-# against the hand-built domain is a no-op, and a fresh rebuild gets the same.
+# (build-the-lab-domain.md §5, §6), and the DCs' audit policy #1077 added. The
+# role writes nothing when a GPO already matches its definition here, so a
+# second run is a no-op, and a fresh rebuild gets the same.
 #
 # Deny Tier 0's privilege rights name the Tier 0 Admins group by SID. A rebuild
 # is a new forest with a new SID, so `__TIER0SID__` is a token the role fills
@@ -26,6 +26,12 @@ gpos_defs:
       [Privilege Rights]
       SeDenyInteractiveLogonRight = *__TIER0SID__
       SeDenyNetworkLogonRight = *__TIER0SID__
+  # #1077: the member servers' advanced audit policy. #414 built it with the
+  # File Share line alone, and an advanced policy replaces the basic one
+  # outright, so titan and ramuh audited file shares and NOTHING else: no
+  # logon (4624/4625) on the relay target. It now carries the Windows default
+  # set - the 12 subcategories carbuncle, with no audit GPO, runs (auditpol,
+  # 2026-10-08) - plus File Share.
   - name: Lab - Audit File Share
     rel_path: \Machine\Microsoft\Windows NT\Audit\audit.csv
     encoding: utf8
@@ -33,4 +39,48 @@ gpos_defs:
     links: [Servers]
     content: |
       Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclusion Setting,Setting Value
+      ,System,Audit System Integrity,{0cce9212-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Other System Events,{0cce9214-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Security State Change,{0cce9210-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Logon,{0cce9215-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Logoff,{0cce9216-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Account Lockout,{0cce9217-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Special Logon,{0cce921b-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Network Policy Server,{0cce9243-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Audit Policy Change,{0cce922f-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Authentication Policy Change,{0cce9230-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Security Group Management,{0cce9237-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit User Account Management,{0cce9235-69ae-11d9-bed3-505054503030},Success,,1
       ,System,Audit File Share,{0cce9224-69ae-11d9-bed3-505054503030},Success,,1
+  # #1077: the DCs' advanced audit policy. Nothing set one before, so the DCs ran
+  # the Default Domain Controllers Policy's basic categories, which mapped to the
+  # 17 subcategories below (auditpol on bahamut and leviathan, 2026-10-08). An
+  # advanced policy replaces the basic one outright, so this carries all 17 and
+  # adds Directory Service Changes (5136): without it a write to an object's
+  # attributes or ACL - an SPN, an RBCD trust, a replication grant - leaves no
+  # event. The audit SACL that says which writes to record is roles/ds_audit's.
+  - name: Lab - Audit Domain Controllers
+    rel_path: \Machine\Microsoft\Windows NT\Audit\audit.csv
+    encoding: utf8
+    cse: "[{35378EAC-683F-11D2-A89A-00C04FBBCFA2}{0F3F3735-573D-9804-99E4-AB2A69BA5FD4}][{F3CCC681-B74C-4060-9F26-CD84525DCA2A}{0F3F3735-573D-9804-99E4-AB2A69BA5FD4}]"
+    links: [Domain Controllers]
+    content: |
+      Machine Name,Policy Target,Subcategory,Subcategory GUID,Inclusion Setting,Exclusion Setting,Setting Value
+      ,System,Audit System Integrity,{0cce9212-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Other System Events,{0cce9214-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Security State Change,{0cce9210-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Logon,{0cce9215-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Logoff,{0cce9216-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Account Lockout,{0cce9217-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Special Logon,{0cce921b-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Network Policy Server,{0cce9243-69ae-11d9-bed3-505054503030},Success and Failure,,3
+      ,System,Audit Audit Policy Change,{0cce922f-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Authentication Policy Change,{0cce9230-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Security Group Management,{0cce9237-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit User Account Management,{0cce9235-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Computer Account Management,{0cce9236-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Directory Service Access,{0cce923b-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Directory Service Changes,{0cce923c-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Kerberos Service Ticket Operations,{0cce9240-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Kerberos Authentication Service,{0cce9242-69ae-11d9-bed3-505054503030},Success,,1
+      ,System,Audit Credential Validation,{0cce923f-69ae-11d9-bed3-505054503030},Success,,1

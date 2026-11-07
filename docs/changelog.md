@@ -39,7 +39,2388 @@ docstring gives: it is a record, not a claim about now.
   is a row in `successor-handover.md`, not an alert. The swap found:
   TODO(window).
 
+## 2026-10-28
+
+- **A ninth camera, the eighth's lease, and the Skids pool rows read with
+  them**
+  ([#1283](https://github.com/Gerrrt/HomeLab/pull/1283),
+  [#1284](https://github.com/Gerrrt/HomeLab/pull/1284)).
+  The 2026-10-26 entry below left `network.md`'s camera row at seven
+  addresses with a note that the eighth was missing. `morpheus`'s lease table
+  for Skids was read on 2026-10-27 and matched against Home Assistant's Ring
+  device registry, whose eight device ids carry the cameras' MAC prefixes:
+  the eight Ring leases were the eight devices, and the new camera's prefix
+  was one the row already listed. A third floodlight was connected on
+  2026-10-28 and a second read that day showed its lease, one more with a
+  prefix the row already had; `network.md`, `security.md`,
+  `enable-suricata.md` and the diagram said eight cameras and now say nine,
+  and the row is `camera-01…09`. Home Assistant had not reloaded the Ring
+  integration when this was written, so it still listed eight. The first
+  read also showed that all but two of the pool addresses in the table had
+  changed, the base station's with its re-enrolment of 2026-10-25, so the
+  alarm hub, the VTech monitors, the Litter-Robot, the white-noise machine
+  and four of the five Echos carry their new addresses. The fifth Echo held
+  no lease at either read, and the two VTech units, which share a prefix,
+  now share a row. One lease at each read was locally administered, matched
+  no row, and is not in the table. Nothing reserved moved.
+
+## 2026-10-26
+
+- **The Ring Alarm's sensors and keypads are paired, and ring-mqtt sees them**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
+  [#1283](https://github.com/Gerrrt/HomeLab/pull/1283)).
+  The 2026-10-22 entry below left every sensor and keypad `waiting-for-join`.
+  The base station was re-enrolled on 2026-10-25, both keypads joined it that
+  day, and the sensors joined on 2026-10-26 once they had fresh batteries.
+  - **ring-mqtt fell over when the hub went.** At 18:50 UTC on 2026-10-25
+    Ring listed no base station for the location, ring-mqtt exited on *"No
+    assets (alarm hubs or beam bridges) found"*, Docker restarted it, and its
+    next pass ended in *"No devices found"*. It then sat with nothing for a
+    day: it asks the hub for its device list once, when it connects at start,
+    and a broker reconnect or Home Assistant's birth message only republishes
+    what it already holds, so the birth message from Home Assistant's 04:30
+    restart could not have found the sensors either way.
+    `connect-the-ring-alarm.md` now says so.
+  - **The stale devices went first.** Home Assistant had kept the six devices
+    of 2026-10-22, *unavailable* since the crash and carrying no label or
+    area. They were deleted in its UI before the restart, so the new entities
+    took plain entity ids.
+  - **Fourteen devices in one pass.** The restart's discovery found the alarm
+    panel, the base station, two keypads, six contact sensors and four motion
+    sensors, every one at `commStatus: ok` and none waiting to join, and Home
+    Assistant made 79 entities of them. Two battery sensors carry a `_2`
+    suffix because a camera already held the name; the packages read labels,
+    not entity ids, so nothing minds. The range extender of 2026-10-22 was
+    not re-paired. Which sensor watches which door stays out of this file,
+    as the cameras' rooms do.
+  - **An eighth camera, through the core integration.** One camera was
+    reconnected and one added on 2026-10-25. Home Assistant's nightly restart
+    at 04:30 reloaded the Ring integration, which builds its device list once,
+    at setup, and it listed eight. `network.md`, `security.md`,
+    `enable-suricata.md` and the diagram said seven and now say eight. The
+    new camera's lease had not been read when this was written, so
+    `network.md`'s camera row still carries seven addresses and a note below
+    the table says the eighth is missing; the row itself gains a MAC prefix
+    one of the older cameras had all along. Which room the new camera covers
+    stays out.
+  - **ring-mqtt's memory with the alarm loaded.** 60 MiB two minutes after
+    the restart with fourteen devices, against its 256 MiB ceiling, beside
+    the 48 MiB idle figure in `compose.yaml`'s comment. The ceiling stands.
+
+## 2026-10-22
+
+- **The Ring Alarm integration is deployed in Home Assistant**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md),
+  [#1256](https://github.com/Gerrrt/HomeLab/pull/1256)). The entry on
+  moving Home Assistant's Ring entry, further down this date, left it "not
+  yet deployed"; this is that deployment.
+  - **Deployed.** `make up STACK=sensitive` started Mosquitto and ring-mqtt
+    and recreated Home Assistant on its second network. All 21 services
+    with a healthcheck passed; ring-mqtt has none, by design.
+  - **ring-mqtt is on its two networks only.** It is on `mqtt` and
+    `ring-egress`, not `sensitive`, which the review asked for.
+  - **Signed in by the runbook.** `connect-the-ring-alarm.md` signed
+    ring-mqtt in to the Ring location owner's account with 2FA, and Ring
+    rotated the token on the first connection, as ADR-0104 expects.
+  - **Home Assistant's MQTT integration loaded.** It signed in to the broker
+    as `homeassistant`.
+  - **The device list missed Home Assistant once.** ring-mqtt published it
+    three minutes before Home Assistant connected, and the broker keeps
+    nothing. ring-mqtt resent it 15 seconds after Home Assistant's birth
+    message, and the alarm's entities arrived. Which devices, and what
+    state they are in, stays out of this file, as camera coverage does
+    (`docs/security.md`).
+
+- **Memos holds its first real notes, ahead of the household copy's holder**
+  ([#145](https://github.com/Gerrrt/HomeLab/issues/145),
+  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md);
+  refs [#455](https://github.com/Gerrrt/HomeLab/issues/455)). The
+  household wanted one place for a plan the two of them had been keeping
+  in two assistants, and Memos is that place. ADR-0059 said nothing real
+  until ADR-0023's off-estate copy existed with its staleness visible, and
+  for Memos that copy is further off than for the rest of the tier: `make
+  household-copy` carries Immich's library and a Paperless export and
+  nothing else, so even once #455 has its holder, `memos-data` is not on
+  the drive. What Memos has is the nightly volume set on `oracle`, age
+  ciphertext, off-host and not off-estate. The operator accepted that on
+  the day, because the plan also lives in both assistants and Memos is not
+  its only copy; carrying `memos-data` in the household copy is now owed
+  under #455, and `roadmap.md`, `architecture.md` and the stack README say
+  so from this entry on. What changed on the instance,
+  all of it settings in the database and none of it in `compose.yaml`:
+  public access turned off, so a signed-out visitor on Hicks can no longer
+  browse *Public* memos (none existed); the content length limit raised
+  from 8192 to 32768 bytes for a long pinned memo; Mekenna's account made
+  an instance admin, because in Memos 0.31 only a memo's author or an
+  instance admin can edit it and the plan is meant to be edited by both; a
+  Space for the plan with both accounts as Space admins (0.31's
+  Spaces: a members-only feed, joined by accepting an invitation from the
+  inbox); and *Protected* as the default visibility on both accounts, since
+  a *Private* memo is invisible to the other account. Checked on `trinity`
+  without logging in: `/api/v1/instance/profile` returned
+  `"accessMode":"INSTANCE_ACCESS_MODE_PRIVATE"`, `GENERAL` still
+  `"disallowUserRegistration":true`, and `MEMO_RELATED`
+  `"contentLengthLimit":32768`. The stack README's *Memos* section is
+  unchanged: registration is still closed behind the first account, and the
+  backup still names the same three things.
+
+- **Home Assistant's Ring entry moved to the Ring location owner's account,
+  and the Ring Alarm got a way in**
+  ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
+  - **Why the account changed.** Turning the indoor cameras' motion detection
+    off for `presence.yaml` failed every time with "Error communicating with
+    Ring API". The entry was a shared user, and Ring does not let a shared
+    user change device settings.
+  - **The upgraded role was worse.** Upgrading that user's access in the Ring
+    app made Ring's API return zero locations and zero devices to it, even
+    after a fresh sign-in, so every Ring entity went unavailable.
+  - **Re-added as the owner.** All seven Ring devices came back, including
+    both floodlights and a garage camera Home Assistant had never seen.
+    Home Assistant restores removed entities by unique id, so the cameras'
+    labels survived, though the indoor cameras' entity ids gained a room
+    prefix. Motion detection then switched off as intended.
+  - **The alarm still could not come in that way.** The core integration's
+    library does not speak Ring's alarm websocket, so the base station's
+    sensors and keypads stayed invisible. Mosquitto and ring-mqtt are
+    written for that: two hardened services, with the broker on an internal
+    network of its own.
+  - **Not yet deployed.** The sign-in and the MQTT integration are
+    [`connect-the-ring-alarm.md`](runbooks/connect-the-ring-alarm.md), after
+    merge.
+
+- **Homepage is gone from `trinity`, and #1250 is closed**
+  ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). `make up` removed
+  Homepage and recreated Glance and Caddy, and 20 of 20 services were
+  healthy. `home.matrix.elysium/` answered 302 to `/household`, which read
+  458 photos, 22 videos and 0 documents, and `/tier-ca.crt` still served.
+  Deploying `trinity` first did not avoid a gap: `prometheus` kept probing
+  Homepage's old path until its converge timer pulled, and `SiteDown` for
+  `homepage` went pending without firing. Once pulled, `household-page` read
+  `probe_success` 1. The converge timers had been stopped before that by a
+  red `main`, caused by ghcr.io throttling a pull in the gosu-skip check.
+  That was re-run green, and #1253 adds a retry.
+
+- **Homepage is retired, and the household's page is Glance's**
+  ([ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)). The operator
+  asked whether Homepage was still needed once Glance had grown. Little was
+  left that it did alone: the household's directory and two read-only
+  numbers. It used 191 MiB to Glance's 31. A Household page in Glance now
+  carries both. It was rendered live on `trinity` with the two keys Homepage
+  used, renamed in SOPS and not reminted, and read 458 photos, 22 videos and
+  0 documents. `home.matrix.elysium` keeps its name and serves it. The
+  Homepage service, its config, its trust bundle and its copy of the reader
+  token are gone. Not deployed yet.
+
+- **Glance gets a page per subject**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1250](https://github.com/Gerrrt/HomeLab/issues/1250)).
+  Home had grown into everything at once, so it was cut back to search,
+  bookmarks, time, weather and the estate in brief. The rest moved to Read,
+  Watch, Sports & Markets, Homelab and Network & Storage. Maintenance is new:
+  27 scheduled jobs against their allowed age, the open `security` issues,
+  pending updates and reboots, certificates by days left, and releases, all
+  from metrics Prometheus already held and GitHub's public API. Rendered live
+  on `trinity` before it was written down, at 18 MiB. Its first reading showed
+  three jobs whose last run had failed: `converge-sensitive`, `snmp-verify`
+  and `check-versions`.
+
+- **ADR-0102 accepted: the VTech RM7764HD monitor comes into Home Assistant
+  by a bridge on Skids**
+  ([ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md),
+  [#1248](https://github.com/Gerrrt/HomeLab/issues/1248)). The camera has no local API, and VTech says so. The
+  community bridge for its app family decodes its TUTK stream on the LAN,
+  and needs an arm64 host on the camera's segment and a rooted phone once.
+  The decision is a Raspberry Pi, `heimdall`, at a reserved address, three
+  host-scoped rows from Winterfell, an authenticated restream read on
+  demand, and the key extraction as the gate: the Pi is not ordered until
+  the keys come out of the phone. The phone and the Pi entered *Everything
+  still to buy*.
+- **Presence automations** (`presence.yaml`). With a second person's phone
+  in the Companion app, `zone.home` counts both adults:
+  - Indoor cameras stop motion detection while anyone is home.
+  - Ten minutes after everyone leaves, the dimmable lights go off, the
+    thermostat goes to away and the TV goes off. A *House is empty* flag,
+    kept across restarts, records it. The sunset lights and the 19:00 show
+    time skip while it is on.
+  - The first one home brings back the thermostat's schedule and, after
+    dark, the shared rooms' lights. Both reconcile when Home Assistant
+    starts, so a restart mid-wait or an arrival while it was down still
+    ends right.
+
+  A *Someone else is home* switch covers a babysitter with the child. The
+  Honeywell away is a permanent hold at 61 °F by default, seven degrees
+  under the schedule. On a heat pump that recovery leans on backup heat, so
+  the away temperature is to be raised in the integration's options.
+
+## 2026-10-21
+
+- **The tier's root is a download.** A household phone with the Home
+  Assistant app installed could not sign in: the app refused the tier's
+  certificate, because the phone had never seen the tier's root and nothing
+  on the estate served it — section 6 of
+  [`build-the-tier-ca.md`](runbooks/build-the-tier-ca.md) said *distribute*
+  and left the how to the operator. Caddy now serves `certificates/tier-ca.pem`
+  at `https://home.matrix.elysium/tier-ca.crt`, the same file it already
+  mounted for its ACME client, public by design. The phone fetched it past the
+  browser's one-time warning, installed it as a CA certificate, and the app
+  signed in. The runbook and the stack README now say so.
+- **#1218 closes: the LG TV in Home Assistant**
+  ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)).
+  Every item is done:
+  - the reservation at `10.0.40.40`, with a static ARP entry;
+  - the three rules (`3001` passed, `3000` rejected, `9/udp` passed), probed
+    from `trinity`;
+  - the TV paired over TLS;
+  - the request-forgery condition checked;
+  - the wake built and shown working from standby;
+  - the CasaBonita tripwire at 0.
+
+  The last item, raising `socketPath` host validation upstream, is
+  home-assistant-libs/aiowebostv#759. It was opened by the household after
+  reading the project's AI policy. It keeps only the TV's path and connects
+  on the main connection's origin, and was tested with a stubbed connection.
+  ADR-0097's request-forgery residual stands until Home Assistant pins an
+  aiowebostv release with it.
+
+- **Evening routines, and a correction to Bedtime**
+  (`kid_bedtime.yaml`, `tv_room_evening.yaml`, `bedtime.yaml`). This corrects
+  the 2026-10-19 entry *"Home Assistant's first automations are packages in
+  git"*, which had `bedtime.yaml` starting the white-noise machine at the
+  adults' bedtime. That machine is in the child's room, and the adults' own
+  has no connection, so Bedtime no longer touches it. The child's routine now
+  runs it. From 19:00 the room's Hue sleep scene dims to 25% and the noise
+  rises from 30% to 80% with a green night light. At 19:45 the lights go out
+  and the night light turns red. The room is reached through UI labels,
+  because the repository does not name a child's room. The TV room's evening
+  is show time at 19:00 (TV on, Mood scene, Prime Video open) and a bedtime
+  nudge at 21:00 on the living-room Echo, not every Echo.
+
+- **Glance's probe is live, and #1223 is closed**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Prometheus did
+  not see the target at first, because the deployment checkout on
+  `prometheus` had not pulled #1242: the mounted `targets/blackbox.yaml`
+  still carried its 2026-10-07 mtime. Once it pulled, the file reloaded at
+  17:51 UTC, and `probe_success{name="glance"}` read 1 with HTTP 200 over the
+  verified tier chain. The roadmap entry leaves with this.
+
+- **The start page gets a blackbox probe**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). `glance` was
+  added beside `homepage` in `prometheus/targets/blackbox.yaml`, probing
+  `/api/healthz`. The probe could not be run from `prometheus` itself:
+  `trinity` has no route to the exporter's port and no SSH trust for the
+  host. So it was run on `trinity` with the same pinned exporter image, the
+  same `http_2xx_tier_ca` module, the tier CA, and the name resolved through
+  `morpheus`. It reported `probe_success 1`, status 200 and a verified chain,
+  the same as Homepage's probe on the same address and port, which
+  `prometheus` already probes.
+
+- **Ring's push receiver kept dying, and a local patch keeps it up**
+  ([ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md),
+  [#1240](https://github.com/Gerrrt/HomeLab/issues/1240)). After the first-batch
+  deploy, the log showed `KeyError: 'id'` from `ring_doorbell`'s push parser,
+  then "Shutting down push receiver due to 3 sequential errors", at 13:12 and
+  again seconds after the 14:09 restart (29 errors in 72 hours). Some Ring
+  pushes have had no `ding.id` since July. Upstream has open fixes and no
+  release since February. So no Ring motion or doorbell event was reaching
+  Home Assistant, and the new doorbell alerts could not fire.
+  `ring_push_guard` is the tier's first custom integration. It is ours, it is
+  read-only and gated to 0.9.14, and it applies the upstream PRs' id
+  fallbacks and skips what it cannot parse. Tested in the pinned image: the
+  original raised on an id-less push, and the patch passed three id-less
+  pushes and a malformed one through the real `_on_notification` without an
+  exception.
+
+- **Glance's Homelab page is deployed**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). After the merge,
+  `make up STACK=sensitive` reported all 21 services healthy, with each of
+  Glance's three config files matching what was mounted. The four lists
+  arrived in the container as JSON. Both pages answered 200 over the tier's
+  TLS, the icons were served from the container, and no widget showed an
+  error. Glance held 8 MiB under its 96 MiB ceiling. YouTube's feeds, which
+  had answered 404 earlier the same day, were serving again, and the
+  Homelab tab filled.
+
+- **A first batch of everyday automations** (`night_brightness.yaml`,
+  `doorbell.yaml`, `movie_mode.yaml`, `litter_robot.yaml`), picked from
+  CCOSTAN's and frenck's published configurations for the devices this house
+  has:
+  - **A late-night brightness cap.** From 20:00 to 06:00, a Hue light a
+    person turns on is held to 25%. It watches every Hue light, so no room is
+    named.
+  - **Doorbell alerts.** The phones, a pop-up on the TV, and the Echos
+    outside quiet hours. The doorbell is found through a label, because its
+    entity id names the door it covers.
+  - **Movie mode.** The TV room drops to its Mood scene when the TV comes on
+    after dark, and its lights are restored when the TV goes off.
+  - **The Litter-Robot.** Reminders with buttons when the drawer is full or
+    the litter low, and cat-health alerts: a weight drop against each cat's
+    own baseline, or no visit all day.
+
+  The templates were rendered with Home Assistant's own engine against fake
+  states before merge, because `check_config` does not render them.
+
+- **Glance grows a Homelab page**
+  ([ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). It was asked for
+  after comparing the first page with a fuller Glance page. Home gained
+  tickers, bookmarks, YouTube and Reddit tabs, NBA scores, trending
+  repositories and a host panel. Homelab is new: consoles by category,
+  uptime badges with 24-hour and 7-day figures, hosts, pools, per-VLAN
+  traffic, the UPS, the last speed test, Saruman's VMs and upstream releases.
+  Both pages were rendered against the live Prometheus on `trinity` before
+  they were written down. That run showed two findings that were already
+  true. Saruman had sent nothing since 2026-10-19, so the VM panel says so.
+  YouTube's feeds answered 404 to every URL form, which is
+  glanceapp/glance#910. The tickers, bookmarks, channels and subreddits went
+  into SOPS as one-line JSON. Icons are vendored, not fetched from a CDN.
+
+- **Glance is deployed at `start.matrix.elysium`**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). With the `start`
+  override on `morpheus` and both keys in SOPS, `make up STACK=sensitive`
+  created Glance and recreated Caddy for its alias, and all 21 services came
+  up healthy. The page answered 200 over the tier's TLS, Glance held 6.6 MiB,
+  and the twelve household checks were green. Its first Estate reading was 7
+  alerts firing, 23 of 23 probes up and 48 of 49 targets up. The alerts and
+  the one target down (`snmp` on `10.0.30.10`) were already firing before the
+  deploy. Following said the `glance` user follows nothing yet, which was
+  true.
+
+- **Glance's two keys are in SOPS**
+  ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). Miniflux's user
+  `glance` was created, not an administrator, with Fever on. Its key went
+  into `secrets/sensitive.sops.yaml` from Miniflux's own record of it, and
+  the reader token from Homepage's copy, neither printed. Fever answered
+  `auth: 1` to the key, and the reader proxy answered the token. Since #1224
+  merged on 2026-10-20, `make up STACK=sensitive` had needed these two keys
+  and would have stopped at render without them; nothing had been deployed
+  in between.
+
+- **The HomePod rows exist, with a NAT, and Home Assistant cannot add the
+  HomePods yet** ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)).
+  The three rows went in above *Block access to Skids*, and AirPlay answered
+  from `trinity`. Discovery did not: the rule passed the queries, and a
+  capture showed the HomePods never replied. They ignore mDNS from another
+  subnet. An outbound NAT on the Skids interface now sends `trinity`'s
+  traffic to them as `10.0.20.1`, and pyatv's scan finds all three
+  (`10.0.20.21` HomePod, `.22` and `.23` HomePod mini, Companion on `49153`).
+  Home Assistant's config flow still finds none. In its zeroconf mode pyatv
+  0.18.0 asks only for `_device-info._tcp`, the one service the HomePods do
+  not answer (postlund/pyatv#2929). The #223 tripwires read 0 on every
+  segment the same night.
+
+- **Three HomePods are reserved at `10.0.20.21`–`.23`**
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). The HomePods
+  had been removed from Apple Home on 2026-10-20, which resets a HomePod and
+  takes it off Wi-Fi. Three were set up again on Skids, and all three were on
+  their reservations by 03:25, read from the lease lines in Loki. The fourth
+  is not set up again yet, and `.24` is kept for it. ADR-0099's rows are
+  still to be created.
+
+- **The eeros have reserved addresses, and Home Assistant watches them**
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228),
+  `packages/eero.yaml`). All eight units held pool leases, and
+  `network.md`'s rows for them were stale. Kea reservations below each pool
+  went in on 2026-10-20. Hicks, Skids and Degens get `.11`–`.13`,
+  `.11`–`.13` and `.11`–`.12`, and every unit had moved by 00:05, read from
+  the lease lines in Loki. Each address was matched to its row by vendor
+  prefix, and the household named the floors that the prefix could not tell
+  apart. One sensor per unit reads its renewals in the last two hours from
+  Loki, and an alert fires when one stops. The alert script that the
+  thermostat and eero packages share is renamed `household_alert`.
+- **`network.md` uses the house's own floor names.** The house has a main
+  floor (kitchen, living and dining rooms, bedrooms, offices) and a basement
+  (media room, playroom). The tables said "Upper floor" for the main floor
+  and "Lower floor" for the basement, and both are corrected.
+
+## 2026-10-20
+
+- **The Roomba is driven through Alexa, not directly**
+  (`packages/roomba.yaml`). The household's Roomba 105 Combo is an x05
+  model, which the core `roomba` integration does not support: its
+  documentation says so, the robots refuse its local MQTT connection, and
+  home-assistant/core#148741 closed without a fix. So no firewall row was
+  opened. The robot was linked in Alexa through iRobot's skill, and three
+  scripts send the living-room Echo a text command
+  (`alexa_devices.send_text_command`). It is one-way and cloud-dependent,
+  and status stays in the iRobot app.
+
+- **Thermostat alerts, and no thermostat control**
+  (`packages/thermostat.yaml`). Read through Honeywell's API, the thermostat
+  runs its own schedule: auto mode, a scheduled 66 °F, and a temporary hold
+  at 67 °F ending at 22:00, when its next period begins. A setback from Home
+  Assistant would only become a temporary hold the next period overrides, and
+  a sudden jump would defeat the heat pump's gradual recovery. So the
+  schedule stays on the thermostat, and Home Assistant watches. It alerts on
+  the hallway under 60 °F or over 82 °F for half an hour, humidity under 25%
+  or over 65% for two hours, emergency heat switching on (reported, never
+  switched), and the thermostat unreachable for an hour. Review found two
+  gaps before it merged. A restart dropped pending alerts, so each condition
+  is a template binary sensor instead, re-evaluated at start. And the
+  integration marks the thermostat available whenever Honeywell's API
+  answers, never reading the device's `is_alive`. So the gateway is also
+  watched on the network: it renews its lease hourly, and two hours without
+  a renewal in Loki alerts. The RedLINK radio between gateway and thermostat
+  stays unwatched.
+
+- **The thermostat is in Home Assistant**, through Honeywell's cloud and
+  with no firewall rule. Its RedLINK internet gateway, a THM6000R, is
+  `appliance-03` on Skids, leased at `10.0.20.122` since 15:49 that day. The
+  core *Honeywell Total Connect Comfort (US)* integration brought a
+  `climate` entity, indoor and outdoor temperature and humidity, and an
+  emergency-heat switch. The switch means the system is a heat pump, and no
+  automation is to turn emergency heat on.
+
+- **The HomePods get a decision before they get a rule**
+  ([ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md),
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Read in pyatv
+  0.18.0, control runs from Home Assistant to the HomePod: unicast discovery
+  on `5353`, AirPlay on `7000`, and AirPlay 2 event and data channels on
+  ports the HomePod picks. Audio runs the other way. pyatv's stream opens
+  timing and control listeners on random ports on Home Assistant's side, and
+  the HomePod sends to them. So control is decided, with three outbound rows
+  to four reservations, and audio stays out. The HomeKit Bridge entries
+  created in the UI the night before are to be removed, because control
+  lives in Home Assistant.
+
+- **A *Get attention* button in Home Assistant** (`packages/attention.yaml`).
+  One press blinks one room's lights four times and has that room's Echo
+  announce a short message, so someone working there knows they are wanted.
+  The Echo stays quiet while it is on do not disturb, and the lights still
+  blink. The room is an owner's office, so the package targets two labels
+  set in the UI, `attention_lights` and `attention_speaker`, and the
+  repository never names the room. The blink is Hue's short flash, which
+  returns each light to the state it was in.
+
+## 2026-10-19
+
+- **Glance is authored as the operator's start page, beside Homepage**
+  ([ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md),
+  [#1223](https://github.com/Gerrrt/HomeLab/issues/1223)). It was asked for in
+  Homarr's shape and without Homarr's weight. Glance 0.8.7 was booted on
+  `trinity` under the compose options before the service was written:
+  read-only with no tmpfs, nothing written outside its mounts, CapEff 0,
+  13–14 MiB. Every household health path answered through Caddy, and
+  Prometheus and Miniflux each refused a placeholder key over verified TLS.
+  Miniflux's REST API turned out to be off by ADR-0057, so the feeds go
+  through a Fever key on a user of their own. The panel templates were
+  rendered against a mock Prometheus and Fever, and a `<script>` in a feed
+  title came out escaped. Trivy found four HIGH denial-of-service findings in
+  the image's Go runtime, all weighed in the ADR. Not deployed: the Miniflux
+  user, two SOPS keys and the `start` override come first.
+
+- **The TV wakes from Home Assistant**
+  ([#1221](https://github.com/Gerrrt/HomeLab/pull/1221),
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). The TV's MAC went
+  into SOPS, read from the TV through the paired webOS client and never
+  printed. `make up STACK=sensitive` deployed it with the first automations
+  from earlier in the day, and all 20 services came up healthy. The TV was
+  turned off with the remote and on again from Home Assistant, and a capture
+  showed one unicast magic packet per press. *Quick Start+* kept the TV's
+  network up throughout, so the static ARP entry was not needed for this
+  test, and a wake from deep standby is untested.
+
+- **The TV's rules exist, and the TV is paired**
+  ([#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). `mediatv` was
+  reserved at `10.0.40.40`, below CasaBonita's pool, and the three rules
+  ADR-0097 decided were created. From `trinity`, `3001` answered TLS 1.2 and
+  `3000` was refused at once. Before pairing, ADR-0097's condition was
+  checked from inside the Home Assistant container: an anonymous websocket
+  `GET` to every service it reaches changed nothing. Each API that can act
+  answered 401, 403 or 405, or redirected to a login, and the rest only read.
+  Home Assistant then paired with the OLED65CX, with every connection on
+  `3001`. The static ARP entry for the TV was added on `morpheus` the same
+  day. The wake from standby is still to build and prove.
+
+- **The LG TV gets a decision before it gets a rule**
+  ([ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md),
+  [#1218](https://github.com/Gerrrt/HomeLab/issues/1218)). LG ThinQ was ruled
+  out by reading the library the pinned image ships: `thinqconnect` 1.0.14
+  has no TV type. The LG webOS integration needs the TV on `3000` or `3001`.
+  Its library tries plaintext `3000` first and falls back to TLS only on a
+  refusal, so the rule passes `3001`, **rejects** `3000` and passes `9/udp`
+  for Wake-on-LAN. A static ARP entry on `morpheus` lets the unicast wake
+  reach a sleeping TV, and the TV's full MAC goes into SOPS rather than the
+  repository. Review found that the library also connects to whatever
+  input-socket URL the TV returns, a blind request forgery from `trinity`.
+  It is accepted on a condition #1218 checks before the rules are created,
+  that nothing reachable from `trinity` acts on an anonymous `GET`, and the
+  fix is to be raised upstream.
+
+- **Home Assistant's first automations are packages in git**
+  (`stacks/sensitive/home-assistant/packages/`). `lighting.yaml` turns the
+  shared rooms' Hue lights on before sunset and off at sunrise, and
+  `bedtime.yaml` adds a bedtime script with an optional timer set from the UI.
+  The entity registry showed Ring, Litter-Robot and Tuya already connected
+  through their config flows, so there was nothing to connect. A
+  UPS-on-battery alert sent to ntfy from Home Assistant would only repeat
+  `UpsOnBattery`, which already pages through Alertmanager. So
+  `homelab_rack.yaml` gains an on-battery sensor and a runtime-remaining
+  sensor for the dashboard, and no notification.
+
+## 2026-10-16
+
+- **A temperature probe for the UPS card and a switched PDU join the table**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The AP9641 card
+  has a sensor port and nothing measures rack ambient, so an APC AP9335T
+  probe is to buy; the existing SNMP job polls the card, and a generator
+  change follows. The 10-outlet strip gives way to a switched, SNMP-managed
+  PDU of the APC AP7900B class, because four hosts have no BMC and a hung
+  one needs someone at the rack today. Eight outlets suffice once the
+  screen's brick and the KVM move to the UPS's own outlets. The PDU is a
+  management-plane device: its segment and hardening are an ADR before it
+  is cabled, and the outlet map in `hardware.md` is redrawn then. Ten rows
+  become twelve.
+  - **Eight accessories join the same day**, one row each so each leaves as
+    it arrives: a serial console cable for the CRS326, labels for every
+    lead and port, a rack light, a bonding strap for the frame, a cable
+    tester for the in-wall runs, power-side cable management, levelling
+    feet if the floor needs them, and a tenkeyless keyboard that fits the
+    10.8" drawer. None gates the move; the runbook fits whichever have
+    arrived. Twelve rows become twenty.
+
+- **`mjolnir` gets 2U four-post rails, and two bought rows leave the table**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The rails the UPS
+  sits on now sag under it; `hardware.md` had already said it needs rear
+  support. A 2U four-post pair rated above its weight joins *Everything
+  still to buy*, Rack Solutions 2UKIT-109 named for its 10–31.75" range,
+  75 lb rating and 18-gauge steel, and the move runbook racks the UPS on
+  them and leaves the old rails out. The short patch leads in the VLAN
+  colours and the spare M6 cage nuts leave the table: the operator already
+  has both. Eleven rows become ten.
+
+- **`ifrit`'s range disk is a SATA SSD in the Tiny's bay, not an NVMe swap**
+  ([ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md),
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The move runbook had
+  the 1 TB drive replace the 256 GB M.2 because "there is nowhere to fit
+  both". Lenovo's PSREF sheet says otherwise: the first-generation M80q takes
+  a 2.5" SATA drive as well as one M.2. The operator chose SATA, so the
+  256 GB M.2 stays as the boot disk and the 1 TB SSD carries the guests.
+  ADR-0017's *Disk* row is superseded and carries the note; its premise,
+  flash over spindles, stands. The roadmap row becomes a 2.5" SATA SSD; the
+  bay's tray and cable are already in the chassis, checked the same day, so
+  no kit joins the table. The runbook's §1.3 fits the drive in the bay
+  instead of swapping the M.2.
+
+## 2026-10-15
+
+- **Both front-mounted trays wobble, so they get four-post support rails**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The keyboard
+  drawer at U24 and `ifrit`'s Tiny tray at U18 are mounted and move under
+  hand pressure with every ear screw tight. Both are front-only mounts: a
+  10.8" sliding tray with no rear support, whose reviewers tied its slider
+  rears to their cabinet, and a 6.6" hinged tray. Neither is a bad part; a
+  29" four-post frame gives their rears nothing to rest on. The operator
+  chose rails for both over a fourth vented shelf for the Tiny. Two pairs
+  of adjustable 1U four-post support rails join *Everything still to buy*,
+  ten rows to eleven, and the move runbook fits them before each tray and
+  fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
+  Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
+  cabling crossbar the drawer's slider rears can tie to. Both parts are now
+  footnoted in [`hardware.md`](hardware.md#planned-a-32u-rack).
+
+- **The KVM goes on a shelf, and the console and power maps are decided**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
+  CRS326, `ifrit`'s Tiny mount, `trinity`'s tray and the keyboard drawer are
+  mounted. The drawer and the Tiny mount leave *Everything still to buy* by
+  its rule, so twelve rows become ten. Both maps are in
+  [`hardware.md`](hardware.md#console-and-power-maps).
+  - **The KVM's ears leave a gap.** The MT-VIKI 801UK-L is sold as a half-U
+    device, so its ears take two adjacent holes of a unit's three. The holes
+    are not evenly spaced, so any two adjacent ones put the chassis about
+    8 mm off centre. No two-hole ear can centre it. It goes on a third 1U
+    vented shelf at U23 instead, which takes all three holes and needs no
+    drilling. Drilled full-height ears and a full-1U replacement KVM were
+    weighed and declined: a drill for the one, a new switch and eight cable
+    sets for a cosmetic offset for the other.
+  - **KVM ports count in the power-up order** of the move runbook's §7,
+    since the switch selects port 1 at power-on and `morpheus` is the first
+    host brought up from the console: `morpheus`, `trinity`, `Saruman`,
+    `smaug` if its rear VGA is used, then `ifrit`. `smaug` is new to the
+    list: racked, it loses the monitor beside it.
+  - **PDU outlets follow the rack from the bottom up**, the external bricks
+    together at the far end where they only block each other. The number is
+    a label only; the rule is that a cord's outlet tells you its device. Both
+    laptops' chargers go on the UPS's own outlets beside the TP-Link, which
+    keeps the map the same whether the DL360 has one supply or two. One
+    check joins the runbook: which UPS outlet group feeds the PDU, and
+    whether that group's switching settings fit ADR-0049 and the power-up
+    order. No document records the groups.
+  - The switch's ports are not reordered: the captured map stands.
+
+## 2026-10-14
+
+- **`ifrit` arrived, and a VGA card for it was ordered**
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Its rear has DP
+  and HDMI only, and the KVM is VGA, so Lenovo FRU `01AJ935`, a VGA card for
+  optional port 1, replaces the DisplayPort card in that slot. It is recorded
+  in `hardware.md` beside the RAM and NVMe still to buy.
+
+## 2026-10-13
+
+- **The rack move's parts, `ifrit`'s upgrades and `Saruman`'s memory are on
+  the buy list** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The
+  roadmap's *Everything still to buy* had been empty since 2026-09-25.
+  The 32U move's parts had been listed only in its runbook. #1179 added
+  `smaug`'s shelf there too, against the roadmap's rule that a planned
+  purchase goes in the table. Its rack, `Saruman` and cable rows join
+  `ifrit`'s two, twelve in all. The VESA mount, `trinity`'s tray and the
+  velcro are on hand.
+  - **`Saruman` gets eight more 16 GB RDIMMs, for headroom** (the operator,
+    today). Its iLO, read today, shows eight 16 GB DDR4 RDIMMs, dual-rank,
+    rated 2400 and third-party, one per channel in slots 1, 4, 9 and 12 of
+    each CPU. Eight more fill every channel's second slot alike, for 256 GB.
+    They go in during the move window, while the DL360 is out of the rack.
+  - **The XB7-to-`morpheus` factory cable is its own row, needed now.**
+    [#923](https://github.com/Gerrrt/HomeLab/issues/923) says that cable
+    should not wait for the rack move, so it is separate from the pack of
+    short leads the move needs.
+
+## 2026-10-12
+
+- **The screen fits 8U, and the plan's open questions are closed** ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).
+  The N1700W's bare panel measures 13" (about 330 mm) tall, under the 8U
+  mount's 355.6 mm. It stays at U25–U32, and the 9U fallback in the entry
+  below, which would have moved U17–U24 and re-racked the CRS326, is not
+  needed. The entry's other open items are closed the same day: the KVM's
+  lead sets reach the DL360 at U3, `trinity`'s USB photo disk goes on
+  `trinity`'s own tray, and the rails need no reading beyond fitting at
+  29" (the DL360's and the TP-Link's already do; a new shelf's listing must
+  say it fits).
+
+- **The 32U rack is built, at 29", and laid out again**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The frame was
+  assembled on 2026-10-11 and is set to 29" post to post, the old 9U frame's
+  depth, measured today. No document had recorded a depth until now: the
+  runbook only said to copy the old one. The frame wobbled at first because
+  its screws were not yet tightened; depth had nothing to do with it.
+  - **What changed in the plan.** The console moves to the very top
+    (screen U25–U32, keyboard drawer U24, KVM U23), which puts the keyboard
+    at about 112 cm rather than 90 cm. `smaug` comes into the rack on its
+    side at U5–U9, which retires its long cord to the media room. The spare
+    units become single gaps: one over each closed-lid laptop, and one
+    between `trinity` and `ifrit`. 29 of 32 units are used, with no headroom
+    left.
+  - **What was measured.** The TS150 is 15" × 7" × 17" upright and about
+    20 lb with its drives. On its side it is 7" tall, exactly 4U, so with a
+    shelf it takes 5U. The house's in-wall runs reach the patch panel at
+    U19.
+  - **What is done.** The CRS326 was racked at U21 today, unpowered and
+    uncabled. Its cabling stays in the move window.
+  - **Still open.** The screen panel's height: over 355 mm and U17–U24 each
+    drop one unit. The adjustment range of every four-post rail and shelf
+    against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
+    sets reach the DL360 20 units below. The plan is in
+    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+
+## 2026-10-11
+
+- **The SOC's CA is minted offline, by a cert tool pinned by its sha256**
+  ([ADR-0094](adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md),
+  [#1008](https://github.com/Gerrrt/HomeLab/issues/1008)).
+  - **What was found.** The `wazuh-certs-generator` image's entrypoint
+    downloaded `wazuh-certs-tool.sh` with no checksum, fell back silently to
+    Wazuh's dev bucket, and sourced it as root over the certificate directory.
+    The file at that URL changes in place (last modified 2026-09-23).
+  - **The fix.** The tool is vendored byte for byte in
+    `stacks/soc/wazuh/certs-tool/`, with its GPLv2 text, by
+    `scripts/vendor-wazuh-certs-tool.sh`. `scripts/wazuh-certs-mint.sh` is the
+    `certs` profile's entrypoint in `soc` and `scratch`. It refuses unless the
+    sha256 matches `VENDORED`, and runs with `network_mode: none`.
+    `CERT_TOOL_VERSION` is gone. `validate.sh` checks the pin on every run.
+  - **Proved** on the real service definition, writing to a scratch directory:
+    the pinned tool minted the same 12 files, modes and owners as the image's
+    own entrypoint, and every leaf verifies against the new CA. A tool with
+    one byte added was refused, with nothing written. Inside the container,
+    `curl` could not resolve Wazuh, and only `lo` exists.
+  - **Nothing on `odin` changes** until the next mint. The certificates there
+    stay valid; this changes how the next ones are made.
+
+- **The gosu skip becomes a rule, and Immich's Postgres falls under it**
+  ([#980](https://github.com/Gerrrt/HomeLab/issues/980), following
+  [#995](https://github.com/Gerrrt/HomeLab/issues/995)).
+  - **The rule.** [`scripts/gosu-skip.txt`](../scripts/gosu-skip.txt) lists
+    the repositories whose `/usr/local/bin/gosu` the scan skips. An entry
+    must meet two conditions: the image runs gosu only when started as root,
+    and every service runs it as `999:999`. `scan-images.sh` and
+    `check_compose_health.py` both read it, where each had matched
+    `postgres:*` on its own.
+  - **Both halves checked.**
+    - `check_compose_health.py` holds every service of a listed repository
+      to `999:999`.
+    - The new `check_gosu_skip.sh` boots each pinned image of one as
+      `999:999` with a stand-in gosu that leaves a marker: a first start on a
+      scratch volume, then a restart against the cluster it made. Both must
+      come up with no marker. A root-started control must leave it.
+    - It runs in CI and in `validate.sh`. Run with the service-user boot
+      swapped for root, it fails on all three images and names the gosu
+      command line.
+  - **Why Immich qualifies.** `immich-docker-entrypoint.sh` sets up its config
+    and execs the official `docker-entrypoint.sh` unchanged. Both gosu calls
+    keep the `id -u = 0` gate, uid 999 is `postgres` inside it, and
+    `immich-db` already runs as `999:999`.
+  - **Checked.** The pinned trivy on
+    `ghcr.io/immich-app/postgres:17-vectorchord0.4.3`: 20 critical and 122
+    high without the skip, 16 and 67 with it. That is exactly the 59 gosu
+    rows, four of them critical. The other 16 criticals stay. #980's own
+    trace has them unreachable, and the issue stays open on them.
+
+## 2026-10-10
+
+- **`garuda` is enrolled in `odin`'s Wazuh and Velociraptor**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
+  [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11). It is the first Linux guest in either.
+  - **Wazuh.** Agent 4.14.8, enrolled as agent 009, Active. The password went
+    in on standard input, and its hash matched `odin`'s.
+  - **Velociraptor.** Client 0.77.3, from a `.deb` the server built. It is
+    connected, and the server counts 7 client connections.
+  - **The lab.** `WazuhAgentsNotConnected` now expects `garuda` and is
+    quiet.
+
+- **OpenVAS is set up on `garuda`, and its fence is proved**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 3,
+  [ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md),
+  [`scan-the-lab-with-openvas.md`](runbooks/scan-the-lab-with-openvas.md) §7).
+  - **Setup.** Kali's `gvm` packages, every unit disabled at boot. The feed
+    import took over an hour after `gvm-setup`.
+  - **The fence.** The scanner runs in its own network namespace, `gvmscan`,
+    whose only route to the segment is a macvlan, `scan0` at `10.0.30.63`,
+    behind an nftables `netdev` egress filter. It drops every frame — IP, ARP
+    and raw — to anything but the six, so NASL's `send_frame`/ARP paths are
+    caught, which an IP-only cgroup fence (the first try) could not. No second
+    NIC and no host forwarding; a veth carries only MQTT to the host broker.
+  - **The proof.** From the namespace: `arping` and TCP/ICMP to out-of-scope
+    `10.0.30.40` dropped, the in-scope `10.0.30.50:445` connected, the drop
+    counter rising. A review drove the move from the cgroup form; a veth-NAT
+    form was set aside because garuda's Docker drops forwarding.
+
+- **`WazuhIngestionStalled` could not see a dead filebeat, so
+  `WazuhAlertsNotIndexed` now does**
+  ([#1011](https://github.com/Gerrrt/HomeLab/issues/1011)).
+  - **The gap.** The rule sums index calls across every index. The pinned
+    dashboard bulk-writes `wazuh-monitoring` every 900 s and
+    `wazuh-statistics` every 5 minutes (the plugin's defaults, read from the
+    4.14.8 image), and the manager writes vulnerability state through its own
+    indexer connector. With filebeat dead, alerts stop reaching the indexer
+    and the sum never reaches zero. The SOC runbook's §10 check had the same
+    blind spot.
+  - **The fix.** The manager-state collector exports analysisd's
+    `alerts_written`, and `opensearch.alloy` turns on per-index stats but
+    keeps only the indexing counter for `wazuh-alerts-*`. The new rule fires
+    when alerts were written and none indexed. A quiet SIEM writes no alerts,
+    so it stays quiet. A missing alerts-index series also fires, so the rule
+    can't go blind.
+  - **Proved.** promtool covers the gap, a quiet SIEM, healthy traffic, the
+    midnight index rollover and a missing series. The relabel ran in the
+    pinned Alloy against fixture series: it kept exactly the alerts-index
+    counters and the node and cluster series. Who writes what was read from
+    the images' code; the lab was not reachable to watch it live.
+  - **Not deployed yet.** The collector and Alloy run on `odin`, the rules on
+    `alexander`, both on VLAN 30.
+
+- **`garuda` enrols in `odin`'s Wazuh and Velociraptor: authored**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921) phase 2,
+  [ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
+  It is the first Linux guest in either.
+  - **Packages.** Two Debian packages, staged on `odin` beside the six's MSIs
+    and served on `8448`, which now also answers `.62`:
+    - the Wazuh agent 4.14.8, pinned in `stacks/soc/linux-agents.yaml`. Its
+      hash agrees with Wazuh's apt index, which is covered by a good
+      signature on `InRelease`;
+    - a Velociraptor 0.77.3 client `.deb`, built by the server with its
+      config inside. A trial build in the server container succeeded.
+  - **Alerting.** `WazuhAgentsNotConnected` expects garuda's agent while
+    garuda's Alloy is up, with three new promtool cases.
+  - **Install.** Garuda's runbook §12 has the steps. The enrolment password
+    goes in on standard input only.
+
+- **`make validate` had passed the history secret scan in every worktree
+  without reading a commit.** gitleaks is not installed on the monitoring
+  host, so `validate.sh` ran it in docker with only the checkout mounted. A
+  worktree's `.git` names a directory outside that mount. gitleaks then exits 0
+  with "0 commits scanned" and "no leaks found", and validate printed PASS.
+  The docker fallback now mounts the common git directory too. The scan moved
+  into `scripts/gitleaks-history.sh`, which CI's *Secret scan* job also calls.
+  It fails a scan of zero commits. CI's full clone was never affected: its
+  last run on `main` scanned 944 commits. This was found while triaging the
+  gitleaks image's CVEs
+  ([#1013](https://github.com/Gerrrt/HomeLab/issues/1013)).
+
+- **A bigger clone of a Debian-installer template now grows its `/`**
+  ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
+  - **The fault.** Both preseeds used partman's `atomic` recipe, which puts
+    swap after `/`. A clone given a larger disk than its template kept `/` at
+    the template's size: `garuda` got 59.7 GB of 80.
+  - **The fix.** An expert recipe: the ESP, then `/` to the end of the disk,
+    and no swap partition. It is in `packer/kali/preseed.cfg.pkrtpl` (910, and
+    902 when `ifrit` builds it) and `packer/debian/preseed.cfg.pkrtpl` (903).
+  - **Proved.**
+    - 910 and 903 were rebuilt with `-force`, in 25m58s and 8m20s, and both
+      passed `packer-smoke.sh`.
+    - A clone of each with 16 GB added came up with `/` last and grown, no
+      swap, and cloud-init `done`:
+      - 910 at 80 GB: `/` 79 GB.
+      - 903 at 48 GB: `/` 47 GB.
+  - **Existing clones keep their layout.** `garuda` was already fixed in place;
+    `dot-debian` is the template's own size, so there is nothing to grow.
+
+- **Kali clones come up with cloud-init again**
+  ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **The fault.** On a clone's first boot, cloud-init's generator could be
+    cut off before it enabled `cloud-init.target`, so the guest got no user,
+    no key and kept the template's hostname. It happened on 2 of 7 first
+    boots of template 910: `garuda`, and one of four reproduction clones.
+    On `garuda`'s first boot sslh's generator (from `kali-linux-headless`)
+    aborted beside it, and did not on its second boot.
+  - **The fix.** `packer/kali.pkr.hcl` links `cloud-init.target` into
+    `multi-user.target`, so cloud-init no longer depends on its generator. It
+    also masks sslh's generator, keeping the package.
+  - **Proved.** 910 was rebuilt with the fix, and 12 of 12 first boots of
+    disposable clones ran cloud-init. On the last 4, checked properly, sslh's
+    generator no longer aborts. An earlier version of the check matched its
+    own command in the journal, so it counted an abort on every boot; the
+    baseline's sslh figures were void, its cloud-init ones were not.
+
+- **The domain's six had fallen out of `golem-nightly`, and were put back.**
+  - **What was found.** The job selected only `odin` (160). Each tofu destroy
+    of a domain guest had used the provider's default purge, which removes
+    the VMID from every backup job. That covered the #448 rebuild and the
+    endpoints' `-replace` (#1092). Nothing said so.
+  - **The fix.** The six are back in the job, beside `odin` and `garuda`.
+    The guest module now sets `purge_on_destroy = false`.
+  - **The check.**
+    - Guests golem must hold carry the Proxmox tag `backup`.
+    - `collect-guest-state.sh` exports `homelab_guest_backup_expected` and
+      `homelab_guest_backup_selected`, the second read from
+      `/etc/pve/jobs.cfg`.
+    - `GuestNotInBackupJob` fires after an hour.
+
+- **The CVE scan skips one file: gosu in `postgres`**
+  ([#995](https://github.com/Gerrrt/HomeLab/issues/995)). This reverses the
+  same day's decision on #995 to keep the issue open with no ignore entry.
+  - **What it skips.** `scripts/scan-images.sh` passes
+    `--skip-files usr/local/bin/gosu` for `postgres:*` references only. gosu in
+    any other image is still reported.
+  - **Why.** All 25 rows in both pins were Go stdlib in gosu. Upstream won't
+    release for scanner-only CVEs, and gosu never runs here: every Postgres
+    service starts as `999:999`.
+  - **Guarded.** `check_compose_health.py` fails any `postgres:*` service
+    that doesn't start as `999:999`, because the skip is honest only while
+    gosu can't run.
+  - **Checked.** The pinned trivy on `postgres:18.6`: 25 findings without the
+    skip, 0 with it. The next scan closes #995.
+
+- **The Docker socket proxies stop serving `archive`, `export`, `top` and
+  `changes`**
+  ([Tecnativa/docker-socket-proxy#182](https://github.com/Tecnativa/docker-socket-proxy/issues/182)).
+  - **What was open:** with `CONTAINERS=1`, the image's template allows the
+    whole `/containers` prefix. On `prometheus` all four GETs answered 200
+    through the estate's proxy, served by the daemon as root. A HEAD on
+    `archive` was enough to show that: it returns a stat header and no file.
+  - **What the clients use,** from the proxy's request log since its 10-07
+    start: `/containers/json`, `/containers/{id}/json`,
+    `/containers/{id}/logs`, `/networks`, `/version`, `/info`, `/_ping` and
+    `/events`. Nothing else.
+  - **The fix:** the six compose proxies and `deploy-agent.sh`'s
+    `alloy-socket-proxy` run
+    [`stacks/observability/docker-socket-proxy/haproxy.cfg`](../stacks/observability/docker-socket-proxy/haproxy.cfg).
+    It is upstream's v0.5.0 template with the prefix rule replaced by those
+    three paths. The image pin is unchanged.
+  - **The proof:** `check_socket_proxy.sh` runs it in CI. On upstream's
+    template the same check fails: every refused path reaches the daemon,
+    `export` streams 43 MB, and `%2Farchive` and `json/../archive` get there
+    too, because the daemon decodes and redirects.
+  - **Deploying it:** `make up` on each Docker host, and `deploy-agent.sh` for
+    `oracle` and `trinity`. `reload-config.sh` now restarts the proxy, so a
+    later change to `haproxy.cfg` alone also lands.
+
+- **`garuda` reports to the lab, is backed up, and passed §9 apart from its
+  desktop check, which was not run**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11).
+  - **Its ingest token** was set on `alexander` and `garuda` from stdin, so
+    it never appeared as an argument
+    ([#1144](https://github.com/Gerrrt/HomeLab/pull/1144)).
+  - **`stacks/analyst` is up.**
+  - **patch-state** reports 0 pending.
+  - **Backup:** `162` is in `golem-nightly`, and a test backup took 9m03s.
+  - **§9:**
+    - the estate sees it running and not `on-demand`;
+    - the lab Prometheus and Loki both have it;
+    - only Alloy and its proxy run;
+    - `core doctor` exits 0;
+    - a reboot brings all of this back unaided.
+  - **What is left:** the desktop check from Hicks and the console password
+    are Garrett's. Then phases 2 and 3.
+
+- **`garuda` was built, as far as its desktop and dotfiles**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)
+  §11). This corrects the "written, not built" entry below.
+  - **Template 910** was built twice and passed `packer-smoke.sh` both times.
+  - **The guest** came from a targeted apply: 2 added, 0 changed, 0
+    destroyed. It is VMID 162 at `10.0.30.62`.
+  - **Its first boot ran no cloud-init**, so there was no user; a reboot fixed
+    it ([#1127](https://github.com/Gerrrt/HomeLab/issues/1127)).
+  - **`/` is 59.7 GB of 80** ([#1128](https://github.com/Gerrrt/HomeLab/issues/1128)).
+  - **Purple's desktop and tools** are in, with Suricata's daemon disabled.
+    Kali's `zeek` package cannot be installed (`libc6 (< 2.38)`), so it is
+    left out.
+  - **dotfiles:** `dotfiles-Debian` v0.1.59, then `dotfiles-Defense` v1.0.132.
+    Both bootstraps exited 0, and `core doctor` exited 0 with nothing expected
+    missing. Defense's probe lists seven optional forensics tools as missing,
+    Zeek among them.
+  - **Not yet done:** the lab ingest token and `stacks/analyst`, the backup
+    job, patch-state, the console password, and the Wazuh/Velociraptor and
+    OpenVAS phases.
+
+- **`garuda` was written, not built**
+  ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
+  [ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
+  It is Defense's analyst workstation, Kali Purple without its SOC, and the
+  home of `dotfiles-Defense`.
+  - **Template 910,** `tpl-kali-saruman`: a second source in
+    `packer/kali.pkr.hcl`, so that 902 stays `ifrit`'s. 902's build line is
+    now `-only='kali.proxmox-iso.kali'`, since `kali.*` would build both.
+  - **The guest,** VMID 162 at `10.0.30.62`, in `tofu/guests.tf`'s new
+    `analyst` pool. It is always on, not `on-demand`, and not a domain member.
+  - **`stacks/analyst`:** Alloy and its socket proxy, nothing else, with a
+    Dependabot entry from the first commit.
+  - **The runbook,**
+    [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md).
+    It covers Purple's tools with the sensor daemons off, and Defense on
+    `dotfiles-Debian` at release tags.
+  - **Left for the build:** the lab token `INGEST_TOKEN_GARUDA`, and
+    `garuda`'s key in the `analyst` sops rule, which is a placeholder until
+    then. They need `alexander` and `garuda` themselves, as `eden`'s did.
+  - **The network diagram** has `garuda` as a planned card at `.62`.
+
+- **`carbuncle` and `siren` were re-cloned from the rebuilt 911**
+  ([#1092](https://github.com/Gerrrt/HomeLab/issues/1092)'s fix), so the two
+  endpoints no longer park at OOBE's account page.
+  - **Before.** Both were backed up to `golem` in stop mode.
+  - **The rebuild.** `tofu -replace`, targeted at the two. Their old Wazuh
+    agents were removed and the host keys re-pinned. Every
+    `lab-domain.yml` tag then ran with `--limit carbuncle,siren`, and a final
+    pass reported `changed=0`.
+  - **Checks.** `verify.yml` passes on all six. It read `0x41303` until
+    `Lab-AuthGenerator`'s first 15-minute run. Wazuh and Velociraptor
+    re-enrolled both, and `up{job="windows"}` is 1 for all six.
+  - **Activation.** The pinned SMBIOS UUID did **not** carry it, contrary
+    to `build-the-lab-domain.md`. Both came up on the generic Pro key, and
+    activation returned `0x803F7001`. The two retail keys were installed
+    through the guest agent, and both now read *permanently activated*:
+    `…DGPKG` on `carbuncle`, `…4GDGT` on `siren`. The runbook now says so.
+  - **The keys reached the SOC's logs.** They were installed with
+    `slmgr /ipk <key>`, so Sysmon recorded each full key in a process
+    command line on its endpoint, and Wazuh raised alerts on `odin` that
+    carry them. Step 9 now passes the key on the guest agent's stdin to
+    Windows' licensing API, so no command line holds it. That was tested on
+    `carbuncle`.
+
+## 2026-10-09
+
+- **AdGuard blocks malware and phishing domains as well as ads**
+  ([#135](https://github.com/Gerrrt/HomeLab/issues/135)).
+  - **What changed.** HaGeZi's Threat Intelligence Feeds (registry
+    `filter_44`, 1.56M rules) is the third blocklist. It stands in for Safe
+    Browsing, which stays off because it looks names up remotely at
+    AdGuard's service (a hash prefix for each name not in its cache). No
+    more ad lists were added; OISD Big already covers that.
+  - **Memory.** Measured on the pinned image as cgroup `memory.peak`: a fresh
+    boot loading all three lists peaked at ~440 MiB (154 MiB with two); a
+    boot on day-old lists followed by the refresh replacing all three, which
+    is the daily refresh, peaked at 772 MiB. Production ran ~53 MiB above a
+    fresh boot with two lists, so ~830 MiB is the expected worst case.
+    `mem_limit` is now 1536m. The first draft of this change said 1g, sized
+    from the fresh-boot figure alone; review caught it before merge.
+  - **Left off on purpose.** Blocked services and safe search. Every query
+    reaches AdGuard from `morpheus`, so either would apply to the whole house;
+    `AdGuardHome.yaml` now says so in place of leaving them unexplained.
+  - The upstream comment no longer says Unbound keeps Cloudflare and Google
+    beside AdGuard; ADR-0055 removed them.
+
+- **`dot-windows` takes Remote Desktop from the Hicks workstations**
+  ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108), ADR-0090 NOTE).
+  - **Why.** noVNC is slow to every guest on `Saruman`. RDP is faster, and
+    it is an interactive sign-in the layer can be run over.
+  - **Who it admits.** Network Level Authentication is required, and the
+    guest's firewall admits 3389 from `10.0.50.80`, `.90` and `.102` only.
+    `Saruman` itself is refused.
+  - **Verified.** RDP from the Mac reached the desktop.
+  - **The exception.** It is the one lab Windows guest with anything but
+    key-only SSH.
+  - **Also in the bake.** GlazeWM, the run's one UAC prompt, so a run should
+    now ask for nothing.
+
+- **The Windows dotfiles layer passed its first complete run on
+  `dot-windows`** ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)).
+  - **Result.** `dotfiles-doctor` at the console reads 28 ok, 1 warn (a
+    placeholder git identity) and 0 fail.
+  - **One workaround.** This needed one upstream bug worked around by hand
+    ([dotgibson/dotfiles-Windows#286](https://github.com/dotgibson/dotfiles-Windows/issues/286)):
+    the PSReadLine 2.3.6 pin is older than pwsh 7.6's in-box 2.4.5.
+  - **Another finding.** It turned up a harmless cache race
+    ([#287](https://github.com/dotgibson/dotfiles-Windows/issues/287)).
+  - **UAC.** The baked prerequisites asked for nothing. Only GlazeWM, from
+    the optional desktop group, asked.
+  - **Test bed's limits, not the layer's.** WSL cannot start without
+    virtualization in the guest. noVNC is slow to every guest on `Saruman`.
+
+- **Windows clones no longer keep the build password in plaintext**
+  ([#1099](https://github.com/Gerrrt/HomeLab/issues/1099)). Not yet applied
+  to the running guests.
+  - **What was there.** All seven running Windows guests (the six domain
+    guests and dot-windows) had `C:\Windows\Panther\unattend-original.xml`,
+    readable by `BUILTIN\Users`. It held two password elements, both
+    `<PlainText>true</PlainText>`: the build's Administrator and AutoLogon.
+    The check counted elements and printed no value. `Panther\unattend.xml`
+    beside it has its password scrubbed by Setup.
+  - **Where it came from.** It was created during the template build, half an
+    hour before each clone's first boot, so it was baked into 911 and 912 and
+    inherited by every clone.
+  - **The fix, in three places:**
+    - the sysprep task deletes it as its last step before generalising, so a
+      rebuilt template no longer carries it;
+    - on each clone's first boot, #1103's `SetupComplete.cmd` deletes it and
+      `unattend.xml`, and refuses to start the guest agent if either survives;
+    - `roles/base` removes it and `unattend-oobe.xml`, which also carries the
+      build password, on every run, and `verify.yml` holds every guest to
+      having neither.
+  - **Checked on carbuncle without touching Panther.** PowerShell's own parser
+    reads `sysprep.ps1` with 0 errors, and `verify.yml`'s new check evaluates
+    True there.
+  - **The running guests were cleaned the same day.** The file was deleted
+    through the guest agent on all seven, and confirmed gone on each. 911 and
+    912 lose it at their next rebuild.
+
+- **`dot-windows`'s slowness was its display and its first sign-in, not
+  Saruman** ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)).
+  - **The display.** It ran on the Basic Display Adapter, because Proxmox's
+    default VGA has no Windows driver, so every frame was drawn on the CPU.
+    The guest module now takes a `vga` input, and `dot-windows` uses VirtIO
+    GPU. Its driver was already in the template.
+  - **The first sign-in.** `tester`'s first sign-in ran the CPU at 30–100%
+    for 3½–7½ minutes (OneDrive setup, Defender, search indexing). It is now
+    done once before `clean`, so a sign-in from `clean` settles in about 2
+    minutes.
+  - **Not the cause:** Saruman's load, the disk, memory, VBS and Defender
+    scans.
+
+- **`dot-windows` now starts a run with the layer's prerequisites in place**
+  ([#1108](https://github.com/Gerrrt/HomeLab/issues/1108)). It was re-cloned
+  from 911, rebuilt with the OOBE fix (#1093). Its `clean` snapshot now
+  includes, machine-wide:
+  - PowerShell 7.6.6, Git 2.56.0.2, WSL 3.0.1 and Wireshark 4.6.9, each
+    checked against its publisher's SHA-256;
+  - Developer Mode;
+  - `winget configure`, switched on.
+
+  The layer's `winget configure` finds each package present and skips it, so
+  the UAC prompts that stalled the 2026-10-08 console run should not appear.
+  The bake is in `test-the-dotfiles-layers.md` §3, for the next re-clone.
+
+- **The replacement rack is bought, at 32U rather than the planned 27U**
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). It is due
+  2026-10-16. Nothing else about the plan changed. The five extra units are
+  spare at the top (U28–U32), and every planned device keeps its unit. The
+  runbook is now
+  [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md).
+
+- **The Alpine and Gentoo cloud-image pins are checked for staleness**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920), ADR-0090). The weekly
+  `tools` job in `digests.yml` now reads the two `url=` lines in
+  `scripts/import-cloud-template.sh`, alongside the Packer plugin and Galaxy
+  pins.
+  - **Alpine** fails on any newer release or image revision in
+    `latest-stable/releases/cloud/`.
+  - **Gentoo** builds a new image every week, so it fails only when the pin is
+    more than 28 days older than the newest build, or when Gentoo has pruned
+    the pinned build.
+  - Both pins were current on the first run: Alpine 3.24.2-r2, Gentoo
+    20261004T164559Z.
+
+- **The dotfiles OS-layer VMs, phase 4: NixOS, and all eight layers have a
+  VM** ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Template.** 909 `tpl-nixos`, built twice and smoke-tested. Packer
+      boots the NixOS 26.05 minimal ISO, types `phoenix`'s key, the fixed
+      build address and sshd at its console shell, and runs `nixos-install`
+      with a committed `packer/nixos/configuration.nix`.
+    - **Not as planned.** ADR-0090 planned `nixos-rebuild build-image` in a
+      container, but `phoenix` runs no Docker; a NOTE on the ADR records
+      this.
+    - **ISO.** NixOS signs no ISOs, so the pin is the SHA-256 that both
+      `channels.nixos.org` and `releases.nixos.org` publish.
+    - **Guest.** `dot-nixos` (197, `.97`).
+  - **What the builds found.** Mounting the new root by label raced udev, and
+    the minimal ISO had not loaded ext4, so `mount` tried the partition as
+    FAT. The install now mounts by device, with the type named.
+  - **First run** (dotfiles v7.14.0).
+    - **The README's order works:** `nixos-rebuild switch` with
+      `nix/nixos.nix` and the home-manager module, then `./bootstrap.sh`.
+      Both exited 0, as did `core doctor`.
+    - **Nine tools missing,** because `nix/home.nix` doesn't declare them:
+      `viddy gron sd xh doggo op ast-grep uv difft`.
+  - **Where #920 stands.** Eight VMs, one per layer, each with a `clean`
+    snapshot and a first run. Windows still owes a run at the console.
+
+- **The dotfiles OS-layer VMs, phase 3: Alpine and Gentoo, from their
+  projects' cloud images**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.**
+    - **Import.** `scripts/import-cloud-template.sh` runs as root on
+      `Saruman`. It imports each project's signed cloud image, pinned by
+      SHA-256, as staging template 917 or 918: Alpine 3.24.2-r2, signed by
+      the key alpinelinux.org/cloud names; Gentoo's weekly
+      `di-amd64-cloudinit` image, signed by its Automated Weekly Release Key,
+      refreshed by WKD because the keyserver copy showed expired.
+    - **Templates.** Packer's `proxmox-clone` builder finishes them into 907
+      `tpl-alpine` and 908 `tpl-gentoo`, each built twice and smoke-tested.
+      The images carry no guest agent, so each build gives its clone the
+      fixed address `.99`, and the two builds take turns.
+    - **Guests.** `dot-alpine` (195, `.95`) and `dot-gentoo` (196, `.96`),
+      both with Secure Boot off.
+  - **What the builds found.**
+    - **The builder's defaults.** Its `lsi` controller doesn't boot under
+      OVMF, and its `ostype other` made the smoke test take 908 for Windows.
+    - **First boot.** cloud-init's first-boot package upgrade held the
+      package lock.
+    - **Alpine.** A static address leaves no `resolv.conf`, and `apk
+      upgrade` trips a `limine-efi-updater` trigger on the image, so the
+      build doesn't upgrade.
+    - **Gentoo.** It ships only a systemd cloud image, so `dot-gentoo` tests
+      the layer on systemd, not on its OpenRC default.
+  - **First runs** (dotfiles v7.14.0).
+    - **Alpine** is the first layer clean end to end: `bootstrap.sh` exit 0,
+      and `core doctor` exit 0 with nothing missing.
+    - **Gentoo**: exit 0 after two hours of emerge, `core doctor` missing
+      only `gum` (left out on purpose by the layer), and `make
+      assert-provisioned` OK.
+
+- **The dotfiles OS-layer VMs, phase 2: openSUSE Tumbleweed and Arch**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 905 `tpl-opensuse-tw` and 906 `tpl-arch`, each built
+    twice and smoke-tested:
+    - openSUSE: the NET installer, with an AutoYaST profile on an `OEMDRV`
+      disc.
+    - Arch: the live ISO's own cloud-init lets Packer in, and
+      `packer/arch/install.sh` pacstraps the disk.
+
+    Guests `dot-opensuse` (193, `.93`) and `dot-arch` (194, `.94`), each with
+    a `clean` snapshot. The guest module gains `secure_boot` (default on);
+    `dot-arch` sets it off, because Arch ships no Microsoft-signed shim.
+  - **The installers.** Tumbleweed snapshot 20261007's NET ISO, checked
+    against the openSUSE Project key `AD48 5664 … 29B7 00A4` as
+    build.opensuse.org publishes it, not only as the ISO carries it. Arch
+    2026.10.01, checked against the release key `3E80 CA1A … 5444 9A5C` that
+    archlinux.org/download publishes. Both read `state="match"`.
+  - **What the builds found.**
+    - **A schema error that looked like a path error.** YaST reports a
+      schema-invalid AutoYaST profile as "a profile for this machine could
+      not be found or retrieved", next to a mangled `/dev//by-id/…` path.
+      Three builds and two detours (`device://sr0`, then HTTP) chased the
+      location, before y2log on the installer's tty2 showed
+      `install_recommends` (it is `install_recommended`). The profile is now
+      validated against `yast2-schema-default`'s `profile.rng` before a
+      build, and the disc route stands; no ADR exception was needed.
+    - **No sudo by default.** openSUSE's `cloud.cfg` gives the default user
+      no sudo rule, so a clone's user could not sudo at all. The smoke test
+      only checks SSH, so it passed regardless.
+    - **cloud-init's `disable_root` on Arch.** It wraps root's key in a
+      forced command on the live ISO, which hung the first Arch build.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Both layers fail at Flathub over SSH.** The remote is added
+      system-wide without the escalator, and polkit refuses it with no
+      agent. Filed for Arch as
+      [dotgibson/dotfiles-Arch#199](https://github.com/dotgibson/dotfiles-Arch/issues/199).
+    - **Arch** is otherwise six AUR tools short, as its layer says.
+    - **openSUSE** is otherwise short only `jj` and `difft`.
+
+- **`eden` is on the network diagram**
+  ([#1098](https://github.com/Gerrrt/HomeLab/issues/1098)). It was built on
+  2026-10-07 and was in `network.md`, but not in `current/network.svg`.
+  - Its card sits in VLAN 30's guest row, beside `golem` and the planned
+    `diabolos`, so that row now holds three cards like the dot row.
+  - Every other host in `network.md` was already drawn, either by name or as
+    part of a group.
+  - The PNG was re-rendered at 1.5× with cairosvg rather than `rsvg-convert`,
+    which is not installed on `Saruman`. Rendering the previous SVG that way
+    produced a PNG visually identical to the committed one.
+
+## 2026-10-08
+
+- **`eden` is built, and BloodHound CE is running on it** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
+  [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  The guest closes the automation milestone and the estate's last attack-path
+  gap.
+  - **Built from the template, not an installer.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, 4 vCPU, 8 GiB, `onboot 0`, tag `on-demand`, with a
+    32 GiB data disk on `large_data`. `large_data`'s allocation went from 920
+    to 952 GiB of 876, the overcommit ADR-0081 accepts; what is written grew by
+    megabytes.
+  - **§6, the three things reasoned and not booted when the stack was written,
+    checked on the first `make up`:**
+    - **The graph is in Postgres**, not a Neo4j: BloodHound opened the `pg`
+      driver, wrote its graph schema and ran its first analysis. One database
+      on the guest, as ADR-0081 decided.
+    - **The app runs as root with no capabilities.** It began as `nobody`, and
+      that was the one thing the first boot corrected: the image ships
+      SharpHound's zip and `.sha256` `0600 root:root`, so `nobody` could not
+      serve the collector and logged an error each start ([#1025](https://github.com/Gerrrt/HomeLab/pull/1025)).
+      Root keeps `cap_drop: [ALL]`, a read-only root and `no-new-privileges`;
+      without `CAP_DAC_OVERRIDE` it reads only what it owns, so the TLS key
+      still arrives through `RENDER_GID`.
+    - **The metrics scrape is up**, `up{job="bloodhound"}` on `alexander`, over
+      TLS verified against the estate CA by the leaf's `bloodhound` SAN.
+  - **The UI** on `:8443` verifies against the estate CA, and the first admin
+    logs in with no reset pending.
+  - **The token path works:** without a token the lab proxy returns 401; with
+    `INGEST_TOKEN_EDEN` the push is accepted.
+  - **First collection (§7), 2026-10-08.** A SharpHound v2.16.0 run from
+    `carbuncle` against `ad.matrix.elysium`, uploaded through the UI, ingested
+    and analysed clean (`ad_post_processing:success`). The graph holds the
+    baseline domain: **373 nodes, 3,922 edges** — one Domain
+    (`AD.MATRIX.ELYSIUM`), 6 Computers, 49 Users, 73 Groups, 14 OUs, 5 GPOs,
+    31 nodes tagged Tier Zero. Weaknesses are off (#449), so this is the clean
+    baseline; their tags add the interesting paths later. The collector ran on
+    `carbuncle` over a temporary RDP enablement (backed out after), because the
+    Win11 endpoints' console is parked at OOBE (#1092).
+  - **Two fixes the first real ingest forced.** BloodHound wrote its upload
+    temp file relative to the container's working directory `/`, which
+    `read_only: true` makes unwritable; `working_dir` now points at the
+    `/opt/bloodhound/work` volume. And the work subdirectories, created as
+    `nobody` on the first boot before #1025 switched the app to root, were
+    chowned to root on `eden` so the capability-less root user can write them
+    (a fresh build creates them as root and needs no repair).
+
+- **`systemd-oomd` runs on no host that ships its journal, and #903 closes**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)). This completes the
+  entry below, "`systemd-oomd` runs on none of the eight hosts checked".
+  - The operator ran the two `systemctl` lines from Winterfell on
+    `prometheus`, `oracle` and `smaug`. All three report `not-found`/`inactive`,
+    like the other eight.
+  - So there is no `systemd-oomd` kill to show. `UnitOomKilled` (#1050, #1058)
+    covers a journal-shipping host that turns it on later, because its kills
+    end in the same systemd verdict.
+  - **Correction to the entry below:** it says `smaug` ships its journal. It
+    does not. The NAS ships no logs and runs no Alloy (`observability.md`), so
+    no OOM verdict from it reaches Loki, and `UnitOomKilled` cannot cover it.
+    Its check is an inventory fact, not coverage.
+
+- **The dotfiles OS-layer VMs, phase 1: built, and first runs**
+  ([#920](https://github.com/Gerrrt/HomeLab/issues/920),
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)).
+  - **What.** Templates 903 `tpl-debian-13` (preseed over HTTP, as Kali's)
+    and 904 `tpl-fedora-server` (kickstart on an `OEMDRV` disc), each built
+    twice and smoke-tested. Three on-demand guests in a `dotfiles` pool, on
+    their reservations, each with a `clean` snapshot taken stopped:
+    `dot-debian` (191), `dot-fedora` (192) and `dot-windows` (198, an
+    unactivated clone of 911). The runbook is
+    [`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md).
+  - **The installers.** Debian 13.7.0 netinst and Fedora Server 44-1.7
+    netinst, listed from their publishers' signed hashes. The Debian CD
+    signing key `DF9B 9C49 … 6294 BE9B` and Fedora 44's primary key
+    `36F6 12DC … 6D9F 90A6` both gave a good signature. Both read
+    `state="match"` on the share.
+  - **What the builds found.**
+    - **Fedora's kickstart.** Anaconda stops on
+      `services --enabled=cloud-init`, because there is no such unit since
+      cloud-init 24.3. Fedora 44's presets also leave `cloud-init-network`
+      off, so the kickstart names it.
+    - **Debian's boot command.** Kali's 10s `boot_wait` typed into Debian's
+      GRUB before its menu was drawn. 20s works.
+    - **The guest user.** The module's default `operator` cannot be
+      created: Debian ships a system group of that name and Fedora a system
+      user. The dotfiles guests use `tester`.
+    - **The Windows `tester` user.** It needs a profile made with
+      `CreateProfile`, and its `authorized_keys` must be owned by the user,
+      before sshd will take its key.
+  - **What the first runs found** (dotfiles v7.14.0).
+    - **Debian:** clean.
+    - **Fedora:** exits 0 with 14 tools missing. yazi's cargo build fills
+      the per-user quota on Fedora's tmpfs `/tmp`, and the downloads after
+      it fail.
+    - **Windows:** cannot be tested over SSH at all. `winget`, MSIX
+      installs, `winget configure` and scoop's junctions each fail in a
+      network logon, so its runs are at the console.
+  - **Found on the way.** `packer/README.md` still called 911 "first build
+    pending" and 912 "needs a rebuild". Both were rebuilt on 2026-10-07 after
+    the `SetupComplete.cmd` fix (#1031), at 18:40Z and 17:57Z by their
+    templates' descriptions. The table now says so.
+
+- **The Wazuh manager collector installs on odin.** Its requirement in
+  `install-agent-collectors.sh` was `/srv/soc-data/manager-queue`. The
+  installer checks requirements with `test -x` as the SSH user, and that
+  directory is `0750 root:systemd-journal` by design
+  ([`build-the-soc-guest.md`](runbooks/build-the-soc-guest.md)), so
+  `barnabas` could not enter it. The install refused odin, the one host it was
+  for, as "missing". The requirement is now `/srv/soc-data`, which passes on
+  odin and fails on fenrir and alexander.
+
+- **`WazuhAgentsNotConnected` joins each running guest to its own agent**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), from the review of
+  #1066).
+  - **What was wrong.** It compared the count of domain guests whose
+    `windows_exporter` answers with the count of Active agents. That is
+    correct with exactly the six enrolled, but any other Active agent filled a
+    missing guest's place, and the alert could not say which guest.
+  - **The collector.** It now writes
+    `homelab_wazuh_agent_active{agent="<name>"}` per agent. Run read-only
+    against odin's manager, its six names match the six guests' `instance`
+    labels exactly.
+  - **The rule.** It fires per guest, naming it, via
+    `unless on (instance) label_replace(...)`. Only when no per-agent series
+    exist at all does it fall back to the old count: an older collector, or
+    a manager with nothing enrolled. So the order the collector and the rule
+    deploy in does not matter, and a failed `agent_control`, which writes
+    neither, stays `WazuhManagerStateUnreadable`'s alert.
+  - **Tests.** Seven cases replace three:
+    - a named guest firing, and another agent not masking one;
+    - the count fallback firing and staying quiet;
+    - guests off, all reporting, and the source unreadable.
+    As mutations, dropping the fallback fails the old-collector case, and
+    the count alone fails the masking case.
+
+- **`check_mounted_config.py` reads long-form bind mounts too.**
+  - **What it missed.** It compared only short-form `./src:/dst` mounts, so a
+    mount written in compose's long form, as a mapping with
+    `create_host_path: false`, was never checked. On the monitoring host that
+    is Alloy's three syslog TLS files from #1049. They are now in its list,
+    and every other stack's list is unchanged.
+  - **The crash.** Its `--self-test` crashed with `FileNotFoundError` on a
+    host with no `docker` binary at all, instead of skipping. It now skips
+    the container half there.
+  - **New fixtures.** Six run without Docker: both forms read, and named
+    volumes, tmpfs and a target-less short form left out.
+
+- **`systemd-oomd` runs on none of the eight hosts checked**
+  ([#903](https://github.com/Gerrrt/HomeLab/issues/903)).
+  - `UnitOomKilled` (#1050, #1058) would see its kills wherever it ran.
+    #903's last item is to record where it runs.
+  - Checked from `Saruman` on 2026-10-08: `Saruman`, `golem`, `alexander`,
+    `odin`, `fenrir`, `phoenix` and `eden` all report `not-found`/`inactive`,
+    as `trinity` did on 2026-10-07.
+  - `prometheus`, `oracle` and `smaug` still need checking: they ship
+    journals, but `Saruman` can't reach VLANs 99 and 40.
+
+- **Postgres re-pinned again, a day after #966.** Upstream rebuilt
+  `postgres:18.6` and `postgres:17.11` a second time on 2026-10-07, so the
+  digests #966 pinned already drifted:
+  - `18.6` in sensitive (two services) and bloodhound: `fc973eb` to `74935e7`
+  - `17.11` in wiki: `ae69c45` to `2d2b899`
+
+  The tags have not moved. Merging this restarts sensitive's two Postgres
+  services on the rebuilt image, the same release, so there is no data
+  migration.
+
+- **`ZeekConnLogStopped` also fires when the conn.log series disappears**
+  ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038), follow-up to
+  #1066).
+  - **The gap.** In the pinned Alloy (v1.20.1),
+    `loki_source_file_read_bytes_total` is a gauge holding the file's read
+    offset, and the tailer deletes it when it stops (`tailer.go`,
+    `DeleteLabelValues`). If `conn.log` stops existing (Zeek gone around an
+    hourly rotation, or its log volume recreated), the series goes away,
+    `increase(...) == 0` returns nothing, and the rule could never fire, in
+    the very failure it was written for.
+  - **The fix.** `or absent_over_time(...[30m])` over the same selector, so
+    either way it fires 45 minutes after the last byte. It also fires if
+    fenrir's Alloy stops pushing.
+  - **Tests.** Two new cases: a series that stops fires, and a gap shorter
+    than the window (an Alloy redeploy) does not. The merged rule, run
+    against the new tests, fails the first. `make check-rules STACK=lab`
+    passes on promtool 3.15.0.
+
+- **What the SOC could not see of #449's weaknesses, written as a fix, not yet applied**
+  ([#1077](https://github.com/Gerrrt/HomeLab/issues/1077)).
+  - **What #449's config-only loop showed.** Of the six weaknesses switched
+    on, DCSync's replication grant left no event at all. Kerberoast's SPN and
+    RBCD's attribute never appeared. The rest arrived only as generic "user or
+    computer account changed" alerts at levels 5 and 8.
+  - **Why, read from the domain:**
+    - The DCs don't audit Directory Service Changes, so there is no 5136.
+    - The domain head's SACL covers only the domain object itself.
+    - Wazuh has no rule for 4662.
+    - titan and ramuh audited File Share and nothing else. #414's one-line
+      advanced audit GPO had replaced their whole basic policy, logons included.
+  - **The fix:**
+    - `gpos` gives the member servers the Windows default set plus File Share,
+      and adds a DC audit GPO carrying their 17 subcategories plus Directory
+      Service Changes.
+    - The new `ds_audit` role audits writes to SPNs and the delegation
+      attributes on users and computers.
+    - `stacks/soc` mounts seven local rules (100100–100106) that name each
+      weakness, and takes PowerShell's own `__PSScriptPolicyTest_*.ps1` probe
+      file, which every Ansible task tripped at level 15, down to level 0.
+    - The DCSync rule (100106) leaves out the two DCs by name, `bahamut$` and
+      `leviathan$`, not every machine account. A computer account any user
+      can create, once granted replication rights, would otherwise DCSync
+      unseen.
+    - `verify.yml` checks the effective audit subcategories.
+  - **Tested before deploy.** A throwaway manager on `odin`, from the
+    production image digest, was fed the #449 events through the real Windows
+    decoder. All eight positives raised the new rules. The five negatives (a
+    cleared flag, an unchanged field, an SPN on a computer, a DC's own
+    replication, and a script that is not the probe file) did not.
+
+- **The rebuilt domain's evaluation clock: about 2027-04-05, and no rearm left.**
+  Read on 2026-10-08 from the four servers rebuilt under #448. All four are on
+  the `TIMEBASED_EVAL` channel with 179.5 days left, and both rearm counts
+  (Windows and SKU) are **0**. The hand build had 1. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got a full period, but generalising the image
+  spends the rearm, so the next rebuild
+  ([#440](https://github.com/Gerrrt/HomeLab/issues/440)'s clock) has to start
+  from a freshly built template. `LabWindowsEvaluationExpiring` fires around
+  2027-03-06. Recorded in `build-the-lab-domain.md` §11.
+- **The Packer build no longer puts the Proxmox token on a command line.**
+  The Windows builds' `shell-local` step passed `PROXMOX_TOKEN_SECRET` in
+  `environment_vars`, and shell-local writes those inline into its
+  `/bin/sh -c` command. So for the whole sysprep wait, the `phoenix@pve!builder`
+  secret sat in `/proc/<pid>/cmdline`, readable by any user on `phoenix`. It was
+  seen in `ps` during the #448 rebuild's 912 build. `wait-for-sysprep.sh` now
+  inherits the secret from Packer's own environment, where the variable's
+  default already reads it. A null build on `phoenix` proved both halves: the
+  old form put the value on one process's argv, the new one on none, and the
+  script still received it. The exposed token is to be rotated.
+- **The lab pipeline's agent MSIs have a home on `odin`**
+  ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068)). #448's rebuild
+  stopped at `--tags soc` because `roles/soc_agents` had no URL for either
+  installer, and got past it with a temporary `http.server` on `odin`. The SOC
+  stack now runs a `caddy` service (container `soc-agent-msi`), the estate's Caddy at the same digest, read-only
+  and as a numeric user. It serves `${SOC_DATA_DIR}/agent-msi` on 8448 to the
+  six domain addresses and gives everyone else 403.
+  `scripts/stage-agent-msis.sh` stages both files from the role's own pins: the
+  Wazuh MSI from the vendor, and the Velociraptor MSI found by its hash in the
+  server's datastore. `group_vars/all.yaml` sets both URLs, so `--tags soc`
+  needs no `-e`.
+
+## 2026-10-07
+
+- **The lab's secrets open with a second key, kept off Saruman**
+  ([#671](https://github.com/Gerrrt/HomeLab/issues/671)). Not yet proved.
+  - **Why it stopped being optional.** #671 was filed when
+    `secrets/lab.sops.yaml` held only regenerable passwords and tokens. #485
+    then put `PBS_ENCRYPTION_KEY` in it, the only key that reads Saruman's
+    backups on golem.
+    - That file opened with one key, and that key lives only on `alexander`.
+    - `alexander` is a guest on Saruman, and its own backup is encrypted with
+      that same PBS key.
+    - So a dead Saruman took every copy that opens this file. Only the paper
+      copy of the PBS key remained.
+  - **The re-key.** `scripts/add-recipient.sh` ran on `alexander` with the lab
+    key, in a temporary copy of this branch removed afterwards; the key never
+    left the guest. It added the ADR-0024 technical second, `age19mkg76…`,
+    which the estate and sensitive rules already hold. Its private half is on
+    the offline medium. The eight values are unchanged; only the key wrapping
+    moved. ADR-0020 is not inverted, since it stops the lab's key opening the
+    estate's secrets and not the reverse.
+  - **CI now refuses one key here.** `scripts/check_sops_rules.py` lists
+    `lab.sops.yaml` among the files that must open with two keys, with the PBS
+    key as the reason. The pre-re-key file fails it.
+  - **`add-recipient.sh` no longer refuses a file holding the shared
+    second** (review on #1065). It found a file's rule from its first
+    recipient in sorted order and refused if that key sat in more than one
+    rule, and `age19mkg…` sorts first. So the estate, sensitive and now lab
+    files could not gain a recipient. It now anchors on the first recipient
+    listed in exactly one rule, and still refuses a file whose keys are all
+    shared. This was tested on alexander with throwaway keys: the old script
+    refuses, and the new one re-keys the lab file to 3, where the new key
+    alone decrypts it.
+  - **Still owed:** proving the second opens the file with only that key, run
+    with the offline copy: `make secrets-verify-backup STACK=lab KEY=…`. Until
+    then ADR-0024 counts it as never proved.
+
+- **The syslog receiver also listens over TLS, and requires morpheus's client
+  certificate** ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)). The
+  first of #1049's two changes. Nothing sends there yet, and UDP is unchanged.
+  - **What it closes.** Any host on VLAN 99 can forge `10.0.99.1` over UDP,
+    and #844's sender allowlist reads the forged address as morpheus's. The
+    new listener is `6514/tcp`. TCP needs a handshake, so a forged source
+    never completes one. TLS with `ca_file` set makes the pinned Alloy
+    (v1.20.1, `syslogtarget/transport.go`) set
+    `RequireAndVerifyClientCert`, which #1049 had left open as a question.
+  - **morpheus's certificate is pinned, not the CA trusted.** `ca_file` is
+    morpheus's own leaf. Go accepts a certificate found in its trust pool as a
+    chain of one, so no other certificate passes, including another client
+    leaf the same CA signs later. Trusting the CA would have let a holder of
+    any such leaf who took over `10.0.99.1` through both checks (review on
+    #1059). `scripts/gen-certs.sh --client` issues the leaf with
+    `clientAuth`, which Go still requires. The allowlist applies on top.
+  - **The listener has its own leaf,** `syslog.matrix.elysium`, rather than
+    the ingest proxy's key mounted into a second service.
+  - **Proved on the pinned binaries** (Alloy v1.20.1, Loki 3.7.8), with
+    senders on separate addresses:
+    - stored as `host="morpheus"`, `transport="tls"`: morpheus's certificate
+      from morpheus's address, and the same with a forged hostname;
+    - refused in the handshake: no certificate ("client didn't provide a
+      certificate"), and, as "unknown authority", another client leaf from
+      the same CA, a serverAuth leaf, and a client certificate from another
+      CA;
+    - completed, then dropped and counted by the allowlist: morpheus's
+      certificate from another address.
+    `scripts/check_syslog_senders.sh` now runs all seven in CI.
+  - **A `transport` label** (`udp` or `tls`) on every network syslog line, so
+    the switch-over can be watched line by line.
+  - **Certificates before deploy.** Both new files must exist on the
+    monitoring host before converge applies this, or Alloy, which collects
+    everything there, does not start. The mounts are long form with
+    `create_host_path: false`, so a missing one stops the deploy by name
+    rather than becoming a directory. Runbook §7.1.
+  - **What morpheus needs.** pfSense's syslogd sends UDP only, so
+    [`ship-firewall-logs.md`](runbooks/ship-firewall-logs.md) §7 installs
+    syslog-ng to relay over TLS. While it sends both ways, every line is
+    stored twice and count-based rules read double, so the runbook keeps that
+    overlap short. The UDP listener and its `1514` and `514` publishes come
+    out in the second change, once TLS has run for a day.
+
+- **A guest agent that stops answering is resynchronised, not restarted.**
+  At 16:34:58 and 16:35:05 UTC, `qm guest exec` timed out on `fenrir` and on
+  `alexander`. After that, `qm agent` said both agents were "not running".
+  The other six answered.
+  - **The agent was alive.** Inside `fenrir`, `qemu-ga` was active and asleep.
+    It had logged nothing after its last good request, not even the pings, so
+    it had stopped recognising requests rather than hung.
+  - **Likely cause.** Both failures fell inside the ISO-store verify on
+    `Saruman` (19.5 GB peak, 2 m 43 s of CPU). The likeliest explanation is a
+    request that arrived half-written, which left the agent's JSON parser in
+    an object that never closes.
+  - **The fix.** A `0xFF` byte, then `guest-sync-delimited`, sent on each
+    agent's socket. Both answered at once and have worked since. Nothing in
+    either guest was restarted.
+  - **What is new.** That is now `scripts/qga-resync.py`, run as
+    `make qga-resync VMID=…` on `Saruman`. It sends the reset and the sync,
+    then proves the channel with a `guest-ping`. Its self-test runs a fake
+    agent that is wedged, one that holds a stale reply, one that is dead, and
+    one that syncs but never pings. `GuestAgentSilent`'s description now
+    names the script before a restart.
+  - **odin.** Its agent "hanging under load", recorded in the alert's comment
+    and in odin's notes, is probably the same failure.
+
+- **One deploy of a stack at a time.** At 15:41:49 and 15:42:07 UTC two
+  sessions deployed the observability stack from the deployment checkout, one
+  with `make up` and one with `make converge`. Both recreated alertmanager and
+  blackbox-exporter, and the second failed halfway on a container-name conflict
+  (`/ee680d332de7_alertmanager is already in use`), before it recorded the
+  applied revision. The first finished, so the host was fine, but nothing made
+  it so. `scripts/deploy-lock.sh` is now a per-stack `flock` inside the
+  checkout's `.git`. `make up` runs under it and waits up to 900s, naming the
+  holder. `converge.sh` holds it for its whole run and leaves a held stack for
+  the next hour, while its own `make up` passes through. The wrapper passes
+  TERM, INT and HUP on to its command and waits for it, so killing the wrapper
+  alone cannot free the lock under a running deploy. Fixtures: seventeen in
+  `deploy-lock.sh --self-test`, including two concurrent holders, the nested
+  case and a TERM to the wrapper, and a converge case that fails if the lock
+  is removed.
+
+- **Converge deploys the newest commit that passed CI, not only the tip**
+  ([#1026](https://github.com/Gerrrt/HomeLab/issues/1026)). `converge.sh`
+  asked CI about `main`'s tip alone and waited while it ran. On a busy `main`
+  a new tip usually lands before the last one's CI finishes, so trinity sat on
+  `f7afe9c` from 12:29 to past 15:00 today, 23 commits behind, while
+  `e4cf127` had already passed. A tip still in CI now starts a walk down the
+  first-parent history. It deploys the newest commit that is a fast-forward,
+  verifies against the pinned key, and passed CI, skipping red commits along
+  the way. A red tip still refuses, as before. The walk looks at most
+  `HOMELAB_CONVERGE_WALK` commits (default 10), skipped ones included, because
+  the API calls are anonymous. It stops at the first ask that fails, and it
+  does not start if the ask about the tip failed. A fallback whose `make up`
+  failed is re-applied on the next run. A new gauge,
+  `homelab_deploy_ci_fallback`, is `1` on a run that deployed such a commit.
+  `DeployBehind` ignores those runs, so it fires on three hours without
+  progress rather than on three hours of a busy `main`.
+
+- **Wazuh is configured to read the Sysmon channel, but not yet deployed**
+  ([#1035](https://github.com/Gerrrt/HomeLab/issues/1035)).
+  - Read on `odin` first. The manager's ruleset already decodes
+    `Microsoft-Windows-Sysmon/Operational`, and the `default` group's shared
+    `agent.conf` was upstream's empty placeholder. So none of what #450's
+    Sysmon records had been reaching the manager.
+  - `stacks/soc` now mounts a shared `agent.conf` for that group, which adds
+    the channel for Windows agents. `stacks/scratch` mounts the same file. The
+    manager's `verify-agent-conf` accepts it.
+  - ADR-0080 and the proof comment on #450 had said this belonged to #266.
+    #266 was running Wazuh, and it was already closed. ADR-0080 now carries a
+    note.
+  - Not proven yet. The six were rebuilt from the templates today for #448's
+    proof, and the manager had no agents registered when it was read.
+
+- **A Wazuh re-pin took odin's root to 99%, and deploys now remove what they
+  supersede** ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)).
+  - **What happened.** `make up STACK=soc` pulled #966's re-pinned Wazuh images
+    (new digests, same 4.14.8) and Velociraptor 0.77.3, about 7.4 GB. The four
+    images they replaced stayed on disk, and `/` went from 75% to 99%, 492 MB
+    free. They were removed by hand. `GuestDiskCritical` needs 15 minutes
+    below 10% free, and the disk was cleaned at about 12, so it did not page.
+  - **The two problems.** A pull needs the old set and the new one at once,
+    because the running containers keep the old images until they are
+    recreated: odin had 7.1 GB free against a 7.4 GB pull. And nothing removed
+    the superseded set until the weekly prune on Monday.
+  - **What changed.** odin's OS disk was grown online from 32 to 48 GB, so `/`
+    has 23 GB free, and `build-the-soc-guest.md` says 48. `make up` now runs
+    `prune_superseded_images.py` after its health checks. It removes only
+    images of the stack's own repositories that no container uses and no stack
+    pins, so a profile-only image like the certs generator survives. The
+    weekly prune stays as the backstop.
+
+- **Production `alloy` was killed by another session's test, and converge now
+  starts a stopped stack service**
+  ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)).
+  - **What happened.** At 05:34:23 UTC a scratch test of Alloy configs ended
+    with `docker ps -q --filter ancestor=<pinned alloy image> | xargs docker
+    kill`. The live `alloy` runs the same image, so it was killed too.
+    `unless-stopped` does not restart after a kill. Host metrics, host logs and
+    `morpheus`'s syslog stopped, and `InstanceDown`, `RemoteWriteJobStale` and
+    `FirewallLogsStopped` paged.
+  - **How it ended.** Another session started it at 06:21:53, and #933's deploy
+    recreated it at 07:27.
+  - **Found by** matching dockerd's "stopping restart-manager" line for the
+    container against every session's commands at that second.
+  - **What was lost.** `morpheus`'s UDP syslog for the 47 minutes is lost.
+    Suricata's own `alerts.log` on the firewall still holds that window.
+  - **Why converge did not help.** The 06:26 run was waiting on CI, and at an
+    applied tip it never looked at a container.
+  - **Now.** Every run, on every path, starts a container of its stack that is
+    meant to run (`unless-stopped` or `always`) and has been stopped for more
+    than half an hour. It leaves alone one named in
+    `.git/homelab-hold-<stack>`, and any while a backup holds its lock.
+    `DeployServiceRevived` says when it did. `DeployServicesStopped` says when
+    one has been left down for two hours. The fixture suite has nine new cases,
+    and each guard fails cases when removed.
+
+- **The four management consoles' certificates have expiry gauges**
+  ([#857](https://github.com/Gerrrt/HomeLab/issues/857),
+  [ADR-0084](adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)).
+  These are the pfSense GUI, the iLO, `Saruman`'s `:8006` and the TrueNAS UI.
+  Each answers Hicks only, so no blackbox probe could read them.
+  `scripts/collect-cert-expiry.sh` makes the handshake inside each console's
+  own segment and writes `homelab_cert_expiry_timestamp_seconds`, and no
+  firewall pass was added.
+  - **Where each is read.** pfSense's is read on the firewall over the ssh
+    `make gateway-state` already makes. Saruman's and the iLO's are read from
+    Saruman by a new agent timer, since Saruman shares the iLO's segment.
+    smaug's is read by a root cron job.
+  - **New rules.** `ManagementCertificateExpiringSoon` warns at 30 days and
+    `ManagementCertificateExpiryImminent` pages at 7.
+    `ManagementCertificateUnchecked` covers a console that will not answer, and
+    `CertExpiryStateStale` covers a collector that stopped.
+  - **Measured from the monitoring host on 2026-10-07.** morpheus serves its
+    GUI certificate on `127.0.0.1:443`, `notAfter` 2027-04-16 16:37:44 UTC.
+    That matches the 2026-09-28 regeneration.
+  - **Not yet live: the Saruman and smaug halves.** Each needs someone at a
+    console: `make install-agent-collectors` from the Mac for Saruman, and
+    [`build-the-nas.md`](runbooks/build-the-nas.md) §6.10 for smaug. #857
+    stays open until all four `endpoint` series exist.
+
+- **The Paperless export set on `trinity` is left out of the nightly
+  verification, on purpose** ([#942](https://github.com/Gerrrt/HomeLab/issues/942)).
+  #856 left `backups/paperless-documents/` as the one kind of set on `trinity`
+  that is never re-read. It stays that way, and
+  [`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md) §4
+  says why. Each household visit exports Paperless again and prunes the old
+  set. A restore reads the drive, not `trinity`. The documents themselves are
+  in the volume sets that `verify-backups-sensitive` re-reads nightly.
+  - **What #856 found:** this set is not copied to `oracle` either. That is
+    intended: the drive is its off-host copy.
+
+- **The ingest ports serve TLS**
+  ([#764](https://github.com/Gerrrt/HomeLab/issues/764), second of two;
+  [ADR-0086](adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)).
+  The Caddyfile loads the `prometheus.matrix.elysium` leaf on 9090 and 3100,
+  and every client moved to `https://` in the same change: the agents through
+  `deploy-agent.sh`, the arrival check with `--cacert`, Homepage's five
+  widgets, Home Assistant's rack-power sensor, and the four blackbox probes.
+  The health probes moved to `http_2xx_lab_ca`, so `TlsCertificateExpiringSoon`
+  now covers the leaf.
+  - Measured on the pinned Caddy image, as `ingest-proxy` runs it, with the
+    real leaf:
+    - health answers 200, verified through the `10.0.99.20` IP SAN;
+    - a query with no token, and Loki's delete, get 401 with the realm;
+    - the reader token is served;
+    - plain http gets 400;
+    - a client without the CA, or asking for another name, is refused.
+  - `check_caddyfile.sh` mounts a throwaway certificate and key, because
+    `tls cert key` is loaded at validation. Without them it fails, which was
+    checked.
+  - The lab's proxy is unchanged, and so is `deploy-agent.sh` against it.
+
+- **Every client of the ingest ports can verify the estate CA, and none uses
+  it yet** ([#764](https://github.com/Gerrrt/HomeLab/issues/764), first of
+  two). TLS cannot be phased in by client the way #182's tokens were, because
+  an https client gets nothing from an http listener. So this step lands the
+  trust, and the next one turns TLS on and moves every URL together.
+  - The estate CA's certificate is committed, as
+    `stacks/observability/alloy/ingest-ca.pem`. It is the one `.pem` that
+    `.gitignore` lets through. `check_ingest_ca.sh` fails on anything but a
+    single CA certificate there, and on the monitoring host it also fails on
+    one that is not `certificates/ca.pem`.
+  - `deploy-agent.sh` ships it to the estate's agents and sets
+    `INGEST_CA_FILE`, and both writers in `config.alloy` read it as
+    `tls_config { ca_file }`. Measured on the pinned Alloy image:
+    - an empty `ca_file` loads, and pushes over http as before;
+    - with the file set, an https push succeeds where it failed without it;
+    - a `.pem` in `/etc/alloy` is not loaded as config.
+  - Homepage's `NODE_EXTRA_CA_CERTS` and Home Assistant's
+    `REQUESTS_CA_BUNDLE` are bundles that `render-config.sh` writes on
+    trinity. Home Assistant reads the second, and only that, for every client
+    context (`homeassistant/util/ssl.py` on 2026.9.4). So its bundle carries
+    the host's public roots too, not the estate CA alone.
+  - The proxy's leaf, `prometheus.matrix.elysium` with IP SAN `10.0.99.20`,
+    was minted on `prometheus` and is mounted into `ingest-proxy`, which joins
+    the operator's group to read the 0640 key. The refusal probe's module
+    verifies against the lab CA, which does nothing while its targets are
+    http.
+
+- **The wiki is served over https and deployed from a verified checkout,
+  in the repository** ([#847](https://github.com/Gerrrt/HomeLab/issues/847);
+  [ADR-0082](adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md)).
+  - **Two gaps were found by the 2026-10-03 review.** The deploy was a `curl`
+    of `compose.yaml` from `main`, with no signature checked. Logins went over
+    plain HTTP on `80:3000`, which nothing had accepted.
+  - **Authored:**
+    - a Caddy in `stacks/wiki` that terminates 443 on a lab-CA leaf and
+      answers 80 with a `308` only;
+    - Wiki.js unpublished;
+    - the README's deploy, against one fetched SHA: fetch from the
+      canonical URL, read its CI, require a clean `main`, `verify-commit`,
+      compare `%GF` with `converge.sh`'s pin, `--ff-only`, require `HEAD` to
+      be that SHA, then `up`;
+    - both blackbox targets on `http_2xx_lab_ca`;
+    - `check_caddyfile.sh` offering a throwaway `cert.pem` and `key.pem`, so a
+      Caddyfile that loads its leaf from files validates in CI.
+  - **Measured on the pinned Caddy image.**
+    - Its binary carries `cap_net_bind_service` as a file capability. Run as a
+      non-root uid under `no-new-privileges`, the exec is refused, so it runs
+      as root with only `NET_BIND_SERVICE`, the sensitive tier's shape.
+    - A client dialling the address sends no SNI, and was refused the
+      handshake until `default_sni` named the leaf.
+    - The internal CA it provisions anyway logged a failed trust-store
+      install until `auto_https disable_certs` and `skip_install_trust` were
+      both set. Neither alone stopped it.
+    - Redirect, both names, the address, a `POST` to `/login` on 80 and the
+      healthcheck were exercised against a throwaway CA.
+  - **Not yet done on `oracle`.** The cutover in `stacks/wiki/README.md` § TLS
+    is still to run: the Hicks `443` pass, the checkout, the leaf, the Site
+    URL, and the probe.
+
+- **#182's deployment, recorded late**
+  ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
+  [ADR-0067](adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md)).
+  The 2026-09-30 entry below says "Authored, not yet deployed", and the
+  roadmap kept saying so after the issue closed. The ingest proxy was
+  deployed 2026-09-30 at 22:27 UTC, and the issue closed at 23:53 with the
+  evidence on it.
+  - **Published:** Prometheus and Loki on `127.0.0.1`, and `ingest-proxy`
+    on `10.0.99.20:9090` and `:3100`.
+  - **Refused with no token, asked from `oracle`:** a query, a remote write,
+    Loki's delete and an admin snapshot, all with `401`. Loopback still
+    answers without a token.
+  - **Every client arrived on its own token:**
+    - `oracle` and `trinity` passed `deploy-agent.sh`'s arrival check;
+    - `Saruman`'s pushes were refused until its token matched SOPS, with no
+      refusals since 23:49:53;
+    - Homepage and Home Assistant came up healthy under `make up
+      STACK=sensitive`, carrying the reader token.
+  - **The blackbox probes** for health and refusal all returned
+    `probe_success 1`, so `IngestAuthNotEnforced` is armed.
+  - **Found on the way:**
+    - #766, a dpkg conffile prompt on the native upgrade;
+    - the blackbox exporter kept `blackbox.yaml`'s old inode until it was
+      force-recreated;
+    - #771, which commits the encrypted token keys.
+
+  TLS on these ports is
+  [#764](https://github.com/Gerrrt/HomeLab/issues/764).
+
+- **The drifted digests are re-pinned, and `make pin-digests` survives a
+  duplicate pin.** The tags have not moved, but upstream rebuilt them. Five
+  stacks pinned digests the registry no longer serves under their tag:
+  - `postgres:18.6` in sensitive (two services) and in bloodhound
+  - `postgres:17.11` in wiki
+  - the three `wazuh/*` 4.14.8 images in scratch and in soc
+
+  Re-pinning them exposed a bug in `scripts/pin-digests.sh`. When one file
+  pins the same drifted image twice, the first replace rewrote both lines.
+  The second then died with "expected to find", and under
+  `make pin-digests` that stopped the loop before soc and wiki. The script
+  now dedupes the references before resolving them. Merging this is a deploy
+  of sensitive's two Postgres services: the same 18.6, on a rebuilt image.
+
+- **`eden` exists, with its key and its ingest token; the stack is not up
+  yet** ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **Built from the template, not the ISO.** VMID 141 is a full clone of
+    `901` onto `local-lvm`, with a 32G data disk on `large_data`: 4 vCPU,
+    8 GiB, `onboot 0`, tag `on-demand`, `10.0.30.41`. The SSD pool's
+    allocation went from 920 to 952 GiB, as ADR-0081 said it would.
+    [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)
+    §1–§3 now describe the clone, not an installer.
+  - **Two things the clone did that the runbook did not say.**
+    - Cloud-init's first boot left the guest on a DHCP address. Its netplan
+      renames the NIC to `eth0`, and the rename failed with `[busy]` on an
+      interface already up. One reboot applied the static address.
+    - The sops release's checksums do not cover its `.deb`, so `sops` 3.9.4,
+      `alexander`'s version, is the verified release binary in
+      `/usr/local/bin`.
+  - **The secrets.**
+    - `make secrets-init STACK=bloodhound` on `eden` replaced the rule's
+      placeholder with `eden`'s own key.
+    - Its database, admin and session-signing values were set on the guest
+      with `sops set`, so no value was ever displayed.
+    - `INGEST_TOKEN_EDEN` was made once and set on both guests from stdin: in
+      `secrets/lab.sops.yaml` on `alexander`, and as `INGEST_TOKEN` on `eden`.
+      Their hashes match.
+    - It goes into the Caddy map, the lab compose, `render-config.sh`, the
+      validation env and `lab.example.yaml` in the same pull request as its
+      value. `alexander`'s checkout is left at `HEAD` until that merges.
+  - **Still to do:**
+    - §4, the certificate, which has to come from `prometheus` by way of the
+      Mac;
+    - `make up STACK=lab` on `alexander`;
+    - §6, bringing the stack up;
+    - §7, the first collection.
+
+- **`AlloyDown`: one alert that says the agent is down.** At 05:34 UTC the
+  production `alloy` on the monitoring host was stopped (exit 137, not OOM).
+  `unless-stopped` left it down for 47 minutes, until it was found during
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844)'s post-deploy checks.
+  A scratch test in another session stopped it. The test ran `docker kill` on
+  containers selected by `--filter ancestor=` the pinned Alloy image, which is
+  also the image production runs. What paged was `InstanceDown` for
+  `alloy:12345`, three `RemoteWriteJobStale` and `FirewallLogsStopped`. None
+  of them said the container was exited or how to start it. `ContainerGone`
+  names `alloy` but cannot fire for it, because cAdvisor runs inside Alloy.
+  `AlloyDown` keys on each host's `<host>-alloy` self-scrape. It fires at 10m,
+  and Alertmanager inhibits that host's `RemoteWriteJobStale` while it holds.
+  Three promtool cases cover it, and mutations to `for`, `unless` and per-job
+  aggregation are each killed. Widening the selector is equivalent under
+  `by (instance)`, and the test file says so.
+
+- **`trinity`'s backup sets are re-verified nightly, here and on `oracle`**
+  ([#856](https://github.com/Gerrrt/HomeLab/issues/856),
+  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
+  - **The gap.** A set on `trinity` was verified the night it was written and
+    never again. `make verify-backups` ran only on `prometheus`.
+  - **What closes it.** `make verify-backups STACK=sensitive` walks the
+    tier's volume sets and Immich's library sets instead of the NAS and wiki
+    sets, which `trinity` never holds. `homelab-verify-backups-sensitive` runs
+    it at 06:30 through `run-scheduled.sh`, under the `backups` lock, as
+    `verify-backups-sensitive` with a two-day threshold.
+  - **`oracle`'s copies.** These were already checkable from `trinity`:
+    `--verify-only` on both scripts has `oracle` sha256 every archive it holds
+    and compares each hash with the MANIFEST here. Nothing had scheduled it.
+    ADR-0064 records the answer: verified from `trinity`, with nothing
+    decrypted on `oracle`.
+  - **First run, by hand, 2026-10-07.** 7 volume sets and 2 library sets
+    decrypted on `trinity`, and every copy on `oracle` hashed to its MANIFEST
+    entry. It took about three minutes.
+  - **The fixture.** `backup-library.sh --self-test` now flips one byte in a
+    set and truncates another, and `--verify-only --all` fails on both.
+
+- **Syslog stores only the senders it names.**
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844) found that any host
+  able to reach 1514/udp or 514/udp could write lines labelled
+  `host="morpheus"`, because the message's own hostname overrode the label.
+  Those lines include the filterlog and Suricata lines the Loki security rules
+  read. The issue proposed a leading `keep` relabel rule. On the pinned Alloy
+  v1.20.1 that rule does not drop: `loki.source.syslog` ignores the result of
+  its relabel rules, and a spoofed line was stored as
+  `{log_type="syslog", source="network"}` without being counted. Now `host`
+  comes from the connection address only. A line with no `host` is dropped in
+  `loki.process` and counted under
+  `reason="syslog_sender_not_allowed"`, and the ports bind to
+  `INGEST_BIND_ADDR` instead of `0.0.0.0`.
+  `scripts/check_syslog_senders.sh` sends a real line, a spoofed one and a
+  forged hostname through a scratch Alloy and Loki. It fails with the drop
+  stage removed and with the hostname rule restored. In the seven days before
+  the change, every stream on this path was `host="morpheus"`, so nothing that
+  was arriving is now refused.
+
+- **The weekly digest-drift check covers every stack, not just one.**
+  `digests.yml` ran `scripts/pin-digests.sh` with no `COMPOSE_FILE`, so it
+  checked only `stacks/observability`. It now runs
+  `make check-digests`, which loops over `scripts/stacks.sh`. That target also
+  stopped at the first stack that drifted, because of `-e` in `.SHELLFLAGS`;
+  it now checks every stack and then fails, naming the ones that drifted. The
+  first full run on 2026-10-07 found drift that had gone unreported in five
+  stacks: observability (`debian:13-slim`), scratch and soc (the three
+  `wazuh/*` 4.14.8 images), sensitive (`postgres:18.6`, pinned by two
+  services), and wiki (`postgres:17.11`). The tags have not moved, but
+  upstream rebuilt them. They were re-pinned the same day in their own change
+  ([#966](https://github.com/Gerrrt/HomeLab/pull/966)), because a merge to
+  sensitive is a deploy.
+
+- **Every pinned image is scanned for CVEs weekly.** Before this, every image
+  was pinned by digest and `digests.yml` watched those digests for drift, but
+  nothing checked them for known vulnerabilities
+  ([#852](https://github.com/Gerrrt/HomeLab/issues/852)).
+  [`cve-scan.yml`](../.github/workflows/cve-scan.yml) runs on Mondays, an
+  hour after `digests.yml`. It runs `trivy`, pinned in the observability
+  compose file behind the `scan` profile beside `gitleaks`, against every
+  digest that any stack pins, using `--severity HIGH,CRITICAL
+  --ignore-unfixed`. The job summary lists every image, including the clean
+  ones. Each image repository with fixable findings has one issue, labelled
+  `security` and with its stacks' labels. The issue is keyed on the
+  repository rather than the tag, so a Dependabot bump updates it instead of
+  opening a twin. It closes when a scan finds the digest clean. A finding does
+  not fail the run, and no pull request is gated on one, not even a fixable
+  CRITICAL on the sensitive tier: the bump is the fix. An image that could
+  not be scanned does fail the run. Run it locally with `make scan-images`.
+
+## 2026-10-06
+
+- **The lab domain's deliberate weaknesses, each behind its own switchable
+  tag** ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0083](adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+  - **Six roles, six tags, all off by default.** `weakness_kerberoast`,
+    `weakness_asreproast`, `weakness_dcsync`, `weakness_ucd`, `weakness_cd`
+    and `weakness_rbcd` join `lab-domain.yml`, each with a
+    `weakness_<name>_state` that defaults to `absent`. The tag selects the
+    role; the variable selects the direction; every role is idempotent both
+    ways. A plain run leaves all six absent, so the merge changes nothing on
+    the live domain.
+  - **What each one is.** `kerberoast` makes `svc-sql` with an SPN on a
+    crackable account (ADR-0029's named `ramuh` target); `asreproast` makes
+    `svc-backup` with Kerberos pre-auth disabled; `dcsync` grants the two
+    replication rights on the domain head to a non-DA `svc-sync`; `ucd` sets
+    unconstrained delegation on `ramuh`; `cd` lets `svc-web` delegate to
+    `titan`'s CIFS (Kerberos only); `rbcd` sets `titan` to trust `svc-rbcd`.
+    The dedicated accounts are deleted when their weakness is turned off, so
+    the ordinary population is never touched (ADR-0078); the delegation flags
+    are cleared on the real computers, which are never created or deleted.
+  - **The per-primitive negative test is `verify.yml`.** It now asserts each
+    weakness is in the state its toggle names, defaulting to absent — so a plain
+    run proves all six primitives are absent, and `verify.yml -e
+    weakness_<name>_state=present` proves one that is deliberately on. It does
+    not walk the authorization graph, so the graph-level "no path to Domain
+    Admin" check #449 names is the BloodHound collector run with the tags off
+    (#451), not this. The §0 "do not harden" assertions are untouched.
+  - **A sixth secret.** `LAB_WEAK_PASSWORD` in `phoenix.env` is the
+    deliberately crackable password the weakness accounts share — the crack
+    target for the two roasting weaknesses, and the login the others
+    authenticate with. A role refuses to enable a weakness while it is unset.
+  - **Not applied yet.** This is code and docs only. Nothing has been run
+    against the live domain; the snapshot-first, enable/observe/disable loop
+    per weakness (runbook §5a) is the operational work still to do, and the
+    SOC-detection half (#266/#267/#437) is the deliverable it feeds.
+- **BloodHound CE is authored for `eden`, a guest on `Saruman` that is off
+  between sessions, and not yet built**
+  ([#451](https://github.com/Gerrrt/HomeLab/issues/451),
+  [ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)).
+  - **What is written:**
+    - `stacks/bloodhound`: BloodHound 9.7.1 over one Postgres 18 that holds
+      both its state and its graph (`bhe_graph_driver: pg`), not upstream's
+      default Neo4j, so that Saruman's disks carry one database, not two;
+    - its secrets template, and a `.sops.yaml` rule with a placeholder for
+      the guest's key;
+    - [`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md).
+  - **It moves BloodHound off `ifrit`.**
+    [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+    had sized `ifrit` around it. ADR-0017 carries a note pointing to ADR-0081.
+  - **Sized against `Saruman` as it was read today:**
+    - **RAM:** 75 GiB of 125 free.
+    - **`large_data`:** 28.7% written, but its thin volumes are already
+      allocated to 920 GiB of an 876 GiB pool.
+    - **The disks that follow from that:** the OS disk goes on `local-lvm`, as
+      `phoenix`'s did, and only the 32 GiB data disk goes on the SSDs.
+  - **The image is distroless and runs as root.** The `bloodhound` service
+    therefore has no health check, and it joins `loki` in
+    `check_compose_health.py`'s `ABSENT_BINARIES`. It is run as `nobody`, and
+    `up{job="bloodhound"}` on `alexander` answers whether it is alive.
+  - **Not done here, by design:**
+    - **`INGEST_TOKEN_EDEN` on the lab side.** `stacks/lab/compose.yaml`
+      requires every token it names, so adding the name before its value is
+      in `secrets/lab.sops.yaml` would fail `alexander`'s next render. It goes
+      in with the guest's key, in the pull request that writes the guest down
+      as built (the runbook's §5).
+
+- **The six domain guests are declared in `tofu/`, ready for #448's rebuild
+  proof.** Their VMIDs, templates, sizes, MACs, SMBIOS UUIDs and startup order
+  were read from the hand-built guests' `qm config` and written into
+  `tofu/guests.tf`. The guest module gained a MAC (ADR-0077 decision 6), the
+  UUID and the startup order. It now also states q35, OVMF and the EFI disk on
+  every guest, and the TPM on Windows. Every template is UEFI, and the
+  provider's default is SeaBIOS.
+- **`labadmin` is now in code.** Both endpoints had it, in Administrators,
+  and nothing in `ansible/` made it. Windows 11's setup creates it, and a
+  clone of 911 would not have had it. `roles/endpoint_admin` creates it when
+  it is missing, from `LAB_ENDPOINT_ADMIN_PASSWORD`, and `verify.yml` checks
+  it on both endpoints.
+- **The rebuild itself has not run yet.** `build-the-lab-domain.md`'s
+  "Rebuild from the pipeline" is the procedure: import, destroy, apply,
+  configure, verify.
+- **Packer is pinned the way tofu is**
+  ([#851](https://github.com/Gerrrt/HomeLab/issues/851)). Until today,
+  `packer/versions.pkr.hcl` required `>= 1.11.0`, and
+  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §1
+  installed whatever HashiCorp's apt repository held, while CI linted with
+  `hashicorp/packer:1.16.1`. The requirement is now `~> 1.16.0`, and §1
+  installs the 1.16.1 zip after checking it against `SHA256SUMS`. A host that
+  had packer from apt removes it along with the repository. phoenix was such a
+  host: it held `packer 1.16.1-1` from apt, the right version only because
+  nothing newer had shipped yet. §1 was run there the same day. The apt package
+  and the repository are gone, the zip's checksum matched, and as `locke`,
+  `command -v packer` prints `/usr/local/bin/packer`, `packer version` prints
+  `Packer v1.16.1`, and `packer init` accepts the new `~> 1.16.0`.
+- **The guest module rejects sizes Proxmox would reject.** `disk_gib` must be
+  at least the template's own disk: 32 for Ubuntu, 64 for Kali and Windows.
+  `memory_mib` must be at least 1024 for Linux and 2048 for Windows, and
+  `cores` at least 1. All three are checked at plan, where before a disk that
+  was too small failed only at apply.
+- **9182 is named once.** The new `windows_exporter_port` in
+  `group_vars/all.yaml` feeds the MSI's `LISTEN_PORT`, the firewall rule and
+  `verify.yml`'s two checks.
+- **Sysmon and Pktmon are on the lab domain**
+  ([#450](https://github.com/Gerrrt/HomeLab/issues/450),
+  [ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+  - `roles/sysmon` (`--tags sysmon`) installs Sysmon 15.22, pinned by sha256,
+    on all six guests. It runs sysmon-modular's balanced profile, vendored
+    from release `configs-082cba578667` by
+    `scripts/vendor-sysmon-config.sh`.
+  - `verify.yml` now fails on any guest where Sysmon is not running that
+    version with that config.
+  - `pktmon-start.yml` and `pktmon-stop.yml` capture on one guest and fetch
+    the pcapng to `phoenix`.
+  - Read from the six first: none had Sysmon, all six have `pktmon`.
+  - **Applied from `phoenix` the same evening.** `carbuncle` went first, alone.
+    Its config step reported no change straight after the install, which
+    confirmed that Sysmon's `ConfigHash` is the sha256 of the file it is
+    handed. Then all six were applied with `failed=0`. A second run gave
+    `changed=0` on all six, and `verify.yml` passed on all six.
+  - **What it records.** A `whoami /all` on `carbuncle` came back as event 1,
+    with its full command line, its parent's command line, and the rule name
+    `technique_id=T1033`. Within minutes of the install, the channel also held
+    image loads (7) and pipe events (17).
+  - **Pktmon round trip on `carbuncle`, filtered to 445.**
+    - Without `--limit`, and while a capture was running, the start was
+      refused.
+    - The fetched pcapng held 20 packets, all TCP 445 between `carbuncle` and
+      `titan`. Nothing was left on the guest.
+    - The first stop failed after it had stopped and converted the capture.
+      A `delegate_to: localhost` task had inherited the group's PowerShell
+      shell type. The task was removed, and a rerun of the stop now picks up
+      a capture left that way. That rerun is the one that fetched the file.
+- **JA4+ is live on `fenrir`, and #776 closes**
+  ([#776](https://github.com/Gerrrt/HomeLab/issues/776),
+  [ADR-0069](adr/0069-vendor-the-ja4-scripts-into-the-sensor-stack-rather-than-build-an-image.md)).
+  This corrects the 2026-10-01 entry "JA4+ is vendored into `stacks/sensor`,
+  and not yet deployed". The stack deployed from `main`.
+  - **Live since 2026-10-04.** The first archived `ssl.log` with a `ja4`
+    field is `ssl.2026-10-04-13-33-43.log`. `sensor-zeek` mounts
+    `/zeek/site/ja4` read-only, and `ja4ssh.log` and `ja4d.log` are written
+    beside the stock logs.
+  - **A guest's outbound TLS carries a JA4.** All six domain guests
+    (`10.0.30.50`–`.55`) do, for example `10.0.30.54` to `login.live.com` with
+    `ja4` `t13d2013h2_2b729b4bf6f3_e24568c0d440`. The other Windows guests'
+    calls to `settings-win.data.microsoft.com` share
+    `t12d1809h2_4b22cbed5bed_7af1ed941c26`. One client stack gives one
+    fingerprint, which is the reason for choosing JA4 over JA3.
+  - **The lab's Loki returns them.** `{job="zeek"} | json | ja4 != ""` on
+    `alexander` returned lines. Counted over the 24 hours to 2026-10-07 05:30
+    UTC, `ssl` lines with a JA4 came from 12 sources:
+    - 3,664 from the domain guests;
+    - 17,655 from `Saruman`;
+    - and the rest from `alexander`, `odin`, `10.0.30.70`, and two hosts on
+      `10.0.50.0/24`.
+  - **ADR-0069's capture-loss comparison is pending.** The windows are split
+    by `capture_loss.log`'s and `stats.log`'s own timestamps, not by archive
+    file names:
+    - The "before" window is the corrected baseline: from 2026-10-01 05:25
+      UTC to deployment. 05:25 is the first 15-minute interval after the GRO
+      fix (#782). Intervals before it read 6–10% `percent_lost`, which was the
+      reordering artefact, and they are left out.
+    - The cut at deployment, 2026-10-04 13:33, is that of the first archived
+      `ssl.log` with a JA4. It is approximate to the hour's rotation.
+
+    | Window | gaps / acks | Worst 15-minute `percent_lost` | `pkts_dropped` | Packets |
+    | --- | --- | --- | --- | --- |
+    | 10-01 05:25 to 10-04 13:33, before | 0.027% | 0.23% | 0 | 444 M |
+    | 10-04 13:33 to 10-07 05:27, after | 0.009% | 0.05% | 0 | 111 M |
+
+    Neither window shows a rise. They are not yet comparable: the "after"
+    window carries a quarter of the packets, so this is no finding either
+    way. The full week after deployment ends around 2026-10-11, and the
+    comparison is recorded in its own entry then.
+- **Zeek's archive prune is a repository timer, not a cron line.**
+  `/etc/cron.d/zeek-archive-prune`, typed by hand from
+  [`build-the-sensor-guest.md`](runbooks/build-the-sensor-guest.md), was in no
+  repository state and reported nothing. It is now
+  `systemd/agent/homelab-zeek-archive-prune.{service,timer}`, shipped to
+  `fenrir` by `install-agent-collectors.sh` and run through `run-scheduled.sh`,
+  with the retention set once in the unit. The lab's Prometheus gained
+  `ScheduledJobFailed`, `ScheduledJobStale` and `ScheduledJobNeverRan` to read
+  its outcome ([#850](https://github.com/Gerrrt/HomeLab/issues/850)). Not yet
+  installed on `fenrir`.
+
+- **Recorded late: #449's population went onto the domain on 2026-10-03**
+  ([#449](https://github.com/Gerrrt/HomeLab/issues/449),
+  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
+  It was recorded on the issue that day and not here. This is written on
+  2026-10-06, when the roadmap was found still saying "not yet applied".
+  - **What was applied from `phoenix`, merged as
+    [#832](https://github.com/Gerrrt/HomeLab/pull/832):**
+    - **`--tags population`:** 41 accounts from the committed
+      `ansible/population/population.yaml`. Forty were drawn by
+      `scripts/gen_population.py --count 40 --seed 449`, and `authgen` is the
+      forty-first. They sit in six department OUs under `OU=People`, with a
+      global group per department and three cross-cutting groups under
+      `OU=Groups`.
+    - **`--tags authgen`:** runbook §6's generator on `carbuncle` and
+      `siren`. `authgen` moved from `CN=Users` into `OU=IT`.
+    - **Passwords:** none in git. Each is derived on `phoenix` from
+      `LAB_POPULATION_SEED` and the account name.
+  - **Proved on `main`'s code.** The rerun was at `00e23e4`, identical under
+    `ansible/` to `b136208`. Its first apply made two changes per endpoint:
+    the stored password and the first credential fingerprint. The second
+    apply was `changed=0` on all six. The generator returned `0` on both
+    endpoints, and `verify.yml` passed on all six. `verify.yml` now also
+    checks four things:
+    - `OU=People` holds exactly the file;
+    - every population group exists;
+    - the generator runs as `AD\authgen`, compared by SID;
+    - its last run succeeded.
+  - **Still open on #449:**
+    - the rest of
+      [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5: the
+      tiers, the SPN account, the Tier 0 GPO and the shares;
+    - the deliberate weaknesses, each its own tag on top of the population.
+
+## 2026-10-05
+
+- **The CRS326 is on RouterOS 7, and reset.** Phase 1 of
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) began at the bench
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MokerLink's
+  configuration was exported, and the port map was checked against the wiki;
+  port 15 is `smaug`, and no more than 24 copper ports are in use. The CRS326
+  arrived on RouterOS 6.48.6, which is end of life and older than the fix for
+  CVE-2023-30799. The runbook's commands are written for v7, so it went to
+  6.49.22 and then to 7.23.7 long-term before the reset, so the reset ran on
+  the version it keeps. [`hardware.md`](hardware.md) has the serial and MAC.
+- **Phase 1 is done at the bench, apart from the SNMP proof.**
+  - The identity is `neo`.
+  - `www-ssl` serves the estate-CA leaf, and a browser at `10.7.7.2` showed
+    no warning. That needed `reverse-proxy` disabled, which 7.23 enables on
+    the same port.
+  - `ftp`, `telnet`, `api` and `api-ssl` are off.
+  - SNMP has one v3 user, `prometheus` (SHA1/AES), limited to `10.0.99.20`,
+    and the default `public` community is disabled.
+  - The bridge follows the wiki's 2026-09-17 port map. Port 1 is the trunk,
+    with all six VLANs tagged and management untagged on VLAN 1. Ports 2–24
+    accept untagged frames only, each with its VLAN as PVID. VLAN 1 holds only
+    the bridge and port 1, so management is not reachable from an access port,
+    as it was on the MokerLink. The SFP+ cages are disabled. There is no
+    mirroring.
+  - `snmp-verify.sh` cannot reach a switch on a desk, so the v3-only proof
+    moves to Phase 2.
+
+## 2026-10-04
+
+- **The CRS326's 24HPOW was delivered on 2026-09-26**, the evening of the
+  day the 2026-09-26 entry below called it still in transit. The repository
+  went on saying so for eight days. Nothing but the bench time gates Phase 1
+  of [`swap-the-switch.md`](runbooks/swap-the-switch.md) now, and it has not
+  started ([#444](https://github.com/Gerrrt/HomeLab/issues/444)).
+
+- **`deploy-agent.sh` proves the log path with a line it writes itself.**
+  Its arrival check asked Loki for any line from the host newer than the
+  deploy. golem, an idle backup server, logged nothing in the three minutes,
+  so a working agent was reported as broken. Its logs were reaching Loki by
+  all three paths, which a hand-sent `logger` line showed. The script now
+  sends a unique marker with `logger` on the target once the agent is up,
+  then looks for that exact text. It travels the host's own logging, so it
+  arrives exactly when the host's logs are shipped. It is found by text, so
+  the search runs from ten minutes before the deploy to ten minutes after the
+  wait, and tolerates up to ten minutes of clock skew either way. If `logger`
+  cannot run, the old check stands in, with a warning, and its failure
+  message no longer names a marker that was never sent.
+
+- **#485 closes: what `golem` does is visible, and its first nightly run is
+  verified** ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+  - **The first real backups.** The 21:00 job on 2026-10-03 backed up `odin`
+    and the domain's six, 21:00 to 22:53, all OK. Sunday's 03:00 verify job
+    re-read all seven and passed them, in 41 minutes. Those are the backups
+    ADR-0053 was written for, verified, which was half of what kept #485
+    open.
+  - **The other half.** `scripts/collect-pbs-task-state.py`, on `golem`
+    hourly, reads PBS's job-state API as root: each verify, prune and
+    garbage-collection job's last outcome and when it ended, and each
+    datastore's snapshots by verify state, the unencrypted ones, and the
+    newest. Seven lab rules read it: `PbsJobFailed`, `PbsVerifyOverdue`,
+    `PbsNoVerifyJob`, `PbsSnapshotVerifyFailed`, `PbsBackupStale`,
+    `PbsSnapshotUnencrypted` and `PbsTaskStateStale`, each with a firing
+    and a quiet test. "Unencrypted" is read from each archive's crypt mode,
+    not from the key fingerprint, which a `sign-only` backup also has
+    (review on #904). Its
+    fixtures are `golem`'s own answers that morning. Installed on `golem`
+    with `install-agent-collectors.sh`; the series reach `alexander`, and
+    every rule's expression is quiet against them.
+  - **One garbage collection, run early.** The fixture for a garbage
+    collection that has run had to be real, so the first one was started by
+    hand that morning rather than waiting for Saturday. 11 minutes, nothing
+    removed, as a first run must; 575 GB of backups take 115 GB on
+    `erebor`.
+  - **The label it does not use.** The job's ID is `pbs_job`, not `job`,
+    which Prometheus already sets to the scrape job and would have renamed
+    the collector's to `exported_job`.
+  - **Not deployed yet.** The seven rules reach `alexander` with the next
+    `make up STACK=lab`, which cannot render while the lab's secrets lack
+    #834's four tokens. Until then the collector's series arrive and nothing
+    evaluates them.
+
+- **`ContainerGone` fired 352 times at once, and now watches only the
+  deployed stacks** ([#901](https://github.com/Gerrrt/HomeLab/issues/901)).
+  - **What happened.** The rule from #838 reached the live stack with the
+    day's converges. It watched every container cAdvisor had seen in the
+    last seven days and excluded only `homelab.logs=off`. The week's
+    throwaways all fired together: 295 on `trinity`, 49 on `prometheus` and
+    8 on `oracle`. They were promtool and validation `docker run`s, the
+    dashboard round-trip, hardened-boot and compose-health probes, build and
+    restore rehearsals, and the old hand-made `db` and `wiki` on `oracle`.
+    None of them was a service. Every service that should run was running.
+  - **The silence.** Two silences, on the exact names, expire 2026-10-12. The
+    first one also covered `trinity`'s real `sensitive-home-assistant` and
+    was replaced. `ContainerGone` as a whole was never silenced.
+  - **The fix.** The rule now watches the compose projects this repository
+    deploys (`observability`, `sensitive`, `wiki`, `lab`, `soc`, `sensor`),
+    plus `alloy`, which `deploy-agent.sh` runs outside compose. Against live
+    data it fires for none of the 352. It watches the 34 service containers
+    running on the three hosts. The promtool test adds a bare `docker run`
+    container and an undeployed project (`mfscratch`), and both stay quiet.
+    A new stack has to be added to the rule's project list.
+
+- **The alert-path runbook says how to prove the Loki ruler's alerts page**
+  ([#837](https://github.com/Gerrrt/HomeLab/issues/837)).
+  `verify-the-alert-path.md` had the healthy check only. It now has the
+  failure test #837 asks for. A compose override under `/tmp` points the ruler
+  at an Alertmanager that is not there. `LokiRulerNotificationsFailing` pages
+  in about 12 minutes and `LokiRulerSilent` in about 21, over the path the
+  heartbeat proves. The override never touches the deployment checkout, which
+  converge needs clean. Step 3 checks that the override took before anyone
+  waits on it.
+
 ## 2026-10-03
+
+- **`golem` gets its own token at the lab's ingest proxy**
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [#834](https://github.com/Gerrrt/HomeLab/issues/834)). The first run of
+  `deploy-agent.sh` against `golem` stopped before it changed anything,
+  correctly: since #834 every client pushes with its own token, and `golem`
+  had none. `INGEST_TOKEN_GOLEM` is now in the proxy's map, compose,
+  `render-config.sh`'s list, the validation env and `lab.example.yaml`, and
+  so is a documented slot for §7's `PBS_ENCRYPTION_KEY`.
+  `build-the-backup-guest.md` §10 now says to export the token first.
+
+- **`golem` is built: the lab has a backup, not only revert**
+  ([#485](https://github.com/Gerrrt/HomeLab/issues/485),
+  [ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+  #485 stays open.
+  - **What exists.** VMID 180 on `Saruman`, Proxmox Backup Server 4.2 from
+    an ISO whose SHA-256 matched both Proxmox's `SHA256SUMS` and its
+    downloads page, kept on `local` and not on `smaug-iso`. Its datastore
+    `erebor` is `smaug`'s `erebor/pbs` over NFSv4, mounted on a mountpoint
+    made immutable while empty, and PBS's own access-time check passed when
+    the datastore was made. `Allow NFS from golem to smaug` sits directly
+    above *Block access to CasaBonita* on `igc0.30`. `Saruman`'s storage
+    `golem` encrypts with a key it generated, and the nightly 21:00 job
+    takes `odin` and the domain's six, which both exist now, though the
+    runbook expected neither.
+  - **The proof.** A backup of `phoenix`, 32 GiB in 6 min 43 s over the
+    firewall, was marked encrypted and verified with no errors. It restored
+    to VMID 979 at 325 MB/s, and the copy booted with its NIC unlinked.
+    Then both were deleted.
+  - **What the runbook got wrong.** §6 granted `DatastoreBackup` to the
+    token alone. A PBS token holds the intersection of its permissions and
+    its user's, so it held nothing, and `pvesm add` could not find the
+    datastore. The user needs the role too, and §6 now says so. §9's
+    deletion of the test snapshot from `Saruman` was refused for the same
+    role, correctly: `Saruman` can store a backup and cannot remove one. It
+    is deleted on `golem` instead.
+  - **Seen in passing.** Making `golem`'s disk took `large_data`'s thin
+    volumes to 920 GiB promised against an 894 GiB pool. Use is 34%, and
+    LVM's autoextend is off.
+  - **The same evening.** The encryption key went into
+    `secrets/lab.sops.yaml` and onto paper (§7), and `golem`'s Alloy agent
+    was deployed from the Mac (§10): its host metrics, its own and its logs,
+    `auth.log` and `syslog` through `rsyslog` included, reach `alexander`.
+    It needed a token of its own at the lab's ingest proxy first (#896).
+  - **What keeps #485 open.** §10's collector, which puts the verify, prune
+    and garbage-collection outcomes where the lab's alerting reads them.
+    Then the first nightly backup from §8 verified.
+
+- **Every Loki rule has a behaviour test, and a second dead branch is fixed.**
+  - **The gap.** #893 tested the 8 critical rules. The other 11 had syntax
+    checks only, and the coverage gate asked only for critical ones.
+  - **The fix.** Fixture cases for all 11, and a gate that requires every
+    rule. `LokiRulerWatchdog` is excused from needing a quiet case, because
+    it is `vector(1)`. Three rules assert an absence over 30m, 2h or 9h, so
+    each case now takes a span to itself. The runner checks every rule's own
+    range against that spacing rather than trusting it.
+  - **What it found.** `NewUserOrGroupCreated` matched
+    `(useradd|groupadd|usermod).*new (user|group)`. Alloy's journal source
+    forwards `MESSAGE` alone, which carries no program name, so the journal
+    branch never matched: a journal-only host could create users unseen.
+    `usermod` never logs either phrase. The rule now matches shadow-utils'
+    own `new (user|group): name=`. The tests' first complete CI run failed
+    on that case alone, 41 of 42, as intended.
+  - **Left alone.** `KernelOomKill` skips cgroup OOMs on purpose, and
+    `ContainerOomKilled` has those. An OOM in a non-container cgroup, such as a
+    systemd service with `MemoryMax`, is seen by neither.
+
+- **The critical Loki rules have behaviour tests, and they found a dead one**
+  ([#843](https://github.com/Gerrrt/HomeLab/issues/843)).
+  - **The gap.** `check_loki_rules.sh` proves the LogQL parses. Nothing proved
+    it matches, so a regex no device line satisfies passed and stayed silent.
+  - **The fix.** `scripts/test_loki_rules.py` pushes fixture lines into the
+    pinned Loki and runs each rule's own `expr` as an instant query, comparing
+    the series returned. There are 21 cases over the 8 critical rules, in each
+    source's real line format. Every critical rule needs a case that fires and
+    one that does not. It runs in `make check-loki-rules`, `validate.sh` and
+    CI.
+  - **What it found.** `DiskIoErrors` matched smartd with `SMART.*FAILED`.
+    smartd writes `FAILED SMART self-check` and `SMART Failure:`, and the
+    match is case-sensitive, so that branch never fired. The tests' first
+    complete CI run failed on that case alone, 20 of 21, as intended, and the
+    regex now names both lines.
+  - **What the runner needed.** The very first run never got that far: the
+    fixtures are hours old, so the ingester flushed their chunks at once and
+    dropped them from memory before the store could serve them. The test
+    config now keeps them (`max_chunk_age`, `chunk_retain_period`).
+  - **Not covered.** `for:`, Alloy's labelling, and the 11 warning rules.
+
+- **#440 closes: the lab's templates are built, and a rebuild is one
+  command** ([#440](https://github.com/Gerrrt/HomeLab/issues/440),
+  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)).
+  - **What exists.** 901 Ubuntu 26.04, 911 Windows 11 Pro 26H2 and 912
+    Server 2025 evaluation, built on `Saruman` from `phoenix` with installers
+    read from `smaug-iso` (ADR-0072). Each was smoke-tested on a fresh full
+    clone: an address from the guest agent, its hostname, and `phoenix`'s key
+    logging in over SSH, as `smoke` on Linux and as Administrator on
+    Windows.
+  - **What the issue asked for.** Building the same template twice: 901
+    was built again with `-force`, and 912 three times.
+    `LabWindowsEvaluationExpiring` now has a command for an answer, about 35
+    minutes for 912.
+  - **What it took.** The ISO store's daily checksum check (#796), which
+    was written before any build read from the store. Then seven fixes,
+    each found on a real build or its clone: the boot order (#812); sysprep
+    run outside WinRM (#816); `call winrm` (#822); then OpenSSH installed
+    elevated, no automatic BitLocker, the RID-500 Administrator enabled,
+    and WinRM's clean-up made to run (#829). The entries below have each
+    one.
+  - **What it does not include.** Kali (902) builds on `ifrit`, which does
+    not exist yet, and is
+    [#790](https://github.com/Gerrrt/HomeLab/issues/790).
 
 - **Template 911 (Windows 11 26H2) builds. Three Windows 11-only faults
   stood in the way, and one more in 912's clones**

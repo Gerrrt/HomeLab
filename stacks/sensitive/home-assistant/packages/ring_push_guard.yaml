@@ -1,0 +1,11 @@
+---
+# Loads custom_components/ring_push_guard, which keeps the Ring integration's
+# push receiver from shutting down on Ring pushes that have no ding.id
+# (ADR-0101). A custom integration only loads when its domain is in the
+# configuration, and it takes no options.
+#
+# Delete this file and the component once Home Assistant ships a
+# ring_doorbell release with the fix. The component warns in the log when the
+# installed version is not 0.9.14.
+
+ring_push_guard:

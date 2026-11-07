@@ -1,0 +1,104 @@
+---
+# The eero units' status, for monitoring only (#1228).
+#
+# There is no local eero API, and ADR-0019 declined the cloud integration.
+# But every eero takes its address from Kea on morpheus and renews it about
+# hourly, and Kea's lease lines are already in Loki. A unit that has renewed
+# in the last two hours is on the network. One that has not is down, or off
+# its segment.
+#
+# Each unit has a Kea reservation below its segment's pool, so the address
+# is the unit and no MAC is written here. The rows in network.md name which
+# unit holds which address.
+#
+# One query covers all eight: lease renewals in the last two hours, summed by
+# address. Lines from other devices fail the pattern and are dropped by the
+# `ip != ""` filter. An address missing from the result has not renewed. Loki is
+# reached the way homelab_rack.yaml reaches Prometheus: the ingest proxy on
+# 10.0.99.20, with the reader token and the estate CA.
+
+rest:
+  - resource: https://10.0.99.20:3100/loki/api/v1/query
+    headers:
+      Authorization: !env_var HA_PROMETHEUS_AUTHORIZATION
+    params:
+      query: >-
+        sum by (ip) (count_over_time({app="kea-dhcp4"}
+        |= "DHCP4_LEASE_ALLOC"
+        | regexp `lease (?P<ip>10\.0\.(10|20|50)\.1[1-3]) has been allocated`
+        | ip != "" [2h]))
+    scan_interval: 300
+    timeout: 15
+    # Every sensor below is unavailable, not "off", when Loki has no answer,
+    # so a monitoring outage is not reported as eight eeros down.
+    binary_sensor:
+      - name: eero Hicks 11
+        unique_id: eero_hicks_11
+        device_class: connectivity
+        availability: &loki_ok "{{ value_json is defined and value_json.status == 'success' }}"
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.50.11') | list | count > 0 }}"
+      - name: eero Hicks 12
+        unique_id: eero_hicks_12
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.50.12') | list | count > 0 }}"
+      - name: eero Hicks 13
+        unique_id: eero_hicks_13
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.50.13') | list | count > 0 }}"
+      - name: eero Skids 11
+        unique_id: eero_skids_11
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.20.11') | list | count > 0 }}"
+      - name: eero Skids 12
+        unique_id: eero_skids_12
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.20.12') | list | count > 0 }}"
+      - name: eero Skids 13
+        unique_id: eero_skids_13
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.20.13') | list | count > 0 }}"
+      - name: eero Degens 11
+        unique_id: eero_degens_11
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.10.11') | list | count > 0 }}"
+      - name: eero Degens 12
+        unique_id: eero_degens_12
+        device_class: connectivity
+        availability: *loki_ok
+        value_template: "{{ value_json.data.result | selectattr('metric.ip', 'eq', '10.0.10.12') | list | count > 0 }}"
+
+automation:
+  # No `from:`, so a unit already down when Home Assistant starts is
+  # reported once the first poll comes back. Through script.household_alert
+  # in thermostat.yaml, which sends to the phones labelled `household_phones`
+  # and to Home Assistant's notifications.
+  - id: eero_offline
+    alias: eero offline
+    description: Alerts when an eero unit has not renewed its DHCP lease in two hours.
+    mode: queued
+    triggers:
+      - trigger: state
+        entity_id:
+          - binary_sensor.eero_hicks_11
+          - binary_sensor.eero_hicks_12
+          - binary_sensor.eero_hicks_13
+          - binary_sensor.eero_skids_11
+          - binary_sensor.eero_skids_12
+          - binary_sensor.eero_skids_13
+          - binary_sensor.eero_degens_11
+          - binary_sensor.eero_degens_12
+        to: "off"
+    actions:
+      - action: script.household_alert
+        data:
+          title: "{{ state_attr(trigger.entity_id, 'friendly_name') }} offline"
+          message: >-
+            {{ state_attr(trigger.entity_id, 'friendly_name') }} has not
+            renewed its network lease in two hours. Check its power, and the
+            eero app.

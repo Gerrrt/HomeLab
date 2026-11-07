@@ -1,0 +1,13 @@
+# Watch: the YouTube tabs at full width, so the thumbnails have room.
+# The tabs and channels are GLANCE_VIDEO_TABS in SOPS. Thumbnails
+# are the one third-party request the browser makes (ADR-0100). YouTube's
+# feeds fail now and then (glanceapp/glance#910); a tab whose channels all
+# fail shows an error until a fetch works.
+- name: Watch
+  width: wide
+  columns:
+    # ---------------------------------------------------------------------
+    - size: full
+      widgets:
+        - type: group
+          widgets: ${GLANCE_VIDEO_TABS}

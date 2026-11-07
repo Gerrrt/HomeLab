@@ -173,6 +173,71 @@ rather than generating it. Both replace any earlier entry:
 (f=~/.config/proxmox/phoenix.env; umask 077; printf 'authd.pass: '; stty -echo; read -r W; stty echo; echo; [ -n "$W" ] && { sed -i '/^LAB_WAZUH_REGISTRATION_PASSWORD=/d' "$f"; printf "LAB_WAZUH_REGISTRATION_PASSWORD='%s'\n" "$(printf '%s' "$W" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset W)
 ```
 
+The deliberate weaknesses (#449, §5a) add a sixth, `LAB_WEAK_PASSWORD`. It is
+the one entry here that is meant to be *weak*: the crackable password the
+weakness accounts share (ADR-0083). Set it to something a wordlist would find —
+that is the exercise — not with `openssl rand`. Only needed before you enable a
+weakness, and it replaces any earlier entry:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; trap 'stty echo' EXIT INT TERM; printf 'weak password: '; stty -echo; read -r P; stty echo; echo; [ -n "$P" ] && { sed -i '/^LAB_WEAK_PASSWORD=/d' "$f"; printf "LAB_WEAK_PASSWORD='%s'\n" "$(printf '%s' "$P" | sed "s/'/'\\\\''/g")" >> "$f"; }; unset P)
+```
+
+`LAB_ENDPOINT_ADMIN_PASSWORD` is `labadmin`'s on the two endpoints. Like the
+tier admins', it is only used when the account is **created**, so the
+hand-built pair keep theirs. Generate one:
+
+```bash
+(f=~/.config/proxmox/phoenix.env; umask 077; sed -i '/^LAB_ENDPOINT_ADMIN_PASSWORD=/d' "$f"; printf "LAB_ENDPOINT_ADMIN_PASSWORD='%s'\n" "$(openssl rand -base64 18)Aa1!" >> "$f")
+```
+
+`lab-domain.yml` refuses to start if `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`
+or `LAB_TIER_ADMIN_PASSWORD` is missing or shorter than 14 characters. That
+check runs first on every tag
+([#846](https://github.com/Gerrrt/HomeLab/issues/846)).
+
+**Host keys are checked, against `ansible/.known_hosts` only** (ADR-0085,
+which amends ADR-0077 decision 2). `scripts/lab-known-hosts.sh` writes that file.
+It reads each guest's `ssh_host_ed25519_key.pub` from inside the guest,
+through the Proxmox guest agent, so the key is not learned from whatever
+answers on VLAN 30. Run it once now, and again after any of the six is
+rebuilt; until then, `ansible/` refuses that guest with `REMOTE HOST
+IDENTIFICATION HAS CHANGED`. Its token needs `VM.GuestAgent.FileRead` on the
+six, and nowhere else. On `/vms`, where `PhoenixBuilder` is granted, that would
+let `phoenix` read any file on any guest, the SOC's included. On the six it
+adds nothing: `phoenix` already holds their Administrator password. So it is a
+role of its own, granted on the `lab-domain` pool, whose grant outlives a
+rebuild of its guests (`provision-lab-guests.md` §2). As root on `Saruman`:
+
+```bash
+pveum role add PhoenixHostKeys --privs "VM.GuestAgent.FileRead"
+pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixHostKeys
+```
+
+Until the six are in that pool (tofu, #448), grant it on their VMIDs
+instead, **with `PhoenixBuilder` beside it**. A grant on a more specific path
+replaces what the user inherits from `/vms`; it does not add to it. With
+`PhoenixHostKeys` alone on `/vms/150`, `phoenix` could read files there and
+nothing else: it could not even list the guest, so `lab-known-hosts.sh`
+found none of the six (2026-10-07), and tofu could not have imported them.
+Proxmox deletes a `/vms/<id>` grant along with the guest, so these lines
+would have to be re-run after a rebuild:
+
+```bash
+for id in 150 151 152 153 154 155; do pveum acl modify /vms/$id --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys; done
+pveum user permissions phoenix@pve --path /vms/150 | grep -c -E 'VM\.Audit|VM\.GuestAgent\.FileRead'   # 2
+```
+
+A pool grant is not affected the same way: `/pool/lab-domain` and `/vms`
+are different paths, and Proxmox adds what each grants.
+
+Then, on `phoenix`:
+
+```bash
+set -a; . ~/.config/proxmox/phoenix.env; set +a
+scripts/lab-known-hosts.sh       # PASS and a SHA256 fingerprint per guest
+```
+
 Then, every time. **First applied to the hand-built six on 2026-10-03**: a
 run on `main` after #825 reported `changed=0` everywhere, and `verify.yml`
 passed on all six (`changelog.md`, 2026-10-03).
@@ -195,24 +260,34 @@ build, preview one stage at a time and apply it before previewing the next:
 
 | Tag | This page | What it applies |
 | --- | --- | --- |
-| `base` | §2 | Names, the DCs' static addresses, members' resolvers, and the build password rotated to `LAB_ADMIN_PASSWORD` |
+| `base` | §2 | Names, the DCs' static addresses, members' resolvers, the build password rotated to `LAB_ADMIN_PASSWORD`, and the build's `packer-winrm` certificate removed |
+| `packer_cert` | §2 | Only that certificate removal, for a guest cloned from a template built before [#1031](https://github.com/Gerrrt/HomeLab/pull/1031) |
 | `forest` | §3 | `bahamut`'s forest, the forwarder, the root hints removed, and the clock from `10.0.30.1`. It stops if the clock reads anything else |
 | `replica` | §4 | `leviathan` promoted and left on NT5DS, then each DC's resolver set to its partner and loopback |
 | `join` | §5, the join only | `titan`, `ramuh`, `carbuncle` and `siren` joined |
+| `endpoint_admin` | §2 | `labadmin`, the local administrator Windows 11's setup made on each endpoint, created from `LAB_ENDPOINT_ADMIN_PASSWORD` when it is missing |
 | `exporter` | §7 | `windows_exporter` at the pinned version, and the 9182 rule admitting `alexander` |
 | `licence` | §7 | The weekly gauge on the four servers, and the rearm count printed in the play output |
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
 | `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
 | `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
+| `gpos` | §5 | *Deny Tier 0 Logon on Members*, and the two audit policies: the member servers' (Windows defaults plus File Share) and the DCs' (their 17 subcategories plus Directory Service Changes), #1077 |
+| `audit` | §5 | Inherited audit entries on the domain head, so SPN and delegation writes on users and computers log a 5136 (#1077) |
 | `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
 | `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
+| `kerberoast` | §5a | `svc-sql`, an SPN on a crackable account, `ramuh`'s target |
+| `asreproast` | §5a | `svc-backup`, Kerberos pre-auth disabled, crackable |
+| `dcsync` | §5a | `svc-sync`, the two replication rights on the domain head, non-DA |
+| `ucd` | §5a | Unconstrained delegation on `ramuh` |
+| `cd` | §5a | `svc-web` allowed to delegate to `titan`'s CIFS (Kerberos only) |
+| `rbcd` | §5a | `titan` set to trust `svc-rbcd` to act on its behalf |
 
 The tiers, the shares and the SOC agents (the rest of §5, and §11's deployment)
-are applied by the `tiers`, `shares` and `soc` tags. The SPN account, the Tier 0
-logon GPO and the deliberate weaknesses are still
-[#449](https://github.com/Gerrrt/HomeLab/issues/449)'s, each arriving as a
-further tag on the same playbook. `ansible-playbook population-credentials.yml` prints the
-population's passwords, on `phoenix`, when you need one.
+are applied by the `tiers`, `shares` and `soc` tags. The last six are #449's
+deliberate weaknesses ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)),
+each off until asked for and driven one at a time — §5a below.
+`ansible-playbook population-credentials.yml` prints the population's passwords,
+on `phoenix`, when you need one.
 
 **Start the endpoints first.** `carbuncle` and `siren` are `--onboot 0`, so a
 run against stopped endpoints reports them `UNREACHABLE`, not configured.
@@ -223,10 +298,9 @@ The run needs these three in place first:
   above.
 - **A reservation on `morpheus` for all six, by MAC.** That includes the two
   DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
-  makes the same address static. The reservations only survive a rebuild if
-  each guest's MAC is pinned when the six are declared in
-  [`tofu/`](../../tofu/README.md). They are not there yet; see ADR-0077
-  decision 6.
+  makes the same address static. The reservations survive a rebuild because
+  [`tofu/guests.tf`](../../tofu/guests.tf) pins each guest's MAC to the one
+  the hand-built six had (ADR-0077 decision 6).
 - **A way in.** Every clone of the templates has `sshd`, key-only, admitting
   `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
   The six built by hand on 2026-09-24/25 had none. **Each was given the same
@@ -267,7 +341,162 @@ The run needs these three in place first:
   `licence-clock` task does. Delete the hand-made one after the first run, so
   that only one thing owns the file.
 
+## Rebuild from the pipeline
+
+[#448](https://github.com/Gerrrt/HomeLab/issues/448)'s proof, and what every
+later rebuild repeats: the six are destroyed and made again from
+`tpl-ws2025-eval` (912) and `tpl-win11-pro` (911) by
+[`tofu/`](../../tofu/README.md), then configured by the playbook above. That
+replaces §1 and the install half of §2. The rest of this page is still the
+*why*.
+
+`tofu/guests.tf` declares the six with the values the hand-built ones had:
+VMID, template, memory, disk, MAC and SMBIOS UUID, and records the startup
+order that root on `Saruman` sets after the apply (step 7). The MAC
+keeps `morpheus`'s reservations true. The SMBIOS UUID is kept as well, but
+it does **not** carry the endpoints' bought Windows 11 Pro activation.
+On 2026-10-10, `carbuncle` and `siren` were re-cloned from 911 with their
+UUIDs. Both came up on the generic Pro key (`…3V66T`), and `slmgr /ato`
+returned `0x803F7001`: Microsoft has no digital licence for the clone. A
+full clone changes more of the virtual hardware than the UUID. Step 9
+installs the keys.
+
+**Before the first destroy, the six exist and the state does not know them.**
+They were built by hand, so `tofu destroy` alone would remove nothing. Step 4
+imports them once, so that the destroy is OpenTofu's. Every later rebuild
+skips step 4.
+
+1. **What the rebuild needs**, as for any run above, plus:
+   - the `/pool/lab-domain` grant on `Saruman`
+     ([`provision-lab-guests.md` §2](provision-lab-guests.md#2-what-the-token-is-missing-on-saruman));
+   - `LAB_ENDPOINT_ADMIN_PASSWORD` in `phoenix.env`;
+   - the two agent MSIs staged on `odin`
+     ([`build-the-soc-guest.md` §11](build-the-soc-guest.md#11-agents-by-gpo--the-second-evening-and-after-414)).
+     `--tags soc` fetches them from there, and stops on a fresh guest if they
+     are not;
+   - new `LAB_ADMIN_PASSWORD` and `LAB_DSRM_PASSWORD`, generated as above. A
+     fresh forest takes whatever they say.
+2. **The templates pass their smoke test.**
+   `scripts/packer-smoke.sh 912` and `911`
+   ([`build-the-lab-templates.md`](build-the-lab-templates.md)).
+3. **A copy to go back to.** Back up 150–155 to `golem`'s PBS, and check that
+   all six are listed there before going on. Anything the playbook does not
+   make is on those disks and nowhere else.
+4. **Once only: import the hand-built six.**
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab
+   umask 077; set -a; . ~/.config/proxmox/phoenix.env; set +a
+   for g in bahamut:150 leviathan:151 titan:152 ramuh:153 carbuncle:154 siren:155; do
+     tofu -chdir=tofu import "module.guest[\"${g%%:*}\"].proxmox_virtual_environment_vm.this" "Saruman/${g##*:}"
+   done
+   tofu -chdir=tofu plan
+   ```
+
+   The plan should **replace** each of the six and **create** the
+   `lab-domain` pool (an import brings in guests, not their pool), and do
+   nothing else. That is the one plan where a replace is expected:
+   `clone` cannot be read back from a running guest. Anything else is a stop.
+5. **Destroy.** Only the guests. On a later rebuild, that leaves the pool
+   and its grant in place:
+
+   ```bash
+   tofu -chdir=tofu destroy -target=module.guest
+   ```
+
+   Check on `Saruman` that `qm list` has no 150–155.
+6. **The old Wazuh registrations go.** On `odin`, remove the six agents by
+   name, so that the rebuilt guests' enrolment under the same names is not
+   refused as a duplicate. This comes after the destroy, so a run that stops
+   before it leaves the old guests still reporting.
+7. **Apply.** This also creates the pool, the first time.
+
+   ```bash
+   tofu -chdir=tofu plan -out=next.tfplan
+   tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
+   ```
+
+   Then, **as root on `Saruman`**, give the four servers their boot order.
+   `tofu` cannot: Proxmox wants `Sys.Modify` on `/` to set `startup`, which
+   `phoenix` is not given (ADR-0043). The first #448 apply was refused with a
+   403 on exactly this. `tofu -chdir=tofu output startup_orders` lists the
+   same commands by guest name; run them as written here:
+
+   ```bash
+   qm set 150 --startup order=1,up=120
+   qm set 151 --startup order=2,up=120
+   qm set 152 --startup order=3,up=120
+   qm set 153 --startup order=4,up=120
+   ```
+
+   Check `qm config` for each one: the MAC, the `smbios1` UUID, `startup` on
+   the four servers, and the pool. Start `carbuncle` and `siren` if they are
+   not running.
+8. **Configure, one stage at a time.** On a fresh domain `--check` cannot see
+   past the forest, so apply each tag before previewing the next. Run the long
+   ones detached with a log:
+
+   ```bash
+   cd ansible
+   for t in base forest replica join endpoint_admin tiers gpos audit shares sysmon soc exporter licence population authgen; do
+     ansible-playbook lab-domain.yml --tags "$t" || break
+   done
+   ansible-playbook lab-domain.yml        # again: must report changed=0
+   ```
+
+   `sysmon` goes before `soc`, as in `lab-domain.yml`. The Wazuh agent
+   subscribes to the Sysmon channel once, when it starts, and an agent started
+   before that channel exists never reads it (#1035).
+
+9. **Verify.** All of this has to hold:
+   - `ansible-playbook verify.yml` passes on all six;
+   - `up{job="windows"}` is 1 for all six on `alexander`, with the right `role`
+     labels;
+   - Wazuh and Velociraptor list all six;
+   - each endpoint reads *activated*. Install its retail key and activate it
+     as below. **Never put the key on a command line.** Sysmon records every
+     process's command line and Wazuh forwards it, so `slmgr /ipk <key>`
+     writes the key into the endpoint's Sysmon log and `odin`'s alerts.
+     That happened on 2026-10-10. Instead, the key travels on the guest
+     agent's stdin, typed without echo, and Windows' licensing API installs
+     it. As root on `Saruman`, with `ipk.ps1` holding:
+
+     ```powershell
+     $ErrorActionPreference = 'Stop'
+     $key = [Console]::In.ReadLine().Trim()
+     if ($key -notmatch '^[0-9A-Z]{5}(-[0-9A-Z]{5}){4}$') { throw 'that is not a product key' }
+     $svc = Get-CimInstance SoftwareLicensingService
+     Invoke-CimMethod -InputObject $svc -MethodName InstallProductKey -Arguments @{ ProductKey = $key } | Out-Null
+     Invoke-CimMethod -InputObject $svc -MethodName RefreshLicenseStatus | Out-Null
+     $key = $null
+     $f = "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL"
+     Invoke-CimMethod -InputObject (Get-CimInstance SoftwareLicensingProduct -Filter $f) -MethodName Activate | Out-Null
+     $p = Get-CimInstance SoftwareLicensingProduct -Filter $f
+     "$env:COMPUTERNAME key ending $($p.PartialProductKey), LicenseStatus $($p.LicenseStatus) (1 = licensed)"
+     ```
+
+     ```bash
+     read -rsp 'key: ' KEY; echo
+     printf '%s\n' "$KEY" | qm guest exec 154 --timeout 290 --pass-stdin 1 -- \
+       powershell -NoProfile -NonInteractive -EncodedCommand "$(iconv -t UTF-16LE ipk.ps1 | base64 -w0)"
+     unset KEY
+     ```
+
+     Neither command line carries the key: `qm`'s holds only the encoded
+     script, and so does the guest's `powershell`. Tested on `carbuncle` on
+     2026-10-10: it activated, and Sysmon logged no event containing the key.
+     Since 2026-10-10 the key ending `DGPKG` is on `carbuncle` and the one
+     ending `4GDGT` is on `siren`. The keys themselves are never written into
+     this repository; keep them where you keep the other secrets.
+   - `slmgr /dlv` on the four servers gives a new expiry. Record it in §11 and
+     in the changelog, as before.
+
 ## 1. Create the six VMs
+
+> [!NOTE]
+> **This section is the hand build of 2026-09-24/25, kept as the record.** A
+> rebuild does not run it: it uses
+> [Rebuild from the pipeline](#rebuild-from-the-pipeline) above.
 
 VMIDs `150`–`155`, so the last octet is legible from `qm list` — the same
 reasoning that gave `alexander` VMID `140`.
@@ -604,6 +833,62 @@ Get-SmbServerConfiguration | Select-Object RequireSecuritySignature, EnableSecur
 2025 should ship. If it reads `True`, a servicing update has moved the default;
 turn it off deliberately, and write down that you did.
 
+## 5a. The deliberate weaknesses, one tag at a time
+
+The six weaknesses #449 asks for — `kerberoast`, `asreproast`, `dcsync`, `ucd`,
+`cd`, `rbcd` — are each a tag on the same playbook, each off until you ask for
+it ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
+A plain run leaves every one absent.
+
+> [!IMPORTANT]
+> **The observation is the deliverable, not the compromise.** The point of each
+> tag being switchable on its own is the purple-team loop: enable one, watch
+> what #266, #267 and #437 actually see, then disable it and confirm the signal
+> goes away. That second half is the part that teaches, and it is impossible in
+> an all-or-nothing lab. Add them one at a time, never all at once.
+
+Before the first one, two things:
+
+- **Snapshot every guest on the hypervisor.** A weakness is a deliberate change
+  to the domain; a snapshot is how you get back to clean if an exercise goes
+  further than intended.
+- **`LAB_WEAK_PASSWORD` in `phoenix.env`.** A sixth entry beside the others. It
+  is the deliberately *crackable* password the weakness accounts share — the
+  crack target for `kerberoast`/`asreproast`, and the login the `dcsync`, `cd`
+  and `rbcd` exercises authenticate with. A role refuses to *enable* a weakness
+  while it is unset. Set it to something a wordlist would find, on purpose.
+
+The loop, one weakness (here `kerberoast`) at a time:
+
+```bash
+ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
+ansible-playbook verify.yml      -e weakness_kerberoast_state=present   # confirm it is on
+# ... run the technique, watch Wazuh / Velociraptor / Zeek see it ...
+ansible-playbook lab-domain.yml --tags kerberoast                       # default absent: off
+ansible-playbook verify.yml                                             # confirm it is gone
+```
+
+A plain `ansible-playbook verify.yml`, with nothing enabled, asserts all six of
+these primitives are absent — the **per-primitive negative test**. It does not
+collect the authorization graph, so the graph-level test #449 names — "run the
+collector with the tags off and confirm the path to Domain Admin is not there" —
+is a BloodHound collector run ([#451](https://github.com/Gerrrt/HomeLab/issues/451)),
+not this. A lab that is always exploitable proves nothing about the tags.
+
+| Tag | What `present` makes | What `absent` restores |
+| --- | --- | --- |
+| `kerberoast` | `svc-sql` in `OU=Tier1`, SPN `MSSQLSvc/ramuh…:1433`, weak password | deletes `svc-sql` |
+| `asreproast` | `svc-backup`, Kerberos pre-auth disabled, weak password | deletes `svc-backup` |
+| `dcsync` | `svc-sync` (non-DA) granted the two replication rights on the domain head | revokes the rights, deletes `svc-sync` |
+| `ucd` | `TRUSTED_FOR_DELEGATION` set on `ramuh` | clears the flag on `ramuh` |
+| `cd` | `svc-web` (its own SPN) allowed to delegate to `CIFS/titan…` | deletes `svc-web`; `titan` untouched |
+| `rbcd` | `titan` set to trust `svc-rbcd` to act on its behalf | clears the trust on `titan`, deletes `svc-rbcd` |
+
+The fixed identifiers — account names, SPNs, the delegation target and resource
+— are in [`ansible/inventory/group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml),
+one source of truth the roles set and `verify.yml` proves. `cd` ships
+Kerberos-only; the protocol-transition variant is an ADR-0083 note away.
+
 ## 6. The authentication generator
 
 Six idle VMs produce no more Kerberos traffic than three idle VMs. The variable
@@ -697,7 +982,10 @@ run.
 > Rebuild the template first (that runbook's §8). Whether a clone of an older
 > template gets a full 180 days depends on the rearms that template has already
 > spent. A fresh install has not spent any, so the rebuild settles it. Read
-> `slmgr /dlv` on the clone and record it below, as before.
+> `slmgr /dlv` on the clone and record it in §11, as before. The 2026-10-08
+> rebuild is the evidence: clones of a template built the day before got 179.5
+> days and a rearm count of **0**. A fresh template gives a full period. The
+> clone cannot extend it.
 
 Install `windows_exporter` on all six. The collector list matters:
 
@@ -768,6 +1056,40 @@ And read the number this ADR deliberately did not write down:
 ```powershell
 slmgr /dlv     # "Remaining Windows rearm count" — record it in §11
 ```
+
+### Sysmon, so the endpoints record what fired
+
+**Applied by `--tags sysmon`**
+([`roles/sysmon`](../../ansible/roles/sysmon/tasks/main.yml), #450,
+[ADR-0080](../adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md)).
+Windows' default logging does not record:
+
+- the command line of a process;
+- the DLLs it loads;
+- the connections it makes;
+- the named pipes it opens.
+
+Kerberoasting and NTLM relay show up in those. Sysmon records them in
+`Microsoft-Windows-Sysmon/Operational`, which the role sizes to 256 MiB. Its
+config is sysmon-modular's balanced profile, vendored at one release.
+
+- **To move the config to a newer release,** run
+  `scripts/vendor-sysmon-config.sh configs-<commit>` and commit the diff. The
+  next `--tags sysmon` run reapplies it on every guest.
+- **To check the vendored copy is still upstream's,** run
+  `scripts/vendor-sysmon-config.sh --check`.
+- **When Microsoft ships a new Sysmon,** a rebuild fails at the zip's checksum.
+  Move `sysmon_version` and `sysmon_zip_sha256` in
+  [`group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml)
+  together, then apply.
+
+Wazuh reads this channel through the `default` group's shared `agent.conf` on
+`odin` ([#1035](https://github.com/Gerrrt/HomeLab/issues/1035),
+[`build-the-soc-guest.md`](build-the-soc-guest.md) §11).
+
+**For a packet capture from inside one guest,** use the two Pktmon playbooks
+in [`ansible/README.md`](../../ansible/README.md#capture-on-demand). It takes
+two commands, and the pcapng lands on `phoenix`.
 
 ## 8. Turn on the scrape
 
@@ -949,6 +1271,14 @@ if you forget:
   expiration read 173 days on the DCs and 174 on the members, which lands
   around 2027-03-23. One rearm is one more 180-day period, not a way to skip
   the rebuild.
+
+  **Read again on 2026-10-08, after #448's rebuild from the pipeline: 0.**
+  Both counts are 0 on all four servers, which are on the `TIMEBASED_EVAL`
+  channel with 179.5 days left. That lands around **2027-04-05**, and
+  `LabWindowsEvaluationExpiring` fires about 2027-03-06. The clones of the
+  2026-10-07 `tpl-ws2025-eval` got the full period but no rearm: generalising
+  the image spends it. So there is no rearm to fall back on this time. The next
+  rebuild starts from a freshly built 912, as the tip in §7 says.
 
 `make check-docs` walks you through the first two.
 

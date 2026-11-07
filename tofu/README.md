@@ -27,10 +27,15 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
 - `providers.tf` reads the endpoint and the token from the environment, so
   neither is ever written to state.
 - `guests.tf` lists the guests. The pools are derived from them, so a pool
-  lives exactly as long as a guest in it does. Today it holds only the proof
-  guest, 998, and only under `-var proof=true`.
+  lives exactly as long as a guest in it does. It holds ADR-0029's six domain
+  guests (150–155), in the `lab-domain` pool, #920's on-demand dotfiles
+  VMs (191–198, [ADR-0090]), in the `dotfiles` pool, #921's always-on
+  analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool, and
+  the proof guest, 998, only under `-var proof=true`.
 - `modules/guest/` makes one full clone, with the flags the hand-built guests
-  have.
+  have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC and SMBIOS UUID
+  each guest is given. It leaves `startup` alone: setting it takes
+  `Sys.Modify` on `/`, so root on `Saruman` sets it after an apply.
 
 ## Rules this tree keeps
 
@@ -41,13 +46,17 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   of those can fail.
 - **Full clones only**, because `packer build -force` rebuilds a template at
   the same VMID (ADR-0074).
-- **The six domain guests are not here.** They were built by hand, and #448
-  decides when they move.
+- **The six domain guests keep their MACs and SMBIOS UUIDs.** `morpheus`'s
+  reservations are keyed by MAC, and the endpoints' activation by the UUID.
+  A rebuild is
+  [`build-the-lab-domain.md`'s](../docs/runbooks/build-the-lab-domain.md#rebuild-from-the-pipeline),
+  and it destroys with `-target=module.guest` so the pool's grant survives.
 - **CI proves that the tree parses and that the encryption holds. `phoenix`
   proves that it applies.** `scripts/lint.sh` runs `fmt -check` and
   `validate`, and `scripts/self-tests.sh` runs the encryption proof. Both use
   the image `stacks/observability/compose.yaml` pins. A change here is only
   finished once the runbook's §4 has passed against a real apply.
 
+[ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
 [ADR-0076]: ../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
 [runbook]: ../docs/runbooks/provision-lab-guests.md

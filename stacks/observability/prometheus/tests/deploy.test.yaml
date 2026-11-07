@@ -97,8 +97,85 @@ tests:
               description: >-
                 Convergence has run and has not applied what it fetched. Either
                 it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
-                on prometheus for a dirty tree, a signature that did not verify,
-                or a non-fast-forward. If DeployApplyDisabled is firing too, it
+                on prometheus for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+  # --- DeployBehind and the CI fallback (#1026) ----------------------------
+  #
+  # `trinity` is behind all day on a busy main, but every run deploys the
+  # newest commit below the tip that passed: ci_fallback 1, silent. `oracle`
+  # moved for its first hour, then stopped moving: 3h after that, it fires.
+  # `saruman` predates the gauge: no right-hand series, and it still fires.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_behind_commits{instance="trinity"}'
+        values: "2+0x300"
+      - series: 'homelab_deploy_ci_fallback{instance="trinity"}'
+        values: "1+0x300"
+      - series: 'homelab_deploy_behind_commits{instance="oracle"}'
+        values: "2+0x300"
+      - series: 'homelab_deploy_ci_fallback{instance="oracle"}'
+        values: "1x60 0x240"
+      - series: 'homelab_deploy_behind_commits{instance="saruman"}'
+        values: "2+0x300"
+    alert_rule_test:
+      - eval_time: 3h55m
+        alertname: DeployBehind
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployBehind
+              instance: saruman
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on saruman for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+      - eval_time: 4h5m
+        alertname: DeployBehind
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployBehind
+              instance: oracle
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on oracle for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
+                is neither: the host is in report-only mode and this alert is
+                that mode's report. docs/runbooks/converge-the-host.md.
+
+          - exp_labels:
+              alertname: DeployBehind
+              instance: saruman
+              component: deploy
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The host is 2 commit(s) behind main"
+              description: >-
+                Convergence has run and has not applied what it fetched. Either
+                it is refusing — check `journalctl -u 'homelab-converge*' -n 50`
+                on saruman for a dirty tree, a signature that did not verify, or
+                a non-fast-forward — or nothing newer than what it runs has
+                passed CI in that time. If DeployApplyDisabled is firing too, it
                 is neither: the host is in report-only mode and this alert is
                 that mode's report. docs/runbooks/converge-the-host.md.
 
@@ -252,6 +329,75 @@ tests:
                 (homelab-converge-sensitive.timer on trinity) to let it act;
                 this resolves on the next run.
                 docs/runbooks/converge-the-host.md.
+
+  # --- DeployServiceRevived: one started, none, and not measured ----------
+  #
+  # oracle sits at -1, "docker could not be asked". A rule written `!= 0`
+  # passes the other two and fires for every host whose daemon blinked.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_services_revived{instance="prometheus"}'
+        values: "1+0x60"
+      - series: 'homelab_deploy_services_revived{instance="trinity"}'
+        values: "0+0x60"
+      - series: 'homelab_deploy_services_revived{instance="oracle"}'
+        values: "-1+0x60"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: DeployServiceRevived
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployServiceRevived
+              instance: prometheus
+              component: deploy
+              severity: info
+              category: availability
+            exp_annotations:
+              summary: "Convergence started 1 stopped service(s) on prometheus"
+              description: >-
+                A service the stack says should be running was stopped for more
+                than half an hour, and convergence started it again with the
+                config it already had. Find what stopped it before it does it
+                again: `journalctl -u 'homelab-converge*' -n 50` names the
+                container, and `journalctl -u docker | grep 'stopping
+                restart-manager'` gives the minute it stopped.
+                docs/runbooks/converge-the-host.md.
+
+  # --- DeployServicesStopped: left stopped, none, and not measured --------
+  #
+  # A service inside the grace period is counted for one hourly run and started
+  # on the next, so the `for` is what keeps a deliberate test from firing.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_deploy_services_stopped{instance="prometheus"}'
+        values: "1+0x180"
+      - series: 'homelab_deploy_services_stopped{instance="trinity"}'
+        values: "-1+0x180"
+      - series: 'homelab_deploy_services_stopped{instance="oracle"}'
+        values: "0+0x180"
+    alert_rule_test:
+      - eval_time: 1h55m
+        alertname: DeployServicesStopped
+        exp_alerts: []
+
+      - eval_time: 2h5m
+        alertname: DeployServicesStopped
+        exp_alerts:
+          - exp_labels:
+              alertname: DeployServicesStopped
+              instance: prometheus
+              component: deploy
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "1 stack service(s) on prometheus stopped and left stopped"
+              description: >-
+                Convergence is leaving a service down that the stack says should
+                run. `journalctl -u 'homelab-converge*' -n 50` says which and
+                why: held by .git/homelab-hold-<stack> in the deployment checkout
+                (remove the line, or the file, if the work it was for is done), a
+                backup holding its lock, or report-only mode
+                (DeployApplyDisabled). docs/runbooks/converge-the-host.md.
 
   # --- DeployMetricsAbsent: the series is there ---------------------------
   #

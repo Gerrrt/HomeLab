@@ -346,7 +346,11 @@ what each key is for. The values:
 | `PAPERLESS_DBPASS` | `make gen-secret` | No |
 | `PAPERLESS_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
 | `STIRLING_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and a rebuild of the unbacked-up volume recreates the admin from it |
-| `HOMEPAGE_IMMICH_API_KEY`, `HOMEPAGE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only — the clicks are beside the keys in the example file | No |
+| `MQTT_HA_PASSWORD`, `MQTT_RING_PASSWORD` | `make gen-secret`, one each | No. The broker rebuilds its password file from them on every start; Home Assistant's is typed into its MQTT integration by [`connect-the-ring-alarm.md`](connect-the-ring-alarm.md) ([ADR-0104](../adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)) |
+| `GLANCE_IMMICH_API_KEY`, `GLANCE_PAPERLESS_TOKEN` | Minted in Immich and Paperless-ngx once they are up, each read-only, for the Household page's two numbers — the clicks are beside the keys in the example file | No |
+| `GLANCE_PROMETHEUS_TOKEN` | The estate's reader token, `INGEST_TOKEN_READER` in `secrets/observability.sops.yaml` | No. `secrets/observability.sops.yaml` holds the original |
+| `GLANCE_MINIFLUX_FEVER_KEY` | The MD5 of `glance:<fever password>`, once Miniflux is up and its user `glance` exists — the steps are beside the key in the example file ([ADR-0098](../adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)) | The Fever password and the `glance` login, both generated |
+| `GLANCE_MARKETS`, `GLANCE_BOOKMARKS`, `GLANCE_VIDEO_TABS`, `GLANCE_REDDIT_TABS` | The operator's own lists, one line of JSON each, in the shape `secrets/sensitive.example.yaml` gives ([ADR-0100](../adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md)). Not credentials | No |
 | `NTFY_ALERTMANAGER_TOKEN` | the pinned image's `ntfy token generate` — the command is beside the key | No. The monitoring host's `ALERTMANAGER_NTFY_TOKEN` is the other copy |
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |
@@ -625,6 +629,12 @@ same way, and prove the set against the database:
 make backup-library ARGS=--prove
 ```
 
+And `verify-backups-sensitive`, nightly at 06:30, which re-reads every set of
+both kinds here and checks `oracle`'s copies against their MANIFESTs
+([#856](https://github.com/Gerrrt/HomeLab/issues/856)). It stops nothing, so
+the installer primes it too. `verify-backups-sensitive.prom` must read exit
+code `0`.
+
 ## 13. Before the first real photo, document or vault item
 
 These five are the gate on the data, not on the containers, and each is
@@ -664,8 +674,6 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
   counted in the named list.
 - [`architecture.md`](../architecture.md) and the stack README: not "not
   built".
-- `docs/firewall-claims.yaml`: the count of Hicks passes in its comment. It
-  states postures, not rule bodies.
 - `blackbox-dns.yaml`: the forwarder runbook's two targets.
 - The issue: #129–#135 close by hand once §9–§11 verify (their PRs said
   `Refs`), and #404 closes on §13.

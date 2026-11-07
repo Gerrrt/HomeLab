@@ -1,0 +1,130 @@
+<!--
+  The lab's own rules (#1077), mounted over the image's sample local_rules.xml.
+
+  #449 switches deliberate weaknesses on and off in the lab domain. Switched on,
+  most of them reached the SOC as nothing, or as a generic "user account
+  changed" at level 8 that also fires on every password reset. Each rule below
+  is a child of the stock rule that already matches the event, and fires only
+  when the field that IS the weakness is there. Written from the events the
+  #449 loop produced on 2026-10-08; the issue has the table.
+
+  IDs 100100-100199 are this file's. The event fields are as Wazuh decodes a
+  Windows event channel record: win.system.*, win.eventdata.*. UAC changes in
+  4738/4742 are SAM flags, logged as message IDs: %%20xx is "<flag> - Enabled"
+  for flags in the 2080-2111 range and "<flag> - Disabled" in 2048-2079.
+-->
+<group name="local,windows,lab_weakness,">
+
+  <!-- 4738 or 4742 with "'Don't Require Preauth' - Enabled" (SAM 0x10000):
+       anyone can request an AS-REP for this account and crack it offline. -->
+  <rule id="100100" level="10">
+    <if_sid>60110, 60121</if_sid>
+    <field name="win.eventdata.userAccountControl" type="pcre2">%%2096</field>
+    <description>Kerberos pre-authentication disabled on $(win.eventdata.targetUserName): AS-REP roastable</description>
+    <mitre>
+      <id>T1558.004</id>
+    </mitre>
+  </rule>
+
+  <!-- 4742 or 4738 with "'Trusted For Delegation' - Enabled" (SAM 0x2000): the
+       account keeps the TGT of anyone who authenticates to it. -->
+  <rule id="100101" level="12">
+    <if_sid>60110, 60121</if_sid>
+    <field name="win.eventdata.userAccountControl" type="pcre2">%%2093</field>
+    <description>Unconstrained delegation enabled on $(win.eventdata.targetUserName)</description>
+    <mitre>
+      <id>T1558</id>
+    </mitre>
+  </rule>
+
+  <!-- 4738 or 4742 naming a delegation target in msDS-AllowedToDelegateTo. The
+       field reads "-" when unchanged and "<value not set>" when cleared. -->
+  <rule id="100102" level="10">
+    <if_sid>60110, 60121</if_sid>
+    <field name="win.eventdata.allowedToDelegateTo" type="pcre2">^(?!\s*(-|&lt;value not set&gt;)\s*$)\s*\S</field>
+    <description>Constrained delegation set on $(win.eventdata.targetUserName): $(win.eventdata.allowedToDelegateTo)</description>
+    <mitre>
+      <id>T1558</id>
+    </mitre>
+  </rule>
+
+  <!-- 5136, value added: an SPN on a USER object. Computers get SPNs whenever
+       they join; a person with one is a Kerberoast target. Needs roles/ds_audit's
+       SACL entry, and Directory Service Changes on the DCs. -->
+  <rule id="100103" level="10">
+    <if_sid>60229</if_sid>
+    <field name="win.eventdata.attributeLDAPDisplayName">^servicePrincipalName$</field>
+    <field name="win.eventdata.objectClass">^user$</field>
+    <field name="win.eventdata.operationType">%%14674</field>
+    <description>SPN $(win.eventdata.attributeValue) added to user $(win.eventdata.objectDN): Kerberoastable</description>
+    <mitre>
+      <id>T1558.003</id>
+    </mitre>
+  </rule>
+
+  <!-- 5136, value added: a resource-based constrained delegation trust. The
+       object will accept delegated tickets from the principal named in it. -->
+  <rule id="100104" level="12">
+    <if_sid>60229</if_sid>
+    <field name="win.eventdata.attributeLDAPDisplayName">^msDS-AllowedToActOnBehalfOfOtherIdentity$</field>
+    <field name="win.eventdata.operationType">%%14674</field>
+    <description>Resource-based constrained delegation set on $(win.eventdata.objectDN)</description>
+    <mitre>
+      <id>T1134</id>
+    </mitre>
+  </rule>
+
+  <!-- 5136 on the domain head's own ACL. The value is the whole new descriptor,
+       which always holds the DCs' own replication rights, so this cannot tell a
+       new DCSync grant from any other edit; it flags every edit, which on the
+       domain head is rare enough to read. -->
+  <rule id="100105" level="12">
+    <if_sid>60229</if_sid>
+    <field name="win.eventdata.attributeLDAPDisplayName">^nTSecurityDescriptor$</field>
+    <field name="win.eventdata.objectClass">^domainDNS$</field>
+    <description>Permissions on the domain head $(win.eventdata.objectDN) changed: check for replication (DCSync) rights</description>
+    <mitre>
+      <id>T1003.006</id>
+      <id>T1222</id>
+    </mitre>
+  </rule>
+
+  <!-- 4662 using DS-Replication-Get-Changes or -Get-Changes-All by an account
+       that is not a domain controller: DCSync itself. A DC replicating with its
+       partner shows as that DC's machine account, so the two DCs in
+       ansible/inventory/hosts.yaml (bahamut, leviathan) are the only accounts
+       left out. NOT every name ending in $: granting replication rights to a
+       computer account an ordinary user can create (ms-DS-MachineAccountQuota
+       is 10 by default) and DCSyncing as it is a known persistence path, and a
+       `\$$` exclusion would never see it. 100105 sees the grant; this sees each
+       use. Add a DC here when the inventory gains one, or this fires on its
+       replication. Directory Service Access is audited already and the domain
+       head audits extended rights; the stock ruleset has no rule for 4662 at
+       all, so this was dropped until now. -->
+  <rule id="100106" level="14">
+    <if_sid>60103</if_sid>
+    <field name="win.system.eventID">^4662$</field>
+    <field name="win.eventdata.properties" type="pcre2">(?i)1131f6a[ad]-9c07-11d1-f79f-00c04fc2dcd2</field>
+    <field name="win.eventdata.subjectUserName" type="pcre2" negate="yes">(?i)^(BAHAMUT|LEVIATHAN)\$$</field>
+    <description>Directory replication requested by $(win.eventdata.subjectUserName), not a domain controller: DCSync</description>
+    <mitre>
+      <id>T1003.006</id>
+    </mitre>
+  </rule>
+
+  <!-- Windows PowerShell writes __PSScriptPolicyTest_<random>.ps1 to the
+       starting user's temp folder whenever it starts, to probe the execution
+       policy, and deletes it. 92213 (level 15), 92205 and 92200 match it, so
+       every Ansible task raised a "malware dropped" alert. Both conditions:
+       the name alone would let any process hide a dropped script by choosing
+       it (92213 and 92200 do not constrain the creator), so the creator must
+       be Windows PowerShell itself, which writes this file on every start
+       anyway. Any other file, or this name from another process, still alerts. -->
+  <rule id="100110" level="0">
+    <if_sid>92213, 92205, 92200</if_sid>
+    <field name="win.eventdata.image" type="pcre2">(?i)^[c-z]:\\+windows\\+(system32|syswow64)\\+windowspowershell\\+v1\.0\\+powershell\.exe$</field>
+    <field name="win.eventdata.targetFilename" type="pcre2">\\__PSScriptPolicyTest_[a-z0-9]{8}\.[a-z0-9]{3}\.ps1$</field>
+    <description>PowerShell's own execution-policy probe file: not a dropped script</description>
+  </rule>
+
+</group>

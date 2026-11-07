@@ -24,8 +24,8 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix and fenrir push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
-| `grafana` | `grafana/grafana-oss` | 3000 (https) | Dashboards, the one service a human opens |
+| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
+| `grafana` | `grafana/grafana` | 3000 (https) | Dashboards, the one service a human opens |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 
@@ -62,10 +62,13 @@ prometheus/
   rules/lab.rules.yaml     9 rules — four for this stack watching itself,
                            two for the guests' disks, three for the domain
                            ADR-0029 sized
-  rules/soc.rules.yaml     6 rules — the SOC's indexer on odin, whose health is
-                           pushed here by stacks/soc's Alloy (ADR-0030)
-  tests/lab.test.yaml      promtool unit tests; all nine rules, firing + quiet
-  tests/soc.test.yaml      the same for the six
+  rules/soc.rules.yaml     12 rules — the SOC's indexer on odin, whose health is
+                           pushed here by stacks/soc's Alloy (ADR-0030); the
+                           manager's agents, queues and drops, from odin's
+                           wazuh-manager-state collector; and Zeek's conn
+                           stream, from fenrir's Alloy (#1038)
+  tests/lab.test.yaml      promtool unit tests; all nineteen rules, firing + quiet
+  tests/soc.test.yaml      the same for the twelve
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
   provisioning/            two datasources + dashboard provider
@@ -84,7 +87,7 @@ thing entirely on this segment.
 ## The ingest proxy, and the order it goes in
 
 Since [#834], `caddy` holds `10.0.30.40:9090` and `:3100`, and Prometheus and
-Loki are on loopback. odin, phoenix and fenrir push with a token each, and
+Loki are on loopback. odin, phoenix, fenrir, golem, eden and garuda push with a token each, and
 everything else on the segment gets a 401, except the two health paths
 (`/-/healthy` and `/-/ready` on 9090, `/ready` on 3100), which answer without a
 token. The 401s include `/-/quit`, Loki's
@@ -95,9 +98,9 @@ delete API, and any query without the reader token.
 token early loses nothing. A proxy that goes up before its clients refuses
 their pushes until each one catches up.
 
-1. **On `alexander`**, generate four tokens with `openssl rand -hex 32` and add
+1. **On `alexander`**, generate six tokens with `openssl rand -hex 32` and add
    them with `make secrets-edit STACK=lab`. The keys are `INGEST_TOKEN_ODIN`,
-   `_PHOENIX`, `_FENRIR` and `_READER`, and
+   `_PHOENIX`, `_FENRIR`, `_GOLEM`, `_EDEN` and `_READER`, and
    [`secrets/lab.example.yaml`](../../secrets/lab.example.yaml) says where each
    one goes. Do not `make up` yet.
 2. **On `odin`**, set `INGEST_TOKEN` to `INGEST_TOKEN_ODIN` with `make

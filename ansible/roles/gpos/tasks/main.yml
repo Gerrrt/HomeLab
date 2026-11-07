@@ -85,3 +85,6 @@
       }
     parameters:
       Gpos: "{{ gpos_defs }}"
+  # lab-domain.yml's next play reads this from the primary DC's hostvars, and
+  # refreshes policy on the guests only when a GPO actually changed (#1077).
+  register: gpos_result

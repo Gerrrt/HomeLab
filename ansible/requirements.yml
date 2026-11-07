@@ -2,7 +2,8 @@
 # Collections, exact. A bump is a deliberate edit, like requirements.txt —
 # microsoft.ad's promotion modules are the ones that reboot domain controllers,
 # and a minor version that changed their reboot handling is not a change to
-# take unread.
+# take unread. Dependabot cannot read this file; scripts/check_tool_versions.py,
+# weekly in digests.yml, says when a newer collection exists (#848).
 collections:
   - name: ansible.windows
     version: "3.8.0"

@@ -74,7 +74,8 @@ variable "ssh_public_key_file" {
 }
 
 # The one address the clones' OpenSSH rule admits (packer/windows/scripts/
-# openssh.ps1). phoenix's, from ADR-0043.
+# openssh.ps1), and the one the build's WinRM rule admits (bootstrap.ps1).
+# phoenix's, from ADR-0043.
 variable "phoenix_address" {
   type    = string
   default = "10.0.30.70"
@@ -120,6 +121,42 @@ variable "ubuntu_iso_file" {
   default = "smaug-iso:iso/ubuntu-26.04.1-live-server-amd64.iso"
 }
 
+# The dotfiles OS layers' installers (#920, ADR-0090).
+variable "debian_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/debian-13.7.0-amd64-netinst.iso"
+}
+
+variable "fedora_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/Fedora-Server-netinst-x86_64-44-1.7.iso"
+}
+
+variable "opensuse_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/openSUSE-Tumbleweed-NET-x86_64-Snapshot20261007-Media.iso"
+}
+
+# The fixed address three builds give their machine for the length of the
+# build, because none of them has a guest agent to report a DHCP one: the
+# cloud-image builds (alpine, gentoo) and the NixOS ISO build (nixos). One
+# address for three, so the three never run at once. Below the DHCP pool and
+# recorded in docs/network.md.
+variable "cloud_image_build_address" {
+  type    = string
+  default = "10.0.30.99"
+}
+
+variable "nixos_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/nixos-minimal-26.05.11576.7c8764b7c7b0-x86_64-linux.iso"
+}
+
+variable "arch_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/archlinux-2026.10.01-x86_64.iso"
+}
+
 # A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
 # the first build on ifrit sets this to the ISO it actually has. It stays on
 # local: the ISO store's export and pass admit Saruman alone (ADR-0072), so
@@ -127,6 +164,14 @@ variable "ubuntu_iso_file" {
 variable "kali_iso_file" {
   type    = string
   default = "local:iso/kali-linux-installer-amd64.iso"
+}
+
+# 910's ISO, for garuda (#921). Saruman mounts smaug-iso, so this one sits
+# with the other templates' ISOs: the pinned 2026.2 installer, hashed in
+# scripts/collect-iso-store-state.sh.
+variable "kali_saruman_iso_file" {
+  type    = string
+  default = "smaug-iso:iso/kali-linux-2026.2-installer-amd64.iso"
 }
 
 variable "kali_node" {

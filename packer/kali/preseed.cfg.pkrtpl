@@ -29,8 +29,27 @@ d-i passwd/username string packer
 d-i passwd/user-password-crypted password !
 d-i user-setup/allow-password-weak boolean false
 
+# #1128: the ESP, then / over the rest of the disk, and no swap partition.
+# partman's `atomic` put swap after /, so a clone given a bigger disk than the
+# template's could not grow / into it: cloud-init's growpart found swap in the
+# way and changed nothing (garuda, 2026-10-10, 59.7 GB of 80). With / last,
+# growpart reaches the end of whatever disk the clone has. A guest that wants
+# swap gets a swapfile, as garuda's runbook does.
 d-i partman-auto/method string regular
-d-i partman-auto/choose_recipe select atomic
+d-i partman-auto/expert_recipe string \
+  esp-root :: \
+    1024 1024 1024 free \
+      $iflabel{ gpt } $reusemethod{ } \
+      method{ efi } format{ } \
+    . \
+    4096 8192 -1 ext4 \
+      $primary{ } $bootable{ } \
+      method{ format } format{ } \
+      use_filesystem{ } filesystem{ ext4 } \
+      mountpoint{ / } \
+    .
+d-i partman-auto/choose_recipe select esp-root
+d-i partman-basicfilesystems/no_swap boolean false
 d-i partman-efi/non_efi_system boolean true
 d-i partman-partitioning/confirm_write_new_label boolean true
 d-i partman/choose_partition select finish
@@ -47,7 +66,25 @@ popularity-contest popularity-contest/participate boolean false
 d-i grub-installer/only_debian boolean true
 d-i grub-installer/bootdev string default
 
+# DHCP on eth0 as well as on the name the installer saw. The installer runs with
+# predictable interface names, so it configures ens18. kali-defaults, which
+# kali-linux-default pulls in, links /etc/systemd/network/99-default.link to
+# /dev/null, so the installed system calls the same NIC eth0: Kali's tools expect
+# it. With only an ens18 stanza, eth0 never came up, the guest had no address, and
+# Packer timed out waiting for SSH (#790, two proof builds on Saruman, 2026-10-08).
+# interfaces sources interfaces.d, so this adds eth0 without editing the
+# installer's file. A clone's cloud-init configures its own network on top.
+#
+# The chage loop clears a bogus account-expiry (shadow field 8 == 1, i.e. the
+# epoch, 1970-01-02) that Kali's package postinsts leave on service accounts
+# (lightdm, _gvm, inetsim, nm-*, dnsmasq, ...). lightdm is the one that bites:
+# systemd starts a user@<uid>.service for it (the greeter lingers a session),
+# PAM's account step sees the expired account and fails 224/PAM, so every clone
+# boots `degraded` (#1194, found on garuda #921). Only accounts actually at the
+# epoch are touched; real users (packer, and a clone's operator) have an empty
+# expiry field and are left alone.
 d-i preseed/late_command string \
+  printf 'allow-hotplug eth0\niface eth0 inet dhcp\n' > /target/etc/network/interfaces.d/eth0; \
   in-target mkdir -p /home/packer/.ssh; \
   echo '${ssh_public_key}' > /target/home/packer/.ssh/authorized_keys; \
   in-target chown -R packer:packer /home/packer/.ssh; \
@@ -55,6 +92,7 @@ d-i preseed/late_command string \
   in-target chmod 600 /home/packer/.ssh/authorized_keys; \
   echo 'packer ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/90-packer; \
   chmod 0440 /target/etc/sudoers.d/90-packer; \
+  in-target sh -c 'while IFS=: read -r n pass lastchg min max warn inactive expire rest; do [ "$expire" = 1 ] && chage -E -1 "$n"; done < /etc/shadow'; \
   in-target systemctl enable ssh qemu-guest-agent
 
 d-i finish-install/reboot_in_progress note

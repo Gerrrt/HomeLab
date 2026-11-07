@@ -155,6 +155,16 @@ inhibit_rules:
     target_matchers: [severity =~ "warning|critical"]
     equal: ["instance"]
 
+  # A dead agent's three RemoteWriteJobStale fold into AlloyDown, which
+  # fires at 10m, before any of them at 15m, and names the fix. They come back
+  # on their own if a single job stops while Alloy keeps reporting. On an agent
+  # host that makes one notification. On the monitoring host InstanceDown
+  # (alloy:12345) still pages first, on purpose. The comment on AlloyDown in
+  # stack.rules.yaml says why.
+  - source_matchers: [alertname = "AlloyDown"]
+    target_matchers: [alertname = "RemoteWriteJobStale"]
+    equal: ["instance"]
+
   # A dead SNMP exporter makes every device look dead.
   - source_matchers: [alertname = "SnmpExporterDown"]
     target_matchers: [alertname = "SnmpTargetUnreachable"]
@@ -176,6 +186,22 @@ inhibit_rules:
   - source_matchers: [alertname = "TlsAcmeRenewalStalled"]
     target_matchers: [alertname = "TlsAcmeRenewalLate"]
     equal: ["name"]
+
+  # And for the management consoles nothing can probe, whose expiry comes from
+  # a collector rather than the handshake blackbox makes (#857). `endpoint` is
+  # that collector's name for the console, unique across the estate.
+  - source_matchers: [alertname = "ManagementCertificateExpiryImminent"]
+    target_matchers: [alertname = "ManagementCertificateExpiringSoon"]
+    equal: ["endpoint"]
+  # The backup pair. ScheduledJobStaleCritical is the same comparison as
+  # ScheduledJobStale at three periods, so from the moment it pages the
+  # warning says nothing the page does not; without this the in-house channel
+  # keeps repeating the warning every twelve hours beside it. `homelab_job`
+  # and `instance`: one job on one host is one stream, and a second stale job
+  # on the same host keeps its own warning.
+  - source_matchers: [alertname = "ScheduledJobStaleCritical"]
+    target_matchers: [alertname = "ScheduledJobStale"]
+    equal: ["homelab_job", "instance"]
 
 receivers:
   - name: "null"

@@ -126,12 +126,29 @@ memos.matrix.elysium {
 	}
 }
 
-# Homepage (#137), the household's front page. A short name on purpose: it is
-# the one address on this tier that people who are not the operator are told.
-# Its widgets call the other names above from inside the compose network, and
-# arrive here like any browser.
+# The household's front page. A short name on purpose: it is the one address
+# on this tier that people who are not the operator are told. Since ADR-0103
+# it is Glance's Household page, which Homepage (#137) used to be: the bare
+# name lands there, and everything else is Glance, so the page's own assets
+# and API calls resolve.
 home.matrix.elysium {
-	reverse_proxy homepage:3000
+	# The tier's root certificate, as a download, so a household phone can
+	# install it before any app here is pointed at the tier
+	# (build-the-tier-ca.md section 6). It is the same file compose.yaml mounts
+	# for the ACME client, public by design: a root certificate vouches for the
+	# tier and reveals nothing. The leaf's key, and the CA's, are elsewhere.
+	handle /tier-ca.crt {
+		root * /etc/caddy/tls
+		rewrite * /ca.pem
+		header Content-Type application/x-x509-ca-cert
+		header Content-Disposition "attachment; filename=matrix-elysium-tier-ca.crt"
+		file_server
+	}
+
+	handle {
+		redir / /household
+		reverse_proxy glance:8080
+	}
 
 	log {
 		output stdout
@@ -218,6 +235,17 @@ pdf.matrix.elysium {
 		max_size 256MB
 	}
 	reverse_proxy stirling-pdf:8080
+
+	log {
+		output stdout
+		format json
+	}
+}
+
+# Glance (ADR-0098), the operator's browser start page. `proxied: true` in
+# glance/glance.yml is what makes it read the X-Forwarded-* Caddy sets.
+start.matrix.elysium {
+	reverse_proxy glance:8080
 
 	log {
 		output stdout

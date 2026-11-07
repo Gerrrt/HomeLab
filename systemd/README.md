@@ -56,7 +56,7 @@ editing units, not installing them.
 | `homelab-pkg-state` | daily 09:00 | `morpheus`'s package state, over SSH |
 | `homelab-recipient-state` | daily 09:15 | Which age recipients can open the secrets, and when each was proved |
 | `homelab-ca-key-state` | daily 09:30 | The CA key's fingerprint, and when its offline copy was last proved |
-| `homelab-gateway-state` | every 15 min | The firewall's view of its uplinks and its DDNS record |
+| `homelab-gateway-state` | every 15 min | The firewall's view of its uplinks, its DDNS record and its GUI certificate's expiry |
 | `homelab-silence-state` | every 15 min, at :05 | Alertmanager's silences, as metrics |
 | `homelab-snmp-verify` | Wednesday 06:30 | Every SNMP device answers to its current credential |
 | `homelab-check-versions` | Wednesday 06:45 | The documented OS versions against what the hosts report |
@@ -72,13 +72,19 @@ instead.
 | `homelab-converge-sensitive` | hourly, at :25 | Converges the sensitive tier onto `main`, report-only until switched on |
 | `homelab-backup-sensitive` | daily 04:30 | Quiesces the tier and archives its volumes |
 | `homelab-backup-library` | daily 05:15 | Archives Immich's library and copies it to `oracle` |
+| `homelab-verify-backups-sensitive` | daily 06:30 | Proves every volume and library set still decrypts, and `oracle`'s copies still hash to their MANIFESTs |
 
 ## On agent hosts
 
-An agent host has no checkout and no `run-scheduled.sh`, so these units emit
-no `homelab_job_*` metrics. Each collector's own output is watched instead: an
-alert fires when a host that *was* reporting stops. `install-agent-collectors.sh`
-installs only the collectors a host can run, and reports the rest as skipped.
+An agent host has no checkout, so these units emit no `homelab_job_*` metrics.
+Each collector's own output is watched instead: an alert fires when a host that
+*was* reporting stops. `install-agent-collectors.sh` installs only the
+collectors a host can run, and reports the rest as skipped.
+
+The one exception is `homelab-zeek-archive-prune` on `fenrir` (#850). The
+installer ships `run-scheduled.sh` with it as `/usr/local/bin/homelab-run-scheduled`,
+and its outcome goes to the lab's Prometheus, which has `ScheduledJob*` rules
+for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 
 | Unit | When | Where it runs | Reports |
 | --- | --- | --- | --- |
@@ -87,13 +93,18 @@ installs only the collectors a host can run, and reports the rest as skipped.
 | `homelab-prune-images` | Monday 04:00 | hosts that run Docker | Removes unused images |
 | `homelab-drift-check` | daily 06:30 | `oracle` | The wiki's drift check |
 | `homelab-pve-version` | daily 08:15 | `Saruman` | The Proxmox VE version |
+| `homelab-cert-expiry` | daily 08:30 | `Saruman` | When its own `:8006` certificate and the iLO's expire ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
 | `homelab-pve-firewall-state` | every 5 min | `Saruman` | Whether the Proxmox firewall is on |
 | `homelab-guest-state` | every 10 min | `Saruman` | Which guests are running |
 | `homelab-guest-disk-state` | every 10 min | `Saruman` | How full the guests' filesystems are |
+| `homelab-wazuh-manager-state` | every 5 min | `odin` | The Wazuh manager's agents, queues and dropped events ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
+| `homelab-guest-service-state` | every 5 min | `Saruman` | Whether the named lab services are healthy ([#858](https://github.com/Gerrrt/HomeLab/issues/858)) |
 | `homelab-thin-pool-state` | every 10 min | `Saruman` | How full the LVM-thin pools are |
 | `homelab-iso-store-state` | daily 04:30 | `Saruman` | The ISO store against the repository's checksums |
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
+| `homelab-zeek-archive-prune` | daily 03:17 | `fenrir` | Deletes Zeek archive files past their retention; `homelab_job_*` to the lab |
+| `homelab-pbs-task-state` | hourly at :17 | `golem` | What PBS last did: each verify, prune and garbage-collection job's outcome, and the snapshots by verify state ([#485](https://github.com/Gerrrt/HomeLab/issues/485)) |
 
 ## Adding a timer
 

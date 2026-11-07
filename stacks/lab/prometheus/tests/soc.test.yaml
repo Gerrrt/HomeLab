@@ -4,7 +4,7 @@
 #
 # Firing case AND quiet case for every rule, for the reason lab.test.yaml
 # gives: a case that only ever expects silence passes against a rule that can
-# never fire (#63). All six are covered; two of the quiet cases prove a rule
+# never fire (#63). All thirteen are covered; two of the quiet cases prove a rule
 # stays quiet for a state that is CORRECT rather than merely absent — a green
 # cluster is not yellow, and a heap that sawtooths under the line is a JVM
 # working as designed.
@@ -205,11 +205,607 @@ tests:
               summary: "The Wazuh indexer has indexed nothing for an hour"
               description: >-
                 The cluster answers and its health is fine; it is simply not being
-                written to. Check the manager first — filebeat on it is what
-                writes — then whether any agent is connected at all.
+                written to by anything: not filebeat, not the dashboard's
+                monitoring and statistics jobs. Check that the indexer accepts
+                writes (disk watermarks, a read-only block) before any one writer.
       - eval_time: 50m
         alertname: WazuhIngestionStalled
         exp_alerts: []
       - eval_time: 100m
         alertname: WazuhIngestionStalled
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: filebeat dead, the dashboard still writing -----
+  # The case WazuhIngestionStalled could not see. The node-wide counter keeps
+  # climbing (the dashboard's monitoring and statistics jobs), analysisd keeps
+  # writing alerts, and the alerts index stops at 60m. Its hour-long increase
+  # reaches zero at about 121m, so with `for: 30m` the alert fires from about
+  # 151m. WazuhIngestionStalled stays quiet throughout, which is the gap.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x200"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "0+4x60 240+0x140"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x200"
+    alert_rule_test:
+      - eval_time: 100m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 160m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhAlertsNotIndexed
+              instance: odin
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh manager wrote alerts and no indexed alerts were observed"
+              description: >-
+                odin's analysisd wrote alerts in the last hour, and no
+                wazuh-alerts-* index took a document. That is filebeat in
+                soc-wazuh-manager: stopped, wedged, or refused by the indexer.
+                WazuhIngestionStalled stays quiet through this, because the
+                dashboard keeps writing its own indices. Look at filebeat's log in
+                the manager container, then its certificate against
+                wazuh.indexer.
+      - eval_time: 160m
+        alertname: WazuhIngestionStalled
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: a quiet SIEM is not a failure ------------------
+  # No alerts written, so an alerts index that takes nothing is correct.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x200"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "240+0x200"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "240+0x200"
+    alert_rule_test:
+      - eval_time: 160m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: healthy, and across the midnight rollover -----
+  # Alerts written and indexed. At 100m the daily index changes: the old one
+  # stops and the new one starts from zero. The sum over wazuh-alerts-* keeps
+  # seeing documents, so nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.10"}'
+        values: "0+4x100 _x100"
+      - series: 'elasticsearch_index_stats_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",index="wazuh-alerts-4.x-2026.10.11"}'
+        values: "_x100 0+4x100"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x200"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 190m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+
+  # --- WazuhAlertsNotIndexed: the alerts-index series missing entirely ------
+  # The exporter's per-index stats off, or the relabel dropping too much. With
+  # alerts written and no series to compare them against, the rule fires
+  # rather than going blind: the left side is above zero from the second
+  # sample, so after `for: 30m` it fires by 35m.
+  - interval: 1m
+    input_series:
+      - series: 'elasticsearch_indices_indexing_index_total{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",name="wazuh.indexer"}'
+        values: "0+10x60"
+      - series: 'homelab_wazuh_analysisd_alerts_written_total{job="odin-metrics",instance="odin"}'
+        values: "0+4x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: WazuhAlertsNotIndexed
+        exp_alerts:
+          - exp_labels:
+              alertname: WazuhAlertsNotIndexed
+              instance: odin
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "The Wazuh manager wrote alerts and no indexed alerts were observed"
+              description: >-
+                odin's analysisd wrote alerts in the last hour, and there is no
+                wazuh-alerts-* per-index series to compare them with. That is a
+                telemetry failure, not yet a delivery one: whether alerts reach
+                the indexer is unknown. Check stacks/soc/alloy/opensearch.alloy
+                first, that `indices = true` and its relabel keeps
+                elasticsearch_index_stats_indexing_index_total on wazuh-alerts-*,
+                then that odin's Alloy is pushing.
+
+  # --- WazuhAgentsNotConnected: a running guest the SOC cannot see (#1038) --
+  # Four domain guests answer; ramuh's agent is not Active. carbuncle is off.
+  # Pending at 20 minutes, firing at 35, and the alert names ramuh.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="titan"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="ramuh"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="carbuncle"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="titan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="ramuh"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="carbuncle"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              job: windows
+              instance: ramuh
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "ramuh is running without a connected Wazuh agent"
+              description: >-
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
+                `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: garuda up, its agent not Active (ADR-0092) --
+  # garuda has no windows_exporter; its Alloy's `up` stands in, and the join
+  # by name still holds. bahamut's agent is Active, so only garuda fires.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="garuda-alloy",instance="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="garuda"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              job: garuda-alloy
+              instance: garuda
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "garuda is running without a connected Wazuh agent"
+              description: >-
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
+                `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: garuda up and Active is quiet ---------------
+  - interval: 5m
+    input_series:
+      - series: 'up{job="garuda-alloy",instance="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="garuda"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: another lab host's Alloy is not expected ----
+  # eden reports through Alloy and enrols in nothing; it must not fire.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="eden-alloy",instance="eden"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: another Active agent does not hide one ------
+  # The case the count-based rule could not see: two guests up and two Active
+  # agents, but one of the two is a host that is not a domain guest, so
+  # leviathan is still invisible. By name, it fires for leviathan.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="linuxbox"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              job: windows
+              instance: leviathan
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "leviathan is running without a connected Wazuh agent"
+              description: >-
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
+                `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: guests off between sessions -----------------
+  # ADR-0079's on-demand guests: every one down, every agent Disconnected.
+  # Nothing is running that the SOC should see, so nothing fires.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "0x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: every running guest reporting ---------------
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="bahamut"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agent_active{job="odin-metrics",instance="odin",agent="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: no per-agent series, so the count decides ---
+  # A collector from before the per-agent series, or a manager with nothing
+  # enrolled: by name there is nothing to match, so the count is the fallback.
+  # Two guests up, one agent Active: one missing, and the alert says how many
+  # rather than which. With no names to join, it cannot fire for every guest.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="active"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 35m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts:
+          - exp_labels:
+              component: soc
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "1 lab guest(s) are running without a connected Wazuh agent"
+              description: >-
+                A guest is up (windows_exporter answers on a domain guest, or
+                garuda's Alloy reports) and the manager has no Active agent for it,
+                so the guest is invisible to the SOC. On odin:
+                `docker exec soc-wazuh-manager /var/ossec/bin/agent_control -l`
+                gives each agent's status; on a domain guest, `Get-Service
+                WazuhSvc`; on garuda, `systemctl status wazuh-agent`.
+
+  # --- WazuhAgentsNotConnected: no per-agent series, all guests reporting ---
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_agents{job="odin-metrics",instance="odin",status="active"}'
+        values: "2x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAgentsNotConnected: the agents source unreadable ----------------
+  # agent_control failed, so the collector wrote no per-agent series and no
+  # per-status counts. Both halves are empty, so nothing fires for every
+  # guest at once; WazuhManagerStateUnreadable is the alert for this.
+  - interval: 5m
+    input_series:
+      - series: 'up{job="windows",instance="bahamut"}'
+        values: "1x10"
+      - series: 'up{job="windows",instance="leviathan"}'
+        values: "1x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "0x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: WazuhAgentsNotConnected
+        exp_alerts: []
+
+  # --- WazuhAnalysisdQueueFilling: alerts queue above 90% -------------------
+  # 0.97 on the alerts queue fires; the event queue at 0.12 beside it does not.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_wazuh_analysisd_queue_usage_ratio{job="odin-metrics",instance="odin",queue="alerts"}'
+        values: "0.97x6"
+      - series: 'homelab_wazuh_analysisd_queue_usage_ratio{job="odin-metrics",instance="odin",queue="event"}'
+        values: "0.12x6"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: WazuhAnalysisdQueueFilling
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: WazuhAnalysisdQueueFilling
+        exp_alerts:
+          - exp_labels:
+              queue: alerts
+              component: soc
+              severity: warning
+              category: capacity
+            exp_annotations:
+              summary: "Wazuh analysisd's alerts queue is 97% full"
+              description: >-
+                analysisd is falling behind on alerts events. Usually
+                an event storm from one agent or a slow indexer behind filebeat;
+                WazuhIngestionStalled says whether the indexer is still taking
+                writes.
+
+  # --- WazuhAnalysisdQueueFilling: a burst that drains ----------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_wazuh_analysisd_queue_usage_ratio{job="odin-metrics",instance="odin",queue="event"}'
+        values: "0.95 0.95 0.20x6"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: WazuhAnalysisdQueueFilling
+        exp_alerts: []
+
+  # --- WazuhEventsDropped: the counter moves --------------------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_wazuh_analysisd_events_dropped_total{job="odin-metrics",instance="odin"}'
+        values: "0 0 0 40 40 40"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WazuhEventsDropped
+        exp_alerts:
+          - exp_labels:
+              job: odin-metrics
+              instance: odin
+              component: soc
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "Wazuh analysisd dropped 40 events in 30 minutes"
+              description: >-
+                Those events never reached a rule or the indexer, so the SOC did
+                not see them. WazuhAnalysisdQueueFilling usually fires first.
+
+  # --- WazuhEventsDropped: a manager restart is a reset, not a drop ---------
+  # 900 dropped before the restart, then 0 and flat. increase() reads the
+  # reset as a reset, and nothing new was dropped.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_wazuh_analysisd_events_dropped_total{job="odin-metrics",instance="odin"}'
+        values: "900 900 0 0 0 0 0 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: WazuhEventsDropped
+        exp_alerts: []
+
+  # --- WazuhManagerStateUnreadable: a state file gone after an upgrade ------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="analysisd"}'
+        values: "0x10"
+      - series: 'homelab_wazuh_manager_source_ok{job="odin-metrics",instance="odin",source="agents"}'
+        values: "1x10"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: WazuhManagerStateUnreadable
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: WazuhManagerStateUnreadable
+        exp_alerts:
+          - exp_labels:
+              job: odin-metrics
+              instance: odin
+              source: analysisd
+              component: soc
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The Wazuh manager's analysisd state could not be read"
+              description: >-
+                scripts/collect-wazuh-manager-state.sh --print on odin shows what
+                it got. After a Wazuh upgrade, check whether the state file still
+                exists, or whether `agent_control -l -j` changed its shape.
+
+  # --- WazuhManagerStateStale: fires when the file stops moving -------------
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{job="odin-metrics",instance="odin",file="wazuh-manager-state.prom"}'
+        values: "0x16"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: WazuhManagerStateStale
+        exp_alerts:
+          - exp_labels:
+              job: odin-metrics
+              instance: odin
+              file: wazuh-manager-state.prom
+              component: soc
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "odin has not rewritten the Wazuh manager's state in half an hour"
+              description: >-
+                The file is 50m 0s old. `journalctl -u
+                homelab-wazuh-manager-state` on odin says why; "is not running" in
+                it means the manager is down, which the estate's
+                GuestServiceUnhealthy reports too.
+
+  # --- WazuhManagerStateStale: quiet while rewritten; neighbours are not it -
+  - interval: 5m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{job="odin-metrics",instance="odin",file="wazuh-manager-state.prom"}'
+        values: "0+300x40"
+      - series: 'node_textfile_mtime_seconds{job="odin-metrics",instance="odin",file="apt-patch-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: WazuhManagerStateStale
+        exp_alerts: []
+
+  # --- ZeekConnLogStopped: the conn stream stops while others move ----------
+  # conn.log grows until t=15m and then stops; dns.log keeps moving. The 30m
+  # window is all flat from t=45m, so pending then and firing at 60m: 45
+  # minutes after the last byte, as the summary says.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "0+50000x3 150000x12"
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/dns.log"}'
+        values: "1000+2000x15"
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: ZeekConnLogStopped
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: ZeekConnLogStopped
+        exp_alerts:
+          - exp_labels:
+              job: fenrir-alloy
+              instance: fenrir
+              component_id: loki.source.file.zeek
+              component_path: /
+              path: /zeek/logs/conn.log
+              component: sensor
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Zeek has written nothing to conn.log for 45 minutes"
+              description: >-
+                Zeek's event loop may still be turning while it logs no
+                connections: the mirror is up and carrying nothing it can parse,
+                or the capture interface changed. The estate's ZeekMirrorInactive
+                says whether packets reach fenrir. On fenrir, `docker logs
+                sensor-zeek` and the newest lines of conn.log.
+
+  # --- ZeekConnLogStopped: the series itself goes away --------------------
+  # Alloy deletes a tailer's read_bytes series when the tailer stops, so a
+  # conn.log that stops existing is a series that stops, not one that goes
+  # flat. Last sample at t=15m: the 30m range is empty from t=45m, pending
+  # then, firing at 60m. Only the selector's equality matchers survive as
+  # labels; job and instance went with the series.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "0+50000x3 _x12"
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/dns.log"}'
+        values: "1000+2000x15"
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: ZeekConnLogStopped
+        exp_alerts: []
+      - eval_time: 65m
+        alertname: ZeekConnLogStopped
+        exp_alerts:
+          - exp_labels:
+              component_id: loki.source.file.zeek
+              path: /zeek/logs/conn.log
+              component: sensor
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Zeek has written nothing to conn.log for 45 minutes"
+              description: >-
+                Zeek's event loop may still be turning while it logs no
+                connections: the mirror is up and carrying nothing it can parse,
+                or the capture interface changed. The estate's ZeekMirrorInactive
+                says whether packets reach fenrir. On fenrir, `docker logs
+                sensor-zeek` and the newest lines of conn.log.
+
+  # --- ZeekConnLogStopped: a gap shorter than the window is not a stop -----
+  # A tailer restart (Alloy redeployed) drops the series for a few minutes and
+  # it comes back growing. The 30m range always holds a sample, so the
+  # absence half never holds, and the bytes keep increasing.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "0+50000x5 _x2 0+40000x8"
+    alert_rule_test:
+      - eval_time: 75m
+        alertname: ZeekConnLogStopped
+        exp_alerts: []
+
+  # --- ZeekConnLogStopped: the hourly rotation is a reset, not a stop -------
+  # Zeek rotates conn.log every hour: the new file starts at 0 and grows.
+  - interval: 5m
+    input_series:
+      - series: 'loki_source_file_read_bytes_total{job="fenrir-alloy",instance="fenrir",component_id="loki.source.file.zeek",component_path="/",path="/zeek/logs/conn.log"}'
+        values: "900000 950000 1000000 0 40000 80000 120000 160000 200000 240000 280000 320000 360000 400000"
+    alert_rule_test:
+      - eval_time: 65m
+        alertname: ZeekConnLogStopped
         exp_alerts: []
