@@ -1,0 +1,43 @@
+# Whether each container holds the ports and networks it was created with
+# (ADR-0105).
+#
+# WHY A JOB AND NOT A HEALTHCHECK. On 2026-11-05 this host booted without its
+# address, Docker could not publish alloy's and ingest-proxy's ports on
+# 10.0.99.20, and both came up with no networks at all. Both still reported
+# healthy for about 25 hours: a healthcheck runs inside the container, on its
+# own loopback, which is the one part that still worked. The question can only
+# be asked from outside the container, of the daemon, so this asks it every 15
+# minutes with scripts/collect-port-state.py and ContainerNetworkingMissing in
+# containers.rules.yaml reads the answer.
+#
+# Runs as robo, who is in the docker group on this host. Nothing here needs
+# root; the textfile directory is robo's (install-timers.sh --install).
+[Unit]
+Description=HomeLab: collect whether containers hold their published ports
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job port-state -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab port-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=false
+ProtectSystem=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-port-state
