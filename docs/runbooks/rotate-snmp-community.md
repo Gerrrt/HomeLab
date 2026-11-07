@@ -1,15 +1,7 @@
 # Runbook: Rotate the SNMP communities
 
-**Target:** four SNMP devices — pfSense, the APC NMC, the switch (`neo`), HPE iLO
-
-> **2026-11-06:** `neo` is no longer the MokerLink. It is a CRS326 on
-> RouterOS, polled over SNMPv3 authPriv with no v2c community at all
-> ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)),
-> so of the four devices only pfSense still has a community to rotate, and
-> the three v3 devices take §4's passphrases instead. Every MokerLink step
-> below — the reboot window, *The MokerLink switch: overwrite the row*, the
-> GETBULK caveats — describes hardware that has left the rack and is kept as
-> the record of how that device was handled.
+**Target:** four SNMP devices — one on SNMPv2c, pfSense; three on SNMPv3
+authPriv, the APC NMC, the switch (`neo`) and HPE iLO
 **Time:** ~45 minutes, one device at a time; §4, the move of one device to
 SNMPv3, is a separate pass of about 20 minutes
 **You will need:** the age key, physical access to the ProLiant for the iLO step,
@@ -18,12 +10,18 @@ reconfigure
 
 **Why this is not optional.** A single SNMP community string was committed to
 this public repository in plaintext and shared across pfSense, the MokerLink
-switch, the APC UPS and the ProLiant's iLO. It is still in git history. Anyone
-who cloned the repository at any point has it.
+that was `neo` until 2026-11-05, the APC UPS and the ProLiant's iLO. It is
+still in git history. Anyone who cloned the repository at any point has it.
 
-These are read-only communities, which sounds mild. On a firewall, read-only
-means the complete state table, every interface and the full pf configuration
-surface. Treat them as credentials.
+Read-only SNMP sounds mild. On a firewall, read-only means the complete state
+table, every interface and the full pf configuration surface. Treat a
+community, and a v3 user's passphrases, as credentials.
+
+What a rotation changes depends on the device's version. pfSense has a
+**community**. The APC card, the switch and the iLO each have one SNMPv3 user,
+`prometheus`, and a rotation changes that user's **two passphrases**, the
+authentication one and the privacy one. The steps below say which applies
+where; "credential" means whichever the device has.
 
 **Order matters:** change the device first, then the repository. Doing it the
 other way round means the exporter starts failing before the device is ready.
@@ -61,21 +59,25 @@ network interface on save, typically for 30-60 seconds.
 > long-press-to-factory-default; know which one you are pressing, because a
 > factory default means reconfiguring the entire card.
 
-**MokerLink switch** (`neo`, 10.7.7.2) — this is the switch everything runs
-through.
+**The switch** (`neo`, 10.7.7.2), a MikroTik CRS326 on RouterOS 7
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md))
+— this is the switch everything runs through.
 
 > Losing its management address does not drop traffic — layer 2 keeps forwarding
-> — but you cannot reconfigure it until you get back in. The monitoring host at
-> `10.0.99.20` reaches `10.7.7.2` through two pfSense rules, both recorded in
+> — but you cannot reconfigure it until you get back in. The ways back in are
+> WinBox's *Neighbors* tab, which finds the switch by MAC, and the untagged
+> cable from `morpheus`'s `igc0` to port 1, which is why the switch LAN was
+> kept. The UI is `https://10.7.7.2/` only; plain `http` is off.
+>
+> The monitoring host at `10.0.99.20` reaches `10.7.7.2` through two pfSense
+> rules, both recorded in
 > [ADR-0013](../adr/0013-segment-access-as-implemented.md): the outbound
 > `10.0.99.20 → 10.7.7.2:161-162/udp` and the switch's return path
-> `10.7.7.2 → 10.0.99.20:161-162/udp`. Either one missing presents the same way,
-> as a timeout. **If exactly one device fails verification and it is this one,
-> suspect those rules before you suspect the community.**
->
-> Its SNMP community table also will not persist a deletion, and every attempt
-> drops the SNMP agent until the switch is rebooted. §2.5 has a separate route
-> for this device; read it before you open the UI.
+> `10.7.7.2 → 10.0.99.20:161-162/udp`. The switch's agent also answers
+> `10.0.99.20` and nothing else. Any of the three missing presents the same
+> way, as a timeout. **If exactly one device fails verification and it is
+> this one, suspect those before you suspect the passphrases** — a wrong
+> passphrase on a v3 device is a report, not a timeout (§4.4).
 
 **pfSense** (`morpheus`, 10.0.99.1) — the low-risk one, but check what you are
 standing on.
@@ -84,57 +86,60 @@ standing on.
 > "all" — and that you are not administering the firewall through the interface
 > you are editing.
 
-## 1. Generate four distinct communities
+## 1. Generate distinct credentials
 
 ```bash
 make gen-secret ARGS=--snmp
 ```
 
-One per device, keyed by the device list in `prometheus/targets/snmp.yaml`. The
-whole reason the old arrangement was dangerous is that a single string unlocked
-everything.
+One line per key, keyed by the device list in `prometheus/targets/snmp.yaml`
+and the auth blocks in `generator.yaml`: a community for pfSense, and an
+authentication and a privacy passphrase for each of the three v3 devices —
+seven lines. The whole reason the old arrangement was dangerous is that a
+single string unlocked everything. Rotating one device uses only that
+device's lines.
 
-**Check each device's maximum community length first.** Several APC NMC firmware
-revisions cap it at 15 characters and truncate silently, which presents as the
-UPS rejecting a community you know you typed correctly. If yours is one of them:
+The default 24 characters fits every device here: the APC card takes v3
+passphrases of 15–32 characters, iLO 4 takes 8–49, and it is what
+[`swap-the-switch.md`](swap-the-switch.md) §1.5 generates the switch's pair
+with. The generator uses `[A-Za-z0-9]` only — every other
+character has a specific way of going wrong quietly somewhere between
+`secrets-edit` and the wire.
 
-```bash
-make gen-secret ARGS="--snmp --length 15"
-```
+**Check a device's maximum length before you shorten or lengthen anything.**
+When the APC card still had a community, several NMC firmware revisions were
+known to cap it at 15 characters and truncate silently; the card in this lab
+was verified at 16. From the monitoring host a silent truncation and a correct
+credential are indistinguishable — both present as the device refusing you —
+so if a device needs a different length, `ARGS="--snmp --length N"`.
 
-15 alphanumerics is still ~89 bits, which is fine. The generator uses
-`[A-Za-z0-9]` only — every other character has a specific way of going wrong
-quietly somewhere between `secrets-edit` and the wire.
-
-The card in this lab accepts 16 and is verified working at that length, so the
-cap is not universal to the model. Check yours rather than assuming it either
-way: from the monitoring host, a silent truncation and a correct community are
-indistinguishable — both present as the device refusing you.
-
-Note that SNMPv2c sends these in cleartext on every poll. Distinct communities
-limit the blast radius of a captured packet; they do not make the protocol
-secure. The iLO and the UPS card move to SNMPv3 authPriv under
+SNMPv2c sends pfSense's community in cleartext on every poll. A distinct
+community limits the blast radius of a captured packet; it does not make the
+protocol secure. The iLO and the UPS card moved to SNMPv3 authPriv under
 [ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
-— that is [§4](#4-move-a-device-to-snmpv3), a separate pass — and a device
-that has moved has two passphrases here instead of a community.
-`make gen-secret ARGS=--snmp` prints whichever shape each device currently
-has. The firewall and the switch stay on v2c, for reasons the ADR gives.
+— that is [§4](#4-move-a-device-to-snmpv3), a separate pass — and the switch
+has been v3 since the CRS326 replaced the MokerLink on 2026-11-05: it was set
+up with a v3 user and no v2c community at all
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+The firewall alone stays on v2c, for reasons ADR-0036 gives.
 
 ## 2. Rotate each device
 
 Work through them in this order — cheapest recovery first, physical access last:
-**pfSense → APC → MokerLink → iLO**.
+**pfSense → APC → switch → iLO**.
 
 For each device, run the whole of §2.1 to §2.5 before starting the next one.
 
-The one exception is the MokerLink switch, whose §2.5 needs a reboot window and
-can legitimately be left for a later pass — §2.1 to §2.4 stand on their own, and
-the switch polls correctly on its new community in the meantime. That is exactly
-what happened on the rotation this runbook came out of; the leftover is
-[#84](https://github.com/Gerrrt/HomeLab/issues/84). Deferring it is a decision to
-record, not one to make silently.
+The MokerLink that was `neo` until 2026-11-05 used to be the exception: its
+firmware would not persist a deletion from its community table, so retiring
+an old community on it needed a reboot window and could be left for a later
+pass. That leftover was [#84](https://github.com/Gerrrt/HomeLab/issues/84),
+and the swap to the CRS326 made it moot: the defect left with the hardware. No
+device here needs the exception now.
 
-### 2.1 Add the new community — do not remove the old one yet
+### 2.1 Change the device
+
+**A v2c device: add the new community, do not remove the old one yet.**
 
 > **Add, do not replace.** Until the new community is proven end to end, the old
 > one is your rollback credential. Deleting it before you have verified the new
@@ -144,30 +149,42 @@ record, not one to make silently.
 **pfSense** (`morpheus`, 10.0.99.1) — **Services → SNMP.** Set the read community
 string. Confirm the daemon binds only to the VLAN 99 interface.
 
+**A v3 device: change the `prometheus` user's two passphrases in place.** Edit
+the existing user; do not add a second one. Each device holds one pair for that
+user, so there is no old credential left beside the new one to fall back on —
+the rollback is the old pair, which stays in SOPS until §2.2 and in git history
+after it. The target is down from the device's save until §2.3 is applied,
+which `SnmpTargetUnreachable`'s ten minutes covers if you have both passphrases
+to hand before you start. Leave the protocols as they are: **SHA** and **AES**.
+
 **APC Smart-UPS** (`mjolnir`, 10.0.99.10) — Network Management Card web UI,
-**Configuration → Network → SNMPv1 → Access Control.** Set the community for the
-`prometheus` host entry, access **Read**, and restrict the NMS address to
-`10.0.99.20` if the card supports it.
+**Configuration → Network → SNMPv3 → User Profiles**, the `prometheus`
+profile: the authentication passphrase, then the privacy passphrase. Its
+access-control entry for `10.0.99.20` does not change. The card restarts its
+network interface on save, per *Before you start*.
 
-**MokerLink switch** (`neo`, 10.7.7.2) — Web UI at `http://10.7.7.2`,
-**SNMP → Community.** Add the read-only community. Delete any default
-`public`/`private` entries while you are in there — those are not your rollback
-credential and should not survive this.
+**The switch** (`neo`, 10.7.7.2) — RouterOS keeps v3 users under
+`/snmp/community`, with `security=private`; the row named `prometheus` is the
+user. From a terminal on the switch — WinBox's *New Terminal*, or SSH — or the
+same row in WebFig at `https://10.7.7.2/`:
 
-> Expect those deletions not to stick. This firmware does not persist a removal
-> from the community table: the row can be deleted, applied and saved, and it is
-> still there after a restart — and each attempt drops the SNMP agent until the
-> switch is rebooted. Whether the defaults ever survived on `neo` is unknown:
-> they appeared to answer on 2026-09-06 and 2026-09-09, but those probes were
-> GETBULK, which this switch answers for *any* community of sixteen characters
-> or fewer — see `SECURITY.md`. Over GET, which it does check, both are refused
-> since 2026-09-12. Retiring an entry that is really there means overwriting
-> it, which is [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row).
-> Nothing in this step depends on the deletion succeeding, so add the new
-> community, try the defaults once, and carry on.
+```text
+/snmp community set prometheus authentication-password=<first> encryption-password=<second>
+```
+
+Type or paste the two values into the switch's own terminal or UI, nowhere
+else: not into a shell on the monitoring host, where they land in history, and
+not into an agent session, where they land in a transcript. Then read the row
+back with `/snmp community print` — `security` still `private`, the
+authentication and encryption protocols still SHA1 and AES, and the address
+restriction still `10.0.99.20`. There is no v2c community on the switch to add,
+keep or delete, and there should not be one after this either: `public` and
+`private` are refused, and §2.4 checks that.
 
 **HPE iLO** (`shiva`, 10.0.30.10) — **Administration → Management → SNMP
-Settings.** Set the read community.
+Settings → SNMPv3 Users**, the `prometheus` slot: both passphrases. The same
+warning as *Before you start*: saving can reset the management processor, so do
+it with physical access to the ProLiant.
 
 ### 2.2 Update the repository
 
@@ -175,13 +192,16 @@ Settings.** Set the read community.
 make secrets-edit
 ```
 
-Set the one key for the device you just changed:
+Set the key, or the two keys, for the device you just changed:
 
 ```yaml
 SNMP_COMMUNITY_PFSENSE: <new>
-SNMP_COMMUNITY_APC: <new>
-SNMP_COMMUNITY_MOKERLINK: <new>
-SNMP_COMMUNITY_ILO: <new>
+SNMP_AUTHPASS_APC: <first>
+SNMP_PRIVPASS_APC: <second>
+SNMP_AUTHPASS_NEO: <first>
+SNMP_PRIVPASS_NEO: <second>
+SNMP_AUTHPASS_ILO: <first>
+SNMP_PRIVPASS_ILO: <second>
 ```
 
 Mind the space after the colon. `KEY:value` without it does not fail — it sets
@@ -214,18 +234,23 @@ reported success and snmp-exporter went on polling with the old community.
 
 Or `make snmp-verify` for all four at once. Each device must report `PASS` with
 its sysDescr string — that is also how you confirm you reached the box you meant
-to.
+to. A v3 device is checked over SNMPv3 with its user and passphrases, and the
+dry run (`--dry-run`) shows it as `v3`.
 
 The same run then sends every device that passed a short and a long junk
 community over GET and over GETBULK, and then the stock `public` and `private`
-over GET. The junk line is the control that makes the `PASS` above mean the
-community was checked: `neo` answers a short junk string over GETBULK and
-refuses it over GET, which is reported `WARN` in both modes because no row in
-its table changes it (`SECURITY.md`, #84). A device answering junk over GET
-would be `FAIL`, and its stock and old-community lines are skipped as
-meaningless. A stock string answering is `WARN` in plain mode — the weekly
-timer runs plain mode into an alert that would otherwise stay lit for the
-weeks it takes to get a reboot window on `neo` — and `FAIL` under `--old`.
+over GET — to the v3 devices too, because a v3 device that still answers v2c
+has a second way in. The junk line is the control that makes the `PASS` above
+mean the credential was checked. A junk string answered over either PDU is
+`FAIL` in both modes. GETBULK used to be a `WARN`, because the MokerLink that
+was `neo` until 2026-11-05 answered GETBULK to any community of sixteen
+characters or fewer and no configuration changed that (`SECURITY.md`, #84);
+the CRS326 refuses both PDUs, so nothing needs the exception. A device
+answering junk over GET has its stock and old-community lines skipped as
+meaningless. A stock string answering is `FAIL` in both modes, so the weekly
+timer's run fails on it and alerts. It used to be `WARN` in plain mode, from
+when a stock row on the MokerLink needed a reboot window to retire; that
+exception left with the MokerLink.
 
 The community never appears in an argument vector. The block this replaced put it
 into your shell history and, for the life of the process, into
@@ -248,95 +273,48 @@ back — `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it was
 working before you started and the rotation is the suspect; `0` means it never
 worked, the rotation is not the cause, and reverting will not bring it back.
 
-### 2.5 Retire the old community, then prove it is gone
+### 2.5 Retire the old credential, then prove it is gone
 
-Only once §2.4 is green. How you retire it depends on the device.
+Only once §2.4 is green. How you retire it depends on the device's version.
 
-#### Most devices: delete the row
+#### A v2c device: delete the row
 
-pfSense, the APC NMC and iLO. Delete the old entry in the device's UI — some UIs
-require deleting the row rather than blanking the field. Then go to
-[**Prove it**](#prove-it).
+pfSense. Delete the old entry in the device's UI — some UIs require deleting
+the row rather than blanking the field. Then go to [**Prove it**](#prove-it).
+
+#### A v3 device: nothing is left to delete
+
+The APC card, the switch and the iLO. §2.1 changed the one user's passphrases
+in place, so the old pair stopped working at that save, and §2.4 passing on
+the new pair is the evidence. Check one thing while you are in the UI: the
+device shows one `prometheus` user, not two. A second user added in §2.1 by
+mistake would still hold the old pair, and nothing from the monitoring host can
+tell you so — `snmp-verify.sh` has no old-passphrase check.
+
+On the switch, `/snmp community print` lists every row RouterOS has: one row,
+`prometheus`, with `security=private`, and no other. A row with
+`security=none` is a v1/v2c community, which this switch is meant not to
+have at all
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md));
+the stock-community line in §2.4 catches the two defaults, and only reading the
+table catches any other string.
+
+`--old` below still applies to a v3 device in one way: given the community the
+device had before it moved, it proves v1/v2c access is off (§4.5). A rotation
+of passphrases does not change that, so for a v3 device press Enter.
 
 #### The MokerLink switch: overwrite the row
 
-`neo` is the exception, and the paragraph above does not work on it. Its
-firmware accepts the deletion, applies it and saves it, and the row is still
-there after a restart. Every attempt also drops the SNMP agent until the switch
-is rebooted, so retrying is not free — this is the residual recorded in
-[`SECURITY.md`](../../SECURITY.md) and tracked as
-[#84](https://github.com/Gerrrt/HomeLab/issues/84).
-
-Retire every stale row in the same window: the previous community, and any
-`public` or `private` row the table still shows. Read the access column of the
-`private` row while you are in the UI; if it says read-write, it is the worst
-of them. Do not expect a probe from the monitoring host to tell you whether
-those rows exist. This switch answers GETBULK to any community of sixteen
-characters or fewer without consulting the table (measured 2026-09-12,
-`SECURITY.md`), which is why the stock strings appeared to answer on
-2026-09-06 and 2026-09-09: the probe was GETBULK. Only GET is checked, and
-`snmp-verify.sh` uses GET since that date. The reboot is the only test there
-is, and there will not be another window soon.
-
-**Do this only in a window where the switch can be rebooted**, ideally one it is
-already going down for. `neo` carries every VLAN: the reboot stops layer 2, not
-just SNMP. This is not a drive-by change at the end of a rotation.
-
-1. **Overwrite the rows, do not delete them.** Web UI at `http://10.7.7.2`,
-   **SNMP → Community.** Edit each stale row in place — the *old* community,
-   `public`, `private` — and write the **current** community into it, the value
-   already in `SNMP_COMMUNITY_MOKERLINK`. Note the access column of the
-   `private` row before you overwrite it; if it is read-write, that is the
-   worst of the three and the one to do first. If the firmware accepts the
-   duplicates, the switch ends up answering exactly one string, nothing in this
-   repository changes, and there is no `make render` or `make reload` to do.
-
-2. **If it rejects a duplicate entry**, write a fresh value instead — one per
-   row, because a table that refuses one duplicate will refuse the next:
-
-   ```bash
-   make gen-secret
-   ```
-
-   Plain, not `ARGS=--snmp`: that variant prints one `SNMP_COMMUNITY_*` line per
-   device, ready to paste into `make secrets-edit`, which is the opposite of what
-   this value is. You want one bare 24-character string, and it does not go into
-   SOPS.
-
-   Understand what that leaves you with: extra live communities on the switch
-   that are not in SOPS and are not polled by anything — one per row you had to
-   do this way, and if the `private` row's access could not be changed either,
-   one of them read-write. That is a worse record than step 1 and it must be
-   written into `SECURITY.md` if you take it. It is still a large improvement,
-   because the values it displaces are the shared string that was published to
-   a public repository and the two defaults every scanner tries first.
-
-3. **Reboot the switch.** This is the test, not housekeeping. The deletion that
-   started all this looked like it had worked until a restart, so an un-rebooted
-   result says nothing about what the switch has actually saved.
-
-4. **Check the current community still works**, before checking anything else:
-
-   ```bash
-   ./scripts/snmp-verify.sh --device neo
-   ```
-
-   This must be `PASS`. If it is not, the overwrite hit the wrong row and `neo`
-   is unmonitored — fix that first. It is also the precondition for the next
-   step: `--old` reports `SKIP` for a device that failed here, and a `SKIP` would
-   tell you nothing. The stock-community line underneath it is the first
-   verdict on the reboot: `refuses public private` means the two default rows
-   are gone, `STOCK COMMUNITY ACCEPTED` means they came back.
-
-5. **Then** go to [**Prove it**](#prove-it), answering for `neo` and pressing
-   Enter through the other three.
-
-If it still reports `STILL ACCEPTED` after a reboot — or the stock line still
-says a default answers — the overwrite did not persist either. **Stop — do not
-retry.** Each attempt costs another agent outage for a firmware behaviour you
-have now tested twice. Leave the switch polling on its current community and
-write what the overwrite actually did into `SECURITY.md`, replacing the
-"overwrite rather than delete" sentence, which will have been disproved.
+History, not a procedure; the heading stays because the changelog links it.
+The MokerLink that was `neo` until 2026-11-05 accepted a deletion from its
+community table, applied and saved it, and still had the row after a restart,
+and each attempt dropped its SNMP agent until a reboot. This section was the
+route around that: overwrite each stale row with the current community in a
+window where the switch could be rebooted, then reboot as the test. It was run
+on 2026-09-12, and the residual it left was
+[#84](https://github.com/Gerrrt/HomeLab/issues/84). The CRS326 has no v2c
+community to overwrite, so the route left with the hardware; git history keeps
+the steps.
 
 #### Prove it
 
@@ -356,10 +334,10 @@ its current community — all over GET, which is the PDU every device here
 checks. Those are not secrets, so nothing is typed and nothing is skipped:
 under `--old` a device that answers a stock string is a `FAIL`, the same
 verdict as `STILL ACCEPTED`, because a rotation that leaves a default row
-live has not retired anything a scanner would try. `neo`'s `GETBULK
-UNAUTHENTICATED` warning is not that: it is the firmware serving GETBULK to
-any short string regardless of the table, and it stays a `WARN` here because
-the retirement being proved is real even though that is not fixed.
+live has not retired anything a scanner would try. A junk string answered
+over GETBULK is a `FAIL` here as well; it was a `WARN` only while the
+MokerLink that was `neo` until 2026-11-05 answered every short string over
+that PDU regardless of its table.
 
 It requires a terminal and refuses a pipe on purpose — `echo "$old" | ...` would
 put the old community into your shell history, which is the leak this tooling
@@ -422,10 +400,17 @@ half early.
 
 Which devices this applies to is decided, not chosen here
 ([ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)):
-**`shiva` first, then `mjolnir`.** Not `morpheus` — bsnmpd is the only daemon
-that serves the pf MIB and pfSense writes no v3 user for it. Not `neo` unless
-its UI turns out to have a user page; check that once, at the next login, and
-record the answer in `hardware.md` either way.
+**`shiva` first, then `mjolnir`** — both done, on 2026-09-20 and 2026-09-21.
+Not `morpheus` — bsnmpd is the only daemon that serves the pf MIB and pfSense
+writes no v3 user for it. `neo` never needed this section: the MokerLink that
+was `neo` until 2026-11-05 stayed on v2c, its UI never checked for a v3 user
+page because #444 was going to replace it, and the CRS326 that replaced
+it was set up at the bench with a v3 user and **no** v2c community before it
+was ever racked
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
+[`swap-the-switch.md`](swap-the-switch.md) §1.5), so there was no community to
+leave in place or to switch off afterwards. If the switch is ever reset, its
+user is re-created by that section, and its passphrases are rotated by §2.
 
 What the two devices offer, from their vendors' guides for the firmware each
 one reported over SNMP on 2026-09-09 — the pages themselves are behind logins
@@ -590,9 +575,10 @@ cost is measured rather than assumed.
 
 **A device is rotated but the repository is not.** Only that one target is down,
 and `SnmpTargetUnreachable` gives you 10 minutes. Go forward — `make secrets-edit`,
-fix the one key, `make render && make reload`. Or go back: re-enter the old
-community on the device. You still have it, which is the entire reason §2.5 comes
-after §2.4.
+fix the key or the pair, `make render && make reload`. Or go back: re-enter the
+old community or passphrases on the device. You still have them — a v2c
+device's old row is still there, which is the entire reason §2.5 comes after
+§2.4, and a v3 device's old pair is still in SOPS until you save §2.2.
 
 **The repository is rotated but the device is not.** That target goes `DOWN` on
 the next scrape.
@@ -629,15 +615,14 @@ care how many times you write it.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | All four `FAIL` | Not the devices — you are not on `10.0.99.0/24`, or sops decrypted a stale file | `ping 10.0.99.1`; re-run `make render` |
-| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` from the monitoring host. If it succeeds while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch. The rule as it should be is in [ADR-0013](../adr/0013-segment-access-as-implemented.md) |
+| Only `neo` (`10.7.7.2`) times out | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 — or the switch's agent is off, or no longer restricted to `10.0.99.20` but to some other address | SNMP is the only thing the firewall passes from the monitoring host to the switch LAN, so there is no second protocol to compare against from here. From a Hicks workstation, `https://10.7.7.2/` proves the switch is up; in its terminal, `/snmp print` and `/snmp community print` show the agent enabled and the `prometheus` row's address restriction. Then check the *protocol and port* on the pfSense rule (**Firewall → Rules**). The rules as they should be are in [ADR-0013](../adr/0013-segment-access-as-implemented.md). A wrong passphrase is never a timeout on this device: it is a v3 report, the next rows down |
 | A device `FAIL`s and you cannot tell whether you broke it | An SNMPv2c timeout looks identical for a wrong community, a filtered path, and a device that never worked | Ask Prometheus before rolling anything back: `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it worked before you started, so the rotation is the suspect. `0` means it never worked, the rotation is not the cause, and rolling back will not help |
-| One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares; the card in this lab does not — it is verified at 16) |
-| `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked. **Not `neo`** — see the next row |
-| `--old` reports `STILL ACCEPTED` on `neo`, after a delete | Expected. This firmware does not persist a removal from the community table, and the attempt has cost you the SNMP agent until reboot | Do not delete it again. Overwrite the row instead — [§2.5's MokerLink route](#the-mokerlink-switch-overwrite-the-row), which needs a window in which the switch can be rebooted |
+| One device fails right after you changed it | The UI truncated the community or a passphrase, or you removed the wrong entry | Re-enter it; check the field's max length (§1 has each device's range; the APC NMC truncated communities at 15 on several firmwares, though the card in this lab was verified at 16) |
+| `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked |
 | `--old` reports `SKIP` | The current-community check failed for that device, so a timeout proves nothing | Fix the current check first |
-| `rejected over SNMPv3: Unknown user name` | The user in `generator.yaml` does not exist on the device, or SNMPv3 is enabled but the profile is not | Compare the literal `username:` with the device's user list; on the APC card, check the profile is *enabled* and its access-control entry names `10.0.99.20` |
-| `rejected over SNMPv3: Authentication failure` | The authentication passphrase, or the protocol, differs from the device | `make secrets-edit`; check SHA on the device. A wrong *privacy* passphrase reads the same way from net-snmp |
-| A v3 device times out where a v2c one would say `rejected` | SNMPv3 is not enabled on the device at all — the iLO's SNMP page or the card's **SNMPv3 → Access** — or the same firewall questions as any other timeout | Enable it; then the *Only `neo` fails* row's method for telling a filter from a refusal |
+| `rejected over SNMPv3: Unknown user name` | The user in `generator.yaml` does not exist on the device, or SNMPv3 is enabled but the profile is not | Compare the literal `username:` with the device's user list; on the APC card, check the profile is *enabled* and its access-control entry names `10.0.99.20`; on the switch, `/snmp community print` shows a `prometheus` row with `security=private` |
+| `rejected over SNMPv3: Authentication failure` | The authentication passphrase, or the protocol, differs from the device | `make secrets-edit`; check SHA on the device (`SHA1` on the switch). A wrong *privacy* passphrase reads the same way from net-snmp |
+| A v3 device times out where a v2c one would say `rejected` | SNMPv3 is not enabled on the device at all — the iLO's SNMP page, the card's **SNMPv3 → Access**, or the switch's agent (`/snmp print`) — or the same firewall questions as any other timeout | Enable it; for the switch, the *Only `neo` times out* row |
 | `--old` reports `STILL ACCEPTED over v2c` on a device moved to v3 | SNMPv1/v2c access is still enabled beside the v3 user, so the community still works | §4.5: switch v1 off on the device, then run `--old` again |
 | `error: ... is version 3 with security_level 'authNoPriv'` | A v3 block that authenticates and sends the tables in clear | `authPriv`, per ADR-0036 — the check refuses anything else on purpose |
 | `error: ... contains whitespace or '#'` | A community was typed with a space or `#` into SOPS | `make secrets-edit`; regenerate with `make gen-secret` |

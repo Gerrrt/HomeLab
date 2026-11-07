@@ -17,47 +17,74 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-07
+
+- **[#444](https://github.com/Gerrrt/HomeLab/issues/444): `neo` is the
+  CRS326, polled over SNMPv3.** The MikroTik CRS326-24G-2S+RM took over as the
+  main switch at about 23:50 UTC on 2026-11-05, under the MokerLink's name and
+  address, on RouterOS 7.24.6. The repository still polled `10.7.7.2` as the
+  MokerLink, over v2c, so the switch's scrape was down from 23:56 UTC and
+  `InstanceDown` paged until it was silenced the next day; the switch answered
+  SNMPv3 throughout. The snmp-exporter now has a `crs326` module and an
+  `auth_neo` block (v3 authPriv, SHA/AES, user `prometheus`), the MokerLink's
+  module, community and key are gone from config, render and the key-backup
+  check, and `snmp-verify.sh` fails a GETBULK answer to a junk community again
+  instead of warning, since no device needs the MokerLink's exception.
+  `snmp-walk.sh` stays, with its defaults now the exporter's. Phase 2's last
+  two steps were done on 2026-11-07: the switch's HTTP service is off, and the
+  two pfSense passes to `10.7.7.2:80` (from Hicks, and the blackbox probe from
+  `prometheus`) are deleted. `pfctl -sr` on `morpheus` then showed exactly two
+  rules to the switch: SNMP from `10.0.99.20` and HTTPS from Hicks. **The old
+  community is refused:** from `10.0.99.20` the pre-cutover `snmp-verify.sh`
+  got no answer to it, while the switch returned a 121-row v3 walk of its
+  forwarding table the same minute. That walk is also the port map, read
+  rather than assumed: the MokerLink (with `prometheus` and `oracle` behind
+  it) on `ether2`, `trinity` on `ether3`, the UPS card on `ether4`, `smaug` on
+  `ether17`, `Saruman` and its iLO on `ether18` and `ether19`, and nothing
+  learned on `ether20`, which is `ifrit`'s and dark until its build.
+- **A correction to the 2026-11-06 entry below**, from the as-built details
+  read back at the rack on 2026-11-07. U14 holds the MokerLink, reused as a
+  plain switch for the two laptops, not the TP-Link. The KVM was **not**
+  cabled as decided on 2026-10-15: `morpheus` is on port 8, `trinity` 7,
+  `Saruman` 6, `smaug` 5 and `ifrit` 4. The keyboard drawer has no support
+  rails; the U23 shelf, mounted upside down, holds its underside. The UPS
+  outlet groups were read: the PDU on group 1, the laptops' chargers on group
+  2, the MokerLink on group 3. The MokerLink was factory-reset, with SNMP off,
+  before it went back in, so the community that leaked on 2026-08-20 is gone
+  from it too; each group's turn-off and turn-on settings are
+  still unread. `Saruman`'s iLO reports eight healthy modules trained at
+  2400 MHz.
+- **The WAN port takes CRC errors.** `morpheus`'s `em0` counted 500,000 to
+  790,000 input errors a day from 2026-10-28 to 2026-10-30, none from
+  2026-10-31 to 2026-11-02, and about 182,000 on 2026-11-07, all CRC, with no
+  symbol or alignment errors. Re-seating the factory lead in the XB7 did not
+  stop them. It is the physical layer; the lead's route and the XB7's other
+  port are what is left to try.
+- **Docker on `prometheus` now waits for `10.0.99.20`, and a container that is
+  healthy without its ports now pages**
+  ([ADR-0105](adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)).
+  The move into the 32U rack power-cycled every host. `prometheus` booted
+  at 23:46 on 2026-11-05 with no carrier on its USB NIC. The link came
+  at 21:02 on 2026-11-06 and the address at 22:28.
+  `systemd-networkd-wait-online` had given up at 23:48:26, after its default
+  two minutes. `network-online.target` was reached anyway and dockerd
+  started the stack. `alloy` and `ingest-proxy` publish on `10.0.99.20`.
+  Docker logged "cannot assign requested address" for 6514, 9090 and 3100
+  and ran both containers with no networks and no published ports, both
+  `Up (healthy)`. `EndpointUnreachable` on `10.0.99.20:9090` and `:3100`,
+  and `InstanceDown` on `alloy:12345`, fired from 22:28. `docker restart`
+  did not repair them. `docker compose up -d --force-recreate` did, by hand,
+  on 2026-11-07. Firewall, Suricata and DHCP logs, and the ingest endpoints,
+  were dark for about 25 hours.
+  `systemd/host/homelab-wait-address.service` now holds `docker.service`
+  until the address is assigned, with no timeout
+  (`make install-host-units`). `ContainerNetworkingMissing` reads the new
+  15-minute `port-state` job, which compares each container's declared port
+  bindings with the ones Docker published. Runbook:
+  [`recover-a-container-without-its-ports.md`](runbooks/recover-a-container-without-its-ports.md).
+
 ## 2026-11-06
 
-- **`neo` is the CRS326, and the documents and the SNMP config say so**
-  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
-  [#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MikroTik
-  CRS326-24G-2S+RM on RouterOS 7.23.7 replaced the MokerLink 26-port, by
-  Phases 1 and 2 of [`swap-the-switch.md`](runbooks/swap-the-switch.md),
-  keeping the name `neo`, the address `10.7.7.2` and the untagged switch LAN
-  from `morpheus`'s `igc0` to port 1. It shared its window with the move
-  into the 32U rack (the #919 entry below), so the switch stands at U21. A
-  health check of `smaug` afterwards found one thing: its NUT
-  client needed a restart. This entry is Phase 3.
-  - **Plain HTTP closed.** From a workstation, `https://10.7.7.2/` answered
-    with `CN=neo.matrix.elysium` under the estate CA, SANs
-    `neo.matrix.elysium` and `10.7.7.2`, valid 2026-10-04 to 2029-01-06, and
-    `http://10.7.7.2/` timed out. `docs/security.md` records the residual as
-    closed with that proof. The leaf is 825 days and the switch cannot renew
-    it, and no probe watches the UI, so its expiry is now a dated entry in
-    `schedule-maintenance.md` and a row in `successor-handover.md`.
-  - **The switch LAN's reason changed, not the LAN.** `network.md` said it
-    existed because the MokerLink's UI would not bind to a tagged interface.
-    It now says what ADR-0041 says: it is the way back in after a bad bridge
-    VLAN-filtering commit, a cable rather than a configuration.
-  - **SNMP.** The `mokerlink` module and `auth_mokerlink` became `routeros`
-    and `auth_neo`, an SNMPv3 authPriv block (SHA, AES, user `prometheus`),
-    named for the role so the next swap does not leave a misnomer.
-    `SNMP_COMMUNITY_MOKERLINK` left `render-config.sh`,
-    `verify-key-backup.sh` and `observability.example.yaml` for
-    `SNMP_AUTHPASS_NEO` and `SNMP_PRIVPASS_NEO`. No rule or panel named a
-    port by `ifIndex`; the one unit test that used the MokerLink's `port N`
-    shape for `ifDescr` now uses RouterOS's `etherN`. The module keeps the
-    MokerLink's GETBULK tuning until the evidence that decides
-    `snmp-walk.sh` is in.
-  - **`snmp-verify.sh`'s GETBULK check is a `FAIL` again.** It had been a
-    `WARN` since 2026-09-12 because the MokerLink could not be fixed; that
-    exception left with the device.
-  - **Still open on this date:** #84 closes on `snmp-verify.sh` clean over
-    GET and GETBULK against the CRS326 and `--old` against the MokerLink's
-    community, and `SECURITY.md` holds the GETBULK residual open until that
-    output is recorded. `snmp-walk.sh` stays until the CRS326 is shown not to
-    need it. The `#444` and `#84` entries left `roadmap.md`.
 - **[#919](https://github.com/Gerrrt/HomeLab/issues/919): the estate is in
   the 32U rack.** Moved on 2026-11-06 by
   [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md), in the

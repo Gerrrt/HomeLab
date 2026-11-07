@@ -39,12 +39,12 @@ is a very different thing from an overlooked one. Full detail in
 | What | Status |
 | --- | --- |
 | A used server arrived with Intel AMT enabled on the factory-default credential | Found 2026-09-16 on `smaug`, the ThinkServer TS150 of [#413](https://github.com/Gerrrt/HomeLab/issues/413), during the pre-build firmware pass: the MEBx accepted Intel's default `admin`, so no password had ever been set, and `Manageability Feature Selection` read `Enabled`. The ME network name and domain were blank, which is evidence it had never been provisioned rather than proof. **Closed the same day and before the host carried anything**: a new ME password, `Unconfigure Network Access` → `Full Unprovision` while the feature was still enabled, then the feature disabled, verified by the `<CTRL-P>` prompt no longer being offered at boot. Disabled rather than hardened, unlike `shiva` under [ADR-0033](docs/adr/0033-keep-the-ilo-on-the-lab-segment.md): that BMC serves a headless hypervisor in a rack, where a remote console earns its keep; this is a tower with a monitor beside it, and an out-of-band plane on the segment with the televisions buys it nothing. The general lesson is the one [`hardware.md`](docs/hardware.md) already records for the CRS326 — a second-hand device arrives carrying whatever its last owner left on it, and the management plane is the part nobody thinks to look at. |
-| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one — and **neither the BMC nor the UPS card answers a community at all any more**, both being polled over SNMPv3 authPriv with SNMPv1 switched off and the former community proved refused, the BMC on 2026-09-20 and the card on 2026-09-21 ([#85](https://github.com/Gerrrt/HomeLab/issues/85)). Two of the four values this row is about are therefore retired rather than rotated. **The MokerLink switch served GETBULK to any short community without checking, so whether it still held the previous one was never verified** — see below. That switch left the rack on 2026-11-06; its replacement was commissioned with no v2c community at all and is polled over SNMPv3 authPriv, so the third value is retired with the hardware rather than rotated. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
+| SNMP community committed in plaintext, shared across firewall, switch, UPS and BMC | Removed from `HEAD` and replaced with four distinct per-device SOPS-encrypted values. Rotated on all four devices; each answers to its own new community. The firewall, the UPS and the BMC additionally refuse the old one — and **neither the BMC nor the UPS card answers a community at all any more**, both being polled over SNMPv3 authPriv with SNMPv1 switched off and the former community proved refused, the BMC on 2026-09-20 and the card on 2026-09-21 ([#85](https://github.com/Gerrrt/HomeLab/issues/85)). Two of the four values this row is about are therefore retired rather than rotated. **The switch serves GETBULK to any short community without checking, so whether it still holds the previous one is unverified** — see below. The original shared string has been purged from git history, though it must still be treated as public — it was reachable in a public repository and cannot be un-seen. |
 | The pfSense and MokerLink SNMP communities, in local Claude Code session transcripts | Found 2026-09-21, at the moment it happened: a command inspecting one auth block printed the whole of `snmp-exporter/.rendered/snmp.yaml`, whose redaction covered the `password` fields and not the `community` ones, putting both live v2c values into this repository's session transcript and a cached tool-result file. A value-level sweep of `~/.claude/projects` found them in a third file as well — a session from an unrelated project, which predates 2026-09-21 and makes the exposure older than the command that revealed it. All three were redacted in place and set to mode 600, and a re-sweep finds nothing. Never committed, never synced, never off the host. **Deliberately not rotated.** The MokerLink's value retires with the hardware within days, on the reasoning the row below already sets out; the firewall's stays, its blast radius being what the *SNMPv2c* section of [`docs/security.md`](docs/security.md) describes for a poll that never leaves Winterfell. The two SNMPv3 devices were unaffected — their four passphrases were checked individually against every file under `~/.claude/projects` and appear in none. |
 | Grafana `admin`/`admin` with anonymous Admin access enabled | Fixed — anonymous auth off, password from SOPS |
 | Passphrase-encrypted TLS private keys under `certificates/` | Removed from `HEAD` and purged from history. A new CA and leaf have been generated with [`scripts/gen-certs.sh`](scripts/gen-certs.sh); the old keys are superseded and should be treated as compromised wherever they were ever trusted. |
 | Decrypted secrets in editor undo files, written by `make secrets-edit` | Found 2026-08-20: three files under `~/.local/state/nvim/undodir/` holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664. Shredded. `make secrets-edit` now hardens `$EDITOR` before handing it plaintext, so it cannot recur. Never committed and never left the host, so those three communities were not rotated on that basis. |
-| Alertmanager webhook URL and the MokerLink SNMP community, in a local Claude Code session transcript | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook topic was rotated — on the public ntfy instance the topic name *is* the credential, there is nothing to revoke — and delivery re-verified end to end. The switch community deliberately was not: rotating it means the `neo` residual above all over again. **That reasoning is spent, and this value now retires with the hardware.** The overwrite it was afraid of was done on 2026-09-12 and persisted, and on 2026-11-06 the MokerLink was replaced by a CRS326 commissioned with SNMP v2c off entirely — so what retires this community is not a fresh community but the absence of one. Its v3 passphrases were generated fresh at the bench, and `SNMP_COMMUNITY_MOKERLINK` left the repository's key lists the same day. |
+| Alertmanager webhook URL and the MokerLink SNMP community, in a local Claude Code session transcript | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook topic was rotated — on the public ntfy instance the topic name *is* the credential, there is nothing to revoke — and delivery re-verified end to end. The switch community deliberately was not: rotating it means the `neo` residual above all over again. **That reasoning is spent, and this value now retires with the hardware.** The overwrite it was afraid of was done on 2026-09-12 and persisted, and the MokerLink is being replaced by a switch commissioned with SNMP v2c off entirely — so what retires this community is not a fresh community but the absence of one. The thing that must not be carried across is any value the MokerLink held, passphrases included. **Retired 2026-11-05**, when the CRS326 replaced it with no v2c community at all and v3 passphrases generated fresh ([#444](https://github.com/Gerrrt/HomeLab/issues/444)); the switch section above has the proof. |
 | Pre-purge objects still served by GitHub after the history rewrite | The 2026-08-19 rewrite (`021d2b6`) removed both secrets above from every *reachable* commit, but GitHub still serves the orphaned objects by SHA. Verified 2026-08-26: `647d90a`, `21afcad`, `efb2632` and `ee3d443` all still resolve through the API, and the tree at `21afcad` still lists `certificates/Gandalf.Gondor.Lab/ca-key.pem` and `cert-key.pem`. Garbage collection requested from GitHub Support on 2026-08-26 — **pending**; this is the [purge runbook](docs/runbooks/purge-git-history.md)'s *Afterwards* step, and it is the last one outstanding. The repository has no forks and a network count of 0, so nothing else is perpetuating them. Both credentials were rotated *before* the rewrite, so this changes nothing about their status: the old keys and the old community remain superseded and must still be treated as public. Re-check with `gh api repos/Gerrrt/HomeLab/commits/647d90a --jq .sha` — a `404` means GitHub has collected them. |
 | Alertmanager published on `0.0.0.0`, letting anyone who could reach it silence an alert | Fixed 2026-08-30 — 9093 now binds to `127.0.0.1` ([#70](https://github.com/Gerrrt/HomeLab/issues/70), [ADR-0012](docs/adr/0012-publish-only-ports-with-an-off-host-consumer.md)). This was the sharpest of the three because a silence switches off monitoring and the record of it lives in the system being switched off. Nothing off-host ever used the port: silences are reached through Grafana, which proxies Alertmanager over the compose network behind a login, so closing it cost no capability. |
 | Prometheus and Loki published on `0.0.0.0` with no authentication | Fixed — [#182](https://github.com/Gerrrt/HomeLab/issues/182), [ADR-0067](docs/adr/0067-authenticate-the-ingest-ports-with-a-token-per-client.md). Until then anything that could route to `10.0.99.20:9090` or `:3100` could read every metric and log line, inject metrics through the remote-write receiver, and delete log ranges through Loki's delete API, with firewall default-deny as the whole control. Prometheus and Loki now publish on `127.0.0.1` only. The host's address on both ports is an ingest proxy that serves a push to one token per agent (`oracle`, `trinity`, `Saruman`), a query to one reader token (Glance, Home Assistant, the deploy script's arrival check), and the admin and delete APIs to nobody. `IngestAuthNotEnforced` pages if the published address ever answers a token-less request with anything but the proxy's 401. The tokens no longer cross the wire in cleartext: both ports serve TLS under the estate CA, and every client verifies it ([#764](https://github.com/Gerrrt/HomeLab/issues/764), [ADR-0086](docs/adr/0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md)). **One thing remains, deliberately:** loopback is unauthenticated, because a local user on the monitoring host already holds the SOPS key. The firewall still narrows who can try: Winterfell (99) itself and `Saruman`'s one pass from `10.0.30.110`. |
@@ -54,78 +54,41 @@ is a very different thing from an overlooked one. Full detail in
 | The hypervisor's BMC shares a broadcast domain with the attack VM | **Accepted residual, not a fix in progress.** `shiva`, the iLO 4 at `10.0.30.10` on firmware 2.82, sits on ImaginationLAN, the segment [ADR-0014](docs/adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md) gives to `ifrit`'s Kali VM, and a BMC does not get patched the way a guest does. [ADR-0033](docs/adr/0033-keep-the-ilo-on-the-lab-segment.md) keeps it there on purpose: the iLO is part of the estate under attack, and a BMC compromise in the lab costs the lab. Moving it to Winterfell would put an end-of-line BMC beside the firewall's admin UI and open three more ports on the Hicks list to reach its console. Controls: the BMC's own hardening (IPMI-over-LAN and unused services off, a credential shared with nothing in the house), and the lab tripwire — anything the BMC initiates toward another segment is a logged pass and a `LabSegmentReachedInternalNetwork` alert. Both done 2026-09-09: IPMI-over-LAN, SSH and iLO Federation off on the BMC, its account's credential shared with nothing in the house, its security log read for a baseline; and the `10.0.30.10 → 10.0.99.20/udp` "return path" rule deleted from `morpheus` — it had been evaluated 7.4 million times and matched zero packets, because pf state carries the scrape's replies, and it was the BMC's only path to the monitoring host's syslog listener. The scrape failed once at the reload and has been clean since; the lab interface now passes nothing across a segment except `Saruman`'s two agent ports. Re-read 2026-09-22, when [ADR-0042](docs/adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s tunnel changed who can be on this segment: the residual was written against an attacker the operator starts on purpose, and it now also covers a remote peer — the operator's own devices, keyed and pinned to a `/32`, behind the same tripwire. It stands on the same reasoning; a peer that is not the operator's is ADR-0022's third trigger, not a widening of this row. |
 | `smaug` ships no logs, and no absence rule can say so | **Accepted residual, not a fix in progress.** [ADR-0016](docs/adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md) reverses the monitoring direction for CasaBonita (40) so that nothing on that segment initiates upward: `prometheus` scrapes `10.0.40.30` over `99 → 40:9100`, and `smaug` runs no Alloy agent. Loki has no pull — ingest is a push or it is nothing — so the NAS ships no logs. Its SMART attributes went the same way until [ADR-0047](docs/adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md) put them under the scrape — a root cron job on the host writes a textfile the exporter serves, nothing initiating from 40 — and its patch state is deliberately not collected, an appliance having no `apt` to ask ([#483](https://github.com/Gerrrt/HomeLab/issues/483)). It is the one host in the estate whose compromise is invisible: Prometheus shows it alive and busy, and nothing shows what it did — on the segment whose stated assumption is that everything on it is already compromised. That is already true with nothing deployed on it: the blind spot is a property of the direction rather than of what runs there, and Jellyfin's network-facing indexer will land on a host that was invisible before it arrived. **Collecting the logs costs more than the gap.** A `40 → 99:3100` rule would be the first upward path in the estate, and it would put an agent token, which is write access to the log store, on the one segment whose stated assumption is that everything on it is already compromised. The ingest ports are authenticated since #182; that makes the token the thing a compromise of `smaug` would take, and it does not make handing one over cheaper. What still watches the segment is the `igc0.40` tripwire and nothing else — Suricata runs on Skids and Degens, not on 40. **No new alert is warranted, and that is the second half of this row.** `TerminalSegmentReachedInternalNetwork` fires on a `pass` from a terminal VLAN toward `30`, `50`, `99` or the switch LAN, which catches a compromise *leaving*; anything that stays on CasaBonita or egresses to the internet leaves no record at all, and a rule cannot be written against a record that does not exist. Decided under [#255](https://github.com/Gerrrt/HomeLab/issues/255); the detail is in [`docs/security.md`](docs/security.md). |
 
-**This section is the record of a residual that leaves with the hardware.**
-On 2026-11-06 the MokerLink below left the rack and `neo` became a MikroTik
-CRS326 on RouterOS
-([ADR-0041](docs/adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)):
-no v2c community configured at all, an SNMPv3 authPriv user restricted to
-`10.0.99.20`, and `scripts/snmp-verify.sh` turned its GETBULK `WARN` back
-into a `FAIL` the same day, so an unauthenticated walk is no longer something
-the weekly run excuses on any device. **It closes on the proof, not on the
-swap:** `snmp-verify.sh` clean over GET *and* GETBULK against the CRS326, and
-`--old` against the MokerLink's community, which is what closes
-[#84](https://github.com/Gerrrt/HomeLab/issues/84). Until that output is
-recorded here, the text below is what was true of `neo` up to 2026-11-06.
+**The switch was the honest gap, and it closed on 2026-11-05** with the
+hardware that caused it ([#444](https://github.com/Gerrrt/HomeLab/issues/444),
+[ADR-0041](docs/adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+`neo` (10.7.7.2) was a MokerLink 26-port managed switch until that day. Its
+firmware did not persist a deletion from the SNMP community table, dropped its
+agent on every attempt, and — measured 2026-09-12 — did not check the community
+on GETBULK at all when the string was sixteen characters or fewer: any such
+string was served a full walk of every table, from any host that could reach
+UDP/161. Every earlier sighting of `public`, `private` or the old community
+"still accepted" was that GETBULK answer. Over GET, after the stale rows were
+overwritten on 2026-09-12, `public`, `private` and a junk string were refused,
+and the previous community's row stayed unmeasured: that string was not to
+hand. It was accepted as a residual bounded by the pfSense rule
+that lets only `10.0.99.20` reach UDP/161 on the switch, with the replacement as
+the fix.
 
-The switch is the honest gap, and it is a deliberate one. `neo` (10.7.7.2) is
-rotated and polling. Its firmware does not persist a deletion from the SNMP
-community table: the row can be removed, applied and saved, and the entry is
-still there after a restart. Each attempt also drops the SNMP agent until the
-switch is rebooted, and it is the switch the whole network runs through. Until
-2026-09-12 this section said the switch still accepted the community it held
-before the rotation, "verified after a reboot"; that verification was a
-GETBULK probe, and the paragraph after this one is why it proved nothing.
-
-**The larger finding, measured on 2026-09-12: the switch does not check the
-community on GETBULK at all when the string is sixteen characters or fewer.**
-Any such string — `public`, `private`, `asdf`, a single letter — is served a
-full walk of every table over that PDU, from any host that can reach UDP/161.
-Strings of seventeen characters or more are checked, and GET and GETNEXT are
-checked at every length: with the current community all three PDUs answer,
-with a wrong one only a short GETBULK does. The other three devices refuse a
-junk string over every PDU. This explains every earlier sighting: the
-2026-09-06 and 2026-09-09 measurements that found the stock `public` and
-`private` answering were GETBULK probes, the empty-community scrape that first
-surfaced it was the same thing, and so was every `STILL ACCEPTED` for the old
-community. Whether any of those rows ever existed cannot be told from here.
-Over GET, after the stale rows were overwritten and the switch rebooted on
-2026-09-12, `public`, `private` and a junk string are refused. The previous
-community's row is the one thing still unmeasured over GET, because the
-string — the shared value purged from history — was not to hand in the
-window, and is not expected to become available: it is recorded as unverified
-rather than as retired, and it retires with the hardware rather than by
-measurement. If it ever does turn up, `./scripts/snmp-verify.sh --old` settles
-it for the cost of a single GET — no SET, no deletion, and none of the agent
-outage that the deletion attempts cost.
-
-`scripts/snmp-verify.sh` probes with GET since that date, because GET is what
-the switch authenticates. It also sends a short and a long junk string over
-both PDUs to every device on every run: a GETBULK answer is `WARN` — a
-firmware limit no row in the table changes, so a failure would keep the weekly
-job's alert lit for as long as this is the switch — and a GET answer would be
-`FAIL`, because nothing else in the run could then be believed for that
-device. The exporter scrapes with GETBULK, so a scrape that works after a
-rotation proves nothing about the community on this switch either.
-
-The residual risk is accepted rather than overlooked, and it is larger than
-the one this section used to describe: read access to the switch's whole MIB
-with any short community over GETBULK, rather than one stale read-only row.
-What bounds it is unchanged. Reaching UDP/161 on `10.7.7.2` requires both a
-foothold on the management VLAN and the specific pfSense rule that permits
-`10.0.99.20` to reach it, or a port on the switch LAN itself — it is not
-exposed beyond those. What would close it is a switch whose firmware checks
-what it serves, which is the replacement
-[ADR-0018](docs/adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
-names — a MikroTik CRS326, bought 2026-09-13 and recorded in
-[`docs/hardware.md`](docs/hardware.md), delivery estimated 2026-09-23; this
-residual closes when the MokerLink hardware leaves the rack, not before. That
-date is a courier estimate and not an arrival, and the swap is a house-wide
-outage that shares a rack visit rather than getting its own — so it is not the
-date this closes on, only the earliest a window could be picked. SET was not
-tested, because a SET is a change to the device. The overwrite procedure stays
-at [§2.5, *The MokerLink switch: overwrite
-the row*](docs/runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
-for the rows that are real.
+The replacement is a MikroTik CRS326-24G-2S+RM on RouterOS 7.24.6, under the
+same name and address. It has no v2c community at all: SNMP is v3 authPriv for
+one user, `prometheus` (SHA/AES), and the agent answers only `10.0.99.20`. The
+passphrases were generated fresh at the bench on 2026-10-05; nothing the
+MokerLink held was carried across, so the community that leaked on 2026-08-20
+(below) did not survive the swap. **The proof, 2026-11-07:**
+`scripts/snmp-verify.sh` passes `neo` over v3, and the device refuses a short
+and a long junk community over both GET and GETBULK and refuses `public` and
+`private`. The retired community is refused too: from `10.0.99.20`, the
+pre-cutover `snmp-verify.sh` on `main`, which reads the old community from
+the sops file rather than from a prompt, got no answer from `neo`, while the
+same switch returned a 121-row SNMPv3 walk of its forwarding table that
+minute. A GETBULK answer to a junk community is now `FAIL` in
+that script rather than `WARN`, because no device on the estate needs the
+exception any more. The MokerLink is back in the rack at U14 as a plain
+switch for the two laptops on Winterfell. Nothing polls it, and `10.7.7.2`
+now routes to `neo`. It was factory-reset before it went back in, which
+cleared the old community from it, and its SNMP agent is off (reported by the
+owner on 2026-11-07).
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)

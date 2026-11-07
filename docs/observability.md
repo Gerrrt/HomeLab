@@ -50,7 +50,7 @@ it is not closed by anything in this document.
 | syslog, `/var/log/*.log` | Alloy | 60s poll | Everything else. The `*.log` source skips `auth.log` and the facility files rsyslog also writes to `syslog` (`kern`, `user`, `mail`, `cron`, `daemon`), so a line is not stored once per copy ([#909](https://github.com/Gerrrt/HomeLab/issues/909)) |
 | pfSense | snmp-exporter | 60s | pf state table, counters, interface stats |
 | pfSense logs | syslog-ng → Alloy on 6514, TLS with a client certificate ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)) | stream | `filterlog` decisions, `suricata` alerts, `kea-dhcp4` leases |
-| CRS326 switch (`neo`) | snmp-exporter, SNMPv3 authPriv | 60s | Interface status and 64-bit octet counters |
+| CRS326 switch | snmp-exporter, SNMPv3 | 60s | Interface status, 64-bit octet counters, RouterOS release |
 | APC UPS | snmp-exporter | 60s | Charge, runtime, load, voltage, alarms |
 | ProLiant iLO | snmp-exporter | 60s | Temperature, PSU, drive and battery health |
 | The stack itself | Prometheus | 15s | Every component scrapes itself |
@@ -344,7 +344,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-178 rules in total: 158 metric-based in `prometheus/rules/`, and 20 log-based in
+179 rules in total: 159 metric-based in `prometheus/rules/`, and 20 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -505,7 +505,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-158 rules across twelve files in `prometheus/rules/`:
+159 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -541,7 +541,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 158 rules of 158 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
+against the broken rule too. Coverage is 159 rules of 159 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all eleven
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from

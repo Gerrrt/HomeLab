@@ -1,7 +1,7 @@
 # Runbook: Swap neo for the CRS326
 
-**Target:** `neo` at `10.7.7.2`, Rack U9 — the MokerLink 26-port managed switch,
-replaced by the MikroTik CRS326-24G-2S+RM
+**Target:** `neo` at `10.7.7.2` — the MokerLink 26-port managed switch at U9 of
+the 9U rack, replaced by the MikroTik CRS326-24G-2S+RM at U21 of the 32U rack
 **Time:** about two hours at the bench, then a 30–60 minute window with the house
 offline, then a pass over the documents
 **You will need:** physical access to the rack, a workstation on Hicks, the age
@@ -23,6 +23,15 @@ hours and share it with another rack visit rather than giving it its own.
 cabling can be done on a bench with the switch on a desk, and the entire point
 of the split is that the window is cabling and verification, not configuration.
 
+> [!NOTE]
+> **Executed.** Phase 1 at the bench on 2026-10-05; Phase 2 on 2026-11-05, in
+> the window of the move into the 32U rack
+> ([`move-into-the-32u-rack.md`](move-into-the-32u-rack.md)); Phase 3 in the
+> pull request that moved the scrape to SNMPv3, 2026-11-07
+> ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). It stays as the
+> procedure for the next switch, and as the record of what each step was for.
+> Read [`changelog.md`](../changelog.md) for what the window found.
+
 ---
 
 ## Read this part first
@@ -37,9 +46,11 @@ of the split is that the window is cabling and verification, not configuration.
 2. **Bridge VLAN filtering is one commit from a dead trunk.** On RouterOS the
    config that decides which ports carry which tags is the config the management
    path rides on. This is why ADR-0041 keeps the untagged `10.7.7.0/24` link
-   from `morpheus`'s `igc0` to port 1: it is a cable, not a configuration, and it
-   is the way back in. Do not put management on a tagged VLAN "while you are in
-   there".
+   from `morpheus`'s `igc0` to port 1: no tag has to be right on either end. It
+   still rides port 1's PVID, frame admission and the switch-LAN VLAN's
+   membership, so a commit that touches those can cut it too; the serial
+   console is the way back in that depends on none of it. Do not put
+   management on a tagged VLAN "while you are in there".
 3. **A used RouterOS device arrives with its last owner's configuration**,
    users and all — the same lesson `SECURITY.md` records for `smaug`'s Intel
    AMT, where a second-hand server arrived with the factory default still set on
@@ -228,7 +239,7 @@ and powered, until Phase 3 passes.
    `morpheus` it is *Allow HTTP to LAN Switch* on the Hicks interface, read
    from `pfctl -sr` on 2026-10-05. Copy it beside itself with the destination
    port set to HTTPS, rather than editing it.
-2. Rack the CRS326 at U9. Cat6 from `morpheus`'s `igc0` to **port 1**, the
+2. Rack the CRS326 (U21 of the 32U rack; it was racked there on 2026-10-12). Cat6 from `morpheus`'s `igc0` to **port 1**, the
    trunk.
 3. Move the patch leads, following the §1.1 map.
 4. Verify **from the address before the name**: `https://10.7.7.2/` reaches the
@@ -252,7 +263,7 @@ and powered, until Phase 3 passes.
    nothing. Leave *Allow SNMP from Prometheus to Switch* beside it.
 
 If any of 4–6 fails and is not fixed within the window's budget, roll back: the
-MokerLink returns to U9, the patch leads go back by the same map, and the
+MokerLink goes back into the rack, the patch leads go back by the same map, and the
 firewall rule goes back to `80`. A failed swap that is reverted is a short
 outage; a failed swap that is debugged live is not.
 
@@ -269,7 +280,7 @@ all of it is the point.
   "will not bind to a tagged interface", which was the MokerLink's limit and is
   not the CRS326's. Left as written, the next reader correctly concludes the LAN
   can go, and removes the way back in. ADR-0041 has the replacement reasoning.
-- [`hardware.md`](../hardware.md) — the Rack table at U9, and the CRS326 entry
+- [`hardware.md`](../hardware.md) — the Rack table, and the CRS326 entry
   moves from *still moving* to on-hand with its serial and MAC.
 - [`architecture.md`](../architecture.md) — the mermaid node label.
 - `generator.yaml`'s `mokerlink` module and `auth_mokerlink`,

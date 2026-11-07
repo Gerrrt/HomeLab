@@ -121,7 +121,7 @@ reads.
 | Boots to a bootloader prompt or panics | Filesystem or upgrade damage | §3 |
 | Reachable but rules behave wrongly | Config only | §2 |
 
-Reach the console through the KVM at rack **U23**, port 1. Do not skip this — a box that
+Reach the console through the KVM at rack **U23**, port 8. Do not skip this — a box that
 looks dead on the network is often fine at the console, and §2 is far faster
 than §3.
 

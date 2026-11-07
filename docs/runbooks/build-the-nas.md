@@ -7,7 +7,7 @@
 minutes once the drives are in hand.
 **You will need:** a console on `smaug` — its web UI cannot run §2 or §6, and
 SSH is off until §6.2 turns it on for the backup pull and nothing else —
-`neo`'s web UI at `http://10.7.7.2` and a yellow Cat6 lead for
+`neo`'s web UI at `https://10.7.7.2/` and a yellow Cat6 lead for
 §0.2b, the pfSense UI on `morpheus`, a shell on the monitoring host for §0.6,
 and the two Exos X20 drives for §1 onward.
 
@@ -136,33 +136,35 @@ There is also an `ME_DIS` header on the board if the answer turns out to be
 > The section below is kept for the next machine, and for the next time this one
 > is re-cabled.
 >
-> **Port 15 is a fact about the MokerLink, not about `neo`.** Since
-> 2026-11-06 `neo` is the CRS326 bought under
-> [#444](https://github.com/Gerrrt/HomeLab/issues/444), which inherited the
-> name and `10.7.7.2`
+> **Port 15 was a fact about the MokerLink, not about `neo`.** The CRS326
+> bought under [#444](https://github.com/Gerrrt/HomeLab/issues/444) replaced
+> the MokerLink on 2026-11-05 and inherited both the name and `10.7.7.2`
 > ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
-> decision 2) but not the port numbering, the UI or its menus. Which port
-> `smaug` is on now is in the map §1.1 of
-> [`swap-the-switch.md`](swap-the-switch.md) captured and the wiki's
-> `infrastructure/switching` page, not here; the steps below describe the
-> MokerLink's UI and are kept for the record of how `smaug` was first
-> cabled. On RouterOS the same result is a bridge port with `pvid=40` and an
-> untagged member of VLAN 40.
+> decision 2), but not the port numbering. `smaug`'s lead went to the CRS326
+> port that took port 15's role in the map §1.1 of
+> [`swap-the-switch.md`](swap-the-switch.md) captured: **`ether17`**, read from
+> the switch's forwarding table on 2026-11-07 and recorded in
+> [`network.md`](../network.md). Confirm it on the live switch before
+> re-cabling rather than assuming either number.
 
-In `neo`'s web UI at `http://10.7.7.2`, add the port to CasaBonita's untagged
-members in the static VLAN table, take it out of ImaginationLAN's, and set its
-**PVID to 40**. What you are making is a **Yellow access port, untagged VLAN 40
+In `neo`'s web UI at `https://10.7.7.2/`, add the port to CasaBonita's untagged
+members in the bridge's VLAN table, take it out of ImaginationLAN's, and set its
+**PVID to 40** on the bridge port. What you are making is a **Yellow access port, untagged VLAN 40
 — no trunk, no tagged port**, the same shape
 [`build-the-playground.md`](build-the-playground.md) asks for in Green on the
-lab segment. The UI is plain HTTP, and that is decided rather than outstanding
-([ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)).
+lab segment. The UI was plain HTTP on the MokerLink, by decision
+([ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md));
+on the CRS326 it is HTTPS only.
 
 **Read both tables back after saving.** Membership and PVID are set in separate
-places on this firmware, and a port with the right membership and a stale PVID
-is the failure below wearing a working port's clothes.
+places — they were on the MokerLink, and on RouterOS they are the bridge VLAN
+table and the bridge port — and a port with the right membership and a stale
+PVID is the failure below wearing a working port's clothes.
 
-Not **port 1**, which is the trunk to `morpheus`, and not **port 3**, which
-feeds the unmanaged shelf switch that `prometheus` and `oracle` hang off.
+Not **port 1**, which is the trunk to `morpheus` on both switches, and not
+**`ether2`**, the uplink to the MokerLink at U14 that `prometheus` and `oracle`
+hang off ([`network.md`](../network.md)): repurposing it takes the monitoring
+path down. (On the MokerLink that role was port 3.)
 
 **Then re-patch it yellow.** CasaBonita is the yellow cable and ImaginationLAN
 the green one

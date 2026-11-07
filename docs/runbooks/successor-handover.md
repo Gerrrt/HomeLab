@@ -207,7 +207,7 @@ inherits without knowing.
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
 | **Container images going stale** | Continuously, once nobody merges | Dependabot proposes bumps and CI validates them, and convergence deploys a merge within the hour. An unattended estate simply stops receiving updates — nothing alerts on it |
-| **The switch's leaf certificate** | **2029-01-06**, 825 days from its issue on 2026-10-04; the switch cannot renew it | Nothing pages. No probe watches the switch UI — bringing one back needs a firewall pass that was decided against on 2026-09-23 ([`swap-the-switch.md`](swap-the-switch.md) Phase 3) — so the first sign is a browser warning on `https://10.7.7.2/`, and an operator who learns to click through it has given the credential back to the wire. Re-issue with `make certs` and re-import before then; the date is in [`schedule-maintenance.md`](schedule-maintenance.md#dated-obligations-no-timer-watches) |
+| **The switch's HTTPS leaf certificate** | 2029-01-07: 825 days from its issue on 2026-10-05. The switch cannot renew it ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)) | **Nothing pages on it, by decision.** There is no probe of the switch UI — the switch LAN is closed to VLAN 99 apart from SNMP, and adding one was decided against on 2026-09-23 ([`swap-the-switch.md`](swap-the-switch.md)) — so no expiry rule sees this leaf. You find out when a browser on Hicks refuses `https://10.7.7.2/`. Reissue from the main checkout with `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch and bind `www-ssl` to it as [`swap-the-switch.md`](swap-the-switch.md) §1.4 does. In the diary at [`schedule-maintenance.md`](schedule-maintenance.md#what-runs-and-when) |
 
 > [!CAUTION]
 > The three entries at the top of that table are all failures of *notification*,
@@ -215,14 +215,19 @@ inherits without knowing.
 > on which they look wrong. If you verify nothing else on day one, verify that a
 > real alert reaches a person who is still reading.
 
-Two things belonged on this list until recently and no longer do. They are named
+Three things belonged on this list until recently and no longer do. They are named
 here because a successor reading the older issues will find them described as
 outstanding and should not go looking for work that is already done. Nothing
 scheduling the maintenance jobs was
 [#77](https://github.com/Gerrrt/HomeLab/issues/77), closed — the timers in
 [`schedule-maintenance.md`](schedule-maintenance.md) are that work. The empty UPS
 bay was [#93](https://github.com/Gerrrt/HomeLab/issues/93), closed — a pack is
-fitted and proven.
+fitted and proven. The switch's previous SNMP community was an accepted
+residual, [#84](https://github.com/Gerrrt/HomeLab/issues/84): the MokerLink
+that was `neo` until 2026-11-05 would not persist a deletion from its community
+table. The swap to the CRS326 ended it
+([#444](https://github.com/Gerrrt/HomeLab/issues/444)) — the new switch has
+no v2c community at all, only an SNMPv3 user.
 
 ---
 
@@ -236,15 +241,16 @@ fitted and proven.
 | **The estate CA's private key** | `certificates/ca-key.pem` on `prometheus`, mode 600, plus one offline copy on the same medium, proved with `make certs-verify-backup` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) | **Never.** It was, once, and was purged; `certificates/` is gitignored and CI asserts it |
 | **The backup sets** — the firewall export, the volume sets, the NAS set | `backups/` on `prometheus`; the same on `oracle`, hashed there every morning; and the newest of each kind on the medium that holds the second age recipient, from that medium's first visit onward — so whoever holds that key holds the sets it opens ([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) | **Never.** Ciphertext to the estate's age recipients everywhere it exists; `backups/` is gitignored and CI asserts it |
 
-The encrypted file holds the Grafana admin login and renderer token, one SNMP
-community per polled device, and the four Alertmanager URLs. Details in
+The encrypted file holds the Grafana admin login and renderer token, the SNMP
+credentials — a community for pfSense, and an SNMPv3 user's two passphrases for
+each of the APC card, the switch and the iLO — and the four Alertmanager URLs. Details in
 [`secrets/README.md`](../../secrets/README.md).
 
 **What it does not hold**, and what you will therefore have to obtain from the
 outgoing operator directly:
 
-- The pfSense, switch (`neo`, RouterOS), iLO and APC network-card **admin passwords**. None of
-  them are in this repository in any form.
+- The pfSense, switch (`neo`, the RouterOS admin), iLO and APC network-card
+  **admin passwords**. None of them are in this repository in any form.
 - Jellyfin's and Navidrome's admins on `smaug`, and TrueNAS's own web-UI
   admin. None is in this repository in any form — `stacks/media` has no
   secrets file by decision, and [`security.md`](../security.md) § Secrets
@@ -289,8 +295,8 @@ Say so out loud before anything else. This is
 [#106](https://github.com/Gerrrt/HomeLab/issues/106). Without the key every
 encrypted value in this repository and its history is permanently undecryptable,
 and the recovery path is re-deriving each credential from the device it belongs
-to: four SNMP credential changes on hardware, one of them on the switch every
-VLAN crosses.
+to: four SNMP rotations on hardware, one of which cannot persist a community
+deletion and needs the switch rebooted to change.
 
 Check first whether it is actually gone. The secrets may be encrypted to more
 than one recipient — [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)

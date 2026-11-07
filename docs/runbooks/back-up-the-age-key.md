@@ -19,13 +19,15 @@ repository, can recover the private half.
 What is lost with that disk is not really the secrets — a password can be reset
 and a community string can be changed. What is lost is every device visit needed
 to do it: the Grafana admin password, the Alertmanager webhook, and the SNMP
-credentials re-entered by hand on pfSense, the APC NMC, HPE iLO and the
-switch — a community on the firewall, a pair of SNMPv3 passphrases on each of
-the others. Every one of them is a device visit, and the switch's is a visit
-to the device every VLAN crosses. Doing that unplanned, because a 2012
-MacBook Pro's disk failed, is the scenario this avoids. (Until 2026-11-06
-the switch was a MokerLink whose firmware would not persist a deletion from
-its community table; that hurt more, and it left with the hardware.)
+credentials re-entered by hand — a community on pfSense, and a v3 user's two
+passphrases on each of the APC NMC, HPE iLO and the switch. Until 2026-11-05
+the switch was the one that hurt: the MokerLink that was `neo` would not
+persist a deletion from its community table and dropped its SNMP agent on each
+attempt, which left an accepted residual from the last rotation
+([#84](https://github.com/Gerrrt/HomeLab/issues/84)). The CRS326 that replaced
+it has no such limit, but every device is still a visit, and the iLO's needs
+physical access to the ProLiant. Doing all of them again, unplanned, because a
+2012 MacBook Pro's disk failed, is the scenario this avoids.
 
 Background on the scheme itself is in
 [`secrets/README.md`](../../secrets/README.md).

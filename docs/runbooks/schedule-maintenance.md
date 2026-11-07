@@ -126,6 +126,7 @@ the host.
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 | `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
+| `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-07** | **nothing alerts** |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -134,15 +135,19 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
-### Dated obligations no timer watches
-
-Some things in the estate fail on a date rather than on a missed run, and
-nothing above can see them coming. They are written down here, with the date,
-because this is where the estate's obligations live.
-
-| What | Date | What to do before then |
-| --- | --- | --- |
-| `neo`'s web-UI leaf, `neo.matrix.elysium` and `10.7.7.2`, from the estate CA | Expires **2029-01-06** (issued 2026-10-04, 825 days; read off the live listener on 2026-11-06) | Re-issue it from the main checkout with `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2"`, import it on the switch and re-bind `www-ssl`, as [`swap-the-switch.md`](swap-the-switch.md) §1.4. Nothing alerts on it: no probe watches the switch UI, by the decision recorded in that runbook's Phase 3 |
+**The last row is a date, not a job.** The switch's `www-ssl` leaf was issued
+from the estate CA on 2026-10-05 for 825 days, so it expires on 2029-01-07, and
+the switch cannot renew it
+([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+Nothing here watches it: there is no probe of the switch UI, by decision — the
+switch LAN is closed to VLAN 99 apart from SNMP, and
+[`swap-the-switch.md`](swap-the-switch.md) Phase 3 records why none was added —
+so no expiry rule ever sees this leaf, and a lapse shows up as a browser on
+Hicks refusing `https://10.7.7.2/`. Reissue from the main checkout well before
+the date, then upload, import and bind it as
+[`swap-the-switch.md`](swap-the-switch.md) §1.4 does. The CA does not change,
+so nothing needs re-trusting. The same date is in
+[`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
 
 `dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
 and worth reading as a different kind of job. Every other row here proves that

@@ -111,37 +111,36 @@ truth for what a box actually does.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
-| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U21 | Switch |
+| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM[^CRS326] | RouterOS 7 | Rack U21 | Switch |
 
 ### Notes
 
 - Cat6 from the ProDesk's add-on NIC[^adapter] to port 1 of the switch (trunk).
-- **This interface is the way back into the switch, and it is deliberate.**
-  It is an untagged point-to-point cable from `igc0` to port 1, and no bridge
-  VLAN-filtering commit on the switch[^CRS326] can take it away. On RouterOS
-  the config that decides which ports carry which tags is the config a tagged
-  management path would ride on, so one wrong `frame-types` or a forgotten
-  tagged member locks the door from the inside — on the device that carries
-  every VLAN in the house. The interface was first built because the
-  MokerLink that was `neo` until 2026-11-06 would not bind its UI to a tagged
-  interface. That reason left with the MokerLink; this one replaced it
-  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
-  Do not move management onto a tagged VLAN and retire this LAN as tidying.
+- **This interface is the way back into the switch, and it stays on purpose.**
+  It was built because the MokerLink that was `neo` until 2026-11-05 would not
+  bind its UI to a tagged interface. The CRS326 that replaced it would, and the
+  LAN is kept anyway, for a different reason: the way an operator locks
+  themself out of a RouterOS switch is a bridge VLAN-filtering commit, and an
+  untagged link from `igc0` to port 1 needs no tag to be right on either end.
+  It is **not** independent of the bridge: it rides port 1's PVID, its
+  frame-admission setting and the switch-LAN VLAN's membership, so a commit
+  that changes any of those can still cut it. The recovery path that depends
+  on none of that is the switch's serial console. [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  has the reasoning. Do not remove it because the original reason is gone.
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
   name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).
   The address stays written down beside it on purpose: the name depends on
   Unbound on `morpheus`, and this is the device you open when `morpheus` is the
   suspect.
-- **The UI is HTTPS only, since 2026-11-06.** RouterOS's `www-ssl` serves a
-  leaf from the estate's CA carrying both `neo.matrix.elysium` and `10.7.7.2`,
-  and plain `www` is off
-  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
-  which supersedes ADR-0018's plain-HTTP clause). The leaf is an 825-day
-  certificate the switch cannot renew: it expires **2029-01-06**, read off the
-  live listener on 2026-11-06, and
-  [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) carries the
-  date. Until 2026-11-06 the UI was the MokerLink's plain HTTP, and the admin
-  credential crossed the wire in clear through `neo` itself.
+- **The UI is HTTPS only**, at `https://10.7.7.2/`. RouterOS's `www-ssl`
+  serves a leaf from the estate's CA, and plain `www` is disabled
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  decision 3). The leaf is good for 825 days and the switch cannot renew it;
+  its expiry is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md).
+  The MokerLink's UI was plain HTTP and could not be anything else, which is
+  what ADR-0018 recorded and the swap closed.
+- **SNMP is v3 authPriv only**, user `prometheus` (SHA/AES), with the agent
+  restricted to `10.0.99.20`. No v2c community exists, `public` included.
 - DHCP disabled.
 
 > [!CAUTION]
@@ -149,7 +148,7 @@ truth for what a box actually does.
 > tagged interface and takes the whole house offline.
 
 [^adapter]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N) — in the G4's second M.2 slot, `igc0` to FreeBSD. It was labelled "USB NIC adapter" here until 2026-09-09, and the restore runbook and the shopping list had inherited the label.
-[^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446), bought used; it replaced a [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV) on 2026-11-06
+[^CRS326]: [MikroTik CRS326-24G-2S+RM](https://mikrotik.com/product/CRS326-24G-2SplusRM)
 
 ---
 
@@ -175,11 +174,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   [`stacks/observability`](../stacks/observability) — a 2012 MacBook Pro with
   Ubuntu Server on it, which is exactly the sort of hardware a homelab should be
   built from.
-- Port 3 of the main switch feeds an 8-port unmanaged switch[^tp-linkswitch]
-  that `prometheus` and `oracle` hang off. Since 2026-09-08 it sits on a rack
-  shelf (U14 since the move into the 32U rack on 2026-11-06, U4 before) and
-  draws from a UPS-fed outlet, so on a mains cut the two laptops keep
-  their network as well as their batteries
+- `ether2` of the main switch (read from its forwarding table on 2026-11-07)
+  feeds the MokerLink that was the main switch until 2026-11-05, now at U14
+  in place of the 8-port TP-Link, as a plain switch that `prometheus` and
+  `oracle` hang off. It draws from a UPS-fed outlet, so on a mains cut the
+  two laptops keep their network as well as their batteries
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)).
 - **`trinity` polls the internet on a timer.** Miniflux ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) fetches every
   subscribed feed about once an hour, so a steady trickle of outbound HTTPS
@@ -243,7 +242,6 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   switch.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
-[^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
 [^Dell]: [Dell Inspiron 15](https://www.dell.com/support/home/en-us/product-support/product/inspiron-15-3520-laptop)
 
@@ -332,12 +330,8 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   catch-all below still carries UDP and ICMP to the lab. Widen it before any
   block for private ranges lands above the catch-all.
 - The switch LAN is blocked apart from `10.7.7.2:443`, the switch's own web UI
-  over HTTPS; the block below that pass is logged. The pass named `80` until
-  2026-11-06, when the swap to the CRS326 widened it to `443`, proved the new
-  UI, and then deleted the `80` original
-  ([`swap-the-switch.md`](runbooks/swap-the-switch.md) Phase 2). From a
-  workstation that day, `http://10.7.7.2/` timed out and `https://10.7.7.2/`
-  answered.
+  (*Allow HTTPS to LAN Switch*; the `:80` pass it replaced was deleted when
+  plain `www` went off, #444); the block below that pass is logged.
 
 [^Desktop1]: [Build 1](https://pcpartpicker.com/b/KXv323)
 [^Desktop2]: [Build 2](https://pcpartpicker.com/list/XgZpfd)
@@ -386,9 +380,12 @@ Televisions and consoles. Internet only.
   and it is the one that is unchanged. **They are counted in the next bullet
   and nowhere else** — this bullet used to count them too, the two drifted
   apart, and this one still said three long after four existed.
-- **`smaug` is on port 15 of the switch**, untagged with PVID 40. That port was
-  ImaginationLAN's when the map was last read on 2026-09-04 and was moved for
-  the install ([#481](https://github.com/Gerrrt/HomeLab/issues/481)). It is
+- **`smaug` is on `ether17` of the switch**, untagged with PVID 40, read from
+  the CRS326's forwarding table on 2026-11-07 (its MAC learned on bridge port
+  17, VLAN 40). On the MokerLink it was port 15, which was ImaginationLAN's when
+  that map was read on 2026-09-04 and was moved for the install
+  ([#481](https://github.com/Gerrrt/HomeLab/issues/481)); the rack move put it
+  on a different port. It is
   recorded because a single-NIC host on an access port has its segment decided
   at the switch and nowhere else: put it back on 30 and the address, the
   reservation and every inbound rule are silently pointless.

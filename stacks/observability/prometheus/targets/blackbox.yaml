@@ -390,18 +390,17 @@
 # SNMP as the single remaining exception. Tracked separately rather than edited
 # here.
 #
-# Since 2026-11-06 the switch is a CRS326 on RouterOS (ADR-0041): the UI is
-# HTTPS only, plain www is off, and the leaf is from certificates/ca.pem. So a
-# probe brought back would be https with a ca_file, never port 80, and it
-# needs the firewall rule first:
+# The switch was replaced on 2026-11-05 (#444): the CRS326 serves its UI over
+# HTTPS only, with a leaf from the estate's CA, and plain `www` is off. The
+# decision above was re-made for it rather than inherited (swap-the-switch.md
+# Phase 3): still no probe, for the same reason, and the pass rule this probe
+# once used was deleted from Winterfell in the swap. The cost is that the
+# leaf's expiry pages nobody; it is a dated row in schedule-maintenance.md.
+# If a probe is ever wanted back, it needs a firewall rule first:
 #
 #   pass tcp from 10.0.99.20 to 10.7.7.2 port 443  (igc0.99, above the block)
 #
-# which is a segmentation decision, left out on 2026-09-23 because the SNMP
-# scrape already watches the switch (swap-the-switch.md Phase 3). The cost is
-# that the leaf's expiry, 2029-01-06, pages nobody; schedule-maintenance.md
-# and successor-handover.md carry the date instead. Then the same
-# verify-before-enabling step the two probes below use.
+# and the same verify-before-enabling step the two probes below use.
 
 # The APC card is https only — port 80 is closed — with a certificate it made
 # for itself (subject `CN=.`, expires 2035-12-16). `/` is a 303 to /home.htm,

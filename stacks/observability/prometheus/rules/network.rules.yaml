@@ -78,13 +78,7 @@ groups:
         annotations:
           summary: "pf is dropping packets for lack of memory on {{ $labels.device }}"
 
-      # --- Switch (CRS326 on RouterOS / IF-MIB) -----------------------------
-      # Names no port, deliberately. RouterOS's ifTable carries the bridge and
-      # any VLAN interfaces beside the 24 + 2 front-panel ports, and its
-      # ifIndex is not the port number, so nothing here selects by ifIndex or
-      # by an ifDescr copied from the MokerLink (ADR-0041). The summary names
-      # the port by the ifDescr label the routeros module stamps on each
-      # series, read live.
+      # --- Switch (CRS326 / IF-MIB) ----------------------------------------
       - alert: SwitchInterfaceDown
         # ifOperStatus: 1=up 2=down 3=testing. Only alerts on ports that were
         # up at some point in the last hour, so unused ports stay quiet.
@@ -109,8 +103,8 @@ groups:
       # No counter-wrap rule. One stood here reading rate(ifInOctets[5m]) < 0,
       # and it could never fire: rate() treats a decrease as a counter reset,
       # never as a wrap, so it is never negative (#63 again — loaded, healthy,
-      # unfireable). The routeros module reads the 64-bit ifXTable counters,
-      # which do not wrap at any rate this switch can carry (#87).
+      # unfireable). The switch module reads the 64-bit ifXTable
+      # counters, which do not wrap at any rate the switch can carry (#87).
 
       # --- Hypervisor BMC (HPE iLO / CPQ MIBs) ------------------------------
       # CPQ condition values: 1=other 2=ok 3=degraded 4=failed

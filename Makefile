@@ -450,6 +450,15 @@ silence-state: ## Collect Alertmanager's silences as metrics (#575)
 	@# only: Alertmanager binds to 127.0.0.1 (ADR-0012), so this runs here.
 	$(PYTHON) scripts/collect_silences.py
 
+.PHONY: port-state
+port-state: ## Collect whether each container holds the ports and networks it was created with (ADR-0105)
+	@# A container whose ports Docker could not publish still reports healthy:
+	@# its healthcheck runs on its own loopback. On 2026-11-05 alloy and
+	@# ingest-proxy sat that way for about 25 hours. Compares each container's
+	@# HostConfig.PortBindings with what Docker published, and counts its
+	@# networks, so ContainerNetworkingMissing can name the state and its fix.
+	$(PYTHON) scripts/collect-port-state.py
+
 .PHONY: prune-images
 prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
 	@# The unit says why: nothing else removes superseded digests, and they
@@ -668,10 +677,8 @@ qga-resync: ## Resync a guest agent that stopped answering, on Saruman as root (
 snmp-walk: ## Walk one OID subtree on one SNMP device, exporter-shaped (ARGS="--device neo <oid>")
 	@# Maintenance for the same reason as snmp-verify: needs the age key and
 	@# sends packets to a production device. It exists so a new column is read
-	@# off the switch before it goes into generator.yaml. It was built for the
-	@# MokerLink, which wedged under polling; whether the CRS326 that replaced
-	@# it on 2026-11-06 still needs it is an open question in
-	@# swap-the-switch.md Phase 3, settled on evidence.
+	@# off a device before it goes into generator.yaml: the exporter's first
+	@# contact with a bad varbind is a scrape that returns nothing.
 	./scripts/snmp-walk.sh $(ARGS)
 
 .PHONY: secrets-verify-backup
@@ -1010,6 +1017,15 @@ install-timers: ## Install and enable the systemd timers on this host (needs sud
 	@# PROFILE=sensitive installs trinity's schedule instead (#404 step 9). sudo
 	@# keeps SUDO_USER, which is who those units are rendered to run as.
 	sudo ./scripts/install-timers.sh --install $(if $(PROFILE),--profile $(PROFILE))
+
+.PHONY: install-host-units
+install-host-units: ## Install the monitoring host's boot ordering: docker waits for 10.0.99.20 (needs sudo)
+	@# Under Maintenance beside install-timers: it changes the host, and
+	@# `make validate` reaches only the --check half. The units are
+	@# self-contained (no path into the checkout), so unlike install-timers this
+	@# may run from any checkout. It does not restart docker; the ordering
+	@# applies from the next boot. ADR-0105.
+	sudo ./scripts/install-host-units.sh --install
 
 .PHONY: deploy-agent
 deploy-agent: ## Deploy or redeploy the Alloy agent on a host (ARGS="[--runtime native] user@host")

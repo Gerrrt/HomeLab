@@ -33,9 +33,7 @@
 #                                           answers, a junk one and the stock
 #                                           ones are refused
 #   scripts/snmp-verify.sh --device neo     one device (name or IP)
-#   scripts/snmp-verify.sh --old            also check the old ones are refused;
-#                                           a stock community answering is FAIL
-#                                           here, WARN in plain mode
+#   scripts/snmp-verify.sh --old            also check the old ones are refused
 #   scripts/snmp-verify.sh --dry-run        show the mapping; no decrypt, no packets
 
 set -euo pipefail
@@ -52,7 +50,6 @@ die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 pass() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 fail() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; FAILED=1; }
 skip() { printf '\033[0;33m  SKIP\033[0m %s\n' "$*"; }
-warn() { printf '\033[0;33m  WARN\033[0m %s\n' "$*"; WARNED=$((WARNED + 1)); }
 head_() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
 # sysDescr, as the instance GET asks for and as the node GETBULK walks to it.
@@ -60,7 +57,6 @@ SYSDESCR_NODE='1.3.6.1.2.1.1.1'
 SYSDESCR_OID='.1.3.6.1.2.1.1.1.0'
 
 FAILED=0
-WARNED=0
 CHECK_OLD=0
 DRY_RUN=0
 ONLY_DEVICE=""
@@ -158,8 +154,9 @@ load_secrets "${STACK}"
 # device as v2c.
 #
 # GET, not GETBULK — reversed on 2026-09-12 (#84). This probe was GETBULK
-# because an earlier version of this comment said the MokerLink switch drops
-# GET and GETNEXT. Measured against the switch with its current community:
+# because an earlier version of this comment said the MokerLink switch (`neo`
+# until 2026-11-05) dropped GET and GETNEXT. Measured against it with its
+# community then:
 # GET, GETNEXT and GETBULK all answer. Measured with a junk string: only
 # GETBULK answers, and it answers a full walk of every table — the agent does
 # not check the community on GETBULK at all, on any row. So a GETBULK probe
@@ -278,21 +275,21 @@ done <<< "${INVENTORY}"
 # one short, one 24 characters like the ones gen-secret makes — are sent over
 # GETBULK and over GET, to every device that just answered its current
 # community. A refusal of all four is what makes the PASS above mean "the
-# community was checked". An answer to GETBULK was what `neo` did while it was
-# the MokerLink (#84, measured 2026-09-12): its agent served a full walk of
-# every table over that PDU to ANY community of sixteen characters or fewer,
-# and checked longer ones. Both lengths are tried because a single long junk
-# string passed on that switch, and a single short one would miss a device
-# with the opposite defect. An answer to GET would mean the device checks
-# nothing at all, and every other verdict for it is void.
+# community was checked". An answer to GETBULK is what the MokerLink switch
+# that was `neo` until 2026-11-05 did (#84, measured 2026-09-12): its agent
+# served a full walk of every table over that PDU to ANY community of sixteen
+# characters or fewer, and checked longer ones. Both lengths are still tried,
+# because a single long junk string passed on that switch, and a single short
+# one would miss a device with the opposite defect. An answer to GET would mean
+# the device checks nothing at all, and every other verdict for it is void.
 #
-# GETBULK answering is FAIL in both modes, and so is GET. From 2026-09-12 to
-# 2026-11-06 GETBULK was a WARN: it was a firmware limit no row in the
-# community table could change, so a FAIL would have kept the weekly job's
-# alert lit for as long as the switch was that switch, and SECURITY.md carried
-# it as an accepted residual instead. The device it excused left the rack on
-# 2026-11-06 (ADR-0041), and the exception left with it rather than standing
-# ready to excuse the next device that answers an unauthenticated walk.
+# Either answer is FAIL, in both modes. GETBULK was WARN while the MokerLink
+# was in the rack, because it was a firmware limit no configuration could
+# change and a FAIL would have kept the weekly job's alert lit for the life of
+# the hardware. The CRS326 that replaced it refuses both PDUs, measured
+# 2026-11-07, so nothing on the estate needs the exception any more, and a
+# device that brings the defect back should go red rather than become a
+# residual by default.
 #
 # The devices that answer GETBULK to a junk string are also the devices the
 # exporter's scrape proves nothing about, because the exporter walks with
@@ -339,7 +336,7 @@ while IFS=$'\t' read -r ip auth device version keys; do
     fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "ANY COMMUNITY ACCEPTED over GET (${get_answered% }) — the device is not checking communities; nothing else in this run proves anything about it")"
     UNAUTHENTICATED_DEVICES+="${device}"$'\n'
   elif [[ -n "${bulk_answered}" ]]; then
-    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET, but any community walks every table; the exporter's scrape proves nothing for this device")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; the exporter scrapes with GETBULK, so its scrape of this device proves nothing about the credential")"
   else
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses a junk community over GET and GETBULK, short and long")"
   fi
@@ -358,12 +355,11 @@ done <<< "${INVENTORY}"
 # string is a secret, so unlike --old this needs no terminal and the weekly
 # timer covers it.
 #
-# WARN in plain mode, FAIL under --old. The weekly run exits non-zero into
-# ScheduledJobFailed, which stays firing until the job next succeeds — and
-# retiring a row on `neo` needs a reboot window (#84), so a fatal result would
-# keep that alert lit for weeks and hide any other verification failure behind
-# it. --old is the operator proving a retirement, and there a stock row that
-# still answers is exactly the thing being proved gone.
+# FAIL in both modes. It was WARN in plain mode while the MokerLink was `neo`
+# (until 2026-11-05): retiring a row on it needed a reboot window (#84), so a
+# fatal weekly result would have kept ScheduledJobFailed lit for weeks and hid
+# any other failure behind it. Every device left retires a row with no reboot,
+# so a stock community answering is a fault to fix the same day.
 #
 # Same precondition as --old: only devices that just answered their current
 # community are checked. A device that never answered turns a refusal into a
@@ -403,10 +399,8 @@ while IFS=$'\t' read -r ip auth device version keys; do
 
   if [[ -z "${accepted}" ]]; then
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses ${STOCK_COMMUNITIES[*]}")"
-  elif ((CHECK_OLD)); then
-    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — overwrite the row (rotate-snmp-community.md §2.5)")"
   else
-    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — not fatal in plain mode, see the comment above this check")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "STOCK COMMUNITY ACCEPTED: ${accepted% } — delete the row (rotate-snmp-community.md §2.5)")"
   fi
 done <<< "${INVENTORY}"
 
@@ -488,11 +482,5 @@ printf '\n'
 if ((FAILED)); then
   printf '\033[0;31msnmp verification failed\033[0m\n'
   exit 1
-fi
-if ((WARNED)); then
-  # Not a clean pass and not reported as one: the exit code is 0 for the reason
-  # the stock-community comment gives, but the last line says what was found.
-  printf '\033[0;33mall SNMP targets answer their community; %d warning(s) above\033[0m\n' "${WARNED}"
-  exit 0
 fi
 printf '\033[0;32mall SNMP targets verified\033[0m\n'

@@ -101,7 +101,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  178 alert rules — 158 metric-based in Prometheus, 20 log-based in Loki — sharing
+  179 alert rules — 159 metric-based in Prometheus, 20 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -134,8 +134,8 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 104 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 50
+- **Documented decisions and runbooks.** 105 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 51
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -201,7 +201,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 158 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 159 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 20 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
@@ -229,9 +229,9 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 104 ADRs — architecture decision records
+│   ├── adr/                  # 105 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
-│   └── runbooks/             # 50 runbooks; successor-handover.md is the front door
+│   └── runbooks/             # 51 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 
@@ -334,7 +334,7 @@ writes from cAdvisor, alongside restart counts, CPU throttling and a container
 inventory.](docs/images/docker-containers.png)
 
 ![Network & Firewall dashboard: pfSense pf state table and packet filter drops,
-core switch interface throughput and link status, and HPE iLO chassis power
+switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
 ![UPS & Power dashboard: APC power source, battery charge, output load,
@@ -359,7 +359,7 @@ estate is as unglamorous:
 | Host | Hardware | Job |
 | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini, a second NIC on an M.2 adapter | pfSense firewall |
-| `neo` | MikroTik CRS326-24G-2S+RM, on RouterOS | Core switching |
+| `neo` | MikroTik CRS326-24G-2S+RM, RouterOS | Core switching |
 | `Saruman` | HPE ProLiant DL360 Gen9, iLO 4 as `shiva` | Proxmox VE, and the lab's guests |
 | `smaug` | Lenovo ThinkServer TS150 | TrueNAS and the media stack |
 | `trinity` | HP ProDesk 600 G4 DM | The household's tier |

@@ -11,14 +11,17 @@ landfill.
 [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md). Everything
 the estate runs on is in it: the hosts that sat on a shelf beside the old 9U
 frame (`trinity`, `prometheus`, `oracle`), the NAS `smaug` from the media room,
-the console, and `ifrit`. It went in exactly as planned, unit for unit;
+the console, and `ifrit`. It went in as planned, unit for unit, with two
+changes read back on 2026-11-07: the MokerLink that the CRS326 replaced took
+the TP-Link's place at U14, and the keyboard drawer has no support rails (the
+U23 shelf, mounted upside down, holds its underside).
 [`current/rack-32u.svg`](diagrams/current/rack-32u.svg) draws the table
 below.
 
 | U | Device | Powered by | Why here |
 | --- | --- | --- | --- |
 | U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | PDU outlet 9, by its 12 V brick | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
-| U24 | 1U sliding keyboard and mouse shelf[^Drawer] | — | Directly under the screen, about 112 cm up. Front-mounted, 10.8" deep, on a pair of four-post support rails under its rear: it wobbles on its ear screws alone |
+| U24 | 1U sliding keyboard and mouse shelf[^Drawer] | — | Directly under the screen, about 112 cm up. Front-mounted, 10.8" deep. It wobbles on its ear screws alone, so the KVM's shelf below it is mounted upside down with its flat top pressed against the drawer's underside, in place of the support rails the plan had |
 | U23 | MT-VIKI 8-port KVM[^KVM], on a 1U vented shelf | PDU outlet 10 | Beside the console, so its console cables are short. Its lead sets reach the DL360 20 units down. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, unevenly spaced, so it sits off centre whichever pair is used. The shelf takes all three |
 | U22 | Vented blank | — | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
 | U21 | MikroTik CRS326-24G-2S+RM[^CRS326] (`neo`) | PDU outlet 4 | Core switching, in place of the MokerLink[^MokerLink] that was at U9 of the 9U frame ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). SFP+ 1–2 are the 2.5G path, if built |
@@ -28,13 +31,13 @@ below.
 | U17 | *gap* | — | Keeps the range off the sensitive tier's box |
 | U16 | HP ProDesk 600 G4 Mini on a 1U tray[^ProDeskRackmount] (`trinity`) | PDU outlet 7, by its brick | The sensitive tier. Its 2 TB USB photo disk is strapped to the same tray |
 | U15 | HP ProDesk 600 G4 Mini[^ProDesk] on a 1U tray (`morpheus`) | PDU outlet 6, by its brick | pfSense firewall |
-| U14 | 1U vented shelf: 8-port unmanaged TP-Link switch[^tp-linkswitch] | A UPS outlet | Feeds the two laptops below it |
+| U14 | MokerLink 26-port managed switch[^MokerLink], used as a plain switch | UPS outlet group 3 | Feeds the two laptops below it from `neo`'s `ether2`. It was the main switch until 2026-11-05 and replaced the 8-port TP-Link that sat here |
 | U13 | *gap* | — | Air over `oracle` |
-| U12 | 1U vented shelf: `oracle`, flat, lid closed | Its own cell; its charger on a UPS outlet | One laptop per shelf. They do not fit side by side in 19" |
+| U12 | 1U vented shelf: `oracle`, flat, lid closed | Its own cell; its charger on UPS outlet group 2 | One laptop per shelf. They do not fit side by side in 19" |
 | U11 | *gap* | — | Air over `prometheus` |
-| U10 | 1U vented shelf: `prometheus`, flat, lid closed | Its own cell; its charger on a UPS outlet | |
+| U10 | 1U vented shelf: `prometheus`, flat, lid closed | Its own cell; its charger on UPS outlet group 2 | |
 | U5–U9 | Lenovo ThinkServer TS150 (`smaug`), on its side on a four-post shelf | PDU outlet 3 | Heavy, so low. 7" tall on its side, so 5U with its shelf, about 1.5" clear above |
-| U4 | 10-outlet PDU[^PDU] | The UPS | Close to the UPS, so the cords are short |
+| U4 | 10-outlet PDU[^PDU] | UPS outlet group 1 | Close to the UPS, so the cords are short |
 | U3 | HPE ProLiant DL360 Gen9[^Shiva] (`Saruman`, BMC `shiva`) | PDU outlets 1–2 | Proxmox hypervisor. Heavy and deep (about 70 cm), so low, on its rails across all four posts |
 | U1–U2 | APC Smart-UPS X 1500[^UPS] (`mjolnir`) | The wall | Heaviest, at the bottom, on 2U four-post rails: the ones it sat on in the 9U frame sagged |
 
@@ -113,25 +116,27 @@ to spare.
 
 ### Console and power maps
 
-Decided 2026-10-15 and cabled to match in the #919 move on 2026-11-06.
-Neither map existed before: the move runbook asked for the KVM's to be
-written down at the rack. Both
+Decided 2026-10-15. The PDU was cabled to match in the #919 move on
+2026-11-06; the KVM was not, and its map below is as built, read back on
+2026-11-07. Neither map existed before: the move runbook asked for the KVM's
+to be written down at the rack. Both
 are useful only to someone already standing at it, the same reach as the
 cable colours [`security.md`](security.md) publishes.
 
 **The KVM counts in the power-up order** of
 [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md) §7. The
-switch selects port 1 at power-on, and `morpheus` is the first host brought
-up from the console.
+hosts went in from the top port down in that order, so `morpheus`, the first
+host brought up from the console, is on port 8. The switch selects port 1 at
+power-on, which is empty: select 8 first.
 
 | KVM port | Host | Why |
 | --- | --- | --- |
-| 1 | `morpheus`, U15 | First up; the console the house's DHCP depends on |
-| 2 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
-| 3 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
-| 4 | `smaug`, U5–U9 | Racked, it lost the monitor it had in the media room; cabled from the TS150's rear VGA |
-| 5 | `ifrit`, U18 | Off until the playground build |
-| 6–8 | spare | |
+| 8 | `morpheus`, U15 | First up; the console the house's DHCP depends on |
+| 7 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
+| 6 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
+| 5 | `smaug`, U5–U9 | Racked, it lost the monitor it had in the media room; cabled from the TS150's rear VGA |
+| 4 | `ifrit`, U18 | Off until the playground build |
+| 1–3 | spare | |
 
 **The PDU follows the rack from the bottom up, bricks at the far end.** It
 is an unswitched strip, so the number is only a label, and the rule is that
@@ -151,7 +156,7 @@ neighbours, so they sit together at the high-numbered end.
 | 9 | The N1700W's 12 V brick |
 | 10 | KVM |
 
-**Both laptops' chargers are on the UPS's own outlets, beside the TP-Link
+**Both laptops' chargers are on the UPS's own outlets, beside the MokerLink
 that feeds them**, not on the PDU. The runbook's §1.7 counts them as PDU
 loads and says to move them to the UPS if the count reaches eleven; with
 two DL360 supplies it does, and the laptops carry their own cells, so they
@@ -159,14 +164,14 @@ need the PDU's outlets least. Putting them there in either case keeps the
 map the same whatever the DL360 turns out to have, and outlet 5 stays
 spare.
 
-**Which UPS outlet group feeds the PDU is not recorded yet**: it was not
-written down at the move. The Smart-UPS X's outlets are in groups the card
-can switch and sequence separately. Read which group the PDU's cord is on,
-check that group's turn-off and turn-on
-settings fit the shutdown in
+**The UPS's outlet groups, read at the rack on 2026-11-07:** the PDU is on
+group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
+Smart-UPS X's card can switch and sequence each group separately, so the PDU
+— and with it every host but the laptops — is one group. **Each group's
+turn-off and turn-on settings are not read yet**: check them against the
+shutdown in
 [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
-and the power-up order in the runbook's §7, and write both here. The same
-goes for the group the TP-Link and the chargers are on.
+and the power-up order in the move runbook's §7, and write them here.
 
 **Two more decisions of 2026-10-16, both on the purchase table.** The UPS's
 AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
@@ -263,7 +268,9 @@ headroom, decided 2026-10-13. It does not contradict
 [ADR-0007](adr/0007-defensive-estate-and-offensive-range.md)'s finding that
 storage, not compute, is its constraint. Match a fitted stick's label, which
 the iLO does not report. At two per channel, third-party RDIMMs can train a
-step slower, so read the iLO's memory page after fitting.
+step slower, so read the iLO's memory page after fitting. **Read again on
+2026-11-07, after the move:** still eight modules, all healthy, all trained
+at 2400 MHz, 128 GB. The eight more were deferred and not fitted in the move.
 
 `morpheus` has two wired interfaces, and the second is not part of the model:
 the onboard Intel I219-LM (`em0`, the WAN) and an Intel I226-V 2.5 GbE card on
@@ -945,13 +952,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
   an SNMPv3 authPriv user; the procedure is
   [`swap-the-switch.md`](runbooks/swap-the-switch.md). It was racked in the
-  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. **In service
-  as `neo` since 2026-11-06**, in the MokerLink's place, by
-  [`swap-the-switch.md`](runbooks/swap-the-switch.md), in the same window as
-  the move into the 32U rack, so it stands at U21 where it was racked. It is in
-  the Rack table and [`network.md`](network.md) from that day, and the
-  MokerLink[^MokerLink] it replaced is out of the estate. **Checked on
-  arrival, not assumed:** which
+  new 32U frame at U21 on 2026-10-12, unpowered and uncabled, and **became
+  `neo` on 2026-11-05**, in the window of the move into the 32U rack: the
+  MokerLink came out and this took over every VLAN. Its SNMP scrape moved to
+  v3 the same week, and it reports `RouterOS CRS326-24G-2S+ 7.24.6
+  (long-term)`, one release past the bench's. **Checked on arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
@@ -1169,7 +1174,6 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^PDU]: [10-outlet 1U PDU](https://a.co/d/ibEygxZ)
 [^Drawer]: [Electriduct 1U sliding keyboard tray, 10.8" deep](https://www.amazon.com/dp/B07RCYP32J)
 [^Tinymount]: [Freejia 1U hinged rack mount for a ThinkCentre Tiny](https://www.amazon.com/dp/B0G4CZGRT7)
-[^tp-linkswitch]: [TP-Link 8-port gigabit switch](https://www.tp-link.com/us/business-networking/unmanaged-switch/)
 [^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
 [^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446)
 [^24HPOW]: [MikroTik 24HPOW, 24 V 2.5 A](https://mikrotik.com/product/24HPOW)

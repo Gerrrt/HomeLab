@@ -59,7 +59,7 @@ Tick all seven. Steps 1 to 6 assume every one of these is done.
       `Saruman`, both its guests, `smaug` and `morpheus`. While `morpheus` is
       down the house has no DNS and no DHCP.
 - [ ] **Physical or out-of-band access to all three hosts**, because step 5
-      leaves them all powered off: the KVM in U23 (port 1) for `morpheus`,
+      leaves them all powered off: the KVM in U23 (port 8) for `morpheus`,
       the iLO at `10.0.30.10` from a Mac on Hicks for `Saruman`, and the
       power button on the front of `smaug`, on its side at rack U5–U9.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**

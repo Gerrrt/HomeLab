@@ -54,7 +54,7 @@ The KVM in the rack is that access.
 | `prometheus` | `matrix.elysium` | `10.0.99.20` | Monitoring host |
 | `grafana` | `matrix.elysium` | `10.0.99.20` | Dashboards — matches the certificate's CN |
 | `speedtest` | `matrix.elysium` | `10.0.99.20` | Speed-test history on `:8443` — matches the certificate's CN (#914) |
-| `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0018. Note the subnet: this one is not `10.0.99.x` |
+| `neo` | `matrix.elysium` | `10.7.7.2` | The switch — ADR-0018, then ADR-0041. Note the subnet: this one is not `10.0.99.x` |
 
 `morpheus` needs no entry. It already resolves — and note it answers with **two**
 addresses, `10.0.99.1` and `10.7.7.1`, because pfSense registers the firewall's
@@ -192,10 +192,15 @@ every documented subnet". Both halves were wrong.
 
 The address is documented — [`network.md`](../network.md) has a LAN section for
 it — it is only outside the `10.0.x` convention, which is a memory problem and
-not a routing one. And the certificate that was supposed to be the harder half
-is not hard, it is unavailable: the switch has no TLS listener to point one at.
+not a routing one. The certificate was the other half, and while the MokerLink
+was `neo` it was unavailable rather than hard: that switch had no TLS listener
+to point one at, which
 [ADR-0018](../adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
-records the check and closes that half. The UI stays at
-`http://neo.matrix.elysium/`, and `10.7.7.2` stays written down beside it,
-because the name needs `morpheus` and the switch is what you reach for when
-`morpheus` is the suspect.
+recorded. The CRS326 that has been `neo` since 2026-11-05
+([#444](https://github.com/Gerrrt/HomeLab/issues/444),
+[ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md))
+serves `www-ssl` with an estate-CA leaf carrying both the name and the address,
+and plain `www` is off. The UI is at `https://neo.matrix.elysium/`, and
+`https://10.7.7.2/` stays written down beside it, because the name needs
+`morpheus` and the switch is what you reach for when `morpheus` is the
+suspect.

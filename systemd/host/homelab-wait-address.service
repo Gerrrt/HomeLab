@@ -1,0 +1,46 @@
+# Hold dockerd until this host's own address exists (ADR-0105).
+#
+# WHY. In the move into the 32U rack this host booted, at 23:46 on 2026-11-05,
+# with no carrier on its USB NIC. systemd-networkd-wait-online gave up after
+# its two minutes, network-online.target was reached anyway (it only Wants the
+# wait), and dockerd started the stack. alloy and ingest-proxy publish ports on
+# 10.0.99.20 specifically, Docker could not bind an address the host did not
+# hold, and both containers came up with no networks and no published ports
+# while still reporting healthy. A `docker restart` does not redo that setup;
+# only a force-recreate did, by hand, about 25 hours later.
+#
+# WHAT. A oneshot that returns only when the address is assigned, ordered
+# before docker.service by the drop-in beside this file. No timeout: a docker
+# that starts without the address is the fault being prevented, so the wait
+# lasts as long as the address is missing. The rest of the boot does not wait
+# on it (multi-user.target is not ordered after docker), so SSH and the
+# console are unaffected; only docker, and anything that dials its socket, is.
+#
+# THE ADDRESS is INGEST_BIND_ADDR's default in stacks/observability/compose.yaml
+# and docs/network.md's for this host. install-host-units.sh --check fails when
+# the two disagree. Change it there and here in one PR.
+#
+# Self-contained on purpose: no script from the checkout, so a /home that is
+# late, or a checkout mid-`git pull`, cannot hold the boot.
+[Unit]
+Description=HomeLab: wait for 10.0.99.20 before starting Docker
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/recover-a-container-without-its-ports.md
+DefaultDependencies=no
+After=systemd-networkd.service network.target
+Before=docker.service
+Wants=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+Environment=HOMELAB_WAIT_ADDRESS=10.0.99.20
+# One line on the first miss and one every five minutes after, so a long wait
+# is visible in `journalctl -u homelab-wait-address` without flooding it.
+ExecStart=/bin/sh -c 'n=0; until /usr/sbin/ip -4 -o addr show to "$$HOMELAB_WAIT_ADDRESS" | /usr/bin/grep -q .; do [ $$((n %% 150)) -eq 0 ] && echo "waiting for $$HOMELAB_WAIT_ADDRESS before docker starts ($$((n * 2))s so far)"; n=$$((n + 1)); sleep 2; done; echo "$$HOMELAB_WAIT_ADDRESS is assigned after $$((n * 2))s; docker may start"'
+TimeoutStartSec=infinity
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-wait-address
+
+[Install]
+WantedBy=multi-user.target
