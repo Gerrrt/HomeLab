@@ -150,37 +150,72 @@ def self_test():
             "NetworkSettings": {"Ports": pub, "Networks": {f"n{i}": {} for i in range(nets)}},
         }
 
-    bind = {"3100/tcp": [{"HostIp": "10.0.99.20", "HostPort": "3100"}],
-            "9090/tcp": [{"HostIp": "10.0.99.20", "HostPort": "9090"}]}
+    bind = {
+        "3100/tcp": [{"HostIp": "10.0.99.20", "HostPort": "3100"}],
+        "9090/tcp": [{"HostIp": "10.0.99.20", "HostPort": "9090"}],
+    }
     # 2026-11-05 as it looked: both bindings declared, nothing published, no networks.
-    check("the 2026-11-05 ingest-proxy: both ports missing, no networks",
-          judge(c("ingest-proxy", bind, {}, nets=0)), ("ingest-proxy", "observability", 2, 0))
+    check(
+        "the 2026-11-05 ingest-proxy: both ports missing, no networks",
+        judge(c("ingest-proxy", bind, {}, nets=0)),
+        ("ingest-proxy", "observability", 2, 0),
+    )
     # Docker lists exposed-but-unpublished ports as null; those are not missing.
     healthy_pub = dict(bind, **{"80/tcp": None, "443/tcp": None})
-    check("a healthy ingest-proxy: nothing missing, one network",
-          judge(c("ingest-proxy", bind, healthy_pub)), ("ingest-proxy", "observability", 0, 1))
-    check("one of two ports missing counts one",
-          judge(c("alloy", bind, {"3100/tcp": bind["3100/tcp"]}))[2], 1)
-    check("an unaddressed binding Docker published on 0.0.0.0 and :: is not missing",
-          judge(c("x", {"3000/tcp": [{"HostIp": "", "HostPort": "3000"}]},
-                  {"3000/tcp": [{"HostIp": "0.0.0.0", "HostPort": "3000"},
-                                {"HostIp": "::", "HostPort": "3000"}]}))[2], 0)
-    check("an ephemeral host port Docker filled in is not missing",
-          judge(c("x", {"80/tcp": [{"HostIp": "", "HostPort": ""}]},
-                  {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "32768"}]}))[2], 0)
-    check("a specific address is not satisfied by a wildcard",
-          judge(c("x", {"80/tcp": [{"HostIp": "10.0.99.20", "HostPort": "80"}]},
-                  {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "80"}]}))[2], 1)
-    check("network_mode host writes no networks series",
-          judge(c("node-exporter", {}, {}, nets=0, mode="host"))[3], None)
+    check(
+        "a healthy ingest-proxy: nothing missing, one network",
+        judge(c("ingest-proxy", bind, healthy_pub)),
+        ("ingest-proxy", "observability", 0, 1),
+    )
+    check("one of two ports missing counts one", judge(c("alloy", bind, {"3100/tcp": bind["3100/tcp"]}))[2], 1)
+    check(
+        "an unaddressed binding Docker published on 0.0.0.0 and :: is not missing",
+        judge(
+            c(
+                "x",
+                {"3000/tcp": [{"HostIp": "", "HostPort": "3000"}]},
+                {"3000/tcp": [{"HostIp": "0.0.0.0", "HostPort": "3000"}, {"HostIp": "::", "HostPort": "3000"}]},
+            )
+        )[2],
+        0,
+    )
+    check(
+        "an ephemeral host port Docker filled in is not missing",
+        judge(
+            c(
+                "x",
+                {"80/tcp": [{"HostIp": "", "HostPort": ""}]},
+                {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "32768"}]},
+            )
+        )[2],
+        0,
+    )
+    check(
+        "a specific address is not satisfied by a wildcard",
+        judge(
+            c(
+                "x",
+                {"80/tcp": [{"HostIp": "10.0.99.20", "HostPort": "80"}]},
+                {"80/tcp": [{"HostIp": "0.0.0.0", "HostPort": "80"}]},
+            )
+        )[2],
+        1,
+    )
+    check(
+        "network_mode host writes no networks series", judge(c("node-exporter", {}, {}, nets=0, mode="host"))[3], None
+    )
     check("a stopped container is skipped", judge(c("x", bind, {}, running=False)), None)
     check("a homelab.logs=off throwaway is skipped", judge(c("x", bind, {}, logs="off")), None)
     check("a name that would break the label is skipped", judge(c('bad"name', {}, {})), None)
     out = render([c("ingest-proxy", bind, {}, nets=0)])
-    check("render writes both series for a broken container",
-          [l for l in out.splitlines() if not l.startswith("#")],
-          ['homelab_container_ports_missing{name="ingest-proxy",project="observability"} 2',
-           'homelab_container_networks_attached{name="ingest-proxy",project="observability"} 0'])
+    check(
+        "render writes both series for a broken container",
+        [l for l in out.splitlines() if not l.startswith("#")],
+        [
+            'homelab_container_ports_missing{name="ingest-proxy",project="observability"} 2',
+            'homelab_container_networks_attached{name="ingest-proxy",project="observability"} 0',
+        ],
+    )
     return fail
 
 

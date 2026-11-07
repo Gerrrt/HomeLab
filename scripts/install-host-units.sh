@@ -53,6 +53,7 @@ unit_address() {
 }
 
 compose_address() {
+  # shellcheck disable=SC2016  # a literal ${INGEST_BIND_ADDR:-...} in compose.yaml
   sed -n 's/.*\${INGEST_BIND_ADDR:-\([0-9.]*\)}.*/\1/p' "${COMPOSE}" | sort -u
 }
 
@@ -153,6 +154,7 @@ prove_ordering() {
     || die "no user systemd manager to prove the ordering in"
   [[ -e "${udir}/hl-proof-docker.service" ]] && die "${udir}/hl-proof-docker.service exists; remove the last proof first"
   mkdir -p "${udir}/hl-proof-docker.service.d"
+  # shellcheck disable=SC2329  # invoked by the RETURN trap below
   cleanup_proof() {
     systemctl --user stop hl-proof-docker.service hl-proof-wait.service >/dev/null 2>&1
     command rm -f "${udir}/hl-proof-wait.service" "${udir}/hl-proof-docker.service" \
