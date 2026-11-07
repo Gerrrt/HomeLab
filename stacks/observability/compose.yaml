@@ -391,7 +391,7 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.7.8@sha256:1107dd5274e0ada47e42472b7a7e71f3b2a2fe878878108f3e2f9e51528f0193
+    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
     container_name: loki
     user: "10001:10001"
     # 1.5x the 1015 MiB peak — the tightest ratio and the largest number, which
@@ -792,7 +792,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.2.4@sha256:dbbc38ea21103cefb50396340cd88afec779c7e070b0a7bf5a75b4ce46651d3f
+    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
     container_name: grafana
     # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 139
     # MiB median, and three excursions past 350 MiB RSS in fourteen days (540,
@@ -1079,7 +1079,7 @@ services:
     # record for `prometheus` aimed at this container, and remote_write started
     # dialling Alloy instead of Prometheus. config.alloy reads ALLOY_HOSTNAME
     # from the environment instead; the header of that file has the whole story.
-    image: grafana/alloy:v1.20.1@sha256:2aa2099af76c0098d4af7a4d6e48f86cb66dc1a000222ad927a1c67c6542d13f
+    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
     container_name: alloy
     # 1024 rather than the shared 512: this is the one service that walks
     # cgroups, tails the journal and talks to the Docker socket, so it has more
@@ -1329,7 +1329,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.7@sha256:a643fd3ee669ff1b6927d5589c37ee1078b52fc76cea9a7bf8e247357e9d9dd1
+    image: grafana/grafana-image-renderer:v5.12.10@sha256:a7970b826f6e477461e02bf5463d92634e9ad27d525e4e50296978a2e592d2d7
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
