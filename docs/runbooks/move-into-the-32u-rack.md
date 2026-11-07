@@ -3,8 +3,8 @@
 **Target:** everything in the 9U rack, plus `trinity`, `prometheus` and
 `oracle` from the shelf beside it, `smaug` from the media room, the KVM
 console, `ifrit` (new), and the CRS326 that replaces `neo` — into the
-four-post 32U frame planned in
-[`hardware.md`](../hardware.md#planned-a-32u-rack)
+four-post 32U frame in
+[`hardware.md`](../hardware.md#rack)
 **Time:** two or three evenings at the bench beforehand, then one window of
 about four hours with the house offline, then an hour on the documents
 **You will need:** a second person for the UPS and the DL360, a Mac on Hicks,
@@ -26,6 +26,17 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > `smaug` racked on its side at U5–U9, and three single-unit gaps between
 > hosts. Every unit number below is the new layout's. The CRS326 is already
 > racked at U21, unpowered and uncabled.
+>
+> **2026-11-06: run.** The estate went into the frame exactly as §6 lays it
+> out, unit for unit, with the console and power maps cabled as
+> [`hardware.md`](../hardware.md#console-and-power-maps) decided. `ifrit` is
+> racked at U18 and stays off until the playground build. `Saruman`'s eight
+> new RDIMMs were **not** fitted, so it is still at 128 GB, and which UPS
+> outlet group feeds the PDU was not written down (§6.1). Both stay open
+> without #919: the RDIMMs are still on the roadmap's buy table, and the
+> outlet group is an open paragraph in `hardware.md`.
+> §8's documents are this runbook's PR. The switch's half is
+> [`swap-the-switch.md`](swap-the-switch.md)'s.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -80,7 +91,7 @@ ones not yet on hand are also in the roadmap's
 | 1U sliding keyboard drawer, front-rail mount | 1 | U24. On hand and mounted, 2026-10-15 |
 | 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18. On hand and mounted, 2026-10-15 |
 | 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16. On hand, 2026-10-13 |
-| 1U vented four-post shelf, square-hole, adjustable to 29" | 3 | `prometheus` U10, `oracle` U12 and the KVM at U23, whose own ears are half-height ([`hardware.md`](../hardware.md#planned-a-32u-rack)) |
+| 1U vented four-post shelf, square-hole, adjustable to 29" | 3 | `prometheus` U10, `oracle` U12 and the KVM at U23, whose own ears are half-height ([`hardware.md`](../hardware.md#rack)) |
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
