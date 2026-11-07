@@ -41,6 +41,13 @@ docstring gives: it is a record, not a claim about now.
   15-minute `port-state` job, which compares each container's declared port
   bindings with the ones Docker published. Runbook:
   [`recover-a-container-without-its-ports.md`](runbooks/recover-a-container-without-its-ports.md).
+- **`collect-guest-disk-state.sh` caps an answer's nesting at 16 levels
+  itself.** Its self-test failed on the ubuntu-26.04 runner image of
+  2026-11-01. A guest answering 100000 nested brackets was meant to raise
+  `RecursionError` and read as agent down. Python 3.14 measures that nesting
+  against the real C stack, and the new image's stack was big enough to parse
+  it, so the guest read as up. The depth is now checked after parsing, the
+  same on any stack.
 
 ## 2026-10-28
 
