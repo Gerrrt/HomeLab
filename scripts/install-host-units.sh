@@ -23,7 +23,8 @@
 #      outage this exists to prevent.
 #   2. The drop-in orders docker.service After= the waiter and Wants= it.
 #   3. `systemd-analyze verify` accepts the waiter, where systemd-analyze exists.
-#   4. On the host that runs the stack: the installed copies match these, and
+#   4. That .github/workflows/ci.yml runs this check.
+#   5. On the host that runs the stack: the installed copies match these, and
 #      docker.service as systemd has loaded it carries the ordering. A unit
 #      edited here and never installed is the drift #339 found in the timers.
 #
@@ -98,6 +99,16 @@ check() {
     skip "systemd-analyze not installed; ${UNIT} not verified"
   fi
 
+  # That CI runs this check, so the waiter's address and the drop-in are
+  # guarded on a pull request and not only by a local make validate. Same
+  # self-assertion, for the same reason, as install-timers.sh's check 7.
+  if grep -qE '^[[:space:]]*run:[[:space:]]*\./scripts/install-host-units\.sh --check[[:space:]]*$' \
+       "${REPO_ROOT}/.github/workflows/ci.yml" 2>/dev/null; then
+    pass "ci.yml runs this check too"
+  else
+    fail ".github/workflows/ci.yml does not run './scripts/install-host-units.sh --check'"
+  fi
+
   if stack_here; then
     if cmp -s "${SRC}/${UNIT}" "${SYSTEMD_DIR}/${UNIT}" \
        && cmp -s "${SRC}/${DROPIN_DIR}/${DROPIN}" "${SYSTEMD_DIR}/${DROPIN_DIR}/${DROPIN}"; then
@@ -117,14 +128,18 @@ check() {
 
 install_units() {
   ((EUID == 0)) || die "--install needs root: sudo $0 --install"
-  install -D -m 0644 "${SRC}/${UNIT}" "${SYSTEMD_DIR}/${UNIT}"
-  install -D -m 0644 "${SRC}/${DROPIN_DIR}/${DROPIN}" "${SYSTEMD_DIR}/${DROPIN_DIR}/${DROPIN}"
-  systemctl daemon-reload
-  systemctl enable "${UNIT}"
+  # Each step is checked: the script runs without -e, and a success line after
+  # a failed copy or reload would claim a boot guard that is not there.
+  install -D -m 0644 "${SRC}/${UNIT}" "${SYSTEMD_DIR}/${UNIT}" \
+    || die "could not install ${SYSTEMD_DIR}/${UNIT}"
+  install -D -m 0644 "${SRC}/${DROPIN_DIR}/${DROPIN}" "${SYSTEMD_DIR}/${DROPIN_DIR}/${DROPIN}" \
+    || die "could not install ${SYSTEMD_DIR}/${DROPIN_DIR}/${DROPIN}"
+  systemctl daemon-reload || die "systemctl daemon-reload failed"
+  systemctl enable "${UNIT}" || die "systemctl enable ${UNIT} failed"
   # Start it now so its state is `active` before the next boot needs it. With
   # the address already held this returns at once; without it, it would wait,
   # so --no-block keeps an install on a host with no link from hanging.
-  systemctl start --no-block "${UNIT}"
+  systemctl start --no-block "${UNIT}" || die "systemctl start ${UNIT} failed"
   printf 'installed %s and %s/%s; docker picks the ordering up at its next start\n' \
     "${UNIT}" "${DROPIN_DIR}" "${DROPIN}"
 }

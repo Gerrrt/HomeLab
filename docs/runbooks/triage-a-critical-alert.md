@@ -61,6 +61,9 @@ not set them up when it started it, usually because the address it publishes
 on did not exist yet. Its healthcheck can still pass, and `docker restart`
 does not fix it. Check that the address exists, then force-recreate the
 service: [`recover-a-container-without-its-ports.md`](recover-a-container-without-its-ports.md).
+It travels through `alloy`, so it cannot report `alloy` itself: on the
+monitoring host, `AlloyDown` with a healthy `alloy` container is the same
+fault, and the runbook says how to ask the daemon directly.
 
 ## SiteDown
 

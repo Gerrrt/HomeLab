@@ -49,7 +49,10 @@ import sys
 import tempfile
 
 TEXTFILE_DIR = os.environ.get("TEXTFILE_DIR", "/var/lib/node_exporter/textfile_collector")
-PROM_NAME = "port-state.prom"
+# Not port-state.prom, the job's name: run-scheduled.sh writes "${JOB}.prom"
+# for the job's outcome and refuses to overwrite a file it did not write
+# (#360), so sharing the name would fail every scheduled run.
+PROM_NAME = "container-networking.prom"
 SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 

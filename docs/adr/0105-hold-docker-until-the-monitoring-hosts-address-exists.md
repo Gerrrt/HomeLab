@@ -51,7 +51,7 @@ takes, and watch each running container's networking from outside it.**
 2. **`scripts/collect-port-state.py`**, every 15 minutes as the `port-state`
    job, compares each running container's `HostConfig.PortBindings` with the
    ports Docker actually published, and counts its networks.
-   **`ContainerNetworkingMissing`** (critical, 10m) fires on either, and its
+   **`ContainerNetworkingMissing`** (critical, after two runs in a row) fires on either, and its
    description gives the one fix: a force-recreate.
 
 The runbook is `docs/runbooks/recover-a-container-without-its-ports.md`.
@@ -82,6 +82,12 @@ The runbook is `docs/runbooks/recover-a-container-without-its-ports.md`.
   Nothing on this host could reach the network meanwhile anyway, and SSH and
   the console are unaffected. `docker ps` and the docker-backed timers hang or
   fail in that window, and `ScheduledJobStale` reports those failures.
+- `ContainerNetworkingMissing` reaches Prometheus through `alloy`, like
+  every host metric here. It cannot report `alloy` itself without networks,
+  or anything else while `alloy` is cut off. That case is `AlloyDown` and
+  `InstanceDown` on `alloy:12345`, which Prometheus scrapes directly; the
+  runbook says to run the collector by hand when they fire. A delivery path
+  that does not go through `alloy` was not built.
 - Renumbering this host means changing the waiter and `INGEST_BIND_ADDR`
   together. `install-host-units.sh --check` fails until both agree.
 - The ordering and `port-state` cover only this host. Two other stacks

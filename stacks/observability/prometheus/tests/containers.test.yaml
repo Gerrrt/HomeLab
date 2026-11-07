@@ -681,7 +681,9 @@ tests:
   # 2026-11-05 as it was: ingest-proxy declared two ports and had none, and no
   # network; alloy had no network but this fixture gives it its ports, so the
   # networks clause is proved on its own. grafana is whole and stays quiet, and
-  # so does node-exporter's absent networks series (network_mode host).
+  # so does node-exporter's absent networks series (network_mode host). caddy
+  # is one bad run, read for its 15 minutes and then healthy: one run must not
+  # page, so it never fires.
   - interval: 1m
     input_series:
       - series: 'homelab_container_ports_missing{name="ingest-proxy",project="observability",instance="prometheus"}'
@@ -696,11 +698,15 @@ tests:
         values: "0x30"
       - series: 'homelab_container_networks_attached{name="grafana",project="observability",instance="prometheus"}'
         values: "1x30"
+      - series: 'homelab_container_ports_missing{name="caddy",project="observability",instance="prometheus"}'
+        values: "1x15 0x15"
+      - series: 'homelab_container_networks_attached{name="caddy",project="observability",instance="prometheus"}'
+        values: "1x30"
     alert_rule_test:
-      - eval_time: 8m
+      - eval_time: 18m
         alertname: ContainerNetworkingMissing
         exp_alerts: []
-      - eval_time: 12m
+      - eval_time: 22m
         alertname: ContainerNetworkingMissing
         exp_alerts:
           - exp_labels:

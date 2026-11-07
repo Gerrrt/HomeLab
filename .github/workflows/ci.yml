@@ -494,6 +494,13 @@ jobs:
       - name: Verify the schedule and its staleness thresholds agree
         run: ./scripts/install-timers.sh --check --require-all
 
+      # The monitoring host's boot ordering (ADR-0105): the waiter's address
+      # must be INGEST_BIND_ADDR's default and the docker drop-in must carry
+      # After= and Wants=. The installed-copy half skips here, where no stack
+      # runs. --check asserts this step exists.
+      - name: Verify the boot ordering in systemd/host
+        run: ./scripts/install-host-units.sh --check
+
       - name: Validate Grafana dashboards
         run: |
           fail=0

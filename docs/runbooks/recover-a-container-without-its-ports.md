@@ -65,6 +65,20 @@ for about 25 hours.
    `homelab_container_ports_missing` in Prometheus. The alert clears after the
    next run of the 15-minute job.
 
+### What it cannot see
+
+The series reach Prometheus the way every host metric here does: Alloy reads
+the textfile and remote-writes it over the compose network. If `alloy` is the
+container without networks, nothing from this host arrives, this alert
+included, and it cannot fire for `alloy` or for anything beside it. That case
+pages as `AlloyDown` and `InstanceDown` on `alloy:12345`, which Prometheus
+scrapes directly, as on 2026-11-06. When those fire on this host, ask the
+daemon directly rather than waiting for this alert:
+
+```bash
+python3 scripts/collect-port-state.py --print
+```
+
 ---
 
 ## Install the boot ordering
@@ -117,12 +131,24 @@ this host reaches the network.
 If the address will not come back (a renumbering, say), change
 `HOMELAB_WAIT_ADDRESS` in `systemd/host/homelab-wait-address.service` and
 `INGEST_BIND_ADDR`'s default in `stacks/observability/compose.yaml` together,
-and reinstall. To start docker before that, as a one-off:
+and reinstall. To start docker before that, as a one-off, make the waiter
+finish at once with a runtime override:
 
 ```bash
-sudo systemctl stop homelab-wait-address && sudo systemctl start docker
+sudo mkdir -p /run/systemd/system/homelab-wait-address.service.d
+printf '[Service]\nExecStart=\nExecStart=/bin/true\n' | sudo tee /run/systemd/system/homelab-wait-address.service.d/override.conf
+sudo systemctl daemon-reload && sudo systemctl restart homelab-wait-address && sudo systemctl start docker
 ```
 
-Stopping the waiter cancels docker's queued start, so docker has to be started
-again by hand. Any container that publishes on the missing address comes up
-in exactly the state this page is about.
+Do not just stop the waiter. `docker.service` `Wants=` it, so the next start
+of docker pulls it straight back in, and whether docker then waits again
+depends on what was already queued. The override lives under `/run`, so the
+next boot drops it and the guard is back. To restore it before then:
+
+```bash
+sudo rm -r /run/systemd/system/homelab-wait-address.service.d && sudo systemctl daemon-reload
+```
+
+`systemctl show homelab-wait-address -p DropInPaths` is empty again once it
+is gone. Any container that publishes on the missing address comes up in
+exactly the state this page is about.

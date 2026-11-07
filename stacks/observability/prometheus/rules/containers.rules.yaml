@@ -328,13 +328,15 @@ groups:
       # not answer", which a dead process or a bad certificate also says. This
       # names the state, which has one fix. The series come from
       # collect-port-state.py every 15 minutes; its staleness is
-      # ScheduledJobStale's. 10m is one run seen twice, never a single read
-      # taken while `make up` is recreating the container.
+      # ScheduledJobStale's. The textfile holds one run's answer for its whole
+      # 15 minutes, so `for` must outlast that plus the timer's 60s jitter:
+      # 20m takes two runs in a row, never a single read taken while `make up`
+      # is recreating the container.
       - alert: ContainerNetworkingMissing
         expr: >-
           homelab_container_ports_missing > 0
           or homelab_container_networks_attached == 0
-        for: 10m
+        for: 20m
         labels:
           component: containers
           severity: critical
