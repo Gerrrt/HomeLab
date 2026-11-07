@@ -503,7 +503,7 @@ twenty minutes.
 
 1. Have the phone in hand and note the time.
 2. Pull `prometheus`'s power brick — **only that brick.** Not the shelf, not the
-   TP-Link, not the UPS. This is the discriminator the rule was written for:
+   shelf switch, not the UPS. This is the discriminator the rule was written for:
    `HostOnBattery` should fire for `prometheus` and for nothing else, and
    `UpsOnBattery` should stay quiet, because the rack did not lose power.
 3. Watch it fire:

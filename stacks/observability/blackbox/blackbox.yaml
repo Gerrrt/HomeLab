@@ -105,12 +105,12 @@ modules:
       tls_config:
         insecure_skip_verify: true
 
-  # An endpoint served over plain HTTP: the switch's web UI, which does not
-  # offer TLS, and a probe that pretended otherwise would measure the wrong
-  # thing. Named `plain` rather than `insecure` because nothing here is
-  # choosing to weaken anything: the endpoint simply does not offer TLS. (The
-  # switch does not even answer on 443 — checked from 10.0.99.20, the
-  # connection is dropped.)
+  # An endpoint served over plain HTTP, for a device that does not offer TLS;
+  # a probe that pretended otherwise would measure the wrong thing. Named
+  # `plain` rather than `insecure` because nothing here is choosing to weaken
+  # anything: the endpoint simply does not offer TLS. It was written for the
+  # MokerLink switch's UI, which had no TLS listener; the CRS326 that replaced
+  # it on 2026-11-05 serves HTTPS only, and is not probed at all.
   http_2xx_plain:
     prober: http
     timeout: 10s

@@ -745,10 +745,10 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old. `neo` answers the new one; whether it still holds the previous one is **unverified**, not confirmed. Its agent serves GETBULK to any community of sixteen characters or fewer without consulting the table (measured 2026-09-12), which is what the 2026-09-06 and 2026-09-09 sightings of the old string and the stock `public` and `private` actually were; those measurements are withdrawn. Over GET, which it does check, both stock strings and a junk string are refused — the previous community's row is the one thing still unmeasured, because that string was purged from history and is not to hand. Accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old. `neo` answers the new one; whether it still holds the previous one is **unverified**, not confirmed. Its agent serves GETBULK to any community of sixteen characters or fewer without consulting the table (measured 2026-09-12), which is what the 2026-09-06 and 2026-09-09 sightings of the old string and the stock `public` and `private` actually were; those measurements are withdrawn. Over GET, which it does check, both stock strings and a junk string were refused — the previous community's row was the one thing never measured, because that string was purged from history and is not to hand. **Closed 2026-11-05:** the MokerLink left service as `neo`, and the CRS326 that replaced it has no v2c at all ([`SECURITY.md`](../SECURITY.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MokerLink was factory-reset before it was reused as a plain switch at U14, which cleared its table (reported by the owner, 2026-11-07) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
 | Decrypted secrets in editor undo files | `~/.local/state/nvim/undodir/`, written by `make secrets-edit` | Found 2026-08-20: three files holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664, on an unencrypted disk. Shredded. `make secrets-edit` now hardens the editor first, so it cannot recur. Never committed, never left the host, so the communities were not rotated on that basis |
-| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again. That reasoning is spent — the overwrite it was afraid of was done on 2026-09-12 and persisted — and the value retires with the MokerLink hardware, which is replaced by a switch commissioned with v2c off entirely; no value the MokerLink held is carried across |
+| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again. That reasoning is spent — the overwrite it was afraid of was done on 2026-09-12 and persisted — and the value retires with the MokerLink hardware, which is replaced by a switch commissioned with v2c off entirely; no value the MokerLink held is carried across. **Retired 2026-11-05**, when the CRS326 took over; the MokerLink was factory-reset before its reuse as a plain switch (owner's report, 2026-11-07) |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history, and the CA replaced — see [runbook](runbooks/generate-certificates.md). Anything that trusted the old CA must be re-pointed at the new one |
 
 CI scans both the working tree and the full history, with no ignore file. Both
@@ -872,15 +872,16 @@ keeps finding, one level up each time.
 
 ### Why SNMPv2c is still a weak point
 
-The devices are polled with SNMPv2c, which transmits the community string in
+The firewall is still polled with SNMPv2c, which transmits the community string in
 cleartext, and whoever can see the poll's last hop can read it off a single
 packet. Two mitigations are in place, and the third is decided per device
 rather than for the fleet:
 
-- **Done:** each device has its own community, confirmed live on all four, so
-  one captured packet no longer grants read access to the whole fleet. The
-  switch does still accept its own previous community as well — an accepted
-  residual, recorded in [`SECURITY.md`](../SECURITY.md).
+- **Done:** no two devices share a credential, so one captured packet no
+  longer grants read access to the whole fleet. Only the firewall still has
+  a community; the other three are v3-only, and the switch's residual of
+  accepting its previous community closed with the MokerLink on 2026-11-05
+  ([`SECURITY.md`](../SECURITY.md)).
 - **Done:** SNMP is reachable only on the management VLAN, the
   switch-management LAN and — for the iLO — the lab segment, and only from
   the monitoring host.
@@ -897,57 +898,50 @@ rather than for the fleet:
   its profile created the same day, its poll over authPriv from 2026-09-21,
   its SNMPv1 access switched off the same day and its former community
   proved refused. **Both devices ADR-0036 names are done**, and neither
-  answers a community at all now. So two of the four polls are encrypted,
-  and the two that are not both ride on
+  answers a community at all now. **The switch followed on 2026-11-05**,
+  when the CRS326 replaced the MokerLink with v3 authPriv as its only SNMP
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444), ADR-0041). So
+  three of the four polls are encrypted, and the one that is not rides on
   Winterfell. The firewall **cannot** move without losing what it is polled
   for: bsnmpd is the only daemon that
   serves the pf MIB, and pfSense writes no v3 user for it — checked on the box
-  on 2026-09-09. The switch stays on v2c; its agent answers v3 on the wire,
-  and whether its UI can create a user is the unchecked half. Which devices
+  on 2026-09-09. Which devices
   have actually moved is recorded on
   [#85](https://github.com/Gerrrt/HomeLab/issues/85) and in the
   [runbook](runbooks/rotate-snmp-community.md#4-move-a-device-to-snmpv3).
 
-These communities are read-only, but "read-only" on a firewall means the
-complete state table and interface topology. They are credentials — except on
-the switch, where the agent does not check a short one on GETBULK at all
-(`SECURITY.md` has the measurement). The two
-that stay on v2c ride on Winterfell only, where anything that can sniff is
-already on the segment that holds the firewall's admin UI and the monitoring
-host.
+The remaining community is read-only, but "read-only" on a firewall means the
+complete state table and interface topology. It is a credential. It rides on
+Winterfell only, where anything that can sniff is already on the segment that
+holds the firewall's admin UI and the monitoring host. The MokerLink that was
+the switch until 2026-11-05 did not check a short community on GETBULK at all;
+`SECURITY.md` has the measurement and the proof that its replacement does.
 
-### The switch's management UI is HTTP, and stays that way
+### The switch's management UI is HTTPS only
 
-`neo` serves its management UI on port 80 and nothing on 443 — no TLS listener,
-and no way to import a certificate. Checked against the device on 2026-09-04 and
-decided in
-[ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md), which
-gave the switch a name (`neo.matrix.elysium`) and closed the certificate half of
-[#97](https://github.com/Gerrrt/HomeLab/issues/97) as unavailable rather than
-pending.
+`neo` serves its management UI at `https://10.7.7.2/` and nowhere else:
+RouterOS's `www-ssl` with a leaf from the estate's CA, and plain `www`
+disabled ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+decision 3, in service since 2026-11-05,
+[#444](https://github.com/Gerrrt/HomeLab/issues/444)). The only firewall
+pass to it is *Allow HTTPS to LAN Switch* on Hicks.
 
-So the switch admin password crosses the wire in cleartext, and it is worth
-being precise about where: **through `neo` itself**, which is the device the
-password protects. A mirrored port or a foothold on the switch sees the
-credential to the switch. This is the same shape as the SNMP argument above and
-a sharper version of it, because this credential is read-write.
+This closes the residual
+[ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md)
+recorded on 2026-09-04: the MokerLink served its UI on port 80 with no TLS
+listener and no certificate import, so the switch admin password — a
+read-write credential — crossed the wire in cleartext through `neo` itself, the
+device it protects. ADR-0018 named a TLS management interface as the selection
+criterion for the replacement, and that is the property the CRS326 was bought
+for.
 
-What holds it: the password is unique to the device, and only Hicks and
-Winterfell can reach `10.7.7.0/24` at all
-([ADR-0013](adr/0013-segment-access-as-implemented.md)). What does not hold it:
-anything on the device, which is now carrying its fourth firmware limit after the
-undeletable community row, an SNMP agent that serves GETBULK to any community of
-sixteen characters or fewer (measured 2026-09-12,
-[#84](https://github.com/Gerrrt/HomeLab/issues/84)), and an SNMPv3 user page it
-may or may not have
-(ADR-0036). A TLS management interface belongs in the selection criteria
-whenever this switch is replaced — and the replacement that has one, a
-MikroTik CRS326, was bought 2026-09-13 ([`hardware.md`](hardware.md),
-[#444](https://github.com/Gerrrt/HomeLab/issues/444)), with delivery estimated
-2026-09-23. This section changes when it is racked, not before — that date is a
-courier estimate rather than an arrival, and the swap takes the whole house
-offline and shares a rack visit, so it buys a window to pick rather than a date
-this closes on.
+What is left is the leaf's lifetime. It is good for 825 days from 2026-10-05,
+the switch cannot renew it, and nothing pages for its expiry: there is no
+switch-UI probe, by the decision recorded in
+[`blackbox.yaml`](../stacks/observability/prometheus/targets/blackbox.yaml),
+because adding one would need a new `10.0.99.20 → 10.7.7.2:443` pass. The date
+is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
+[`successor-handover.md`](runbooks/successor-handover.md) instead.
 
 ## Hardening applied to the stack
 
