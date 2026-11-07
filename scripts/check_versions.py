@@ -306,13 +306,12 @@ PFSENSE_VERSION = re.compile(r"\b(\d+\.\d+\.\d+-\S+)")
 # fail every run, and a check that fails every run gets switched off — which is
 # the argument this script already makes about point releases.
 #
-# `neo` IS NOT HERE, and the reason changed under #309. That issue said the
-# switch was out because the mokerlink module walks IF-MIB columns only and so
-# answers no sysDescr. It answers one now — #310 added it — and the answer is
-# the literal string "Switch" with a trailing NUL: no model, no firmware, no
-# version. Its OS cell in network.md is "—" for the same reason. So the switch
-# still has nothing to compare, and a row here would only produce a permanent
-# SKIP line that says so every week.
+# `neo` IS NOT HERE. While it was the MokerLink its sysDescr was the literal
+# string "Switch" with a trailing NUL (#309, #310): nothing to compare. Since
+# 2026-11-06 it is the CRS326 on RouterOS (#444), whose sysDescr names the
+# model but not the version; the version lives in MIKROTIK-MIB, which the
+# routeros module does not walk yet. Adding that is what would earn `neo` a
+# row here — until then a row would only produce a permanent SKIP.
 OUT_OF_BAND = (
     {
         "device": "shiva",

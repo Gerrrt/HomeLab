@@ -17,6 +17,50 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-06
+
+- **`neo` is the CRS326, and the MokerLink is retired**
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444),
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md)'s Phases 1 and 2 ran,
+  and the MikroTik CRS326-24G-2S+RM took the name `neo` and the address
+  `10.7.7.2` at U21 of the 32U frame, where it had sat unpowered since
+  2026-10-12. The MokerLink's configuration and port map were exported before
+  it was unplugged. Read off the live switch:
+  - **RouterOS 7.24.6 long-term**, RouterBOOT to match — not the 7.23.7 the
+    runbook and the bench reading of 2026-10-05 name. `admin` is disabled
+    behind one named full-access user.
+  - **The UI is HTTPS only.** `www` is disabled and `www-ssl` serves on `443`
+    with a leaf off the estate's CA, `neo.matrix.elysium`, whose SANs are the
+    name and `10.7.7.2`. `ssh`, `winbox` and `www-ssl` answer only
+    `10.7.7.0/24`, `10.0.99.0/24` and `10.0.50.90/32`; `ftp`, `telnet`,
+    `api`, `api-ssl` and `reverse-proxy` are off. On `morpheus`, *Allow HTTP
+    to LAN Switch* was narrowed from `80` to `443` and *Allow blackbox probe
+    from Prometheus to Switch* was deleted (Phase 2 steps 7 and 8); *Allow
+    SNMP from Prometheus to Switch* stays.
+  - **SNMP is one v3 user and no v2c.** `prometheus`, authPriv SHA1/AES,
+    restricted to `10.0.99.20/32`. RouterOS cannot delete its default
+    `public` community, only disable it, and it is disabled.
+  - **The management VLAN is 7 inside the switch and untagged on `ether1`**
+    (PVID 7), so on the wire it is the same untagged `10.7.7.0/24` link from
+    `igc0` to port 1 that ADR-0041 keeps as the way back in. The runbook's
+    "Rack the CRS326 at U9" was the 9U rack's unit; it went in at U21.
+    `network.md`'s note on why the switch LAN exists no longer blames a UI
+    that would not bind to a tag, which was the MokerLink's limit, and says
+    instead that the LAN is a cable rather than a configuration.
+  - **Bridge VLAN filtering is on, with RSTP, and the port map is in
+    [`hardware.md`](hardware.md).** `smaug` is still on port 15, VLAN 40.
+    Ports 3–24 have BPDU guard; mirroring is not configured.
+  - **Not done:** the scrape moves from the v2c `mokerlink` module to a v3
+    `routeros` one in the same branch but is not deployed, so `neo`'s SNMP
+    scrape is down until its passphrases are in
+    `secrets/observability.sops.yaml` and `make render && make reload` has
+    run. `snmp-verify.sh` has not been run against the new switch, so
+    [#84](https://github.com/Gerrrt/HomeLab/issues/84), #444 and the GETBULK
+    and plain-HTTP residuals in `SECURITY.md` and
+    [`security.md`](security.md) stay open, and `snmp-walk.sh` stays until
+    the CRS326 is shown not to need it.
+
 ## 2026-10-28
 
 - **A ninth camera, the eighth's lease, and the Skids pool rows read with

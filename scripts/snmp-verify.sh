@@ -286,14 +286,14 @@ done <<< "${INVENTORY}"
 # defect. An answer to GET would mean the device checks nothing at all, and
 # every other verdict for it is void.
 #
-# GETBULK answering is WARN in both modes. It is a firmware limit that no row
-# in the community table changes — the overwrite in rotate-snmp-community.md
-# §2.5 cannot touch it — so a FAIL under --old would block proving a
-# retirement that did happen, and a FAIL in plain mode would keep the weekly
-# job's alert lit for as long as the switch is this switch. It is recorded in
-# SECURITY.md instead, and the line here is what keeps that record honest.
-# GET answering is FAIL in both modes: nothing else in this run can be
-# believed for that device.
+# GETBULK answering is FAIL in both modes, since 2026-11-06. It was WARN while
+# `neo` was the MokerLink: a firmware limit no row in the community table
+# changed, so a FAIL would have kept the weekly job's alert lit for as long as
+# the switch was that switch, and SECURITY.md carried it instead. That switch
+# left with #444, and swap-the-switch.md's Phase 3 is what turns this back:
+# no device in the inventory has an excuse for it now, so a GETBULK answer is
+# a new fault, not a known one. GET answering was always FAIL: nothing else in
+# this run can be believed for that device.
 #
 # The devices that answer GETBULK to a junk string are also the devices the
 # exporter's scrape proves nothing about, because the exporter walks with
@@ -340,7 +340,7 @@ while IFS=$'\t' read -r ip auth device version keys; do
     fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "ANY COMMUNITY ACCEPTED over GET (${get_answered% }) — the device is not checking communities; nothing else in this run proves anything about it")"
     UNAUTHENTICATED_DEVICES+="${device}"$'\n'
   elif [[ -n "${bulk_answered}" ]]; then
-    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; a firmware limit recorded in SECURITY.md (#84)")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; the agent checks no community on GETBULK, and the exporter's scrape proves nothing about it")"
   else
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses a junk community over GET and GETBULK, short and long")"
   fi

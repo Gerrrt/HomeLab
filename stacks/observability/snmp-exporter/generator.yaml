@@ -41,8 +41,9 @@
 # authPriv only — snmp-targets.sh --check refuses the other two levels — and
 # the device is changed BEFORE this file is, per the runbook's order. Which
 # devices are v3 today is the version: line below, nothing else — the iLO
-# since 2026-09-20 and the UPS card since 2026-09-21; the firewall and the
-# switch stay on v2c for the reasons the ADR gives.
+# since 2026-09-20, the UPS card since 2026-09-21 and the switch since the
+# CRS326 replaced the MokerLink on 2026-11-06 (#444, ADR-0041); the firewall
+# stays on v2c for the reasons ADR-0036 gives.
 
 auths:
   # The card's profile was created on 2026-09-20 and this poll switched on
@@ -73,19 +74,29 @@ auths:
     priv_protocol: AES
     version: 3
 
-  auth_mokerlink:
-    community: ${SNMP_COMMUNITY_MOKERLINK}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
-
   auth_pfsense:
     community: ${SNMP_COMMUNITY_PFSENSE}
     security_level: noAuthNoPriv
     auth_protocol: MD5
     priv_protocol: DES
     version: 2
+
+  # neo, the CRS326, since 2026-11-06 (#444): RouterOS keeps v3 users under
+  # /snmp/community with security=private, and this one is limited to
+  # 10.0.99.20 with SHA1 and AES, read off the switch on 2026-11-07. The
+  # switch answers no v2c at all — its default community is disabled, which is
+  # as far as RouterOS lets it go — so nothing the MokerLink held, including
+  # the community that leaked (SECURITY.md), carried across. The empty
+  # community is explained in the header; it is not a leftover.
+  auth_routeros:
+    community: ""
+    username: prometheus
+    password: ${SNMP_AUTHPASS_ROUTEROS}
+    priv_password: ${SNMP_PRIVPASS_ROUTEROS}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
 
 modules:
   # APC Smart-UPS (mjolnir, 10.0.99.10) — standard UPS-MIB.
@@ -216,7 +227,8 @@ modules:
       # which caps a single TCP stream at ~20 Mbit/s on a 2 Gbit/s plan.
       # Every other interface read 0. WanReceiveErrors reads the em0 row.
       #
-      # Probed first with scripts/snmp-walk.sh, per the mokerlink note below:
+      # Probed first with scripts/snmp-walk.sh, per the note the mokerlink module
+      # carried until neo became the CRS326 on 2026-11-06 (git history has it):
       #   ifDescr      12 rows, 3 requests, 0.55s
       #   ifInErrors   12 rows, 3 requests, 0.08s
       # ifOutErrors is the same column shape. Counter32, but at the rates
@@ -236,10 +248,10 @@ modules:
       # to notice. scripts/check-versions.sh reads it.
       #
       # Probed 2026-09-04 with scripts/snmp-walk.sh before being added here, per
-      # the note in the mokerlink module below: 1 row, 1 request, 0.47s, and the
-      # four overshoot varbinds (sysObjectID, sysUpTime, sysContact, sysName)
+      # the mokerlink module's note (gone since 2026-11-06): 1 row, 1 request,
+      # 0.47s, and the four overshoot varbinds (sysObjectID, sysUpTime, sysContact, sysName)
       # all decode — sysObjectID answers .1.3.6.1.4.1.12325.1.1.2.1.1, not the
-      # zero-length OBJECT IDENTIFIER that makes the switch's ifSpecific poison
+      # zero-length OBJECT IDENTIFIER that made the MokerLink's ifSpecific poison
       # a whole GETBULK response.
       #
       # That probe is the worst case rather than what runs: sysDescr is a scalar
@@ -292,137 +304,44 @@ modules:
             - 1.3.6.1.2.1.25.2.3.1.6
           values: ["^/"]
 
-  # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
+  # MikroTik CRS326-24G-2S+RM on RouterOS 7 (neo, 10.7.7.2) — IF-MIB, five
+  # columns and sysDescr. It replaced the MokerLink on 2026-11-06 (#444).
   #
-  # The tuning below is not cargo cult. This switch's management CPU has locked
-  # up under exporter polling before, taking its SNMP agent down while layer 2
-  # kept forwarding and the web UI kept answering — which presents as UDP/161
-  # timing out while ICMP and TCP/80 succeed. Recovery was a power cycle. What
-  # ran afterwards without wedging it used small GETBULK batches and a longer
-  # per-request timeout, so those values are pinned here rather than left to
-  # the exporter's defaults (max_repetitions 25, retries 3, timeout 5s).
+  # Same columns the mokerlink module walked, because the same things consume
+  # them: SwitchInterfaceDown reads ifOperStatus, the dashboard's switch row
+  # reads the 64-bit ifXTable octet counters (#87 — ifTable's 32-bit pair wraps
+  # in ~34s at gigabit), and the ifDescr lookup names each port. On RouterOS
+  # ifDescr is the interface name — ether1..ether24, sfp-sfpplus1/2 — plus
+  # rows for the bridge, the switch-lan VLAN interface and lo, so ifIndex is
+  # NOT the front-panel port number and nothing may assume it is. No rule or
+  # panel names a port today; anything that starts to must key on ifDescr.
   #
-  # Worst case here is retries * timeout = 21s, comfortably inside the job's 45s
-  # scrape_timeout.
+  # WHAT WAS DROPPED, AND WHY. The mokerlink module pinned max_repetitions 5,
+  # retries 2 and timeout 7s because that switch's management CPU wedged under
+  # exporter polling, and it stopped at ifTable column .8 because the
+  # MokerLink returned ifSpecific (.22) as a zero-length OID that poisoned a
+  # whole GETBULK response. Both were that device's faults. This one takes the
+  # exporter's defaults; the highest ifTable column walked is still .8, so a
+  # default 25-repetition overshoot lands in .9 (ifLastChange, TimeTicks) and
+  # never near .22. If the CRS326 is ever seen to wedge, the old values are in
+  # git history beside the evidence that justified them.
   #
-  # Only the five columns anything actually consumes are walked. This switch was
-  # bricked once by a full walk and has wedged since, so scrape volume is a
-  # safety property here, not an efficiency one. Five columns x 26 ports is ~130
-  # varbinds, about a quarter of what walking the whole ifTable costs. Measured
-  # cost is 30 packets, 130 PDUs and ~1.4s per scrape.
-  #
-  # The octet counters come from ifXTable (1.3.6.1.2.1.31.1.1.1), not ifTable.
-  # ifTable's ifInOctets/ifOutOctets are 32-bit and wrap at 4.29 GB — ~34s at
-  # gigabit line rate — so at a 60s scrape any port above ~570 Mbit/s sustained
-  # silently under-reports, and nothing can detect it afterwards: rate() treats
-  # a decrease as a counter reset, never as a wrap. ifHCInOctets/ifHCOutOctets
-  # are Counter64 and do not wrap in practice. They replaced the 32-bit pair
-  # rather than joining it, so the walk stayed at five columns (#87). Probed
-  # 2026-09-01 with scripts/snmp-walk.sh at this module's request shape: 26 rows
-  # per column in 6 requests and ~0.5s, the low 32 bits matching ifInOctets on
-  # every busy port, and incrementing between walks.
-  #
-  # ifDescr is walked twice over: once as its own metric and once as the lookup
-  # below, which stamps an ifDescr label onto every metric indexed by ifIndex so
-  # dashboards and alert summaries can name a port. The lookup is resolved from
-  # the varbinds already fetched — it adds nothing to the walk.
-  #
-  # Column 22 of ifTable (ifSpecific) must never be fetched. This switch returns
-  # it with a zero-length value, seen on the wire as
-  #
-  #   .1.3.6.1.2.1.2.2.1.22.26=
-  #
-  # An OBJECT IDENTIFIER cannot be zero-length, so snmp-exporter rejects the
-  # entire GETBULK response with
-  #
-  #   error in unmarshalResponse: error parsing OID Value: invalid OID length
-  #
-  # and the scrape yields nothing — one malformed varbind loses every metric.
-  #
-  # Note this is why column 21 is absent too, and why listing columns 1-21 did
-  # NOT fix it: GETBULK returns the next N varbinds and does not stop at a
-  # subtree boundary, so walking .21 overshoots into .22 and the bad varbind
-  # comes back anyway. The last column walked must be far enough from .22 that
-  # max_repetitions cannot reach it. `overrides: ifSpecific: ignore` does not
-  # help either — that only drops the metric, the reply must still be decoded.
-  #
-  # With 26 rows at max_repetitions 5 each column's final request overshoots by
-  # four varbinds into the next column: ifTable .1 -> .2, .2 -> .3, .8 -> .9;
-  # ifXTable .6 -> .7, .10 -> .11. All of those decode. ifXTable has no
-  # OBJECT IDENTIFIER column at all (its last is .19, a TimeStamp), so the
-  # ifSpecific failure cannot recur inside it. The highest ifTable column
-  # walked is now .8, further from .22 than before.
-  #
-  # Adding a column is cheap; adding ifTable .21 or .22 is not. Any new ifTable
-  # column past .8 needs to be checked against the overshoot first — and any
-  # new column anywhere gets walked with scripts/snmp-walk.sh before it is
-  # added here, because the exporter's first contact with a bad varbind is a
-  # scrape that returns nothing.
-  #
-  # ifType (ifTable column 3) WAS WALKED AND DELIBERATELY NOT ADDED. #310
-  # proposed it to settle what kind of ports 25 and 26 are, and named its own
-  # failure condition: 26 identical values would answer nothing. That is what
-  # came back. Probed 2026-09-06 with scripts/snmp-walk.sh at this module's
-  # request shape — 26 rows in 6 requests, 0.39s, overshooting four varbinds
-  # into ifMtu (1526, decodes) — and every one of the 26 is
-  #
-  #   .1.3.6.1.2.1.2.2.1.3.N = 117
-  #
-  # IANAifType 117, gigabitEthernet, on all 26 ports including the two uplinks.
-  # The switch does not distinguish its SFP cages here, so the column costs 26
-  # varbinds a scrape and carries no information — and on this device scrape
-  # volume is a safety property, per the paragraph above. Recorded rather than
-  # added so nobody walks it a third time. The question it was meant to answer
-  # is answered by looking at the rack.
-  mokerlink:
+  # sysDescr on RouterOS carries the model, not the version — expected to be
+  # "RouterOS CRS326-24G-2S+", unread until the first v3 scrape. The version
+  # lives in MIKROTIK-MIB, which `make snmp-mibs` does not fetch yet, so
+  # scripts/check_versions.py still has nothing to compare for neo. It is a
+  # GET of one scalar, as on the pfsense module.
+  routeros:
     walk:
       - 1.3.6.1.2.1.2.2.1.1     # ifIndex
       - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
       - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
       - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
       - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
-      # The switch was the only SNMP target reporting no sysDescr at all, which
-      # is why this is here — not because of what it says. What it says,
-      # measured 2026-09-06, is the whole of it:
-      #
-      #   .1.3.6.1.2.1.1.1.0 = "53 77 69 74 63 68 00"   -> "Switch\0"
-      #
-      # The literal word "Switch" and a trailing NUL. No model, no firmware, no
-      # hardware revision, and so nothing that names the port composition.
-      # Anyone arriving here hoping this fills the gap in docs/hardware.md
-      # should stop at this comment rather than at the metric.
-      #
-      # It is still worth the line: it is a scalar with one instance, so the
-      # generator resolves this into a GET of 1.3.6.1.2.1.1.1.0 and no GETBULK
-      # is issued at scrape time — the same argument the pfsense module above
-      # makes — and it lights up on its own if a firmware bump ever starts
-      # populating it. Probed at the module's request shape first, because the
-      # overshoot is what bites on this device: 1 row, 1 overshoot varbind, 2
-      # requests, 0.53s, and the overshoot is sysObjectID answering
-      # .1.3.6.1.4.1.27282 rather than the zero-length OBJECT IDENTIFIER that
-      # makes this switch's ifSpecific poison a whole response.
-      #
-      # Then measured end to end, because a walk probe is not a scrape: the
-      # pinned exporter image was run with this regenerated snmp.yaml against
-      # the live switch, beside a control container running the committed one.
-      # Three rounds each, interleaved, identical every time —
-      #
-      #   with sysDescr     31 packets   131 PDUs   1.46s   136 series
-      #   without           30 packets   130 PDUs   1.45s   135 series
-      #
-      # One extra packet, which is the GET, and one extra series. That is the
-      # whole cost on a device where scrape volume is a safety property.
-      #
-      # scripts/check_versions.py reads sysDescr and is unaffected: it selects
-      # the pfSense claim by device name, and its OS-table regex wants a
-      # FreeBSD version, which "Switch" is not.
-      - 1.3.6.1.2.1.1.1         # sysDescr      ("Switch", and nothing more)
+      - 1.3.6.1.2.1.1.1         # sysDescr
     lookups:
       - source_indexes: [ifIndex]
         lookup: ifDescr
-    max_repetitions: 5
-    retries: 2
-    timeout: 7s
 
   # HPE ProLiant DL360 Gen9 iLO (shiva, 10.0.30.10) — SNMPv2-MIB system group
   # plus the Compaq/HP Insight enterprise tree for hardware health.

@@ -111,23 +111,50 @@ truth for what a box actually does.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| neo | `10.7.7.2` | `1c:2a:a3:xx:xx:xx` | MokerLink 26-port managed | — | Rack U9 | Switch |
+| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM[^CRS326] | RouterOS 7 | Rack U21 | Switch |
 
 ### Notes
 
 - Cat6 from the ProDesk's add-on NIC[^adapter] to port 1 of the switch (trunk).
-- This interface exists solely to reach the switch's[^MokerLink] management UI,
-  which will not bind to a tagged interface.
+  Since the CRS326 replaced the MokerLink on 2026-11-06
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)), port 1 (`ether1`)
+  carries VLANs 10, 20, 30, 40, 50 and 99 tagged and this LAN untagged. Inside
+  the switch the LAN is VLAN 7 — the `switch-lan` interface, `10.7.7.2/24`,
+  default route `10.7.7.1` — with PVID 7 on `ether1`, so on the wire it is the
+  same untagged link it always was. U21 is a unit of the 32U frame
+  ([`hardware.md`](hardware.md#planned-a-32u-rack)), where the CRS326 had sat
+  unpowered since 2026-10-12.
+- **This LAN is kept as a cable, not a configuration.** It used to be
+  explained as the only way to reach a management UI that would not bind to a
+  tagged interface; that was the MokerLink's limit, and it left with the
+  MokerLink. The CRS326 would put management on a tagged VLAN without
+  complaint, and the LAN stays anyway, for a reason it did not originally have
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)):
+  on RouterOS the bridge VLAN-filtering config that decides which ports carry
+  which tags is the config the management path rides on, and one wrong
+  `frame-types` or forgotten tagged member locks the door from the inside on
+  the device that carries every VLAN in the house. An untagged point-to-point
+  link from `morpheus`'s `igc0` to port 1 is unaffected by any of that. **It
+  is the way back in** — do not move management onto a tagged VLAN "while you
+  are in there", and do not read this LAN as a leftover that can go.
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
   name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).
   The address stays written down beside it on purpose: the name depends on
   Unbound on `morpheus`, and this is the device you open when `morpheus` is the
   suspect.
-- **The UI is plain HTTP and cannot be anything else.** No TLS listener, no
-  certificate import — checked against the live switch on 2026-09-04, and the
-  third firmware limit on this device after #84 and #85. Admin credentials cross
-  the wire in clear, over a path that runs through `neo` itself. ADR-0018 has the
-  reasoning and the rejected alternatives.
+- **The UI is HTTPS only, since 2026-11-06.** RouterOS's `www-ssl` serves it on
+  `443` with a leaf off the estate's CA, `neo.matrix.elysium`, carrying both
+  the name and `10.7.7.2` as SANs, and plain `www` is disabled rather than
+  merely unused. `ssh`, `winbox` and `www-ssl` answer only `10.7.7.0/24`,
+  `10.0.99.0/24` and `10.0.50.90/32`; `ftp`, `telnet`, `api`, `api-ssl` and
+  `reverse-proxy` are off. Until that day the UI was the MokerLink's plain
+  HTTP, which could be nothing else, and the admin credential crossed the wire
+  in clear through `neo` itself — ADR-0018 has that history, and
+  [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  superseded its plain-HTTP clause. [`security.md`](security.md) still
+  holds the plain-HTTP residual open: it closes there with its date and proof,
+  alongside [#84](https://github.com/Gerrrt/HomeLab/issues/84), not by this
+  note.
 - DHCP disabled.
 
 > [!CAUTION]
@@ -135,7 +162,7 @@ truth for what a box actually does.
 > tagged interface and takes the whole house offline.
 
 [^adapter]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N) — in the G4's second M.2 slot, `igc0` to FreeBSD. It was labelled "USB NIC adapter" here until 2026-09-09, and the restore runbook and the shopping list had inherited the label.
-[^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
+[^CRS326]: [MikroTik CRS326-24G-2S+RM](https://mikrotik.com/product/crs326_24g_2s_rm) — in service as `neo` since 2026-11-06, replacing a MokerLink 26-port managed switch ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). Serial, revision and bench history are in [`hardware.md`](hardware.md).
 
 ---
 
@@ -316,8 +343,11 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   can never match traffic that enters on Hicks — and is TCP-only, so the
   catch-all below still carries UDP and ICMP to the lab. Widen it before any
   block for private ranges lands above the catch-all.
-- The switch LAN is blocked apart from `10.7.7.2:80`, the switch's own web UI;
-  the block below that pass is logged.
+- The switch LAN is blocked apart from `10.7.7.2:443`, the switch's own web UI;
+  the block below that pass is logged. The pass, *Allow HTTP to LAN Switch*, named
+  `80` until 2026-11-06, when the CRS326's plain `www` was turned off and the
+  rule was narrowed to HTTPS by
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) Phase 2.
 
 [^Desktop1]: [Build 1](https://pcpartpicker.com/b/KXv323)
 [^Desktop2]: [Build 2](https://pcpartpicker.com/list/XgZpfd)
@@ -369,6 +399,7 @@ Televisions and consoles. Internet only.
 - **`smaug` is on port 15 of the switch**, untagged with PVID 40. That port was
   ImaginationLAN's when the map was last read on 2026-09-04 and was moved for
   the install ([#481](https://github.com/Gerrrt/HomeLab/issues/481)). It is
+  still there on the CRS326 — `ether15`, PVID 40, read on 2026-11-06. It is
   recorded because a single-NIC host on an access port has its segment decided
   at the switch and nowhere else: put it back on 30 and the address, the
   reservation and every inbound rule are silently pointless.

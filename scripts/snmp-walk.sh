@@ -3,11 +3,18 @@
 # Walk one OID subtree on one SNMP device, the way snmp-exporter would, without
 # the community ever appearing in an argument vector.
 #
-# This exists for the MokerLink switch. It has locked up under exporter polling
-# before, and it returns at least one malformed varbind (ifTable column 22) that
-# makes snmp-exporter discard a whole GETBULK response — so a new column is not
-# something to add to generator.yaml and hope. It is something to fetch first,
-# with the request shape the exporter will use, and read.
+# This was written for the MokerLink switch. It locked up under exporter
+# polling, and it returned at least one malformed varbind (ifTable column 22)
+# that made snmp-exporter discard a whole GETBULK response — so a new column was
+# not something to add to generator.yaml and hope. It was something to fetch
+# first, with the request shape the exporter would use, and read.
+#
+# The MokerLink left the rack on 2026-11-06, when the CRS326 became `neo`
+# (#444). swap-the-switch.md says to delete this script on evidence that the
+# CRS326 does not need it, not on the assumption, so it stays until that walk
+# has been done. The routeros module takes the exporter's defaults (25
+# repetitions, 5s, 3 retries); pass --max-repetitions 25 to probe it at the
+# shape it is actually scraped with.
 #
 # What "the request shape the exporter will use" means here:
 #
@@ -19,9 +26,9 @@
 #     back empty — so an OID the switch does not implement would present as a
 #     21-second timeout, indistinguishable from the switch having wedged. This
 #     script loops snmpbulkget by hand instead and never sends a GET.
-#   * max-repetitions, timeout and retries default to the mokerlink module's
-#     values (5, 7s, 2). A gentler probe would prove nothing about the load the
-#     exporter is about to apply.
+#   * max-repetitions, timeout and retries default to the values the mokerlink
+#     module pinned (5, 7s, 2) — gentler than any module scrapes with today,
+#     so pass the module's own values when the load is the question.
 #   * Varbinds past the end of the subtree are printed rather than hidden.
 #     GETBULK does not stop at a subtree boundary, so the last request of a
 #     walk overshoots into whatever comes next, and the exporter has to decode
@@ -55,7 +62,8 @@ source "${REPO_ROOT}/scripts/snmp-auth.sh"
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*" >&2; }
 
-# Defaults mirror the mokerlink module in snmp-exporter/generator.yaml.
+# Defaults are the values the mokerlink module pinned until 2026-11-06; no
+# module in snmp-exporter/generator.yaml pins any today.
 MAX_REPETITIONS=5
 TIMEOUT=7
 RETRIES=2

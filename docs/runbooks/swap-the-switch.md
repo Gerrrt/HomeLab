@@ -7,6 +7,21 @@ offline, then a pass over the documents
 **You will need:** physical access to the rack, a workstation on Hicks, the age
 key on the monitoring host, and the estate CA at `certificates/ca.pem`
 
+> [!NOTE]
+> **Phases 1 and 2 ran on 2026-11-06; Phase 3 is part-done.** `neo` is the
+> CRS326 and the MokerLink is retired. Three things differ from the procedure
+> as written, which is left as it was planned: the switch runs **RouterOS
+> 7.24.6** long-term, not the 7.23.7 that §1.3 and the bench reading name;
+> management is **VLAN 7 inside the switch** (`switch-lan`, `10.7.7.2/24`)
+> and untagged on `ether1` with PVID 7, which is still the untagged cable
+> from `igc0` to port 1 that "Read this part first" keeps; and it went in at
+> **U21 of the 32U frame**, where it had been racked since 2026-10-12, not at
+> U9. Phase 2 steps 7 and 8 were done on `morpheus`. Still open from Phase 3:
+> the v3 scrape is written but not deployed, `snmp-verify.sh` has not been
+> run against the new switch, and so #84 and
+> [#444](https://github.com/Gerrrt/HomeLab/issues/444) are open.
+> [`changelog.md`](../changelog.md) has the day.
+
 [ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
 decided what the new switch is and how it is configured; this is how it gets
 there. The switch is replaced for one property — a TLS management interface, so

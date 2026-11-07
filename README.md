@@ -334,7 +334,7 @@ writes from cAdvisor, alongside restart counts, CPU throttling and a container
 inventory.](docs/images/docker-containers.png)
 
 ![Network & Firewall dashboard: pfSense pf state table and packet filter drops,
-MokerLink switch interface throughput and link status, and HPE iLO chassis power
+core switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
 ![UPS & Power dashboard: APC power source, battery charge, output load,
@@ -359,7 +359,7 @@ estate is as unglamorous:
 | Host | Hardware | Job |
 | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini, a second NIC on an M.2 adapter | pfSense firewall |
-| `neo` | MokerLink 26-port managed switch | Core switching |
+| `neo` | MikroTik CRS326-24G-2S+RM, on RouterOS | Core switching |
 | `Saruman` | HPE ProLiant DL360 Gen9, iLO 4 as `shiva` | Proxmox VE, and the lab's guests |
 | `smaug` | Lenovo ThinkServer TS150 | TrueNAS and the media stack |
 | `trinity` | HP ProDesk 600 G4 DM | The household's tier |

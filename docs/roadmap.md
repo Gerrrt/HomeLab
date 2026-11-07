@@ -52,13 +52,22 @@ Closes when it is empty.
 - **[#444](https://github.com/Gerrrt/HomeLab/issues/444) Swap the MokerLink
   for the CRS326.** Decided by
   [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md).
-  Gate: Phase 1 at the bench, then a rack window outside working hours — `neo`
-  carries every VLAN, so the swap cannot share the day with anyone working
-  on them. → [runbook](runbooks/swap-the-switch.md)
+  **The swap is done**: Phases 1 and 2 ran on 2026-11-06 and `neo` is the
+  CRS326, HTTPS-only, with an SNMPv3 user and no v2c. What remains is the
+  repository half of the scrape — the v3 `routeros` module and
+  `auth_routeros` are written, and `neo`'s scrape is down until the
+  passphrases are in `secrets/observability.sops.yaml` and `make render &&
+  make reload` has run on the monitoring host — then `snmp-verify.sh` against
+  the new switch, then #84 and this issue close.
+  → [runbook](runbooks/swap-the-switch.md) Phase 3
 - **[#84](https://github.com/Gerrrt/HomeLab/issues/84) Retire the MokerLink's
-  previous SNMP community.** Closes with #444: the row cannot be verified,
-  so it is retired by the hardware leaving, not by a measurement.
-  → [runbook](runbooks/rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row)
+  previous SNMP community.** The hardware left on 2026-11-06 and took the
+  community with it; the CRS326 answers no v2c and its default `public` is
+  disabled. It closes on `snmp-verify.sh` clean over GET **and** GETBULK
+  against the new switch, which has not been run yet, and the GETBULK and
+  plain-HTTP residuals in `SECURITY.md` and [`security.md`](security.md)
+  close with it, by date and proof.
+  → [runbook](runbooks/swap-the-switch.md#phase-3--the-documents-and-the-configuration)
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).

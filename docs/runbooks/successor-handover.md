@@ -205,9 +205,10 @@ inherits without knowing.
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
 | **The sensitive tier's certificates**, once `trinity` exists | Seven days after step-ca last answered Caddy — every leaf there is renewed automatically and lives a week, so the tier stays up for as long as its CA does ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)) | Nothing pages on it yet: the estate's expiry rules are sized for 825-day leaves and would fire permanently on seven-day ones, so the tier is deliberately outside them until [#426](https://github.com/Gerrrt/HomeLab/issues/426) lands. Until then a dead step-ca is found by a browser refusing the handshake, a week late |
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
+| **`neo`'s switch UI certificate** | 825 days from issue. TODO: the issue date is not recorded in this repository — read `invalid-after` with `/certificate/print detail` on the switch and write the date here | Nothing. The leaf is off the estate's CA, the switch cannot renew it, and no `switch-ui` probe watches it ([`swap-the-switch.md`](swap-the-switch.md) Phase 3), so it is found by a browser warning on `https://10.7.7.2/`. Reissue with `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2"` and import it as §1.4 of that runbook does |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
 | **Container images going stale** | Continuously, once nobody merges | Dependabot proposes bumps and CI validates them, and convergence deploys a merge within the hour. An unattended estate simply stops receiving updates — nothing alerts on it |
-| **The switch's previous SNMP community** | Already true, indefinitely | An accepted residual, not a pending fix: `neo`'s firmware will not persist a deletion from the community table. Recorded in [`SECURITY.md`](../../SECURITY.md), method in [`rotate-snmp-community.md`](rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row) |
+| **The switch's previous SNMP community** | Already true, indefinitely, for the MokerLink | An accepted residual: the MokerLink's firmware would not persist a deletion from the community table. That switch was retired on 2026-11-06 and the CRS326 that is now `neo` answers no v2c, but the residual is still recorded open in [`SECURITY.md`](../../SECURITY.md) until `snmp-verify.sh` runs clean against the new switch and [#84](https://github.com/Gerrrt/HomeLab/issues/84) closes. Do not re-home the MokerLink onto anything that matters |
 
 > [!CAUTION]
 > The three entries at the top of that table are all failures of *notification*,
@@ -243,8 +244,8 @@ community per polled device, and the four Alertmanager URLs. Details in
 **What it does not hold**, and what you will therefore have to obtain from the
 outgoing operator directly:
 
-- The pfSense, MokerLink, iLO and APC network-card **admin passwords**. None of
-  them are in this repository in any form.
+- The pfSense, switch (`neo`, the CRS326), iLO and APC network-card **admin
+  passwords**. None of them are in this repository in any form.
 - Jellyfin's and Navidrome's admins on `smaug`, and TrueNAS's own web-UI
   admin. None is in this repository in any form — `stacks/media` has no
   secrets file by decision, and [`security.md`](../security.md) § Secrets

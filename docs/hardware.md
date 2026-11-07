@@ -15,7 +15,7 @@ landfill.
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access | The PDU |
 | U7 | 10-outlet PDU[^PDU] | Power distribution | The UPS |
 | U8 | Jadol 24-port patch panel[^Panel] | Cabling | — |
-| U9 | MokerLink 26-port managed switch[^MokerLink] | Core switching (`neo`) | The PDU |
+| U9 | MokerLink 26-port managed switch[^MokerLink] — **retired 2026-11-06** | None. `neo` is the CRS326 at U21 of the 32U frame, below ([#444](https://github.com/Gerrrt/HomeLab/issues/444)) | Unplugged |
 
 The *Powered by* column was added on 2026-09-20 and read at the rack that day
 ([#574](https://github.com/Gerrrt/HomeLab/issues/574)): everything on the PDU
@@ -72,8 +72,9 @@ becomes the table above on the day the rack is moved.
 left the five extra units spare above the screen. Instead, the console now
 takes the top of the rack, `smaug` comes into it, and the spare units sit
 between machines as air rather than in one block. The CRS326 was racked at
-U21 on 2026-10-12, unpowered and uncabled. Its cabling is still the move
-window's job. The house's in-wall runs reach the patch panel at U19, checked
+U21 on 2026-10-12, unpowered and uncabled, and has been in service there as
+`neo` since 2026-11-06 ([#444](https://github.com/Gerrrt/HomeLab/issues/444)),
+ahead of the rest of the move. The house's in-wall runs reach the patch panel at U19, checked
 the same day. [`planned/rack-32u.svg`](diagrams/planned/rack-32u.svg) draws
 the table below.
 
@@ -113,7 +114,7 @@ CRS326 with them.
 | U24 | 1U sliding keyboard and mouse shelf[^Drawer] | Directly under the screen, about 112 cm up. Mounted 2026-10-15. Front-mounted only, 10.8" deep, and it wobbles with all six ear screws tight, as its reviewers found. A pair of adjustable four-post support rails under its rear is to buy, decided 2026-10-15 |
 | U23 | MT-VIKI 8-port KVM, on a 1U vented shelf | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, and the holes are not evenly spaced, so it sits about 8 mm off centre whichever pair is used. The shelf takes all three. Decided 2026-10-15 |
 | U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
-| U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
+| U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaced the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12, **in service since 2026-11-06** |
 | U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
 | U18 | 1U mount for a Lenovo ThinkCentre Tiny[^Tinymount]: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so its mount is one made for the Tiny, not `morpheus`'s tray design. Mounted 2026-10-15. Hinged and front-mounted, 6.6" deep, and it wobbles with all six ear screws tight, so it gets a pair of four-post support rails under its rear too, decided 2026-10-15 |
@@ -934,7 +935,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   finding purchases that can be relied on. `651687-001` is the listing's part
   number, not read off the tray.
 - MikroTik CRS326-24G-2S+RM[^CRS326] — 24 × 1 GbE, 2 × SFP+, 1U, dual-boot
-  RouterOS / SwOS — bought used 2026-09-13, **in hand since 2026-09-23**.
+  RouterOS / SwOS — bought used 2026-09-13, in hand since 2026-09-23, **in
+  service as `neo` since 2026-11-06**, at U21 of the 32U frame.
   The box held the switch and its rack ears and **no power adapter**. The rear
   panel has no AC inlet: the only power input is a barrel jack marked
   `DC 10–28V`, beside a ground screw, with a blank plate where other units
@@ -962,12 +964,10 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
   an SNMPv3 authPriv user; the procedure is
   [`swap-the-switch.md`](runbooks/swap-the-switch.md). It was racked in the
-  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. It enters the
-  Rack table and [`network.md`](network.md) at the cutover, not at the
-  racking — `neo` carries every VLAN, so the swap is a house-wide outage and
-  shares the window of the move into the 32U rack rather than getting its
-  own — and until then `neo` is the MokerLink in every document and every
-  target. **Checked on arrival, not assumed:** which
+  new 32U frame at U21 on 2026-10-12, unpowered and uncabled, and **cut over
+  on 2026-11-06** by that runbook's Phases 1 and 2; it is `neo` in
+  [`network.md`](network.md) from that date. **Checked on arrival, not
+  assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used
@@ -979,7 +979,42 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   configuration. It went to 6.49.22, then to 7.23.7, the long-term release
   that day, with the RouterBOOT firmware to match, and was then reset with
   no defaults. Its 24 copper ports cover every copper port in use on the
-  MokerLink, so no SFP+ copper module is needed.
+  MokerLink, so no SFP+ copper module is needed. **Read off the live switch
+  on 2026-11-06 and 2026-11-07:** RouterOS 7.24.6 long-term and RouterBOOT
+  firmware 7.24.6 — not the 7.23.7 recorded at the bench above —
+  switch chip `Marvell-98DX3236`, identity `neo`, clock in UTC. `admin` is
+  disabled and one named full-access user replaces it. `www` is disabled; `www-ssl` serves
+  on `443` with the certificate `neo.matrix.elysium` (SANs
+  `DNS:neo.matrix.elysium`, `IP:10.7.7.2`, off the estate's CA); `ssh`,
+  `winbox` and `www-ssl` are restricted to `10.7.7.0/24`, `10.0.99.0/24` and
+  `10.0.50.90/32`; `ftp`, `telnet`, `api`, `api-ssl` and `reverse-proxy` are
+  off. SNMP has one v3 user, `prometheus`, authPriv SHA1/AES, restricted to
+  `10.0.99.20/32`, and the default `public` community is disabled — RouterOS
+  cannot delete its default community, only disable it — so nothing answers
+  v2c; the location string is `Elysian rack U21`. The bridge has VLAN
+  filtering on and RSTP, and its CPU port admits only tagged frames.
+  Management is VLAN 7 inside the switch and untagged on `ether1` (PVID 7),
+  which also carries 10, 20, 30, 40, 50 and 99 tagged. Access ports, untagged
+  with matching PVID: `ether2`–`4` VLAN 99, `ether5`–`12` VLAN 50,
+  `ether13`–`17` VLAN 40 (`smaug` on `ether15`), `ether18`–`20` VLAN 30,
+  `ether21`–`22` VLAN 20, `ether23`–`24` VLAN 10; `ether5` and `ether11` have
+  nothing plugged in. Ports 3–24 have BPDU guard and `edge=yes`; `ether2`
+  does not. Port mirroring is not configured
+  ([ADR-0006](adr/0006-detect-at-the-chokepoint.md)). **Not done at the
+  cutover:** the SNMPv3 scrape is written but not deployed, so `neo`'s scrape
+  is down until its passphrases are in `secrets/observability.sops.yaml` and
+  `make render && make reload` has run on the monitoring host, and
+  `snmp-verify.sh` has not been run against it, so
+  [#84](https://github.com/Gerrrt/HomeLab/issues/84) and #444 stay open.
+- MokerLink 26-port managed switch[^MokerLink] — `neo` until 2026-11-06,
+  **retired** that day when the CRS326 replaced it
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). Its running
+  configuration and port map were exported before it was unplugged. It
+  leaves carrying an SNMP community that its firmware would not let be
+  deleted and that is known to have leaked
+  ([#84](https://github.com/Gerrrt/HomeLab/issues/84)), and an admin
+  password that crossed the wire in clear for its whole service. Wipe what
+  can be wiped, and do not re-home it onto anything that matters.
 - USB stick holding the pfSense installer — **written 2026-09-27 and used
   for #92's rehearsal; it belongs in the rack beside the KVM.** It holds the
   **Netgate Installer**, which downloads the release during the install:
