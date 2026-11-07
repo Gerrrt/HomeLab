@@ -126,7 +126,7 @@ the host.
 | `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 | `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
-| `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-07** | **nothing alerts** |
+| `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-06** | **nothing alerts** |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -136,7 +136,7 @@ weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
 **The last row is a date, not a job.** The switch's `www-ssl` leaf was issued
-from the estate CA on 2026-10-05 for 825 days, so it expires on 2029-01-07, and
+from the estate CA on 2026-10-05 and expires at 2029-01-06 23:51 UTC (read off the switch on 2026-11-06), and
 the switch cannot renew it
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 Nothing here watches it: there is no probe of the switch UI, by decision — the
