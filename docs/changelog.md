@@ -17,6 +17,49 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-06
+
+- **`neo` is the CRS326, and the documents and the SNMP config say so**
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
+  [#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MikroTik
+  CRS326-24G-2S+RM on RouterOS 7.23.7 replaced the MokerLink 26-port at U9
+  of the 9U rack, by Phases 1 and 2 of
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md), keeping the name `neo`,
+  the address `10.7.7.2` and the untagged switch LAN from `morpheus`'s
+  `igc0` to port 1. It ran in a window of its own rather than sharing the
+  move into the 32U rack, so the switch leaves U21 of the new frame until
+  that move. A health check of `smaug` afterwards found one thing: its NUT
+  client needed a restart. This entry is Phase 3.
+  - **Plain HTTP closed.** From a workstation, `https://10.7.7.2/` answered
+    with `CN=neo.matrix.elysium` under the estate CA, SANs
+    `neo.matrix.elysium` and `10.7.7.2`, valid 2026-10-04 to 2029-01-06, and
+    `http://10.7.7.2/` timed out. `docs/security.md` records the residual as
+    closed with that proof. The leaf is 825 days and the switch cannot renew
+    it, and no probe watches the UI, so its expiry is now a dated entry in
+    `schedule-maintenance.md` and a row in `successor-handover.md`.
+  - **The switch LAN's reason changed, not the LAN.** `network.md` said it
+    existed because the MokerLink's UI would not bind to a tagged interface.
+    It now says what ADR-0041 says: it is the way back in after a bad bridge
+    VLAN-filtering commit, a cable rather than a configuration.
+  - **SNMP.** The `mokerlink` module and `auth_mokerlink` became `routeros`
+    and `auth_neo`, an SNMPv3 authPriv block (SHA, AES, user `prometheus`),
+    named for the role so the next swap does not leave a misnomer.
+    `SNMP_COMMUNITY_MOKERLINK` left `render-config.sh`,
+    `verify-key-backup.sh` and `observability.example.yaml` for
+    `SNMP_AUTHPASS_NEO` and `SNMP_PRIVPASS_NEO`. No rule or panel named a
+    port by `ifIndex`; the one unit test that used the MokerLink's `port N`
+    shape for `ifDescr` now uses RouterOS's `etherN`. The module keeps the
+    MokerLink's GETBULK tuning until the evidence that decides
+    `snmp-walk.sh` is in.
+  - **`snmp-verify.sh`'s GETBULK check is a `FAIL` again.** It had been a
+    `WARN` since 2026-09-12 because the MokerLink could not be fixed; that
+    exception left with the device.
+  - **Still open on this date:** #84 closes on `snmp-verify.sh` clean over
+    GET and GETBULK against the CRS326 and `--old` against the MokerLink's
+    community, and `SECURITY.md` holds the GETBULK residual open until that
+    output is recorded. `snmp-walk.sh` stays until the CRS326 is shown not to
+    need it. The `#444` and `#84` entries left `roadmap.md`.
+
 ## 2026-10-28
 
 - **A ninth camera, the eighth's lease, and the Skids pool rows read with

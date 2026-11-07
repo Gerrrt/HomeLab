@@ -26,6 +26,13 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > `smaug` racked on its side at U5–U9, and three single-unit gaps between
 > hosts. Every unit number below is the new layout's. The CRS326 is already
 > racked at U21, unpowered and uncabled.
+>
+> **2026-11-06:** the switch swap ran on its own, before this move, not in
+> its window. The CRS326 left U21 for U9 of the 9U rack and has been `neo`
+> since that day, so every step below that captures, unplugs, benches or
+> rolls back to the MokerLink no longer applies: the switch that moves is
+> the CRS326, from U9 to U21, carrying the port map it already has. Those
+> steps are left as written until this runbook is revised for it.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,

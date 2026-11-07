@@ -41,8 +41,9 @@
 # authPriv only — snmp-targets.sh --check refuses the other two levels — and
 # the device is changed BEFORE this file is, per the runbook's order. Which
 # devices are v3 today is the version: line below, nothing else — the iLO
-# since 2026-09-20 and the UPS card since 2026-09-21; the firewall and the
-# switch stay on v2c for the reasons the ADR gives.
+# since 2026-09-20, the UPS card since 2026-09-21 and the switch since its
+# replacement on 2026-11-06 (ADR-0041); the firewall stays on v2c for the
+# reasons ADR-0036 gives.
 
 auths:
   # The card's profile was created on 2026-09-20 and this poll switched on
@@ -73,12 +74,22 @@ auths:
     priv_protocol: AES
     version: 3
 
-  auth_mokerlink:
-    community: ${SNMP_COMMUNITY_MOKERLINK}
-    security_level: noAuthNoPriv
-    auth_protocol: MD5
-    priv_protocol: DES
-    version: 2
+  # neo, the CRS326 on RouterOS, from 2026-11-06 (ADR-0041 decision 4). The
+  # user was made at the bench by swap-the-switch.md §1.5, with passphrases
+  # generated fresh rather than derived from anything the MokerLink held, and
+  # the agent answers 10.0.99.20 only. No v2c community is configured on the
+  # device at all. Named for the role, not the box: auth_mokerlink's key was a
+  # misnomer the day the hardware changed, and this one survives the next
+  # swap. The empty community is explained in the header.
+  auth_neo:
+    community: ""
+    username: prometheus
+    password: ${SNMP_AUTHPASS_NEO}
+    priv_password: ${SNMP_PRIVPASS_NEO}
+    security_level: authPriv
+    auth_protocol: SHA
+    priv_protocol: AES
+    version: 3
 
   auth_pfsense:
     community: ${SNMP_COMMUNITY_PFSENSE}
@@ -216,7 +227,7 @@ modules:
       # which caps a single TCP stream at ~20 Mbit/s on a 2 Gbit/s plan.
       # Every other interface read 0. WanReceiveErrors reads the em0 row.
       #
-      # Probed first with scripts/snmp-walk.sh, per the mokerlink note below:
+      # Probed first with scripts/snmp-walk.sh, as every new column is:
       #   ifDescr      12 rows, 3 requests, 0.55s
       #   ifInErrors   12 rows, 3 requests, 0.08s
       # ifOutErrors is the same column shape. Counter32, but at the rates
@@ -235,12 +246,12 @@ modules:
       # counterpart, and the docs drifted a full release without anything able
       # to notice. scripts/check-versions.sh reads it.
       #
-      # Probed 2026-09-04 with scripts/snmp-walk.sh before being added here, per
-      # the note in the mokerlink module below: 1 row, 1 request, 0.47s, and the
-      # four overshoot varbinds (sysObjectID, sysUpTime, sysContact, sysName)
-      # all decode — sysObjectID answers .1.3.6.1.4.1.12325.1.1.2.1.1, not the
-      # zero-length OBJECT IDENTIFIER that makes the switch's ifSpecific poison
-      # a whole GETBULK response.
+      # Probed 2026-09-04 with scripts/snmp-walk.sh before being added here:
+      # 1 row, 1 request, 0.47s, and the four overshoot varbinds (sysObjectID,
+      # sysUpTime, sysContact, sysName) all decode — sysObjectID answers
+      # .1.3.6.1.4.1.12325.1.1.2.1.1, not the zero-length OBJECT IDENTIFIER
+      # that the MokerLink switch then in neo's place served for ifSpecific,
+      # poisoning a whole GETBULK response.
       #
       # That probe is the worst case rather than what runs: sysDescr is a scalar
       # with one instance, so the generator resolves this walk into a GET of
@@ -292,138 +303,6 @@ modules:
             - 1.3.6.1.2.1.25.2.3.1.6
           values: ["^/"]
 
-  # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
-  #
-  # The tuning below is not cargo cult. This switch's management CPU has locked
-  # up under exporter polling before, taking its SNMP agent down while layer 2
-  # kept forwarding and the web UI kept answering — which presents as UDP/161
-  # timing out while ICMP and TCP/80 succeed. Recovery was a power cycle. What
-  # ran afterwards without wedging it used small GETBULK batches and a longer
-  # per-request timeout, so those values are pinned here rather than left to
-  # the exporter's defaults (max_repetitions 25, retries 3, timeout 5s).
-  #
-  # Worst case here is retries * timeout = 21s, comfortably inside the job's 45s
-  # scrape_timeout.
-  #
-  # Only the five columns anything actually consumes are walked. This switch was
-  # bricked once by a full walk and has wedged since, so scrape volume is a
-  # safety property here, not an efficiency one. Five columns x 26 ports is ~130
-  # varbinds, about a quarter of what walking the whole ifTable costs. Measured
-  # cost is 30 packets, 130 PDUs and ~1.4s per scrape.
-  #
-  # The octet counters come from ifXTable (1.3.6.1.2.1.31.1.1.1), not ifTable.
-  # ifTable's ifInOctets/ifOutOctets are 32-bit and wrap at 4.29 GB — ~34s at
-  # gigabit line rate — so at a 60s scrape any port above ~570 Mbit/s sustained
-  # silently under-reports, and nothing can detect it afterwards: rate() treats
-  # a decrease as a counter reset, never as a wrap. ifHCInOctets/ifHCOutOctets
-  # are Counter64 and do not wrap in practice. They replaced the 32-bit pair
-  # rather than joining it, so the walk stayed at five columns (#87). Probed
-  # 2026-09-01 with scripts/snmp-walk.sh at this module's request shape: 26 rows
-  # per column in 6 requests and ~0.5s, the low 32 bits matching ifInOctets on
-  # every busy port, and incrementing between walks.
-  #
-  # ifDescr is walked twice over: once as its own metric and once as the lookup
-  # below, which stamps an ifDescr label onto every metric indexed by ifIndex so
-  # dashboards and alert summaries can name a port. The lookup is resolved from
-  # the varbinds already fetched — it adds nothing to the walk.
-  #
-  # Column 22 of ifTable (ifSpecific) must never be fetched. This switch returns
-  # it with a zero-length value, seen on the wire as
-  #
-  #   .1.3.6.1.2.1.2.2.1.22.26=
-  #
-  # An OBJECT IDENTIFIER cannot be zero-length, so snmp-exporter rejects the
-  # entire GETBULK response with
-  #
-  #   error in unmarshalResponse: error parsing OID Value: invalid OID length
-  #
-  # and the scrape yields nothing — one malformed varbind loses every metric.
-  #
-  # Note this is why column 21 is absent too, and why listing columns 1-21 did
-  # NOT fix it: GETBULK returns the next N varbinds and does not stop at a
-  # subtree boundary, so walking .21 overshoots into .22 and the bad varbind
-  # comes back anyway. The last column walked must be far enough from .22 that
-  # max_repetitions cannot reach it. `overrides: ifSpecific: ignore` does not
-  # help either — that only drops the metric, the reply must still be decoded.
-  #
-  # With 26 rows at max_repetitions 5 each column's final request overshoots by
-  # four varbinds into the next column: ifTable .1 -> .2, .2 -> .3, .8 -> .9;
-  # ifXTable .6 -> .7, .10 -> .11. All of those decode. ifXTable has no
-  # OBJECT IDENTIFIER column at all (its last is .19, a TimeStamp), so the
-  # ifSpecific failure cannot recur inside it. The highest ifTable column
-  # walked is now .8, further from .22 than before.
-  #
-  # Adding a column is cheap; adding ifTable .21 or .22 is not. Any new ifTable
-  # column past .8 needs to be checked against the overshoot first — and any
-  # new column anywhere gets walked with scripts/snmp-walk.sh before it is
-  # added here, because the exporter's first contact with a bad varbind is a
-  # scrape that returns nothing.
-  #
-  # ifType (ifTable column 3) WAS WALKED AND DELIBERATELY NOT ADDED. #310
-  # proposed it to settle what kind of ports 25 and 26 are, and named its own
-  # failure condition: 26 identical values would answer nothing. That is what
-  # came back. Probed 2026-09-06 with scripts/snmp-walk.sh at this module's
-  # request shape — 26 rows in 6 requests, 0.39s, overshooting four varbinds
-  # into ifMtu (1526, decodes) — and every one of the 26 is
-  #
-  #   .1.3.6.1.2.1.2.2.1.3.N = 117
-  #
-  # IANAifType 117, gigabitEthernet, on all 26 ports including the two uplinks.
-  # The switch does not distinguish its SFP cages here, so the column costs 26
-  # varbinds a scrape and carries no information — and on this device scrape
-  # volume is a safety property, per the paragraph above. Recorded rather than
-  # added so nobody walks it a third time. The question it was meant to answer
-  # is answered by looking at the rack.
-  mokerlink:
-    walk:
-      - 1.3.6.1.2.1.2.2.1.1     # ifIndex
-      - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
-      - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
-      - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
-      - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
-      # The switch was the only SNMP target reporting no sysDescr at all, which
-      # is why this is here — not because of what it says. What it says,
-      # measured 2026-09-06, is the whole of it:
-      #
-      #   .1.3.6.1.2.1.1.1.0 = "53 77 69 74 63 68 00"   -> "Switch\0"
-      #
-      # The literal word "Switch" and a trailing NUL. No model, no firmware, no
-      # hardware revision, and so nothing that names the port composition.
-      # Anyone arriving here hoping this fills the gap in docs/hardware.md
-      # should stop at this comment rather than at the metric.
-      #
-      # It is still worth the line: it is a scalar with one instance, so the
-      # generator resolves this into a GET of 1.3.6.1.2.1.1.1.0 and no GETBULK
-      # is issued at scrape time — the same argument the pfsense module above
-      # makes — and it lights up on its own if a firmware bump ever starts
-      # populating it. Probed at the module's request shape first, because the
-      # overshoot is what bites on this device: 1 row, 1 overshoot varbind, 2
-      # requests, 0.53s, and the overshoot is sysObjectID answering
-      # .1.3.6.1.4.1.27282 rather than the zero-length OBJECT IDENTIFIER that
-      # makes this switch's ifSpecific poison a whole response.
-      #
-      # Then measured end to end, because a walk probe is not a scrape: the
-      # pinned exporter image was run with this regenerated snmp.yaml against
-      # the live switch, beside a control container running the committed one.
-      # Three rounds each, interleaved, identical every time —
-      #
-      #   with sysDescr     31 packets   131 PDUs   1.46s   136 series
-      #   without           30 packets   130 PDUs   1.45s   135 series
-      #
-      # One extra packet, which is the GET, and one extra series. That is the
-      # whole cost on a device where scrape volume is a safety property.
-      #
-      # scripts/check_versions.py reads sysDescr and is unaffected: it selects
-      # the pfSense claim by device name, and its OS-table regex wants a
-      # FreeBSD version, which "Switch" is not.
-      - 1.3.6.1.2.1.1.1         # sysDescr      ("Switch", and nothing more)
-    lookups:
-      - source_indexes: [ifIndex]
-        lookup: ifDescr
-    max_repetitions: 5
-    retries: 2
-    timeout: 7s
-
   # HPE ProLiant DL360 Gen9 iLO (shiva, 10.0.30.10) — SNMPv2-MIB system group
   # plus the Compaq/HP Insight enterprise tree for hardware health.
   # The CPQ subtrees are listed individually rather than as the enterprise root
@@ -442,3 +321,50 @@ modules:
       - 1.3.6.1.4.1.232.8    # cpqNic
       - 1.3.6.1.4.1.232.9    # cpqIde
       - 1.3.6.1.4.1.232.11   # cpqHost
+
+  # MikroTik CRS326-24G-2S+RM on RouterOS (neo, 10.7.7.2), from 2026-11-06 —
+  # IF-MIB, five columns, and sysDescr.
+  #
+  # It replaced the MokerLink this module used to be (ADR-0041), and what
+  # carried across is the column list only: the five that anything consumes
+  # (SwitchInterfaceDown reads ifOperStatus, the dashboard the octets, both
+  # label by ifDescr) are standard IF-MIB and name no port. Nothing below names
+  # an ifIndex. That is deliberate: this is a 24 + 2 device replacing a 26-port
+  # one, and RouterOS numbers ifIndex by interface, bridge and VLAN interfaces
+  # included, not by front-panel port. A rule or panel that needs one port
+  # selects it by ifDescr, read off the live table, never by an index copied
+  # from the old switch.
+  #
+  # The octet counters are ifXTable's 64-bit pair, not ifTable's 32-bit one,
+  # which wraps at gigabit in ~34s and which rate() cannot tell from a reset
+  # (#87). That is a property of the counters, not of the switch.
+  #
+  # THE TUNING IS CARRIED, AND IS THE ONE THING THAT IS. max_repetitions 5,
+  # retries 2 and timeout 7s were pinned because the MokerLink's management CPU
+  # wedged under the exporter's defaults; nobody has shown that the CRS326
+  # does. They stay until the same evidence that decides scripts/snmp-walk.sh
+  # (swap-the-switch.md Phase 3) is in, because relaxing them on an assumption
+  # is the half of that decision that fails silently. Worst case is retries x
+  # timeout = 21s inside the job's 45s scrape_timeout, and SNMPv3 adds one
+  # discovery round trip per scrape (ADR-0036).
+  #
+  # The MokerLink's own constraints — ifSpecific (ifTable .22) answered as a
+  # zero-length OID that poisoned whole GETBULK responses, and sysDescr reading
+  # "Switch" and nothing else — went with the hardware. They are in this
+  # file's history and in docs/changelog.md, not repeated here.
+  routeros:
+    walk:
+      - 1.3.6.1.2.1.2.2.1.1     # ifIndex
+      - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
+      - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
+      - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
+      - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
+      # A scalar, so the generator resolves it into a GET of
+      # 1.3.6.1.2.1.1.1.0 and no GETBULK is issued for it at scrape time.
+      - 1.3.6.1.2.1.1.1         # sysDescr
+    lookups:
+      - source_indexes: [ifIndex]
+        lookup: ifDescr
+    max_repetitions: 5
+    retries: 2
+    timeout: 7s

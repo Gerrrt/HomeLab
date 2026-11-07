@@ -111,23 +111,37 @@ truth for what a box actually does.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| neo | `10.7.7.2` | `1c:2a:a3:xx:xx:xx` | MokerLink 26-port managed | — | Rack U9 | Switch |
+| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U9 | Switch |
 
 ### Notes
 
 - Cat6 from the ProDesk's add-on NIC[^adapter] to port 1 of the switch (trunk).
-- This interface exists solely to reach the switch's[^MokerLink] management UI,
-  which will not bind to a tagged interface.
+- **This interface is the way back into the switch, and it is deliberate.**
+  It is an untagged point-to-point cable from `igc0` to port 1, and no bridge
+  VLAN-filtering commit on the switch[^CRS326] can take it away. On RouterOS
+  the config that decides which ports carry which tags is the config a tagged
+  management path would ride on, so one wrong `frame-types` or a forgotten
+  tagged member locks the door from the inside — on the device that carries
+  every VLAN in the house. The interface was first built because the
+  MokerLink that was `neo` until 2026-11-06 would not bind its UI to a tagged
+  interface. That reason left with the MokerLink; this one replaced it
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
+  Do not move management onto a tagged VLAN and retire this LAN as tidying.
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
   name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).
   The address stays written down beside it on purpose: the name depends on
   Unbound on `morpheus`, and this is the device you open when `morpheus` is the
   suspect.
-- **The UI is plain HTTP and cannot be anything else.** No TLS listener, no
-  certificate import — checked against the live switch on 2026-09-04, and the
-  third firmware limit on this device after #84 and #85. Admin credentials cross
-  the wire in clear, over a path that runs through `neo` itself. ADR-0018 has the
-  reasoning and the rejected alternatives.
+- **The UI is HTTPS only, since 2026-11-06.** RouterOS's `www-ssl` serves a
+  leaf from the estate's CA carrying both `neo.matrix.elysium` and `10.7.7.2`,
+  and plain `www` is off
+  ([ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md),
+  which supersedes ADR-0018's plain-HTTP clause). The leaf is an 825-day
+  certificate the switch cannot renew: it expires **2029-01-06**, read off the
+  live listener on 2026-11-06, and
+  [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) carries the
+  date. Until 2026-11-06 the UI was the MokerLink's plain HTTP, and the admin
+  credential crossed the wire in clear through `neo` itself.
 - DHCP disabled.
 
 > [!CAUTION]
@@ -135,7 +149,7 @@ truth for what a box actually does.
 > tagged interface and takes the whole house offline.
 
 [^adapter]: [Intel I226 2.5 GbE card on an M.2 B+M-key adapter](https://a.co/d/dJ4BD2N) — in the G4's second M.2 slot, `igc0` to FreeBSD. It was labelled "USB NIC adapter" here until 2026-09-09, and the restore runbook and the shopping list had inherited the label.
-[^MokerLink]: [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV)
+[^CRS326]: [MikroTik CRS326-24G-2S+RM](https://www.ebay.com/itm/257688846446), bought used; it replaced a [MokerLink 26-port managed switch](https://a.co/d/gaJvCKV) on 2026-11-06
 
 ---
 
@@ -316,8 +330,13 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   can never match traffic that enters on Hicks — and is TCP-only, so the
   catch-all below still carries UDP and ICMP to the lab. Widen it before any
   block for private ranges lands above the catch-all.
-- The switch LAN is blocked apart from `10.7.7.2:80`, the switch's own web UI;
-  the block below that pass is logged.
+- The switch LAN is blocked apart from `10.7.7.2:443`, the switch's own web UI
+  over HTTPS; the block below that pass is logged. The pass named `80` until
+  2026-11-06, when the swap to the CRS326 widened it to `443`, proved the new
+  UI, and then deleted the `80` original
+  ([`swap-the-switch.md`](runbooks/swap-the-switch.md) Phase 2). From a
+  workstation that day, `http://10.7.7.2/` timed out and `https://10.7.7.2/`
+  answered.
 
 [^Desktop1]: [Build 1](https://pcpartpicker.com/b/KXv323)
 [^Desktop2]: [Build 2](https://pcpartpicker.com/list/XgZpfd)

@@ -15,7 +15,7 @@ landfill.
 | U6 | MT-VIKI 8-port KVM[^KVM] | Console access | The PDU |
 | U7 | 10-outlet PDU[^PDU] | Power distribution | The UPS |
 | U8 | Jadol 24-port patch panel[^Panel] | Cabling | — |
-| U9 | MokerLink 26-port managed switch[^MokerLink] | Core switching (`neo`) | The PDU |
+| U9 | MikroTik CRS326-24G-2S+RM[^CRS326] | Core switching (`neo`), since 2026-11-06 | The PDU, through its 24 V adapter |
 
 The *Powered by* column was added on 2026-09-20 and read at the rack that day
 ([#574](https://github.com/Gerrrt/HomeLab/issues/574)): everything on the PDU
@@ -113,7 +113,7 @@ CRS326 with them.
 | U24 | 1U sliding keyboard and mouse shelf[^Drawer] | Directly under the screen, about 112 cm up. Mounted 2026-10-15. Front-mounted only, 10.8" deep, and it wobbles with all six ear screws tight, as its reviewers found. A pair of adjustable four-post support rails under its rear is to buy, decided 2026-10-15 |
 | U23 | MT-VIKI 8-port KVM, on a 1U vented shelf | Beside the console, so its console cables are short. It was at U6. Its lead sets reach the DL360 20 units down, checked 2026-10-12. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, and the holes are not evenly spaced, so it sits about 8 mm off centre whichever pair is used. The shelf takes all three. Decided 2026-10-15 |
 | U22 | Vented blank, or left open | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
-| U21 | MikroTik CRS326-24G-2S+RM (`neo`) | Replaces the MokerLink (#444). SFP+ 1–2 are the 2.5G path, if built. Racked 2026-10-12 |
+| U21 | MikroTik CRS326-24G-2S+RM (`neo`) | The core switch. SFP+ 1–2 are the 2.5G path, if built. Racked here 2026-10-12, then taken to the 9U frame's U9 for the swap on 2026-11-06; it comes back at the move |
 | U20 | 1U horizontal cable manager | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel | Next to the switch, so its patch cords stay short |
 | U18 | 1U mount for a Lenovo ThinkCentre Tiny[^Tinymount]: `ifrit` | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. A Tiny is not a ProDesk Mini, so its mount is one made for the Tiny, not `morpheus`'s tray design. Mounted 2026-10-15. Hinged and front-mounted, 6.6" deep, and it wobbles with all six ear screws tight, so it gets a pair of four-post support rails under its rear too, decided 2026-10-15 |
@@ -962,12 +962,13 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `www-ssl` from a leaf off the estate's CA with plain `www` off, and gives it
   an SNMPv3 authPriv user; the procedure is
   [`swap-the-switch.md`](runbooks/swap-the-switch.md). It was racked in the
-  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. It enters the
-  Rack table and [`network.md`](network.md) at the cutover, not at the
-  racking — `neo` carries every VLAN, so the swap is a house-wide outage and
-  shares the window of the move into the 32U rack rather than getting its
-  own — and until then `neo` is the MokerLink in every document and every
-  target. **Checked on arrival, not assumed:** which
+  new 32U frame at U21 on 2026-10-12, unpowered and uncabled. **In service
+  as `neo` since 2026-11-06**, at U9 of the 9U rack in the MokerLink's place,
+  by [`swap-the-switch.md`](runbooks/swap-the-switch.md); the swap ran in a
+  window of its own rather than sharing the move into the 32U rack. It is in
+  the Rack table and [`network.md`](network.md) from that day, and the
+  MokerLink[^MokerLink] it replaced is out of the estate. **Checked on
+  arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used

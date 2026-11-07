@@ -390,11 +390,18 @@
 # SNMP as the single remaining exception. Tracked separately rather than edited
 # here.
 #
-# If it is ever wanted back, it needs the firewall rule again first:
+# Since 2026-11-06 the switch is a CRS326 on RouterOS (ADR-0041): the UI is
+# HTTPS only, plain www is off, and the leaf is from certificates/ca.pem. So a
+# probe brought back would be https with a ca_file, never port 80, and it
+# needs the firewall rule first:
 #
-#   pass tcp from 10.0.99.20 to 10.7.7.2 port 80   (igc0.99, above the block)
+#   pass tcp from 10.0.99.20 to 10.7.7.2 port 443  (igc0.99, above the block)
 #
-# and the same verify-before-enabling step the two probes below use.
+# which is a segmentation decision, left out on 2026-09-23 because the SNMP
+# scrape already watches the switch (swap-the-switch.md Phase 3). The cost is
+# that the leaf's expiry, 2029-01-06, pages nobody; schedule-maintenance.md
+# and successor-handover.md carry the date instead. Then the same
+# verify-before-enabling step the two probes below use.
 
 # The APC card is https only — port 80 is closed — with a certificate it made
 # for itself (subject `CN=.`, expires 2035-12-16). `/` is a 303 to /home.htm,

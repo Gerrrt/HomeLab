@@ -310,9 +310,12 @@ PFSENSE_VERSION = re.compile(r"\b(\d+\.\d+\.\d+-\S+)")
 # switch was out because the mokerlink module walks IF-MIB columns only and so
 # answers no sysDescr. It answers one now — #310 added it — and the answer is
 # the literal string "Switch" with a trailing NUL: no model, no firmware, no
-# version. Its OS cell in network.md is "—" for the same reason. So the switch
-# still has nothing to compare, and a row here would only produce a permanent
-# SKIP line that says so every week.
+# version. Its OS cell in network.md was "—" for the same reason. That was the
+# MokerLink. Since 2026-11-06 `neo` is a CRS326 on RouterOS (ADR-0041), polled
+# by the routeros module, and its sysDescr has not yet been read through the
+# exporter. RouterOS keeps its version in MIKROTIK-MIB rather than in
+# sysDescr, so a row here waits on reading what the new switch actually
+# answers, not on assuming it.
 OUT_OF_BAND = (
     {
         "device": "shiva",

@@ -184,7 +184,7 @@ to *no route*, and a name on the break-glass card is the one thing
 [ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
 says these must never be. Add `trinity` first, for the reverse entry.
 
-Reaching the MokerLink management interface by name
+Reaching the switch's management interface by name
 ([#97](https://github.com/Gerrrt/HomeLab/issues/97)) is this procedure and
 nothing more — `neo` is in the table above. This paragraph used to say the
 override was "not solved by an override alone" because `10.7.7.2` "sits outside

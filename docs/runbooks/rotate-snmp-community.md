@@ -1,6 +1,15 @@
 # Runbook: Rotate the SNMP communities
 
-**Target:** four SNMP devices — pfSense, the APC NMC, the MokerLink switch, HPE iLO
+**Target:** four SNMP devices — pfSense, the APC NMC, the switch (`neo`), HPE iLO
+
+> **2026-11-06:** `neo` is no longer the MokerLink. It is a CRS326 on
+> RouterOS, polled over SNMPv3 authPriv with no v2c community at all
+> ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)),
+> so of the four devices only pfSense still has a community to rotate, and
+> the three v3 devices take §4's passphrases instead. Every MokerLink step
+> below — the reboot window, *The MokerLink switch: overwrite the row*, the
+> GETBULK caveats — describes hardware that has left the rack and is kept as
+> the record of how that device was handled.
 **Time:** ~45 minutes, one device at a time; §4, the move of one device to
 SNMPv3, is a separate pass of about 20 minutes
 **You will need:** the age key, physical access to the ProLiant for the iLO step,
@@ -620,7 +629,7 @@ care how many times you write it.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | All four `FAIL` | Not the devices — you are not on `10.0.99.0/24`, or sops decrypted a stale file | `ping 10.0.99.1`; re-run `make render` |
-| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` and `nc -vz 10.7.7.2 80` from the monitoring host. If both succeed while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch. The rule as it should be is in [ADR-0013](../adr/0013-segment-access-as-implemented.md) |
+| Only `neo` (`10.7.7.2`) fails | `10.7.7.0/24` is a separate segment reached through pfSense; the rule permitting `10.0.99.20 → 10.7.7.2` either does not exist, was reset, or does not cover UDP/161 | `ping 10.7.7.2` from the monitoring host. If it succeeds while SNMP times out, the return path is fine and the fault is protocol-specific — check the *protocol and port* on the pfSense rule (**Firewall → Rules**) before you touch the switch. The rule as it should be is in [ADR-0013](../adr/0013-segment-access-as-implemented.md) |
 | A device `FAIL`s and you cannot tell whether you broke it | An SNMPv2c timeout looks identical for a wrong community, a filtered path, and a device that never worked | Ask Prometheus before rolling anything back: `max_over_time(up{job="snmp",instance="<ip>"}[30d])`. `1` means it worked before you started, so the rotation is the suspect. `0` means it never worked, the rotation is not the cause, and rolling back will not help |
 | One device fails right after you changed it | The UI truncated the community, or you removed the wrong entry | Re-enter it; check the field's max length (the APC NMC truncates at 15 on several firmwares; the card in this lab does not — it is verified at 16) |
 | `--old` reports `STILL ACCEPTED` | The device added the new community alongside the old one | Delete the old entry explicitly — some UIs need the row deleted, not blanked. **Not `neo`** — see the next row |

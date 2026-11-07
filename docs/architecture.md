@@ -13,7 +13,7 @@ graph TB
     INET([Internet])
     GW[ISP Gateway<br/>bridge mode]
     FW{{"morpheus<br/>pfSense · FreeBSD 16<br/>HP ProDesk 600 G4"}}
-    SW[neo · MokerLink 26-port<br/>802.1Q trunk]
+    SW[neo · MikroTik CRS326<br/>802.1Q trunk]
 
     INET --- GW --- FW --- SW
 

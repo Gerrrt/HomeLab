@@ -207,7 +207,7 @@ inherits without knowing.
 | **The UPS battery pack** | A pack was fitted 2026-08-28 and passed its self-test; packs are consumables and this one is on a biweekly test schedule | `UpsSelfTestFailed` and `UpsBatteryUnproven` key on the self-test result, which is the single honest signal this card emits — every charge, runtime and alarm value it reports was fabricated while the bay was empty. Two things remain open: the card's test *schedule* is unwatched ([#249](https://github.com/Gerrrt/HomeLab/issues/249)), and `upsBasicBatteryLastReplaceDate` still reads a pre-fit date, so it is not a usable record of the pack's age |
 | **Mains power to the monitoring path** | Any cut | The rack is on the UPS; the switch carrying `prometheus` and `oracle` is not, so both laptops keep running and go deaf. Stated in [`security.md`](../security.md#threat-model) |
 | **Container images going stale** | Continuously, once nobody merges | Dependabot proposes bumps and CI validates them, and convergence deploys a merge within the hour. An unattended estate simply stops receiving updates — nothing alerts on it |
-| **The switch's previous SNMP community** | Already true, indefinitely | An accepted residual, not a pending fix: `neo`'s firmware will not persist a deletion from the community table. Recorded in [`SECURITY.md`](../../SECURITY.md), method in [`rotate-snmp-community.md`](rotate-snmp-community.md#the-mokerlink-switch-overwrite-the-row) |
+| **The switch's leaf certificate** | **2029-01-06**, 825 days from its issue on 2026-10-04; the switch cannot renew it | Nothing pages. No probe watches the switch UI — bringing one back needs a firewall pass that was decided against on 2026-09-23 ([`swap-the-switch.md`](swap-the-switch.md) Phase 3) — so the first sign is a browser warning on `https://10.7.7.2/`, and an operator who learns to click through it has given the credential back to the wire. Re-issue with `make certs` and re-import before then; the date is in [`schedule-maintenance.md`](schedule-maintenance.md#dated-obligations-no-timer-watches) |
 
 > [!CAUTION]
 > The three entries at the top of that table are all failures of *notification*,
@@ -243,7 +243,7 @@ community per polled device, and the four Alertmanager URLs. Details in
 **What it does not hold**, and what you will therefore have to obtain from the
 outgoing operator directly:
 
-- The pfSense, MokerLink, iLO and APC network-card **admin passwords**. None of
+- The pfSense, switch (`neo`, RouterOS), iLO and APC network-card **admin passwords**. None of
   them are in this repository in any form.
 - Jellyfin's and Navidrome's admins on `smaug`, and TrueNAS's own web-UI
   admin. None is in this repository in any form — `stacks/media` has no
@@ -289,8 +289,8 @@ Say so out loud before anything else. This is
 [#106](https://github.com/Gerrrt/HomeLab/issues/106). Without the key every
 encrypted value in this repository and its history is permanently undecryptable,
 and the recovery path is re-deriving each credential from the device it belongs
-to: four SNMP rotations on hardware, one of which cannot persist a community
-deletion and needs the switch rebooted to change.
+to: four SNMP credential changes on hardware, one of them on the switch every
+VLAN crosses.
 
 Check first whether it is actually gone. The secrets may be encrypted to more
 than one recipient — [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)

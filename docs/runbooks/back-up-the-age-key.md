@@ -18,14 +18,14 @@ repository, can recover the private half.
 
 What is lost with that disk is not really the secrets — a password can be reset
 and a community string can be changed. What is lost is every device visit needed
-to do it: the Grafana admin password, the Alertmanager webhook, and four SNMP
-communities re-entered by hand on pfSense, the APC NMC, HPE iLO and the
-MokerLink switch. The switch is the one that hurts. Its firmware will not
-persist a deletion from the community table and drops its SNMP agent on each
-attempt, which is why [`SECURITY.md`](../../SECURITY.md) still records an
-accepted residual there from the last rotation. Doing that a second time,
-unplanned, because a 2012 MacBook Pro's disk failed, is the scenario this
-avoids.
+to do it: the Grafana admin password, the Alertmanager webhook, and the SNMP
+credentials re-entered by hand on pfSense, the APC NMC, HPE iLO and the
+switch — a community on the firewall, a pair of SNMPv3 passphrases on each of
+the others. Every one of them is a device visit, and the switch's is a visit
+to the device every VLAN crosses. Doing that unplanned, because a 2012
+MacBook Pro's disk failed, is the scenario this avoids. (Until 2026-11-06
+the switch was a MokerLink whose firmware would not persist a deletion from
+its community table; that hurt more, and it left with the hardware.)
 
 Background on the scheme itself is in
 [`secrets/README.md`](../../secrets/README.md).

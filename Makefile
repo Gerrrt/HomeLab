@@ -668,8 +668,10 @@ qga-resync: ## Resync a guest agent that stopped answering, on Saruman as root (
 snmp-walk: ## Walk one OID subtree on one SNMP device, exporter-shaped (ARGS="--device neo <oid>")
 	@# Maintenance for the same reason as snmp-verify: needs the age key and
 	@# sends packets to a production device. It exists so a new column is read
-	@# off the switch before it goes into generator.yaml — see the mokerlink
-	@# module's comment for why that order matters on this hardware.
+	@# off the switch before it goes into generator.yaml. It was built for the
+	@# MokerLink, which wedged under polling; whether the CRS326 that replaced
+	@# it on 2026-11-06 still needs it is an open question in
+	@# swap-the-switch.md Phase 3, settled on evidence.
 	./scripts/snmp-walk.sh $(ARGS)
 
 .PHONY: secrets-verify-backup

@@ -134,6 +134,16 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
+### Dated obligations no timer watches
+
+Some things in the estate fail on a date rather than on a missed run, and
+nothing above can see them coming. They are written down here, with the date,
+because this is where the estate's obligations live.
+
+| What | Date | What to do before then |
+| --- | --- | --- |
+| `neo`'s web-UI leaf, `neo.matrix.elysium` and `10.7.7.2`, from the estate CA | Expires **2029-01-06** (issued 2026-10-04, 825 days; read off the live listener on 2026-11-06) | Re-issue it from the main checkout with `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2"`, import it on the switch and re-bind `www-ssl`, as [`swap-the-switch.md`](swap-the-switch.md) §1.4. Nothing alerts on it: no probe watches the switch UI, by the decision recorded in that runbook's Phase 3 |
+
 `dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
 and worth reading as a different kind of job. Every other row here proves that
 something *happened* — an archive was written, a device answered. These three

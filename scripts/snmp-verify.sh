@@ -278,22 +278,21 @@ done <<< "${INVENTORY}"
 # one short, one 24 characters like the ones gen-secret makes — are sent over
 # GETBULK and over GET, to every device that just answered its current
 # community. A refusal of all four is what makes the PASS above mean "the
-# community was checked". An answer to GETBULK is what `neo` does (#84,
-# measured 2026-09-12): its agent serves a full walk of every table over that
-# PDU to ANY community of sixteen characters or fewer, and checks longer ones.
-# Both lengths are tried because a single long junk string passes on that
-# switch, and a single short one would miss a device with the opposite
-# defect. An answer to GET would mean the device checks nothing at all, and
-# every other verdict for it is void.
+# community was checked". An answer to GETBULK was what `neo` did while it was
+# the MokerLink (#84, measured 2026-09-12): its agent served a full walk of
+# every table over that PDU to ANY community of sixteen characters or fewer,
+# and checked longer ones. Both lengths are tried because a single long junk
+# string passed on that switch, and a single short one would miss a device
+# with the opposite defect. An answer to GET would mean the device checks
+# nothing at all, and every other verdict for it is void.
 #
-# GETBULK answering is WARN in both modes. It is a firmware limit that no row
-# in the community table changes — the overwrite in rotate-snmp-community.md
-# §2.5 cannot touch it — so a FAIL under --old would block proving a
-# retirement that did happen, and a FAIL in plain mode would keep the weekly
-# job's alert lit for as long as the switch is this switch. It is recorded in
-# SECURITY.md instead, and the line here is what keeps that record honest.
-# GET answering is FAIL in both modes: nothing else in this run can be
-# believed for that device.
+# GETBULK answering is FAIL in both modes, and so is GET. From 2026-09-12 to
+# 2026-11-06 GETBULK was a WARN: it was a firmware limit no row in the
+# community table could change, so a FAIL would have kept the weekly job's
+# alert lit for as long as the switch was that switch, and SECURITY.md carried
+# it as an accepted residual instead. The device it excused left the rack on
+# 2026-11-06 (ADR-0041), and the exception left with it rather than standing
+# ready to excuse the next device that answers an unauthenticated walk.
 #
 # The devices that answer GETBULK to a junk string are also the devices the
 # exporter's scrape proves nothing about, because the exporter walks with
@@ -301,7 +300,7 @@ done <<< "${INVENTORY}"
 # ---------------------------------------------------------------------------
 head_ "Unauthenticated PDUs (junk community must be refused)"
 
-# Short: under the sixteen-character line `neo` draws. Long: the shape of a
+# Short: under the sixteen-character line the MokerLink drew. Long: the shape of a
 # real one, so a device that only checks long strings is not mistaken for one
 # that checks all of them. Neither is a secret; both are deliberately not
 # words a scanner's list would contain, because `public` and `private` have
@@ -340,7 +339,7 @@ while IFS=$'\t' read -r ip auth device version keys; do
     fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "ANY COMMUNITY ACCEPTED over GET (${get_answered% }) — the device is not checking communities; nothing else in this run proves anything about it")"
     UNAUTHENTICATED_DEVICES+="${device}"$'\n'
   elif [[ -n "${bulk_answered}" ]]; then
-    warn "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET; a firmware limit recorded in SECURITY.md (#84)")"
+    fail "$(printf '%-10s %-12s %s' "${device}" "${ip}" "GETBULK UNAUTHENTICATED (${bulk_answered% } junk answered) — refused over GET, but any community walks every table; the exporter's scrape proves nothing for this device")"
   else
     pass "$(printf '%-10s %-12s %s' "${device}" "${ip}" "refuses a junk community over GET and GETBULK, short and long")"
   fi
