@@ -32,8 +32,9 @@ docstring gives: it is a record, not a claim about now.
   air. The KVM and PDU maps were cabled as decided on 2026-10-15. The 9U
   frame's Rack table in `hardware.md` gave way to the 32U table, which absorbed
   the *Planned: a 32U rack* section, so three links in older entries here
-  were repointed to `#rack` and to the drawing's new path, a dead-link repair
-  and not a rewrite of what they say; `network.md`'s Location column
+  that named that section and the `planned/` drawing now go to those files as
+  they stood before the move, pinned to commit `32f3678`: the targets they
+  meant, kept alive rather than redirected to the rack as built; `network.md`'s Location column
   moved with the hosts, `smaug` from the media room to U5–U9 and `trinity`,
   `prometheus` and `oracle` off the shelf; the diagram's rack panel is the 32U
   layout; and `diagrams/planned/rack-32u.svg` moved to `current/` as built.
@@ -624,7 +625,7 @@ docstring gives: it is a record, not a claim about now.
   fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
   Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
   cabling crossbar the drawer's slider rears can tie to. Both parts are now
-  footnoted in [`hardware.md`](hardware.md#rack).
+  footnoted in [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack).
 
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
@@ -718,8 +719,8 @@ docstring gives: it is a record, not a claim about now.
     drop one unit. The adjustment range of every four-post rail and shelf
     against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
     sets reach the DL360 20 units below. The plan is in
-    [`hardware.md`](hardware.md#rack) and drawn in
-    [`diagrams/planned/rack-32u.svg`](diagrams/current/rack-32u.svg).
+    [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/diagrams/planned/rack-32u.svg).
 
 ## 2026-10-11
 

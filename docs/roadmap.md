@@ -294,9 +294,7 @@ Gated on the domain, on a household observation, or on something to publish.
   the range.** Gated on #414 and the SOC: an attack VM pointed at an
   uninstrumented estate teaches nothing. Both are met. What gates the build
   now is its RAM kit and SATA SSD, in
-  [*Everything still to buy*](#everything-still-to-buy). Its place in the
-  rack is settled: it was racked at U18, off, in the #919 move on
-  2026-11-06.
+  [*Everything still to buy*](#everything-still-to-buy).
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
