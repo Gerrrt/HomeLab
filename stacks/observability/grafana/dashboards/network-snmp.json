@@ -1300,7 +1300,7 @@
     },
     {
       "type": "row",
-      "title": "Switch (MokerLink, IF-MIB)",
+      "title": "Switch (neo, CRS326, IF-MIB)",
       "collapsed": false,
       "gridPos": {
         "h": 1,

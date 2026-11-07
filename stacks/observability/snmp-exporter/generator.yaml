@@ -226,7 +226,7 @@ modules:
       # which caps a single TCP stream at ~20 Mbit/s on a 2 Gbit/s plan.
       # Every other interface read 0. WanReceiveErrors reads the em0 row.
       #
-      # Probed first with scripts/snmp-walk.sh, per the mokerlink note below:
+      # Probed first with scripts/snmp-walk.sh, per the neo module's note below:
       #   ifDescr      12 rows, 3 requests, 0.55s
       #   ifInErrors   12 rows, 3 requests, 0.08s
       # ifOutErrors is the same column shape. Counter32, but at the rates
@@ -246,7 +246,7 @@ modules:
       # to notice. scripts/check-versions.sh reads it.
       #
       # Probed 2026-09-04 with scripts/snmp-walk.sh before being added here, per
-      # the note in the mokerlink module below: 1 row, 1 request, 0.47s, and the
+      # the note in the neo module below: 1 row, 1 request, 0.47s, and the
       # four overshoot varbinds (sysObjectID, sysUpTime, sysContact, sysName)
       # all decode — sysObjectID answers .1.3.6.1.4.1.12325.1.1.2.1.1, not the
       # zero-length OBJECT IDENTIFIER that makes the switch's ifSpecific poison
@@ -302,9 +302,14 @@ modules:
             - 1.3.6.1.2.1.25.2.3.1.6
           values: ["^/"]
 
-  # MokerLink 26-port managed switch (neo, 10.7.7.2) — IF-MIB, five columns.
+  # The core switch (neo, 10.7.7.2) — IF-MIB, five columns. The module was
+  # `mokerlink` until the CRS326 replaced the MokerLink (#444). Everything below
+  # was measured on the MokerLink and is kept, unchanged, on the CRS326: small
+  # batches and five columns cost a 24 + 2 port switch nothing, and they are
+  # loosened only on evidence that the CRS326 takes default polling, the same
+  # rule that keeps scripts/snmp-walk.sh (swap-the-switch.md Phase 3).
   #
-  # The tuning below is not cargo cult. This switch's management CPU has locked
+  # The tuning below is not cargo cult. The MokerLink's management CPU has locked
   # up under exporter polling before, taking its SNMP agent down while layer 2
   # kept forwarding and the web UI kept answering — which presents as UDP/161
   # timing out while ICMP and TCP/80 succeed. Recovery was a power cycle. What
@@ -384,7 +389,7 @@ modules:
   # volume is a safety property, per the paragraph above. Recorded rather than
   # added so nobody walks it a third time. The question it was meant to answer
   # is answered by looking at the rack.
-  mokerlink:
+  neo:
     walk:
       - 1.3.6.1.2.1.2.2.1.1     # ifIndex
       - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
