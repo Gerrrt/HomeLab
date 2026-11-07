@@ -77,7 +77,7 @@ truth for what a box actually does.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | *(ISP-assigned)* | `80:e8:2c:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | pfSense |
+| morpheus | *(ISP-assigned)* | `80:e8:2c:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | pfSense |
 
 ### Notes
 
@@ -110,8 +110,8 @@ truth for what a box actually does.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U9 | Switch |
+| morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
+| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U21 | Switch |
 
 ### Notes
 
@@ -163,11 +163,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
-| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Shelf | **Observability stack** |
-| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Shelf | **Wiki**, and the off-host jobs |
-| trinity | `10.0.99.40` | `c4:65:16:xx:xx:xx` | HP ProDesk 600 G4 DM | Ubuntu 26.04 LTS | Shelf | **Sensitive tier**, and AdGuard, the house's DNS filter |
+| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Rack U10 | **Observability stack** |
+| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Rack U12 | **Wiki**, and the off-host jobs |
+| trinity | `10.0.99.40` | `c4:65:16:xx:xx:xx` | HP ProDesk 600 G4 DM | Ubuntu 26.04 LTS | Rack U16 | **Sensitive tier**, and AdGuard, the house's DNS filter |
 
 ### Notes
 
@@ -176,8 +176,9 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Ubuntu Server on it, which is exactly the sort of hardware a homelab should be
   built from.
 - Port 3 of the main switch feeds an 8-port unmanaged switch[^tp-linkswitch]
-  that `prometheus` and `oracle` hang off. Since 2026-09-08 it sits on the U4
-  shelf and draws from a UPS-fed outlet, so on a mains cut the two laptops keep
+  that `prometheus` and `oracle` hang off. Since 2026-09-08 it sits on a rack
+  shelf (U14 since the move into the 32U rack on 2026-11-06, U4 before) and
+  draws from a UPS-fed outlet, so on a mains cut the two laptops keep
   their network as well as their batteries
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)).
 - **`trinity` polls the internet on a timer.** Miniflux ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) fetches every
@@ -258,7 +259,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.50.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.50.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | eero-trusted-1 | `10.0.50.11` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
 | eero-trusted-2 | `10.0.50.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Main floor | Wi-Fi |
 | eero-trusted-3 | `10.0.50.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E[^eero] | eeroOS | Basement | Wi-Fi |
@@ -358,10 +359,10 @@ Televisions and consoles. Internet only.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.40.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.40.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | nibelheim | `10.0.40.10` | `78:c8:81:xx:xx:xx` | Sony PlayStation 5[^PS5] | — | Basement | Console |
 | hyrule | `10.0.40.20` | `00:05:1b:xx:xx:xx` | Nintendo Switch[^Nintendo] | — | Basement | Console |
-| smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Media room | NAS |
+| smaug | `10.0.40.30` | `4c:cc:6a:xx:xx:xx` | Lenovo ThinkServer TS150 | TrueNAS 25.10 | Rack U5–U9 | NAS |
 | mediatv | `10.0.40.40` | `58:fd:b1:xx:xx:xx` | LG OLED[^OLEDTV] | webOS | Media room | TV |
 | streambox | `10.0.40.101` | `f0:46:3b:xx:xx:xx` | Xumo Stream Box[^StreamBox] | entOS | Media room | Streaming |
 
@@ -481,7 +482,7 @@ Where things get broken on purpose.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
@@ -758,7 +759,7 @@ the least trusted.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.20.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.20.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | eero-iot-1 | `10.0.20.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | eero-iot-2 | `10.0.20.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Basement | Wi-Fi mesh |
 | eero-iot-3 | `10.0.20.13` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
@@ -863,7 +864,7 @@ the least trusted.
 
 | Hostname | IP | MAC (OUI) | Device | OS | Zone | Role |
 | --- | --- | --- | --- | --- | --- | --- |
-| morpheus | `10.0.10.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
+| morpheus | `10.0.10.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | eero-guest-1 | `10.0.10.11` | `fc:3f:a6:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 | eero-guest-2 | `10.0.10.12` | `9c:57:bc:xx:xx:xx` | eero Pro 6E | eeroOS | Main floor | Wi-Fi mesh |
 

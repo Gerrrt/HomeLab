@@ -4,15 +4,15 @@
 [![SVG](https://img.shields.io/badge/SVG-FFB13B?style=plastic&logo=svg&logoColor=white)](https://developer.mozilla.org/docs/Web/SVG)
 
 [![The home network: ISP gateway, the pfSense firewall morpheus, the core
-switch neo, the 9U rack, and one panel per VLAN with every addressed
+switch neo, the 32U rack, and one panel per VLAN with every addressed
 host.](current/network.svg)](current/network.svg)
 
 | File | What it is |
 | --- | --- |
 | [`current/network.svg`](current/network.svg) | **The diagram, and its own source.** Hand-written SVG: edit it as text |
 | [`current/network.png`](current/network.png) | A raster export of the SVG, for anywhere that will not render SVG |
-| [`planned/rack-32u.svg`](planned/rack-32u.svg) | **The 32U rack as planned**, front elevation, drawn from the table under *Planned: a 32U rack* in [`hardware.md`](../hardware.md#planned-a-32u-rack). Hand-written SVG, like `network.svg`. It moves to `current/` when the rack is moved into, and is redrawn from the table as built |
-| [`planned/rack-32u.png`](planned/rack-32u.png) | Its raster export |
+| [`current/rack-32u.svg`](current/rack-32u.svg) | **The 32U rack as built**, front elevation, drawn from the *Rack* table in [`hardware.md`](../hardware.md#rack). Hand-written SVG, like `network.svg`. It was drawn as the plan on 2026-10-12 and moved here from `planned/` when the rack was moved into on 2026-11-06 |
+| [`current/rack-32u.png`](current/rack-32u.png) | Its raster export |
 | [`previous/matrix_elysium.png`](previous/matrix_elysium.png) | The diagram this one replaced, drawn in 2025. Its source was never committed, so it could not be corrected, and by 2026-10 it showed retired hosts, owner-linked device names and none of the lab guests. Kept as a picture of how the house used to be wired |
 | [`previous/Network_Diagram.png`](previous/Network_Diagram.png) | The one before that |
 
