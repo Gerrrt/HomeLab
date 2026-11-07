@@ -44,7 +44,7 @@ what §9 below proves on the real host.
 
 | | | |
 | --- | --- | --- |
-| OS | Ubuntu Server 26.04 LTS | Newer than `prometheus` and `oracle` (24.04), and supported two years longer. It builds its initramfs with dracut, which is what lets §4 use `systemd-cryptenroll`. Docker publishes packages for it (`resolute`) |
+| OS | Ubuntu Server 26.04 LTS | The same release `prometheus` and `oracle` run since 2026-10-15; chosen when they were still on 24.04, for two more years of support. It builds its initramfs with dracut, which is what lets §4 use `systemd-cryptenroll`. Docker publishes packages for it (`resolute`) |
 | Address | `10.0.99.40/24`, static, plus a Kea reservation | Chosen on 2026-09-09 and already in the stack's `.env.example` as `DNS_BIND_ADDR` |
 | Root disk | LUKS2 under LVM; the key enrolled in the TPM against PCR 7 by `systemd-cryptenroll`; the installer's passphrase kept as recovery | [ADR-0054](../adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md) |
 | Photo disk | LUKS2 on the 2 TB USB drive, opened at boot by a keyfile on the root, plus a recovery passphrase | ADR-0054 |

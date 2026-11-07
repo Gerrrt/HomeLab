@@ -19,6 +19,12 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-07
 
+- **`prometheus` and `oracle` run Ubuntu 26.04 LTS, and have since
+  2026-10-15.** `node_os_info` on both changed from 24.04.5 to 26.04.1 between
+  18:46 and 19:46 UTC that day; `hardware.md` and `network.md` still said
+  24.04 until `check_versions.py` failed on all four rows on 2026-11-07.
+  The 2026-10-08 oomd check in
+  `observability.md` stays as written: it was 24.04 that day.
 - **[#444](https://github.com/Gerrrt/HomeLab/issues/444): `neo` is the
   CRS326, polled over SNMPv3.** The MikroTik CRS326-24G-2S+RM took over as the
   main switch at about 23:50 UTC on 2026-11-05, under the MokerLink's name and

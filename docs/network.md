@@ -164,8 +164,8 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.99.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | mjolnir | `10.0.99.10` | `28:29:86:xx:xx:xx` | APC Smart-UPS[^UPS] | — | Rack U1–U2 | UPS |
-| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 24.04 LTS | Rack U10 | **Observability stack** |
-| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 24.04 LTS | Rack U12 | **Wiki**, and the off-host jobs |
+| prometheus | `10.0.99.20` | `00:05:1b:xx:xx:xx` | Apple MacBook Pro (2012)[^MacBookPro] | Ubuntu 26.04 LTS | Rack U10 | **Observability stack** |
+| oracle | `10.0.99.30` | `58:8a:5a:xx:xx:xx` | Dell Inspiron 15-3565[^Dell] | Ubuntu 26.04 LTS | Rack U12 | **Wiki**, and the off-host jobs |
 | trinity | `10.0.99.40` | `c4:65:16:xx:xx:xx` | HP ProDesk 600 G4 DM | Ubuntu 26.04 LTS | Rack U16 | **Sensitive tier**, and AdGuard, the house's DNS filter |
 
 ### Notes
