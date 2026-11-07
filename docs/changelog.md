@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-07
 
+- **Correction to the 2026-10-07 [#847](https://github.com/Gerrrt/HomeLab/issues/847)
+  entry: the wiki's cutover ran that day.** That entry says "Not yet done on
+  `oracle`", and `docs/architecture.md` and `docs/network.md` went on saying
+  so. The host says otherwise: the leaf went into `/etc/wiki/tls` at 13:38
+  UTC, the verified checkout at `/opt/wiki/HomeLab` fetched at 15:26, and
+  `wiki-caddy` was created at 15:27, publishing 80 and 443. Port 80 answers
+  `308` to https, 443 serves the lab-CA leaf for `lemmiwinks.matrix.elysium`,
+  the Site URL is `https://lemmiwinks.matrix.elysium`, and both blackbox
+  targets are https. The operator confirms the Hicks pass to `443/tcp`.
+  Found on a health check of `oracle`. The two current-state documents now
+  say the cutover is done.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): the range host is
   installed, and it is `gandalf`.** The ThinkCentre M80q bought on
   2026-10-05 got Proxmox VE 9.2 on its 256 GB NVMe. It never set up the
