@@ -29,7 +29,7 @@ than carrying a second copy that drifts.
 
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
-| Name | `odin` | Continues the segment's summons: `shiva`, `ifrit`, `alexander`, and ADR-0029's six. Minted in ADR-0030 |
+| Name | `odin` | Continues the segment's summons: `shiva`, `alexander`, and ADR-0029's six. Minted in ADR-0030 |
 | Address | `10.0.30.60/24` | Static below `.100`, the next decade after `alexander`'s `.40` and the domain's `.50` block. Decided in ADR-0030 |
 | VMID | `160` | Last octet legible from `qm list`, as `alexander` is `140` |
 | Kind | **VM, not LXC** | Same reason as `alexander`: `cgroup: host`, `cap_drop`, a Docker socket mount, and now `vm.max_map_count`, which an LXC cannot set for itself at all |

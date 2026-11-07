@@ -19,6 +19,57 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-07
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421): the range host is
+  installed, and it is `gandalf`.** The ThinkCentre M80q bought on
+  2026-10-05 got Proxmox VE 9.2 on its 256 GB NVMe. It never set up the
+  Windows it shipped with. The operator named the node `gandalf`, and
+  [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)
+  records why: `ifrit` stands to the M80q as `shiva` stands to the DL360, the
+  management plane, and on this box that is Intel AMT. The firmware prompt to
+  unconfigure Intel ME was answered Y, AMT was left disabled, and WLAN and
+  Bluetooth are off in firmware, so `lspci` lists the I219-LM alone. Read
+  from the host rather than the order:
+  - **Memory:** 32 GB as a mixed pair, one Samsung and one Crucial 16 GB
+    DDR4-2666, running at 2666. It is not the Crucial 3200 kit #421 named.
+  - **Range disk:** an Intel SSD DC S3520 960 GB, reported as 894 GiB, not
+    the 1 TB the roadmap row said. SMART read Media_Wearout 090, 7,927,198 ×
+    32 MiB written (about 254 TiB), 49,071 power-on hours, 8 reallocated
+    sectors and none pending. Its self-test log held one short test, at a
+    lifetime of 6 hours, so the log was probably cleared before resale. It
+    became the single-disk pool `range` (`ashift=12`), after `wipefs`
+    cleared an empty DOS partition table, and Proxmox storage `range`.
+  - **Setup:** the ARC is capped at 4 GiB, because the installer only caps
+    it on a ZFS root. `/etc/network/interfaces` is the runbook's §2 on
+    `nic0`, PVE 9's name for the I219, with `tso off gso off` on it.
+    `vmbr1` has no port and no IPv4 address. The repositories are
+    No-Subscription and the host is upgraded.
+  - **Checks:** after one reboot onto the `7.0.14-28-pve` kernel, the
+    offloads, the ARC cap and the pool all held. The UI answers on
+    `https://10.0.30.30:8006` from Hicks.
+  - **The port:** on `neo`, `ether20` read PVID 30, untagged in VLAN 30 and
+    in no tagged list, admitting untagged frames only, with BPDU guard on.
+    The host's MAC was learned there in VLAN 30. §3 onward, `Saruman` to
+    `.20` first, is the next sitting.
+
+  The RAM and the range disk leave the roadmap's buy table, and about
+  thirty current-state files now say `gandalf`. The ADRs keep `ifrit`, and
+  the five that decide things about the host carry a note.
+- **[#923](https://github.com/Gerrrt/HomeLab/issues/923): the WAN cable was
+  half the fault, and the XB7's 2.5G port was the other half.** The factory
+  Cat6 from the XB7 to `morpheus`'s `em0` went in on 2026-11-01, but speed
+  tests stayed poor. On 2026-11-07 a wired Hicks desktop at 1 Gbps measured
+  about 20 Mbit/s from Cloudflare, with 11 ms to `1.1.1.1` and no ping loss.
+  `em0` negotiated `1000baseT <full-duplex>`, yet `netstat -I em0` showed
+  767,696 input errors in 92.6 M packets since boot. Watched live, about 44
+  of every ~460 inbound packets were bad per 5 s, about 10 %, at idle.
+  `dev.em.0.mac_stats` counted 385,009 CRC errors and 1,017,957 receive
+  length errors, with zero symbol and alignment errors: frames that decode
+  but arrive mangled. With the patch moved from the XB7's striped 2.5G port
+  to a gigabit port, 21 five-second samples showed zero input errors, and
+  two 50 MB downloads ran at about 79 MB/s (about 630 Mbit/s, under `em0`'s
+  gigabit cap). The cable leaves the buy table, and
+  `move-into-the-32u-rack.md` §6.1, which had said to use the 2.5G port,
+  now says not to.
 - **`prometheus` and `oracle` run Ubuntu 26.04 LTS, and have since
   2026-10-15.** `node_os_info` on both changed from 24.04.5 to 26.04.1 between
   18:46 and 19:46 UTC that day; `hardware.md` and `network.md` still said

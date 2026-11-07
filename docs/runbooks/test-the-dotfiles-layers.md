@@ -31,7 +31,7 @@ The two role layers are not run here. `dotfiles-Defense` lives on `garuda`,
 over `dotfiles-Debian`
 ([`build-the-analyst-workstation.md`](build-the-analyst-workstation.md) §7,
 [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)),
-and `dotfiles-Offense` on `ifrit`'s Kali
+and `dotfiles-Offense` on `gandalf`'s Kali
 ([#790](https://github.com/Gerrrt/HomeLab/issues/790)).
 
 | Guest | VMID | Address | Template | Layer repo |

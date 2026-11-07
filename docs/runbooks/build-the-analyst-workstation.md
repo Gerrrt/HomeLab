@@ -42,7 +42,7 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
 | Name | `garuda` | Continues the segment's summons |
 | Address | `10.0.30.62/24` | Every `.x0` is taken. It sits in `odin`'s decade, beside the SOC it works from, as `diabolos` holds `.61` |
 | VMID | `162` | The last octet, legible from `qm list` |
-| Template | `910`, `tpl-kali-saruman` | `902` is `ifrit`'s, and a template belongs to one node (ADR-0091) |
+| Template | `910`, `tpl-kali-saruman` | `902` is `gandalf`'s, and a template belongs to one node (ADR-0091) |
 | Declared in | `tofu/guests.tf`, pool `analyst` | Lab guests are OpenTofu's ([ADR-0076](../adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md)) |
 | Tags | `analyst`, **not** `on-demand` | Always on. `HypervisorGuestStopped` should find it stopped ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)) |
 | `onboot` | `1`, no startup order | Nothing waits for it, and it waits for nothing |
@@ -544,13 +544,13 @@ the console password.
     epoch, then `systemctl start user@968.service` → `running`, 0 failed units.
   - **Fixed in the template:** a `late_command` step in
     `packer/kali/preseed.cfg.pkrtpl` clears the epoch expiry at install time,
-    so fresh clones of a rebuilt 910 are not born `degraded`. 902 (ifrit's
+    so fresh clones of a rebuilt 910 are not born `degraded`. 902 (gandalf's
     Kali) shares the same preseed but keeps the defect until it too is rebuilt
     ([#1196](https://github.com/Gerrrt/HomeLab/issues/1196)).
   - **Verified:** 910 rebuilt (`packer build -force`, `BUILD_EXIT=0`),
     `packer-smoke.sh 910` passed, and a throwaway full-clone booted
     `system: running` with 0 failed units and 0 accounts at the epoch.
-  - **Still owed:** the same check on 902 (ifrit's Kali, same preseed) when it
+  - **Still owed:** the same check on 902 (gandalf's Kali, same preseed) when it
     is next built — [#1196](https://github.com/Gerrrt/HomeLab/issues/1196),
     tied to [#790](https://github.com/Gerrrt/HomeLab/issues/790).
 - **§12, phase 2, 2026-10-10**

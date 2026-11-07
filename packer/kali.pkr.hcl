@@ -2,15 +2,16 @@
 # build on Saruman for garuda (#921). `-only` picks one: kali.proxmox-iso.kali
 # or kali.proxmox-iso.kali-saruman.
 #
-# WRITTEN, NOT BUILT (ADR-0074 part 2, #790). The attack VM lives on ifrit, which is
-# not bought, and a template belongs to the node it was built on. CI proves
-# this file parses; the first build on ifrit proves the preseed.
+# WRITTEN, NOT BUILT (ADR-0074 part 2, #790). The attack VM lives on gandalf,
+# installed 2026-11-07 with no template on it yet, and a template belongs to the
+# node it was built on. CI proves this file parses; the first build on gandalf
+# proves the preseed.
 #
 # The one source here that uses Packer's HTTP server. Debian's installer reads
 # a preseed from the install medium or from a URL, not from a second disc, so
 # the seed is served from phoenix for the few seconds the installer fetches it.
 # That needs phoenix's own firewall to admit the guest's DHCP address on the
-# port below — build-the-lab-templates.md §5 says how, for the day ifrit exists.
+# port below — build-the-lab-templates.md §5 says how, for the build on gandalf.
 
 source "proxmox-iso" "kali" {
   proxmox_url              = var.proxmox_url
@@ -39,7 +40,7 @@ source "proxmox-iso" "kali" {
     efi_storage_pool = var.disk_storage
     efi_type         = "4m"
     # Off: Kali does not ship a Microsoft-signed shim for every kernel it
-    # rolls, and a Secure Boot refusal on ifrit is a failure nobody watches.
+    # rolls, and a Secure Boot refusal on gandalf is a failure nobody watches.
     pre_enrolled_keys = false
   }
 
@@ -104,9 +105,9 @@ source "proxmox-iso" "kali" {
 # tpl-kali-saruman, VMID 910: the base for garuda, Defense's analyst
 # workstation (#921, ADR-0091). The same Kali and preseed as 902, built on
 # Saruman instead: a template belongs to the node it was built on, and 902
-# stays ifrit's. Its ISO is pinned by name, the 2026.2 installer on smaug-iso
-# that scripts/collect-iso-store-state.sh hashes; 902's is still chosen when
-# ifrit is built, because ifrit cannot mount smaug-iso.
+# stays gandalf's. Its ISO is pinned by name, the 2026.2 installer on smaug-iso
+# that scripts/collect-iso-store-state.sh hashes; 902's is still chosen at its
+# first build on gandalf, because gandalf cannot mount smaug-iso.
 
 source "proxmox-iso" "kali-saruman" {
   proxmox_url              = var.proxmox_url

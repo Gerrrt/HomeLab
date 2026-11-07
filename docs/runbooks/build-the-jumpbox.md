@@ -49,7 +49,7 @@ and no certificate authority.
 
 | | Decision | Why this and not the obvious alternative |
 | --- | --- | --- |
-| Name | `phoenix` | Every named host on this segment is a Final Fantasy summon — `shiva`, `ifrit`, `alexander`, `odin`, ADR-0029's six — and this continues it. The one whose meaning fits the job: the thing that rebuilds everything else |
+| Name | `phoenix` | Every named guest and BMC on this segment is a Final Fantasy summon — `shiva`, `alexander`, `odin`, ADR-0029's six — and this continues it. The hypervisors, `Saruman` and `gandalf`, are Tolkien's wizards ([ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)). The one whose meaning fits the job: the thing that rebuilds everything else |
 | Address | `10.0.30.70/24` | Static below `.100`, the next decade after `odin`'s `.60`. `.20` is reserved for `Saruman`'s own move ([`build-the-playground.md`](build-the-playground.md) §3) |
 | VMID | `170` | Last octet legible from `qm list`, as `alexander` is `140` and `odin` is `160` |
 | Kind | **VM, not LXC** | The toolchain will want nested virtualisation off and a kernel of its own for Packer's boot ISOs; an LXC shares the host's. Same answer as the other two guests, for a different reason |

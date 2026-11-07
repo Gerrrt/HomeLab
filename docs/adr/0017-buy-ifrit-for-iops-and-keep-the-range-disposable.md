@@ -3,6 +3,14 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **The host's name.** The machine this ADR calls `ifrit` is named
+> **`gandalf`** since 2026-11-07
+> ([ADR-0106](0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+> The decision is unchanged. Only the label moved. `ifrit` now names the
+> box's Intel AMT, which is disabled. The text below is left as written, per
+> ADR-0001.
+
+> [!NOTE]
 > **The *Disk* row of the decision table is superseded. The text below is
 > left as written, per ADR-0001.**
 > [ADR-0096](0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)

@@ -158,9 +158,9 @@ variable "arch_iso_file" {
 }
 
 # A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
-# the first build on ifrit sets this to the ISO it actually has. It stays on
+# the first build on gandalf sets this to the ISO it actually has. It stays on
 # local: the ISO store's export and pass admit Saruman alone (ADR-0072), so
-# ifrit cannot mount it.
+# gandalf cannot mount it.
 variable "kali_iso_file" {
   type    = string
   default = "local:iso/kali-linux-installer-amd64.iso"
@@ -176,8 +176,8 @@ variable "kali_saruman_iso_file" {
 
 variable "kali_node" {
   type        = string
-  description = "ifrit, once it exists. Saruman only to prove the preseed."
-  default     = "ifrit"
+  description = "gandalf, the range host. Saruman only to prove the preseed."
+  default     = "gandalf"
 }
 
 variable "win11_iso_file" {

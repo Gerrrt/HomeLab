@@ -50,7 +50,7 @@ groups:
       # workstations. ADR-0029 runs `carbuncle` and `siren` PER SESSION, so they
       # are off far more often than they are on, and off is their correct state.
       # A bare `up == 0` would fire against them continuously — the permanently
-      # firing shape ADR-0017 refuses on `ifrit`, arriving here instead — and an
+      # firing shape ADR-0017 refuses on `gandalf`, arriving here instead — and an
       # alert that is always firing is one nobody reads when it means something.
       # The label is absent on this stack's own four services, and an absent
       # label matches `!=`, so their behaviour is unchanged.
