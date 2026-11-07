@@ -71,7 +71,7 @@ x-service-defaults: &service-defaults
 services:
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.8@sha256:6a9c1e3827da627a70859213b3e9cfe43193a492e358953de332b94de33b07de
+    image: wazuh/wazuh-indexer:4.14.9@sha256:615465315b560d974100ea55bbe67efa72afc6490ef563d4d1bef127df0e98f6
     container_name: scratch-wazuh-indexer
     hostname: wazuh.indexer
     pids_limit: 4096
@@ -123,7 +123,7 @@ services:
 
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.8@sha256:412f665c77af5497780d29d0d9f069d7a169c5eca45e9a3a47a587d9cfc99b55
+    image: wazuh/wazuh-manager:4.14.9@sha256:dbb337727a6b6b17e24b1ccfe4c6e95fd983286ba0ccbf29d568144aa9527c6b
     container_name: scratch-wazuh-manager
     hostname: wazuh.manager
     init: false
@@ -199,7 +199,7 @@ services:
 
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.8@sha256:dd338d22355e8f0cdf8cc97d5b928539d56061b83c3274a79059e60ad5b8ac14
+    image: wazuh/wazuh-dashboard:4.14.9@sha256:e8e2340265feb6f61711d2ba460d04d2dea875ee46de26cd1832da2a3558a341
     container_name: scratch-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
