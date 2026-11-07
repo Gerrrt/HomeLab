@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: container published ports and networks as metrics
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-port-state.service
+# Every 15 minutes, at :10, :25, :40 and :55, after gateway-state's :00 and
+# silence-state's :05 so the three sub-daily jobs do not start together. A
+# container without its ports is an outage, so the cadence is the alert's:
+# found within one run and paged ten minutes after. `docker inspect` on a dozen
+# containers costs nothing.
+OnCalendar=*:10/15
+RandomizedDelaySec=60
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

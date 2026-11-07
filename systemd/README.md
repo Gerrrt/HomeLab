@@ -23,13 +23,14 @@ Times are the host's local time. The full procedure, and what to do when a
 job goes stale, is
 [`docs/runbooks/schedule-maintenance.md`](../docs/runbooks/schedule-maintenance.md).
 
-## The three directories
+## The four directories
 
 | Directory | Host | Installed by | Runs through |
 | --- | --- | --- | --- |
 | `systemd/` | `prometheus`, the monitoring host | `make install-timers` | `scripts/run-scheduled.sh`, from the deployment checkout |
 | [`sensitive/`](sensitive) | `trinity` | `make install-timers ARGS="--profile sensitive"` | the same, with `@DEPLOY_ROOT@` and `@RUN_USER@` filled in at install |
 | [`agent/`](agent) | each agent host, by what it can run | `make install-agent-collectors AGENT=user@host` | a collector copied to `/usr/local/bin`; an agent host has no checkout |
+| [`host/`](host) | `prometheus` | `make install-host-units` | nothing: boot ordering, not a schedule. Docker waits for `10.0.99.20` ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)) |
 
 The estate's units name the deployment checkout's absolute path, because the
 live stack runs from that checkout and nowhere else, and `install-timers.sh
@@ -58,6 +59,7 @@ editing units, not installing them.
 | `homelab-ca-key-state` | daily 09:30 | The CA key's fingerprint, and when its offline copy was last proved |
 | `homelab-gateway-state` | every 15 min | The firewall's view of its uplinks, its DDNS record and its GUI certificate's expiry |
 | `homelab-silence-state` | every 15 min, at :05 | Alertmanager's silences, as metrics |
+| `homelab-port-state` | every 15 min, at :10 | Whether each container holds the ports and networks it was created with |
 | `homelab-snmp-verify` | Wednesday 06:30 | Every SNMP device answers to its current credential |
 | `homelab-check-versions` | Wednesday 06:45 | The documented OS versions against what the hosts report |
 

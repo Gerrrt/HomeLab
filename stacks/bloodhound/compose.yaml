@@ -64,7 +64,7 @@ services:
   # layout; that file's comment has why.
   # ---------------------------------------------------------------------------
   app-db:
-    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    image: postgres:18.6@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
     container_name: bloodhound-app-db
     restart: unless-stopped
     logging: *default-logging
@@ -144,7 +144,7 @@ services:
   # export them if they ever matter.
   # ---------------------------------------------------------------------------
   bloodhound:
-    image: specterops/bloodhound:9.8.0@sha256:88aeb60228d8ad09a8ac1cdcea8218b4aabe3d9ac642f2f66d50a6b144f4d301
+    image: specterops/bloodhound:9.9.0@sha256:9dfb63a77929b2066bc0f2083c8ee4caf2241458432175a5d3da9eb5d6988bb1
     container_name: bloodhound-app
     restart: unless-stopped
     logging: *default-logging

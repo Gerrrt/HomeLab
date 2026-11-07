@@ -698,6 +698,19 @@ if [[ -s "${TIMER_SKIPS}" ]]; then
   SKIPPED=$((SKIPPED + $(wc -l < "${TIMER_SKIPS}")))
 fi
 
+# The boot ordering beside the schedule (ADR-0105): docker waits for
+# 10.0.99.20. Not a timer, so not install-timers.sh's. --check asserts the
+# waiter's address is the one the stack publishes on and, where the stack
+# runs, that the installed copies match. Its skips are counted from its output.
+host_units_out="$(./scripts/install-host-units.sh --check 2>&1)"; host_units_rc=$?
+printf '%s\n' "${host_units_out}" | sed 's/^  /    /'
+SKIPPED=$((SKIPPED + $(printf '%s\n' "${host_units_out}" | grep -c 'SKIP' || true)))
+if ((host_units_rc == 0)); then
+  pass "the boot ordering in systemd/host/ is coherent"
+else
+  fail "the boot ordering in systemd/host/ is not coherent or not installed — see above"
+fi
+
 # ...and whether any of it reached this host.
 #
 # --check above compares two copies of the schedule that both live in git: the

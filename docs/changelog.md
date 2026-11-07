@@ -54,21 +54,34 @@ docstring gives: it is a record, not a claim about now.
   from it too; each group's turn-off and turn-on settings are
   still unread. `Saruman`'s iLO reports eight healthy modules trained at
   2400 MHz.
-- **Two containers on `prometheus` ran for about 25 hours without their
-  ports.** After the move's power-up, Alloy and the ingest proxy started
-  before `10.0.99.20` existed. Their publishes failed with "cannot assign
-  requested address" while Docker reported both healthy, so no log reached
-  Loki over that time. `docker restart` did not bring the ports back; a
-  `compose up --force-recreate` of the two did, and the backlog then drained.
-  The change that holds Docker until the address exists and alerts on a running
-  container without its ports is
-  [#1302](https://github.com/Gerrrt/HomeLab/pull/1302) (ADR-0105).
 - **The WAN port takes CRC errors.** `morpheus`'s `em0` counted 500,000 to
   790,000 input errors a day from 2026-10-28 to 2026-10-30, none from
   2026-10-31 to 2026-11-02, and about 182,000 on 2026-11-07, all CRC, with no
   symbol or alignment errors. Re-seating the factory lead in the XB7 did not
   stop them. It is the physical layer; the lead's route and the XB7's other
   port are what is left to try.
+- **Docker on `prometheus` now waits for `10.0.99.20`, and a container that is
+  healthy without its ports now pages**
+  ([ADR-0105](adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)).
+  The move into the 32U rack power-cycled every host. `prometheus` booted
+  at 23:46 on 2026-11-05 with no carrier on its USB NIC. The link came
+  at 21:02 on 2026-11-06 and the address at 22:28.
+  `systemd-networkd-wait-online` had given up at 23:48:26, after its default
+  two minutes. `network-online.target` was reached anyway and dockerd
+  started the stack. `alloy` and `ingest-proxy` publish on `10.0.99.20`.
+  Docker logged "cannot assign requested address" for 6514, 9090 and 3100
+  and ran both containers with no networks and no published ports, both
+  `Up (healthy)`. `EndpointUnreachable` on `10.0.99.20:9090` and `:3100`,
+  and `InstanceDown` on `alloy:12345`, fired from 22:28. `docker restart`
+  did not repair them. `docker compose up -d --force-recreate` did, by hand,
+  on 2026-11-07. Firewall, Suricata and DHCP logs, and the ingest endpoints,
+  were dark for about 25 hours.
+  `systemd/host/homelab-wait-address.service` now holds `docker.service`
+  until the address is assigned, with no timeout
+  (`make install-host-units`). `ContainerNetworkingMissing` reads the new
+  15-minute `port-state` job, which compares each container's declared port
+  bindings with the ones Docker published. Runbook:
+  [`recover-a-container-without-its-ports.md`](runbooks/recover-a-container-without-its-ports.md).
 
 ## 2026-11-06
 

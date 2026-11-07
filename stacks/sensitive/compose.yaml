@@ -382,7 +382,7 @@ services:
   # reasoning.
   home-assistant:
     <<: *service-defaults
-    image: ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
     container_name: sensitive-home-assistant
     # `mqtt` as well, for the broker (DIFFERENCE 14, ADR-0104).
     networks: [sensitive, mqtt]
@@ -1023,7 +1023,7 @@ services:
   # — and move the number and this paragraph together.
   immich-server:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-server:v3.3.3@sha256:bae7664ff3aa4c2c1fcbdcdd86b40b105643c5f861f3e6a770fc760089f25862
+    image: ghcr.io/immich-app/immich-server:v3.3.5@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6
     container_name: sensitive-immich-server
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
@@ -1088,7 +1088,7 @@ services:
 
   immich-machine-learning:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-machine-learning:v3.3.1@sha256:513c831cfb010ad319341a0c86b42c575a0d5b688d3e8cae346ee624074a58ed
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.5@sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56
     container_name: sensitive-immich-machine-learning
     # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
     # switch (#132: "consider disabling the machine-learning container
@@ -1401,7 +1401,7 @@ services:
   # application's: shared_buffers defaults to 128 MB and this is four times it.
   paperless-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    image: postgres:18.6@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
     container_name: sensitive-paperless-db
     user: "999:999"
     mem_limit: 512m
@@ -1525,7 +1525,7 @@ services:
   # ceiling of four is counting on.
   stirling-pdf:
     <<: *service-defaults
-    image: stirlingtools/stirling-pdf:3.1.0@sha256:b5b9e400c086e5334a4947a0d7cd589808f743f29267d7f41c18200cf4bc48b4
+    image: stirlingtools/stirling-pdf:3.2.1@sha256:f95b691c3df463373258e21a578b404f1eb4c7660e8170a40e3e03c9c8f208a4
     container_name: sensitive-stirling-pdf
     # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
     # /scripts/init.sh`, an init of its own.
@@ -1824,7 +1824,7 @@ services:
   # cleanup job archives after 60 days read and 180 unread.
   miniflux-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:74935e72241653ca55e0414067e6d8763aceb8a810eb51b452253ec3dcfc4336
+    image: postgres:18.6@sha256:edb0c08dc33befd0262ab3b5cf1c4f3f8cfd8b09e88c05b45adee29d6761ddb6
     container_name: sensitive-miniflux-db
     user: "999:999"
     mem_limit: 512m
