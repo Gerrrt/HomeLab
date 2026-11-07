@@ -111,7 +111,7 @@ truth for what a box actually does.
 | Hostname | IP | MAC (OUI) | Device | OS | Location | Role |
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.7.7.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U5 | Firewall |
-| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U9 | Switch |
+| neo | `10.7.7.2` | `48:8f:5a:xx:xx:xx` | MikroTik CRS326-24G-2S+RM | RouterOS 7 | Rack U21 | Switch |
 
 ### Notes
 

@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-10-09</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-06</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
@@ -141,9 +141,9 @@
 <text x="724" y="470" class="lbl">802.1Q trunk: igc0 → port 1 · LAN untagged · VLANs 10, 20, 30, 40, 50, 99 tagged</text>
 <rect x="640" y="500" width="1080" height="92" rx="10" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
 <text x="660" y="530" class="pname" fill="#f0f6fc">neo</text>
-<text x="706" y="530" class="sub">MikroTik CRS326 · RouterOS · rack U9</text>
+<text x="706" y="530" class="sub">MikroTik CRS326 · RouterOS · rack U21</text>
 <text x="660" y="554" class="ip" fill="#8b949e">10.7.7.2</text>
-<text x="736" y="554" class="sub">on LAN · neo.matrix.elysium · UI plain HTTP</text>
+<text x="736" y="554" class="sub">on LAN · neo.matrix.elysium · UI HTTPS only</text>
 <text x="660" y="576" class="sub">Port map lives on the wiki (infrastructure/switching)</text>
 <rect x="1000" y="517" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
 <text x="1025.0" y="530" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
