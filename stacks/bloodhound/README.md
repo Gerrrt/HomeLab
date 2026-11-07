@@ -12,7 +12,7 @@ Domain Admin exists, so that Wazuh, Zeek and Sysmon can be asked whether they
 saw it ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). It runs on
 `eden` (`10.0.30.41`, ImaginationLAN / VLAN 30), a guest on `Saruman`, **built
 2026-10-07**, that is off between sessions.
-[ADR-0081] is the decision: why `Saruman` and not `ifrit`, Winterfell or the
+[ADR-0081] is the decision: why `Saruman` and not `gandalf`, Winterfell or the
 domain, why it is off by default, and why nothing here is backed up.
 [`build-the-bloodhound-guest.md`] is the build.
 

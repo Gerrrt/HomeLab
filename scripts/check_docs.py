@@ -1055,7 +1055,7 @@ def check_image_versions() -> list[str]:
 def check_adr_numbers() -> list[str]:
     """One ADR per number, and the H1 inside each file agreeing with its name.
 
-    Two branches opened in the same afternoon both took 0017 — #96 for `ifrit`
+    Two branches opened in the same afternoon both took 0017 — #96 for `ifrit` (now `gandalf`, ADR-0106)
     and #97 for the switch — and git merged them without a murmur, because the
     filenames differ and nothing downstream reads the number. The result is a
     repository where "ADR-0017" in prose has two referents, which is the one
@@ -1238,8 +1238,8 @@ def check_buy_list() -> list[str]:
     been missed once already. Every other count in this repository is asserted
     here; this one was prose on both ends, so nothing caught it.
 
-    The "one later" half is checked too. `ifrit` is a paragraph rather than a
-    row, and a second such paragraph would make the word wrong in exactly the
+    The "one later" half is checked too. The range host's purchase was a
+    paragraph rather than a row, and a second such paragraph would make the word wrong in exactly the
     same silent way.
     """
     problems: list[str] = []

@@ -3,6 +3,13 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **The host's name.** The machine this ADR calls `ifrit` is named
+> **`gandalf`** since 2026-11-07
+> ([ADR-0106](0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+> The decision is unchanged. Only the label moved. `ifrit` now names the
+> box's Intel AMT, which is disabled. The text below is left as written, per
+> ADR-0001.
+>
 > The details this ADR leaves as adjectives — which subnet "deliberately
 > outside `10.0.0.0/16`" is, what `ifrit` is bought as, and who maintains the
 > guests — are filled in by

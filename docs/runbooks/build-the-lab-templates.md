@@ -2,7 +2,7 @@
 
 **Target:** templates 901, 903–912 on `Saruman`, built from
 `phoenix` through the Proxmox API. 902, Kali, is written here and built on
-`ifrit` once that host exists. 910 is the same Kali build on `Saruman`, for
+`gandalf`, the range host, installed 2026-11-07 and not yet built on. 910 is the same Kali build on `Saruman`, for
 `garuda` (§5b, [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)). 903 (Debian), 904 (Fedora), 905 (openSUSE
 Tumbleweed), 906 (Arch), 907 (Alpine), 908 (Gentoo) and 909 (NixOS) are the
 dotfiles OS layers' templates
@@ -195,7 +195,7 @@ Found on the first build (fill in):
 `packer/variables.pkr.hcl` names the installers on `smaug-iso`, the ISO store
 [ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)
 put on `erebor/iso`, and not on `local`. Kali is the exception: it builds on
-`ifrit`, which the store does not admit. The store's export trusts an
+`gandalf`, which the store does not admit. The store's export trusts an
 address, and Packer does not check an ISO it is handed from storage, so every
 file on it is hashed once a day against the list in
 [`scripts/collect-iso-store-state.sh`](../../scripts/collect-iso-store-state.sh),
@@ -481,9 +481,9 @@ What the first builds found (2026-10-09), so a stall can be placed:
   while dotfiles-Gentoo defaults to OpenRC. `dot-gentoo` tests the layer on
   systemd.
 
-## 5. Kali, once `ifrit` exists (and Debian's port, now)
+## 5. Kali, on `gandalf` (and Debian's port, now)
 
-Tracked as [#790](https://github.com/Gerrrt/HomeLab/issues/790). Not on `Saruman`: the attack VM lives on `ifrit`, and a template belongs to one
+Tracked as [#790](https://github.com/Gerrrt/HomeLab/issues/790). Not on `Saruman`: the attack VM lives on `gandalf`, and a template belongs to one
 node. The preseed is served over Packer's HTTP server on port 8800 of
 `phoenix`, because Debian's installer reads one from a URL or its own medium,
 not from a second disc.
@@ -492,26 +492,26 @@ not from a second disc.
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
    and delete the rule afterwards. Debian's build (§4) needs this step and
    no other here.
-2. Grant `PhoenixBuilder` on `ifrit`'s storage and bridge, and trust
-   `ifrit`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `ifrit` joins
+2. Grant `PhoenixBuilder` on `gandalf`'s storage and bridge, and trust
+   `gandalf`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins
    `Saruman` in a cluster, it is its own API. Point `PROXMOX_URL` at it for
    this build, and admit `phoenix` to its 8006 the way ADR-0043 did on
    `Saruman`.
-3. Build, naming the ISO actually on `ifrit` and **its** storage.
+3. Build, naming the ISO actually on `gandalf` and **its** storage.
    `disk_storage` defaults to `large_data`, which is `Saruman`'s pool, and
    the disk creation fails without the override:
 
    ```bash
    packer build -only='kali.proxmox-iso.kali' \
      -var kali_iso_file=local:iso/<the iso> \
-     -var disk_storage=<ifrit's guest storage> \
+     -var disk_storage=<gandalf's guest storage> \
      packer/
    ```
 
-4. Prove it on `ifrit`, as §6 does on `Saruman`:
+4. Prove it on `gandalf`, as §6 does on `Saruman`:
 
    ```bash
-   PROXMOX_NODE=ifrit scripts/packer-smoke.sh 902
+   PROXMOX_NODE=gandalf scripts/packer-smoke.sh 902
    ```
 
    Then run §8's second `-force` build and smoke test, which is #790's
@@ -523,7 +523,7 @@ not from a second disc.
 `kali-saruman` source: the node is `Saruman`, the ISO is on `smaug-iso`, and
 the boot waits 20s, as Debian's does. The preseed is the same file. It is
 [#921](https://github.com/Gerrrt/HomeLab/issues/921)'s template, and a
-template belongs to one node, so 902 stays `ifrit`'s
+template belongs to one node, so 902 stays `gandalf`'s
 ([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
 
 1. Open port 8800 on `phoenix` for the build, as §5 step 1 says. Delete the

@@ -81,7 +81,12 @@ truth for what a box actually does.
 
 ### Notes
 
-- Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk].
+- Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk]
+  (`em0`): a factory patch since 2026-11-01
+  ([#923](https://github.com/Gerrrt/HomeLab/issues/923)), in one of the
+  gateway's **gigabit** ports since 2026-11-07. The striped 2.5G port
+  corrupted about one inbound frame in ten on the 1 Gbit `em0`. That shows up
+  as `errs` in `netstat -I em0 -w 5`, and as `WanReceiveErrors`.
 - The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
   unused. All wireless is handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
@@ -482,6 +487,7 @@ Where things get broken on purpose.
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
+| gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, off between sessions. Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | golem | `10.0.30.80` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Proxmox Backup Server 4 | Rack U3 | Backups (PBS) |
@@ -706,10 +712,13 @@ Where things get broken on purpose.
   binaries are still on the box, the same reservation would not reliably
   protect an in-pool address. Moving `Saruman` below `.100` is the fix that
   does not depend on that.
-- A second server (`ifrit`) will carry the attack tooling and the
-  deliberately-vulnerable targets. It joins this segment single-homed, on an
-  untagged access port, at `10.0.30.30` — a static below `.100`, with a
-  reservation; the targets live on a bridge inside it with no physical port, on
+- A second hypervisor, `gandalf`, carries the attack tooling and the
+  deliberately-vulnerable targets. It is installed (Proxmox VE 9,
+  2026-11-07) and has no guests yet. It sits on this segment single-homed, on
+  `neo`'s untagged `ether20`, at `10.0.30.30`: a static below `.100`, with a
+  reservation. Its Intel AMT, which would be the name `ifrit`, is disabled
+  ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+  The targets live on a bridge inside it with no physical port, on
   a subnet `morpheus` does not route, so they have no path anywhere. Egress
   from this segment stays open by decision, not omission —
   [ADR-0014](adr/0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).
@@ -732,7 +741,7 @@ Where things get broken on purpose.
   carries — which is what lets a rule name a peer and an alert say which one.
   The blocks and the tripwire on this interface are therefore doubled: one set
   sourced from the segment, one from the peers. It is the fourth private block
-  in the house and the second that is not a VLAN. **`172.30.` is `ifrit`'s
+  in the house and the second that is not a VLAN. **`172.30.` is `gandalf`'s
   range bridge; `172.31.` is the tunnel** — they mean opposite things in a log
   line, and the second octet is the only thing that distinguishes them.
 

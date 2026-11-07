@@ -8,7 +8,7 @@
 #              a full clone of template 901, by
 #              docs/runbooks/build-the-bloodhound-guest.md.
 # Decided by:  docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md — why
-#              Saruman and not ifrit, Winterfell or the domain itself, why the
+#              Saruman and not gandalf, Winterfell or the domain itself, why the
 #              guest is off between sessions, and why nothing here is backed up.
 # Deploy with: `make up STACK=bloodhound`, from the repository root on eden.
 #              It renders .env from secrets/bloodhound.sops.yaml, which is

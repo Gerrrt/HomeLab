@@ -30,7 +30,7 @@
 <text x="380.0" y="411.6" font-size="13" fill="#d2f8de" text-anchor="middle">Jadol 24-port patch panel</text>
 <text x="146" y="411.2" font-size="12" fill="#8b949e" text-anchor="end">U19</text>
 <rect x="170" y="419" width="420" height="20" rx="3" fill="#221d45" stroke="#a371f7"/>
-<text x="380.0" y="433.6" font-size="13" fill="#e8dcff" text-anchor="middle">ThinkCentre M80q · ifrit, off until its build</text>
+<text x="380.0" y="433.6" font-size="13" fill="#e8dcff" text-anchor="middle">ThinkCentre M80q · gandalf, off between sessions</text>
 <text x="146" y="433.2" font-size="12" fill="#8b949e" text-anchor="end">U18</text>
 <rect x="170" y="441" width="420" height="20" rx="3" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/>
 <text x="380.0" y="455.2" font-size="12" fill="#6e7681" text-anchor="middle">gap</text>

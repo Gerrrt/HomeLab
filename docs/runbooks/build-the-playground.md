@@ -1,10 +1,9 @@
-# Runbook: Build the playground on ifrit
+# Runbook: Build the playground on gandalf
 
-**Target:** `ifrit` — the second hypervisor, on ImaginationLAN (VLAN 30)
+**Target:** `gandalf` — the second hypervisor, on ImaginationLAN (VLAN 30)
 **Time:** an afternoon for the host and the bridges, then as long as you like
 for the guests
-**You will need:** the machine itself, one Cat6 patch to a Green access port on
-`neo`, the pfSense web UI on `morpheus`, and a shell on the monitoring host for
+**You will need:** the machine itself, one Cat6 patch to `neo`'s `ether20`, the pfSense web UI on `morpheus`, and a shell on the monitoring host for
 the verification in §8
 
 This builds the offensive range
@@ -41,24 +40,25 @@ decision and on this runbook.
 | [#234](https://github.com/Gerrrt/HomeLab/issues/234) — the ImaginationLAN tripwire | **Armed and verified 2026-09-08**, and nothing here re-arms it. §8 and §9 assume it is already live | The only thing watching the boundary this build creates. It is a no-op until the segment holds attackers, which is what §5 makes it |
 | [#235](https://github.com/Gerrrt/HomeLab/issues/235) — whether `shiva` stays on VLAN 30 | **Decided: it stays** ([ADR-0033](../adr/0033-keep-the-ilo-on-the-lab-segment.md)), **and the hardening that decision named was done 2026-09-09** — IPMI-over-LAN, SSH and iLO Federation off, the BMC's credential shared with nothing in the house, its security log read for a baseline, and the redundant `10.0.30.10 → 10.0.99.20/udp` return-path rule deleted from `morpheus`. Read [`SECURITY.md`](../../SECURITY.md)'s row for it rather than doing it again | Before §5 puts a Kali VM in its broadcast domain, the BMC already in that domain has to be the hardened one. A decision taken afterwards is taken under a fact that is already true |
 
-So what remains ahead of §1 is the machine. `ifrit` was bought on 2026-10-05,
-a refurbished ThinkCentre M80q, and arrived on 2026-10-14. It is not ready
-yet: ADR-0017 asks for 32 GB of socketed RAM and a flash disk, which
-[ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
-makes a SATA SSD in the Tiny's bay, and the parts chosen for that are still
-to fit. [`hardware.md`](../hardware.md) lists what
-is still to buy and fit, and #421 tracks the build. Nothing below this section
-can be started until they are in.
+The machine is ready too. `gandalf`, a refurbished ThinkCentre M80q, was
+bought on 2026-10-05 and has its 32 GB and its SATA range disk
+([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md))
+fitted. **§1 and §2 were done on 2026-11-07**
+([#421](https://github.com/Gerrrt/HomeLab/issues/421)), and the parts as
+fitted are in [`hardware.md`](../hardware.md). The node is named `gandalf`,
+and `ifrit` names its disabled Intel AMT
+([ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
 
-You will also need a free Green access port on `neo` and an outlet on the PDU.
-`ifrit` does **not** hang off the unmanaged shelf switch: that switch is fed
-from a Winterfell port, and `ifrit` belongs on ImaginationLAN.
+`gandalf` is on `neo`'s **`ether20`** and PDU outlet 8. The port was read on
+2026-11-07: PVID 30, VLAN 30 untagged and nothing tagged, untagged frames
+only, BPDU guard on. It does **not** hang off the MokerLink at U14, which
+carries the two laptops on Winterfell.
 
 The addresses this runbook uses, all decided in ADR-0017:
 
 | | |
 | --- | --- |
-| `ifrit` on ImaginationLAN | `10.0.30.30/24`, gateway `10.0.30.1` |
+| `gandalf` on ImaginationLAN | `10.0.30.30/24`, gateway `10.0.30.1` |
 | The attack VM's VLAN 30 leg | DHCP, from the `.100–.200` pool |
 | The attack VM on the range bridge | `172.30.30.10/24`, no gateway |
 | Targets | `172.30.30.100` upward, static, no gateway |
@@ -67,24 +67,55 @@ The addresses this runbook uses, all decided in ADR-0017:
 
 ## 1. Rack, cable and install
 
-One Cat6 from the machine's single NIC to a Green access port on `neo`,
-untagged VLAN 30. **No trunk, no tagged port** — ADR-0014 applies ADR-0007's
-constraint on `Saruman` to `ifrit` by name, and a VLAN-aware bridge here is
-listed as a reason to reopen that ADR.
+One Cat6 from the machine's single NIC to `neo`'s `ether20`, untagged
+VLAN 30. **No trunk, no tagged port**: ADR-0014 applies ADR-0007's
+constraint on `Saruman` to `gandalf` by name, and lists a VLAN-aware bridge
+here as a reason to reopen that ADR. Before plugging it in, read the port
+from `neo`'s terminal:
+
+```text
+/interface bridge port print where interface=ether20
+/interface bridge vlan print where vlan-ids=30
+```
+
+**You should see** `ether20` with `pvid=30`, and in VLAN 30's untagged list
+and not its tagged one.
+
+**Firmware first** (F1 at power-on). The box arrives with Windows on it.
+Never set it up: power it off from the setup screen (Shift+F10, then
+`shutdown /s /t 0`) and boot the installer instead.
+
+- **Intel AMT off.** If the firmware prompts *"Found unconfigure of Intel(R)
+  ME"*, answer Y. That wipes whatever provisioning the previous owner left.
+  Then confirm *Intel Manageability* reads Disabled. ADR-0014 accounts for
+  no management plane on this segment, and
+  [ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)
+  keeps the name `ifrit` for this one in case it is ever turned on.
+- **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
+  `lspci` afterwards should list the I219 alone.
+- **VT-x and VT-d on**, and *Configuration Change Detection* off.
+- **After Power Loss: Power Off.** `gandalf` is off between sessions (§7),
+  and nothing alerts when it is left on, so a power cut must not bring it
+  back by itself. A session starts at the power button.
+- Secure Boot can stay on, because the Proxmox VE 9 installer is signed.
 
 Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)).
 At the installer's target-disk step pick the M.2 by name, which it shows as
 the `nvme` device, and leave the SATA drive unselected. ext4 is enough for a
 root disk that holds nothing the range churns; the snapshots happen on the
-other drive. Take the defaults otherwise.
+other drive. Hostname `gandalf.matrix.elysium`, address `10.0.30.30/24`,
+gateway and DNS `10.0.30.1`. Take the defaults otherwise.
 
 Then make the SATA SSD the guest storage, because the installer does not.
-From the node's shell, with the SSD's `by-id` name substituted:
+From the node's shell, with the SSD's `by-id` name substituted. A used
+drive may carry an old partition table: `wipefs -n` shows it, and
+`wipefs -a` on that drive, and only that drive, clears it.
 
 ```bash
-ls -l /dev/disk/by-id/ | grep -i ata-
-zpool create -o ashift=12 range /dev/disk/by-id/ata-<the 1 TB SSD>
+ls -l /dev/disk/by-id/ | grep -i ata- | grep -v part
+wipefs -n /dev/sda
+zpool create -o ashift=12 range /dev/disk/by-id/ata-<the SATA SSD>
 pvesm add zfspool range --pool range --content images,rootdir --sparse 1
 pvesm status
 ```
@@ -97,29 +128,49 @@ pick it in the *Storage* field when creating each VM, and §6's `clean`
 snapshot is then a ZFS snapshot on that pool. Nothing of the range goes on
 the M.2.
 
-Record what you actually bought in [`hardware.md`](../hardware.md) — the CPU,
-the memory kit and the disk capacity are chosen at the till and written down
-afterwards, which is the same split [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
+**Cap ZFS's read cache.** The installer limits the ARC only when the root is
+ZFS, and here it is not, so by default ZFS may take half of RAM: 16 GB of
+the 32 the range's guests need. Four GiB is plenty for one pool:
+
+```bash
+echo 'options zfs zfs_arc_max=4294967296' > /etc/modprobe.d/zfs.conf
+echo 4294967296 > /sys/module/zfs/parameters/zfs_arc_max
+update-initramfs -u -k all
+```
+
+Then switch the repositories to *No-Subscription* (*gandalf → Updates →
+Repositories*: disable both enterprise lines, add No-Subscription) and
+upgrade. Leave the reboot until the end of §2, so that it tests that §2's
+settings persist.
+
+Record what you actually fitted in [`hardware.md`](../hardware.md). Run
+`dmidecode -t memory`, `lsblk -d -o NAME,SIZE,MODEL,TRAN` and
+`smartctl -A /dev/sda` on the host, so the record is what the host reads and
+not the order. The memory, the disk and the SATA drive's wear are written
+down afterwards, the same split
+[ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 used for the NAS.
 
 ---
 
 ## 2. The two bridges
 
-`/etc/network/interfaces` on `ifrit`. Substitute the real NIC name for
-`enp1s0`:
+`/etc/network/interfaces` on `gandalf`. Proxmox VE 9 names the I219 `nic0`
+(`ip -br link` says so). Keep the installer's file as
+`/root/interfaces.installer`, write this one, and `ifreload -a`:
 
 ```text
 auto lo
 iface lo inet loopback
 
-iface enp1s0 inet manual
+iface nic0 inet manual
+        post-up /sbin/ethtool -K nic0 tso off gso off
 
 auto vmbr0
 iface vmbr0 inet static
         address 10.0.30.30/24
         gateway 10.0.30.1
-        bridge-ports enp1s0
+        bridge-ports nic0
         bridge-stp off
         bridge-fd 0
 
@@ -128,6 +179,9 @@ iface vmbr1 inet manual
         bridge-ports none
         bridge-stp off
         bridge-fd 0
+        pre-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
+
+source /etc/network/interfaces.d/*
 ```
 
 Two things in there are load-bearing and neither is obvious:
@@ -135,10 +189,37 @@ Two things in there are load-bearing and neither is obvious:
 - **`bridge-ports none` on `vmbr1`.** This is the isolation. It is not a filter
   and there is nothing to configure — the bridge has no path to a physical
   interface, so a guest on it can reach the other guests on it and nothing else.
-- **`iface vmbr1 inet manual`.** The host takes no address on the range subnet.
-  Give `vmbr1` an address and the hypervisor — the box whose management plane
-  §4 closes — becomes a live host on the segment holding the vulnerable
-  machines, and their only unreachable neighbour stops being unreachable.
+- **`iface vmbr1 inet manual`, and IPv6 off on `vmbr1`.** The host takes no
+  address on the range subnet, in either family. Give `vmbr1` an address and
+  the hypervisor (the box whose management plane §4 closes) becomes a live
+  host on the segment holding the vulnerable machines, and their only
+  unreachable neighbour stops being unreachable. `inet manual` covers IPv4
+  only. Linux gives every interface that comes up an IPv6 link-local address,
+  and an `fe80::` address on `vmbr1` is an on-link endpoint every target can
+  reach without a gateway. The `pre-up` line stops that.
+
+The `post-up` line is not isolation. It is the usual workaround for the
+I219's e1000e transmit hang under load, which would take the range's one
+link down mid-session.
+
+```bash
+ip -br addr show
+ip addr show dev vmbr1 | grep -c inet
+ethtool -k nic0 | grep -E 'tcp-segmentation-offload|generic-segmentation-offload'
+```
+
+**You should see** `vmbr0` with `10.0.30.30/24`, and **`vmbr1` with no
+address at all**: the `grep -c` prints `0`, so no `inet` and no `inet6`.
+`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`.
+
+Then reboot once, which also picks up §1's kernel, and run the same
+commands again, with
+`cat /sys/module/zfs/parameters/zfs_arc_max; zpool status -x`. Nothing above
+should have changed. The ARC cap should read `4294967296` and the pool
+should be healthy. On 2026-11-07 the offloads, the ARC cap and the pool held
+across the reboot. `vmbr1` still had an `fe80::` address after that
+reboot. The `pre-up` line was added the same day, from review, and after
+`ifreload -a` the `grep -c` read `0`.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -201,13 +282,13 @@ documents:
 
 > **Ran on `Saruman` 2026-09-20**
 > ([#566](https://github.com/Gerrrt/HomeLab/issues/566)), out of order with the
-> rest of this runbook and ahead of `ifrit`, because
+> rest of this runbook and ahead of `gandalf`, because
 > [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
 > remote path was about to put a device that is not on Hicks in front of this
-> hypervisor's login page. Everything below was found by doing it. `ifrit` gets
+> hypervisor's login page. Everything below was found by doing it. `gandalf` gets
 > the same treatment when it is built, including the alias.
 
-ADR-0014: the Proxmox firewall on `Saruman` and on `ifrit` admits `8006`,
+ADR-0014: the Proxmox firewall on `Saruman` and on `gandalf` admits `8006`,
 `8007` and `22` from `10.0.50.0/24` only. This is the one gap the design opens —
 an attacker sharing a broadcast domain with a hypervisor — and it is closed on
 the host rather than at a segment boundary, because there is no boundary between
@@ -224,7 +305,7 @@ them.
 > stop` is the way back.
 
 `/etc/pve/nodes/<NODE>/host.fw`, where `<NODE>` is the name **exactly as
-`pvesh get /nodes` prints it** — `Saruman` is capitalised and `ifrit` is not. A
+`pvesh get /nodes` prints it** — `Saruman` is capitalised and `gandalf` is not. A
 mis-cased path is a file Proxmox never reads, which is a rule set that silently
 does not exist:
 
@@ -246,7 +327,7 @@ and to nothing else
 IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
 ```
 
-`8007` is Proxmox Backup Server and nothing on `ifrit` listens on it — ADR-0017
+`8007` is Proxmox Backup Server and nothing on `gandalf` listens on it — ADR-0017
 gives the range no backups. The rule is written as ADR-0014 specifies rather
 than narrowed here; ADR-0017's Consequences record that it admits nothing.
 
@@ -378,7 +459,7 @@ homelab_pve_firewall_rules{host="Saruman"}
 | --- | --- | --- |
 | `homelab_pve_firewall_enabled` | `1` — `pve-firewall status` reads `enabled/running` | `PveFirewallDisabled` pages after ten minutes; this section is the way back |
 | `homelab_pve_firewall_policy_drop` | `1` — `cluster.fw`'s `policy_in` is `DROP` after the flip above | `0` is the firewall on with no wall behind the rules. `PveFirewallPolicyAccept` pages after ten minutes, so do the flip inside that window |
-| `homelab_pve_firewall_rules{file="host"}` | `4` on `Saruman` (ADR-0014's three and ADR-0043's one), `3` on `ifrit` | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
+| `homelab_pve_firewall_rules{file="host"}` | `4` on `Saruman` (ADR-0014's three and ADR-0043's one), `3` on `gandalf` | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
 | `homelab_pve_firewall_rules{file="cluster"}` | `0` — `cluster.fw` carries the enable and the alias, not rules | Not a fault on its own; say why in the build notes if it changes |
 
 Prove the alert once, on purpose, with the console to hand: `pve-firewall
@@ -448,7 +529,7 @@ placement rule, and it is the question to ask before adding anything here.
 
 ## 7. Powering the range
 
-`ifrit` is off between sessions. There is no alert for it being left on, and
+`gandalf` is off between sessions. There is no alert for it being left on, and
 ADR-0017 says why: every rule shape available says "this host is down", which is
 the normal state. Nothing is watching, so the discipline is yours.
 
@@ -463,7 +544,7 @@ on  → revert every target to `clean` → work → revert → off
 ADR-0014 makes four claims. Each one is checkable, and none of them is checked
 by anything else in this repository.
 
-**One — `ifrit` is single-homed, and `vmbr1` has no port.** On the host:
+**One — `gandalf` is single-homed, and `vmbr1` has no port.** On the host:
 
 ```bash
 ip -br link show type bridge
@@ -471,7 +552,9 @@ bridge link show
 ```
 
 `vmbr0` should carry exactly one physical interface. `vmbr1` should appear in
-the first command and contribute **nothing but guest taps** to the second. A
+the first command and contribute **nothing but guest taps** to the second.
+`ip addr show dev vmbr1 | grep -c inet` should print `0`: the host has no
+address on the range in either family (§2). A
 physical NIC name under `vmbr1` is the failure this whole design is built to
 avoid.
 
@@ -567,7 +650,7 @@ Addresses are parsed at query time rather than indexed, per
 ## Also worth knowing
 
 **The range is not monitored and not backed up, and both are decisions.**
-ADR-0017 declines an Alloy agent because `ifrit` is off by design, so any rule
+ADR-0017 declines an Alloy agent because `gandalf` is off by design, so any rule
 watching it is permanently firing or permanently silenced; and it declines PBS
 because a deliberately-vulnerable image in the estate's backup store is a
 supported path for it to arrive somewhere it should not be. If you find yourself

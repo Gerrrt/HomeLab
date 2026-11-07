@@ -878,7 +878,7 @@ groups:
         # by scripts/collect-guest-state.sh on the hypervisor — the run-state
         # class of fact ADR-0028 lets cross. Nothing here names diabolos, and a
         # second throwaway guest is covered the day it is tagged. This is also
-        # the shape ADR-0017 found no rule for, for ifrit: "on when it should
+        # the shape ADR-0017 found no rule for, for gandalf: "on when it should
         # be off" becomes expressible once the guest says it should be off.
         #
         # A FORTNIGHT (ADR-0071): a detonation is an afternoon and "a single

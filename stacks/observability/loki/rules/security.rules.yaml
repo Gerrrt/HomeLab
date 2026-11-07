@@ -446,7 +446,7 @@ groups:
         # than translating, and the reason this source class has two members
         # rather than one. A peer reaching the house is the same breach as the
         # lab reaching the house and fires the same alert; the source octet is
-        # what says which. `172.30.` is ifrit's range bridge and is NOT here:
+        # what says which. `172.30.` is gandalf's range bridge and is NOT here:
         # that source means a target escaped a bridge with no physical port,
         # which is a different incident (ADR-0017, build-the-playground.md).
         expr: |

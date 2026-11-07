@@ -11,7 +11,7 @@ landfill.
 [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md). Everything
 the estate runs on is in it: the hosts that sat on a shelf beside the old 9U
 frame (`trinity`, `prometheus`, `oracle`), the NAS `smaug` from the media room,
-the console, and `ifrit`. It went in as planned, unit for unit, with two
+the console, and `gandalf`. It went in as planned, unit for unit, with two
 changes read back on 2026-11-07: the MokerLink that the CRS326 replaced took
 the TP-Link's place at U14, and the keyboard drawer has no support rails (the
 U23 shelf, mounted upside down, holds its underside).
@@ -27,7 +27,7 @@ below.
 | U21 | MikroTik CRS326-24G-2S+RM[^CRS326] (`neo`) | PDU outlet 4 | Core switching, in place of the MokerLink[^MokerLink] that was at U9 of the 9U frame ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). SFP+ 1–2 are the 2.5G path, if built |
 | U20 | 1U horizontal cable manager | — | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel[^Panel] | — | Next to the switch, so its patch cords stay short. The house's in-wall runs reach it |
-| U18 | Lenovo ThinkCentre M80q on a 1U Tiny mount[^Tinymount] (`ifrit`) | PDU outlet 8, by its brick | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. Racked, and off until [`build-the-playground.md`](runbooks/build-the-playground.md) §1. Front-mounted, 6.6" deep, on support rails under its rear like the drawer |
+| U18 | Lenovo ThinkCentre M80q on a 1U Tiny mount[^Tinymount] (`gandalf`) | PDU outlet 8, by its brick | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. Proxmox VE 9 since 2026-11-07, on `neo`'s `ether20`, and off between range sessions. Front-mounted, 6.6" deep, on support rails under its rear like the drawer |
 | U17 | *gap* | — | Keeps the range off the sensitive tier's box |
 | U16 | HP ProDesk 600 G4 Mini on a 1U tray[^ProDeskRackmount] (`trinity`) | PDU outlet 7, by its brick | The sensitive tier. Its 2 TB USB photo disk is strapped to the same tray |
 | U15 | HP ProDesk 600 G4 Mini[^ProDesk] on a 1U tray (`morpheus`) | PDU outlet 6, by its brick | pfSense firewall |
@@ -57,7 +57,7 @@ and the runtime the pack actually gives at this load is **not measured**: the
 card claimed 47 minutes at 21 % load on 2026-09-20, and the one mains pull
 that turns that estimate into a number is
 [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §6. Since the
-move, `trinity`, `ifrit` and the console are on the PDU too, and `smaug` is on
+move, `trinity`, `gandalf` and the console are on the PDU too, and `smaug` is on
 it directly rather than by the long cord to the media room it had until
 2026-11-06.
 
@@ -91,7 +91,7 @@ bought at 32U on 2026-10-09, built on 2026-10-11, and re-laid out on
 2026-10-12: rather than leave the five extra units spare above the screen, the
 console took the top of the rack, `smaug` came into it, and the spare units
 went between machines as air. The CRS326 was racked at U21 on 2026-10-12, the
-drawer and `ifrit`'s mount on 2026-10-15, and the rest went in on 2026-11-06.
+drawer and `gandalf`'s mount on 2026-10-15, and the rest went in on 2026-11-06.
 
 **The frame:** four-post, open, with adjustable depth reaching at least 30",
 **set to 29" post to post**, the old 9U frame's depth, measured 2026-10-12.
@@ -135,7 +135,7 @@ power-on, which is empty: select 8 first.
 | 7 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
 | 6 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
 | 5 | `smaug`, U5–U9 | Racked, it lost the monitor it had in the media room; cabled from the TS150's rear VGA |
-| 4 | `ifrit`, U18 | Off until the playground build |
+| 4 | `gandalf`, U18 | Off between range sessions |
 | 1–3 | spare | |
 
 **The PDU follows the rack from the bottom up, bricks at the far end.** It
@@ -152,7 +152,7 @@ neighbours, so they sit together at the high-numbered end.
 | 5 | spare |
 | 6 | `morpheus`'s brick |
 | 7 | `trinity`'s brick |
-| 8 | `ifrit`'s brick |
+| 8 | `gandalf`'s brick |
 | 9 | The N1700W's 12 V brick |
 | 10 | KVM |
 
@@ -178,7 +178,7 @@ AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
 bottom where the DL360 and the UPS sit; the SNMP job that already polls the
 card picks it up once the generator names it. And the strip gives way to a
 **switched, SNMP-managed PDU**, so the four hosts without a BMC (`morpheus`,
-`trinity`, `ifrit`, `smaug`) can be power-cycled without a walk to the rack.
+`trinity`, `gandalf`, `smaug`) can be power-cycled without a walk to the rack.
 The outlet map above is the strip's and is redrawn when that PDU is placed;
 a switched PDU is a management-plane device, and which segment it sits on
 and how it is hardened is an ADR before it is cabled.
@@ -198,25 +198,34 @@ that carried it.
 originals) sits on `trinity`'s tray beside it, decided 2026-10-12, strapped
 down so it cannot slide off or hang by its cable.
 
-**`ifrit` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
+**`gandalf` was bought on 2026-10-05:** eBay item 800466163205, "Lenovo
 ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
-1-litre Tiny chassis, so 1U, racked at U18 on 2026-11-06. It is not usable
-as the range yet. ADR-0017
-asks for 32 GB of socketed RAM and flash storage, and
-[ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
-puts the range disk in the chassis's 2.5" bay as a SATA SSD, decided
-2026-10-16, with the 256 GB M.2 it shipped with kept as the boot disk. Still
-to buy:
+1-litre Tiny chassis, so 1U, racked at U18 on 2026-11-06. Proxmox VE 9 was
+installed on 2026-11-07 as the node `gandalf`. The box's Intel AMT, the name
+`ifrit`, was unconfigured and left disabled at the same sitting
+([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+The Windows it shipped with was never set up. Its fitted parts, read from the
+running host on 2026-11-07 (machine type 11DN, BIOS `M2WKT5AA`):
 
-- 2 × 16 GB DDR4 SO-DIMM, replacing the 8 GB it ships with;
-- a 1 TB 2.5" SATA SSD, for the range's guests and their snapshot reverts.
-
-The bay's tray and its flat SATA cable are in the chassis, checked
-2026-10-16, so no kit is needed.
+- **Memory:** 32 GB, the socketed total ADR-0017 asks for, but a mixed pair
+  rather than one kit. One Samsung `M471A2K43CB1-CTD` and one Crucial
+  `CT16G4SFD8266`, both 16 GB DDR4-2666, so both run at 2666.
+- **Range disk:** an Intel SSD DC S3520 960 GB (`SSDSC2BB960G7`) in the 2.5"
+  bay, per
+  [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md).
+  It is the single-disk ZFS pool `range`. It is a used datacenter drive.
+  SMART on 2026-11-07 read wear 090 (10 % of its rated endurance used),
+  about 254 TiB written, 49,071 power-on hours and 8 reallocated sectors,
+  none pending. A rising reallocated count is the thing to watch.
+- **Boot disk:** the 256 GB SK hynix NVMe it shipped with, ext4.
+- **Network:** the one Intel I219-LM (`nic0`). The Wi-Fi card is disabled
+  in firmware and does not enumerate. The I219's TSO and GSO are off, the
+  usual workaround for its transmit hang
+  ([`build-the-playground.md`](runbooks/build-the-playground.md) §2).
 
 **A VGA card for optional port 1 was ordered on 2026-10-14** from Amazon:
 Lenovo FRU `01AJ935` (also sold as `5C50W00901`). It replaces the
-DisplayPort card that `ifrit` shipped with in that slot, so `ifrit` plugs
+DisplayPort card that `gandalf` shipped with in that slot, so `gandalf` plugs
 straight into the VGA KVM. The listings name the M70q/M80q/M90q, and the
 FRU fits Tinys back to the M720q. Before fitting it, check that its ribbon
 cable and plug match the DP card's. Lenovo's M80q PSREF shows this slot
@@ -250,6 +259,7 @@ so a rebuilt laptop needs it again.
 | `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 26.04 LTS |
 | `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 26.04 LTS |
 | `trinity` | HP ProDesk 600 G4 DM | i5-8500T | 32 GB | 512 GB NVMe SSD (LUKS2, TPM unlock) + 2 TB USB HDD (LUKS2, photos) | Ubuntu Server 26.04 LTS |
+| `gandalf` | Lenovo ThinkCentre M80q (Tiny) | i7-10700T (8 cores) | 32 GB (2 × 16 GB DDR4 SO-DIMM, at 2666) | 256 GB NVMe SSD (boot) + 960 GB SATA SSD, ZFS `range` | Proxmox VE 9 |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 32 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
 The observability stack runs on a thirteen-year-old MacBook. It handles four

@@ -2,7 +2,7 @@
 
 **Target:** everything in the 9U rack, plus `trinity`, `prometheus` and
 `oracle` from the shelf beside it, `smaug` from the media room, the KVM
-console, `ifrit` (new), and the CRS326 that replaces `neo` — into the
+console, `gandalf` (new), and the CRS326 that replaces `neo` — into the
 four-post 32U frame in
 [`hardware.md`](../hardware.md#rack)
 **Time:** two or three evenings at the bench beforehand, then one window of
@@ -13,7 +13,7 @@ Phillips #2, an anti-static wrist strap, a tape measure, labels, velcro ties,
 and every part on the shopping list in [§0.1](#01-the-parts)
 
 > **Status — 2026-10-06: written, not run.** Nothing below has been done. The
-> frame and most parts are not bought yet. `ifrit` was bought on 2026-10-05
+> frame and most parts are not bought yet. `gandalf` was bought on 2026-10-05
 > and has not arrived ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
 > The move is tracked in [#919](https://github.com/Gerrrt/HomeLab/issues/919).
 >
@@ -29,7 +29,7 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 >
 > **2026-11-06: run.** The estate went into the frame exactly as §6 lays it
 > out, unit for unit, with the console and power maps cabled as
-> [`hardware.md`](../hardware.md#console-and-power-maps) decided. `ifrit` is
+> [`hardware.md`](../hardware.md#console-and-power-maps) decided. `gandalf` is
 > racked at U18 and stays off until the playground build. `Saruman`'s eight
 > new RDIMMs were **not** fitted, so it is still at 128 GB, and which UPS
 > outlet group feeds the PDU was not written down (§6.1). Both stay open
@@ -37,6 +37,15 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > outlet group is an open paragraph in `hardware.md`.
 > §8's documents are this runbook's PR. The switch's half is
 > [`swap-the-switch.md`](swap-the-switch.md)'s.
+>
+> **2026-11-07: two corrections.** The rack's range host is named `gandalf`,
+> not `ifrit`
+> ([ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+> It was installed that day on `neo`'s `ether20`
+> ([`build-the-playground.md`](build-the-playground.md) §1–§2). And the WAN
+> step in §6.1 was wrong: the XB7's striped 2.5G port corrupted about one inbound
+> frame in ten on `em0`, so the WAN patch now uses one of the XB7's gigabit
+> ports. §6.1 says so.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -89,16 +98,16 @@ ones not yet on hand are also in the roadmap's
 | 32U four-post open frame, adjustable depth to at least 30" | 1 | The frame. Bought 2026-10-09, built 2026-10-11 at 29" |
 | VESA 100 × 100 rack mount for a 17–19" screen (sold as 4U) | 1 | The ViewSonic N1700W, U25–U32. On hand, 2026-10-13 |
 | 1U sliding keyboard drawer, front-rail mount | 1 | U24. On hand and mounted, 2026-10-15 |
-| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `ifrit`, U18. On hand and mounted, 2026-10-15 |
+| 1U mount for a Lenovo ThinkCentre Tiny, holding its power brick | 1 | `gandalf`, U18. On hand and mounted, 2026-10-15 |
 | 1U ProDesk Mini tray (the same one as `morpheus`'s) | 1 | `trinity`, U16. On hand, 2026-10-13 |
 | 1U vented four-post shelf, square-hole, adjustable to 29" | 3 | `prometheus` U10, `oracle` U12 and the KVM at U23, whose own ears are half-height ([`hardware.md`](../hardware.md#rack)) |
 | Four-post shelf, adjustable to 29", at least 17" deep, rated for 50 lb or more | 1 | `smaug` on its side, U5–U9 (about 20 lb) |
 | 1U horizontal cable manager | 1 | U20 |
 | 1U vented blank | 1 | U22, the air gap over the CRS326 |
-| Adjustable 1U four-post support rails, a pair, spanning 29": Rack Solutions 1UKIT-109 | 2 | The keyboard drawer at U24 and `ifrit`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
+| Adjustable 1U four-post support rails, a pair, spanning 29": Rack Solutions 1UKIT-109 | 2 | The keyboard drawer at U24 and `gandalf`'s Tiny tray at U18: both front-mounted, both wobble with every ear screw tight |
 | 2U four-post rail pair, rated above the UPS's weight: Rack Solutions 2UKIT-109 | 1 | `mjolnir`, U1–U2. The rails it sits on now sag and stay behind |
-| 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `ifrit` |
-| 1 TB 2.5" SATA SSD | 1 | `ifrit`, in the 2.5" bay beside its 256 GB M.2 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
+| 2 × 16 GB DDR4 SO-DIMM (DDR4-2933 or faster) | 1 kit | `gandalf` |
+| 1 TB 2.5" SATA SSD | 1 | `gandalf`, in the 2.5" bay beside its 256 GB M.2 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
 | 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label | 8 | `Saruman`, to 256 GB: fitted in §6 while it is out of the rack ([`hardware.md`](../hardware.md#compute)) |
 
 The current shelf for the TP-Link, `morpheus`'s tray, the KVM, the PDU, the
@@ -119,7 +128,7 @@ them gates the window.
       the CRS326 is configured, certified and tested. The repository has no
       port map of its own, so that capture is the only record of what plugs
       where.
-- [ ] §1 is done: `ifrit` has its RAM and SSD, the monitor is off its stand,
+- [ ] §1 is done: `gandalf` has its RAM and SSD, the monitor is off its stand,
       the frame is built, and the laptops ignore their lids.
 - [ ] A fresh volume backup exists: `make backup` on `prometheus`, then
       `make verify-backups`. The window powers everything off. Nothing should
@@ -168,7 +177,7 @@ to the unit boundary marks on the post. Cage nuts go in from the inside of
 the post, hooked edge first, and are squeezed in with the tool, not your
 thumb.
 
-### 1.3 Fit `ifrit`'s RAM and SSD
+### 1.3 Fit `gandalf`'s RAM and SSD
 
 The M80q (first generation) takes **DDR4-2666/2933 SO-DIMMs, two slots,
 64 GB maximum**, and has **one M.2 2280 SSD slot** (PCIe 3.0 x4) **and one
@@ -254,7 +263,7 @@ The PDU has ten outlets. Write down what will plug into it:
 | --- | --- |
 | `morpheus` (brick) | 1 |
 | `trinity` (brick) | 1 |
-| `ifrit` (brick) | 1 |
+| `gandalf` (brick) | 1 |
 | DL360 (one per power supply fitted) | 1–2 |
 | KVM | 1 |
 | CRS326 (DC adapter) | 1 |
@@ -381,7 +390,7 @@ units (§1.2), then the next one up.
 | 7 | U14 | The TP-Link on its shelf | It feeds the two laptops below it. U13 stays empty |
 | 8 | U15 | `morpheus` on its tray | |
 | 9 | U16 | `trinity` on the new ProDesk tray | Its USB photo disk too: see §6.1 |
-| 10 | U18 | `ifrit` on its Tiny mount, with its brick | U17 stays empty. **Rails first:** a pair of four-post support rails in U18, then the tray's rear fastened to them (§6.1) |
+| 10 | U18 | `gandalf` on its Tiny mount, with its brick | U17 stays empty. **Rails first:** a pair of four-post support rails in U18, then the tray's rear fastened to them (§6.1) |
 | 11 | U19 | Patch panel | |
 | 12 | U20 | Cable manager | |
 | 13 | U21 | CRS326 | Already racked on 2026-10-12. [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 2 is done; carry on from step 3 |
@@ -403,9 +412,8 @@ units (§1.2), then the next one up.
 - **Velcro, not zip ties.** Zip ties crush cable and are cut, not undone.
 - Move the switch's leads by the captured port map, per
   [`swap-the-switch.md`](swap-the-switch.md) Phase 2, step 3. `morpheus`'s
-  `igc0` goes to port 1. `ifrit` gets a free green access port, untagged
-  VLAN 30, per [`build-the-playground.md`](build-the-playground.md) §1. Not
-  the TP-Link.
+  `igc0` goes to port 1. `gandalf` goes to `ether20`, untagged VLAN 30, per
+  [`build-the-playground.md`](build-the-playground.md) §1. Not the MokerLink.
 - **`smaug`'s lead goes straight to the CRS326,** on the port that takes
   the MokerLink's port 15 role in the captured map: untagged, VLAN 40
   ([`network.md`](../network.md)). The house run that carried it from the
@@ -414,11 +422,17 @@ units (§1.2), then the next one up.
   strapped down with velcro so it cannot slide off or hang by its cable. Plug
   it back in before `trinity` powers up in §7: it holds Immich's originals.
 - **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
-  clicks, in the XB7's striped 2.5 Gbit port.
+  clicks, in one of the XB7's **gigabit** ports, **not** the striped 2.5 Gbit
+  one. On 2026-11-07 the 2.5G port delivered about 10 % of inbound frames
+  to `em0` corrupt (`sysctl dev.em.0.mac_stats` showed CRC and length errors,
+  with zero symbol errors). That held downloads near 20 Mbit/s. A gigabit
+  port gave zero errors and about 630 Mbit/s. `em0` is a 1 Gbit I219, so
+  the 2.5G port never had anything to give it. After moving it,
+  `netstat -I em0 -w 5` should show `errs` at 0.
 - KVM: one lead set each, **by the port map in
   [`hardware.md`](../hardware.md#console-and-power-maps)**: `morpheus` on 1,
   `trinity` on 2, `Saruman` on 3, `smaug` on 4 if the TS150's rear VGA is
-  used, `ifrit` on 5. The lead sets reach from U23 down to `Saruman` at U3,
+  used, `gandalf` on 5. The lead sets reach from U23 down to `Saruman` at U3,
   checked 2026-10-12.
 - Power cords **by the PDU outlet map** in the same section: the DL360's
   supplies on 1 and 2, then up the rack, the external bricks together on 6–9
@@ -454,7 +468,7 @@ units (§1.2), then the next one up.
 | 6 | `smaug`, from its front button | `erebor` imports. The NAS's shares are back |
 | 7 | `prometheus` and `oracle` on the network | Their leads into the TP-Link |
 
-`ifrit` stays off until [`build-the-playground.md`](build-the-playground.md)
+`gandalf` stays off until [`build-the-playground.md`](build-the-playground.md)
 §1.
 
 ### 7.1 Delete the silence first, then read
@@ -509,7 +523,7 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
 - [`roadmap.md`](../roadmap.md#everything-still-to-buy): the rows bought for
   this move leave the buy table, and README's count with them.
 - [ADR-0049](../adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)'s
-  *What is on the UPS* records: `trinity` and `ifrit` are now on the PDU,
+  *What is on the UPS* records: `trinity` and `gandalf` are now on the PDU,
   `smaug` is on it directly rather than by the long cord, and §1.7's outlet
   table.
 - [`network.md`](../network.md): the port map, now that it was captured and
@@ -554,7 +568,7 @@ In one PR, per [#919](https://github.com/Gerrrt/HomeLab/issues/919):
   and the space behind the frame (§1.2), not its height. The one place that
   needs a gap — over the fanless CRS326, especially with two S+RJ10 modules —
   has one at U22. The other three gaps are single units over each
-  closed-lid laptop and between `trinity` and `ifrit`. The total heat is
+  closed-lid laptop and between `trinity` and `gandalf`. The total heat is
   modest: one DL360, one tower NAS, three small PCs, two laptops and a
   passive switch.
 - **The console is at the top, by choice (2026-10-12).** The first plan put

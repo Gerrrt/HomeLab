@@ -3,6 +3,13 @@
 **Status:** Accepted · 2026-08
 
 > [!NOTE]
+> **The host's name.** The machine this ADR calls `ifrit` is named
+> **`gandalf`** since 2026-11-07
+> ([ADR-0106](0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+> The decision is unchanged. Only the label moved. `ifrit` now names the
+> box's Intel AMT, which is disabled. The text below is left as written, per
+> ADR-0001.
+>
 > The isolation mechanism this ADR defers in its Consequences — where `ifrit`
 > goes, and whether the lab's egress is filtered — is settled by
 > [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).

@@ -323,7 +323,7 @@ Print it, and keep it where the age key's own backup lives
 On the day this is built, the selection may be empty. That is correct: ADR-0053
 backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
 when it was built, both did**, and the job took all seven from that night. `alexander`,
-`phoenix`, `ifrit` and `golem` itself are rebuilt from this repository and
+`phoenix`, `gandalf` and `golem` itself are rebuilt from this repository and
 stay out. So does `eden` (141), whose graph is one collection run from rebuilt
 ([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). `garuda`
 is in, because its case notes are in no repository

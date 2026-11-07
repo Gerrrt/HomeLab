@@ -2129,7 +2129,7 @@ services:
 # Assistant's `trusted_proxies` names. 172.28.99.0/24 is inside Docker's
 # default 172.16/12 pool, so nothing else on trinity changes; outside the two
 # subnets the estate routes; and outside the 172.30.30.0/24 ADR-0017 keeps
-# unrouted on ifrit, so a 172.28.99.x source in a firewall log still means
+# unrouted on gandalf, so a 172.28.99.x source in a firewall log still means
 # what that ADR says a 172.30.30.x one means — a leak reporting itself.
 #
 # A fixed subnet alone does not keep Caddy's address free. Docker hands out

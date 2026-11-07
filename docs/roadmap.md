@@ -236,7 +236,7 @@ Closes on BloodHound running where nothing attacks it.
   901 Ubuntu, 911 Windows 11 and 912 Server 2025 built from `smaug-iso`,
   each clone passing `scripts/packer-smoke.sh`, SSH included,
   → [runbook](runbooks/build-the-lab-templates.md); Kali's
-  template waits for `ifrit`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
+  template waits for its build on `gandalf`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
   2026-10-03,
   [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md):
@@ -279,11 +279,13 @@ Closes on BloodHound running where nothing attacks it.
 
 Gated on the domain, on a household observation, or on something to publish.
 
-- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Buy `ifrit` and build
-  the range.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. What gates the build
-  now is its RAM kit and SATA SSD, in
-  [*Everything still to buy*](#everything-still-to-buy).
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
+  `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
+  uninstrumented estate teaches nothing. Both are met. The host is installed
+  as of 2026-11-07: Proxmox VE 9, the `range` pool and both bridges, the
+  runbook's §1 and §2. Next is §3, moving `Saruman` to `.20`, then §4–§9.
+  The name is
+  [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
@@ -351,8 +353,14 @@ refund rather than a new drive, and the drive was bought outright on
 [`hardware.md`](hardware.md).
 
 **Buy these, and the estate as decided is fully bought.** The table was empty
-from 2026-09-25 until `ifrit` was bought on 2026-10-05, short of the spec its
-ADR set; its last two rows are what it still needs. On 2026-10-13 the move
+from 2026-09-25 until `gandalf` was bought on 2026-10-05, short of the spec its
+ADR set. The RAM and the range disk it still needed left on 2026-11-07,
+fitted and read back from the installed host
+([#421](https://github.com/Gerrrt/HomeLab/issues/421)). So did the factory
+patch cable for the WAN, fitted on 2026-11-01
+([#923](https://github.com/Gerrrt/HomeLab/issues/923)); it fixed the
+hand-crimped plug, and the rest of that fault was the XB7's 2.5G port,
+recorded in the [changelog](changelog.md). On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
 `Saruman`'s memory joined them. The six rows the move needed (`smaug`'s
@@ -364,7 +372,7 @@ move and stay until they are bought or dropped.
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
 | APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
-| Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `ifrit`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
+| Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `gandalf`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
 | USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Stick-on LED rack light, USB or battery | The top of the frame, lighting the bottom where the UPS, the DL360 and `smaug` sit | The operator, 2026-10-16 | Any time |
@@ -373,20 +381,19 @@ move and stay until they are bought or dropped.
 | Adhesive D-rings or a short vertical finger duct | The power-side rear post: the move runbook keeps power and data apart, and the horizontal manager serves the data side only | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Any time; the #919 move is done |
-| One factory-made Cat6 patch cable, long enough for the run | The XB7's striped 2.5G port to `morpheus`'s `em0`, replacing the hand-crimped patch | [#923](https://github.com/Gerrrt/HomeLab/issues/923) | Now: it should not wait for the move |
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | The next time the DL360 is out of the rack: not fitted in the #919 move |
-| 2 × 16 GB DDR4 SO-DIMM kit | `ifrit`, replacing the 8 GB it shipped with | [ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md): 32 GB socketed | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
-| 1 TB 2.5" SATA SSD | `ifrit`'s range and its snapshot reverts, in the Tiny's 2.5" bay; the 256 GB M.2 stays as the boot disk | [ADR-0096](adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md), 2026-10-16 | Before [`build-the-playground.md`](runbooks/build-the-playground.md) §1 |
 | A used Android phone that KernelSU or Magisk supports (a Pixel), to be rooted, used once and wiped | The one-time extraction of the VTech camera's TUTK license key, UID and channel password ([#1248](https://github.com/Gerrrt/HomeLab/issues/1248)) | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | First: nothing else in #1248 starts until the keys exist |
 | Raspberry Pi 4 or 5, 2 GB or more, with PSU, case and a 32 GB card | `heimdall`, the monitor bridge on Skids at `10.0.20.30` | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | After the extraction succeeds, and not before |
 
-**The last one, bought 2026-10-05:** `ifrit`, the range host — a quiet
+**The last one, bought 2026-10-05:** `gandalf`, the range host — a quiet
 SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC
 ([ADR-0017](adr/0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md),
 [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The box is a
 refurbished ThinkCentre M80q, and it arrived on 2026-10-14. It shipped with
-8 GB and a 256 GB SSD, so the two rows above are still to buy and fit.
-[`hardware.md`](hardware.md) records the box.
+8 GB and a 256 GB SSD. The 32 GB and the range disk were fitted before its
+install on 2026-11-07, and the node is named `gandalf`
+([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+[`hardware.md`](hardware.md) records the parts as fitted.
 
 **Only if a decision is taken, and none is pending** — these are not on the
 list, and each names what would put it there:
@@ -399,7 +406,7 @@ list, and each names what would put it there:
 - A Zigbee or Z-Wave coordinator for Home Assistant: only if a device needs
   one, and nothing on Skids does today — Ring is cloud, Hue has its own
   bridge, the assistants are Wi-Fi ([#134](https://github.com/Gerrrt/HomeLab/issues/134)).
-- **More** memory for `ifrit` than ADR-0017's 32 GB: only if 32 GB proves
+- **More** memory for `gandalf` than ADR-0017's 32 GB: only if 32 GB proves
   short. Reaching 32 GB is above, in the purchase itself.
 - A Coral TPU and RTSP cameras: declined with Frigate
   ([ADR-0032](adr/0032-decline-frigate-while-the-cameras-are-ring.md)).
@@ -514,7 +521,7 @@ them name the condition that would change the answer.
   Paperless's tags cannot meet**, with the proposal saying what leaves
   `hardware.md` so there is still one inventory
   ([#148](https://github.com/Gerrrt/HomeLab/issues/148)).
-- **Proxmox clustering** — joining `Saruman` and `ifrit` into one cluster once
+- **Proxmox clustering** — joining `Saruman` and `gandalf` into one cluster once
   [#421](https://github.com/Gerrrt/HomeLab/issues/421) makes them two Proxmox
   hosts on VLAN 30: one pane of glass, guest migration, shared storage. The
   first entry here that is a capability rather than a service, and declined by
@@ -525,7 +532,7 @@ them name the condition that would change the answer.
   ADR-0014 names as grounds to reopen it, on a host that is off between
   sessions by design and would take the estate's hypervisor's quorum down with
   it. **Reopened by a third host that is neither attacker nor defended estate,
-  a live-migration need that snapshot-and-rebuild does not serve, or `ifrit`
+  a live-migration need that snapshot-and-rebuild does not serve, or `gandalf`
   ceasing to hold attack tooling** — each its own decision
   ([#443](https://github.com/Gerrrt/HomeLab/issues/443)).
 - **Authelia / Authentik** — **already decided, and listed only so the next

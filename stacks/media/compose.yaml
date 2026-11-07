@@ -598,7 +598,7 @@ networks:
         # 172.28.<vlan>.0/24, the scheme stacks/sensitive uses on 172.28.99.0/24
         # — inside Docker's default private space, outside every subnet the
         # estate routes, and outside the 172.30.30.0/24 ADR-0017 keeps unrouted
-        # on ifrit. A 172.28.40.x source in a firewall log means the same kind
+        # on gandalf. A 172.28.40.x source in a firewall log means the same kind
         # of thing a 172.28.99.x one does.
         - subnet: 172.28.40.0/24
 

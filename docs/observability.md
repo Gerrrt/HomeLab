@@ -323,7 +323,7 @@ an alert — and the cost is that a source class written as `10.0.30.0/24` no
 longer covers the interface. The alert's regex carries both; the interface
 carries a second set of blocks and a second tripwire, sourced from the peers
 rather than from the segment. A `10.0.30.x` source is the lab, a `172.31.x`
-source is a remote peer, and a `172.30.x` source is neither — that is `ifrit`'s
+source is a remote peer, and a `172.30.x` source is neither — that is `gandalf`'s
 range bridge escaping, which is a different incident.
 
 A tripwire that never fires is indistinguishable from a broken one, which is
