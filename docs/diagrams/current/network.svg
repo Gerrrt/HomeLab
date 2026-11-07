@@ -108,7 +108,7 @@
 <g id="morpheus">
 <rect x="790" y="226" width="780" height="196" rx="12" fill="#161b22" stroke="#8b949e" stroke-width="2"/>
 <text x="810" y="258" class="pname" fill="#f0f6fc">morpheus</text>
-<text x="930" y="258" class="sub">pfSense CE · HP ProDesk 600 G4 Mini · rack U5</text>
+<text x="930" y="258" class="sub">pfSense CE · HP ProDesk 600 G4 Mini · rack U15</text>
 <rect x="1506" y="243" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
 <text x="1531.0" y="256" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
 <rect x="810" y="282" width="52" height="44" rx="6" fill="#0d1117" stroke="#8b949e"/>
@@ -308,7 +308,7 @@
 <rect x="344" y="822" width="50" height="18" rx="9" fill="#8b949e" fill-opacity="0.18" stroke="#8b949e" stroke-width="1"/>
 <text x="369.0" y="835" class="pill" fill="#8b949e" text-anchor="middle">SNMP</text>
 <rect x="54" y="860" width="352" height="226" rx="10" fill="none" stroke="#f85149" stroke-opacity="0.5" stroke-dasharray="4 4"/>
-<text x="66" y="880" class="sub">TP-Link 8-port unmanaged · neo port 3 · U4</text>
+<text x="66" y="880" class="sub">TP-Link 8-port unmanaged · neo port 3 · U14</text>
 <g class="host" data-host="prometheus">
 <rect x="64" y="890" width="332" height="92" rx="8" class="card"/>
 <rect x="64" y="896" width="4" height="80" rx="2" fill="#f85149"/>
