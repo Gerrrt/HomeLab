@@ -22,8 +22,8 @@ docstring gives: it is a record, not a claim about now.
 - **Docker on `prometheus` now waits for `10.0.99.20`, and a container that is
   healthy without its ports now pages**
   ([ADR-0105](adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)).
-  On 2026-11-05 the move into the 32U rack power-cycled every host.
-  `prometheus` booted at 23:46 with no carrier on its USB NIC. The link came
+  The move into the 32U rack power-cycled every host. `prometheus` booted
+  at 23:46 on 2026-11-05 with no carrier on its USB NIC. The link came
   at 21:02 on 2026-11-06 and the address at 22:28.
   `systemd-networkd-wait-online` had given up at 23:48:26, after its default
   two minutes. `network-online.target` was reached anyway and dockerd
@@ -41,13 +41,34 @@ docstring gives: it is a record, not a claim about now.
   15-minute `port-state` job, which compares each container's declared port
   bindings with the ones Docker published. Runbook:
   [`recover-a-container-without-its-ports.md`](runbooks/recover-a-container-without-its-ports.md).
-- **`collect-guest-disk-state.sh` caps an answer's nesting at 16 levels
-  itself.** Its self-test failed on the ubuntu-26.04 runner image of
-  2026-11-01. A guest answering 100000 nested brackets was meant to raise
-  `RecursionError` and read as agent down. Python 3.14 measures that nesting
-  against the real C stack, and the new image's stack was big enough to parse
-  it, so the guest read as up. The depth is now checked after parsing, the
-  same on any stack.
+
+## 2026-11-06
+
+- **[#919](https://github.com/Gerrrt/HomeLab/issues/919): the estate is in
+  the 32U rack.** Moved on 2026-11-06 by
+  [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md), in the
+  same window as the switch swap
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)), and exactly as the
+  2026-10-12 layout planned it: the UPS at U1–U2, the DL360 at U3, the PDU at
+  U4, `smaug` on its side at U5–U9, the laptops at U10 and U12, the TP-Link at
+  U14, `morpheus` and `trinity` at U15 and U16, `ifrit` at U18, the panel,
+  cable manager and CRS326 at U19–U21, a vented blank at U22, and the console
+  (KVM U23, drawer U24, the N1700W U25–U32), with U11, U13 and U17 left as
+  air. The KVM and PDU maps were cabled as decided on 2026-10-15. The 9U
+  frame's Rack table in `hardware.md` gave way to the 32U table, which absorbed
+  the *Planned: a 32U rack* section, so three links in older entries here
+  that named that section and the `planned/` drawing now go to those files as
+  they stood before the move, pinned to commit `32f3678`: the targets they
+  meant, kept alive rather than redirected to the rack as built; `network.md`'s Location column
+  moved with the hosts, `smaug` from the media room to U5–U9 and `trinity`,
+  `prometheus` and `oracle` off the shelf; the diagram's rack panel is the 32U
+  layout; and `diagrams/planned/rack-32u.svg` moved to `current/` as built.
+  `smaug`'s long cord to the media room is retired: it is on PDU outlet 3.
+  The six move parts left the roadmap's buy table. **Not done in the window:**
+  `Saruman`'s eight RDIMMs were not fitted, so it stays at 128 GB and the
+  kit stays on the buy table, and which UPS outlet group feeds the PDU was not
+  read. `ifrit` is racked and off until the playground build
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
 
 ## 2026-10-28
 
@@ -629,7 +650,7 @@ docstring gives: it is a record, not a claim about now.
   fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
   Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
   cabling crossbar the drawer's slider rears can tie to. Both parts are now
-  footnoted in [`hardware.md`](hardware.md#planned-a-32u-rack).
+  footnoted in [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack).
 
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
@@ -723,8 +744,8 @@ docstring gives: it is a record, not a claim about now.
     drop one unit. The adjustment range of every four-post rail and shelf
     against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
     sets reach the DL360 20 units below. The plan is in
-    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
-    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+    [`hardware.md`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/hardware.md#planned-a-32u-rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](https://github.com/Gerrrt/HomeLab/blob/32f367827b5edc32e61b73cd2e7cac7e8487e8f7/docs/diagrams/planned/rack-32u.svg).
 
 ## 2026-10-11
 

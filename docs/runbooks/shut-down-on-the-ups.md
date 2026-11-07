@@ -59,9 +59,9 @@ Tick all seven. Steps 1 to 6 assume every one of these is done.
       `Saruman`, both its guests, `smaug` and `morpheus`. While `morpheus` is
       down the house has no DNS and no DHCP.
 - [ ] **Physical or out-of-band access to all three hosts**, because step 5
-      leaves them all powered off: the KVM in U6 for `morpheus`, the iLO at
-      `10.0.30.10` from a Mac on Hicks for `Saruman`, and the power button
-      on the front of `smaug` in the media room.
+      leaves them all powered off: the KVM in U23 (port 1) for `morpheus`,
+      the iLO at `10.0.30.10` from a Mac on Hicks for `Saruman`, and the
+      power button on the front of `smaug`, on its side at rack U5–U9.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
       and never in a worktree (the command is below this list). They are
       `SNMP_AUTHPASS_APC` and `SNMP_PRIVPASS_APC` in the rendered file, and
@@ -813,7 +813,7 @@ took real power away, and that is not this test.
 
 ### 5.4 Power everything back on, in this order
 
-1. `morpheus`, from the KVM in U6.
+1. `morpheus`, from the KVM in U23.
 2. `Saruman`, from the iLO at `10.0.30.10`.
 3. `smaug`, from the button on the front.
 
@@ -1015,9 +1015,10 @@ through *Extra Arguments to driver*, which the package appends inside the
 
 ### Why `smaug` is a subscriber at all
 
-It is in the media room, not the rack, and nothing recorded what powered it
-until 2026-09-20. It runs from the rack's PDU on a long cord, so it is on the
-UPS like everything else on that strip — which makes it the one host holding
+Until 2026-11-06 it was in the media room, not the rack, and nothing
+recorded what powered it until 2026-09-20. It ran from the rack's PDU on a
+long cord, and since the move into the 32U rack it is on that PDU directly
+(outlet 3), so it is on the UPS like everything else on that strip — which makes it the one host holding
 irreplaceable data on spinning disks that was going to stop uncleanly every
 time the pack ran out.
 

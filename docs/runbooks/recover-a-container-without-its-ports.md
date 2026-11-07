@@ -10,8 +10,8 @@ boot ordering is installed and checked
 
 ## Why this exists
 
-On 2026-11-05 every host was power-cycled for the move into the 32U rack.
-`prometheus` booted at 23:46 with no carrier on its USB NIC.
+The move into the 32U rack power-cycled every host. `prometheus` booted at
+23:46 on 2026-11-05 with no carrier on its USB NIC.
 `systemd-networkd-wait-online` gave up after its two minutes, at 23:48:26.
 `network-online.target` was reached anyway and dockerd started the
 observability stack. Two services publish ports on `10.0.99.20` specifically:

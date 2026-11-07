@@ -4,8 +4,8 @@
 
 ## Context
 
-On 2026-11-05 the estate moved into the 32U rack and every host was
-power-cycled. `prometheus` booted at 23:46 with no carrier on its USB NIC,
+The move into the 32U rack power-cycled every host. `prometheus` booted at
+23:46 on 2026-11-05 with no carrier on its USB NIC,
 which got its link at 21:02 the next evening and its DHCP address,
 `10.0.99.20`, at 22:28.
 

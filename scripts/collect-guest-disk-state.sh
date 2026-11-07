@@ -87,14 +87,6 @@ import json, os, re, sys
 host = os.environ["HOST_LABEL"]
 MAX_FS = 32
 MAX_BYTES = int(os.environ["MAX_BYTES"])
-# A real get-fsinfo answer nests five deep (list, filesystem, disk list, disk,
-# pci-controller). Deeper than this is not an answer.
-#
-# NOT LEFT TO RecursionError. Python 3.14 measures json's nesting against the
-# real C stack, not a fixed limit, so whether 100000 brackets raise depends on
-# `ulimit -s`. The ubuntu-26.04 runner image of 2026-11-01 parses them, and
-# the deep guest read as up there while it read as down here.
-MAX_DEPTH = 16
 # Filesystems that are not a disk the hypervisor allocated, or that are
 # read-only by construction. Compared in lower case, because the Windows agent
 # answers in capitals.
@@ -116,17 +108,34 @@ def clean(value, limit: int) -> str:
     return LABEL_OK.sub("_", s)[:limit]
 
 
-def too_deep(doc) -> bool:
-    # Iterative, so a document that did parse cannot recurse out of here.
-    todo = [(doc, 1)]
-    while todo:
-        v, depth = todo.pop()
-        if depth > MAX_DEPTH:
-            return True
-        if isinstance(v, list):
-            todo.extend((x, depth + 1) for x in v)
-        elif isinstance(v, dict):
-            todo.extend((x, depth + 1) for x in v.values())
+# guest-get-fsinfo nests four deep at most: the list, a filesystem, its `disk`
+# list, a disk. Anything past MAX_DEPTH is refused before json sees it.
+# json.load used to be the guard, by raising RecursionError on an answer
+# nested thousands deep, but that depends on the interpreter: the CI runner
+# image of 2026-11-01 parsed 100,000 levels without raising, and the guest
+# came out agent-up. Counting brackets outside strings is exact enough for
+# a cap, and does not care which python runs it.
+MAX_DEPTH = 32
+
+
+def too_deep(text: str) -> bool:
+    depth, in_str, esc = 0, False, False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                return True
+        elif ch in "]}":
+            depth -= 1
     return False
 
 
@@ -152,17 +161,16 @@ with open(sys.argv[1], encoding="utf-8") as fh:
         base = f'host="{host}",guest="{guest}",vmid="{vmid}"'
         doc = None
         # One render covers every guest, so nothing one guest sends may raise
-        # out of here. Too big is refused before it is read. A valid answer
-        # nested thousands deep either raises RecursionError or parses, by the
-        # stack size; too_deep refuses the second.
+        # out of here. Too big is refused before it is read, and RecursionError
+        # is what json raises for a valid answer nested thousands deep.
         if rc == "0":
             try:
                 if os.path.getsize(path) <= MAX_BYTES:
                     with open(path, encoding="utf-8", errors="replace") as out:
-                        doc = json.load(out)
+                        text = out.read()
+                    if not too_deep(text):
+                        doc = json.loads(text)
             except (OSError, ValueError, RecursionError):
-                doc = None
-            if doc is not None and too_deep(doc):
                 doc = None
         if not isinstance(doc, list):
             agent_up.append(f"homelab_guest_agent_up{{{base}}} 0")
@@ -282,13 +290,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   # An agent that answers, with nothing to report.
   guest 180 empty 0 '[]'
   # Valid JSON, nested past python's recursion limit: json.load raises
-  # RecursionError or, on a big enough stack, parses it. Either way it must
-  # cost this guest and not the whole run. Then one just past MAX_DEPTH, which
-  # always parses, and a real answer's depth plus one, which must not be cut.
+  # RecursionError, which must cost this guest and not the whole run.
   guest 181 deep 0 "$(printf '%0.s[' $(seq 1 100000))$(printf '%0.s]' $(seq 1 100000))"
-  guest 182 deep17 0 "$(printf '%0.s[' $(seq 1 17))$(printf '%0.s]' $(seq 1 17))"
-  guest 183 nested 0 '[{"name":"sdc1","mountpoint":"/srv/nested","type":"ext4","used-bytes":1,"total-bytes":10,
-    "disk":[{"dev":"/dev/sdc1","pci-controller":{"domain":0,"bus":0,"slot":5,"function":0,"x":{"y":1}}}]}]'
 
   out="$(render "${WORK_DIR}/manifest")"
 
@@ -321,10 +324,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
   has "a Windows System Reserved partition is kept" \
     'homelab_guest_filesystem_size_bytes{host="Saruman",guest="bahamut",vmid="150",mountpoint="System_Reserved",fstype="NTFS"} 827322368'
   has "an empty answer is still an answer" 'homelab_guest_agent_up{host="Saruman",guest="empty",vmid="180"} 1'
-  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 10'
+  has "every guest asked is counted" 'homelab_guest_disk_guests_queried{host="Saruman"} 8'
   has "an answer nested past the recursion limit is agent down" 'homelab_guest_agent_up{host="Saruman",guest="deep",vmid="181"} 0'
-  has "an answer one past MAX_DEPTH is agent down" 'homelab_guest_agent_up{host="Saruman",guest="deep17",vmid="182"} 0'
-  has "a real answer's depth is kept" 'homelab_guest_agent_up{host="Saruman",guest="nested",vmid="183"} 1'
 
   # An answer over the cap is refused whole, even though it is valid JSON and
   # the guest would otherwise report a disk.

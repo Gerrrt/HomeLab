@@ -1,6 +1,6 @@
 # Hold dockerd until this host's own address exists (ADR-0105).
 #
-# WHY. On 2026-11-05 the estate moved into the 32U rack and this host booted
+# WHY. In the move into the 32U rack this host booted, at 23:46 on 2026-11-05,
 # with no carrier on its USB NIC. systemd-networkd-wait-online gave up after
 # its two minutes, network-online.target was reached anyway (it only Wants the
 # wait), and dockerd started the stack. alloy and ingest-proxy publish ports on
