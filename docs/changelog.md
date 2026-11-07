@@ -17,6 +17,31 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-07
+
+- **Docker on `prometheus` now waits for `10.0.99.20`, and a container that is
+  healthy without its ports now pages**
+  ([ADR-0105](adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)).
+  On 2026-11-05 the move into the 32U rack power-cycled every host.
+  `prometheus` booted at 23:46 with no carrier on its USB NIC. The link came
+  at 21:02 on 2026-11-06 and the address at 22:28.
+  `systemd-networkd-wait-online` had given up at 23:48:26, after its default
+  two minutes. `network-online.target` was reached anyway and dockerd
+  started the stack. `alloy` and `ingest-proxy` publish on `10.0.99.20`.
+  Docker logged "cannot assign requested address" for 6514, 9090 and 3100
+  and ran both containers with no networks and no published ports, both
+  `Up (healthy)`. `EndpointUnreachable` on `10.0.99.20:9090` and `:3100`,
+  and `InstanceDown` on `alloy:12345`, fired from 22:28. `docker restart`
+  did not repair them. `docker compose up -d --force-recreate` did, by hand,
+  on 2026-11-07. Firewall, Suricata and DHCP logs, and the ingest endpoints,
+  were dark for about 25 hours.
+  `systemd/host/homelab-wait-address.service` now holds `docker.service`
+  until the address is assigned, with no timeout
+  (`make install-host-units`). `ContainerNetworkingMissing` reads the new
+  15-minute `port-state` job, which compares each container's declared port
+  bindings with the ones Docker published. Runbook:
+  [`recover-a-container-without-its-ports.md`](runbooks/recover-a-container-without-its-ports.md).
+
 ## 2026-10-28
 
 - **A ninth camera, the eighth's lease, and the Skids pool rows read with

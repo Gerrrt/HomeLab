@@ -676,6 +676,68 @@ tests:
                 Advanced Settings → Cron Jobs) and run its command by hand with
                 --print.
 
+  # --- ContainerNetworkingMissing (ADR-0105) ---------------------------------
+  #
+  # 2026-11-05 as it was: ingest-proxy declared two ports and had none, and no
+  # network; alloy had no network but this fixture gives it its ports, so the
+  # networks clause is proved on its own. grafana is whole and stays quiet, and
+  # so does node-exporter's absent networks series (network_mode host).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_container_ports_missing{name="ingest-proxy",project="observability",instance="prometheus"}'
+        values: "2x30"
+      - series: 'homelab_container_networks_attached{name="ingest-proxy",project="observability",instance="prometheus"}'
+        values: "0x30"
+      - series: 'homelab_container_ports_missing{name="alloy",project="observability",instance="prometheus"}'
+        values: "0x30"
+      - series: 'homelab_container_networks_attached{name="alloy",project="observability",instance="prometheus"}'
+        values: "0x30"
+      - series: 'homelab_container_ports_missing{name="grafana",project="observability",instance="prometheus"}'
+        values: "0x30"
+      - series: 'homelab_container_networks_attached{name="grafana",project="observability",instance="prometheus"}'
+        values: "1x30"
+    alert_rule_test:
+      - eval_time: 8m
+        alertname: ContainerNetworkingMissing
+        exp_alerts: []
+      - eval_time: 12m
+        alertname: ContainerNetworkingMissing
+        exp_alerts:
+          - exp_labels:
+              alertname: ContainerNetworkingMissing
+              name: ingest-proxy
+              project: observability
+              instance: prometheus
+              component: containers
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "Container ingest-proxy on prometheus is running without its ports or networks"
+              description: >-
+                Docker could not set up its networking when it started it, usually
+                because an address it publishes on did not exist yet. Its
+                healthcheck can still pass. `docker restart` does not repair it;
+                `docker compose up -d --force-recreate` for its service does
+                (docs/runbooks/recover-a-container-without-its-ports.md).
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#containernetworkingmissing"
+          - exp_labels:
+              alertname: ContainerNetworkingMissing
+              name: alloy
+              project: observability
+              instance: prometheus
+              component: containers
+              severity: critical
+              category: availability
+            exp_annotations:
+              summary: "Container alloy on prometheus is running without its ports or networks"
+              description: >-
+                Docker could not set up its networking when it started it, usually
+                because an address it publishes on did not exist yet. Its
+                healthcheck can still pass. `docker restart` does not repair it;
+                `docker compose up -d --force-recreate` for its service does
+                (docs/runbooks/recover-a-container-without-its-ports.md).
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#containernetworkingmissing"
+
   # --- ContainerOomKilled, untested until #843 -----------------------------
 
   # An OOM kill on grafana fires at once (no `for`: the kill is the event); loki's

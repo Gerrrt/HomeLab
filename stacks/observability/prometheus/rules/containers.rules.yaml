@@ -318,3 +318,33 @@ groups:
             cannot see this stack. Check the cron job in TrueNAS (System →
             Advanced Settings → Cron Jobs) and run its command by hand with
             --print.
+
+      # A running container without the networking it was created with
+      # (ADR-0105). On 2026-11-05 dockerd started before this host held
+      # 10.0.99.20, could not publish alloy's and ingest-proxy's ports on it,
+      # and started both with no networks. Both stayed `Up (healthy)` for
+      # about 25 hours, because a healthcheck runs on the container's own
+      # loopback. EndpointUnreachable and InstanceDown fired, and said "does
+      # not answer", which a dead process or a bad certificate also says. This
+      # names the state, which has one fix. The series come from
+      # collect-port-state.py every 15 minutes; its staleness is
+      # ScheduledJobStale's. 10m is one run seen twice, never a single read
+      # taken while `make up` is recreating the container.
+      - alert: ContainerNetworkingMissing
+        expr: >-
+          homelab_container_ports_missing > 0
+          or homelab_container_networks_attached == 0
+        for: 10m
+        labels:
+          component: containers
+          severity: critical
+          category: availability
+        annotations:
+          summary: "Container {{ $labels.name }} on {{ $labels.instance }} is running without its ports or networks"
+          description: >-
+            Docker could not set up its networking when it started it, usually
+            because an address it publishes on did not exist yet. Its
+            healthcheck can still pass. `docker restart` does not repair it;
+            `docker compose up -d --force-recreate` for its service does
+            (docs/runbooks/recover-a-container-without-its-ports.md).
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/triage-a-critical-alert.md#containernetworkingmissing"
