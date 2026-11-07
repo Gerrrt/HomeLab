@@ -94,7 +94,9 @@ Never set it up: power it off from the setup screen (Shift+F10, then
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.
-- **After Power Loss: Power On.** There is no BMC to press the button.
+- **After Power Loss: Power Off.** `gandalf` is off between sessions (§7),
+  and nothing alerts when it is left on, so a power cut must not bring it
+  back by itself. A session starts at the power button.
 - Secure Boot can stay on, because the Proxmox VE 9 installer is signed.
 
 Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
@@ -137,8 +139,9 @@ update-initramfs -u -k all
 ```
 
 Then switch the repositories to *No-Subscription* (*gandalf → Updates →
-Repositories*: disable both enterprise lines, add No-Subscription), upgrade,
-and reboot once. The checks after the reboot are in §2.
+Repositories*: disable both enterprise lines, add No-Subscription) and
+upgrade. Leave the reboot until the end of §2, so that it tests that §2's
+settings persist.
 
 Record what you actually fitted in [`hardware.md`](../hardware.md). Run
 `dmidecode -t memory`, `lsblk -d -o NAME,SIZE,MODEL,TRAN` and
@@ -176,6 +179,7 @@ iface vmbr1 inet manual
         bridge-ports none
         bridge-stp off
         bridge-fd 0
+        pre-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
 
 source /etc/network/interfaces.d/*
 ```
@@ -185,10 +189,14 @@ Two things in there are load-bearing and neither is obvious:
 - **`bridge-ports none` on `vmbr1`.** This is the isolation. It is not a filter
   and there is nothing to configure — the bridge has no path to a physical
   interface, so a guest on it can reach the other guests on it and nothing else.
-- **`iface vmbr1 inet manual`.** The host takes no address on the range subnet.
-  Give `vmbr1` an address and the hypervisor — the box whose management plane
-  §4 closes — becomes a live host on the segment holding the vulnerable
-  machines, and their only unreachable neighbour stops being unreachable.
+- **`iface vmbr1 inet manual`, and IPv6 off on `vmbr1`.** The host takes no
+  address on the range subnet, in either family. Give `vmbr1` an address and
+  the hypervisor (the box whose management plane §4 closes) becomes a live
+  host on the segment holding the vulnerable machines, and their only
+  unreachable neighbour stops being unreachable. `inet manual` covers IPv4
+  only. Linux gives every interface that comes up an IPv6 link-local address,
+  and an `fe80::` address on `vmbr1` is an on-link endpoint every target can
+  reach without a gateway. The `pre-up` line stops that.
 
 The `post-up` line is not isolation. It is the usual workaround for the
 I219's e1000e transmit hang under load, which would take the range's one
@@ -196,15 +204,21 @@ link down mid-session.
 
 ```bash
 ip -br addr show
+ip addr show dev vmbr1 | grep -c inet
 ethtool -k nic0 | grep -E 'tcp-segmentation-offload|generic-segmentation-offload'
 ```
 
 **You should see** `vmbr0` with `10.0.30.30/24`, and **`vmbr1` with no
-IPv4 address**. An `fe80::` link-local is harmless, and `UNKNOWN` is what
-an empty bridge reports. Both offloads should read `off`. After the reboot
-in §1, check that they still read `off`, that
-`/sys/module/zfs/parameters/zfs_arc_max` is `4294967296`, and that
-`zpool status -x` is healthy. Read on 2026-11-07, all of these held.
+address at all**: the `grep -c` prints `0`, so no `inet` and no `inet6`.
+`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`.
+
+Then reboot once, which also picks up §1's kernel, and run the same
+commands again, with
+`cat /sys/module/zfs/parameters/zfs_arc_max; zpool status -x`. Nothing above
+should have changed. The ARC cap should read `4294967296` and the pool
+should be healthy. On 2026-11-07 the offloads, the ARC cap and the pool held
+across the reboot. `vmbr1` came up with an `fe80::` address that day,
+because the `pre-up` line was added afterwards, from review.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -537,7 +551,9 @@ bridge link show
 ```
 
 `vmbr0` should carry exactly one physical interface. `vmbr1` should appear in
-the first command and contribute **nothing but guest taps** to the second. A
+the first command and contribute **nothing but guest taps** to the second.
+`ip addr show dev vmbr1 | grep -c inet` should print `0`: the host has no
+address on the range in either family (§2). A
 physical NIC name under `vmbr1` is the failure this whole design is built to
 avoid.
 

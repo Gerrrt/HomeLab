@@ -9,8 +9,7 @@
 > The decision is unchanged. Only the label moved. `ifrit` now names the
 > box's Intel AMT, which is disabled. The text below is left as written, per
 > ADR-0001.
-
-> [!NOTE]
+>
 > The isolation mechanism this ADR defers in its Consequences — where `ifrit`
 > goes, and whether the lab's egress is filtered — is settled by
 > [ADR-0014](0014-put-ifrit-on-imaginationlan-and-give-the-targets-no-route.md).

@@ -9,8 +9,7 @@
 > The decision is unchanged. Only the label moved. `ifrit` now names the
 > box's Intel AMT, which is disabled. The text below is left as written, per
 > ADR-0001.
-
-> [!NOTE]
+>
 > The details this ADR leaves as adjectives — which subnet "deliberately
 > outside `10.0.0.0/16`" is, what `ifrit` is bought as, and who maintains the
 > guests — are filled in by

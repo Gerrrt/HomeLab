@@ -9,8 +9,7 @@
 > The decision is unchanged. Only the label moved. `ifrit` now names the
 > box's Intel AMT, which is disabled. The text below is left as written, per
 > ADR-0001.
-
-> [!NOTE]
+>
 > **The *Disk* row of the decision table is superseded. The text below is
 > left as written, per ADR-0001.**
 > [ADR-0096](0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)
