@@ -247,8 +247,8 @@ so a rebuilt laptop needs it again.
 | --- | --- | --- | --- | --- | --- |
 | `morpheus` | HP ProDesk 600 G4 Mini | i5-8500T | 32 GB | 1 TB NVMe SSD | FreeBSD 16.0 (pfSense) |
 | `Saruman` | HPE ProLiant DL360 Gen9 | 2× Xeon E5-2680 v3 (48 threads) | 128 GB | 2× 1 TB SATA HDD, RAID 1 (`pve`); 2× 960 GB SATA SSD, RAID 1, LVM-thin `large_data` | Proxmox VE 9 |
-| `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 24.04 LTS |
-| `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 24.04 LTS |
+| `prometheus` | Apple MacBook Pro (2012, Retina 13") | i5/i7 | 8 GB | 256 GB SSD | Ubuntu Server 26.04 LTS |
+| `oracle` | Dell Inspiron 15-3565 | AMD A6-9200 (2 cores) | 4 GB | 500 GB HDD | Ubuntu Server 26.04 LTS |
 | `trinity` | HP ProDesk 600 G4 DM | i5-8500T | 32 GB | 512 GB NVMe SSD (LUKS2, TPM unlock) + 2 TB USB HDD (LUKS2, photos) | Ubuntu Server 26.04 LTS |
 | `smaug` | Lenovo ThinkServer TS150 | Xeon E3-1225 v6 (4 cores) | 32 GB ECC | 240 GB SATA SSD (boot) + 2× 18 TB ZFS mirror `erebor` | TrueNAS 25.10 |
 
