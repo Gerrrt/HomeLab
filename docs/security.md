@@ -745,10 +745,10 @@ repository must be treated as compromised:
 
 | What | Where | Status |
 | --- | --- | --- |
-| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old. `neo` answers the new one; whether it still holds the previous one is **unverified**, not confirmed. Its agent serves GETBULK to any community of sixteen characters or fewer without consulting the table (measured 2026-09-12), which is what the 2026-09-06 and 2026-09-09 sightings of the old string and the stock `public` and `private` actually were; those measurements are withdrawn. Over GET, which it does check, both stock strings and a junk string are refused — the previous community's row is the one thing still unmeasured, because that string was purged from history and is not to hand. Accepted risk, see [`SECURITY.md`](../SECURITY.md) and the [runbook](runbooks/rotate-snmp-community.md) |
+| SNMP community shared across all four devices | `snmp.yaml`, from commit `ee3d443` (now rewritten) | Purged from history. Replaced with four distinct per-device values, SOPS-encrypted. Rotated on all four. `morpheus`, `mjolnir` and `shiva` verified answering the new community and refusing the old. `neo` answers the new one; whether it still holds the previous one is **unverified**, not confirmed. Its agent serves GETBULK to any community of sixteen characters or fewer without consulting the table (measured 2026-09-12), which is what the 2026-09-06 and 2026-09-09 sightings of the old string and the stock `public` and `private` actually were; those measurements are withdrawn. Over GET, which it does check, both stock strings and a junk string were refused — the previous community's row was the one thing never measured, because that string was purged from history and is not to hand. **Closed 2026-11-05:** the MokerLink left service as `neo`, and the CRS326 that replaced it has no v2c at all ([`SECURITY.md`](../SECURITY.md), [#444](https://github.com/Gerrrt/HomeLab/issues/444)). The MokerLink was factory-reset before it was reused as a plain switch at U14, which cleared its table (reported by the owner, 2026-11-07) |
 | Grafana `admin` / `admin` with anonymous Admin access | compose file | Fixed: password from SOPS, anonymous auth disabled |
 | Decrypted secrets in editor undo files | `~/.local/state/nvim/undodir/`, written by `make secrets-edit` | Found 2026-08-20: three files holding the live pfSense, APC and iLO SNMP communities in plaintext, mode 664, on an unencrypted disk. Shredded. `make secrets-edit` now hardens the editor first, so it cannot recur. Never committed, never left the host, so the communities were not rotated on that basis |
-| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again. That reasoning is spent — the overwrite it was afraid of was done on 2026-09-12 and persisted — and the value retires with the MokerLink hardware, which is replaced by a switch commissioned with v2c off entirely; no value the MokerLink held is carried across |
+| Alertmanager webhook URL and the MokerLink SNMP community | a local Claude Code session transcript under `~/.claude/projects/` | Found 2026-08-20 by a value-level sweep of the host. Redacted in place; mode 600, never committed or synced. The webhook was rotated because it is a one-line regenerate; the switch community was not, because rotating it means the `neo` residual below all over again. That reasoning is spent — the overwrite it was afraid of was done on 2026-09-12 and persisted — and the value retires with the MokerLink hardware, which is replaced by a switch commissioned with v2c off entirely; no value the MokerLink held is carried across. **Retired 2026-11-05**, when the CRS326 took over; the MokerLink was factory-reset before its reuse as a plain switch (owner's report, 2026-11-07) |
 | Passphrase-encrypted TLS private keys | `certificates/`, added in `efb2632`, deleted in `647d90a` | Purged from history, and the CA replaced — see [runbook](runbooks/generate-certificates.md). Anything that trusted the old CA must be re-pointed at the new one |
 
 CI scans both the working tree and the full history, with no ignore file. Both
@@ -872,15 +872,16 @@ keeps finding, one level up each time.
 
 ### Why SNMPv2c is still a weak point
 
-The devices are polled with SNMPv2c, which transmits the community string in
+The firewall is still polled with SNMPv2c, which transmits the community string in
 cleartext, and whoever can see the poll's last hop can read it off a single
 packet. Two mitigations are in place, and the third is decided per device
 rather than for the fleet:
 
-- **Done:** each device has its own community, confirmed live on all four, so
-  one captured packet no longer grants read access to the whole fleet. The
-  switch does still accept its own previous community as well — an accepted
-  residual, recorded in [`SECURITY.md`](../SECURITY.md).
+- **Done:** no two devices share a credential, so one captured packet no
+  longer grants read access to the whole fleet. Only the firewall still has
+  a community; the other three are v3-only, and the switch's residual of
+  accepting its previous community closed with the MokerLink on 2026-11-05
+  ([`SECURITY.md`](../SECURITY.md)).
 - **Done:** SNMP is reachable only on the management VLAN, the
   switch-management LAN and — for the iLO — the lab segment, and only from
   the monitoring host.

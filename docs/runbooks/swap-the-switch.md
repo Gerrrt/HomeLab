@@ -46,9 +46,11 @@ of the split is that the window is cabling and verification, not configuration.
 2. **Bridge VLAN filtering is one commit from a dead trunk.** On RouterOS the
    config that decides which ports carry which tags is the config the management
    path rides on. This is why ADR-0041 keeps the untagged `10.7.7.0/24` link
-   from `morpheus`'s `igc0` to port 1: it is a cable, not a configuration, and it
-   is the way back in. Do not put management on a tagged VLAN "while you are in
-   there".
+   from `morpheus`'s `igc0` to port 1: no tag has to be right on either end. It
+   still rides port 1's PVID, frame admission and the switch-LAN VLAN's
+   membership, so a commit that touches those can cut it too; the serial
+   console is the way back in that depends on none of it. Do not put
+   management on a tagged VLAN "while you are in there".
 3. **A used RouterOS device arrives with its last owner's configuration**,
    users and all — the same lesson `SECURITY.md` records for `smaug`'s Intel
    AMT, where a second-hand server arrived with the factory default still set on

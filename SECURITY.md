@@ -64,8 +64,9 @@ on GETBULK at all when the string was sixteen characters or fewer: any such
 string was served a full walk of every table, from any host that could reach
 UDP/161. Every earlier sighting of `public`, `private` or the old community
 "still accepted" was that GETBULK answer. Over GET, after the stale rows were
-overwritten on 2026-09-12, all three were refused, and the previous community's
-row stayed unmeasured. It was accepted as a residual bounded by the pfSense rule
+overwritten on 2026-09-12, `public`, `private` and a junk string were refused,
+and the previous community's row stayed unmeasured: that string was not to
+hand. It was accepted as a residual bounded by the pfSense rule
 that lets only `10.0.99.20` reach UDP/161 on the switch, with the replacement as
 the fix.
 

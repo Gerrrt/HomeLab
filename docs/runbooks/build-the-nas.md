@@ -142,9 +142,10 @@ There is also an `ME_DIS` header on the board if the answer turns out to be
 > ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
 > decision 2), but not the port numbering. `smaug`'s lead went to the CRS326
 > port that took port 15's role in the map §1.1 of
-> [`swap-the-switch.md`](swap-the-switch.md) captured, and this repository does
-> not record which port that is: the wiki's `infrastructure/switching` page is
-> the authority for the map. Read it off the switch rather than assuming 15.
+> [`swap-the-switch.md`](swap-the-switch.md) captured: **`ether17`**, read from
+> the switch's forwarding table on 2026-11-07 and recorded in
+> [`network.md`](../network.md). Confirm it on the live switch before
+> re-cabling rather than assuming either number.
 
 In `neo`'s web UI at `https://10.7.7.2/`, add the port to CasaBonita's untagged
 members in the bridge's VLAN table, take it out of ImaginationLAN's, and set its
@@ -160,10 +161,10 @@ places — they were on the MokerLink, and on RouterOS they are the bridge VLAN
 table and the bridge port — and a port with the right membership and a stale
 PVID is the failure below wearing a working port's clothes.
 
-Not **port 1**, which is the trunk to `morpheus` on both switches. On the
-MokerLink, not **port 3** either, which fed the unmanaged shelf switch that
-`prometheus` and `oracle` hang off; which CRS326 port took that role is in the
-same captured map, not in this repository.
+Not **port 1**, which is the trunk to `morpheus` on both switches, and not
+**`ether2`**, the uplink to the MokerLink at U14 that `prometheus` and `oracle`
+hang off ([`network.md`](../network.md)): repurposing it takes the monitoring
+path down. (On the MokerLink that role was port 3.)
 
 **Then re-patch it yellow.** CasaBonita is the yellow cable and ImaginationLAN
 the green one

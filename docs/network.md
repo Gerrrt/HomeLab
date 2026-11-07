@@ -121,8 +121,11 @@ truth for what a box actually does.
   bind its UI to a tagged interface. The CRS326 that replaced it would, and the
   LAN is kept anyway, for a different reason: the way an operator locks
   themself out of a RouterOS switch is a bridge VLAN-filtering commit, and an
-  untagged cable from `igc0` to port 1 is unaffected by any of it. It is a
-  cable rather than a configuration. [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
+  untagged link from `igc0` to port 1 needs no tag to be right on either end.
+  It is **not** independent of the bridge: it rides port 1's PVID, its
+  frame-admission setting and the switch-LAN VLAN's membership, so a commit
+  that changes any of those can still cut it. The recovery path that depends
+  on none of that is the switch's serial console. [ADR-0041](adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)
   has the reasoning. Do not remove it because the original reason is gone.
 - **`neo.matrix.elysium` resolves to `10.7.7.2`**, so the switch is reached by
   name like everything else — [ADR-0018](adr/0018-name-the-switch-and-leave-its-ui-on-plain-http.md).

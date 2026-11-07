@@ -247,9 +247,10 @@ was `neo` until 2026-11-05 answered GETBULK to any community of sixteen
 characters or fewer and no configuration changed that (`SECURITY.md`, #84);
 the CRS326 refuses both PDUs, so nothing needs the exception. A device
 answering junk over GET has its stock and old-community lines skipped as
-meaningless. A stock string answering is `WARN` in plain mode and `FAIL` under
-`--old`; the weekly timer runs plain mode into an alert, and that split dates
-from when a stock row on the MokerLink needed a reboot window to retire.
+meaningless. A stock string answering is `FAIL` in both modes, so the weekly
+timer's run fails on it and alerts. It used to be `WARN` in plain mode, from
+when a stock row on the MokerLink needed a reboot window to retire; that
+exception left with the MokerLink.
 
 The community never appears in an argument vector. The block this replaced put it
 into your shell history and, for the life of the process, into
