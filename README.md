@@ -334,7 +334,7 @@ writes from cAdvisor, alongside restart counts, CPU throttling and a container
 inventory.](docs/images/docker-containers.png)
 
 ![Network & Firewall dashboard: pfSense pf state table and packet filter drops,
-MokerLink switch interface throughput and link status, and HPE iLO chassis power
+CRS326 switch interface throughput and link status, and HPE iLO chassis power
 draw and hardware health.](docs/images/network-snmp.png)
 
 ![UPS & Power dashboard: APC power source, battery charge, output load,
