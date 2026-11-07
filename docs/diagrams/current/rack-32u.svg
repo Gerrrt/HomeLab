@@ -42,7 +42,7 @@
 <text x="380.0" y="499.6" font-size="13" fill="#d2f8de" text-anchor="middle">ProDesk Mini · morpheus</text>
 <text x="146" y="499.2" font-size="12" fill="#8b949e" text-anchor="end">U15</text>
 <rect x="170" y="507" width="420" height="20" rx="3" fill="#0f2e26" stroke="#3fb950"/>
-<text x="380.0" y="521.5" font-size="13" fill="#d2f8de" text-anchor="middle">TP-Link 8-port, on a shelf</text>
+<text x="380.0" y="521.5" font-size="13" fill="#d2f8de" text-anchor="middle">MokerLink 26-port, plain switch</text>
 <text x="146" y="521.2" font-size="12" fill="#8b949e" text-anchor="end">U14</text>
 <rect x="170" y="529" width="420" height="20" rx="3" fill="none" stroke="#6e7681" stroke-dasharray="5 4"/>
 <text x="380.0" y="543.2" font-size="12" fill="#6e7681" text-anchor="middle">gap</text>

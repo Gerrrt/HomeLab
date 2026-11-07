@@ -3,11 +3,14 @@
 # Walk one OID subtree on one SNMP device, the way snmp-exporter would, without
 # the community ever appearing in an argument vector.
 #
-# This exists for the MokerLink switch. It has locked up under exporter polling
-# before, and it returns at least one malformed varbind (ifTable column 22) that
-# makes snmp-exporter discard a whole GETBULK response — so a new column is not
+# It was written for the MokerLink switch that was `neo` until 2026-11-05,
+# which locked up under exporter polling and returned a malformed varbind
+# (ifTable column 22) that made snmp-exporter discard a whole GETBULK response.
+# It stays because the lesson is general: the exporter's first contact with a
+# bad varbind is a scrape that returns nothing, so a new column is not
 # something to add to generator.yaml and hope. It is something to fetch first,
-# with the request shape the exporter will use, and read.
+# with the request shape the exporter will use, and read. It is also how the
+# CRS326's port table was read before its module was written (2026-11-07).
 #
 # What "the request shape the exporter will use" means here:
 #
@@ -16,12 +19,14 @@
 #     GET with the right community and, unlike GETBULK, refuses it with a
 #     wrong one — snmp-verify.sh has the numbers.)
 #     net-snmp's snmpbulkwalk falls back to a plain GET when a subtree comes
-#     back empty — so an OID the switch does not implement would present as a
-#     21-second timeout, indistinguishable from the switch having wedged. This
+#     back empty — so an OID a device does not implement would present as a
+#     20-second timeout, indistinguishable from the device having wedged. This
 #     script loops snmpbulkget by hand instead and never sends a GET.
-#   * max-repetitions, timeout and retries default to the mokerlink module's
-#     values (5, 7s, 2). A gentler probe would prove nothing about the load the
-#     exporter is about to apply.
+#   * max-repetitions, timeout and retries default to snmp-exporter's own
+#     defaults (25, 5s, 3), which every module in generator.yaml now uses. A
+#     gentler probe would prove nothing about the load the exporter is about to
+#     apply. A module that pins its own max_repetitions is probed with
+#     --max-repetitions.
 #   * Varbinds past the end of the subtree are printed rather than hidden.
 #     GETBULK does not stop at a subtree boundary, so the last request of a
 #     walk overshoots into whatever comes next, and the exporter has to decode
@@ -55,10 +60,10 @@ source "${REPO_ROOT}/scripts/snmp-auth.sh"
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*" >&2; }
 
-# Defaults mirror the mokerlink module in snmp-exporter/generator.yaml.
-MAX_REPETITIONS=5
-TIMEOUT=7
-RETRIES=2
+# Defaults mirror snmp-exporter's, which no module in generator.yaml overrides.
+MAX_REPETITIONS=25
+TIMEOUT=5
+RETRIES=3
 # A hard ceiling on requests, so a device that answers with the same OID
 # forever cannot turn this into a loop. 200 requests at max-repetitions 5 is a
 # thousand varbinds, several times any column this was written for.

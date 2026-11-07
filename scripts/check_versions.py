@@ -306,13 +306,17 @@ PFSENSE_VERSION = re.compile(r"\b(\d+\.\d+\.\d+-\S+)")
 # fail every run, and a check that fails every run gets switched off — which is
 # the argument this script already makes about point releases.
 #
-# `neo` IS NOT HERE, and the reason changed under #309. That issue said the
-# switch was out because the mokerlink module walks IF-MIB columns only and so
-# answers no sysDescr. It answers one now — #310 added it — and the answer is
-# the literal string "Switch" with a trailing NUL: no model, no firmware, no
-# version. Its OS cell in network.md is "—" for the same reason. So the switch
-# still has nothing to compare, and a row here would only produce a permanent
-# SKIP line that says so every week.
+# `neo` was not here while it was the MokerLink: its sysDescr was the literal
+# string "Switch" with a trailing NUL (#309, #310), so there was nothing to
+# compare. The CRS326 that replaced it on 2026-11-05 (#444) reports its
+# RouterOS release, measured 2026-11-07:
+#
+#   'RouterOS CRS326-24G-2S+ 7.24.6 (long-term)'  ->  7
+#
+# so it has a row. The model is matched as one token and discarded. Only the
+# major release is compared, because network.md's OS column records the
+# release line, not the point release (check_docs.py holds it to that): a
+# point update must not fail this, and a move to RouterOS 8 must.
 OUT_OF_BAND = (
     {
         "device": "shiva",
@@ -323,6 +327,13 @@ OUT_OF_BAND = (
         "running": re.compile(r"Integrated Lights-Out\s+\d+\s+(\d+\.\d+)"),
         # network.md:273 gives shiva the OS cell "iLO 2.82".
         "documented": re.compile(r"^iLO\s+(\d+\.\d+(?:\.\d+)*)$"),
+    },
+    {
+        "device": "neo",
+        "label": "RouterOS release",
+        "running": re.compile(r"^RouterOS\s+\S+\s+(\d+)\."),
+        # network.md gives neo the OS cell "RouterOS 7".
+        "documented": re.compile(r"^RouterOS\s+(\d+)$"),
     },
 )
 

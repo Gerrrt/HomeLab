@@ -17,6 +17,57 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-07
+
+- **[#444](https://github.com/Gerrrt/HomeLab/issues/444): `neo` is the
+  CRS326, polled over SNMPv3.** The MikroTik CRS326-24G-2S+RM took over as the
+  main switch at about 23:50 UTC on 2026-11-05, under the MokerLink's name and
+  address, on RouterOS 7.24.6. The repository still polled `10.7.7.2` as the
+  MokerLink, over v2c, so the switch's scrape was down from 23:56 UTC and
+  `InstanceDown` paged until it was silenced the next day; the switch answered
+  SNMPv3 throughout. The snmp-exporter now has a `crs326` module and an
+  `auth_neo` block (v3 authPriv, SHA/AES, user `prometheus`), the MokerLink's
+  module, community and key are gone from config, render and the key-backup
+  check, and `snmp-verify.sh` fails a GETBULK answer to a junk community again
+  instead of warning, since no device needs the MokerLink's exception.
+  `snmp-walk.sh` stays, with its defaults now the exporter's. Phase 2's last
+  two steps were done on 2026-11-07: the switch's HTTP service is off, and the
+  two pfSense passes to `10.7.7.2:80` (from Hicks, and the blackbox probe from
+  `prometheus`) are deleted. `pfctl -sr` on `morpheus` then showed exactly two
+  rules to the switch: SNMP from `10.0.99.20` and HTTPS from Hicks. **The old
+  community is refused:** from `10.0.99.20` the pre-cutover `snmp-verify.sh`
+  got no answer to it, while the switch returned a 121-row v3 walk of its
+  forwarding table the same minute. That walk is also the port map, read
+  rather than assumed: the MokerLink (with `prometheus` and `oracle` behind
+  it) on `ether2`, `trinity` on `ether3`, the UPS card on `ether4`, `smaug` on
+  `ether17`, `Saruman` and its iLO on `ether18` and `ether19`, and nothing
+  learned on `ether20`, which is `ifrit`'s and dark until its build.
+- **A correction to the 2026-11-06 entry below**, from the as-built details
+  read back at the rack on 2026-11-07. U14 holds the MokerLink, reused as a
+  plain switch for the two laptops, not the TP-Link. The KVM was **not**
+  cabled as decided on 2026-10-15: `morpheus` is on port 8, `trinity` 7,
+  `Saruman` 6, `smaug` 5 and `ifrit` 4. The keyboard drawer has no support
+  rails; the U23 shelf, mounted upside down, holds its underside. The UPS
+  outlet groups were read: the PDU on group 1, the laptops' chargers on group
+  2, the MokerLink on group 3; each group's turn-off and turn-on settings are
+  still unread. `Saruman`'s iLO reports eight healthy modules trained at
+  2400 MHz.
+- **Two containers on `prometheus` ran for about 25 hours without their
+  ports.** After the move's power-up, Alloy and the ingest proxy started
+  before `10.0.99.20` existed. Their publishes failed with "cannot assign
+  requested address" while Docker reported both healthy, so no log reached
+  Loki over that time. `docker restart` did not bring the ports back; a
+  `compose up --force-recreate` of the two did, and the backlog then drained.
+  The change that holds Docker until the address exists and alerts on a running
+  container without its ports is
+  [#1302](https://github.com/Gerrrt/HomeLab/pull/1302) (ADR-0105).
+- **The WAN port takes CRC errors.** `morpheus`'s `em0` counted 500,000 to
+  790,000 input errors a day from 2026-10-28 to 2026-10-30, none from
+  2026-10-31 to 2026-11-02, and about 182,000 on 2026-11-07, all CRC, with no
+  symbol or alignment errors. Re-seating the factory lead in the XB7 did not
+  stop them. It is the physical layer; the lead's route and the XB7's other
+  port are what is left to try.
+
 ## 2026-11-06
 
 - **[#919](https://github.com/Gerrrt/HomeLab/issues/919): the estate is in

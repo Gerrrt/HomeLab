@@ -390,9 +390,15 @@
 # SNMP as the single remaining exception. Tracked separately rather than edited
 # here.
 #
-# If it is ever wanted back, it needs the firewall rule again first:
+# The switch was replaced on 2026-11-05 (#444): the CRS326 serves its UI over
+# HTTPS only, with a leaf from the estate's CA, and plain `www` is off. The
+# decision above was re-made for it rather than inherited (swap-the-switch.md
+# Phase 3): still no probe, for the same reason, and the pass rule this probe
+# once used was deleted from Winterfell in the swap. The cost is that the
+# leaf's expiry pages nobody; it is a dated row in schedule-maintenance.md.
+# If a probe is ever wanted back, it needs a firewall rule first:
 #
-#   pass tcp from 10.0.99.20 to 10.7.7.2 port 80   (igc0.99, above the block)
+#   pass tcp from 10.0.99.20 to 10.7.7.2 port 443  (igc0.99, above the block)
 #
 # and the same verify-before-enabling step the two probes below use.
 
