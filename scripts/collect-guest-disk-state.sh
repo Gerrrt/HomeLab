@@ -108,6 +108,37 @@ def clean(value, limit: int) -> str:
     return LABEL_OK.sub("_", s)[:limit]
 
 
+# guest-get-fsinfo nests four deep at most: the list, a filesystem, its `disk`
+# list, a disk. Anything past MAX_DEPTH is refused before json sees it.
+# json.load used to be the guard, by raising RecursionError on an answer
+# nested thousands deep, but that depends on the interpreter: the CI runner
+# image of 2026-11-01 parsed 100,000 levels without raising, and the guest
+# came out agent-up. Counting brackets outside strings is exact enough for
+# a cap, and does not care which python runs it.
+MAX_DEPTH = 32
+
+
+def too_deep(text: str) -> bool:
+    depth, in_str, esc = 0, False, False
+    for ch in text:
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            in_str = True
+        elif ch in "[{":
+            depth += 1
+            if depth > MAX_DEPTH:
+                return True
+        elif ch in "]}":
+            depth -= 1
+    return False
+
+
 def count(v):
     # bool is an int in python; a guest saying `true` is not saying a size.
     if isinstance(v, bool) or not isinstance(v, int) or v < 0 or v >= 2**63:
@@ -136,7 +167,9 @@ with open(sys.argv[1], encoding="utf-8") as fh:
             try:
                 if os.path.getsize(path) <= MAX_BYTES:
                     with open(path, encoding="utf-8", errors="replace") as out:
-                        doc = json.load(out)
+                        text = out.read()
+                    if not too_deep(text):
+                        doc = json.loads(text)
             except (OSError, ValueError, RecursionError):
                 doc = None
         if not isinstance(doc, list):
