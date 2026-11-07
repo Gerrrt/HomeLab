@@ -49,7 +49,9 @@ docstring gives: it is a record, not a claim about now.
   `Saruman` 6, `smaug` 5 and `ifrit` 4. The keyboard drawer has no support
   rails; the U23 shelf, mounted upside down, holds its underside. The UPS
   outlet groups were read: the PDU on group 1, the laptops' chargers on group
-  2, the MokerLink on group 3; each group's turn-off and turn-on settings are
+  2, the MokerLink on group 3. The MokerLink was factory-reset, with SNMP off,
+  before it went back in, so the community that leaked on 2026-08-20 is gone
+  from it too; each group's turn-off and turn-on settings are
   still unread. `Saruman`'s iLO reports eight healthy modules trained at
   2400 MHz.
 - **Two containers on `prometheus` ran for about 25 hours without their

@@ -85,9 +85,9 @@ minute. A GETBULK answer to a junk community is now `FAIL` in
 that script rather than `WARN`, because no device on the estate needs the
 exception any more. The MokerLink is back in the rack at U14 as a plain
 switch for the two laptops on Winterfell. Nothing polls it, and `10.7.7.2`
-now routes to `neo`. Its factory reset, which clears the old community from
-it, with SNMP off, is the last step of
-[#444](https://github.com/Gerrrt/HomeLab/issues/444).
+now routes to `neo`. It was factory-reset before it went back in, which
+cleared the old community from it, and its SNMP agent is off (reported by the
+owner on 2026-11-07).
 
 Remediation is tracked in [`docs/roadmap.md`](docs/roadmap.md), with procedures
 in [`docs/runbooks/rotate-snmp-community.md`](docs/runbooks/rotate-snmp-community.md)
