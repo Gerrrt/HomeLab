@@ -883,14 +883,17 @@ tests:
             exp_annotations:
               summary: "pf is dropping packets for lack of memory on morpheus"
 
-  # SwitchInterfaceDown: port 15 was up and goes down at 30m, and fires 5m later.
-  # Port 20 has been down the whole hour, which is a port nothing is plugged into, not
+  # SwitchInterfaceDown: ether15 was up and goes down at 30m, and fires 5m later.
+  # ether20 has been down the whole hour, which is a port nothing is plugged into, not
   # a port that went down, and the `min_over_time == 1` join is what keeps it quiet.
+  # The ifDescr values are RouterOS's interface-name shape, which the CRS326 serves
+  # (ADR-0041); the MokerLink's "port N" went with it. The ifIndex values are
+  # illustrative only: RouterOS does not number ifIndex by front-panel port.
   - interval: 1m
     input_series:
-      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="15",ifDescr="port 15"}'
+      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="15",ifDescr="ether15"}'
         values: "1x30 2x30"
-      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="20",ifDescr="port 20"}'
+      - series: 'ifOperStatus{job="snmp",instance="10.0.99.2",device="neo",ifIndex="20",ifDescr="ether20"}'
         values: "2x60"
     alert_rule_test:
       - eval_time: 33m
@@ -905,9 +908,9 @@ tests:
               instance: 10.0.99.2
               device: neo
               ifIndex: 15
-              ifDescr: port 15
+              ifDescr: ether15
               component: network
               severity: warning
               category: availability
             exp_annotations:
-              summary: "Interface port 15 on neo went down"
+              summary: "Interface ether15 on neo went down"

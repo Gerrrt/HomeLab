@@ -279,7 +279,7 @@
 <circle cx="1500" cy="592" r="4" fill="#388bfd"/>
 <path d="M1610 592 V620 H2235.0 V680" class="wire" stroke="#a371f7"/>
 <circle cx="1610" cy="592" r="4" fill="#a371f7"/>
-<text x="706" y="608" class="lbl">port 3</text>
+<text x="706" y="608" class="lbl">ether2</text>
 <text x="906" y="614" class="lbl">ether17</text>
 </g>
 <g id="vlan-99">
