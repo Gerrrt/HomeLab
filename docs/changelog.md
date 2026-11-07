@@ -17,6 +17,33 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-06
+
+- **[#919](https://github.com/Gerrrt/HomeLab/issues/919): the estate is in
+  the 32U rack.** Moved on 2026-11-06 by
+  [`move-into-the-32u-rack.md`](runbooks/move-into-the-32u-rack.md), in the
+  same window as the switch swap
+  ([#444](https://github.com/Gerrrt/HomeLab/issues/444)), and exactly as the
+  2026-10-12 layout planned it: the UPS at U1–U2, the DL360 at U3, the PDU at
+  U4, `smaug` on its side at U5–U9, the laptops at U10 and U12, the TP-Link at
+  U14, `morpheus` and `trinity` at U15 and U16, `ifrit` at U18, the panel,
+  cable manager and CRS326 at U19–U21, a vented blank at U22, and the console
+  (KVM U23, drawer U24, the N1700W U25–U32), with U11, U13 and U17 left as
+  air. The KVM and PDU maps were cabled as decided on 2026-10-15. The 9U
+  frame's Rack table in `hardware.md` gave way to the 32U table, which absorbed
+  the *Planned: a 32U rack* section, so three links in older entries here
+  were repointed to `#rack` and to the drawing's new path, a dead-link repair
+  and not a rewrite of what they say; `network.md`'s Location column
+  moved with the hosts, `smaug` from the media room to U5–U9 and `trinity`,
+  `prometheus` and `oracle` off the shelf; the diagram's rack panel is the 32U
+  layout; and `diagrams/planned/rack-32u.svg` moved to `current/` as built.
+  `smaug`'s long cord to the media room is retired: it is on PDU outlet 3.
+  The six move parts left the roadmap's buy table. **Not done in the window:**
+  `Saruman`'s eight RDIMMs were not fitted, so it stays at 128 GB and the
+  kit stays on the buy table, and which UPS outlet group feeds the PDU was not
+  read. `ifrit` is racked and off until the playground build
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
+
 ## 2026-10-28
 
 - **A ninth camera, the eighth's lease, and the Skids pool rows read with
@@ -597,7 +624,7 @@ docstring gives: it is a record, not a claim about now.
   fastens the tray's rear to them. The kit was chosen on 2026-10-16: Rack
   Solutions 1UKIT-109, for a stated 10–31.5" range, a 45 lb rating and a
   cabling crossbar the drawer's slider rears can tie to. Both parts are now
-  footnoted in [`hardware.md`](hardware.md#planned-a-32u-rack).
+  footnoted in [`hardware.md`](hardware.md#rack).
 
 - **The KVM goes on a shelf, and the console and power maps are decided**
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). The screen, the
@@ -691,8 +718,8 @@ docstring gives: it is a record, not a claim about now.
     drop one unit. The adjustment range of every four-post rail and shelf
     against 29". Where `trinity`'s USB photo disk sits. Whether the KVM's lead
     sets reach the DL360 20 units below. The plan is in
-    [`hardware.md`](hardware.md#planned-a-32u-rack) and drawn in
-    [`diagrams/planned/rack-32u.svg`](diagrams/planned/rack-32u.svg).
+    [`hardware.md`](hardware.md#rack) and drawn in
+    [`diagrams/planned/rack-32u.svg`](diagrams/current/rack-32u.svg).
 
 ## 2026-10-11
 

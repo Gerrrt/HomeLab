@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" width="2400" height="1540" role="img" aria-labelledby="title desc">
 <title id="title">matrix.elysium home network</title>
-<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 9U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
+<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
 <style>
   text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; fill: #c9d1d9; }
   .mono, .ip { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-10-09</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-06</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
@@ -206,39 +206,70 @@
 <text x="1754" y="580" class="sub planned-t">ADR-0041 · awaiting its PSU</text>
 <g id="rack">
 <rect x="1990" y="120" width="370" height="440" rx="12" class="box"/>
-<text x="2010" y="152" class="h2">RACK · 9U OPEN FRAME</text>
-<rect x="2010" y="170" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<rect x="2010" y="170" width="5" height="28" fill="#8b949e"/>
-<text x="2024" y="188.0" class="mono">U9</text>
-<text x="2076" y="188.0" class="role">MokerLink 26-port · neo</text>
-<rect x="2010" y="202" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<text x="2024" y="220.0" class="mono">U8</text>
-<text x="2076" y="220.0" class="role">Jadol 24-port patch panel</text>
-<rect x="2010" y="234" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<text x="2024" y="252.0" class="mono">U7</text>
-<text x="2076" y="252.0" class="role">10-outlet PDU · fed from the UPS</text>
-<rect x="2010" y="266" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<text x="2024" y="284.0" class="mono">U6</text>
-<text x="2076" y="284.0" class="role">MT-VIKI 8-port KVM</text>
-<rect x="2010" y="298" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<rect x="2010" y="298" width="5" height="28" fill="#8b949e"/>
-<text x="2024" y="316.0" class="mono">U5</text>
-<text x="2076" y="316.0" class="role">HP ProDesk 600 G4 Mini · morpheus</text>
-<rect x="2010" y="330" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<rect x="2010" y="330" width="5" height="28" fill="#f85149"/>
-<text x="2024" y="348.0" class="mono">U4</text>
-<text x="2076" y="348.0" class="role">shelf: TP-Link 8-port, on a UPS outlet</text>
-<rect x="2010" y="362" width="330" height="28" rx="4" fill="#0d1117" stroke="#30363d"/>
-<rect x="2010" y="362" width="5" height="28" fill="#2ea043"/>
-<text x="2024" y="380.0" class="mono">U3</text>
-<text x="2076" y="380.0" class="role">HPE DL360 Gen9 · Saruman / shiva</text>
-<rect x="2010" y="394" width="330" height="60" rx="4" fill="#0d1117" stroke="#30363d"/>
-<rect x="2010" y="394" width="5" height="60" fill="#f85149"/>
-<text x="2024" y="428.0" class="mono">U1–2</text>
-<text x="2076" y="428.0" class="role">APC Smart-UPS X 1500 · mjolnir</text>
-<text x="2010" y="480" class="sub">Off the rack: prometheus, oracle and trinity</text>
-<text x="2010" y="496" class="sub">on shelves; smaug in the media room, on the</text>
-<text x="2010" y="512" class="sub">PDU by a long cord; eeros through the house.</text>
+<text x="2010" y="152" class="h2">RACK · 32U OPEN FRAME</text>
+<rect x="2010" y="166" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="180" class="mono">U25–32</text>
+<text x="2086" y="180" class="role">ViewSonic N1700W · console screen</text>
+<rect x="2010" y="187" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="201" class="mono">U24</text>
+<text x="2086" y="201" class="role">keyboard and mouse drawer</text>
+<rect x="2010" y="208" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="222" class="mono">U23</text>
+<text x="2086" y="222" class="role">MT-VIKI 8-port KVM, on a shelf</text>
+<rect x="2010" y="229" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="243" class="mono">U22</text>
+<text x="2086" y="243" class="role">vented blank · air over the switch</text>
+<rect x="2010" y="250" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="250" width="5" height="19" fill="#8b949e"/>
+<text x="2024" y="264" class="mono">U21</text>
+<text x="2086" y="264" class="role">MikroTik CRS326 · neo</text>
+<rect x="2010" y="271" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="285" class="mono">U20</text>
+<text x="2086" y="285" class="role">horizontal cable manager</text>
+<rect x="2010" y="292" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="306" class="mono">U19</text>
+<text x="2086" y="306" class="role">Jadol 24-port patch panel</text>
+<rect x="2010" y="313" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="313" width="5" height="19" fill="#2ea043"/>
+<text x="2024" y="327" class="mono">U18</text>
+<text x="2086" y="327" class="role">ThinkCentre M80q · ifrit (off)</text>
+<rect x="2010" y="334" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="334" width="5" height="19" fill="#f85149"/>
+<text x="2024" y="348" class="mono">U16</text>
+<text x="2086" y="348" class="role">HP ProDesk 600 G4 Mini · trinity</text>
+<rect x="2010" y="355" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="355" width="5" height="19" fill="#8b949e"/>
+<text x="2024" y="369" class="mono">U15</text>
+<text x="2086" y="369" class="role">HP ProDesk 600 G4 Mini · morpheus</text>
+<rect x="2010" y="376" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="376" width="5" height="19" fill="#f85149"/>
+<text x="2024" y="390" class="mono">U14</text>
+<text x="2086" y="390" class="role">shelf: TP-Link 8-port, on a UPS outlet</text>
+<rect x="2010" y="397" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="397" width="5" height="19" fill="#f85149"/>
+<text x="2024" y="411" class="mono">U12</text>
+<text x="2086" y="411" class="role">shelf: oracle, lid closed</text>
+<rect x="2010" y="418" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="418" width="5" height="19" fill="#f85149"/>
+<text x="2024" y="432" class="mono">U10</text>
+<text x="2086" y="432" class="role">shelf: prometheus, lid closed</text>
+<rect x="2010" y="439" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="439" width="5" height="19" fill="#e3b341"/>
+<text x="2024" y="453" class="mono">U5–9</text>
+<text x="2086" y="453" class="role">TS150 on its side · smaug</text>
+<rect x="2010" y="460" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<text x="2024" y="474" class="mono">U4</text>
+<text x="2086" y="474" class="role">10-outlet PDU · fed from the UPS</text>
+<rect x="2010" y="481" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="481" width="5" height="19" fill="#2ea043"/>
+<text x="2024" y="495" class="mono">U3</text>
+<text x="2086" y="495" class="role">HPE DL360 Gen9 · Saruman / shiva</text>
+<rect x="2010" y="502" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
+<rect x="2010" y="502" width="5" height="19" fill="#f85149"/>
+<text x="2024" y="516" class="mono">U1–2</text>
+<text x="2086" y="516" class="role">APC Smart-UPS X 1500 · mjolnir</text>
+<text x="2010" y="537" class="sub">Gaps for air at U11, U13 and U17. Moved in</text>
+<text x="2010" y="553" class="sub">2026-11-06 (#919); eeros through the house.</text>
 </g>
 <g id="drops">
 <path d="M700 592 V612 H230.0 V680" class="wire" stroke="#f85149"/>
@@ -415,7 +446,7 @@
 <text x="830" y="794" class="hn">smaug</text>
 <text x="1146" y="794" class="ip" text-anchor="end" fill="#e3b341">.30</text>
 <text x="830" y="812" class="sub">Lenovo ThinkServer TS150 · TrueNAS</text>
-<text x="830" y="828" class="role">neo port 15, untagged · PVID 40 · media room</text>
+<text x="830" y="828" class="role">neo port 15, untagged · PVID 40 · rack U5–U9</text>
 <text x="830" y="844" class="role">ZFS mirror erebor · 2 × 18 TB</text>
 <text x="830" y="860" class="role">stacks/media, under TrueNAS&#x27;s own Docker:</text>
 <text x="830" y="876" class="role">  Jellyfin · Quick Sync transcoding</text>

@@ -121,7 +121,7 @@ reads.
 | Boots to a bootloader prompt or panics | Filesystem or upgrade damage | §3 |
 | Reachable but rules behave wrongly | Config only | §2 |
 
-Reach the console through the KVM at rack **U6**. Do not skip this — a box that
+Reach the console through the KVM at rack **U23**, port 1. Do not skip this — a box that
 looks dead on the network is often fine at the console, and §2 is far faster
 than §3.
 
@@ -450,6 +450,6 @@ To run it again:
    [#404](https://github.com/Gerrrt/HomeLab/issues/404): it is wiped and built
    as the sensitive tier's host (ADR-0034), and nothing from the rehearsal
    survives on it. The powered-off shelf spare that used to be this step is
-   deferred by that ADR; if it is ever bought, it racks on the U4 shelf beside
-   the switch, **off**, and on the day the newest export from `oracle` is
+   deferred by that ADR; if it is ever bought, it takes one of the 32U rack's
+   single-unit air gaps (U11, U13 or U17), **off**, and on the day the newest export from `oracle` is
    still restored over whatever it carries.
