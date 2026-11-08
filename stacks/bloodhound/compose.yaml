@@ -144,7 +144,7 @@ services:
   # export them if they ever matter.
   # ---------------------------------------------------------------------------
   bloodhound:
-    image: specterops/bloodhound:9.9.0@sha256:9dfb63a77929b2066bc0f2083c8ee4caf2241458432175a5d3da9eb5d6988bb1
+    image: specterops/bloodhound:9.9.1@sha256:3115c5e26608b1f86d5443161a2d82ff2b85b013db69b1852e95e21100b96830
     container_name: bloodhound-app
     restart: unless-stopped
     logging: *default-logging
