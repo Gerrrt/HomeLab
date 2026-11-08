@@ -355,7 +355,7 @@ televisions' `bilbo` and the workstations' credential are revoked apart. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
 **One more is from ImaginationLAN, and it exists.**
-`10.0.30.110 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
+`10.0.30.20 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
 hypervisor mount `erebor/iso`, the ISO store Packer builds templates from
 ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)).
 It was created on 2026-10-01. `Saruman` mounts the share through it, and
@@ -514,7 +514,7 @@ and write the metric and log stores, and delete logs, without a credential.
 That is exactly the failure ADR-0002 predicted when it recorded that "a
 compromised workstation reaches Winterfell". The firewall narrowed who
 "anything" was: since 2026-09-02 Hicks reaches `10.0.99.20` on `3000` only,
-and `10.0.30.110` on ImaginationLAN has one explicit pass for `Saruman`'s
+and `10.0.30.20` on ImaginationLAN has one explicit pass for `Saruman`'s
 agent. But a control that depends on one un-reviewed rule ordering is not
 authentication.
 

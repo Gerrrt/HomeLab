@@ -250,7 +250,7 @@ first row here on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's othe
 | Winterfell (99) | `tcp` `10.0.99.20` → `10.0.40.30` port `22` | `Allow SSH to smaug` | **above** *Block access to CasaBonita* |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
-| ImaginationLAN (30) | `tcp` `10.0.30.110` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
+| ImaginationLAN (30) | `tcp` `10.0.30.20` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -679,7 +679,9 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
 > rather than the UI: `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs,
 > a 500 GiB quota, no snapshot task. Record size reads `1M`.
 > `pippin` is uid `3003`, gid `3002`. The share admits `10.0.30.110` alone,
-> with maproot `pippin`/`pippin`.
+> with maproot `pippin`/`pippin`. (`Saruman` moved to `10.0.30.20` on
+> 2026-11-07, and the share and the rule moved with it:
+> [`build-the-playground.md`](build-the-playground.md) §3.)
 >
 > `Allow NFS from Saruman to smaug` was read from `morpheus` with
 > `pfctl -sr -vv`. On `igc0.30` it printed directly above *Block access to
@@ -709,8 +711,8 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
 | | |
 | --- | --- |
 | Dataset | `erebor/iso`: not snapshotted, not backed up, 500 GiB quota |
-| Export | NFSv4, to `10.0.30.110` alone, maproot `pippin` |
-| Rule | ImaginationLAN (30): `10.0.30.110 → 10.0.40.30:2049/tcp`, `Allow NFS from Saruman to smaug` |
+| Export | NFSv4, to `10.0.30.20` alone, maproot `pippin` |
+| Rule | ImaginationLAN (30): `10.0.30.20 → 10.0.40.30:2049/tcp`, `Allow NFS from Saruman to smaug` |
 | On `Saruman` | `fstab` mount at `/mnt/smaug-iso`, Proxmox `dir` storage `smaug-iso`, content `iso`, `is_mountpoint` |
 
 1. **The dataset.** It exists (above). Finish it from the console shell, and
@@ -744,7 +746,7 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
    | --- | --- |
    | Path | `/mnt/erebor/iso` |
    | Description | `ISO store for Saruman (ADR-0072)` |
-   | Authorized hosts | `10.0.30.110` |
+   | Authorized hosts | `10.0.30.20` |
    | Maproot User / Group | `pippin` / `pippin` |
    | Mapall | empty |
 
@@ -753,7 +755,7 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
    and a squash to `nobody` refuses the write.
 
 5. **The rule**, in the pfSense UI on **ImaginationLAN (30)**: pass, `tcp`,
-   source `10.0.30.110`, destination `10.0.40.30` port `2049`, description
+   source `10.0.30.20`, destination `10.0.40.30` port `2049`, description
    exactly **`Allow NFS from Saruman to smaug`**. Place it **directly above**
    the first block on that interface whose destination covers
    `10.0.40.0/24`. `build-the-backup-guest.md` §4 finds that block and names

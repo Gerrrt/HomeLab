@@ -3,7 +3,7 @@
 # Whether the ISOs on `smaug-iso` are the ones this repository expects (#440,
 # ADR-0072).
 #
-# THE GAP. The ISO store is an NFSv4 export of `erebor/iso` to `10.0.30.110`
+# THE GAP. The ISO store is an NFSv4 export of `erebor/iso` to `10.0.30.20`
 # alone, and NFS with sec=sys authenticates by address. Anything on VLAN 30
 # that took `Saruman`'s address could replace an installer, and every template
 # Packer built from it afterwards would carry the change. ADR-0072 named the
@@ -45,7 +45,7 @@ set -uo pipefail
 # placed on the share, from `sha256sum` on `Saruman`, cross-checked against
 # the vendor's published hash where one exists (build-the-lab-templates.md
 # §2b). Changing it means re-running `make install-agent-collectors
-# AGENT=root@10.0.30.110 ARGS='--only iso-store-state'`, because the host has
+# AGENT=root@10.0.30.20 ARGS='--only iso-store-state'`, because the host has
 # no checkout of this repository.
 EXPECTED="$(cat <<'LIST'
 # Ubuntu 26.04.1 live server. releases.ubuntu.com SHA256SUMS, with a good

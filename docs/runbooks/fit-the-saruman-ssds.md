@@ -101,7 +101,7 @@ both arrays — not assumed from either.**
 > still the *Before* column of every table here.
 
 `shiva` is the iLO, not the hypervisor. The host behind it is `Saruman` at
-`10.0.30.110`; see [`../hardware.md`](../hardware.md). Both are on VLAN 30.
+`10.0.30.20`; see [`../hardware.md`](../hardware.md). Both are on VLAN 30.
 
 ## Where each step runs, and why it matters
 
@@ -112,7 +112,7 @@ it is.
 | Steps | Host | Who runs them |
 | --- | --- | --- |
 | 0, 1, 10, 11 | `prometheus`, `10.0.99.20`, VLAN 99 | the monitoring host — Prometheus and Alertmanager are here |
-| 2–9 | `Saruman`, `10.0.30.110`, VLAN 30 | **you, from the Mac.** Nothing on VLAN 99 can reach this host |
+| 2–9 | `Saruman`, `10.0.30.20`, VLAN 30 | **you, from the Mac.** Nothing on VLAN 99 can reach this host |
 
 Run the `Saruman` half inside `tmux`. A dropped SSH session during step 9's
 disk move leaves a half-mirrored disk, and that is a worse afternoon than a
@@ -679,7 +679,7 @@ what [`build-the-lab-guest.md`](build-the-lab-guest.md) already assumes.
 > read instead by `scripts/collect-thin-pool-state.sh`, from `lvs` every ten
 > minutes on the host, into `ThinPoolNearlyFull` and `ThinPoolWillFillIn24h`
 > ([#538](https://github.com/Gerrrt/HomeLab/issues/538)). Installing it is
-> `make install-agent-collectors AGENT=root@10.0.30.110
+> `make install-agent-collectors AGENT=root@10.0.30.20
 > ARGS='--only thin-pool-state'`, and the check is
 > `homelab_thin_pool_data_percent{host="Saruman"}` — one series per pool.
 

@@ -495,7 +495,7 @@
 <rect x="1212" y="806" width="231.0" height="62" rx="8" class="card"/>
 <rect x="1212" y="812" width="4" height="50" rx="2" fill="#2ea043"/>
 <text x="1226" y="828" class="hn">Saruman</text>
-<text x="1431.0" y="828" class="ip" text-anchor="end" fill="#2ea043">.110</text>
+<text x="1431.0" y="828" class="ip" text-anchor="end" fill="#2ea043">.20</text>
 <text x="1226" y="846" class="sub">Proxmox VE · hypervisor</text>
 <text x="1226" y="862" class="role">Alloy → prometheus 9090/3100</text>
 </g>
@@ -658,7 +658,7 @@
 <rect x="1202" y="1420" width="492" height="26" rx="8" class="card"/>
 <rect x="1202" y="1424" width="4" height="18" rx="2" fill="#2ea043"/>
 <text x="1216" y="1438" class="hn">gandalf</text>
-<text x="1282" y="1438" class="sub">Proxmox VE · range host, no guests yet · Saruman → .20</text>
+<text x="1282" y="1438" class="sub">Proxmox VE · range host, no guests yet</text>
 <text x="1682" y="1438" class="ip" text-anchor="end" fill="#2ea043">.30</text>
 </g>
 </g>

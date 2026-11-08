@@ -28,7 +28,7 @@ variable "proxmox_token_secret" {
 # Verified. Saruman's API certificate is signed by the cluster's own CA
 # (/etc/pve/pve-root-ca.pem), which build-the-lab-templates.md §2 installs in
 # phoenix's trust store. Skipping verification would hand the token to any
-# guest on VLAN 30 that answered for 10.0.30.110, and the attack VM shares
+# guest on VLAN 30 that answered for 10.0.30.20, and the attack VM shares
 # that segment. Set true only to debug, never to build.
 variable "proxmox_insecure_skip_tls_verify" {
   type    = bool

@@ -47,6 +47,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-07
 
+- **`Saruman` moved from `10.0.30.110` to `10.0.30.20`**
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421),
+  [`build-the-playground.md`](runbooks/build-the-playground.md) §3). The
+  hypervisor no longer sits inside ImaginationLAN's `.100–.200` DHCP pool, the
+  pool the attack VM will lease from. The `.20` rules and export were added
+  first and the `.110` ones removed only after every path had been checked
+  over `.20`: the Alloy push, NUT, the ISO store's NFS mount, `8006` from
+  Hicks (and refused from `morpheus`), and `phoenix`'s API call with TLS
+  verified. The same 10 guests stayed running throughout. The new pfSense
+  rules kept their copy descriptions, which end in `(.20)`.
+
+  §3 had listed two things that name the address. A grep of the repository
+  found six more on the hosts: the NUT pass, the host firewall's
+  `local_network` alias, the API certificate's names, `phoenix.env`, the
+  Mac's `known_hosts` and its SSH config. If the alias had stayed at `.110`,
+  the next DHCP client to lease `.110` would have joined Proxmox's
+  `management` set. The cutover also turned up a trap: `ifreload` starts
+  with `#!/usr/bin/env python3`, and root's dotfiles put mise's Python first,
+  so a plain `ifreload -a` failed with `ModuleNotFoundError` and changed
+  nothing. Under `env -i` with the system PATH it worked. Boot was never at
+  risk, because `networking.service` runs with systemd's PATH. §3 now
+  records all of this, and the twelve ADRs that quote `.110` carry a note.
+
 - **`DiskIoErrors` fired on a healthy disk, and its ATA pattern now needs the
   kernel's prefix.** `oracle` sent it at 22:33 and 23:28 UTC, each time
   clearing 15 minutes later. The disk was fine: no kernel I/O error, SMART

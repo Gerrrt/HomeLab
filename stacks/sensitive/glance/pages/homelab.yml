@@ -131,7 +131,7 @@
               color: 349 89 72
               links:
                 - title: Proxmox · Saruman
-                  url: https://10.0.30.110:8006
+                  url: https://10.0.30.20:8006
                   icon: /assets/icons/proxmox.svg
                 - title: TrueNAS · smaug
                   url: https://10.0.40.30

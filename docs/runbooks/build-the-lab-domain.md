@@ -673,7 +673,7 @@ ImaginationLAN*, mapping each guest's MAC to its address.
 > anyway. The reservation is there so the address is recorded where a reader
 > looks for it, and so the protection does not depend on the pool never moving —
 > the reasoning [`build-the-playground.md`](build-the-playground.md) already
-> writes out, and the mistake `10.0.30.110` is still an apology for.
+> writes out, and the mistake `10.0.30.110` was an apology for until `Saruman` moved to `.20` on 2026-11-07.
 >
 > Leave the scope's DNS setting alone. Reserved clients receive the interface
 > address like everyone else; the DC addresses are set inside Windows, which is

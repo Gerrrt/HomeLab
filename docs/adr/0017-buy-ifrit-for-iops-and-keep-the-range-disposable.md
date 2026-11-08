@@ -39,6 +39,13 @@
 > ([#451](https://github.com/Gerrrt/HomeLab/issues/451)). The collector still
 > runs from the range when there is one. The text here is left as written, per
 > ADR-0001.
+>
+> **`Saruman`'s address.** `Saruman` moved from `10.0.30.110` to
+> **`10.0.30.20`** on 2026-11-07, as
+> [`build-the-playground.md`](../runbooks/build-the-playground.md) §3 has it
+> ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Each rule, export,
+> alias and command below that names `.110` now names `.20`, and the decision
+> is unchanged. The text below is left as written, per ADR-0001.
 
 ## Context
 

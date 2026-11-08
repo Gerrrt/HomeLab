@@ -6,7 +6,7 @@
 # WHY tc AND NOT OPEN VSWITCH. #437 was filed saying port mirroring needs OVS.
 # It does not: a Linux bridge port is a netdev, and a `clsact` qdisc with a
 # `matchall` filter and a `mirred` action copies whatever enters it to another
-# netdev. Converting `vmbr0` would have meant moving 10.0.30.110 — the
+# netdev. Converting `vmbr0` would have meant moving the hypervisor's address — the
 # management plane ADR-0014's host firewall guards — onto an OVSIntPort, and
 # putting a bridge that speaks VLAN tags under the one segment built to hold an
 # attacker. ADR-0068 records the comparison.
