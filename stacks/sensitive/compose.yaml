@@ -2093,7 +2093,7 @@ services:
   # depends_on, for Vaultwarden's reason.
   actual:
     <<: *service-defaults
-    image: actualbudget/actual-server:26.10.0-alpine@sha256:67b1b5e9584e3e143b4f5c41e52b4506ed9cdd1072392d5ab5369f2d4fd0bffd
+    image: actualbudget/actual-server:26.11.0-alpine@sha256:01ac24a51c6f585aba287c1bf1e96fcda46ab16a05952817c637415213251aa3
     container_name: sensitive-actual
     user: "1001:1001"
     mem_limit: 1g
