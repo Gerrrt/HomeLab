@@ -219,10 +219,23 @@ if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
   cp -a "${SET}" "${VF_REPO}/backups/volumes/20000102T000000Z"
   sed -i 's/^stack\t.*/stack\tsensitive/' "${VF_REPO}/backups/volumes/20000102T000000Z/MANIFEST"
   vf_run "${ENV[@]}" VOL_OFFHOST=selftest@offhost.invalid:backups/volumes/observability -- backup-volumes.sh --copy-only
-  expect "refuses to copy a set whose MANIFEST names another stack" 1 "names stack 'sensitive', and this run is STACK=observability"
+  expect "refuses to copy a set whose MANIFEST names another stack" 1 "names stack 'sensitive', and this run copies observability's sets"
   check "  and names no other set" "$(grep -c 'names stack' <<<"${OUT}")" 1
   check "  and never reaches for the far side" "$(grep -c 'cannot reach' <<<"${OUT}")" 0
+  vf_run "${ENV[@]}" SET_STACK=sensitive VOL_OFFHOST=selftest@offhost.invalid:backups/volumes/observability -- backup-volumes.sh --copy-only
+  expect "  and a SET_STACK in the environment does not loosen a direct run" 1 "and this run copies observability's sets"
   rm -rf "${VF_REPO}/backups/volumes/20000102T000000Z"
+
+  # The same check from a caller whose sets name another stack: backup-nas.sh
+  # leaves STACK at observability and writes `stack media`. Its set must get
+  # PAST the check, to the .invalid far side, and fail there.
+  mkdir -p "${VF_REPO}/backups/nas"
+  cp -a "${SET}" "${VF_REPO}/backups/nas/20000103T000000Z"
+  sed -i 's/^stack\t.*/stack\tmedia/' "${VF_REPO}/backups/nas/20000103T000000Z/MANIFEST"
+  vf_run NAS_OFFHOST=selftest@offhost.invalid:backups/nas TEXTFILE_DIR="${VF}/no-textfile" -- backup-nas.sh --copy-only
+  expect "backup-nas.sh's media sets pass the stack check" 1 "cannot reach selftest@offhost.invalid"
+  check "  and none is refused as another stack's" "$(grep -c 'names stack' <<<"${OUT}")" 0
+  rm -rf "${VF_REPO}/backups/nas"
 
   vf_volume "${VF_P}u" unmarked
   vf_new_second
@@ -250,6 +263,16 @@ if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
 fi
 
 STACK="${STACK:-observability}"
+# The stack a set's MANIFEST must name before copy_offhost sends it
+# (refuse_foreign_sets). Run directly, that is STACK. A caller whose sets name
+# another stack sets SET_STACK before its source line: backup-nas.sh's sets
+# name `media` while STACK stays at its default. The environment is read only
+# when sourced, so a stray SET_STACK cannot loosen a direct run.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  SET_STACK="${STACK}"
+else
+  SET_STACK="${SET_STACK:-${STACK}}"
+fi
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
 OUT_DIR="${REPO_ROOT}/backups/volumes"
@@ -1025,18 +1048,18 @@ verify_remote_sets() {
 # observability directory. prune_offhost then kept the newest KEEP of them and
 # deleted the five real observability sets there. Every MANIFEST has named its
 # stack since the first set this script wrote, so a set whose MANIFEST names
-# another stack, or none, is refused before anything is sent. One refusal stops
+# a stack other than SET_STACK, or none, is refused before anything is sent. One refusal stops
 # the whole copy, and the prune after it never runs.
 refuse_foreign_sets() {
   local d stack bad=0
   for d in "$@"; do
     stack="$(manifest_field "${d}" stack)"
-    [[ ${stack} == "${STACK}" ]] && continue
-    red "$(basename "${d}"): its MANIFEST names stack '${stack:-<none>}', and this run is STACK=${STACK}"
+    [[ ${stack} == "${SET_STACK}" ]] && continue
+    red "$(basename "${d}"): its MANIFEST names stack '${stack:-<none>}', and this run copies ${SET_STACK}'s sets"
     bad=1
   done
   ((bad == 0)) && return 0
-  red "refusing to copy to ${OFFHOST_TARGET}:${OFFHOST_DIR} — set STACK to the stack these sets belong to"
+  red "refusing to copy to ${OFFHOST_TARGET}:${OFFHOST_DIR} — run it with STACK set to the stack these sets belong to"
   return 1
 }
 

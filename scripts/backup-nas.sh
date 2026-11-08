@@ -162,6 +162,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # here, and set unconditionally: the environment file the timer units share
 # carries the volume sets' value, which is the wrong directory for this set.
 VOL_OFFHOST="${NAS_OFFHOST:-atropos@10.0.99.30:backups/nas}"
+# Every set this script writes names `stack media` (its MANIFEST block), while
+# STACK stays at backup-volumes.sh's default. copy_offhost refuses a set whose
+# MANIFEST names a stack other than SET_STACK, so this is set here,
+# unconditionally, for the same reason VOL_OFFHOST is.
+SET_STACK=media
 # shellcheck source=scripts/backup-volumes.sh
 source "${REPO_ROOT}/scripts/backup-volumes.sh"
 

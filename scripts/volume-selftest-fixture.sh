@@ -61,6 +61,7 @@ vf_setup() {
   VF_REPO="${VF}/repo"
   mkdir -p "${VF_REPO}/scripts" "${VF_REPO}/stacks/observability" "${VF_REPO}/secrets"
   cp "${real}/scripts/backup-volumes.sh" "${real}/scripts/restore-volumes.sh" \
+     "${real}/scripts/backup-nas.sh" \
      "${real}/scripts/key-recipients.sh" "${real}/scripts/image-for.sh" \
      "${VF_REPO}/scripts/"
 

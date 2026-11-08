@@ -43,10 +43,11 @@ docstring gives: it is a record, not a claim about now.
     `oracle` again holds all seven observability sets, 2026-10-04 to
     2026-11-08.
   - **The guard:** `copy_offhost` now refuses, before any ssh, every set
-    whose MANIFEST names a stack other than `STACK`. The refusal fails the
-    copy, so the far-side prune never runs. `--self-test` plants a set
-    from another stack and checks the refusal. With the guard disabled, the
-    test fails.
+    whose MANIFEST names a stack other than the one it copies for. That is
+    `STACK`, or `media` for `backup-nas.sh`, which shares the copy step. The
+    refusal fails the copy, so the far-side prune never runs. `--self-test`
+    plants a set from another stack and checks the refusal, and checks that
+    NAS sets still pass. With either half disabled, the test fails.
 
 - **The WAN's receive errors came back on the XB7's gigabit port, and moving
   to its other gigabit port cleared them.** Later on the same day as the
