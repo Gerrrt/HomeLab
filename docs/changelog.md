@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-08
 
 - **The WAN's receive errors came back on the XB7's gigabit port, and moving
-  to its other gigabit port cleared them.** A day after the
+  to its other gigabit port cleared them.** Later on the same day as the
   [#923](https://github.com/Gerrrt/HomeLab/issues/923) move, `em0` flapped
   four times between 20:57 and 20:59 PST on 2026-11-07. `WanReceiveErrors`
   fired at 21:21 and `InternetDownloadSlow` at 22:11, after speed tests that
