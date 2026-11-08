@@ -365,14 +365,31 @@ ones only after it moves.** That way nothing breaks at the cutover.
 > rest of this runbook and ahead of `gandalf`, because
 > [ADR-0042](../adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
 > remote path was about to put a device that is not on Hicks in front of this
-> hypervisor's login page. Everything below was found by doing it. `gandalf` gets
-> the same treatment when it is built, including the alias.
+> hypervisor's login page. Everything below was found by doing it, and the
+> commands carry `Saruman`'s values. `gandalf` gets the same treatment,
+> including the alias, with the substitutions in [*On `gandalf`*](#on-gandalf)
+> below.
 
 ADR-0014: the Proxmox firewall on `Saruman` and on `gandalf` admits `8006`,
 `8007` and `22` from `10.0.50.0/24` only. This is the one gap the design opens —
 an attacker sharing a broadcast domain with a hypervisor — and it is closed on
 the host rather than at a segment boundary, because there is no boundary between
 them.
+
+### On `gandalf`
+
+Run the steps below in the same order. Seven things differ from the `Saruman`
+run they record:
+
+| Step | `Saruman`, as run | `gandalf` |
+| --- | --- | --- |
+| The console, if the flip locks you out | iLO, or KVM port 6 | **KVM port 4** ([`hardware.md`](../hardware.md)). Its AMT is disabled ([ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)), so there is no second path |
+| The node in `/etc/pve/nodes/<NODE>/host.fw` | `Saruman` | `gandalf`, lower case |
+| `host.fw` | ADR-0014's three rules and `phoenix`'s one | **The same four.** `phoenix` builds `tpl-kali` on `gandalf` through `gandalf`'s own API ([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md), [`build-the-lab-templates.md`](build-the-lab-templates.md) §5 step 2), so it needs 8006 here too |
+| The `local_network` alias | `10.0.30.20` | `10.0.30.30` |
+| Guest NICs | 140 and 170, by the loop | **None yet**: the node is empty. Clear the flag on each NIC as §5 and §6 create it. `tpl-kali` and its clones carry `firewall=0` from Packer, but a NIC added in the GUI, such as the attack VM's `net1`, defaults to on |
+| The probe from `morpheus` | `10.0.30.20 8006` | `10.0.30.30 8006` |
+| Telemetry, the collector and the alert drill | All three | **None of them.** ADR-0017 gives `gandalf` no agent, so nothing reads the collector's file and the three alerts cannot see it. The check that it stays on is §7's read-back at every power-on |
 
 > [!CAUTION]
 > **Enable with a permissive policy first, then flip it.** `pve-firewall
@@ -399,9 +416,10 @@ IN ACCEPT -source 10.0.50.0/24 -p tcp -dport 8007 -log nolog
 IN ACCEPT -source 10.0.50.0/24 -p tcp -dport 22 -log nolog
 ```
 
-On `Saruman` there is a fourth line, admitting the deployment host to the API
-and to nothing else
-([ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)):
+There is a fourth line, admitting the deployment host to the API and to
+nothing else: on `Saruman` by
+[ADR-0043](../adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
+and on `gandalf` because ADR-0074 builds `tpl-kali` there from `phoenix`:
 
 ```ini
 IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
@@ -491,7 +509,7 @@ pve-firewall status
 pve-firewall compile | sed -n '/^exists PVEFW-HOST-IN/,/^exists PVEFW-HOST-OUT/p'
 ```
 
-Four things to see. `enabled/running`. The three or four explicit RETURN rules.
+Four things to see. `enabled/running`. The four explicit RETURN rules.
 The `management` rules now reachable only by the node's own address. And a
 trailing `-j PVEFW-Drop` where a bare `-j RETURN` used to be, which is the
 policy in force. The IPv6 chain keeps its neighbour-discovery RETURNs above the
@@ -517,7 +535,8 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
-**Then that it stays on.** The probe above is a thing a person does once, and
+**Then that it stays on**, on `Saruman` only: `gandalf` has no agent, and §7
+is its check. The probe above is a thing a person does once, and
 the ordinary ways the firewall goes off again — a `pve-firewall stop` while
 debugging a guest, an upgrade rewriting `/etc/pve/firewall`, a rebuild that
 skips this section — page nothing on their own. Install the collector that
@@ -539,7 +558,7 @@ homelab_pve_firewall_rules{host="Saruman"}
 | --- | --- | --- |
 | `homelab_pve_firewall_enabled` | `1` — `pve-firewall status` reads `enabled/running` | `PveFirewallDisabled` pages after ten minutes; this section is the way back |
 | `homelab_pve_firewall_policy_drop` | `1` — `cluster.fw`'s `policy_in` is `DROP` after the flip above | `0` is the firewall on with no wall behind the rules. `PveFirewallPolicyAccept` pages after ten minutes, so do the flip inside that window |
-| `homelab_pve_firewall_rules{file="host"}` | `4` on `Saruman` (ADR-0014's three and ADR-0043's one), `3` on `gandalf` | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
+| `homelab_pve_firewall_rules{file="host"}` | `4`: ADR-0014's three and ADR-0043's one | Fewer is a rule file that did not survive; `0` with the firewall on means the `policy_in` decides everything |
 | `homelab_pve_firewall_rules{file="cluster"}` | `0` — `cluster.fw` carries the enable and the alias, not rules | Not a fault on its own; say why in the build notes if it changes |
 
 Prove the alert once, on purpose, with the console to hand: `pve-firewall
@@ -614,8 +633,16 @@ ADR-0017 says why: every rule shape available says "this host is down", which is
 the normal state. Nothing is watching, so the discipline is yours.
 
 ```text
-on  → revert every target to `clean` → work → revert → off
+on  → read the firewall back → revert every target to `clean` → work → revert → off
 ```
+
+**Read the firewall back before anything else.** The collector and the alerts
+that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
+it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
+once per session. `pve-firewall status` should read `enabled/running`, and §4's
+probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
+`control exit=0`. Any other answer means the session does not start until §4
+has been rerun.
 
 ---
 
