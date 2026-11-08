@@ -86,7 +86,7 @@ if grep -qE '^(PROXMOX_VE_|TF_VAR_state_passphrase)' "$E"; then
   echo "already present"
 elif cp -p "$E" "$E.bak-445"; then
   ( set -a; . "$E"; set +a; umask 077
-    printf 'PROXMOX_VE_ENDPOINT=https://10.0.30.110:8006/\nPROXMOX_VE_API_TOKEN=%s=%s\nTF_VAR_state_passphrase=%s\n' \
+    printf 'PROXMOX_VE_ENDPOINT=https://10.0.30.20:8006/\nPROXMOX_VE_API_TOKEN=%s=%s\nTF_VAR_state_passphrase=%s\n' \
       "$PROXMOX_TOKEN_ID" "$PROXMOX_TOKEN_SECRET" "$(openssl rand -base64 32)" >> "$E" )
   chmod 600 "$E"; grep -o '^[A-Za-z_]*=' "$E"
   ( set -a; . "$E"; set +a; echo "passphrase length ${#TF_VAR_state_passphrase}"

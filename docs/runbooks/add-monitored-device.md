@@ -183,7 +183,7 @@ on the **ImaginationLAN** interface:
 
 | Action | Source | Destination | Ports | Log |
 | --- | --- | --- | --- | --- |
-| pass, TCP | `10.0.30.110` | `10.0.99.20` | 9090, 3100 | **off** |
+| pass, TCP | `10.0.30.20` | `10.0.99.20` | 9090, 3100 | **off** |
 
 Place it **above** the ADR-0014 tripwire (`vlan30 net → Internal_Segments`,
 pass + log). Below it, every push from `Saruman` is a logged pass on the

@@ -47,6 +47,13 @@ power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 > the intent of reusing it, and it is now true on the card as well as here.
 > A user of NUT's own remains the way to separate them. The decision is
 > unchanged.
+>
+> **`Saruman`'s address.** `Saruman` moved from `10.0.30.110` to
+> **`10.0.30.20`** on 2026-11-07, as
+> [`build-the-playground.md`](../runbooks/build-the-playground.md) §3 has it
+> ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Each rule, export,
+> alias and command below that names `.110` now names `.20`, and the decision
+> is unchanged. The text below is left as written, per ADR-0001.
 
 ## Context
 

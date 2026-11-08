@@ -324,7 +324,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   [#764](https://github.com/Gerrrt/HomeLab/issues/764). So the firewall is no
   longer the only thing between a Hicks workstation and the metric and log
   stores.
-  `10.0.30.110` keeps its explicit pass for `Saruman`'s Alloy agent, which now
+  `10.0.30.20` keeps its explicit pass for `Saruman`'s Alloy agent, which now
   presents `Saruman`'s own token.
 - **ImaginationLAN is reached entire**, on every protocol and port, by
   decision: [ADR-0031](adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
@@ -421,7 +421,7 @@ Televisions and consoles. Internet only.
   share through it. With 4533 and 13378, seven exist from Hicks and
   Winterfell. **Two more are from ImaginationLAN, and both exist, which
   makes nine.** `Allow NFS from Saruman to smaug`,
-  `10.0.30.110 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
+  `10.0.30.20 → 10.0.40.30:2049`, lets the hypervisor mount `erebor/iso` as
   its ISO store for Packer
   ([ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
   [#446](https://github.com/Gerrrt/HomeLab/issues/446)). It was created on
@@ -486,7 +486,7 @@ Where things get broken on purpose.
 | --- | --- | --- | --- | --- | --- | --- |
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
-| Saruman | `10.0.30.110` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
+| Saruman | `10.0.30.20` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
 | gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, off between sessions. Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
@@ -680,7 +680,7 @@ Where things get broken on purpose.
   address set out of the node's own subnet, so `10.0.30.0/24` reached the API,
   SSH, VNC, the SPICE proxy and the migration range through a rule nobody
   wrote, underneath a `DROP` policy that looked closed. The `local_network`
-  alias is pinned to `10.0.30.110` so that the four rules above are the only
+  alias is pinned to `10.0.30.20` so that the four rules above are the only
   way in. Hicks reaches `8006`, `8007` and `22`; `phoenix` reaches `8006`;
   nothing else on this segment reaches the hypervisor at all.
 - `fenrir` is at `10.0.30.90`, the next free decade, built 2026-09-30 as the
@@ -695,23 +695,22 @@ Where things get broken on purpose.
   path `fenrir` needs is intra-segment — its Alloy pushes to `alexander` — so
   it adds no firewall rule.
 - `Saruman` runs an Alloy agent and is the one host on this segment with a path
-  into Winterfell: a single pass, `10.0.30.110 → 10.0.99.20` on 9090 and 3100
+  into Winterfell: a single pass, `10.0.30.20 → 10.0.99.20` on 9090 and 3100
   TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
   only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
   the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
   host try and the token is what gets it served. The push is TLS under the
   estate CA (#764), so the token is not readable at the firewall that forwards
   it.
-- **`Saruman` is the one fixed address that sits inside a DHCP pool.** Every
-  other static in the estate lives below `.100`; this one is at `.110`, and the
-  ImaginationLAN pool runs `.100–.200`. Until 2026-08-30 there was no
-  reservation for it either, so Kea could have leased the same address to
-  another device. There is one now, and it holds *because* the server is Kea:
-  `reservations-in-subnet` is true and `reservations-out-of-pool` is unset, so
-  reservations are consulted on every allocation. Under ISC dhcpd, whose
-  binaries are still on the box, the same reservation would not reliably
-  protect an in-pool address. Moving `Saruman` below `.100` is the fix that
-  does not depend on that.
+- **`Saruman` is at `.20`, below the pool, like every other static.** Until
+  2026-11-07 it was at `.110`, the one fixed address in the estate inside a
+  DHCP pool (ImaginationLAN's runs `.100–.200`). Only Kea's
+  reservation kept that address from being leased to another device, and only
+  because Kea consults reservations on every allocation. ISC dhcpd, whose
+  binaries are still on the box, would not have. The move, in
+  [`build-the-playground.md`](runbooks/build-the-playground.md) §3
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)), took that dependency
+  away before the attack VM starts taking leases from the same pool.
 - A second hypervisor, `gandalf`, carries the attack tooling and the
   deliberately-vulnerable targets. It is installed (Proxmox VE 9,
   2026-11-07) and has no guests yet. It sits on this segment single-homed, on
@@ -728,8 +727,7 @@ Where things get broken on purpose.
   anywhere, which is what makes a `172.30.30.x` source in a firewall block a
   leak reporting itself. The attack VM takes a lease from the pool like any
   other guest. The build is
-  [`build-the-playground.md`](runbooks/build-the-playground.md), and `Saruman`
-  moves to `10.0.30.20` as part of it.
+  [`build-the-playground.md`](runbooks/build-the-playground.md).
 
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than
   translated**

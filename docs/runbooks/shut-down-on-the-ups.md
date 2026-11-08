@@ -405,7 +405,7 @@ the existing *Allow internet* rule.
 | Action | Pass |
 | Interface | ImaginationLAN |
 | Protocol | TCP |
-| Source | Single host or alias, `10.0.30.110` |
+| Source | Single host or alias, `10.0.30.20` |
 | Destination | Single host or alias, `10.0.30.1` |
 | Destination port range | From `3493` to `3493` |
 | Description | `Allow NUT from Saruman` |
@@ -553,7 +553,7 @@ waits on its logged-in monitors in step 5:
 ssh admin@10.0.99.1 'upsc -c mjolnir@localhost'
 ```
 
-It should list `10.0.30.110` and `::1`. The firewall's own monitor connects
+It should list `10.0.30.20` and `::1`. The firewall's own monitor connects
 over IPv6 loopback.
 
 ### 3.6 Read the guest shutdown policy
@@ -728,7 +728,7 @@ there this loop would read `---` before anything halted.
 
 ```bash
 while :; do
-  nc -z -G 2 -w 2 10.0.30.110 22 >/dev/null 2>&1 && r=up || r='---'
+  nc -z -G 2 -w 2 10.0.30.20 22 >/dev/null 2>&1 && r=up || r='---'
   printf '%s saruman=%s\n' "$(date -u +%H:%M:%S)" "$r"
   sleep 2
 done | tee ~/ups-fsd-saruman.log

@@ -124,7 +124,7 @@ pveum acl list | grep phoenix
 
 **Then make `phoenix` verify the API's certificate.** Packer and
 `scripts/packer-smoke.sh` both check TLS, because the token travels in a header,
-and a guest on VLAN 30 answering for `10.0.30.110` would collect it otherwise.
+and a guest on VLAN 30 answering for `10.0.30.20` would collect it otherwise.
 The attack VM shares that segment.
 
 **First, check what `Saruman` actually serves.** Its API certificate should
@@ -136,11 +136,11 @@ and naming only `10.0.0.208`, the host's address before it moved. On
 `Saruman`:
 
 ```bash
-echo | openssl s_client -connect 10.0.30.110:8006 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName
+echo | openssl s_client -connect 10.0.30.20:8006 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName
 ```
 
 The issuer must be `PVE Cluster Manager CA`, and the names must include
-`10.0.30.110`. If either is wrong, keep a copy of any custom certificate,
+`10.0.30.20`. If either is wrong, keep a copy of any custom certificate,
 regenerate the node's own from `/etc/hosts` (check the host's line there
 first, because this reads it), and stop serving the custom one. Restarting
 `pveproxy` drops open web-UI sessions and touches no guest:
@@ -285,7 +285,7 @@ as trustworthy as that list, so the list is written here, once, with care.
    `phoenix` cannot:
 
    ```bash
-   make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only iso-store-state'
+   make install-agent-collectors AGENT=root@10.0.30.20 ARGS='--only iso-store-state'
    ```
 
    The installer starts one run straight away. That run reads every ISO, so

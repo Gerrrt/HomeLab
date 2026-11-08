@@ -43,7 +43,7 @@ decision and on this runbook.
 The machine is ready too. `gandalf`, a refurbished ThinkCentre M80q, was
 bought on 2026-10-05 and has its 32 GB and its SATA range disk
 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md))
-fitted. **§1 and §2 were done on 2026-11-07**
+fitted. **§1, §2 and §3 were done on 2026-11-07**
 ([#421](https://github.com/Gerrrt/HomeLab/issues/421)), and the parts as
 fitted are in [`hardware.md`](../hardware.md). The node is named `gandalf`,
 and `ifrit` names its disabled Intel AMT
@@ -231,50 +231,118 @@ protection does not depend on the pool never moving.
 
 ## 3. Move `Saruman` to `10.0.30.20`
 
-ADR-0014 requires this "at the same time", and the reason is in
-[`network.md`](../network.md): `10.0.30.110` is the one fixed address in the
-estate that sits *inside* a DHCP pool. It holds today only because the server is
-Kea and consults reservations on every allocation; under the ISC dhcpd binaries
-still on the box it would not.
+> **Ran on 2026-11-07** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
+> `Saruman` is at `10.0.30.20`, and every path below was checked over the
+> new address. The steps are kept as the record of how it was done, and they
+> have the shape to follow if the hypervisor's address ever moves again.
 
-This is the riskiest step in the build. Nothing scrapes `Saruman` by address —
-its Alloy agent pushes — so the blast radius is one firewall rule and the
-documents:
+ADR-0014 requires this "at the same time". At `.110`, `Saruman` was the one
+fixed address in the estate inside a DHCP pool, and the attack VM leases from
+that pool. Kea's reservation kept the address safe only because Kea consults
+reservations on every allocation.
 
-1. Change the static on `Saruman` and its Kea reservation to `10.0.30.20`.
-2. Edit the pass rule on the **ImaginationLAN** interface from
-   `10.0.30.110 → 10.0.99.20` to `10.0.30.20 → 10.0.99.20`, ports 9090 and
-   3100, **logging off**, still above the ADR-0014 tripwire. It is documented in
-   [`add-monitored-device.md`](add-monitored-device.md); logging it makes the
-   agent's every push a hit on the tripwire.
-3. Confirm the agent is still arriving before you move on — a broken rule looks
-   exactly like a host that is down. The hypervisor should still be in this
-   list:
+The runbook first listed two things that name the address: the Alloy pass
+and the ISO store's pass and export. **There were six.** The NUT pass, the
+host firewall's `local_network` alias, the API certificate, `phoenix`'s
+endpoint and the Mac's `known_hosts` all named it as well. The alias is the
+one with a security cost. Left at `.110`, it would put whatever leased
+`.110` next into Proxmox's `management` set, as §4 explains, and that could
+be the attack VM.
+
+**Add the `.20` paths before you move the address, and remove the `.110`
+ones only after it moves.** That way nothing breaks at the cutover.
+
+1. **Before you start.** Check that `.20` is free: from `morpheus`, it should
+   not answer a ping and should have no ARP entry. Then, on `Saruman`, copy
+   `/etc/network/interfaces`, `/etc/hosts` and
+   `/etc/pve/firewall/cluster.fw` to `/root/`. Record a baseline:
+   - the `host` list in Loki (step 6);
+   - `ssh admin@10.0.99.1 'upsc -c mjolnir@localhost'`;
+   - `pvesm status --storage smaug-iso`;
+   - the running guests in `qm list`.
+2. **The ImaginationLAN rules on `morpheus`.** Copy each of these rules
+   with source `10.0.30.20`, and place each copy directly under its original:
+   - the Alloy passes to `10.0.99.20`, on 9090 and 3100, with **logging
+     off**. They are documented in
+     [`add-monitored-device.md`](add-monitored-device.md). If you log them,
+     every push the agent makes counts as a tripwire hit;
+   - `Allow NUT from Saruman` to `10.0.30.1:3493`;
+   - `Allow NFS from Saruman to smaug` to `10.0.40.30:2049`.
+
+   Every copy must sit above its block rule. `pfctl` matches the first rule
+   that fits, so check the order with
+   `pfctl -sr | grep -n "on igc0.30"`. On `smaug`, add `10.0.30.20` to the
+   `erebor/iso` share's authorized hosts. On `morpheus`, change `Saruman`'s
+   Kea reservation to `10.0.30.20`.
+3. **Change the address.** Edit `/etc/hosts`,
+   `address` under `vmbr0` in `/etc/network/interfaces`, and
+   `local_network` in `/etc/pve/firewall/cluster.fw`. `/etc/pve` is the
+   cluster filesystem, so write the file with `cp`, not `sed -i`. Then:
+
+   ```bash
+   env -i PATH=/usr/sbin:/usr/bin:/sbin:/bin /usr/sbin/ifreload -a
+   ```
+
+   **The `env -i` is needed.** `ifreload` starts with
+   `#!/usr/bin/env python3`, and root's dotfiles put mise's Python first on
+   the PATH. That Python has neither Debian's `python3-systemd` nor
+   ifupdown2's library path, so a plain `ifreload -a` dies with
+   `ModuleNotFoundError` and changes nothing. Boot is not affected, because
+   `networking.service` runs with systemd's default PATH.
+   `ifquery vmbr0`, under the same `env -i`, reads the new stanza back
+   without applying it.
+
+   **Any SSH session, and any Proxmox web Shell, connected to `.110` drops
+   at this point.** Restarting `pveproxy` also drops the web Shell. Use the
+   iLO console, or reconnect to `.20`. The host key is unchanged, and the
+   client says so: it reports the key as already known under another
+   address.
+4. **Reissue the API certificate** from the new `/etc/hosts`:
+   `pvecm updatecerts --force && systemctl restart pveproxy`. `phoenix`
+   verifies TLS, so the certificate's names must include `10.0.30.20`:
+
+   ```bash
+   echo | openssl s_client -connect 10.0.30.20:8006 2>/dev/null | openssl x509 -noout -issuer -ext subjectAltName
+   ```
+
+   Then check three more things:
+   - `qm list` shows the same running guests as before;
+   - after a minute, `tc filter show dev vmbr0 egress` shows the Zeek
+     mirror again;
+   - `pve-firewall localnet` reports `local_network: 10.0.30.20`.
+5. **Change the clients.** In `~/.config/proxmox/phoenix.env` on
+   `phoenix`, change `PROXMOX_URL` and `PROXMOX_VE_ENDPOINT`, then rerun the
+   API check in [`provision-lab-guests.md`](provision-lab-guests.md) §1. It
+   must return `200` with TLS verified. On the Mac, run
+   `ssh-keygen -R 10.0.30.110` and update the host's entry in the SSH
+   config. Nothing on VLAN 99 can SSH to `Saruman`, so `prometheus` has no
+   `known_hosts` entry to update.
+6. **Check every path over `.20`.** This list should still include the
+   hypervisor:
 
    ```bash
    curl -s http://localhost:3100/loki/api/v1/label/host/values | jq -r '.data[]'
    ```
 
-   `host` is `constants.hostname` as the agent sees it, so read the value out of
-   the list rather than asserting one — see
+   `host` is `constants.hostname` as the agent sees it, so read the value
+   out of the list rather than assert one. See
    [`ship-firewall-logs.md`](ship-firewall-logs.md) for why that label means
-   something different on relayed logs.
-   **If the ISO store exists** ([ADR-0072](../adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md),
-   [`build-the-nas.md`](build-the-nas.md) §5b), it is a second rule and an
-   export, and both name `.110`:
-   - Edit `Allow NFS from Saruman to smaug` on ImaginationLAN to source
-     `10.0.30.20`. Its position does not change.
-   - On `smaug`, change the `erebor/iso` NFS share's authorized host to
-     `10.0.30.20`.
-   - On `Saruman`, `umount /mnt/smaug-iso && mount /mnt/smaug-iso`, then
-     `pvesm status --storage smaug-iso` must say `active`.
-4. Update the address where the documents carry it: `hardware.md`,
-   `network.md`, `architecture.md`, `add-monitored-device.md`,
-   `replace-the-smart-storage-battery.md`, and the ADRs that quote the rule —
-   those get a note rather than an edit, per
-   [ADR-0001](../adr/0001-record-architecture-decisions.md). `roadmap.md` also
-   carries `.110`, in a Done entry, and that one is **left alone**: it records
-   what was true when that work landed.
+   something different on relayed logs. Also check:
+   - `pfctl -ss` shows states from `.20` to `10.0.99.20`;
+   - `upsc -c mjolnir@localhost` lists `10.0.30.20`;
+   - after `umount /mnt/smaug-iso && mount /mnt/smaug-iso`, `smaug-iso` is
+     `active`;
+   - `8006` answers from Hicks and is refused from `morpheus`.
+
+   A broken rule looks exactly like a host that is down.
+7. **Remove the `.110` paths.** Delete the four `.110` rules and remove
+   `.110` from the share, then run step 6 again. The copies were left with
+   `(.20)` at the end of their descriptions.
+8. **The documents.** Wherever a current-state document names the address,
+   update it. ADRs that quote it get a note rather than an edit, per
+   [ADR-0001](../adr/0001-record-architecture-decisions.md). Dated records
+   are left alone: the changelog, `roadmap.md`'s Done entries and dated log
+   rows.
 
 ---
 
@@ -336,7 +404,7 @@ than narrowed here; ADR-0017's Consequences record that it admits nothing.
 **This is the step that makes the difference between ADR-0014 being true and
 merely being written down.** Proxmox detects a "local network" from the node's
 own address, puts that CIDR in a `management` IP set, and gives the set five
-RETURN rules in the host input chain. `Saruman` is `10.0.30.110/24`, so the
+RETURN rules in the host input chain. `Saruman` is `10.0.30.20/24`, so the
 detected value was **the entire lab segment** — and with `policy_in: DROP` in
 place, every address on VLAN 30 still reached the GUI, SSH, the VNC range, the
 SPICE proxy and the migration range. ADR-0014's three rules were redundant
@@ -357,7 +425,7 @@ enable: 1
 policy_in: ACCEPT
 
 [ALIASES]
-local_network 10.0.30.110
+local_network 10.0.30.20
 ```
 
 Use the node's own address, and check that `localnet` now reports it as user
@@ -422,7 +490,7 @@ segment and is not Hicks, so it is the right prober; a second probe to a host
 that should answer keeps a broken `nc` from reading as a closed port:
 
 ```bash
-ssh admin@10.0.99.1 'nc -z -w 3 10.0.30.110 8006; echo "8006 exit=$?"; nc -z -w 3 10.0.30.40 3100; echo "control exit=$?"'
+ssh admin@10.0.99.1 'nc -z -w 3 10.0.30.20 8006; echo "8006 exit=$?"; nc -z -w 3 10.0.30.40 3100; echo "control exit=$?"'
 ```
 
 Expect `8006 exit=1` and `control exit=0`. Then confirm the hypervisor's own
@@ -444,7 +512,7 @@ skips this section — page nothing on their own. Install the collector that
 reads it ([#576](https://github.com/Gerrrt/HomeLab/issues/576)):
 
 ```bash
-make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only pve-firewall-state'
+make install-agent-collectors AGENT=root@10.0.30.20 ARGS='--only pve-firewall-state'
 ```
 
 and read it back on `prometheus`:

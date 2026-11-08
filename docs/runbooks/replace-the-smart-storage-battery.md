@@ -28,7 +28,7 @@ lid comes off — not after.**
 > end.
 
 `shiva` is the iLO, not the hypervisor. The host behind it is `Saruman` at
-`10.0.30.110`; see [`../hardware.md`](../hardware.md). The pack is internal to
+`10.0.30.20`; see [`../hardware.md`](../hardware.md). The pack is internal to
 the ProLiant DL360 Gen9 and is not hot-swappable, so fitting it means taking
 `Saruman` down.
 

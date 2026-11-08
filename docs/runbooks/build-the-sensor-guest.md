@@ -93,7 +93,7 @@ ls /sys/class/net/vmbr1/brif
 ifquery --check -a
 ```
 
-- `vmbr0` must still show `10.0.30.110/24`.
+- `vmbr0` must still show `10.0.30.20/24`.
 - `vmbr1` must show **no address at all**, not even an `fe80::`.
 - `addr_gen_mode` must read `1`.
 - `brif` stays empty until §2's VM starts.
@@ -306,18 +306,18 @@ Both ship through the agent-collector installer. **Run it from a checkout on
 Hicks**, which can SSH to `Saruman` as root.
 
 Run from the checkout on `Saruman` itself, the installer SSHes to
-`root@10.0.30.110` from `10.0.30.110`. That login is from VLAN 30, so it fires
+`root@10.0.30.20` from `10.0.30.20`. That login is from VLAN 30, so it fires
 the critical `SshLoginFromUnexpectedSubnet`, which clears ten minutes later.
 That is what happened on the first build. Also, `Saruman`'s own host key is not
-in root's `known_hosts` there: compare `ssh-keyscan -t ed25519 10.0.30.110`
+in root's `known_hosts` there: compare `ssh-keyscan -t ed25519 10.0.30.20`
 against `/etc/ssh/ssh_host_ed25519_key.pub` before adding it.
 
 ```bash
-make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only zeek-mirror'
+make install-agent-collectors AGENT=root@10.0.30.20 ARGS='--only zeek-mirror'
 ```
 
 ```bash
-make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only zeek-mirror-state'
+make install-agent-collectors AGENT=root@10.0.30.20 ARGS='--only zeek-mirror-state'
 ```
 
 The first installs `scripts/zeek-mirror.sh` as `/usr/local/bin/homelab-zeek-mirror`

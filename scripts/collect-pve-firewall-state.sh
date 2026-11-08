@@ -9,7 +9,7 @@
 # and the ways it goes off again are ordinary: a `pve-firewall stop` while
 # debugging a guest that cannot reach the API, an upgrade that rewrites
 # /etc/pve/firewall, or a rebuild that skips §4 the way the first build did.
-# The check that would notice, `nc -z 10.0.30.110 8006` from off the segment, is
+# The check that would notice, `nc -z 10.0.30.20 8006` from off the segment, is
 # something a person does once.
 #
 # WHY RULE COUNTS AS WELL AS THE SWITCH. "Enabled with zero rules" and
@@ -134,7 +134,7 @@ enable: 1
 policy_in: ACCEPT
 
 [ALIASES]
-local_network 10.0.30.110"
+local_network 10.0.30.20"
   check "a disabled rule is not counted" count_rules 1 \
 "[RULES]
 |IN ACCEPT -source 10.0.50.0/24 -p tcp -dport 8006
@@ -158,7 +158,7 @@ enable: 1
 policy_in: ACCEPT
 
 [ALIASES]
-local_network 10.0.30.110"
+local_network 10.0.30.20"
   check "REJECT refuses too" parse_policy_drop 1 \
 "[OPTIONS]
 policy_in: REJECT"

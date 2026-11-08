@@ -242,7 +242,7 @@ The estate's `GuestServiceUnhealthy` warns after fifteen minutes
 warns when an agent stops running the check, and `GuestServiceStateStale` when
 the collector stops writing. It requires `qm`, so it installs on the hypervisor
 only, from the Mac, because VLAN 99 cannot reach VLAN 30 on port 22:
-`make install-agent-collectors AGENT=root@10.0.30.110 ARGS='--only guest-service-state'`.
+`make install-agent-collectors AGENT=root@10.0.30.20 ARGS='--only guest-service-state'`.
 
 **`drift-check` is the collector that belongs to another repository.**
 `Gerrrt/Lemmiwinks/.claude/tools/drift-check` reads the wiki's machine-checkable

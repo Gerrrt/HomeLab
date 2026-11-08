@@ -254,7 +254,7 @@ IN ACCEPT -source 10.0.30.70 -p tcp -dport 8006 -log nolog
 install -d -m 700 ~/.config/proxmox
 umask 077
 cat > ~/.config/proxmox/phoenix.env <<'EOT'
-PROXMOX_URL=https://10.0.30.110:8006/api2/json
+PROXMOX_URL=https://10.0.30.20:8006/api2/json
 PROXMOX_TOKEN_ID=phoenix@pve!builder
 PROXMOX_TOKEN_SECRET=<paste the secret>
 EOT

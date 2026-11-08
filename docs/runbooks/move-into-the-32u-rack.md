@@ -331,7 +331,7 @@ hours, so it will not fire inside a normal window.
 
 | Order | Host | How | You should see |
 | --- | --- | --- | --- |
-| 1 | `Saruman` and its guests | The Proxmox UI at `https://10.0.30.110:8006` from the Mac on Hicks (`10.0.30.20` once [`build-the-playground.md`](build-the-playground.md) §3 has run), *node → Shutdown*. It stops its guests first | The iLO at `10.0.30.10` shows the server off |
+| 1 | `Saruman` and its guests | The Proxmox UI at `https://10.0.30.20:8006` from the Mac on Hicks, *node → Shutdown*. It stops its guests first | The iLO at `10.0.30.10` shows the server off |
 | 2 | `smaug` | The TrueNAS UI, *Power → Shut Down* | The tower's power light goes out. `erebor` is exported on the way down |
 | 3 | `trinity` | `ssh rabbit@10.0.99.40 sudo systemctl poweroff` | The ProDesk's light goes out. **AdGuard goes with it**: from here, the house cannot resolve outside names |
 | 4 | `morpheus` | The pfSense console on the KVM, option *Halt system* | The house loses internet, DNS and DHCP |
