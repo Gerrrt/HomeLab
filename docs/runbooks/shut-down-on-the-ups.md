@@ -52,15 +52,17 @@ follow the steps.**
 >   makes `trinity` a third secondary. That is the new
 >   [step 4b](#step-4b--subscribe-trinity), and **it is not built yet**.
 > - **`Saruman` runs thirteen guests, not two**, four of them in ordered
->   stages. Step 3.6 now caps those four at `down=90`, and **that is not
+>   stages. Step 3.6 now caps those four at `down=90`. 3.7 keeps its monitor
+>   logged in until they are down and raises `HOSTSYNC` to 600, and 3.8
+>   raises the card to 16 minutes before the window. **None of this is
 >   applied yet** either.
 > - **The UPS's outlet groups were read for the first time** (PDU on
 >   group 1). Their turn-off and load-shedding settings were not, and a
 >   group-1 setting that sheds the PDU early would cut every host
 >   mid-sequence. That is a new box under *Before you start*.
 >
-> §6.5 now sizes the final low-battery duration from the worst case as well
-> as the measured run.
+> §6.5 now keeps the low-battery duration at or above the worst case plus
+> half again, whatever the measured run says.
 
 ## What this does
 
@@ -92,12 +94,15 @@ Tick all nine. Steps 1 to 6 assume every one of these is done.
 - [ ] **The UPS's outlet-group settings, read at `https://10.0.99.10`.** For
       each of the three groups, note the turn-off delay, the turn-on delay
       and any load shedding: shed on time on battery, or shed on runtime
-      remaining. **Group 1 is the PDU and every host but the laptops.** If
-      group 1 sheds on battery time or on runtime above the low-battery
-      duration, the card cuts the whole PDU before any secondary has been
-      told to halt. Turn that shedding off before step 6, then write the
-      values into `hardware.md`'s outlet-group paragraph. The labels vary by
-      firmware; look for them under the outlet-group configuration pages.
+      remaining. **Group 1 is the PDU and every host but the laptops. Turn
+      off every time-on-battery and runtime-remaining shed on group 1**, at
+      any value, before step 5. Above the low-battery duration, a shed cuts
+      the PDU before any secondary is told to halt. Below it, a shed cuts the
+      PDU partway through a halt the duration was sized to fit. In both
+      cases the hosts stop uncleanly. Group 1 goes off only when the pack
+      runs out. Read the page back after saving, then write the values into
+      `hardware.md`'s outlet-group paragraph. The labels vary by firmware;
+      look for them under the outlet-group configuration pages.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
       and never in a worktree (the command is below this list). They are
       `SNMP_AUTHPASS_APC` and `SNMP_PRIVPASS_APC` in the rendered file, and
@@ -292,14 +297,13 @@ FINALDELAY 30
 ```text
 LISTEN 10.0.30.1 3493
 LISTEN 10.0.40.1 3493
-LISTEN 10.0.99.1 3493
 ```
 
-The third line is `trinity`'s, from
-[ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md).
-It was not in the 2026-09-23 build, and step 4b adds it to that one. Never
-add it without step 4b's rules: until they are in, every host on Winterfell
-can reach the listener.
+**Two lines only, even on a fresh build.** `trinity`'s listener,
+`LISTEN 10.0.99.1 3493`
+([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)),
+is added in 4b.2, after 4b.1's rules are in. If you add it here, 1.5's save
+opens 3493 to every host on Winterfell until step 4b.
 
 **Additional configuration lines for upsd.users**, with your invented username
 and password in place of `<NUTUSER>` and `<NUTPASS>`:
@@ -338,14 +342,13 @@ LISTEN 127.0.0.1
 LISTEN ::1
 LISTEN 10.0.30.1 3493
 LISTEN 10.0.40.1 3493
-LISTEN 10.0.99.1 3493
 HOSTSYNC 120
 FINALDELAY 30
 ```
 
-and `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
-`10.0.30.1:3493`, `10.0.40.1:3493` and, once step 4b is done,
-`10.0.99.1:3493`.
+and three `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
+`10.0.30.1:3493` and `10.0.40.1:3493`. After step 4b there is a fourth
+`LISTEN` line and binding, `10.0.99.1`. After 3.7, `HOSTSYNC` reads 600.
 
 The command hides every password line on purpose — `authPassword` and
 `privPassword` among them, which is why the pattern matches a capital `P` as
@@ -642,16 +645,67 @@ qm set <VMID> --startup order=<N>,up=120,down=90
 
 Re-run the `grep`. **Each of the four lines should now end `down=90`.**
 
-That makes the worst case 180 s for the unordered group plus 4 × 90 s,
-plus the host's own halt: about **9½ minutes**. Write that down. §6.5 sizes
-the final low-battery duration from the larger of it and what step 5
-measures.
+That makes the worst case to `Saruman` down 180 s for the unordered group
+plus 4 × 90 s, plus the host's own halt: about **9½ minutes**. Rebuilds
+keep it: [`build-the-lab-domain.md`](build-the-lab-domain.md) and
+`tofu output startup_orders` both set `down=90` since 2026-11-08. After any
+rebuild of a lab-domain server, re-run the `grep` above anyway.
 
-`HOSTSYNC` only bounds how long the firewall waits for its monitors to log
-out, and `Saruman`'s monitor can log out before its guests have finished
-stopping. If `morpheus` halts first in step 5, `Saruman` still finishes on
-UPS power, but its guests lose their route while they stop. The
-troubleshooting section says what to raise.
+### 3.7 Keep `Saruman`'s monitor logged in until its guests are down
+
+`morpheus` halts once every secondary has logged out, or after `HOSTSYNC`,
+whichever is first. By default `Saruman`'s `upsmon` exits as soon as it has
+run its `SHUTDOWNCMD`, and `nut-monitor` can then stop before `pve-guests`
+has stopped the guests. Either way the secondary logs out at the start of
+the halt, not the end, and the firewall halts while the guests are still
+stopping. **Raising `HOSTSYNC` alone does not fix that**: it is only a
+ceiling on a wait that has already ended.
+
+So keep the monitor running until the guests are down, then let `HOSTSYNC`
+cap the wait. On `Saruman`, add one line to `/etc/nut/upsmon.conf`:
+
+```text
+SHUTDOWNEXIT no
+```
+
+Then order `nut-monitor` so that systemd stops it after `pve-guests`:
+
+```bash
+mkdir -p /etc/systemd/system/nut-monitor.service.d && printf '[Unit]\nBefore=pve-guests.service\n' > /etc/systemd/system/nut-monitor.service.d/after-guests.conf && systemctl daemon-reload && systemctl restart nut-monitor
+```
+
+`Before=` is the right word, even though it reads backwards. Systemd stops
+units in the reverse of their start order, so a unit that starts before
+`pve-guests` stops after it.
+
+**Check both took:**
+
+```bash
+upsmon -V; grep SHUTDOWNEXIT /etc/nut/upsmon.conf; systemctl show nut-monitor -p Before | tr ' ' '\n' | grep pve-guests; systemctl is-active nut-monitor
+```
+
+**You should see** a NUT version of 2.8.1 or later (`SHUTDOWNEXIT` is not
+understood before that), the `SHUTDOWNEXIT no` line, `pve-guests.service`,
+and `active`. 3.5's `upsc` must still read `OL`. Step 5 is the proof that
+this works: 5.3's two intervals show whether `morpheus` waited.
+
+On `morpheus`, raise `HOSTSYNC` in 1.4's upsmon box from 120 to **600**,
+which is the 9½-minute bound rounded up, then save. 1.6's readback should now
+show `HOSTSYNC 600`. If `Saruman` logs out sooner, `morpheus` does not
+wait the full 600.
+
+### 3.8 Raise the card's threshold to cover the bound now
+
+**Do not leave this for §6.5.** Step 0 left 8 minutes on the card, and with
+3.6 and 3.7 the worst case to `morpheus` down is about **10½ minutes**: 9½
+to `Saruman` down, plus `FINALDELAY 30`, plus the firewall's own halt. A
+real cut between now and 6.5 would run the pack out partway through.
+
+Set the low battery duration, the field from 0.2, to the bound plus half
+again: **16 minutes**. Confirm with 0.3, which should read
+`0:0:16:00.00`, and 1.7, where `battery.runtime.low` should read `960`.
+§6.5 refines this after the measurement, and never sets it below this
+rule.
 
 **`phoenix` is a guest here, and it is where a Claude Code session runs.**
 Anything working from `phoenix` goes away when step 5 halts `Saruman`, and
@@ -759,8 +813,9 @@ be reachable from all of Winterfell until the rules were in.
 
 ### 4b.2 Add the listener
 
-**Services → UPS → Display Advanced**. Add the third line to the upsd.conf
-box, so it reads exactly as 1.4 now shows:
+**Services → UPS → Display Advanced**. This is the only place the third
+line is added. 1.4 keeps two lines so that a fresh build never opens the
+listener before 4b.1. Add it to the upsd.conf box, so it reads exactly:
 
 ```text
 LISTEN 10.0.30.1 3493
@@ -993,13 +1048,15 @@ and stays there is when that host stopped answering.
    only has containers to stop. `Saruman` has its guests, which took 2 min
    10 s on 2026-10-06, so expect it last of the three by a margin.
 2. `morpheus=---` last, once every secondary has disconnected or `HOSTSYNC`
-   has elapsed, plus `FINALDELAY`.
+   has elapsed, plus `FINALDELAY`. Because of 3.7, `Saruman` disconnects
+   when its guests are down, so `morpheus=---` should come after
+   `saruman=---`, not a fixed delay after 5.2.
 
 **Write down two intervals**, both measured from the time you noted in 5.2:
 
-- **to `Saruman` down** — the number `HOSTSYNC` in 1.4 has to exceed.
+- **to `Saruman` down** — this has to stay under `HOSTSYNC` (600 after 3.7).
 - **to `morpheus` down** — the end-to-end time. §6.5 sets the card's
-  low-battery threshold from it, and step 7 corrects `HOSTSYNC` to it.
+  low-battery threshold from it.
 
 One trap in the `prometheus` log: once `morpheus` is down, that host cannot
 reach VLAN 40 at all. A `smaug=---` appearing in the same second as
@@ -1091,17 +1148,20 @@ You now know two things you did not in step 0: how long the whole shutdown
 takes (5.3) and what a minute of pack is worth (6.4).
 
 Set the card's low battery duration, the same field as 0.2, to **the larger
-of the step 5.3 end-to-end time and the worst-case bound from 3.6, plus half
+of the step 5.3 end-to-end time and the worst-case bound from 3.8, plus half
 again**, rounded up to the next whole minute.
 [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
 says why the bound counts. One good run is the typical case, and a real cut
 can hang a guest in every stage.
 
-Worked example: 5.3 measures 3 minutes 10 seconds, and 3.6's bound is 9½
-minutes. The larger is 9½, plus half again is 14¼, so set **15 minutes**.
+Worked example: 5.3 measures 3 minutes 10 seconds to `morpheus` down, and
+3.8's bound is 10½ minutes. The larger is 10½, plus half again is 15¾, so
+the duration stays at the **16 minutes** 3.8 set. It only moves if step 5
+measured longer than the bound. In that case the bound is wrong: find out
+why before you raise the duration.
 
 At the 23 % load read on 2026-10-09, the card claimed about 44 minutes of
-runtime, so 15 minutes still lets the estate ride out the first half hour
+runtime, so 16 minutes still lets the estate ride out the first half hour
 of a cut before anything halts. If 6.4 measured much less than the card
 claims, the duration still comes from this rule. What changes is how long a
 cut can last before the halt begins, so write that down in step 7.
@@ -1139,7 +1199,7 @@ this work exists to catch.
 | [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and that 0.1 read 8 minutes before any change here (factory value not observed). Also the card's second SNMPv3 access-control entry, `10.0.99.1` read-only, from 1.0 |
 | [`security.md`](../security.md) mains-loss row | It no longer says nothing shuts down on the signal |
 | [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §5 | Whether the card's runtime series tracked your measurement |
-| §1.4 of this file | `HOSTSYNC`, set to the 5.3 time to `Saruman` down plus margin, up or down from 120 |
+| §1.4 and §3.7 of this file | `HOSTSYNC` stays at 600 as long as 3.6's bound is 9½ minutes. Lower it only if the bound itself falls. A measured run shorter than the bound is not a reason to lower it |
 | [`hardware.md`](../hardware.md) outlet-group paragraph | The three groups' turn-off, turn-on and load-shedding settings read under *Before you start* |
 | [`network.md`](../network.md) Winterfell notes, and ADR-0013's accounting | The `trinity` → `10.0.99.1:3493` pass/block pair from 4b.1 |
 | [`architecture.md`](../architecture.md) `trinity` row | It is a NUT secondary of `morpheus` |
@@ -1157,9 +1217,21 @@ address (check 1.6) or the pass rule is below the block or the catch-all
 **`upsc` says `Access denied`.** The credential in 1.4 and the one in 3.3 or
 4.2 do not match. Not a firewall problem.
 
-**`morpheus` halted before `Saruman` finished.** `HOSTSYNC` is shorter than
-the guests take. The two logs from 5.1 are how you know: `morpheus=---`
-appears before `saruman=---`. Raise it in 1.4 and re-run step 5.
+**`morpheus` halted before `Saruman` finished.** The two logs from 5.1 are
+how you know: `morpheus=---` appears before `saruman=---`. Raising
+`HOSTSYNC` alone will not fix this. `Saruman`'s monitor logged out before its
+guests were down, so check 3.7 first:
+
+- the `SHUTDOWNEXIT no` line, and that `upsmon -V` is 2.8.1 or later;
+- that the drop-in is loaded: `systemctl show nut-monitor -p Before`
+  lists `pve-guests.service`;
+- on `Saruman`, `journalctl -b -1 -u nut-monitor -u pve-guests` should show
+  `nut-monitor` stopping after `pve-guests`.
+
+If all three hold and `morpheus` still went first, the wait reached
+`HOSTSYNC`. The guests took longer than 3.6's bound, so find the stage that
+overran before raising anything. Raise 3.8's duration to match any increase
+in `HOSTSYNC`, then re-run step 5.
 
 **`smaug` did not halt.** Look at its system log under
 *System → Advanced → System Log*. A slave that never saw the shutdown flag was

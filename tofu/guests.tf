@@ -195,7 +195,7 @@ module "guest" {
 output "startup_orders" {
   description = "What root on Saruman sets after an apply, one `qm set` per guest that boots with the host."
   value = {
-    for name, g in local.guests : name => "qm set ${g.vm_id} --startup order=${g.startup},up=120"
+    for name, g in local.guests : name => "qm set ${g.vm_id} --startup order=${g.startup},up=120,down=90"
     if g.startup != null
   }
 }

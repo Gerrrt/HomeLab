@@ -41,9 +41,10 @@ the 8 minutes of low-battery duration the card held when step 0 read it.
 
 **`trinity` becomes a third NUT secondary, on `morpheus`'s Winterfell
 address, behind a pass/block pair in the same shape as the other two. The
-four ordered guests on `Saruman` get `down=90`. The card's final low-battery
-duration is sized from the worst case that remains, not only from the one
-measured run.**
+four ordered guests on `Saruman` get `down=90`, and `Saruman`'s monitor
+stays logged in until they are down. The card's low-battery duration is
+raised to cover the worst case that remains before the window, not after
+the one measured run, and the PDU's outlet group sheds on nothing.**
 
 ### `trinity` subscribes
 
@@ -81,19 +82,42 @@ Each of the four ordered guests gets `down=90` in its `startup:` line,
 with its `order` and `up` kept as they are. A hung stage then costs 90 s, not
 180. The worst case becomes 180 s (the unordered group, left at the default)
 plus 4 × 90 s, plus the host's own halt: about **9½ minutes**. That is still
-more than 8.
+more than 8. Every rebuild path sets the same string:
+[`build-the-lab-domain.md`](../runbooks/build-the-lab-domain.md) and the
+`startup_orders` output in `tofu/guests.tf` both carry `down=90`. A
+rebuild that dropped it would quietly put each stage back to 180 s.
 
-### The low-battery duration covers the worst case
+### `Saruman`'s monitor stays logged in until its guests are down
+
+`morpheus` halts once its secondaries have logged out, with `HOSTSYNC` as
+the ceiling on that wait. NUT's default is for a secondary's `upsmon` to exit
+as soon as it has issued `SHUTDOWNCMD`. Systemd can also stop `nut-monitor`
+before `pve-guests` has finished. Either way `Saruman` logs out at the start
+of its halt, and the firewall then halts while guests are still stopping,
+however large `HOSTSYNC` is. So `Saruman`'s `upsmon.conf` gets
+`SHUTDOWNEXIT no` (NUT 2.8.1 and later), and a systemd drop-in orders
+`nut-monitor` `Before=pve-guests.service`, which stops it after the guests.
+`HOSTSYNC` then caps a wait that tracks the guests, and it goes to 600 s,
+the bound above rounded up.
+
+### The low-battery duration covers the worst case, from now on
 
 ADR-0049 left the card's threshold to be read, then set from the measured
-sequence. A measured run that went well, like 2026-10-06's, is shorter than
-what a real cut can produce. So the runbook's §6.5 now sets the final
-duration from the **larger** of the measured end-to-end time and the
-worst-case bound above, plus half again, rounded up to a whole minute. With
-today's numbers that is about 15 minutes. At the 23 % load read on
-2026-10-09, the card claims about 44 minutes of runtime, so shutdown would
-begin around half an hour into a cut. That still rides out every cut short of
-that, which is the property the pack was bought for.
+sequence. A run that went well, like 2026-10-06's, is shorter than what a
+real cut can produce. The worst case to `morpheus` down is now about
+**10½ minutes**: 9½ to `Saruman` down, `FINALDELAY 30`, and the firewall's
+own halt. The duration is that plus half again, **16 minutes**. It is set
+**before** the window (runbook §3.8), not after it: the 8 minutes on the
+card today would run the pack out partway through a real cut. §6.5 then
+keeps the larger of that rule and the measured run plus half again. At the
+23 % load read on 2026-10-09, the card claims about 44 minutes of runtime,
+so shutdown would begin a little under half an hour into a cut. That still
+rides out every shorter cut, which is the property the pack was bought for.
+
+For the same reason, **group 1, the PDU, sheds on nothing.** Any shed on time
+on battery or on runtime remaining either cuts the PDU before the signal or
+cuts it partway through the halt the duration was sized for. The runbook
+turns every such setting off before step 5.
 
 ## Consequences
 

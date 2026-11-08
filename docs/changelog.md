@@ -29,10 +29,15 @@ docstring gives: it is a record, not a claim about now.
   [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
   fills the `trinity` row ADR-0049 left open: it becomes a third secondary on
   `10.0.99.1:3493` behind a pass/block pair on `igc0.99`, and the four ordered
-  guests get `down=90`. That leaves a worst case of about 9½ minutes, so §6.5
-  now sizes the final low-battery duration from that bound as well as from the
-  measured run. Nothing was changed on a host. The runbook's new step 4b, the
-  3.6 timeouts and the outlet-group read are the first things the window does.
+  guests get `down=90`, in the rebuild paths too. Review found that raising
+  `HOSTSYNC` could never have kept the firewall up while the guests stopped,
+  because `Saruman`'s monitor logs out at the start of its halt. So the
+  runbook now keeps it logged in (`SHUTDOWNEXIT no` and a `nut-monitor`
+  drop-in ordered before `pve-guests`) and sets `HOSTSYNC` to 600. That
+  leaves a worst case of about 10½ minutes to the firewall down. The card
+  goes to 16 minutes before the window rather than after it, and group 1
+  sheds on nothing. Nothing was changed on a host. Step 4b, the 3.6 to 3.8
+  changes and the outlet-group read are the first things the window does.
 
 - **A copy run under the wrong `STACK` pruned five observability sets on
   `oracle`, and `backup-volumes.sh` now refuses it.** `ScheduledJobStale`
