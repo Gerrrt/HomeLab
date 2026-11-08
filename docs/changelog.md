@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-07
 
+- **`DiskIoErrors` fired on a healthy disk, and its ATA pattern now needs the
+  kernel's prefix.** `oracle` sent it at 22:33 and 23:28 UTC, each time
+  clearing 15 minutes later. The disk was fine: no kernel I/O error, SMART
+  passing, 0 pending, 0 uncorrectable, reallocated steady at 32. The match
+  was `fwupd-refresh`, which runs about twice a day and logs "failed to add
+  device /sys/.../ata2/.../sr0: ... No medium found" for the empty DVD drive.
+  `ata[0-9]+.*failed` read the sysfs path as an ATA error. The pattern is now
+  `ata[0-9]+(\.[0-9]+)?: .*failed`, the form the kernel writes, and
+  `security.test.yaml` holds the fwupd line as a case that must not fire and
+  a `COMRESET failed` that must.
+
 - **Correction to the 2026-10-07 [#847](https://github.com/Gerrrt/HomeLab/issues/847)
   entry: the wiki's cutover ran that day.** That entry says "Not yet done on
   `oracle`", and `docs/architecture.md` and `docs/network.md` went on saying

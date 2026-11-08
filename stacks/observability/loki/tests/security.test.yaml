@@ -207,6 +207,34 @@ tests:
       - {host: smaug}
 
   - alert: DiskIoErrors
+    name: a failed ATA link reset fires
+    streams:
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-11-07T23:28:59.410000+00:00 oracle kernel: ata1: COMRESET
+              failed (errno=-16)
+    expect:
+      - {host: oracle}
+
+  # fwupd-refresh logs this twice a run for oracle's empty DVD drive. The
+  # sysfs path holds "ata2" and the message "failed", which fired the rule
+  # before it required the kernel's "ataN:" prefix.
+  - alert: DiskIoErrors
+    name: fwupd failing to open an empty optical drive does not fire
+    streams:
+      - labels: {log_type: syslog, host: oracle}
+        entries:
+          - before: 5m
+            line: >-
+              2026-11-07T23:28:59.410000+00:00 oracle fwupd[12307]:
+              23:28:59.410 FuEngine             failed to add device
+              /sys/devices/pci0000:00/0000:00:11.0/ata2/host1/target1:0:0/1:0:0:0/block/sr0:
+              failed to subclass open: failed to open /dev/sr0: No medium found
+    expect: []
+
+  - alert: DiskIoErrors
     name: a SMART attribute change and an ATA link coming up do not
     streams:
       - labels: {log_type: syslog, host: trinity}
