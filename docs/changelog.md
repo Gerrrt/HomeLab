@@ -17,6 +17,34 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-08
+
+- **The WAN's receive errors came back on the XB7's gigabit port, and moving
+  to its other gigabit port cleared them.** Later on the same day as the
+  [#923](https://github.com/Gerrrt/HomeLab/issues/923) move, `em0` flapped
+  four times between 20:57 and 20:59 PST on 2026-11-07. `WanReceiveErrors`
+  fired at 21:21 and `InternetDownloadSlow` at 22:11, after speed tests that
+  had run at about 940 Mbit/s all evening. Scheduled tests then measured
+  2–48 Mbit/s down, mostly about 2, while upload held at about 295 and ping
+  at about 13 ms. Watched live, `em0` took about 2 input errors per 5 s at
+  around 300 packets/s, link `1000baseT <full-duplex>` throughout. A download
+  run on `morpheus` itself got about 11 Mbit/s, so the house side and `pf`
+  were cleared: no queues and no congestion or limit counters. 200 full-size
+  pings to `1.1.1.1` lost none.
+  - **Ruled out:** rebooting the XB7 at 09:01 PST did not help, and errors
+    were back within half a minute. The Xfinity app found no area outage.
+    The gateway's local status page now only points to the app, so DOCSIS
+    signal levels were not read; the operator thought a wind advisory was
+    in force, but clean pings and the fix that followed point away from the
+    coax.
+  - **Fixed:** the patch moved to the XB7's other gigabit port, not the
+    striped 2.5G one, and `em0` was reseated, at 12:56 PST. Across about
+    250,000 packets of real download `em0` counted zero input errors, and
+    distant servers ran at about 160 Mbit/s from `morpheus` and 318 from
+    `prometheus`.
+  - **If it recurs on this port,** the same patch cable is the common
+    factor, and it is the next thing to replace.
+
 ## 2026-11-07
 
 - **`DiskIoErrors` fired on a healthy disk, and its ATA pattern now needs the
