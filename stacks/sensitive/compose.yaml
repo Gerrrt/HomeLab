@@ -914,7 +914,7 @@ services:
   # 128m: 14 MiB and ten tasks on that boot. Ten times, to bound a leak.
   ntfy:
     <<: *service-defaults
-    image: binwiederhier/ntfy:v2.29.0@sha256:4c599cf0818965782f93f652bd843e92714992e84d6b88ad17713dc0951cda1f
+    image: binwiederhier/ntfy:v2.37.2@sha256:1875ddcf815c8a3c981d6d78c67a93452d0abba79b1ab9520b1f5f5238902bd7
     container_name: sensitive-ntfy
     command: ["serve"]
     mem_limit: 128m
