@@ -54,6 +54,15 @@ power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 > ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). Each rule, export,
 > alias and command below that names `.110` now names `.20`, and the decision
 > is unchanged. The text below is left as written, per ADR-0001.
+>
+> **The `trinity` row, and the guest stop.** The last row of *Who shuts down*
+> below, `trinity` *to be decided when it is placed*, is decided by
+> [ADR-0107](0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md):
+> it is on the PDU since the 2026-11-07 rack move and becomes a third
+> secondary, on `10.0.99.1:3493`. The same ADR bounds `Saruman`'s ordered
+> guests at `down=90`, and sizes the final low-battery duration from the worst
+> case as well as the measured run, because *The low-battery point is the
+> card's* below was written for two guests and `Saruman` now runs thirteen.
 
 ## Context
 

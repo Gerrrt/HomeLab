@@ -60,6 +60,10 @@ that turns that estimate into a number is
 move, `trinity`, `gandalf` and the console are on the PDU too, and `smaug` is on
 it directly rather than by the long cord to the media room it had until
 2026-11-06.
+[ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
+makes `trinity` a third host that halts on the signal. `gandalf`, the console
+and the KVM do not. That subscription is the runbook's step 4b, and it is
+not built yet.
 
 Off-rack: only the eero Pro 6E units, distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
@@ -168,10 +172,13 @@ spare.
 group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
 Smart-UPS X's card can switch and sequence each group separately, so the PDU
 — and with it every host but the laptops — is one group. **Each group's
-turn-off and turn-on settings are not read yet**: check them against the
-shutdown in
+turn-off, turn-on and load-shedding settings are not read yet**: check them
+against the shutdown in
 [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
 and the power-up order in the move runbook's §7, and write them here.
+[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) reads them
+under *Before you start*, because shedding on group 1 would cut the PDU
+before any host is told to halt.
 
 **Two more decisions of 2026-10-16, both on the purchase table.** The UPS's
 AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
