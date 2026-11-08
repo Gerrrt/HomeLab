@@ -1524,7 +1524,7 @@ services:
   # leaving the token in .git/config. Its entrypoint IS zizmor.
   zizmor:
     profiles: ["lint"]
-    image: ghcr.io/zizmorcore/zizmor:1.31.1@sha256:42d409dbb851d4c5d35a058cf042b828bea1e3f2884378c526eb0974780e18d9
+    image: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
     command: ["--version"]
 
   # markdownlint-cli2 and shellcheck (#848). They ran from `npx --yes` and the
