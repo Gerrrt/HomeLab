@@ -173,7 +173,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 #     property the two-recipient rule (#835) exists for, which until this was
 #     asserted only about the secrets file and never about an archive;
 #   - a flipped byte, an archive without its sentinel, an archive carrying
-#     another volume's, and a project whose volume does not exist all refuse.
+#     another volume's, and a project whose volume does not exist all refuse;
+#   - --copy-only refuses a set whose MANIFEST names another stack, before
+#     ssh (2026-11-08).
 # ---------------------------------------------------------------------------
 if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
   # shellcheck source=scripts/volume-selftest-fixture.sh
@@ -210,6 +212,31 @@ if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
   expect "a flipped byte does not verify" 1 "FAILED to decrypt or read"
   rm -rf "${VF_REPO}/backups/volumes/20000101T000000Z"
 
+  # Another stack's set in the shared ${OUT_DIR}, the 2026-11-08 shape. The
+  # refusal comes before ssh. If it ever stops doing that, the run would try
+  # the .invalid target and fail with "cannot reach" instead. The real oracle
+  # is never named.
+  cp -a "${SET}" "${VF_REPO}/backups/volumes/20000102T000000Z"
+  sed -i 's/^stack\t.*/stack\tsensitive/' "${VF_REPO}/backups/volumes/20000102T000000Z/MANIFEST"
+  vf_run "${ENV[@]}" VOL_OFFHOST=selftest@offhost.invalid:backups/volumes/observability -- backup-volumes.sh --copy-only
+  expect "refuses to copy a set whose MANIFEST names another stack" 1 "names stack 'sensitive', and this run copies observability's sets"
+  check "  and names no other set" "$(grep -c 'names stack' <<<"${OUT}")" 1
+  check "  and never reaches for the far side" "$(grep -c 'cannot reach' <<<"${OUT}")" 0
+  vf_run "${ENV[@]}" SET_STACK=sensitive VOL_OFFHOST=selftest@offhost.invalid:backups/volumes/observability -- backup-volumes.sh --copy-only
+  expect "  and a SET_STACK in the environment does not loosen a direct run" 1 "and this run copies observability's sets"
+  rm -rf "${VF_REPO}/backups/volumes/20000102T000000Z"
+
+  # The same check from a caller whose sets name another stack: backup-nas.sh
+  # leaves STACK at observability and writes `stack media`. Its set must get
+  # PAST the check, to the .invalid far side, and fail there.
+  mkdir -p "${VF_REPO}/backups/nas"
+  cp -a "${SET}" "${VF_REPO}/backups/nas/20000103T000000Z"
+  sed -i 's/^stack\t.*/stack\tmedia/' "${VF_REPO}/backups/nas/20000103T000000Z/MANIFEST"
+  vf_run NAS_OFFHOST=selftest@offhost.invalid:backups/nas TEXTFILE_DIR="${VF}/no-textfile" -- backup-nas.sh --copy-only
+  expect "backup-nas.sh's media sets pass the stack check" 1 "cannot reach selftest@offhost.invalid"
+  check "  and none is refused as another stack's" "$(grep -c 'names stack' <<<"${OUT}")" 0
+  rm -rf "${VF_REPO}/backups/nas"
+
   vf_volume "${VF_P}u" unmarked
   vf_new_second
   vf_run "${ENV[@]}" COMPOSE_PROJECT_NAME="${VF_P}u" SOPS_AGE_KEY_FILE="${VF_K1}" -- backup-volumes.sh --local-only
@@ -236,6 +263,16 @@ if [[ ${BASH_SOURCE[0]} == "$0" && "${1:-}" == "--self-test" ]]; then
 fi
 
 STACK="${STACK:-observability}"
+# The stack a set's MANIFEST must name before copy_offhost sends it
+# (refuse_foreign_sets). Run directly, that is STACK. A caller whose sets name
+# another stack sets SET_STACK before its source line: backup-nas.sh's sets
+# name `media` while STACK stays at its default. The environment is read only
+# when sourced, so a stray SET_STACK cannot loosen a direct run.
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  SET_STACK="${STACK}"
+else
+  SET_STACK="${SET_STACK:-${STACK}}"
+fi
 STACK_DIR="${REPO_ROOT}/stacks/${STACK}"
 COMPOSE_FILE="${STACK_DIR}/compose.yaml"
 OUT_DIR="${REPO_ROOT}/backups/volumes"
@@ -1004,6 +1041,28 @@ verify_remote_sets() {
   green "verified ${n} set(s) on ${OFFHOST_TARGET}:${OFFHOST_DIR} — every archive hashes to its MANIFEST entry, every MANIFEST byte-identical"
 }
 
+# ${OUT_DIR} is one directory for every stack on this host; only the far side
+# is per STACK. So a run under the wrong STACK sees another stack's sets as its
+# own. On 2026-11-08 `make backup ARGS=--copy-only` on trinity, without
+# STACK=sensitive, copied trinity's seven sensitive sets into oracle's
+# observability directory. prune_offhost then kept the newest KEEP of them and
+# deleted the five real observability sets there. Every MANIFEST has named its
+# stack since the first set this script wrote, so a set whose MANIFEST names
+# a stack other than SET_STACK, or none, is refused before anything is sent. One refusal stops
+# the whole copy, and the prune after it never runs.
+refuse_foreign_sets() {
+  local d stack bad=0
+  for d in "$@"; do
+    stack="$(manifest_field "${d}" stack)"
+    [[ ${stack} == "${SET_STACK}" ]] && continue
+    red "$(basename "${d}"): its MANIFEST names stack '${stack:-<none>}', and this run copies ${SET_STACK}'s sets"
+    bad=1
+  done
+  ((bad == 0)) && return 0
+  red "refusing to copy to ${OFFHOST_TARGET}:${OFFHOST_DIR} — run it with STACK set to the stack these sets belong to"
+  return 1
+}
+
 # Every complete local set the far side does not have, newest first, not just
 # the one this run wrote. A Sunday oracle was off would otherwise leave one set
 # that never left this host, and nothing would ever go back for it. Archives
@@ -1017,6 +1076,7 @@ copy_offhost() {
     info "no complete sets in ${OUT_DIR} — nothing to copy"
     return 0
   fi
+  refuse_foreign_sets "${local_sets[@]}" || return 1
   read_remote || { red "cannot reach ${OFFHOST_TARGET}"; return 1; }
   remote "mkdir -p '${OFFHOST_DIR}' && chmod 700 '${OFFHOST_DIR}'" \
     || { red "cannot create ${OFFHOST_DIR} on ${OFFHOST_TARGET}"; return 1; }
