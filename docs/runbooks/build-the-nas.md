@@ -678,8 +678,10 @@ there. Have the TrueNAS UI and console shell, the pfSense UI, a shell on
 > **Done 2026-10-01.** The dataset was created through the TrueNAS API
 > rather than the UI: `erebor/iso`, lz4, atime off, dedup off, POSIX ACLs,
 > a 500 GiB quota, no snapshot task. Record size reads `1M`.
-> `pippin` is uid `3003`, gid `3002`. The share admits `10.0.30.20` alone,
-> with maproot `pippin`/`pippin`.
+> `pippin` is uid `3003`, gid `3002`. The share admits `10.0.30.110` alone,
+> with maproot `pippin`/`pippin`. (`Saruman` moved to `10.0.30.20` on
+> 2026-11-07, and the share and the rule moved with it:
+> [`build-the-playground.md`](build-the-playground.md) §3.)
 >
 > `Allow NFS from Saruman to smaug` was read from `morpheus` with
 > `pfctl -sr -vv`. On `igc0.30` it printed directly above *Block access to

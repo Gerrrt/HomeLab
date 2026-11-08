@@ -311,9 +311,21 @@ ones only after it moves.** That way nothing breaks at the cutover.
      mirror again;
    - `pve-firewall localnet` reports `local_network: 10.0.30.20`.
 5. **Change the clients.** In `~/.config/proxmox/phoenix.env` on
-   `phoenix`, change `PROXMOX_URL` and `PROXMOX_VE_ENDPOINT`, then rerun the
-   API check in [`provision-lab-guests.md`](provision-lab-guests.md) §1. It
-   must return `200` with TLS verified. On the Mac, run
+   `phoenix`, change `PROXMOX_URL` and `PROXMOX_VE_ENDPOINT`, then check
+   the API over the new endpoint. Rerunning
+   [`provision-lab-guests.md`](provision-lab-guests.md) §1 will not do it,
+   because on a configured `phoenix` that block stops at
+   `already present`. This one only reads the file, prints only the status
+   code, and does not pass `-k`:
+
+   ```bash
+   ( set -a; . ~/.config/proxmox/phoenix.env; set +a
+     printf 'header = "Authorization: PVEAPIToken=%s"\n' "${PROXMOX_VE_API_TOKEN}" \
+       | curl -K - -fsS -o /dev/null -w 'API %{http_code}\n' "${PROXMOX_VE_ENDPOINT}api2/json/version" )
+   ```
+
+   It must print `API 200`. A certificate that doesn't name `10.0.30.20`
+   fails here instead. On the Mac, run
    `ssh-keygen -R 10.0.30.110` and update the host's entry in the SSH
    config. Nothing on VLAN 99 can SSH to `Saruman`, so `prometheus` has no
    `known_hosts` entry to update.
