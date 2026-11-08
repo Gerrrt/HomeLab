@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-08
 
+- **A copy run under the wrong `STACK` pruned five observability sets on
+  `oracle`, and `backup-volumes.sh` now refuses it.** `ScheduledJobStale`
+  fired for `backup-sensitive` and `verify-backups-sensitive` on `trinity`.
+  The backup had already recovered: its 04:30 UTC run exited 0. The verify
+  had failed since 2026-11-02, because that day's and 2026-11-03's sets were
+  written while `oracle` could not be reached and were missing there. The
+  04:30 run's copy step caught them up, and the 06:31 verify passed.
+  - **The mistake:** while catching up by hand, `make backup
+    ARGS=--copy-only` was run on `trinity` without `STACK=sensitive`. The
+    systemd units set it and a shell does not, so it ran as `observability`.
+    `backups/volumes/` is one directory for every stack on a host, and only
+    the far side is per stack. So all seven of `trinity`'s sensitive sets
+    were copied into `oracle`'s `backups/volumes/observability`. Retention
+    there then kept the newest seven and deleted the five real observability
+    sets, `20261004T033010Z` to `20261029T213621Z`. Nothing was exposed:
+    the misplaced sets were the same ciphertext as `oracle`'s sensitive
+    copies.
+  - **Repaired the same morning:** the seven misplaced sets were removed
+    after their MANIFESTs were matched against `oracle`'s sensitive copies.
+    `make backup ARGS=--copy-only STACK=observability` on `prometheus` put
+    the five back from its local sets, each hash-checked on arrival.
+    `oracle` again holds all seven observability sets, 2026-10-04 to
+    2026-11-08.
+  - **The guard:** `copy_offhost` now refuses, before any ssh, every set
+    whose MANIFEST names a stack other than `STACK`. The refusal fails the
+    copy, so the far-side prune never runs. `--self-test` plants a set
+    from another stack and checks the refusal. With the guard disabled, the
+    test fails.
+
 - **The WAN's receive errors came back on the XB7's gigabit port, and moving
   to its other gigabit port cleared them.** Later on the same day as the
   [#923](https://github.com/Gerrrt/HomeLab/issues/923) move, `em0` flapped
