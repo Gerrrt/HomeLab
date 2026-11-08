@@ -1578,7 +1578,7 @@ services:
   # ---------------------------------------------------------------------------
   tofu:
     profiles: ["lint"]
-    image: ghcr.io/opentofu/opentofu:1.13.1@sha256:1df996fca13806a20d5a3d3ad54acdcf76bcb1aa4ac30b5ba169b9e4cecdbcc8
+    image: ghcr.io/opentofu/opentofu:1.13.9@sha256:f5aef7f2632b490e3c289a239d7974497d0583f3df6bfa35e8eb31a367ee5ec0
     command: ["version"]
 
 networks:
