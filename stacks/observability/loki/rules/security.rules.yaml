@@ -359,11 +359,18 @@ groups:
         # "Device: %s, SMART Failure: %s". This said `SMART.*FAILED` until #843's
         # behaviour tests pushed both: case-sensitive, it matched neither, so the
         # smartd third of this rule could never fire.
+        #
+        # The ATA third needs the colon the kernel writes after the port
+        # ("ata1: COMRESET failed", "ata1.00: failed command: ..."). Without it,
+        # `ata[0-9]+.*failed` matched a sysfs path: fwupd-refresh, twice a day
+        # on oracle, logs "failed to add device /sys/.../ata2/.../sr0: ... No
+        # medium found" for the empty DVD drive, and this fired critical for 15
+        # minutes each time on a healthy disk.
         expr: |
           sum by (host) (
             count_over_time(
               {log_type=~"syslog|varlog"}
-              |~ "(I/O error|ata[0-9]+.*failed|FAILED SMART|SMART Failure)"
+              |~ "(I/O error|ata[0-9]+(\\.[0-9]+)?: .*failed|FAILED SMART|SMART Failure)"
               [15m]
             )
           ) > 0
