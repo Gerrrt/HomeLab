@@ -131,7 +131,7 @@ locals {
   # module's `operator`, for the reason the dotfiles VMs give below.
   analyst = {
     for name, g in {
-      garuda = { vm_id = 162, template = 910, cores = 4, memory_mib = 8192, disk_gib = 80, mac_address = "BC:24:11:ED:98:3F" }
+      garuda = { vm_id = 162, template = 910, cores = 4, memory_mib = 8192, disk_gib = 120, mac_address = "BC:24:11:ED:98:3F" }
     } :
     name => merge(g, {
       pool        = "analyst"

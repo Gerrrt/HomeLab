@@ -17,6 +17,19 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-09
+
+- **`GuestDiskWillFillIn24h` paged for `garuda`, and the disk goes from 80 to
+  120 GB.** `/` went from 51.6 to 57.2 GiB between 21:24 and 21:44 UTC on
+  2026-11-08 and was flat afterwards; six hours of window read the one step as
+  a climb of 1.2 GiB an hour. Nothing was filling. The step was the OpenVAS
+  database (ADR-0093): `/var/lib/postgresql` is 25 GB, all of it the `gvmd`
+  database (24 GB) and its 1 GB `pg_wal` floor, on one PostgreSQL 18 cluster.
+  Docker held under 1 GB. `apt clean` freed the package cache. With 16 GB free
+  after that, the next feed sync or large scan would page again, so
+  `tofu/guests.tf` raises `disk_gib`, and `build-the-analyst-workstation.md`
+  §14 says how to apply it.
+
 ## 2026-11-08
 
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574): the UPS shutdown
