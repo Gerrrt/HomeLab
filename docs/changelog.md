@@ -29,9 +29,10 @@ docstring gives: it is a record, not a claim about now.
     of the step, ran on `gandalf` the same night, and the token's
     effective privileges after the build still include `PhoenixBuilder`
     on `vmbr1` and `PhoenixIsoCleanup` on `local`. That corrects the entry
-    below, which says neither is granted. `make-attack-vm.sh` uses the
-    `vmbr1` grant for `ragnarok`'s range NIC. `PhoenixIsoCleanup` buys
-    nothing and is to be revoked again. The two builds, the two smoke tests
+    below, which says neither is granted. The `vmbr1` grant is kept, by
+    decision: `make-attack-vm.sh` uses it for `ragnarok`'s range NIC, and
+    the token already holds `/vms` on a host that is only the range.
+    `PhoenixIsoCleanup` buys nothing and is to be revoked again. The two builds, the two smoke tests
     and the attack VM asked for nothing beyond that set. `phoenix` trusts
     `gandalf`'s own cluster CA and keeps the token in `gandalf.env`, apart
     from `phoenix.env`.

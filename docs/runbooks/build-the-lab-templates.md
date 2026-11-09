@@ -523,28 +523,32 @@ not from a second disc.
    | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
    | `PhoenixBuilder` | `/storage/local` | the installer ISO |
    | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | `ragnarok`'s range NIC, which [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) attaches ([`build-the-playground.md`](build-the-playground.md) §5). Kept 2026-11-09 |
    | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
 
    Nothing is granted on `local-lvm`, because the range's disks stay off the
-   M.2. Nothing is granted on `vmbr1` either: the range NIC belongs to the
-   clone ([`build-the-playground.md`](build-the-playground.md) §5), and a
-   token that can attach guests to the range bridge is a token that can put
-   one there. Nor is `PhoenixIsoCleanup`: Kali's build serves its preseed
+   M.2. The `vmbr1` row was first left out, on the grounds that a token
+   that can attach guests to the range bridge is a token that can put one
+   there. It was granted anyway the same night, and kept by decision: the
+   attack VM is remade by one command, and the token already holds `/vms`
+   on a host whose only purpose is the range, so the bridge adds little.
+   §8 of the playground runbook is still what proves what is on `vmbr1`.
+   Nothing is granted for `PhoenixIsoCleanup`: Kali's build serves its preseed
    over HTTP and uploads no answer disc, so there is nothing to delete, and
    `Datastore.Allocate` would also delete any volume on `local` and edit its
    configuration. It was granted on 2026-11-09 and revoked the same day, from
    review. `pveum acl list | grep phoenix` is the check.
 
-   **What `gandalf` holds is not that table, as of the build.** A second
-   paste of the grants, from an older draft of this step, ran on `gandalf`
-   the same night. The token's effective privileges, read through
-   `/access/permissions` after the build, include two rows the table
-   leaves out:
+   **What `gandalf` holds is not quite that table, as of the build.** A
+   second paste of the grants, from an older draft of this step, ran on
+   `gandalf` the same night. It granted the `vmbr1` row, and it granted
+   `PhoenixIsoCleanup` on `/storage/local` again. The token's effective
+   privileges, read through `/access/permissions` after the build, still
+   hold `Datastore.Allocate` there. It buys nothing here, so revoke it:
 
-   | Role | Path | Status |
-   | --- | --- | --- |
-   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | live. [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) uses it to put `ragnarok`'s `net1` on the range bridge |
-   | `PhoenixIsoCleanup` | `/storage/local` | live, and buys nothing here. Revoke it again |
+   ```bash
+   pveum acl delete /storage/local --users phoenix@pve --roles PhoenixIsoCleanup
+   ```
 
    That paste went first into a zsh on `phoenix`, where `pveum` does not
    exist, and the paste handling turned every space after the first line
