@@ -534,9 +534,17 @@ not from a second disc.
    On `phoenix`, keep it in a file of its own,
    `~/.config/proxmox/gandalf.env` (mode 0600), with `PROXMOX_URL`,
    `PROXMOX_TOKEN_ID` and `PROXMOX_TOKEN_SECRET` pointing at
-   `https://10.0.30.30:8006/api2/json`. Source that file instead of
-   `phoenix.env` for this build. Rewriting `phoenix.env` would point the next
-   `Saruman` build at `gandalf`. Then trust `gandalf`'s CA: relay
+   `https://10.0.30.30:8006/api2/json`. For this build, source
+   `phoenix.env` first and `gandalf.env` after it. `phoenix.env` exports
+   `PKR_VAR_build_password`, which every build validates (§3), even Kali's.
+   `gandalf.env` then overrides the three API variables. Rewriting
+   `phoenix.env` instead would point the next `Saruman` build at `gandalf`.
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
+   ```
+
+   Then trust `gandalf`'s CA: relay
    `/etc/pve/pve-root-ca.pem` as §2 does, under the name
    `gandalf-pve-root-ca.crt`, and prove it with the same `curl`, without
    `-k`.
