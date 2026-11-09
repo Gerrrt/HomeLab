@@ -43,7 +43,7 @@ decision and on this runbook.
 The machine is ready too. `gandalf`, a refurbished ThinkCentre M80q, was
 bought on 2026-10-05 and has its 32 GB and its SATA range disk
 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md))
-fitted. **§1, §2 and §3 were done on 2026-11-07**
+fitted. **§1, §2 and §3 were done on 2026-11-07, and §4 on 2026-11-09**
 ([#421](https://github.com/Gerrrt/HomeLab/issues/421)), and the parts as
 fitted are in [`hardware.md`](../hardware.md). The node is named `gandalf`,
 and `ifrit` names its disabled Intel AMT
@@ -377,6 +377,21 @@ the host rather than at a segment boundary, because there is no boundary between
 them.
 
 ### On `gandalf`
+
+> **Ran on `gandalf` 2026-11-09** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)),
+> from a root shell on the node reached over SSH from Hicks. It found what
+> `Saruman` found: with no `cluster.fw`, `pve-firewall localnet` reported
+> `using detected local_network: 10.0.30.0/24`. After the alias it reported
+> `using user defined local_network: 10.0.30.30`, and the
+> `PVEFW-0-management-v4` set held `10.0.30.30` alone. The flip left the SSH
+> session from Hicks up. The empty `management-v6` set means nothing reaches
+> 8006 over IPv6 at all.
+>
+> **Write the files with `command cp -f`, not `cp`.** Root's shell on
+> `gandalf` aliases `cp` to `cp -i`. A new file is written with no prompt, but
+> the flip overwrites `cluster.fw`, so a plain `cp` waits on an
+> `overwrite?` prompt that a script never answers, and `policy_in` stays
+> `ACCEPT`.
 
 Run the steps below in the same order. Seven things differ from the `Saruman`
 run they record:

@@ -288,8 +288,9 @@ Gated on the domain, on a household observation, or on something to publish.
   `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
   uninstrumented estate teaches nothing. Both are met. The host is installed
   as of 2026-11-07: Proxmox VE 9, the `range` pool and both bridges, the
-  runbook's §1 and §2. §3 ran the same night: `Saruman` is at `.20`. Next is
-  §4, closing `gandalf`'s management plane, then §5–§9.
+  runbook's §1 and §2. §3 ran the same night: `Saruman` is at `.20`. §4
+  closed `gandalf`'s management plane on 2026-11-09. Next is §5, the attack
+  VM, then §6–§9.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
