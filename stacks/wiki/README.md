@@ -16,7 +16,7 @@ until this directory ([#251]).
 | Service | Container | Port | Purpose |
 | --- | --- | --- | --- |
 | caddy | `wiki-caddy` | 443 (https), and 80, which only redirects to it; to the segment and to Hicks | TLS in front of Wiki.js, at `https://lemmiwinks.matrix.elysium`, on a leaf from the estate's CA ([ADR-0082]) |
-| app | `wiki-app` | none (3000, to Caddy) | Wiki.js 2 |
+| app | `wiki-app` | none (3000, to Caddy) | Wiki.js 3 |
 | db | `wiki-db` | none | Postgres 17, the wiki's only state |
 
 ## Deploying a change
@@ -174,11 +174,11 @@ before it answers:
    is:
 
    ```bash
-   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://lemmiwinks.matrix.elysium/healthz' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
+   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://lemmiwinks.matrix.elysium/_site/current/favicon' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
    ```
 
    ```bash
-   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://10.0.99.30/healthz' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
+   docker exec blackbox-exporter wget -qO- 'http://localhost:9115/probe?module=http_2xx_lab_ca&target=https://10.0.99.30/_site/current/favicon' | grep -E '^probe_(success|http_status_code|ssl_earliest_cert_expiry)'
    ```
 
 5. `curl -si -X POST http://lemmiwinks.matrix.elysium/login` from Hicks
@@ -222,10 +222,9 @@ That command, on `prometheus`, restores the newest set into a scratch Postgres
 and counts it against what the set's MANIFEST recorded.
 
 **Nothing else**, by decision. Everything under `/wiki/data` is derived from
-the database or from GitHub. `repo/` is a clone of `Gerrrt/Lemmiwinks`,
-`secure/` holds the deploy key Wiki.js writes out of the database on each
-start, and `cache/` is a render cache. `compose.yaml`'s header has the
-measurements. The pages are in GitHub regardless, so what the dump protects is
+the database or from GitHub. `repo/` is the git target's clone of
+`Gerrrt/Lemmiwinks`, and the rest is cache and staging. `compose.yaml`'s
+header has the measurements. The pages are in GitHub regardless, so what the dump protects is
 everything else: accounts, history, navigation and settings.
 
 A set holds the git storage target's deploy key, because the database does.
@@ -255,7 +254,7 @@ To put it back:
    `up` and never written down:
 
    ```bash
-   docker volume create pgdata
+   docker volume create wiki3-pgdata
    ```
 
    ```bash
@@ -278,7 +277,7 @@ To put it back:
    the same in any rehearsal:
 
    ```sql
-   update storage set "isEnabled" = false;
+   update wiki.storage set "isEnabled" = false;
    ```
 
 ## Upgrading
@@ -289,17 +288,83 @@ take a set, point `db` at a new empty volume and a new image, and restore
 into it as in (2) above. A dump restores into a newer Postgres, and the
 on-disk cluster does not.
 
-The weekly CVE scan's issue for this image, [#984], is expected to stay
-open. Its findings are in the npm packages that Wiki.js 2.x bundles, and no
-2.x image carries their fixes yet, so Dependabot has nothing to propose. The
-scan count does not decide when the wiki moves off 2.x. [ADR-0089]'s
-triggers do, and its note records why.
+The weekly CVE scan's issue for this image, [#984], was open through all of
+2.x. Its findings were in the npm packages Wiki.js 2.x bundles, which no 2.x
+image ever updated. The move to 3.x below is what answers it. From the move
+on, the scan reads the 3.x pin, and the issue closes itself on the first
+clean scan or is rewritten with what 3.x still carries. It is never closed by
+hand. [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads the
+project's own advisories against the pin each Monday.
 
 The update companion that ran beside the old container is gone on purpose.
 It held the Docker socket and recreated Wiki.js from the floating `2` tag,
 outside any compose file, which would undo every pin here the day it worked.
 
-## The cutover
+## Moving to Wiki.js 3.x
+
+[ADR-0089]'s trigger 3 fired on 2026-11-01, and [#1339] is the move. It is
+**not** an in-place upgrade. 3.x starts on an empty database and imports a
+`.wkbackup` that 2.5.317 exports. Both of #1339's gates passed on 2026-11-09:
+3.x keeps what ADR-0089 requires, and a rehearsal on `oracle` imported a dump
+of the live wiki into 3.3.0. Its comments have the counts. The steps below
+are that rehearsal's, run on the live stack.
+
+`compose.yaml` on `main` already describes 3.x, and the merge that put it
+there is step 0. Between the merge and step 4, blackbox probes a path 2.x
+does not serve, so the wiki reads as down. Keep that window short.
+
+0. **Before the merge**, on `prometheus`, take a set and prove it
+   (`make backup-wiki` then `make backup-wiki ARGS=--prove`). That set is
+   the 2.x rollback's backup. `pgdata` itself is never touched.
+1. **Export.** On the live 2.5.317, run **Administration → Utilities →
+   Export for Wiki.js 3.x**. Keep the `.wkbackup` on `oracle` only, and
+   shred it at the end.
+2. **Deploy** the merge commit as in [Deploying a change](#deploying-a-change),
+   but stop before `up`. Then stop 2.x without removing its volumes:
+
+   ```bash
+   docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env stop app db
+   ```
+
+3. **A new cluster.** As in [Restore](#restore) (2): create `wiki3-pgdata`
+   and initialise it with the bootstrap password, then the second `up` for
+   `db` without it.
+4. **3.x up.** `docker compose … up -d --wait`. The app, the healthcheck and
+   Caddy's healthcheck now use `/_site/current/favicon`. Run the two probes in
+   [TLS](#tls) step 4 from `prometheus`. Check that **Site URL** reads
+   `https://lemmiwinks.matrix.elysium`, as in that section's step 3.
+5. **Import** the `.wkbackup` with **Import from Wiki.js 2.x**, with
+   **Overwrite on conflict** on for navigation. A fresh 3.x already has a
+   default sidebar.
+6. **What the import does not carry**, found in the rehearsal:
+   - **Guests read nothing.** 3.x keeps its built-in Guests at DENY. Add an
+     ALLOW rule for `read:pages`, `read:assets` and `read:comments`. The
+     unpublished `README` stays hidden.
+   - **Family loses `read:source` and `read:history`.** These were 2.x
+     group-wide permissions. Re-add both.
+   - **The git target.** Module settings are not carried. Re-enter it by
+     hand, with the deploy key, in **push** mode to a `wikijs-3` branch of
+     `Gerrrt/Lemmiwinks`, not `main`.
+7. **Check** against the rehearsal: 108 pages, all rendered; 3 accounts and
+   Guest; Family; 27 navigation items; `README` a 404 to a reader. Then
+   `make backup-wiki ARGS=--prove` on `prometheus` against the first 3.x set.
+8. **The Lemmiwinks PR.** The first sync renames about 75 files (3.x
+   lowercases paths and turns `_` into `-`) and rewrites links in about 98
+   pages. Review it as a PR from `wikijs-3`. Move the four `diagrams/*`
+   pages' mermaid blocks to 3.x's `diagram` block in the same PR. Once it is
+   merged, point the git target at `main`.
+
+**What the household sees.** About 74 deep URLs change, for example
+`/runbooks/a_machine_died` becomes `/runbooks/a-machine-died`. Old URLs do
+not redirect, by decision: the printed card carries only the host name, and
+HomeLab links to no page. Links inside the wiki are rewritten by the import.
+
+**Rollback.** `pgdata` and `wiki-data` are untouched and mounted by nothing.
+Going back is the compose file at the commit before the move, deployed as
+above, after `stop app db`. Anything written in 3.x since is lost unless it
+was exported first.
+
+## The cutover (2.x, from `docker run`)
 
 **Run on 2026-09-30.** The wiki was down for about a minute, from 13:54:32
 to 13:55:36 UTC.
@@ -354,3 +419,4 @@ to 13:55:36 UTC.
 [#833]: https://github.com/Gerrrt/HomeLab/issues/833
 [#847]: https://github.com/Gerrrt/HomeLab/issues/847
 [#984]: https://github.com/Gerrrt/HomeLab/issues/984
+[#1339]: https://github.com/Gerrrt/HomeLab/issues/1339

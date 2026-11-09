@@ -32,11 +32,14 @@
 # Over https and verified against the lab CA since #847 (ADR-0082): Caddy on
 # oracle terminates TLS with a leaf from it, and port 80 only redirects. So
 # these also read the leaf's expiry, and the `address` probe is what checks
-# it carries its IP SAN, as Grafana's does below. `/healthz` because it is
-# Wiki.js's own and answers without a session, so a 200 means Caddy, the
-# proxy and Wiki.js all answered.
+# it carries its IP SAN, as Grafana's does below. `/_site/current/favicon`
+# because Wiki.js 3.x has no health route (#1339): `/healthz` is a 404, and any
+# unknown path returns the app shell with a 200 that proves nothing. The
+# favicon is served out of the database without a session, so a 200 means
+# Caddy, the proxy, Wiki.js and its Postgres all answered. The same path is
+# stacks/wiki/compose.yaml's healthcheck.
 
-- targets: ["https://lemmiwinks.matrix.elysium/healthz"]
+- targets: ["https://lemmiwinks.matrix.elysium/_site/current/favicon"]
   labels:
     module: http_2xx_lab_ca
     name: wiki
@@ -44,7 +47,7 @@
     host: oracle
     via: dns
 
-- targets: ["https://10.0.99.30/healthz"]
+- targets: ["https://10.0.99.30/_site/current/favicon"]
   labels:
     module: http_2xx_lab_ca
     name: wiki

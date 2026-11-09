@@ -19,25 +19,27 @@
 # ---------------------------------------------------------------------------
 # What is state here, and what is not
 # ---------------------------------------------------------------------------
-# All of it is in Postgres. Read off the running containers on 2026-09-30:
-# the database is 18 MB — 108 pages, 780 history rows, 4 users, the
-# navigation, every setting, and the git storage target's configuration,
-# deploy key included. Everything under /wiki/data is derived from it or from
-# GitHub: repo/ is a clean clone of Gerrrt/Lemmiwinks at main, secure/ holds
-# the deploy key Wiki.js writes out of the database on every start, cache/ is
-# a render cache, and uploads/ is a staging directory that was empty.
+# All of it is in Postgres. Since the move to Wiki.js 3.x (#1339) the tables
+# sit in schema `wiki`, not `public`. The 2.x database, read on 2026-11-09 for
+# the rehearsal, held 108 pages, 806 history rows, 4 users, 3 groups and the
+# navigation. 3.x's importer carries pages, history, users (password hashes
+# and TOTP secrets included), groups and navigation. It does not carry module
+# settings, so the git storage target and its deploy key are re-entered by
+# hand at cutover; stacks/wiki/README.md has the steps.
 #
-# /wiki/data/content, the image's one declared VOLUME and the reason the old
-# container had an anonymous volume, was EMPTY — 4 KB, its mtime the day the
-# image was built. Nothing here writes to it: the only storage target enabled
-# is git. It is a tmpfs below so that Docker has a mount at the declared path
-# and creates no anonymous volume for it; enabling "Local File System" storage
-# at that path would need a volume here first, and this comment is where that
-# is said.
+# Everything under /wiki/data is derived from the database or from GitHub:
+# repo/ is the git target's clone of Gerrrt/Lemmiwinks, and the rest is cache
+# and staging. 3.x declares two VOLUMEs, /wiki/data/content and
+# /wiki/data/repo. content/ is unused, since the only storage target enabled
+# is git, so it is a tmpfs below: Docker gets a mount at the declared path and
+# creates no anonymous volume for it. Enabling "Local File System" storage at
+# that path would need a volume there first.
 #
 # So the backup is a pg_dump and nothing else — scripts/backup-wiki.sh, run on
-# prometheus, pulling (ADR-0065). wiki-data is a named volume so that a
-# recreate does not re-clone the repository, not because it holds anything.
+# prometheus, pulling (ADR-0065). wiki3-data and wiki3-repo are named volumes
+# so that a recreate does not re-clone the repository, not because they hold
+# anything. They are new for 3.x: the 2.x volumes, pgdata and wiki-data, are
+# kept untouched as the rollback (see `volumes:` at the end).
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -79,21 +81,27 @@ services:
   # compose file. It is removed, not carried over: it would undo every pin
   # below on the day it worked.
   #
-  # MEASURED 2026-09-30, on the image pinned that day. Re-check the ones a
-  # bump could move — the uid, the paths it writes, wget — when one lands:
+  # MEASURED 2026-11-09 on 3.3.0, in #1339's rehearsal on oracle, under the
+  # settings below. Re-check the ones a bump could move — the uid, the paths it
+  # writes, the health path, wget — when one lands:
   #   1. It runs as `node`, uid 1000 — the same number as the operator's
   #      account on oracle, which is why the secret below can be 0400 and
   #      owned by that account rather than world-readable.
-  #   2. It writes /wiki/data, /home/node/.ssh (the git module's known_hosts)
-  #      and /tmp, and nothing else; it boots read-only with those three.
-  #   3. It listens on 3000 only. 3443 is Wiki.js's built-in Let's Encrypt
-  #      listener, which is off (SSL_ACTIVE unset) — the old container
-  #      published 443 to a port nothing answered on, and this does not.
-  #   4. /healthz answers {"ok":true}; busybox wget is present.
-  #   5. Resident at 192 MiB after thirteen hours up; 162 threads.
+  #   2. It writes /wiki/data, its two declared VOLUMEs /wiki/data/content and
+  #      /wiki/data/repo, /home/node and /tmp, and nothing else; it boots
+  #      read-only with those mounted.
+  #   3. It listens on 3000 only. 3443 is declared in the image, and nothing
+  #      listens on it.
+  #   4. 3.x has no health route: /healthz is a 404, and every other unknown
+  #      path returns the app shell with 200, which would prove nothing.
+  #      /_site/current/favicon is answered by the server out of the database,
+  #      so it fails when the app or Postgres does. GNU wget is present.
+  #   5. Peak 246 MiB after the import and 108 renders. The image bundles
+  #      headless Chrome, but it runs only for server-side renders (approving
+  #      a suggested edit), not on the markdown edit path, so 512 MiB stays.
   app:
     <<: *service-defaults
-    image: ghcr.io/requarks/wiki:2.5.317@sha256:e4708eed80c014449c0c8426c8d466c7a52a62131555bb44372fa48378b448b8
+    image: ghcr.io/requarks/wiki:3.3.0@sha256:9cd23ece11ac49d2cbdb1d75a96224c8959a35d15b5dd969fa7fa9c325dbc357
     container_name: wiki-app
     user: "1000:1000"
     mem_limit: 512m
@@ -104,7 +112,9 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,uid=1000,gid=1000
-      - /home/node/.ssh:size=1m,uid=1000,gid=1000,mode=0700
+      # The git module's known_hosts and whatever headless Chrome keeps. Not
+      # sized by measurement: 64m is a ceiling, not a reading.
+      - /home/node:size=64m,uid=1000,gid=1000,mode=0700
       - /wiki/data/content:size=1m,uid=1000,gid=1000
     environment:
       DB_TYPE: postgres
@@ -119,13 +129,14 @@ services:
       DB_PASS_FILE: /etc/wiki/.db-secret
     volumes:
       - ${WIKI_DB_SECRET:?set in .env — see .env.example}:/etc/wiki/.db-secret:ro
-      - wiki-data:/wiki/data
+      - wiki3-data:/wiki/data
+      - wiki3-repo:/wiki/data/repo
     # Not published. Caddy below is the only way in, and it speaks TLS; a
     # login that reached 3000 from the segment would cross it in clear, which
     # is what #847 closed. Until then this was "80:3000" on every interface.
     expose: ["3000"]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/_site/current/favicon"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -195,12 +206,19 @@ services:
       - "80:80"
       - "443:443"
     healthcheck:
-      # Through the TLS listener and the proxy to Wiki.js's own /healthz, so a
+      # Through the TLS listener and the proxy to the path the app's own
+      # healthcheck uses (3.x has no /healthz; see the app's note 4), so a
       # missing key, a refused handshake or a dead upstream all fail it. By
       # name, through the alias above: dialled as 127.0.0.1 the SNI matches no
       # policy and the handshake is refused. The chain is not checked here —
       # the container trusts no estate CA — and blackbox is what checks it.
-      test: ["CMD", "wget", "-qO-", "--no-check-certificate", "https://lemmiwinks.matrix.elysium/healthz"]
+      test:
+        - CMD
+        - wget
+        - -qO
+        - /dev/null
+        - --no-check-certificate
+        - https://lemmiwinks.matrix.elysium/_site/current/favicon
       interval: 30s
       timeout: 5s
       retries: 3
@@ -217,17 +235,21 @@ services:
   # Dependabot is told to ignore majors here: a major upgrade is a dump and a
   # restore, not a bump, and README.md § Upgrading has it.
   #
-  # The cluster is the EXISTING one, in the volume the old container named
-  # `pgdata` — adopted below as external, never created by this file. PGDATA is
-  # the image's default for 17 and must stay that way, or Postgres would start
-  # an empty cluster beside the real one.
+  # The cluster is Wiki.js 3.x's, in `wiki3-pgdata` — external, so it is
+  # created by hand at cutover and never by this file, and `down -v` cannot
+  # remove it. 3.x is not an in-place upgrade of 2.x's database: it starts on
+  # an empty one and imports a `.wkbackup` (#1339). The 2.x cluster stays in
+  # `pgdata`, unmounted, as the rollback. PGDATA is the image's default for 17
+  # and must stay that way, or Postgres would start an empty cluster beside
+  # the real one. 3.x needs the `ltree` and `pg_trgm` extensions, which this
+  # image ships (read 2026-11-09).
   #
   # No password is given to this container in normal running. The entrypoint
-  # only reads one to INITIALISE an empty cluster, and this one has been
-  # initialised since 2025-11-12, so the secret is mounted into the app alone.
-  # Initialising a fresh cluster — a restore onto an empty volume — is the one
-  # time it is needed, and WIKI_DB_BOOTSTRAP_PASSWORD carries it for that one
-  # `up`; README.md § Restore has the procedure.
+  # only reads one to INITIALISE an empty cluster, so the secret is mounted
+  # into the app alone. Initialising a fresh cluster — the cutover, or a
+  # restore onto an empty volume — is the one time it is needed, and
+  # WIKI_DB_BOOTSTRAP_PASSWORD carries it for that one `up`; README.md has
+  # both procedures.
   #
   # MEASURED 2026-09-30, on the image pinned that day: uid 999; 50 MiB
   # resident; pg_hba trusts the local socket and wants scram over the network,
@@ -253,7 +275,7 @@ services:
       POSTGRES_PASSWORD: ${WIKI_DB_BOOTSTRAP_PASSWORD:-}
       PGDATA: /var/lib/postgresql/data
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - wiki3-pgdata:/var/lib/postgresql/data
     expose: ["5432"]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "wiki", "-d", "wiki"]
@@ -267,13 +289,22 @@ networks:
 
 volumes:
   # The Postgres cluster: every account, page, revision and setting. Created by
-  # the hand-run container on 2025-11-12 under this name, and adopted rather
-  # than recreated — `external` means `docker compose down -v` cannot remove it.
-  # Backed up by scripts/backup-wiki.sh as a pg_dump, never as this directory.
+  # hand at the 3.x cutover (`docker volume create wiki3-pgdata`) —
+  # `external` means `docker compose down -v` cannot remove it. Backed up by
+  # scripts/backup-wiki.sh as a pg_dump, never as this directory.
+  wiki3-pgdata:
+    external: true
+    name: wiki3-pgdata
+  # Wiki.js's working directory and the git target's clone. Derived, both; kept
+  # only so a recreate does not re-clone. Not backed up, by decision (ADR-0065).
+  wiki3-data:
+  wiki3-repo:
+  # THE ROLLBACK. The 2.x cluster, created by the hand-run container on
+  # 2025-11-12 and untouched since the cutover, and 2.x's working directory.
+  # Mounted by nothing. Going back to 2.x is this file at the commit before
+  # the move, which mounts them again. Removed by a later change, once 3.x has
+  # run long enough that nobody would go back.
   pgdata:
     external: true
     name: pgdata
-  # Wiki.js's working directory: the git clone, the render cache, the deploy
-  # key it writes out of the database. Derived, all of it; kept only so a
-  # recreate does not re-clone. Not backed up, by decision (ADR-0065).
   wiki-data:

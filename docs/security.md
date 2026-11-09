@@ -1208,6 +1208,24 @@ Anyone who can write there can already run the jobs themselves, so this adds no
 privilege — but it is a new file-backed input to the metrics pipeline, and that
 is worth stating rather than discovering.
 
+### The wiki's git sync does not check GitHub's host key
+
+Wiki.js 3.x's git storage module runs `ssh` with `StrictHostKeyChecking=no`,
+hard-coded in the module's `storage.ts` as of 3.3.0
+([#1339](https://github.com/Gerrrt/HomeLab/issues/1339)). So the push that
+mirrors the pages to `Gerrrt/Lemmiwinks` would talk to anything that answered
+as GitHub. A `known_hosts` file does not help: with that option set, OpenSSH
+goes on with key authentication even when the key does not match.
+
+Something on the path from `oracle` to GitHub could take the push, and the
+pages in it. It could not get the deploy key, because public-key
+authentication never sends the private half. The cutover sets the target to
+push mode, where nothing a fake remote sends is written into the wiki. In
+sync or pull mode a fake remote could also write pages into the wiki, so a
+change of mode reopens this paragraph. The path is `oracle`'s own uplink
+through the firewall. That is accepted, not fixed. A fix belongs upstream, as an option for the module, and this
+paragraph comes out when one ships.
+
 ## What this repository deliberately does not publish
 
 Being able to describe a network precisely is useful; publishing a complete

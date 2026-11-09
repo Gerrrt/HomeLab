@@ -1,43 +1,41 @@
 #!/usr/bin/env python3
-"""Watch ADR-0089's triggers for leaving Wiki.js 2.x, weekly, off-host.
+"""Read requarks/wiki's own advisories against the pinned Wiki.js, weekly.
 
-WHAT THIS IS FOR. ADR-0089 keeps the household wiki on Wiki.js 2.x until one
-of three triggers fires:
+WHAT THIS IS FOR. The weekly CVE scan reads the image's packages. That is a
+different list from the project's own security advisories, and an advisory
+that is never fixed produces neither a release nor a pin bump, so nothing
+would ever prompt a reading of it. This is that reading, every Monday.
 
-  1. a published `requarks/wiki` advisory affects the pinned version and has no
-     2.x fix 30 days after publication;
-  2. no 2.x release for six months;
-  3. 3.0 reaches a stable release.
-
-Nothing read the project's own advisories. The weekly CVE scan reads the
-image's packages, a different list. And an advisory that is never fixed
-produces neither a release nor a pin bump, so nothing would ever have
-prompted a reading. This is that reading, every Monday.
+It began as the watch on ADR-0089's three triggers for leaving Wiki.js 2.x.
+Trigger 3 fired on 2026-11-01 and the wiki moved to 3.x (#1339), so triggers
+2 and 3, which were about the 2.x line, are gone. The advisory reading stays,
+against whichever line the pin is on. A "line" is the pin's major version.
 
 WHAT IT REPORTS, in the job summary and in one issue (`security`, `wiki`):
 
-  * an advisory that affects the pin and HAS a fix: bump the pin. Not a
-    trigger: the fix exists, and Dependabot or a person should take it.
-  * an advisory that affects the pin with NO 2.x fix: the trigger 1 clock,
-    in days, and FIRED from day 30;
+  * an advisory that affects the pin and HAS a fix on the pin's line: bump
+    the pin. Dependabot or a person should take it;
+  * an advisory that affects the pin with NO fix on its line: unfixed, with
+    its age in days, and OVERDUE from day 30. Overdue is ADR-0089's old
+    trigger-1 clock, kept as a prompt: an advisory nobody fixes in a month is
+    a decision for a person, not a wait;
   * an advisory whose version range this cannot read: a person reads it.
-    Never silently passed;
-  * trigger 2 and trigger 3 when they fire.
+    Never silently passed.
 
 The issue is created when there is something to report, rewritten each week,
 and closed by the run that finds nothing. It is keyed on a hidden marker.
 
 THE RANGES ARE UPSTREAM'S, AND MESSY. Seen in the real list: `<2.5.314`,
 `<= v2.5.314`, a bare `2.5.303`, `>=2.5.80 <2.5.151`, and `> 2.4.17` patched
-in 2.4.107, which read literally flags every later 2.x. So the order is:
-  - a listed patched version at or below the pin means the pin carries the
-    fix;
+in 2.4.107, which read literally flags every later version. So the order is:
+  - a listed patched version on the pin's line, at or below the pin, means
+    the pin carries the fix;
   - only otherwise is the range asked;
   - and a range this cannot parse is reported for a person to read, not
     guessed at.
 
-A failure to read the advisories or the releases fails the run. A finding
-does not: the issue is the notification, as in cve-scan.yml.
+A failure to read the advisories fails the run. A finding does not: the issue
+is the notification, as in cve-scan.yml.
 
 Usage: scripts/wiki_watch.py                    summary to stdout
        scripts/wiki_watch.py --sync-issue       also create/edit/close the issue
@@ -52,7 +50,6 @@ Environment:
 
 from __future__ import annotations
 
-import calendar
 import datetime as dt
 import json
 import os
@@ -71,17 +68,20 @@ UPSTREAM = "requarks/wiki"
 COMPOSE = pathlib.Path(__file__).resolve().parent.parent / "stacks" / "wiki" / "compose.yaml"
 PIN = re.compile(r"image:\s*ghcr\.io/requarks/wiki:v?(\d+\.\d+\.\d+)@sha256:")
 MARKER = "<!-- wiki-watch: requarks/wiki -->"
-CLOCK_DAYS = 30  # ADR-0089 trigger 1
-STALE_MONTHS = 6  # ADR-0089 trigger 2, calendar months, not days
+OVERDUE_DAYS = 30  # ADR-0089's trigger-1 clock, kept as a prompt
 VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
-STABLE_3 = re.compile(r"^v?3\.\d+\.\d+$")
-TWO_X = re.compile(r"^v?2\.\d+\.\d+$")
 CLAUSE = re.compile(r"(<=|>=|<|>|=)?\s*v?(\d+\.\d+\.\d+)")
 
 
 def ver(text: str) -> tuple[int, int, int] | None:
     m = VERSION.fullmatch(text.strip())
     return (int(m[1]), int(m[2]), int(m[3])) if m else None
+
+
+def open_ended(spec: str) -> bool:
+    """A range that is only lower bounds (`> 2.4.17`, `>=2.0.0`)."""
+    clauses = CLAUSE.findall(spec)
+    return bool(clauses) and all(op in (">", ">=") for op, _ in clauses)
 
 
 def in_range(pin: tuple[int, int, int], spec: str) -> bool | None:
@@ -122,7 +122,7 @@ class Finding:
     published: dt.datetime
     url: str
     summary: str
-    kind: str  # "bump", "clock", "fired", "unreadable"
+    kind: str  # "bump", "unfixed", "overdue", "unreadable"
     detail: str = ""
     age_days: int = 0
 
@@ -131,32 +131,21 @@ class Finding:
 class Report:
     pin: str
     findings: list[Finding] = field(default_factory=list)
-    latest_2x: tuple[str, dt.datetime] | None = None
-    stable_3: str | None = None
-    stale: bool = False
 
     @property
     def anything(self) -> bool:
-        return bool(self.findings or self.stale or self.stable_3)
-
-
-def add_months(when: dt.datetime, months: int) -> dt.datetime:
-    """The same day `months` calendar months on, clamped to the end of a shorter
-    month: 08-31 plus six months is 02-28 (or 29), not March."""
-    month = when.month - 1 + months
-    year, month = when.year + month // 12, month % 12 + 1
-    day = min(when.day, calendar.monthrange(year, month)[1])
-    return when.replace(year=year, month=month, day=day)
+        return bool(self.findings)
 
 
 def parse_time(text: str) -> dt.datetime:
     return dt.datetime.fromisoformat(text)
 
 
-def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.datetime) -> Report:
+def assess(pin_text: str, advisories: list[dict], now: dt.datetime) -> Report:
     pin = ver(pin_text)
     if pin is None:
         raise ValueError(f"pinned version {pin_text!r} is not x.y.z")
+    line = pin[0]
     report = Report(pin=pin_text)
     for a in advisories:
         published = parse_time(a["published_at"])
@@ -171,9 +160,18 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
         }
         for v in a.get("vulnerabilities") or []:
             patched = [p for p in (ver(x) for x in re.split(r"[,\s]+", v.get("patched_versions") or "") if x) if p]
-            if any(p <= pin for p in patched):
-                continue  # the pin carries a listed fix
-            hit = in_range(pin, v.get("vulnerable_version_range") or "")
+            rng = v.get("vulnerable_version_range") or ""
+            # On the pin's own line, a fix at or below the pin is carried. A
+            # fix on an older line in general is not: 3.x is not 2.x with
+            # patches on top. The exception is a range with no upper bound,
+            # `> 2.4.17` patched in 2.4.107: written before the pin's line
+            # existed, its patched version is the real bound, and read
+            # literally it would flag every later release forever.
+            if any(p[0] == line and p <= pin for p in patched):
+                continue
+            if open_ended(rng) and any(p <= pin for p in patched):
+                continue
+            hit = in_range(pin, rng)
             if hit is False:
                 continue
             if hit is None:
@@ -181,32 +179,28 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
                     Finding(**base, kind="unreadable", detail=f"range `{v.get('vulnerable_version_range')}`")
                 )
                 continue
-            fix_2x = sorted(p for p in patched if p[0] == 2 and p > pin)
-            if fix_2x:
-                report.findings.append(Finding(**base, kind="bump", detail="fixed in " + ".".join(map(str, fix_2x[0]))))
+            fix_here = sorted(p for p in patched if p[0] == line and p > pin)
+            if fix_here:
+                report.findings.append(
+                    Finding(**base, kind="bump", detail="fixed in " + ".".join(map(str, fix_here[0])))
+                )
             else:
-                report.findings.append(Finding(**base, kind="fired" if age >= CLOCK_DAYS else "clock"))
+                later = sorted(p for p in patched if p[0] > line)
+                detail = ("fixed only in " + ".".join(map(str, later[0]))) if later else ""
+                report.findings.append(
+                    Finding(**base, kind="overdue" if age >= OVERDUE_DAYS else "unfixed", detail=detail)
+                )
             break  # one finding per advisory
-    for r in releases:
-        tag = r.get("tag_name", "")
-        if r.get("draft") or not r.get("published_at"):
-            continue
-        when = parse_time(r["published_at"])
-        if TWO_X.match(tag) and (report.latest_2x is None or when > report.latest_2x[1]):
-            report.latest_2x = (tag, when)
-        if STABLE_3.match(tag) and not r.get("prerelease"):
-            report.stable_3 = report.stable_3 or tag
-    if report.latest_2x is None or now >= add_months(report.latest_2x[1], STALE_MONTHS):
-        report.stale = True
     return report
 
 
 def render(report: Report, now: dt.datetime) -> str:
-    out = [f"## Wiki.js: ADR-0089's triggers, against the pinned {report.pin}", ""]
+    line = report.pin.split(".")[0]
+    out = [f"## Wiki.js: `{UPSTREAM}`'s advisories, against the pinned {report.pin}", ""]
     labels = {
-        "fired": "**Trigger 1 FIRED**: no 2.x fix after 30 days",
-        "clock": "Trigger 1 clock running: no 2.x fix yet",
-        "bump": "Affects the pin, and a 2.x fix exists: bump the pin",
+        "overdue": f"**OVERDUE**: no {line}.x fix after {OVERDUE_DAYS} days, a decision for a person",
+        "unfixed": f"Unfixed: no {line}.x fix yet",
+        "bump": "Affects the pin, and a fix exists: bump the pin",
         "unreadable": "Range not understood: read it",
     }
     if report.findings:
@@ -218,20 +212,6 @@ def render(report: Report, now: dt.datetime) -> str:
             )
     else:
         out.append(f"No published `{UPSTREAM}` advisory affects {report.pin}.")
-    out.append("")
-    if report.latest_2x:
-        tag, when = report.latest_2x
-        days = (now - when).days
-        line = f"Latest 2.x release: `{tag}`, {when:%Y-%m-%d}, {days} days ago."
-        out.append(line + (" **Trigger 2 FIRED**: six months without a 2.x release." if report.stale else ""))
-    else:
-        out.append("**Trigger 2 FIRED**: no 2.x release was found at all.")
-    if report.stable_3:
-        out.append(f"**Trigger 3 FIRED**: `{report.stable_3}` is a stable 3.x release.")
-    out += [
-        "",
-        ("When a trigger fires, the move is its own issue, with a restore rehearsal (ADR-0089, Consequences)."),
-    ]
     return "\n".join(out) + "\n"
 
 
@@ -242,55 +222,41 @@ def gh(*args: str, stdin: str | None = None) -> str:
     return proc.stdout
 
 
-def fetch() -> tuple[list[dict], list[dict]]:
-    """Both lists, through gh and the run's token, or without a token if that is
-    refused. A workflow's GITHUB_TOKEN is scoped to its own repository, and
-    whether it may read another repository's advisory list is not something to
-    find out on the Monday it matters. Published advisories and releases of a
-    public repository need no token at all. Both failing exits non-zero."""
-
-    def with_gh(endpoint: str) -> list[dict] | None:
-        # One object per line from `--jq '.[]'`, which works on any gh; --slurp
-        # is newer than some hosts' gh.
-        proc = subprocess.run(
-            ["gh", "api", "--paginate", "--jq", ".[]", endpoint], text=True, capture_output=True, check=False
-        )
-        if proc.returncode != 0:
-            print(f"gh api {endpoint} refused ({proc.stderr.strip()}); trying without a token", file=sys.stderr)
-            return None
-        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
-
-    def without_token(endpoint: str) -> list[dict]:
-        items: list[dict] = []
-        for page in range(1, 11):  # 1,000 items: an order more than either list holds
-            req = urllib.request.Request(
-                f"https://api.github.com/{endpoint}&page={page}",
-                headers={"Accept": "application/vnd.github+json", "User-Agent": "wiki-watch"},
-            )
-            try:
-                with urllib.request.urlopen(req, timeout=30) as resp:
-                    batch = json.load(resp)
-            except OSError as e:
-                sys.exit(f"{RED}error:{OFF} {endpoint}: {e}")
-            items += batch
-            if len(batch) < 100:
-                return items
-        sys.exit(f"{RED}error:{OFF} {endpoint}: more than 1,000 items, which is not this list")
-
-    def every(endpoint: str) -> list[dict]:
-        got = with_gh(endpoint)
-        return got if got is not None else without_token(endpoint)
-
-    return (
-        every(f"repos/{UPSTREAM}/security-advisories?state=published&per_page=100"),
-        every(f"repos/{UPSTREAM}/releases?per_page=100"),
+def fetch() -> list[dict]:
+    """The published advisories, through gh and the run's token, or without a
+    token if that is refused. A workflow's GITHUB_TOKEN is scoped to its own
+    repository, and whether it may read another repository's advisory list is
+    not something to find out on the Monday it matters. Published advisories
+    of a public repository need no token at all. Both failing exits non-zero."""
+    endpoint = f"repos/{UPSTREAM}/security-advisories?state=published&per_page=100"
+    # One object per line from `--jq '.[]'`, which works on any gh; --slurp is
+    # newer than some hosts' gh.
+    proc = subprocess.run(
+        ["gh", "api", "--paginate", "--jq", ".[]", endpoint], text=True, capture_output=True, check=False
     )
+    if proc.returncode == 0:
+        return [json.loads(line) for line in proc.stdout.splitlines() if line.strip()]
+    print(f"gh api {endpoint} refused ({proc.stderr.strip()}); trying without a token", file=sys.stderr)
+    items: list[dict] = []
+    for page in range(1, 11):  # 1,000 items: an order more than the list holds
+        req = urllib.request.Request(
+            f"https://api.github.com/{endpoint}&page={page}",
+            headers={"Accept": "application/vnd.github+json", "User-Agent": "wiki-watch"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=30) as resp:
+                batch = json.load(resp)
+        except OSError as e:
+            sys.exit(f"{RED}error:{OFF} {endpoint}: {e}")
+        items += batch
+        if len(batch) < 100:
+            return items
+    sys.exit(f"{RED}error:{OFF} {endpoint}: more than 1,000 items, which is not this list")
 
 
 def title(report: Report) -> str:
-    fired = [f for f in report.findings if f.kind == "fired"]
-    if fired or report.stale or report.stable_3:
-        return "Wiki.js: an ADR-0089 trigger has fired"
+    if any(f.kind == "overdue" for f in report.findings):
+        return f"Wiki.js {report.pin}: an advisory is unfixed after {OVERDUE_DAYS} days"
     return f"Wiki.js {report.pin}: advisories to act on"
 
 
@@ -379,7 +345,7 @@ def self_test() -> int:
     check("an empty range is unreadable", in_range(pin, ""), None)
     check("an alternative is unreadable, not half-read", in_range(pin, "<2.5.100 || >2.6.0"), None)
 
-    now = dt.datetime(2026, 10, 7, tzinfo=dt.UTC)
+    now = dt.datetime(2026, 11, 9, tzinfo=dt.UTC)
 
     def adv(ghsa, published, rng, patched):
         return {
@@ -391,58 +357,52 @@ def self_test() -> int:
             "vulnerabilities": [{"vulnerable_version_range": rng, "patched_versions": patched}],
         }
 
-    releases = [
-        {"tag_name": "v2.5.316", "published_at": "2026-09-28T00:00:00Z", "prerelease": False},
-        {"tag_name": "3.0.0-beta.628", "published_at": "2026-10-04T00:00:00Z", "prerelease": False},
-    ]
-    real = [
+    # The 2.x history, read against a 3.x pin: none of it is about 3.x.
+    history = [
         adv("GHSA-old-open", "2022-01-01T00:00:00Z", "> 2.4.17", "2.4.107"),
         adv("GHSA-fixed", "2026-09-21T07:51:15Z", "<2.5.314", "2.5.315"),
         adv("GHSA-exact", "2024-09-18T00:00:00Z", "2.5.303", "2.5.304"),
+        adv("GHSA-2x-only", "2026-11-05T00:00:00Z", "<= 2.5.317", ""),
     ]
-    r = assess("2.5.316", real, releases, now)
-    check("today's real list affects 2.5.316 with nothing", [f.ghsa for f in r.findings], [])
-    check("the open-ended range is answered by its patched version", r.anything, False)
-    check("a 3.0 beta is not trigger 3, even unmarked as prerelease", r.stable_3, None)
-    check("a 2.x release nine days ago is not trigger 2", r.stale, False)
-
-    r = assess("2.5.316", [adv("GHSA-new", "2026-09-30T00:00:00Z", "<= 2.5.316", "")], releases, now)
-    check("an unfixed advisory at 7 days runs the clock", [(f.kind, f.age_days) for f in r.findings], [("clock", 7)])
-    r = assess("2.5.316", [adv("GHSA-new", "2026-09-01T00:00:00Z", "<= 2.5.316", "")], releases, now)
-    check("at 36 days trigger 1 has fired", [f.kind for f in r.findings], ["fired"])
-    r = assess("2.5.316", [adv("GHSA-3only", "2026-08-01T00:00:00Z", "<= 2.5.316", "3.0.1")], releases, now)
-    check("a fix only in 3.x is no 2.x fix", [f.kind for f in r.findings], ["fired"])
-    r = assess("2.5.316", [adv("GHSA-bump", "2026-08-01T00:00:00Z", "<= 2.5.316", "2.5.317")], releases, now)
+    r = assess("3.3.0", history, now)
+    check("the real 2.x history affects 3.3.0 with nothing", [f.ghsa for f in r.findings], [])
     check(
-        "a 2.x fix above the pin is a bump, not a trigger",
+        "a fix on an older line is not one the pin carries",
+        [f.kind for f in assess("3.3.0", [adv("GHSA-x", "2026-11-01T00:00:00Z", "<= 3.3.0", "2.5.318")], now).findings],
+        ["unfixed"],
+    )
+    check(
+        "unless the range is open-ended, where the patched version is the bound",
+        assess("3.3.0", [adv("GHSA-y", "2022-01-01T00:00:00Z", ">= 2.0.0", "2.4.107")], now).anything,
+        False,
+    )
+
+    r = assess("3.3.0", [adv("GHSA-3-fixed", "2026-11-05T00:00:00Z", "< 3.1.0", "3.1.0")], now)
+    check("a 3.x advisory fixed below the pin is carried", r.anything, False)
+    r = assess("3.3.0", [adv("GHSA-3-in", "2026-11-05T00:00:00Z", "<= 3.3.0", "3.3.0")], now)
+    check("a fix listed AT the pin is carried, range notwithstanding", r.anything, False)
+    r = assess("3.3.0", [adv("GHSA-new", "2026-11-02T00:00:00Z", "<= 3.3.0", "")], now)
+    check("an unfixed advisory at 7 days is unfixed", [(f.kind, f.age_days) for f in r.findings], [("unfixed", 7)])
+    r = assess("3.3.0", [adv("GHSA-new", "2026-10-01T00:00:00Z", "<= 3.3.0", "")], now)
+    check("at 39 days it is overdue", [f.kind for f in r.findings], ["overdue"])
+    check("and the title says so", title(r), "Wiki.js 3.3.0: an advisory is unfixed after 30 days")
+    r = assess("3.3.0", [adv("GHSA-4only", "2026-11-01T00:00:00Z", "<= 3.3.0", "4.0.0")], now)
+    check(
+        "a fix only on a later line is no fix on this one, and is named",
         [(f.kind, f.detail) for f in r.findings],
-        [("bump", "fixed in 2.5.317")],
+        [("unfixed", "fixed only in 4.0.0")],
     )
-    r = assess("2.5.316", [adv("GHSA-odd", "2026-08-01T00:00:00Z", "every release", "")], releases, now)
-    check("an unreadable range is reported, not passed", [f.kind for f in r.findings], ["unreadable"])
-
-    old = [{"tag_name": "v2.5.316", "published_at": "2026-03-01T00:00:00Z", "prerelease": False}]
-    check("220 days without a 2.x release is trigger 2", assess("2.5.316", [], old, now).stale, True)
-    check("no 2.x release at all is trigger 2", assess("2.5.316", [], [], now).stale, True)
-    # Calendar months, not 183 days (#1057 review). 2026-03-01 plus 183 days is
-    # Monday 2026-08-31, a day early; the anniversary is 09-01.
-    mar1 = [{"tag_name": "v2.5.316", "published_at": "2026-03-01T00:00:00Z", "prerelease": False}]
-    at = dt.datetime(2026, 8, 31, tzinfo=dt.UTC)
-    check("the day before the six-month anniversary is not trigger 2", assess("2.5.316", [], mar1, at).stale, False)
-    at = dt.datetime(2026, 9, 1, tzinfo=dt.UTC)
-    check("the anniversary itself is trigger 2", assess("2.5.316", [], mar1, at).stale, True)
-    aug31 = dt.datetime(2025, 8, 31, tzinfo=dt.UTC)
-    check("six months from 08-31 clamps to the end of February", add_months(aug31, 6).date(), dt.date(2026, 2, 28))
-    check("and to the 29th in a leap year", add_months(aug31.replace(year=2027), 6).date(), dt.date(2028, 2, 29))
+    r = assess("3.3.0", [adv("GHSA-bump", "2026-11-01T00:00:00Z", "<= 3.3.0", "3.3.1")], now)
     check(
-        "months carry into the next year",
-        add_months(dt.datetime(2026, 10, 7, tzinfo=dt.UTC), 6).date(),
-        dt.date(2027, 4, 7),
+        "a fix above the pin on its line is a bump",
+        [(f.kind, f.detail) for f in r.findings],
+        [("bump", "fixed in 3.3.1")],
     )
-    ga = releases + [{"tag_name": "v3.0.0", "published_at": "2026-10-05T00:00:00Z", "prerelease": False}]
-    check("a stable v3.0.0 is trigger 3", assess("2.5.316", [], ga, now).stable_3, "v3.0.0")
-    pre = releases + [{"tag_name": "v3.0.0", "published_at": "2026-10-05T00:00:00Z", "prerelease": True}]
-    check("a v3.0.0 marked prerelease is not", assess("2.5.316", [], pre, now).stable_3, None)
+    check("and the title is not alarming", title(r), "Wiki.js 3.3.0: advisories to act on")
+    r = assess("3.3.0", [adv("GHSA-odd", "2026-11-01T00:00:00Z", "every release", "")], now)
+    check("an unreadable range is reported, not passed", [f.kind for f in r.findings], ["unreadable"])
+    check("nothing at all is nothing to report", assess("3.3.0", [], now).anything, False)
+    check("a 2.x pin still reads on its own line", assess("2.5.316", history[1:3], now).anything, False)
 
     text = COMPOSE.read_text() if COMPOSE.exists() else ""
     check("the pin is read from stacks/wiki/compose.yaml", bool(PIN.search(text)), True)
@@ -458,8 +418,7 @@ def main(argv: list[str]) -> int:
     if not m:
         sys.exit(f"{RED}error:{OFF} no ghcr.io/requarks/wiki:x.y.z@sha256 pin in {COMPOSE}")
     now = dt.datetime.now(dt.UTC)
-    advisories, releases = fetch()
-    report = assess(m[1], advisories, releases, now)
+    report = assess(m[1], fetch(), now)
     body = render(report, now)
     print(body)
     if "--sync-issue" in argv:

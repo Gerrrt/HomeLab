@@ -1,17 +1,19 @@
 ---
 name: Wiki.js watch
 
-# ADR-0089 keeps the household wiki on Wiki.js 2.x until one of three triggers
-# fires: a requarks/wiki advisory affecting the pin with no 2.x fix after 30
-# days, no 2.x release for six months, or a stable 3.x release. Nothing read
-# the project's own advisories. cve-scan.yml reads the image's packages, a
-# different list. And an advisory that is never fixed produces neither a
-# release nor a pin bump, so nothing would ever have prompted a reading. This
-# is that reading, weekly, so day 30 cannot pass between two of them.
+# Reads requarks/wiki's own security advisories against the pinned Wiki.js.
+# cve-scan.yml reads the image's packages, a different list. And an advisory
+# that is never fixed produces neither a release nor a pin bump, so nothing
+# would ever have prompted a reading. This is that reading, weekly, so an
+# unfixed advisory's 30th day cannot pass between two of them.
+#
+# It began as the watch on ADR-0089's triggers for leaving Wiki.js 2.x. The
+# wiki is on 3.x since #1339, and only the advisory reading is left; the
+# script's docstring has the history.
 #
 # cve-scan.yml's shape for its reasons: off-host, no secret beyond the run's
 # own token, and the issue is the notification. A finding does not fail the
-# run; failing to read the advisories or the releases does. The logic is
+# run; failing to read the advisories does. The logic is
 # scripts/wiki_watch.py, runnable locally, so this file only wires it up.
 #
 # The same 60-day inactivity rule as digests.yml applies:
@@ -34,7 +36,7 @@ concurrency:
 
 jobs:
   watch:
-    name: ADR-0089's triggers are read against the pinned Wiki.js
+    name: requarks/wiki's advisories are read against the pinned Wiki.js
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -45,7 +47,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Read the advisories and releases, and sync the issue
+      - name: Read the advisories, and sync the issue
         env:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/wiki_watch.py --sync-issue >> "$GITHUB_STEP_SUMMARY"

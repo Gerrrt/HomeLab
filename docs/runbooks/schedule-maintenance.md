@@ -610,10 +610,10 @@ arrive as issues labelled `security`
 ([#852](https://github.com/Gerrrt/HomeLab/issues/852)). The household
 wiki's engine is watched the same way:
 [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
-`requarks/wiki`'s own advisories and releases every Monday against the
-pinned version. It keeps one issue, labelled `security` and `wiki`, open while
-an advisory affects the pin or an ADR-0089 trigger has fired. That is what
-starts the 30-day clock for an advisory nobody fixes. Run it locally with
+`requarks/wiki`'s own advisories every Monday against the pinned version. It
+keeps one issue, labelled `security` and `wiki`, open while an advisory
+affects the pin. One with no fix on the pin's line is marked overdue at 30
+days, so an advisory nobody fixes comes to a person. Run it locally with
 `python3 scripts/wiki_watch.py`.
 
 Some of the scan's issues stay open because there is nothing to bump to. The
@@ -624,11 +624,12 @@ There is no ignore list, as for the secret scan in
 [`security.md`](../security.md).
 
 - **`ghcr.io/requarks/wiki`,
-  [#984](https://github.com/Gerrrt/HomeLab/issues/984).** The findings are in
-  the npm packages that Wiki.js 2.x bundles. Why they are not a reason to
-  leave 2.x is
-  [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
-  second note.
+  [#984](https://github.com/Gerrrt/HomeLab/issues/984).** Its findings were
+  in the npm packages that Wiki.js 2.x bundles, which no 2.x image ever
+  updated. The move to 3.x
+  ([#1339](https://github.com/Gerrrt/HomeLab/issues/1339)) answers it. The
+  scan now reads the 3.x pin, and the issue closes itself on a clean scan or
+  is rewritten with what 3.x still carries.
 
 The scan skips one file, `/usr/local/bin/gosu`, and only in the repositories
 [`scripts/gosu-skip.txt`](../../scripts/gosu-skip.txt) lists: `postgres`

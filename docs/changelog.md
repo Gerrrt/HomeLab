@@ -19,6 +19,40 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki's stack
+  now describes Wiki.js 3.3.0. The cutover on `oracle` follows the merge.**
+  - **Why now.** The weekly CVE scan's issue for 2.5.317,
+    [#984](https://github.com/Gerrrt/HomeLab/issues/984), listed 9 critical
+    and 126 high findings in the npm packages 2.x bundles. No 2.x image will
+    ever carry their fixes. ADR-0089's trigger 3 had fired, and both of
+    #1339's gates passed today. So the pin moved to 3.3.0, the first 3.x past
+    the twelve 3.x advisories published between 11-02 and 11-09. #984 is
+    now read against that pin, and it closes itself on a clean scan.
+  - **The stack.** 3.x starts on an empty Postgres and imports a
+    `.wkbackup`, so its cluster is a new external volume, `wiki3-pgdata`.
+    The 2.x `pgdata` and `wiki-data` stay untouched and unmounted as the
+    rollback. 3.x has no health route (`/healthz` is a 404), so the app, Caddy
+    and blackbox all probe `/_site/current/favicon`, which the server answers
+    out of the database. The hardening was re-measured on 3.3.0 in the
+    rehearsal and carried over: uid 1000, read-only, and the 512 MiB limit,
+    against a 246 MiB peak.
+  - **The backup.** 3.x keeps its tables in schema `wiki`. `backup-wiki.sh`'s
+    count now sets the search path to `wiki, public`, so it counts a 2.x
+    database, a 3.x one, and a 2.x set proved after the move. Measured on the
+    pinned `postgres` against both layouts.
+  - **`wiki_watch.py`** reads only `requarks/wiki`'s advisories now, against
+    the pin's own line. ADR-0089's triggers 2 and 3 were about leaving 2.x,
+    and they are retired. Its 30-day clock is kept as an "overdue" mark. Read
+    live against 3.3.0, no advisory affects it, so the next run closes
+    [#1298](https://github.com/Gerrrt/HomeLab/issues/1298).
+  - **Deep links break, by decision.** 3.x lowercases page paths and turns
+    `_` into `-`, so about 74 URLs change and the old ones do not redirect.
+    The printed card carries only the host name, and HomeLab links to no
+    page.
+  - **Accepted:** 3.x's git module does not check GitHub's host key.
+    `security.md` has the exposure.
+  - The steps are in `stacks/wiki/README.md` § *Moving to Wiki.js 3.x*.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `RangeSubnetLeaked`
   is written, and `build-the-playground.md` §8 ran on `gandalf`.**
   - **The rule** is ADR-0014's optional one: any `filterlog` line, block or

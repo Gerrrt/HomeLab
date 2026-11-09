@@ -53,7 +53,7 @@
 # the container name, held to a character class below:
 #
 #   docker exec '<container>' pg_isready -q -U wiki -d wiki
-#   docker exec '<container>' psql -U wiki -d wiki -Atc '<the count query>'
+#   docker exec '<container>' psql -U wiki -d wiki -qAtc '<the count query>'
 #   docker exec '<container>' pg_dump -U wiki -d wiki -Ft
 #
 # The count is recorded in the MANIFEST so that --prove has something to
@@ -154,7 +154,7 @@ SHIM
   chmod +x "${T}/bin/age" "${T}/bin/ssh"
   : > "${T}/identity"
   head -c 4096 /dev/urandom > "${T}/dump/toc.dat"
-  printf 'COPY public.pages ...\n' > "${T}/dump/3722.dat"
+  printf 'COPY wiki.pages ...\n' > "${T}/dump/3722.dat"
   printf -- '-- restore script\n' > "${T}/dump/restore.sql"
 
   fail=0
@@ -284,7 +284,13 @@ check_sentinel_table
 # the far side of a copy, which this script does not make. stdin closed.
 wiki_remote() { "${SSH[@]}" "${WIKI_SSH_TARGET}" "$@" </dev/null; }
 DOCKER_EXEC="docker exec '${WIKI_DB_CONTAINER}'"
-COUNT_SQL='select (select count(*) from pages), (select count(*) from users)'
+# Wiki.js 3.x keeps its tables in schema `wiki`, 2.x kept them in `public`
+# (#1339). The search path names both, so one query counts either: a live 2.x
+# before the cutover, a live 3.x after it, and a 2.x set proved after it. A
+# schema that does not exist is skipped, not an error. -q keeps psql from
+# printing SET's command tag, so the one line out is the two counts. Measured
+# on the pinned postgres 2026-11-09 against both layouts.
+COUNT_SQL='set search_path = wiki, public; select (select count(*) from pages), (select count(*) from users)'
 
 # ---------------------------------------------------------------------------
 # Arguments
@@ -408,7 +414,7 @@ case "${MODE}" in
       ((rcs[0] == 0)) || die "FAILED to decrypt ${stamp}/wiki-db.tar.gz.age"
       ((rcs[1] == 0)) || die "${stamp}/wiki-db.tar.gz.age is not a gzip stream"
       ((rcs[2] == 0)) || die "pg_restore FAILED on ${stamp} — the set does not restore"
-      counts="$(docker exec "${scratch}" psql -U wiki -d wiki -Atc "${COUNT_SQL}")"
+      counts="$(docker exec "${scratch}" psql -U wiki -d wiki -qAtc "${COUNT_SQL}")"
     fi
 
     IFS='|' read -r pages users <<<"${counts}"
@@ -461,7 +467,7 @@ case "${rc}" in
   *)   die "${WIKI_DB_CONTAINER} on ${WIKI_SSH_TARGET} is not accepting connections (exit ${rc}) — is the wiki stack up? stacks/wiki/README.md" ;;
 esac
 
-counts="$(wiki_remote "${DOCKER_EXEC} psql -U wiki -d wiki -Atc '${COUNT_SQL}'")" \
+counts="$(wiki_remote "${DOCKER_EXEC} psql -U wiki -d wiki -qAtc '${COUNT_SQL}'")" \
   || die "cannot count pages and users in ${WIKI_DB_CONTAINER} on ${WIKI_SSH_TARGET}"
 IFS='|' read -r pages users <<<"${counts}"
 [[ ${pages} =~ ^[0-9]+$ && ${users} =~ ^[0-9]+$ ]] || die "the count on ${WIKI_SSH_TARGET} returned '${counts}', not two numbers"

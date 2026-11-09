@@ -34,6 +34,17 @@
 > 512 MiB limit (`stacks/wiki/compose.yaml`). #984 stays open as the record.
 > The scanner closes it on its own when a scan finds a clean 2.x digest, and
 > it is not closed by hand.
+>
+> [!NOTE]
+> **Trigger 3 fired, and the successor is Wiki.js 3.x (2026-11-09).**
+> `3.0.1` shipped on 2026-11-01. [#1339](https://github.com/Gerrrt/HomeLab/issues/1339)
+> read 3.x against the three things this record says must survive, and all
+> three hold, so the BookStack fallback is not taken. A rehearsal from an
+> ADR-0065 set into 3.3.0 passed the same day.
+> `stacks/wiki/compose.yaml` now pins 3.x, and `wiki_watch.py` reads only the
+> advisories, against the 3.x line. Triggers 2 and 3 were about leaving 2.x,
+> so they are retired. #984 is now read against the 3.x pin. The body below
+> is left as written, per ADR-0001.
 
 ## Context
 
