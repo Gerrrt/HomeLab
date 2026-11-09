@@ -819,9 +819,9 @@ the machine.**
    ```
 
    A row with a `172.30.30.x` source is the property working, and the alert
-   `RangeSubnetLeaked` should fire within a ruler cycle; check it in
-   Alertmanager or on the urgent channel. **An empty result
-   is not a pass** — it means the leak was silent, and you should find out
+   `RangeSubnetLeaked` should fire within a ruler cycle. Check it in
+   Alertmanager or on the security channel, where its `category: security`
+   label routes it, not on the urgent one. **An empty result is not a pass** — it means the leak was silent, and you should find out
    whether the packet was forwarded at all before concluding anything.
 4. Turn forwarding back off, remove the route, delete the guest, and rerun §8's
    third check.
