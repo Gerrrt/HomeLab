@@ -423,10 +423,10 @@ skips step 4.
    same commands by guest name; run them as written here:
 
    ```bash
-   qm set 150 --startup order=1,up=120
-   qm set 151 --startup order=2,up=120
-   qm set 152 --startup order=3,up=120
-   qm set 153 --startup order=4,up=120
+   qm set 150 --startup order=1,up=120,down=90
+   qm set 151 --startup order=2,up=120,down=90
+   qm set 152 --startup order=3,up=120,down=90
+   qm set 153 --startup order=4,up=120,down=90
    ```
 
    Check `qm config` for each one: the MAC, the `smbios1` UUID, `startup` on
@@ -536,7 +536,7 @@ for spec in "150 bahamut 4096 60 1" \
     --scsi0 "large_data:$4,discard=on,iothread=1,ssd=1" \
     --net0 virtio,bridge=vmbr0,firewall=0 \
     --agent enabled=1 \
-    --onboot 1 --startup "order=$5,up=120" \
+    --onboot 1 --startup "order=$5,up=120,down=90" \
     --ide2 local:iso/windows-server-2025-eval.iso,media=cdrom \
     --ide0 local:iso/virtio-win.iso,media=cdrom \
     --boot order='scsi0;ide2'
@@ -602,7 +602,11 @@ Six of those flags are worth knowing rather than copying.
 - **`--balloon 0`.** Ballooning on a 128 GB host buys nothing here, and it makes
   the guests' own memory metrics — which #266 will read — move for reasons that
   are not the workload.
-- **`--startup order=N,up=120` on the servers only.** The IOPS argument above.
+- **`--startup order=N,up=120,down=90` on the servers only.** The IOPS
+  argument above. `down=90` caps each stage of the host's shutdown at 90 s,
+  and the UPS's low-battery budget counts on that
+  ([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
+  A rebuild that drops it puts each stage back to 180 s.
   The endpoints get `--onboot 0` because ADR-0029 runs them per session; a
   machine that comes back by itself is a machine that is not on demand.
 - **`iothread=1` with `virtio-scsi-single`.** They pair, and `iothread` does

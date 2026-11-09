@@ -40,28 +40,69 @@ follow the steps.**
 > - Step 0 expected a factory 2 minutes. The card already read 8, and the
 >   factory value was never observed.
 > - Step 3 used `sudo`. `Saruman` logs in as root and has none.
+>
+> **Re-read against the estate, 2026-11-08; still armed and unproved.** Three
+> things changed after steps 0 to 4 were built, and step 5 would have proved
+> the wrong sequence:
+>
+> - **The rack move put `trinity` on the PDU** (2026-11-07,
+>   [#919](https://github.com/Gerrrt/HomeLab/issues/919)), with `gandalf`,
+>   the console and the KVM.
+>   [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
+>   makes `trinity` a third secondary. That is the new
+>   [step 4b](#step-4b--subscribe-trinity), and **it is not built yet**.
+> - **`Saruman` runs thirteen guests, not two**, four of them in ordered
+>   stages. Step 3.6 now caps those four at `down=90`. 3.7 keeps its monitor
+>   logged in until they are down and raises `HOSTSYNC` to 600, and 3.8
+>   raises the card to 16 minutes before the window. **None of this is
+>   applied yet** either.
+> - **The UPS's outlet groups were read for the first time** (PDU on
+>   group 1). Their turn-off and load-shedding settings were not, and a
+>   group-1 setting that sheds the PDU early would cut every host
+>   mid-sequence. That is a new box under *Before you start*.
+>
+> §6.5 now keeps the low-battery duration at or above the worst case plus
+> half again, whatever the measured run says.
 
 ## What this does
 
 | Host | What it ends up doing |
 | --- | --- |
 | `morpheus` | Runs the NUT server, talks to the UPS card, halts **last** |
-| `Saruman` | Subscribes, halts its two guests then itself, **first** |
+| `Saruman` | Subscribes, halts its guests then itself, **first** |
 | `smaug` | Subscribes, exports `erebor` and halts, **first** |
-| `neo` | Nothing. It loses power with the pack |
+| `trinity` | Subscribes, stops its containers and halts, **first** (step 4b) |
+| `neo`, `gandalf`, the console, the KVM, the MokerLink | Nothing. They lose power with the pack |
 | `prometheus`, `oracle` | Nothing. They ride the cut on their own cells |
 
 ## Before you start
 
-Tick all seven. Steps 1 to 6 assume every one of these is done.
+Tick all nine. Steps 1 to 6 assume every one of these is done.
 
 - [ ] **A maintenance window outside anyone's working hours.** Step 5 halts
-      `Saruman`, both its guests, `smaug` and `morpheus`. While `morpheus` is
-      down the house has no DNS and no DHCP.
-- [ ] **Physical or out-of-band access to all three hosts**, because step 5
+      `Saruman` and every guest on it, `smaug`, `trinity` and `morpheus`.
+      While `morpheus` is down the house has no DNS and no DHCP. From the
+      moment `trinity` halts, it has no DNS filter and no Home Assistant,
+      Immich, Paperless or Vaultwarden either.
+- [ ] **Physical or out-of-band access to all four hosts**, because step 5
       leaves them all powered off: the KVM in U23 (port 8) for `morpheus`,
-      the iLO at `10.0.30.10` from a Mac on Hicks for `Saruman`, and the
-      power button on the front of `smaug`, on its side at rack U5–U9.
+      port 7 for `trinity`, the iLO at `10.0.30.10` from a Mac on Hicks for
+      `Saruman`, and the power button on the front of `smaug`, on its side at
+      rack U5–U9.
+- [ ] **`trinity`'s LUKS passphrase**, in case its TPM does not unseal when
+      it comes back in 5.4. The prompt appears on KVM port 7.
+- [ ] **The UPS's outlet-group settings, read at `https://10.0.99.10`.** For
+      each of the three groups, note the turn-off delay, the turn-on delay
+      and any load shedding: shed on time on battery, or shed on runtime
+      remaining. **Group 1 is the PDU and every host but the laptops. Turn
+      off every time-on-battery and runtime-remaining shed on group 1**, at
+      any value, before step 5. Above the low-battery duration, a shed cuts
+      the PDU before any secondary is told to halt. Below it, a shed cuts the
+      PDU partway through a halt the duration was sized to fit. In both
+      cases the hosts stop uncleanly. Group 1 goes off only when the pack
+      runs out. Read the page back after saving, then write the values into
+      `hardware.md`'s outlet-group paragraph. The labels vary by firmware;
+      look for them under the outlet-group configuration pages.
 - [ ] **The UPS card's SNMPv3 passphrases**, rendered on the **main checkout**
       and never in a worktree (the command is below this list). They are
       `SNMP_AUTHPASS_APC` and `SNMP_PRIVPASS_APC` in the rendered file, and
@@ -258,6 +299,12 @@ LISTEN 10.0.30.1 3493
 LISTEN 10.0.40.1 3493
 ```
 
+**Two lines only, even on a fresh build.** `trinity`'s listener,
+`LISTEN 10.0.99.1 3493`
+([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)),
+is added in 4b.2, after 4b.1's rules are in. If you add it here, 1.5's save
+opens 3493 to every host on Winterfell until step 4b.
+
 **Additional configuration lines for upsd.users**, with your invented username
 and password in place of `<NUTUSER>` and `<NUTPASS>`:
 
@@ -300,7 +347,8 @@ FINALDELAY 30
 ```
 
 and three `sockstat` lines showing `upsd` bound to `127.0.0.1:3493`,
-`10.0.30.1:3493` and `10.0.40.1:3493`.
+`10.0.30.1:3493` and `10.0.40.1:3493`. After step 4b there is a fourth
+`LISTEN` line and binding, `10.0.99.1`. After 3.7, `HOSTSYNC` reads 600.
 
 The command hides every password line on purpose — `authPassword` and
 `privPassword` among them, which is why the pattern matches a capital `P` as
@@ -394,7 +442,8 @@ already in the list in 1.3 — check it survived the save, in the readback from
 
 Two per interface: a **pass** for the one host that should reach the listener,
 and a **block** for everything else on that segment, in that order, both above
-the existing *Allow internet* rule.
+the existing *Allow internet* rule. Winterfell's pair, for `trinity`, is in
+step 4b.
 
 ### 2.1 Add the ImaginationLAN pass
 
@@ -561,18 +610,102 @@ over IPv6 loopback.
 In the Proxmox web interface, **Datacenter → Options → HA Settings** and each
 guest's **Options → Start/Shutdown order**. Note the shutdown timeout.
 
-`Saruman` runs two guests, `alexander` (VMID 140) and `phoenix` (VMID 170).
-`shutdown -h` stops both before the host goes down. You need to know the
-timeout because step 5 measures how long that actually takes, and
-`HOSTSYNC 120` from 1.4 has to be larger than the answer.
+`shutdown -h` stops every running guest before the host goes down. Guests
+with no `order` stop first, together. Then each ordered stage stops in
+reverse order, one stage at a time. Proxmox gives every stage its `down`
+timeout, 180 s when unset, and then stops the guest hard.
 
-**Read 2026-09-23: both guests are `order=any`**, so neither has a shutdown
-timeout of its own. Proxmox then allows 180 s per guest and stops guests of
-the same order in parallel, so the worst case is about three minutes plus the
-host's own shutdown. That fits inside the card's 8-minute low-battery window,
-which is the bound that matters. `HOSTSYNC` only bounds how long the firewall
-waits for its monitors to log out, and `Saruman`'s monitor logs out as soon
-as shutdown stops it. Step 5 measures what actually happens.
+**Read 2026-09-23: two guests, both `order=any`**, so the worst case was
+about three minutes, inside the card's 8-minute low-battery window.
+
+**Read 2026-10-09: thirteen guests**
+([#574](https://github.com/Gerrrt/HomeLab/issues/574)). Four of the six
+lab-domain guests are ordered, at `order=1..4,up=120`. The last real
+shutdown, on 2026-10-06, stopped ten of them in 2 min 10 s: 32 s for the
+unordered group, then about 1 min 35 s for the four ordered stages. If a
+guest hangs in each stage, the default timeouts add up to about 15 minutes,
+which is well past 8. `ramuh` has hung after live snapshots before.
+
+**So cap the four ordered stages at 90 s**, per
+[ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md).
+On `Saruman`, list the guests that have a `startup` line:
+
+```bash
+grep -H '^startup:' /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf 2>/dev/null
+```
+
+**You should see** four lines with `order=1` to `order=4` and `up=120`. If
+a guest shows a different `order` or `up`, use what it shows, not what is
+written here. For each of the four, keep its `order` and `up` and add
+`down=90`:
+
+```bash
+qm set <VMID> --startup order=<N>,up=120,down=90
+```
+
+Re-run the `grep`. **Each of the four lines should now end `down=90`.**
+
+That makes the worst case to `Saruman` down 180 s for the unordered group
+plus 4 × 90 s, plus the host's own halt: about **9½ minutes**. Rebuilds
+keep it: [`build-the-lab-domain.md`](build-the-lab-domain.md) and
+`tofu output startup_orders` both set `down=90` since 2026-11-08. After any
+rebuild of a lab-domain server, re-run the `grep` above anyway.
+
+### 3.7 Keep `Saruman`'s monitor logged in until its guests are down
+
+`morpheus` halts once every secondary has logged out, or after `HOSTSYNC`,
+whichever is first. By default `Saruman`'s `upsmon` exits as soon as it has
+run its `SHUTDOWNCMD`, and `nut-monitor` can then stop before `pve-guests`
+has stopped the guests. Either way the secondary logs out at the start of
+the halt, not the end, and the firewall halts while the guests are still
+stopping. **Raising `HOSTSYNC` alone does not fix that**: it is only a
+ceiling on a wait that has already ended.
+
+So keep the monitor running until the guests are down, then let `HOSTSYNC`
+cap the wait. On `Saruman`, add one line to `/etc/nut/upsmon.conf`:
+
+```text
+SHUTDOWNEXIT no
+```
+
+Then order `nut-monitor` so that systemd stops it after `pve-guests`:
+
+```bash
+mkdir -p /etc/systemd/system/nut-monitor.service.d && printf '[Unit]\nBefore=pve-guests.service\n' > /etc/systemd/system/nut-monitor.service.d/after-guests.conf && systemctl daemon-reload && systemctl restart nut-monitor
+```
+
+`Before=` is the right word, even though it reads backwards. Systemd stops
+units in the reverse of their start order, so a unit that starts before
+`pve-guests` stops after it.
+
+**Check both took:**
+
+```bash
+upsmon -V; grep SHUTDOWNEXIT /etc/nut/upsmon.conf; systemctl show nut-monitor -p Before | tr ' ' '\n' | grep pve-guests; systemctl is-active nut-monitor
+```
+
+**You should see** a NUT version of 2.8.1 or later (`SHUTDOWNEXIT` is not
+understood before that), the `SHUTDOWNEXIT no` line, `pve-guests.service`,
+and `active`. 3.5's `upsc` must still read `OL`. Step 5 is the proof that
+this works: 5.3's two intervals show whether `morpheus` waited.
+
+On `morpheus`, raise `HOSTSYNC` in 1.4's upsmon box from 120 to **600**,
+which is the 9½-minute bound rounded up, then save. 1.6's readback should now
+show `HOSTSYNC 600`. If `Saruman` logs out sooner, `morpheus` does not
+wait the full 600.
+
+### 3.8 Raise the card's threshold to cover the bound now
+
+**Do not leave this for §6.5.** Step 0 left 8 minutes on the card, and with
+3.6 and 3.7 the worst case to `morpheus` down is about **10½ minutes**: 9½
+to `Saruman` down, plus `FINALDELAY 30`, plus the firewall's own halt. A
+real cut between now and 6.5 would run the pack out partway through.
+
+Set the low battery duration, the field from 0.2, to the bound plus half
+again: **16 minutes**. Confirm with 0.3, which should read
+`0:0:16:00.00`, and 1.7, where `battery.runtime.low` should read `960`.
+§6.5 refines this after the measurement, and never sets it below this
+rule.
 
 **`phoenix` is a guest here, and it is where a Claude Code session runs.**
 Anything working from `phoenix` goes away when step 5 halts `Saruman`, and
@@ -646,14 +779,136 @@ interface that day.
 
 ---
 
+## Step 4b — Subscribe `trinity`
+
+Added 2026-11-08 by
+[ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md),
+after the rack move put `trinity` on the PDU. **Not built yet.** Do it
+before step 5, so step 5 proves three secondaries and not two.
+
+`trinity` and the listener are both on Winterfell, so nothing here crosses a
+segment. The rules keep the rest of Winterfell — `prometheus`, `oracle` and
+the card itself — off the listener.
+
+### 4b.1 Add the rules first
+
+**Firewall → Rules → WINTERFELL**, twice, at `https://10.0.99.1` from a
+Hicks workstation.
+
+| Setting | Pass rule | Block rule |
+| --- | --- | --- |
+| Action | Pass | Block |
+| Protocol | TCP | TCP |
+| Source | `10.0.99.40` | Winterfell net |
+| Destination | `10.0.99.1` | `10.0.99.1` |
+| Port | `3493` | `3493` |
+| Description | `Allow NUT from trinity` | `Block NUT to pfSense` |
+
+Drag them so the pass is directly above the block, and both are up with
+*Block HTTPS to pfSense*, above Winterfell's egress rule. Then **Apply
+Changes**.
+
+The rules go in before the listener. In the other order, the listener would
+be reachable from all of Winterfell until the rules were in.
+
+### 4b.2 Add the listener
+
+**Services → UPS → Display Advanced**. This is the only place the third
+line is added. 1.4 keeps two lines so that a fresh build never opens the
+listener before 4b.1. Add it to the upsd.conf box, so it reads exactly:
+
+```text
+LISTEN 10.0.30.1 3493
+LISTEN 10.0.40.1 3493
+LISTEN 10.0.99.1 3493
+```
+
+**Save.** The save also regenerates the package's own monitor password,
+which is harmless. Then re-run the readback from 1.6, which leaves out the
+`MONITOR` line on purpose. **`sockstat` should now show four bindings.**
+
+### 4b.3 Verify the rules from the firewall, and the block from `prometheus`
+
+On `prometheus`:
+
+```bash
+ssh admin@10.0.99.1 'pfctl -sr | grep -E "igc0\.99" | grep -nE "port = nut|Block HTTPS to pfSense"'
+```
+
+**You should see** the `pass` on `port = nut` before the `block` on
+`port = nut`, near the HTTPS block. Then, still on `prometheus`, which is
+on Winterfell and is not `trinity`:
+
+```bash
+timeout 5 bash -c '</dev/tcp/10.0.99.1/3493' && echo OPEN || echo blocked
+timeout 5 bash -c '</dev/tcp/10.0.99.1/53' && echo OPEN || echo blocked
+```
+
+**You should see `blocked`, then `OPEN`.** 53 is the control: it shows the
+firewall is answering, so the block is real and not a dead host.
+
+### 4b.4 Install and configure the client on `trinity`
+
+Over `ssh <you>@10.0.99.40`, with `sudo`:
+
+```bash
+sudo apt install nut-client
+```
+
+Replace `/etc/nut/nut.conf` with the one line `MODE=netclient`, as in 3.2.
+Then replace `/etc/nut/upsmon.conf` with 3.3's block. The only change is the
+address, which here is `morpheus`'s Winterfell address:
+
+```text
+MONITOR mjolnir@10.0.99.1 1 <NUTUSER> <NUTPASS> secondary
+MINSUPPLIES 1
+SHUTDOWNCMD "/sbin/shutdown -h +0"
+POWERDOWNFLAG /etc/killpower
+POLLFREQ 5
+POLLFREQALERT 5
+DEADTIME 15
+```
+
+It is the same `<NUTUSER>` as the other two (ADR-0107 says why). Type the
+password into the editor. Do not echo it from a shell.
+
+```bash
+sudo chown root:nut /etc/nut/upsmon.conf && sudo chmod 640 /etc/nut/upsmon.conf && sudo systemctl enable --now nut-monitor
+```
+
+`shutdown -h` stops Docker, and Docker stops every container in parallel
+within its stop timeout, so `trinity` halts in seconds, not minutes.
+
+### 4b.5 Verify
+
+On `trinity`:
+
+```bash
+upsc mjolnir@10.0.99.1 ups.status
+```
+
+**You should see `OL`.** Then, from `prometheus`:
+
+```bash
+ssh admin@10.0.99.1 'upsc -c mjolnir@localhost'
+```
+
+**It should list `10.0.99.40`** beside `10.0.40.30`, `10.0.30.20` and `::1`.
+
+The *If you see* lines under 3.5 apply here too, with 4b.1 in place of 2.1
+and `LISTEN 10.0.99.1` in place of `LISTEN 10.0.30.1`.
+
+---
+
 ## Step 5 — Prove the shutdown order
 
 This halts everything. Your window must be open and you must be able to power
-the three hosts back on by hand.
+the four hosts back on by hand.
 
 ### 5.0 Silence the estate for the window
 
-Step 5 halts four hosts on purpose. Left alone, `InstanceDown` pages `urgent`
+Step 5 halts `Saruman` and its guests, `smaug`, `trinity` and `morpheus` on
+purpose. Left alone, `InstanceDown` pages `urgent`
 for each of them, the DNS and gateway rules cascade behind it once `morpheus`
 goes, and the estate spends its notification budget telling you about
 something you are doing deliberately.
@@ -664,7 +919,7 @@ END=$(date -u -d '+2 hours' +%Y-%m-%dT%H:%M:%SZ)
 ```
 
 ```bash
-curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"category","value":"power","isRegex":false,"isEqual":false},{"name":"alertname","value":"Watchdog","isRegex":false,"isEqual":false}],"startsAt":"%s","endsAt":"%s","createdBy":"#574 prove the UPS shutdown sequence","comment":"#574 Planned halt of Saruman, its guests, smaug and morpheus for steps 5 and 6. Everything except category=power is suppressed, so UpsOnBattery still pages in 6.2, and Watchdog is excluded so the heartbeat keeps arriving. Delete at 6.6, not on expiry."}' "$START" "$END")" | python3 -m json.tool
+curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' --data "$(printf '{"matchers":[{"name":"category","value":"power","isRegex":false,"isEqual":false},{"name":"alertname","value":"Watchdog","isRegex":false,"isEqual":false}],"startsAt":"%s","endsAt":"%s","createdBy":"#574 prove the UPS shutdown sequence","comment":"#574 Planned halt of Saruman, its guests, smaug, trinity and morpheus for steps 5 and 6. Everything except category=power is suppressed, so UpsOnBattery still pages in 6.2, and Watchdog is excluded so the heartbeat keeps arriving. Delete at 6.6, not on expiry."}' "$START" "$END")" | python3 -m json.tool
 ```
 
 **Record the UUID it returns.** 6.6 deletes it.
@@ -705,13 +960,14 @@ takes about three minutes. 5.3 says what the alerts are still good for.
 Both loops print UTC to the second and both use **addresses, never names** —
 DNS goes away with `morpheus`.
 
-On `prometheus`, which can reach `smaug` and `morpheus`:
+On `prometheus`, which can reach `smaug`, `trinity` and `morpheus`:
 
 ```bash
 while :; do
   curl -s -m 2 -o /dev/null http://10.0.40.30:9100/metrics 2>/dev/null && s=up || s='---'
+  nc -z -w2 10.0.99.40 443 >/dev/null 2>&1 && t=up || t='---'
   nc -z -w2 10.0.99.1 22 >/dev/null 2>&1 && m=up || m='---'
-  printf '%s smaug=%s morpheus=%s\n' "$(date -u +%H:%M:%S)" "$s" "$m"
+  printf '%s smaug=%s trinity=%s morpheus=%s\n' "$(date -u +%H:%M:%S)" "$s" "$t" "$m"
   sleep 2
 done | tee ~/ups-fsd-timing.log
 ```
@@ -719,6 +975,13 @@ done | tee ~/ups-fsd-timing.log
 `smaug` is checked with `curl -m` rather than with `nc`, because its exporter
 accepts the connection and then never answers when the NAS has a disk fault —
 a port check would read healthy while the host was not.
+
+`trinity` is checked on Caddy's 443, the one port it publishes to
+Winterfell. It is on the same segment as `prometheus`, so its column keeps
+working after `morpheus` goes. **It times Docker stopping, not the host
+halting**: 443 closes when the containers stop, a few seconds before the
+kernel does. After 5.4, read the halt itself from `trinity`'s previous boot
+with `journalctl -b -1 -n 30 --no-pager`.
 
 On the Mac on Hicks, the one you used for step 3, because **nothing on
 VLAN 99 can reach `Saruman`**: the single pass between those segments runs the
@@ -780,16 +1043,20 @@ and stays there is when that host stopped answering.
 
 **The order you should see:**
 
-1. `saruman=---` and `smaug=---`, within a few seconds of each other. Both are
-   secondaries and both start halting on the same flag.
+1. `trinity=---` first, within seconds, then `saruman=---` and `smaug=---`.
+   All three are secondaries and start halting on the same flag. `trinity`
+   only has containers to stop. `Saruman` has its guests, which took 2 min
+   10 s on 2026-10-06, so expect it last of the three by a margin.
 2. `morpheus=---` last, once every secondary has disconnected or `HOSTSYNC`
-   has elapsed, plus `FINALDELAY`.
+   has elapsed, plus `FINALDELAY`. Because of 3.7, `Saruman` disconnects
+   when its guests are down, so `morpheus=---` should come after
+   `saruman=---`, not a fixed delay after 5.2.
 
 **Write down two intervals**, both measured from the time you noted in 5.2:
 
-- **to `Saruman` down** — the number `HOSTSYNC` in 1.4 has to exceed.
+- **to `Saruman` down** — this has to stay under `HOSTSYNC` (600 after 3.7).
 - **to `morpheus` down** — the end-to-end time. §6.5 sets the card's
-  low-battery threshold from it, and step 7 corrects `HOSTSYNC` to it.
+  low-battery threshold from it.
 
 One trap in the `prometheus` log: once `morpheus` is down, that host cannot
 reach VLAN 40 at all. A `smaug=---` appearing in the same second as
@@ -805,7 +1072,8 @@ time the sequence, which is the whole reason the loops exist:
 | `InstanceDown` | `smaug`, then `morpheus`, `shiva`, `neo` | about 5 minutes after each stops answering | `for: 5m` on a bare `up == 0`, so it covers the `snmp` job too. `morpheus` arrives here as `10.0.99.1` rather than by name, and `shiva` and `neo` follow it because their scrapes route through the firewall — `neo` is still powered and still switching, only unreachable from the monitoring host |
 | `SnmpTargetUnreachable` | the same three | about 10 minutes after | `for: 10m`, so it trails `InstanceDown` on the same targets rather than arriving first. There is no `SnmpTargetDown` |
 | `RemoteWriteJobStale` | `Saruman` | about 20 minutes after | Five minutes of lookback plus `for: 15m`. `InstanceDown` cannot see an agent that pushes, so `Saruman` never appears under it |
-| `HypervisorGuestStopped` | `alexander`, `phoenix` | not during this test | `for: 1h`, and `homelab_guest_running` stops arriving the moment `Saruman` halts, so it never matures |
+| `RemoteWriteJobStale` | `trinity` | about 20 minutes after | `trinity` pushes through its Alloy agent like `Saruman`, so it is seen the same way, and its blackbox probes fail as the containers stop |
+| `HypervisorGuestStopped` | every guest on `Saruman` | not during this test | `for: 1h`, and `homelab_guest_running` stops arriving the moment `Saruman` halts, so it never matures |
 | `UpsOnBattery` | — | must not fire at all | Nothing in step 5 writes to the card |
 
 **The UPS itself stays on.** `UpsOnBattery` firing here would mean something
@@ -813,11 +1081,16 @@ took real power away, and that is not this test.
 
 ### 5.4 Power everything back on, in this order
 
-1. `morpheus`, from the KVM in U23.
-2. `Saruman`, from the iLO at `10.0.30.10`.
-3. `smaug`, from the button on the front.
+1. `morpheus`, from the KVM in U23, port 8.
+2. `trinity`, from its power button. Watch KVM port 7: if the TPM does not
+   unseal, the LUKS passphrase prompt is there. It comes before `Saruman`
+   because AdGuard on it is `morpheus`'s only forwarder (ADR-0055).
+3. `Saruman`, from the iLO at `10.0.30.10`.
+4. `smaug`, from the button on the front.
 
-`Saruman`'s guests come back by themselves if *Start at boot* is set.
+This is the order of
+[`move-into-the-32u-rack.md`](move-into-the-32u-rack.md#7-power-up-in-this-order)
+§7. `Saruman`'s guests come back by themselves if *Start at boot* is set.
 
 ### 5.5 Check nothing leaked
 
@@ -874,10 +1147,24 @@ Worked example: 100 → 64 in 18 minutes gives 18 × 100 / 36 = **50 minutes**.
 You now know two things you did not in step 0: how long the whole shutdown
 takes (5.3) and what a minute of pack is worth (6.4).
 
-Set the card's low battery duration, the same field as 0.2, to **the step 5.3
-end-to-end time plus half again**, rounded up to the next whole minute.
+Set the card's low battery duration, the same field as 0.2, to **the larger
+of the step 5.3 end-to-end time and the worst-case bound from 3.8, plus half
+again**, rounded up to the next whole minute.
+[ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
+says why the bound counts. One good run is the typical case, and a real cut
+can hang a guest in every stage.
 
-Worked example: if 5.3 measured 3 minutes 10 seconds, set 5 minutes.
+Worked example: 5.3 measures 3 minutes 10 seconds to `morpheus` down, and
+3.8's bound is 10½ minutes. The larger is 10½, plus half again is 15¾, so
+the duration stays at the **16 minutes** 3.8 set. It only moves if step 5
+measured longer than the bound. In that case the bound is wrong: find out
+why before you raise the duration.
+
+At the 23 % load read on 2026-10-09, the card claimed about 44 minutes of
+runtime, so 16 minutes still lets the estate ride out the first half hour
+of a cut before anything halts. If 6.4 measured much less than the card
+claims, the duration still comes from this rule. What changes is how long a
+cut can last before the halt begins, so write that down in step 7.
 
 Confirm with the command from 0.3.
 
@@ -912,7 +1199,10 @@ this work exists to catch.
 | [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and that 0.1 read 8 minutes before any change here (factory value not observed). Also the card's second SNMPv3 access-control entry, `10.0.99.1` read-only, from 1.0 |
 | [`security.md`](../security.md) mains-loss row | It no longer says nothing shuts down on the signal |
 | [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §5 | Whether the card's runtime series tracked your measurement |
-| §1.4 of this file | `HOSTSYNC`, corrected down to the 5.3 measurement plus margin |
+| §1.4 and §3.7 of this file | `HOSTSYNC` stays at 600 as long as 3.6's bound is 9½ minutes. Lower it only if the bound itself falls. A measured run shorter than the bound is not a reason to lower it |
+| [`hardware.md`](../hardware.md) outlet-group paragraph | The three groups' turn-off, turn-on and load-shedding settings read under *Before you start* |
+| [`network.md`](../network.md) Winterfell notes, and ADR-0013's accounting | The `trinity` → `10.0.99.1:3493` pass/block pair from 4b.1 |
+| [`architecture.md`](../architecture.md) `trinity` row | It is a NUT secondary of `morpheus` |
 
 Then close [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 
@@ -927,14 +1217,31 @@ address (check 1.6) or the pass rule is below the block or the catch-all
 **`upsc` says `Access denied`.** The credential in 1.4 and the one in 3.3 or
 4.2 do not match. Not a firewall problem.
 
-**`morpheus` halted before `Saruman` finished.** `HOSTSYNC` is shorter than
-the guests take. The two logs from 5.1 are how you know: `morpheus=---`
-appears before `saruman=---`. Raise it in 1.4 and re-run step 5.
+**`morpheus` halted before `Saruman` finished.** The two logs from 5.1 are
+how you know: `morpheus=---` appears before `saruman=---`. Raising
+`HOSTSYNC` alone will not fix this. `Saruman`'s monitor logged out before its
+guests were down, so check 3.7 first:
+
+- the `SHUTDOWNEXIT no` line, and that `upsmon -V` is 2.8.1 or later;
+- that the drop-in is loaded: `systemctl show nut-monitor -p Before`
+  lists `pve-guests.service`;
+- on `Saruman`, `journalctl -b -1 -u nut-monitor -u pve-guests` should show
+  `nut-monitor` stopping after `pve-guests`.
+
+If all three hold and `morpheus` still went first, the wait reached
+`HOSTSYNC`. The guests took longer than 3.6's bound, so find the stage that
+overran before raising anything. Raise 3.8's duration to match any increase
+in `HOSTSYNC`, then re-run step 5.
 
 **`smaug` did not halt.** Look at its system log under
 *System → Advanced → System Log*. A slave that never saw the shutdown flag was
 never connected; the block counter on CasaBonita from 2.5 says whether the
 firewall refused it.
+
+**`trinity=---` never appeared, or `trinity` came back with no journal of a
+halt.** Run `journalctl -u nut-monitor -b -1` on `trinity`. A secondary that
+never logged in never saw the flag. Check 4b.5's `upsc -c` listing, and that
+4b.1's pass is above its block.
 
 **`UpsOnBattery` did not fire within a minute in 6.2.** The scrape is every 60
 seconds and the rule waits 30, so two minutes is the outside limit. Past that,
@@ -1021,6 +1328,16 @@ long cord, and since the move into the 32U rack it is on that PDU directly
 (outlet 3), so it is on the UPS like everything else on that strip — which makes it the one host holding
 irreplaceable data on spinning disks that was going to stop uncleanly every
 time the pack ran out.
+
+### Why `trinity` is a subscriber, and `gandalf` is not
+
+Both came onto the PDU in the move into the 32U rack, on 2026-11-07.
+`trinity` holds the household's own data, every service of it on a database
+or a disk that a hard stop can leave half-written, so it halts with the
+first group
+([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
+`gandalf` is the range: disposable by decision, off between sessions, and
+the only copy of nothing.
 
 ### What this does not prove
 
