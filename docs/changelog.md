@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `gandalf`'s
+  management plane is closed, `build-the-playground.md` §4.** The firewall
+  had been off since the install, so ADR-0014's rules did not exist yet and
+  the whole of VLAN 30 could reach 8006 and 22. Proxmox's detected
+  `local_network` was `10.0.30.0/24`, as it had been on `Saruman`
+  ([#566](https://github.com/Gerrrt/HomeLab/issues/566)). `host.fw` now
+  carries ADR-0014's three rules and `phoenix`'s 8006 rule. `cluster.fw`
+  sets the alias to `10.0.30.30`, which leaves that address alone in the
+  `management` set. The firewall was enabled at `policy_in: ACCEPT`, read
+  back and then flipped to `DROP`. The session from Hicks stayed up, and §4's
+  probe from `morpheus` read `8006 exit=1` and `control exit=0`. The
+  flip first stalled on an `overwrite?` prompt, because root's `cp` on
+  `gandalf` is `cp -i`, and §4 now says so. There are no guests, so no guest
+  NIC needed clearing. There is no collector or alert drill, because
+  ADR-0017 gives `gandalf` no agent. §7's read-back at each power-on stands
+  in for them.
+
 - **`GuestDiskWillFillIn24h` paged for `garuda`, and the disk goes from 80 to
   120 GB.** `/` went from 51.6 to 57.2 GiB between 21:24 and 21:44 UTC on
   2026-11-08 and was flat afterwards; six hours of window read the one step as
