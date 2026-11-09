@@ -81,12 +81,19 @@ updates:
   # night's set the only way back. Two names, because Immich's is its own image: the vectorchord
   # build's tag moves with both the Postgres major and the extension's, and
   # either is a migration Immich documents, not a bump.
+  #
+  # The PR limit is above the stack's image count, not the 5 the other
+  # entries use. With no groups, every release is its own PR, and a limit
+  # below the image count drops bumps silently: the 2026-11-08 run opened
+  # five and stopped, and Mealie v3.30.0, out since 2026-10-31, never got
+  # its PR while #981 counted 9 critical CVEs it fixed. Keep the limit
+  # above the number of images the stack pins.
   - package-ecosystem: docker-compose
     directory: /stacks/sensitive
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 25
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
