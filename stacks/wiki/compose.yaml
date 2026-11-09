@@ -161,7 +161,7 @@ services:
   #      --max-redirect, so it checks 443 rather than the redirect on 80.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.7@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
+    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
     container_name: wiki-caddy
     # Its own name, on the stack's network, for the healthcheck below: the
     # handshake is chosen by SNI, and busybox wget sends the URL's host as it.
