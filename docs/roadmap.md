@@ -240,8 +240,8 @@ Closes on BloodHound running where nothing attacks it.
   [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md):
   901 Ubuntu, 911 Windows 11 and 912 Server 2025 built from `smaug-iso`,
   each clone passing `scripts/packer-smoke.sh`, SSH included,
-  → [runbook](runbooks/build-the-lab-templates.md); Kali's
-  template waits for its build on `gandalf`, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
+  → [runbook](runbooks/build-the-lab-templates.md); Kali's 902
+  built on `gandalf` 2026-11-09, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
   [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
   2026-10-03,
   [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md):
@@ -286,9 +286,11 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
   `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§4
-  are behind it: the host, its bridges, `Saruman` at `.20` and the closed
-  management plane. Next is §5, the attack VM, then §6–§9, in order.
+  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§5
+  are behind it: the host, its bridges, `Saruman` at `.20`, the closed
+  management plane, and the attack VM `ragnarok` on template 902. Next is §6,
+  the targets, then §7–§9, in order. Sliver goes on `ragnarok` before the
+  first exercise.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)

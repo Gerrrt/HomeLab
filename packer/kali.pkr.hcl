@@ -2,16 +2,16 @@
 # build on Saruman for garuda (#921). `-only` picks one: kali.proxmox-iso.kali
 # or kali.proxmox-iso.kali-saruman.
 #
-# WRITTEN, NOT BUILT (ADR-0074 part 2, #790). The attack VM lives on gandalf,
-# installed 2026-11-07 with no template on it yet, and a template belongs to the
-# node it was built on. CI proves this file parses; the first build on gandalf
-# proves the preseed.
+# BUILT on gandalf 2026-11-09, twice, each build smoke-tested (#790). It goes
+# through gandalf's own API with gandalf's own token (gandalf.env, not
+# phoenix.env), and its disk on `range`: build-the-lab-templates.md §5. The
+# attack VM, ragnarok, is cloned from it by scripts/make-attack-vm.sh.
 #
 # The one source here that uses Packer's HTTP server. Debian's installer reads
 # a preseed from the install medium or from a URL, not from a second disc, so
 # the seed is served from phoenix for the few seconds the installer fetches it.
-# That needs phoenix's own firewall to admit the guest's DHCP address on the
-# port below — build-the-lab-templates.md §5 says how, for the build on gandalf.
+# If phoenix's own firewall is on, it must admit the guest's DHCP address on
+# the port below; build-the-lab-templates.md §5 says how.
 
 source "proxmox-iso" "kali" {
   proxmox_url              = var.proxmox_url
@@ -106,8 +106,8 @@ source "proxmox-iso" "kali" {
 # workstation (#921, ADR-0091). The same Kali and preseed as 902, built on
 # Saruman instead: a template belongs to the node it was built on, and 902
 # stays gandalf's. Its ISO is pinned by name, the 2026.2 installer on smaug-iso
-# that scripts/collect-iso-store-state.sh hashes; 902's is still chosen at its
-# first build on gandalf, because gandalf cannot mount smaug-iso.
+# that scripts/collect-iso-store-state.sh hashes. 902's is the same installer,
+# on gandalf's own local, because gandalf cannot mount smaug-iso.
 
 source "proxmox-iso" "kali-saruman" {
   proxmox_url              = var.proxmox_url

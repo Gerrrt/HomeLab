@@ -43,7 +43,7 @@ decision and on this runbook.
 The machine is ready too. `gandalf`, a refurbished ThinkCentre M80q, was
 bought on 2026-10-05 and has its 32 GB and its SATA range disk
 ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md))
-fitted. **§1, §2 and §3 were done on 2026-11-07, and §4 on 2026-11-09**
+fitted. **§1, §2 and §3 were done on 2026-11-07, and §4 and §5 on 2026-11-09**
 ([#421](https://github.com/Gerrrt/HomeLab/issues/421)), and the parts as
 fitted are in [`hardware.md`](../hardware.md). The node is named `gandalf`,
 and `ifrit` names its disabled Intel AMT
@@ -588,6 +588,30 @@ has never fired is a rule nobody knows can.
 
 One VM, and it is the only guest with a leg on both bridges.
 
+> **Made on `gandalf` 2026-11-09** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)):
+> **`ragnarok`, VMID 130**, a full clone of `tpl-kali` (902). 902 was built
+> on `gandalf` from `phoenix` the same night
+> ([`build-the-lab-templates.md`](build-the-lab-templates.md) §5,
+> [#790](https://github.com/Gerrrt/HomeLab/issues/790)). Everything below is
+> one command on `phoenix`:
+>
+> ```bash
+> set -a; . ~/.config/proxmox/gandalf.env; set +a
+> scripts/make-attack-vm.sh
+> ```
+>
+> [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) clones onto `range` and sets
+> 4 cores and 8 GiB. ADR-0017's "roughly half" of 32 GB counted BloodHound,
+> which [ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md) moved
+> to `eden`. It gives `net0` on `vmbr0` DHCP and `net1` on `vmbr1`
+> `172.30.30.10/24` with no gateway, both with the guest firewall flag off. It
+> reads the config back, then writes `99-no-forward.conf` over SSH and runs
+> §8's third check. It refuses to run if VMID 130 exists, because the range is
+> rebuilt, not repaired. On its first run, `ragnarok` took `10.0.30.111`. Both
+> forwarding sysctls read `0`, neither table had NAT, and the one default
+> route was via `10.0.30.1` on `eth0`. `eth1` held `172.30.30.10/24` and
+> nothing else. Its cloud-init user is `kali`, with `phoenix`'s key.
+
 - **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at
   this address, so it does not get a reservation.
@@ -618,6 +642,16 @@ build it, because [#228](https://github.com/Gerrrt/HomeLab/issues/228) cannot
 narrow `50 → 30` without the list: Proxmox on `10.0.30.30:8006`, the C2
 operator's interface on the attack VM, and whatever the lab's Grafana and RDP
 into the estate already need on `Saruman`.
+
+As of 2026-11-09 the list is:
+
+- Proxmox on `10.0.30.30:8006` and SSH on `10.0.30.30:22`, ADR-0014's rules.
+- SSH to `ragnarok` on its lease, port 22.
+
+Sliver ([ADR-0095](../adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md))
+is not installed yet. Its operator port joins the list when it is. The lease
+is not reserved, so a rule written for #228 names the segment, not the
+address.
 
 ---
 

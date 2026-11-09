@@ -5,14 +5,14 @@
 [![Packer](https://img.shields.io/badge/Packer-02A8EF?style=plastic&logo=packer&logoColor=white)](https://developer.hashicorp.com/packer)
 [![Proxmox VE](https://img.shields.io/badge/Proxmox%20VE-E57000?style=plastic&logo=proxmox&logoColor=white)](https://www.proxmox.com/en/proxmox-virtual-environment)
 
-The lab's VM templates, built from `phoenix` through `Saruman`'s API
-([ADR-0074]). How to run them is [`build-the-lab-templates.md`][runbook]; this
+The lab's VM templates, built from `phoenix` through `Saruman`'s API, and
+902 through `gandalf`'s ([ADR-0074]). How to run them is [`build-the-lab-templates.md`][runbook]; this
 page is the map.
 
 | VMID | Template | Source | Installer driven by | Node, and status |
 | --- | --- | --- | --- | --- |
 | 901 | `tpl-ubuntu-2604` | `ubuntu.pkr.hcl` | autoinstall, `cidata` disc | `Saruman`, built and usable |
-| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `gandalf`, installed 2026-11-07; the build waits on build-the-lab-templates.md §5 ([#790](https://github.com/Gerrrt/HomeLab/issues/790)) |
+| 902 | `tpl-kali` | `kali.pkr.hcl` | Debian preseed, Packer HTTP | `gandalf`, built twice and smoke-tested, 2026-11-09, through `gandalf`'s own API ([#790](https://github.com/Gerrrt/HomeLab/issues/790)); the attack VM's base |
 | 903 | `tpl-debian-13` | `debian.pkr.hcl` | Debian preseed, Packer HTTP | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 904 | `tpl-fedora-server` | `fedora.pkr.hcl` | Kickstart, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-08 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |
 | 905 | `tpl-opensuse-tw` | `opensuse.pkr.hcl` | AutoYaST, `OEMDRV` disc | `Saruman`, built twice and smoke-tested, 2026-10-09 ([#920](https://github.com/Gerrrt/HomeLab/issues/920)) |

@@ -19,6 +19,39 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
+  [#790](https://github.com/Gerrrt/HomeLab/issues/790): `tpl-kali` (902) is
+  built on `gandalf`, and the attack VM `ragnarok` is up,
+  `build-the-playground.md` §5.**
+  - **Access.** `gandalf` is not clustered, so it got its own `phoenix@pve`
+    user, `PhoenixBuilder` and `PhoenixIsoCleanup` roles and
+    `phoenix@pve!builder` token. The role is `build-the-jumpbox.md` §4's plus
+    `VM.GuestAgent.Audit`. Its ACLs cover `range`, `local`, and both
+    `vmbr0` and `vmbr1`. The two builds, the two smoke tests and the attack
+    VM asked for nothing more. `phoenix` trusts `gandalf`'s own cluster CA
+    and keeps the token in `gandalf.env`, apart from `phoenix.env`.
+  - **The builds.** The ISO is the 2026.2 installer already pinned for 910,
+    fetched onto `gandalf`'s `local` and checked against that hash. The
+    first build stopped at validation, because the variables file refuses
+    an empty `PKR_VAR_build_password` even for Kali. Sourcing `phoenix.env`
+    under `gandalf.env` fixed it, and §5 says so now. The build took
+    10 min 33 s and the `-force` rebuild 10 min 41 s. `packer-smoke.sh 902`
+    passed after each, which is #790's acceptance. 910's boot-order and 20 s
+    fixes were not needed here. `ufw` is inactive on `phoenix`, so no port
+    was opened.
+  - **The attack VM.** `ragnarok`, VMID 130, is a full clone on `range` with
+    4 cores and 8 GiB, made by the new `scripts/make-attack-vm.sh`. `net0` is
+    on `vmbr0` by DHCP and took `10.0.30.111`. `net1` is on `vmbr1` at
+    `172.30.30.10/24` with no gateway. Both have the firewall flag off. The
+    script wrote `99-no-forward.conf` and ran §8's third check: both
+    sysctls `0`, no NAT in nft or iptables, and one default route, via
+    `10.0.30.1`.
+  - **#1196's check.** On the fresh clone it read `running`, 0 failed units
+    and 0 accounts expiring at the epoch, the check
+    [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
+  - **What is not done.** Sliver is not installed, there are no targets
+    (§6), and §8's first, second and fourth checks and §9 have not run.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `gandalf`'s
   management plane is closed, `build-the-playground.md` §4.** The firewall
   had been off since the install, so ADR-0014's rules did not exist yet and
