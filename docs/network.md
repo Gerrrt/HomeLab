@@ -435,6 +435,18 @@ Televisions and consoles. Internet only.
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
   it, and `alexander` is refused.
+- **One pair lets `smaug` initiate, and only to its own gateway.**
+  `Allow NUT from smaug`, `10.0.40.30 → 10.0.40.1:3493`, sits above
+  `Block NUT to pfSense`, CasaBonita net → `10.0.40.1:3493`, and both sit
+  above *Allow internet* on `igc0.40`, in the shape of the existing *Block SSH
+  to pfSense*. They were created on 2026-09-23 by
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §2.3, so that
+  TrueNAS's UPS service can subscribe to the firewall's NUT server
+  ([ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)).
+  The destination is the firewall's address on this segment, not another
+  segment, so the *Reaches* column is unchanged. The pass narrows rather than
+  opens: before it, *Allow internet* already passed the whole segment to that
+  address, and the block is what keeps the televisions off the listener.
 - **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
@@ -523,6 +535,15 @@ Where things get broken on purpose.
   ([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
   [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4
   asked for this block to be named here.
+- **`Saruman` reaches its own gateway for NUT, and nothing else on the segment
+  does.** `Allow NUT from Saruman`, `10.0.30.20 → 10.0.30.1:3493`, sits above
+  `Block NUT to pfSense`, ImaginationLAN net → `10.0.30.1:3493`, both above
+  *Allow internet* on `igc0.30`. They were created on 2026-09-23 by
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §2.1–2.2
+  ([ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md))
+  with `.110` as the source, and replaced by a `.20` copy when the hypervisor
+  moved on 2026-11-07. The block is what covers the lab's guests, the attack
+  VM included.
 - `shiva` and `Saruman` are the same physical box: `shiva` is the iLO BMC on its
   dedicated port, `Saruman` is the Proxmox install. They are separate addresses
   and separate names, and conflating them is a mistake this document previously

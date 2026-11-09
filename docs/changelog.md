@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#574](https://github.com/Gerrrt/HomeLab/issues/574): the current-state
+  documents now say the UPS shutdown is armed and not proved.**
+  `security.md`'s mains-loss row still said that as of 2026-09-20 nothing
+  shuts down on the UPS's signal. That stopped being true on 2026-09-23, when
+  steps 0 to 4 of
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) put NUT on
+  `morpheus` and subscribed `Saruman` and `smaug`. The row now says the
+  sequence is armed, `trinity` is not subscribed yet, and the pack is
+  unmeasured. `network.md` had never listed the two NUT pass/block pairs
+  built that day: `Allow NUT from Saruman` on `igc0.30` and `Allow NUT from
+  smaug` on `igc0.40`, each above a `Block NUT to pfSense` for the rest of
+  its segment, both to the gateway's own address on `3493`. Both are now in
+  their segment's notes. Read over the TrueNAS API the same day: `smaug`
+  reports no active alerts, and its UPS reporting graphs hold no data
+  points. That is expected for a NUT secondary, which runs no local `upsd`
+  for the graphs to read, so it says nothing about whether the subscription
+  is up. The rack visit in runbook §5 to §7 still owes the forced-shutdown
+  proof and the mains pull.
+
 - **The in-house ntfy topics are renamed so a phone can tell them apart.**
   The iOS ntfy app shows a subscription by its topic name and has no display
   name ([binwiederhier/ntfy#1314](https://github.com/binwiederhier/ntfy/issues/1314)),

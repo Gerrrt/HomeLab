@@ -1197,7 +1197,7 @@ this work exists to catch.
 | This file's status block | Built on *date*; sequence takes *N*; pack measured at *M* minutes at *L* % load |
 | [`hardware.md`](../hardware.md) Rack paragraph | Replace "not measured" with the measured number |
 | [`hardware.md`](../hardware.md) Accessories, UPS entry | The low battery duration you set in 6.5, and that 0.1 read 8 minutes before any change here (factory value not observed). Also the card's second SNMPv3 access-control entry, `10.0.99.1` read-only, from 1.0 |
-| [`security.md`](../security.md) mains-loss row | It no longer says nothing shuts down on the signal |
+| [`security.md`](../security.md) mains-loss row | It says the sequence is proved, not armed and unproved, and gives the measured runtime in place of the card's estimate |
 | [`fit-the-ups-battery.md`](fit-the-ups-battery.md) §5 | Whether the card's runtime series tracked your measurement |
 | §1.4 and §3.7 of this file | `HOSTSYNC` stays at 600 as long as 3.6's bound is 9½ minutes. Lower it only if the bound itself falls. A measured run shorter than the bound is not a reason to lower it |
 | [`hardware.md`](../hardware.md) outlet-group paragraph | The three groups' turn-off, turn-on and load-shedding settings read under *Before you start* |
