@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **The in-house ntfy topics are renamed so a phone can tell them apart.**
+  The iOS ntfy app shows a subscription by its topic name and has no display
+  name ([binwiederhier/ntfy#1314](https://github.com/binwiederhier/ntfy/issues/1314)),
+  so the three `make gen-secret` names read as three random strings on the
+  iPhone. Each name is now its channel's word, a dash, and twelve hex
+  characters: `alerts-…`, `urgent-…`, `security-…`, in
+  `secrets/sensitive.sops.yaml` and at the end of the three receiver URLs in
+  `secrets/observability.sops.yaml`, changed in the same PR. A bare word was
+  declined. [#136](https://github.com/Gerrrt/HomeLab/issues/136) asked that
+  the names be kept like a credential. And `upstream-base-url` sends ntfy.sh
+  the SHA-256 of each topic's URL to wake the iPhone, so `…/urgent` would let
+  anyone compute that hash, subscribe to it on ntfy.sh, and see when a page
+  is sent. The ntfy.sh pair keep their names, because there the name alone is
+  the credential. Android's app gets display names instead
+  (`stacks/sensitive/README.md`). The same day, `ScheduledJobNeverRan` for
+  `household-copy` and `household-proof` was silenced for ninety days under
+  [#455](https://github.com/Gerrrt/HomeLab/issues/455): it is correct while
+  no holder is chosen, and it was repeating every twelve hours on the
+  in-house channel.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
   [#790](https://github.com/Gerrrt/HomeLab/issues/790): `gandalf` is ready
   for `tpl-kali`'s build, `build-the-lab-templates.md` §5 step 2's `gandalf`
