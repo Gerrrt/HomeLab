@@ -741,9 +741,10 @@ by anything else in this repository.
 >   not unrouted" state this check exists to catch. With the stanza removed
 >   and dhcpcd stopped, the guest had no default route, and both pings gave
 >   `Network is unreachable` while `172.30.30.10` answered. `ragnarok` is not
->   affected, because its `eth0` takes a real lease. **Any static-only clone
->   of `tpl-kali` on `vmbr1` needs that file removed before this check
->   passes.**
+>   affected, because its `eth0` takes a real lease. Since #1341 the build
+>   removes the stanza before templating. **Until 902 is rebuilt, a
+>   static-only clone of it on `vmbr1` needs that file removed before this
+>   check passes.**
 
 **One — `gandalf` is single-homed, and `vmbr1` has no port.** On the host:
 
@@ -847,7 +848,7 @@ Addresses are parsed at query time rather than indexed, per
 | `Saruman` stops appearing in Loki after §3 | The pass rule still names `.110` | §3, step 2 |
 | Kea hands `10.0.30.30` to something else | The reservation was not added | §2 |
 | `RangeSubnetLeaked` fires outside a §9 run | `ragnarok` is forwarding, or a target has a NIC on `vmbr0` | Power `gandalf` off; [`respond-to-a-security-alert.md`](respond-to-a-security-alert.md#rangesubnetleaked) |
-| A static target on `vmbr1` has a `169.254.x.x` address and a `default dev` route | A DHCP stanza beside the static one, such as `tpl-kali`'s `interfaces.d/eth0`, so dhcpcd fell back to link-local | Remove the stanza and stop dhcpcd, then §8 check four |
+| A static target on `vmbr1` has a `169.254.x.x` address and a `default dev` route | A DHCP stanza beside the static one, such as `interfaces.d/eth0` in a `tpl-kali` built before #1341, so dhcpcd fell back to link-local | Remove the stanza and stop dhcpcd, then §8 check four |
 | The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §7 |
 
 ---
