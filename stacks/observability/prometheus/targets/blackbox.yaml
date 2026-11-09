@@ -35,9 +35,11 @@
 # it carries its IP SAN, as Grafana's does below. `/_site/current/favicon`
 # because Wiki.js 3.x has no health route (#1339): `/healthz` is a 404, and any
 # unknown path returns the app shell with a 200 that proves nothing. The
-# favicon is served out of the database without a session, so a 200 means
-# Caddy, the proxy, Wiki.js and its Postgres all answered. The same path is
-# stacks/wiki/compose.yaml's healthcheck.
+# favicon is a route of Wiki.js's own, answered without a session, so a 200
+# means Caddy, the proxy and Wiki.js all answered. Not Postgres: the route
+# serves a cached default, and 3.x has no public GET sure to read the database
+# (stacks/wiki/compose.yaml, the app's note 4). The same path is that file's
+# healthcheck.
 
 - targets: ["https://lemmiwinks.matrix.elysium/_site/current/favicon"]
   labels:

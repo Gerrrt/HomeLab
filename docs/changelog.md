@@ -32,8 +32,10 @@ docstring gives: it is a record, not a claim about now.
     `.wkbackup`, so its cluster is a new external volume, `wiki3-pgdata`.
     The 2.x `pgdata` and `wiki-data` stay untouched and unmounted as the
     rollback. 3.x has no health route (`/healthz` is a 404), so the app, Caddy
-    and blackbox all probe `/_site/current/favicon`, which the server answers
-    out of the database. The hardening was re-measured on 3.3.0 in the
+    and blackbox all probe `/_site/current/favicon`. That proves the app
+    routes, not that Postgres answers: the route serves a cached default, and
+    no public GET in 3.3.0 is sure to read the database. Postgres is left to
+    `db`'s own `pg_isready` and the nightly backup's alert. The hardening was re-measured on 3.3.0 in the
     rehearsal and carried over: uid 1000, read-only, and the 512 MiB limit,
     against a 246 MiB peak.
   - **The backup.** 3.x keeps its tables in schema `wiki`. `backup-wiki.sh`'s

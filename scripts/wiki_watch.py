@@ -79,7 +79,11 @@ def ver(text: str) -> tuple[int, int, int] | None:
 
 
 def open_ended(spec: str) -> bool:
-    """A range that is only lower bounds (`> 2.4.17`, `>=2.0.0`)."""
+    """A range that is only lower bounds (`> 2.4.17`, `>=2.0.0`), and nothing
+    else: a range with text in_range() cannot read (`> 2.4.17 || >= 3.0.0`)
+    is not open-ended, it is unreadable, and goes to a person."""
+    if in_range((0, 0, 0), spec) is None:
+        return False
     clauses = CLAUSE.findall(spec)
     return bool(clauses) and all(op in (">", ">=") for op, _ in clauses)
 
@@ -166,10 +170,12 @@ def assess(pin_text: str, advisories: list[dict], now: dt.datetime) -> Report:
             # patches on top. The exception is a range with no upper bound,
             # `> 2.4.17` patched in 2.4.107: written before the pin's line
             # existed, its patched version is the real bound, and read
-            # literally it would flag every later release forever.
+            # literally it would flag every later release forever. Only when
+            # every patched version is on an older line: one on the pin's
+            # line or later says the advisory was written for it.
             if any(p[0] == line and p <= pin for p in patched):
                 continue
-            if open_ended(rng) and any(p <= pin for p in patched):
+            if open_ended(rng) and patched and all(p[0] < line for p in patched):
                 continue
             hit = in_range(pin, rng)
             if hit is False:
@@ -375,6 +381,26 @@ def self_test() -> int:
         "unless the range is open-ended, where the patched version is the bound",
         assess("3.3.0", [adv("GHSA-y", "2022-01-01T00:00:00Z", ">= 2.0.0", "2.4.107")], now).anything,
         False,
+    )
+    check(
+        "but not when a patched version is on the pin's line: that is a bump (#1349 review)",
+        [
+            (f.kind, f.detail)
+            for f in assess(
+                "3.3.0", [adv("GHSA-z", "2026-11-01T00:00:00Z", ">= 2.0.0", "2.5.318, 3.3.1")], now
+            ).findings
+        ],
+        [("bump", "fixed in 3.3.1")],
+    )
+    check(
+        "and an alternative beside a lower bound is unreadable, not open-ended (#1349 review)",
+        [
+            f.kind
+            for f in assess(
+                "3.3.0", [adv("GHSA-w", "2026-11-01T00:00:00Z", "> 2.4.17 || >= 3.0.0", "2.4.107")], now
+            ).findings
+        ],
+        ["unreadable"],
     )
 
     r = assess("3.3.0", [adv("GHSA-3-fixed", "2026-11-05T00:00:00Z", "< 3.1.0", "3.1.0")], now)

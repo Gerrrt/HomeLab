@@ -274,10 +274,12 @@ To put it back:
    database (108 pages, 4 users), the app booting read-only and healthy, and
    a page rendering all worked. The git storage target was disabled in the
    scratch copy first, so the rehearsal could not push to `Lemmiwinks`. Do
-   the same in any rehearsal:
+   the same in any rehearsal. Only the git target: 3.x also keeps a `db`
+   storage target, which assets need, so an unqualified update breaks
+   uploads:
 
    ```sql
-   update wiki.storage set "isEnabled" = false;
+   update wiki.storage set "isEnabled" = false where module = 'git';
    ```
 
 ## Upgrading
@@ -342,17 +344,31 @@ does not serve, so the wiki reads as down. Keep that window short.
      unpublished `README` stays hidden.
    - **Family loses `read:source` and `read:history`.** These were 2.x
      group-wide permissions. Re-add both.
-   - **The git target.** Module settings are not carried. Re-enter it by
-     hand, with the deploy key, in **push** mode to a `wikijs-3` branch of
-     `Gerrrt/Lemmiwinks`, not `main`.
+   - **The diagrams.** mermaid renders as a code block in 3.x. Convert the
+     four `diagrams/*` pages' mermaid blocks to 3.x's `diagram` content block
+     **in the wiki**, before the git target exists. The target pushes and
+     never pulls, so a fix made only in `Lemmiwinks` would never reach the
+     wiki, and the next edit there would write over it.
+   - **The git target.** Module settings are not carried, so it is set up by
+     hand. 3.3.0 creates a branch only on a remote that has none, so first
+     create `wikijs-3` from `main` in `Gerrrt/Lemmiwinks` on GitHub. Then
+     add the target with the deploy key, in **push** mode, on that branch.
+     Then run its **Add Untracked Changes**. A sync sends only changes
+     queued after the target was enabled, and every imported page predates
+     it.
 7. **Check** against the rehearsal: 108 pages, all rendered; 3 accounts and
-   Guest; Family; 27 navigation items; `README` a 404 to a reader. Then
-   `make backup-wiki ARGS=--prove` on `prometheus` against the first 3.x set.
-8. **The Lemmiwinks PR.** The first sync renames about 75 files (3.x
-   lowercases paths and turns `_` into `-`) and rewrites links in about 98
-   pages. Review it as a PR from `wikijs-3`. Move the four `diagrams/*`
-   pages' mermaid blocks to 3.x's `diagram` block in the same PR. Once it is
-   merged, point the git target at `main`.
+   Guest; Family; 27 navigation items; `README` a 404 to a reader. Then, on
+   `prometheus`, take a new set and prove it: `make backup-wiki`, then
+   `make backup-wiki ARGS=--prove`. `--prove` restores the newest set that
+   exists, so without the new one it would prove step 0's 2.x set again.
+8. **The Lemmiwinks PR**, from `wikijs-3` into `main`. 3.x lowercases paths
+   and turns `_` into `-`, so about 75 pages land under new names, with the
+   links in about 98 rewritten. **Add Untracked Changes** writes the new
+   names and deletes nothing, because the branch started as `main`. So the
+   2.x files are still there beside them. In the rehearsal every file mapped
+   one-to-one. Delete each file that the step-6 commit did not write, in the
+   same PR, and check that the counts match: 108 pages and 1 asset. Once it
+   is merged, point the git target at `main`.
 
 **What the household sees.** About 74 deep URLs change, for example
 `/runbooks/a_machine_died` becomes `/runbooks/a-machine-died`. Old URLs do
@@ -360,9 +376,36 @@ not redirect, by decision: the printed card carries only the host name, and
 HomeLab links to no page. Links inside the wiki are rewritten by the import.
 
 **Rollback.** `pgdata` and `wiki-data` are untouched and mounted by nothing.
-Going back is the compose file at the commit before the move, deployed as
-above, after `stop app db`. Anything written in 3.x since is lost unless it
-was exported first.
+Going back means running the stack file from the commit before the move, and
+[Deploying a change](#deploying-a-change) cannot do that. It only moves
+forward: `--ff-only` will not go back, and the `HEAD` test then fails. So the
+older file is verified the same way and run from outside the checkout, which
+stays on `main`. `PREV` is the commit on `main` before the move's merge:
+
+```bash
+cd /opt/wiki/HomeLab && PREV=<the commit before the move> && git verify-commit "$PREV" && test "$(git log -1 --format=%GF "$PREV")" = 968479A1AFF927E37D1A566BB5690EEEBB952194 && rm -rf /opt/wiki/rollback && mkdir /opt/wiki/rollback && git archive "$PREV" stacks/wiki | tar -x -C /opt/wiki/rollback
+```
+
+```bash
+docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env stop app db && docker compose -f /opt/wiki/rollback/stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait
+```
+
+The file names its project `wiki`, so the second `up` recreates the same
+services onto `pgdata` and `wiki-data`. It never touches `wiki3-pgdata`,
+which is external. 2.x's own git target comes back with its database, set
+to `main` and to sync, which pulls as well as pushes. If the `Lemmiwinks` PR
+has been merged, bring up `db` alone first (`up -d --wait db` with the
+rollback file). Then disable that target in 2.x's own table, which names the
+module in `key`, before the app starts. Otherwise 2.x can pull the 3.x names
+in:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -c "update storage set \"isEnabled\" = false where key = 'git';"
+```
+
+Anything written in 3.x since the cutover
+is lost unless it was exported first. Going forward again is an ordinary
+deploy of `main`, after `rm -rf /opt/wiki/rollback`.
 
 ## The cutover (2.x, from `docker run`)
 

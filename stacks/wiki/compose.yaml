@@ -93,9 +93,15 @@ services:
   #   3. It listens on 3000 only. 3443 is declared in the image, and nothing
   #      listens on it.
   #   4. 3.x has no health route: /healthz is a 404, and every other unknown
-  #      path returns the app shell with 200, which would prove nothing.
-  #      /_site/current/favicon is answered by the server out of the database,
-  #      so it fails when the app or Postgres does. GNU wget is present.
+  #      path returns the app shell with 200. /_site/current/favicon is a
+  #      route of the server's own, so a 200 there means Fastify is up and
+  #      routing. It does NOT prove Postgres. With no favicon uploaded, the
+  #      route serves the bundled SVG off the cached site config, and so do
+  #      robots.txt and sitemap.xml (read in 3.3.0's controllers/site.ts and
+  #      rootFiles.ts, #1349 review). No public GET is sure to read the
+  #      database. Postgres is the db service's own pg_isready, and the
+  #      nightly backup-wiki.sh, which refuses and alerts when it fails.
+  #      GNU wget is present.
   #   5. Peak 246 MiB after the import and 108 renders. The image bundles
   #      headless Chrome, but it runs only for server-side renders (approving
   #      a suggested edit), not on the markdown edit path, so 512 MiB stays.
@@ -207,8 +213,9 @@ services:
       - "443:443"
     healthcheck:
       # Through the TLS listener and the proxy to the path the app's own
-      # healthcheck uses (3.x has no /healthz; see the app's note 4), so a
-      # missing key, a refused handshake or a dead upstream all fail it. By
+      # healthcheck uses (3.x has no /healthz; see the app's note 4 for what
+      # it does not prove), so a missing key, a refused handshake or a dead
+      # app all fail it. By
       # name, through the alias above: dialled as 127.0.0.1 the SNI matches no
       # policy and the handshake is refused. The chain is not checked here —
       # the container trusts no estate CA — and blackbox is what checks it.
