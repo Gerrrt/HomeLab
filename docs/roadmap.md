@@ -49,6 +49,17 @@ What an entry here may contain:
 
 Closes when it is empty.
 
+- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339) Move the wiki to
+  Wiki.js 3.x.** Required by
+  [ADR-0089](adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md),
+  whose trigger 3 has fired. First in the milestone because it has a date:
+  2026-12-05, when the four unfixed 2.x advisories in
+  [#1298](https://github.com/Gerrrt/HomeLab/issues/1298) fire trigger 1.
+  Two gates, in order. First, 3.x must keep what ADR-0089 says has to
+  survive: internal-only, Postgres for ADR-0065's pull, and the git mirror.
+  If it cannot, a new ADR moves the target to BookStack. Second, a restore
+  rehearsal from an ADR-0065 dump into 3.x before the household's pages
+  move.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).

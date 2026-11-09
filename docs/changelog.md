@@ -38,6 +38,21 @@ docstring gives: it is a record, not a claim about now.
     check passed. `ragnarok` takes a real lease on `eth0` and is not
     affected. The template keeps the stanza until its build removes it.
 
+- **ADR-0089's trigger 3 has fired: Wiki.js 3.x is stable, and the move is
+  [#1339](https://github.com/Gerrrt/HomeLab/issues/1339).** `requarks/wiki`
+  published `3.0.1`, its first stable 3.x release, on 2026-11-01. Five more
+  followed by today, the latest `3.3.0`. `wiki-watch` reported the firing in
+  its 2026-11-02 run, in
+  [#1298](https://github.com/Gerrrt/HomeLab/issues/1298). The same issue
+  lists four advisories published 2026-11-05 that affect the pinned `2.5.317`
+  and have no 2.x fix: three stored XSS and one disclosure of unpublished
+  pages. Unless a 2.x release patches them, they fire trigger 1 on
+  2026-12-05, so the move now has a date. As ADR-0089 requires, the move is
+  its own issue. It is gated first on the three things that must survive,
+  read against 3.x, the git mirror to `Gerrrt/Lemmiwinks` among them. Then
+  comes a restore rehearsal from an ADR-0065 dump. #1298 stays open:
+  `wiki_watch.py` keeps it open while a stable 3.x exists, until #1339
+  re-aims or retires the watcher.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574): the current-state
   documents now say the UPS shutdown is armed and not proved.**
   `security.md`'s mains-loss row still said that as of 2026-09-20 nothing
