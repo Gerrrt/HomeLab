@@ -634,6 +634,17 @@ There is no ignore list, as for the secret scan in
   [ADR-0108](../adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md),
   a different image: the next scan rewrites #984 with what 3.x's packages
   carry, or closes it.
+- **`ghcr.io/velocidex/velociraptor-server`,
+  [#985](https://github.com/Gerrrt/HomeLab/issues/985).** The findings are in
+  the Go modules and Go toolchain the server binary was built with, and in the
+  image's Alpine musl and zlib. The pinned tag is Velocidex's newest release,
+  its `latest` is the same image, and upstream has not rebuilt the tag, so
+  there is no bump to take. The fix is the Dependabot bump that follows
+  Velocidex's next release. What a finding could be reached through is what
+  the compose files publish: on `soc`, 8000, the client frontend, to the
+  enrolled endpoints, and 8003, unauthenticated metrics, to the lab's
+  Prometheus, with the GUI reachable only through the stack's `caddy`. On
+  `scratch`, 8000 and the GUI on 8889.
 
 The scan skips one file, `/usr/local/bin/gosu`, and only in the repositories
 [`scripts/gosu-skip.txt`](../../scripts/gosu-skip.txt) lists: `postgres`

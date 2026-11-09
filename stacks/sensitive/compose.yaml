@@ -651,7 +651,7 @@ services:
   # filter again. Nothing else is writable.
   adguard:
     <<: *service-defaults
-    image: adguard/adguardhome:v0.107.79@sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
+    image: adguard/adguardhome:v0.107.80@sha256:e2e1b48c832f7705be915873f95de0d5114de573736441d7f2923a8a6293027c
     container_name: sensitive-adguard
     # Was 512m: 5x the measured 95 MiB RSS with two blocklists (433k rules,
     # 2026-09-09). The threat-intelligence list adds 1.56M rules. Measured on
@@ -1300,7 +1300,7 @@ services:
   # --if-needed` the container runs before the webserver listens.
   paperless:
     <<: *service-defaults
-    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.2@sha256:d232cba37cc0bab0d6c6581ecd320383b7a6f49f33e0fd16adda4d009eb600dd
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.4.2@sha256:d704e84f88300eb6ab001ab15720a2330ff99169cf9f94d6b8fcc44b63a84c84
     container_name: sensitive-paperless
     # DIFFERENCE 5 again: s6-overlay as PID 1, and the same measured refusal
     # as home-assistant's — booted with the shared default, the container
@@ -1913,7 +1913,7 @@ services:
   # rather than to size. No depends_on, for Vaultwarden's reason.
   mealie:
     <<: *service-defaults
-    image: ghcr.io/mealie-recipes/mealie:v3.29.0@sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc
+    image: ghcr.io/mealie-recipes/mealie:v3.30.0@sha256:90f83da6f3ab0a421efc827118a556168573930105f13fa3321768f42163d784
     container_name: sensitive-mealie
     mem_limit: 1024m
     memswap_limit: 1024m

@@ -54,6 +54,17 @@ docstring gives: it is a record, not a claim about now.
     - counts with `search_path` set to `wiki, public`;
     - points `wiki-watch` at 3.x advisories.
   - **Left:** the cutover, and the `Lemmiwinks` PR.
+- **Caddy refuses compressed request bodies to Actual, as a stopgap for
+  [#970](https://github.com/Gerrrt/HomeLab/issues/970).** 26.11.0 ships
+  body-parser 2.3.0 (CVE-2026-111181), and Actual parses every body before
+  routing and login, with inflation on and no `uncaughtException` handler.
+  So one compressed body with trailing bytes, sent by anyone on Hicks,
+  crashes the server. This was read from the bundle, not tested.
+  `actual.matrix.elysium` now answers 415 to any request with a
+  `Content-Encoding` header. Actual's web client never sends one. Upstream
+  `master` already has body-parser 2.4.0, but v26.11.0 was cut before it, so
+  the rule comes out in the 26.12.0 bump. The same issue's follow-redirects
+  row (CVE-2026-116689) traced as unreachable.
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `RangeSubnetLeaked`
   is written, and `build-the-playground.md` §8 ran on `gandalf`.**
   - **The rule** is ADR-0014's optional one: any `filterlog` line, block or
