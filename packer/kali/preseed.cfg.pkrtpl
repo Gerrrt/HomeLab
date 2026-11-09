@@ -73,7 +73,10 @@ d-i grub-installer/bootdev string default
 # it. With only an ens18 stanza, eth0 never came up, the guest had no address, and
 # Packer timed out waiting for SSH (#790, two proof builds on Saruman, 2026-10-08).
 # interfaces sources interfaces.d, so this adds eth0 without editing the
-# installer's file. A clone's cloud-init configures its own network on top.
+# installer's file. It is the build's network only: kali.pkr.hcl's first
+# provisioner removes it before templating, because a clone that kept it raised
+# DHCP beside cloud-init's static stanza and got a link-local default route.
+# A clone's network is cloud-init's alone.
 #
 # The chage loop clears a bogus account-expiry (shadow field 8 == 1, i.e. the
 # epoch, 1970-01-02) that Kali's package postinsts leave on service accounts

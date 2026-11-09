@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **`tpl-kali`'s build now removes its own eth0 DHCP stanza before
+  templating.** The preseed writes `/etc/network/interfaces.d/eth0` so the
+  build has a network ([#790](https://github.com/Gerrrt/HomeLab/issues/790)),
+  and its comment said a clone's cloud-init configured its network on top.
+  That was wrong for a static clone. On `gandalf`, a throwaway clone of 902
+  at `172.30.30.199` on `vmbr1` raised both that stanza and cloud-init's
+  static one. dhcpcd got no lease, fell back to `169.254.x.x`, added
+  `default dev eth0 scope link`, and failed `build-the-playground.md` §8
+  check four ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).
+  `packer/kali.pkr.hcl`'s first provisioner now deletes the file beside
+  `cloud-init clean`, for 902 and 910 alike. The installer's `ens18` stanza
+  stays, because no `ens18` exists on Kali. `packer-smoke.sh`,
+  `make-attack-vm.sh` and `garuda`'s module all set `ipconfig0` to DHCP, so
+  their `eth0` still comes up through cloud-init. Neither template has been
+  rebuilt with the change yet; until it is, both still carry the stanza.
+
 - **ADR-0089's trigger 3 has fired: Wiki.js 3.x is stable, and the move is
   [#1339](https://github.com/Gerrrt/HomeLab/issues/1339).** `requarks/wiki`
   published `3.0.1`, its first stable 3.x release, on 2026-11-01. Five more
