@@ -319,6 +319,43 @@ tests:
               60,10.0.30.40,10.0.50.12,40115,445,0,S,1200034003,,64240,,mss;sackOK;TS;nop;wscale"
     expect: []
 
+  # --- RangeSubnetLeaked: a 172.30.30.x source logged on the firewall --------
+  - alert: RangeSubnetLeaked
+    name: a range source blocked on igc0.30 fires, and so does one passed
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "5,,,1000000103,igc0.30,match,block,in,4,0x0,,63,51001,0,DF,1,icmp,\
+              84,172.30.30.199,1.1.1.1,request,7,1"
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 1m
+            line: "60,,,1000102300,igc0.30,match,pass,in,4,0x0,,63,51002,0,DF,6,tcp,\
+              60,172.30.30.100,93.184.215.14,51002,443,0,S,1200035001,,64240,,mss;sackOK;TS;nop;wscale"
+    expect:
+      - {interface: igc0.30, action: block}
+      - {interface: igc0.30, action: pass}
+
+  - alert: RangeSubnetLeaked
+    name: 172.30.30.x as a destination, and the lab's own traffic, do not fire
+    streams:
+      - labels: {app: filterlog, action: block, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "5,,,1000000103,igc0.30,match,block,in,4,0x0,,64,51003,0,DF,6,tcp,\
+              60,10.0.30.111,172.30.30.10,51003,22,0,S,1200035002,,64240,,mss;sackOK;TS;nop;wscale"
+      - labels: {app: filterlog, action: pass, direction: in, reason: match,
+                 interface: igc0.30, host: morpheus}
+        entries:
+          - before: 2m
+            line: "60,,,1000102300,igc0.30,match,pass,in,4,0x0,,64,51004,0,DF,6,tcp,\
+              60,10.0.30.111,93.184.215.14,51004,443,0,S,1200035003,,64240,,mss;sackOK;TS;nop;wscale"
+    expect: []
+
   # --- UnknownDeviceOnManagementSegment: a MAC on VLAN 99 unseen for 7 days --
   # Every DHCP case shares one stream ({app="kea-dhcp4"}) and the rule looks
   # back seven days, so each case uses MACs no other case does.

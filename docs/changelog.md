@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `RangeSubnetLeaked`
+  is written, and `build-the-playground.md` §8 ran on `gandalf`.**
+  - **The rule** is ADR-0014's optional one: any `filterlog` line, block or
+    pass, whose source is in `172.30.30.0/24`. It is critical and fires at
+    once. That makes 21 Loki rules and 180 in all. §9 will prove it by
+    causing a leak, once it is deployed.
+  - **§8 ran before §6**, against the roadmap's order, because §9 must run
+    before any vulnerable image exists on the machine. Checks one and two
+    passed: `vmbr1` holds only `ragnarok`'s tap and has no address, and
+    there is no VLAN-aware bridge. Check three passed at `ragnarok`'s make.
+  - **Check four failed first,** on a throwaway clone of `tpl-kali` at
+    `172.30.30.199`. The template's `interfaces.d/eth0` is a DHCP stanza the
+    preseed writes for the Packer build. In a static clone, ifupdown raised
+    it beside cloud-init's stanza. dhcpcd fell back to `169.254.x.x` and
+    added `default dev eth0 scope link`, so the pings timed out instead of
+    being unreachable. Nothing left the bridge. With the stanza gone, the
+    check passed. `ragnarok` takes a real lease on `eth0` and is not
+    affected. The template keeps the stanza until its build removes it.
+
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574): the current-state
   documents now say the UPS shutdown is armed and not proved.**
   `security.md`'s mains-loss row still said that as of 2026-09-20 nothing

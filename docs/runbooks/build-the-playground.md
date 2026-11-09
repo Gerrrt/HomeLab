@@ -723,6 +723,28 @@ has been rerun.
 ADR-0014 makes four claims. Each one is checkable, and none of them is checked
 by anything else in this repository.
 
+> **Ran on `gandalf` 2026-11-09** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)),
+> before any target existed, and so before §6, as §9 requires.
+>
+> - **One:** `vmbr0` carried `nic0` and `ragnarok`'s `tap130i0`, and `vmbr1`
+>   carried `tap130i1` and nothing else. `vmbr1` had `0` addresses.
+> - **Two:** `0`.
+> - **Three:** `make-attack-vm.sh` ran it on `ragnarok` the same night (§5).
+> - **Four:** on a throwaway clone of `tpl-kali` at `172.30.30.199`, VMID 199,
+>   which then served §9. **It failed first.** The template carries
+>   `/etc/network/interfaces.d/eth0`, a DHCP stanza its preseed writes so the
+>   Packer build has a network. ifupdown raised it beside cloud-init's static
+>   stanza. dhcpcd got no lease on a bridge with no DHCP server, so it fell
+>   back to `169.254.x.x` with a `default dev eth0 scope link` route. Both
+>   pings then timed out instead of being unreachable. The packets went
+>   nowhere, because nothing on `vmbr1` routes, but that is the "filtered,
+>   not unrouted" state this check exists to catch. With the stanza removed
+>   and dhcpcd stopped, the guest had no default route, and both pings gave
+>   `Network is unreachable` while `172.30.30.10` answered. `ragnarok` is not
+>   affected, because its `eth0` takes a real lease. **Any static-only clone
+>   of `tpl-kali` on `vmbr1` needs that file removed before this check
+>   passes.**
+
 **One — `gandalf` is single-homed, and `vmbr1` has no port.** On the host:
 
 ```bash
@@ -796,7 +818,9 @@ the machine.**
      | jq '.data.result'
    ```
 
-   A row with a `172.30.30.x` source is the property working. **An empty result
+   A row with a `172.30.30.x` source is the property working, and the alert
+   `RangeSubnetLeaked` should fire within a ruler cycle; check it in
+   Alertmanager or on the urgent channel. **An empty result
    is not a pass** — it means the leak was silent, and you should find out
    whether the packet was forwarded at all before concluding anything.
 4. Turn forwarding back off, remove the route, delete the guest, and rerun §8's
@@ -822,6 +846,8 @@ Addresses are parsed at query time rather than indexed, per
 | Everything on `vmbr1` can reach everything else and nothing outside | Working as designed | — |
 | `Saruman` stops appearing in Loki after §3 | The pass rule still names `.110` | §3, step 2 |
 | Kea hands `10.0.30.30` to something else | The reservation was not added | §2 |
+| `RangeSubnetLeaked` fires outside a §9 run | `ragnarok` is forwarding, or a target has a NIC on `vmbr0` | Power `gandalf` off; [`respond-to-a-security-alert.md`](respond-to-a-security-alert.md#rangesubnetleaked) |
+| A static target on `vmbr1` has a `169.254.x.x` address and a `default dev` route | A DHCP stanza beside the static one, such as `tpl-kali`'s `interfaces.d/eth0`, so dhcpcd fell back to link-local | Remove the stanza and stop dhcpcd, then §8 check four |
 | The §9 query returns nothing | Either the leak never happened, or firewall logs are not arriving | Check the pipeline first: [`ship-firewall-logs.md`](ship-firewall-logs.md) §7 |
 
 ---

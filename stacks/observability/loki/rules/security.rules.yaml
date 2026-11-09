@@ -481,6 +481,45 @@ groups:
             peer, which also means the ADR-0042 blocks are missing or ordered
             below the catch-all. Treat as a live segmentation failure.
 
+      - alert: RangeSubnetLeaked
+        # ADR-0014's optional rule, landed with #421 once the subnet was real.
+        # 172.30.30.0/24 is gandalf's range bridge, vmbr1, which has no
+        # physical port and no gateway (ADR-0017). No packet from it should
+        # ever reach morpheus. The address was chosen so that one which does
+        # arrives on igc0.30 with a source outside 10.0.30.0/24, misses the
+        # `→ any` pass, hits default deny and is logged: "a leak reports
+        # itself". That is the block this fires on. A pass would be worse,
+        # and it fires on that too.
+        #
+        # The pattern anchors the address as the SOURCE: an address followed
+        # by another address. A 172.30.30.x destination is followed by a
+        # port, so a reply into the range never matches. And nothing on the
+        # estate sends there: morpheus has no route to the subnet.
+        #
+        # build-the-playground.md §9 proves the rule by causing a leak.
+        expr: |
+          sum by (interface, action) (
+            count_over_time(
+              {app="filterlog"}
+              |~ `,172\.30\.30\.[0-9]+,[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+,` [5m]
+            )
+          ) > 0
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#rangesubnetleaked"
+          summary: "Range leak: a 172.30.30.x source was logged ({{ $labels.action }}) on {{ $labels.interface }}"
+          description: >-
+            A packet from the range's target subnet reached the firewall.
+            ADR-0017 gives that bridge no physical port and no gateway, so it
+            got out through a guest that forwarded it. Either ragnarok has
+            forwarding on, or a target has a NIC on vmbr0. Unless this is
+            build-the-playground.md §9 being run on purpose, treat it as an
+            incident: power gandalf off, then find which.
+
       - alert: IoTAttemptedLateralMovement
         # The mirror image: correctly BLOCKED attempts out of the IoT segment.
         # The control worked. The point is that a camera or a $20 Tuya device
