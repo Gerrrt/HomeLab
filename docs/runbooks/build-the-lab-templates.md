@@ -492,19 +492,74 @@ not from a second disc.
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
    and delete the rule afterwards. Debian's build (§4) needs this step and
    no other here.
-2. Grant `PhoenixBuilder` on `gandalf`'s storage and bridge, and trust
-   `gandalf`'s CA on `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins
-   `Saruman` in a cluster, it is its own API. Point `PROXMOX_URL` at it for
-   this build, and admit `phoenix` to its 8006 the way ADR-0043 did on
-   `Saruman`.
-3. Build, naming the ISO actually on `gandalf` and **its** storage.
+2. Give `phoenix` a user on `gandalf`, and trust `gandalf`'s CA on
+   `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins `Saruman` in a
+   cluster, it is its own API with its own users, so `phoenix@pve` there is a
+   second user with the same name, not the same one. `phoenix`'s 8006 rule is
+   already in `gandalf`'s `host.fw`
+   ([`build-the-playground.md`](build-the-playground.md) §4).
+
+   **The `gandalf` half ran 2026-11-09**
+   ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). The certificate
+   was already the node's own: issuer `PVE Cluster Manager CA`, names
+   including `10.0.30.30`, and no custom `pveproxy-ssl.pem`. The roles are
+   [`build-the-jumpbox.md`](build-the-jumpbox.md) §4's list plus §2's
+   `VM.GuestAgent.Audit`. `Pool.Allocate` and `Pool.Audit` are left out,
+   because they are for OpenTofu's pools on `Saruman` and nothing on `gandalf`
+   is provisioned that way. The grants are narrower than `Saruman`'s:
+
+   | Role | Path | Why |
+   | --- | --- | --- |
+   | `PhoenixBuilder` | `/vms` | creating and templating 902 |
+   | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
+   | `PhoenixBuilder` | `/storage/local` | the installer ISO |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
+   | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
+
+   Nothing is granted on `local-lvm`, because the range's disks stay off the
+   M.2. Nothing is granted on `vmbr1` either: the range NIC belongs to the
+   clone ([`build-the-playground.md`](build-the-playground.md) §5), and a
+   token that can attach guests to the range bridge is a token that can put
+   one there. Nor is `PhoenixIsoCleanup`: Kali's build serves its preseed
+   over HTTP and uploads no answer disc, so there is nothing to delete, and
+   `Datastore.Allocate` would also delete any volume on `local` and edit its
+   configuration. It was granted on 2026-11-09 and revoked the same day, from
+   review. `pveum acl list | grep phoenix` is the check.
+
+   **The token is made at the build, by the person at the terminal**, so
+   its secret goes straight to `phoenix` and is never in a transcript. On
+   `gandalf`:
+
+   ```bash
+   pveum user token add phoenix@pve builder --privsep 0
+   ```
+
+   On `phoenix`, keep it in a file of its own,
+   `~/.config/proxmox/gandalf.env` (mode 0600), with `PROXMOX_URL`,
+   `PROXMOX_TOKEN_ID` and `PROXMOX_TOKEN_SECRET` pointing at
+   `https://10.0.30.30:8006/api2/json`. For this build, source
+   `phoenix.env` first and `gandalf.env` after it. `phoenix.env` exports
+   `PKR_VAR_build_password`, which every build validates (§3), even Kali's.
+   `gandalf.env` then overrides the three API variables. Rewriting
+   `phoenix.env` instead would point the next `Saruman` build at `gandalf`.
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
+   ```
+
+   Then trust `gandalf`'s CA: relay
+   `/etc/pve/pve-root-ca.pem` as §2 does, under the name
+   `gandalf-pve-root-ca.crt`, and prove it with the same `curl`, without
+   `-k`.
+3. Build, naming **`gandalf`'s** storage. The ISO is the 2026.2 installer
+   on `gandalf`'s `local`, put there 2026-11-09 and checked against the hash
+   in `scripts/collect-iso-store-state.sh`. It is `kali_iso_file`'s default.
    `disk_storage` defaults to `large_data`, which is `Saruman`'s pool, and
    the disk creation fails without the override:
 
    ```bash
    packer build -only='kali.proxmox-iso.kali' \
-     -var kali_iso_file=local:iso/<the iso> \
-     -var disk_storage=<gandalf's guest storage> \
+     -var disk_storage=range \
      packer/
    ```
 

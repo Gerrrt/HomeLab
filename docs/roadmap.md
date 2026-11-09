@@ -288,7 +288,10 @@ Gated on the domain, on a household observation, or on something to publish.
   `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
   uninstrumented estate teaches nothing. Both are met. The runbook's §1–§4
   are behind it: the host, its bridges, `Saruman` at `.20` and the closed
-  management plane. Next is §5, the attack VM, then §6–§9, in order.
+  management plane. Next is §5, the attack VM, which clones `tpl-kali`:
+  [#790](https://github.com/Gerrrt/HomeLab/issues/790)'s build from
+  `phoenix`, whose `gandalf` half (user, grants, ISO) is done. Then §6–§9,
+  in order.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)

@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
+  [#790](https://github.com/Gerrrt/HomeLab/issues/790): `gandalf` is ready
+  for `tpl-kali`'s build, `build-the-lab-templates.md` §5 step 2's `gandalf`
+  half.** `phoenix@pve` exists on `gandalf` with `PhoenixBuilder` on `/vms`,
+  `/storage/range`, `/storage/local` and `vmbr0`, and `PVEAuditor` on
+  `/nodes/gandalf`. Nothing is granted on `local-lvm` or `vmbr1`.
+  `PhoenixIsoCleanup` was granted on `local` and revoked the same day, from
+  review: Kali's build uploads no answer disc, so `Datastore.Allocate` there
+  bought nothing. The role omits `Saruman`'s `Pool.*`, which serve
+  OpenTofu there. The API certificate was already the node's own and names
+  `10.0.30.30`, so nothing was reissued. The Kali 2026.2 installer is on
+  `gandalf`'s `local`, checked against the hash in
+  `scripts/collect-iso-store-state.sh`, and `kali_iso_file` now defaults to
+  it. No token was made: it is made at the build so its secret goes straight
+  to `phoenix`. The build, the smoke test and the `-force` rebuild are
+  still #790's, from `phoenix`.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `gandalf`'s
   management plane is closed, `build-the-playground.md` §4.** The firewall
   had been off since the install, so ADR-0014's rules did not exist yet and
