@@ -38,7 +38,9 @@
 # ADR-0063 is its decision, and DIFFERENCE 13 the one new thing it does.
 # Mosquitto and ring-mqtt are the fourteenth, as two services: the Ring
 # Alarm's way into Home Assistant, decided by ADR-0104, and the reason for
-# DIFFERENCE 14, the tier's second and third networks.
+# DIFFERENCE 14, the tier's second and third networks. Immich's machine
+# learning was moved onto two networks of its own after it had been running
+# (#978), and that is DIFFERENCE 15.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -49,7 +51,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are fourteen such places, each marked DIFFERENCE.
+# the sibling file. There are fifteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -382,7 +384,7 @@ services:
   # reasoning.
   home-assistant:
     <<: *service-defaults
-    image: ghcr.io/home-assistant/home-assistant:2026.10.4@sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+    image: ghcr.io/home-assistant/home-assistant:2026.11.1@sha256:6785d1eca68747a524c156faae1b139ed415c07357386ae6fe17291986e59e82
     container_name: sensitive-home-assistant
     # `mqtt` as well, for the broker (DIFFERENCE 14, ADR-0104).
     networks: [sensitive, mqtt]
@@ -1025,6 +1027,9 @@ services:
     <<: *service-defaults
     image: ghcr.io/immich-app/immich-server:v3.3.6@sha256:e1981983b1c13f6024b57d72e7ecae3342eed1581201ab09fb248932d86c593a
     container_name: sensitive-immich-server
+    # `immich-ml` as well, the only way to reach machine learning
+    # (DIFFERENCE 15).
+    networks: [sensitive, immich-ml]
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
     # and a 4K clip is the largest single working set anything here will have.
@@ -1088,8 +1093,23 @@ services:
 
   immich-machine-learning:
     <<: *service-defaults
-    image: ghcr.io/immich-app/immich-machine-learning:v3.3.5@sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.6@sha256:14367bfb374b8576ddf49abd67c5ca0190a4c7fcf6303cdad65d7f7bf1a50bc2
     container_name: sensitive-immich-machine-learning
+    # DIFFERENCE 15: not on `sensitive`. /predict has no authentication, and
+    # it hands whatever bytes it is sent to Pillow's Image.open with every
+    # format plugin enabled (43 of them: JPEG2000, TIFF, GIF and the rest).
+    # immich-server only ever sends it the JPEG preview that libvips made, but
+    # on `sensitive` every other service here could send it anything, so any
+    # one of them, once compromised, could reach Pillow's decoders (#978).
+    #
+    #   immich-ml         internal, no gateway. Machine learning and
+    #                     immich-server are its only members, so the server is
+    #                     the only client that can open 3003.
+    #   immich-ml-egress  its way out to huggingface.co for a model it does not
+    #                     have yet, and nothing else is on it. The models are
+    #                     in `immich-model-cache`, so a running container
+    #                     fetches nothing.
+    networks: [immich-ml, immich-ml-egress]
     # Behind a profile so that .env.example's COMPOSE_PROFILES line is the
     # switch (#132: "consider disabling the machine-learning container
     # initially"). It is ON by default: ADR-0034 chose the ProDesk because
@@ -2154,6 +2174,14 @@ networks:
     internal: true
   # DIFFERENCE 14 again: ring-mqtt's own way out, with no other member.
   ring-egress:
+    driver: bridge
+  # DIFFERENCE 15: machine learning's network, shared only with immich-server.
+  immich-ml:
+    driver: bridge
+    internal: true
+  # DIFFERENCE 15 again: machine learning's way out for a model fetch, with no
+  # other member.
+  immich-ml-egress:
     driver: bridge
 
 volumes:
