@@ -629,6 +629,17 @@ There is no ignore list, as for the secret scan in
   leave 2.x is
   [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
   second note.
+- **`ghcr.io/velocidex/velociraptor-server`,
+  [#985](https://github.com/Gerrrt/HomeLab/issues/985).** The findings are in
+  the Go modules and Go toolchain the server binary was built with, and in the
+  image's Alpine musl and zlib. The pinned tag is Velocidex's newest release,
+  its `latest` is the same image, and upstream has not rebuilt the tag, so
+  there is no bump to take. The fix is the Dependabot bump that follows
+  Velocidex's next release. What a finding could be reached through is what
+  the compose files publish: on `soc`, 8000, the client frontend, to the
+  enrolled endpoints, and 8003, unauthenticated metrics, to the lab's
+  Prometheus, with the GUI reachable only through the stack's `caddy`. On
+  `scratch`, 8000 and the GUI on 8889.
 
 The scan skips one file, `/usr/local/bin/gosu`, and only in the repositories
 [`scripts/gosu-skip.txt`](../../scripts/gosu-skip.txt) lists: `postgres`
