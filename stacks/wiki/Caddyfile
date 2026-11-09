@@ -36,6 +36,6 @@ https://lemmiwinks.matrix.elysium, https://oracle.matrix.elysium, https://10.0.9
 	# no health route, answers /healthz with a 404, and answers every other
 	# unknown path with its app shell and a 200, so the path is mapped here
 	# to the one the app's own healthcheck reads (compose.yaml, MEASURED 4).
-	rewrite /healthz /_site/current/favicon
+	rewrite /healthz /_site/lemmiwinks.matrix.elysium/favicon
 	reverse_proxy app:3000
 }

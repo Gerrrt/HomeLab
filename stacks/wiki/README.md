@@ -323,7 +323,8 @@ are rewritten by the import. The card names only the host, so it still
 works. A bookmark to a deep page does not.
 
 As `atropos` on `oracle`, in the checkout, at a time the household has been
-told about. The wiki is read-only from step 2 until step 6.
+told about. The wiki is down from step 2 until step 4, and nobody but the
+person importing should edit it until step 7 is done.
 
 **1. A set, proved.** On `prometheus`:
 
@@ -331,13 +332,32 @@ told about. The wiki is read-only from step 2 until step 6.
 make backup-wiki && make backup-wiki ARGS=--prove
 ```
 
-**2. Freeze 2.x and export it.** In 2.x, **Administration → Storage → Git →
-Force Sync**, then turn the target off, so nothing written after the export
-reaches GitHub from 2.x. Then **Administration → Utilities → Export for
-Wiki.js 3.x**, with every kind ticked, and download the package to the
-computer that will run the import: 3.x reads it in the browser. It holds every
-password hash and TOTP secret. Delete it there once step 5 is done, and from
-the `wiki-data` volume, where 2.x wrote it (`/wiki/data/backup/`), in step 6.
+**2. Freeze 2.x and export it.** Only Administrators can edit pages in 2.x.
+Family can read and comment, and anyone can change their own password. So the
+freeze is: no administrator edits from here on, and 2.x is stopped the moment
+the export is written. The check below then proves nothing changed after it.
+
+1. In 2.x, **Administration → Storage → Git → Force Sync**, then turn the
+   target off.
+2. Run **Administration → Utilities → Export for Wiki.js 3.x**, with every
+   kind ticked. Download the package to the computer that will run the
+   import: 3.x reads it in the browser. It holds every password hash and
+   TOTP secret. Delete it there once step 6 is done, and from the
+   `wiki-data` volume, where 2.x wrote it (`/wiki/data/backup/`), in step 7.
+3. Name the package, and stop 2.x at once. It stays stopped: the next `up`
+   replaces it with 3.x.
+
+```bash
+cd /opt/wiki/HomeLab && docker exec wiki-app ls /wiki/data/backup && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env stop app caddy
+```
+
+Then compare the export's own time, in the package's file name, with the
+newest change the database holds. That change must be earlier than the
+export. If it is not, start 2.x again and export again:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select greatest((select max(\"updatedAt\") from pages), (select max(\"updatedAt\") from users), (select max(\"createdAt\") from \"pageHistory\"), (select coalesce(max(\"updatedAt\"), '') from comments))"
+```
 
 **3. Keep the deploy key for 3.x.** 3.x does not import module settings, so
 the git target is entered again by hand. Its key is in the 2.x database, and
@@ -363,7 +383,7 @@ cd /opt/wiki/HomeLab && WIKI_DB_BOOTSTRAP_PASSWORD="$(cat /etc/wiki/.db-secret)"
 ```
 
 ```bash
-cd /opt/wiki/HomeLab && read -rs "WIKI_ADMIN_BOOTSTRAP_PASSWORD?bootstrap admin password: " && export WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL=bootstrap@lemmiwinks.invalid && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait && unset WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL
+cd /opt/wiki/HomeLab && read -rs "WIKI_ADMIN_BOOTSTRAP_PASSWORD?bootstrap admin password: " && export WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL=bootstrap@lemmiwinks.invalid && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait --force-recreate app caddy && unset WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL
 ```
 
 The address is deliberately not a household account's. The import never
@@ -371,7 +391,25 @@ writes to the account running it, so a household account used here would
 keep the bootstrap password and lose its own. `read -rs` is zsh's form, and
 `oracle`'s login shell is zsh.
 
-**5. Import, and put back what the import does not carry.** Sign in at
+`--force-recreate` matters for Caddy. Its service definition did not change,
+so compose would otherwise leave it running. Its Caddyfile is a single-file
+bind mount, and the fast-forward replaced that file, so a running Caddy keeps
+the old one: without the `/healthz` mapping, its healthcheck would fail
+`--wait`.
+
+**5. Prepare the mirror's branch.** In `Lemmiwinks`, `wikijs-3` starts from
+`main` with 2.x's tree removed. 3.x's export then lands on it as renames,
+which a PR can review. On top of `main`, it would leave every old
+underscore-named file beside its renamed copy. 3.x also refuses a target
+branch that does not exist. Everything that starts with a dot, and
+`frontmatter.json`, is not a page and is kept. Everything else is a page or
+an upload that 3.x writes back:
+
+```bash
+cd ~/code/Gerrrt/Lemmiwinks && git fetch -q origin && git worktree add -q -b wikijs-3 .claude/worktrees/wikijs-3 origin/main && cd .claude/worktrees/wikijs-3 && git ls-files | grep -vE '(^|/)\.|^frontmatter\.json$' | xargs git rm -q && git ls-files | wc -l && git commit -q -m "Remove the Wiki.js 2.x tree; Wiki.js 3.x writes it back renamed (HomeLab#1339)" && git push -q -u origin wikijs-3
+```
+
+**6. Import, and put back what the import does not carry.** Sign in at
 `https://lemmiwinks.matrix.elysium` as the bootstrap administrator. The
 rehearsal found each of these:
 
@@ -386,26 +424,38 @@ rehearsal found each of these:
   and `read:comments` on every path, as 2.x had.
 - **Groups → Family.** 2.x gave it `read:source` and `read:history`
   group-wide. The import carries only page rules, so add both to its rule.
-- **Settings.** Set the site's hostname to `lemmiwinks.matrix.elysium`, and
-  turn on trusting X-Forwarded-* headers, since Caddy is the proxy.
+- **Settings.** Leave the site's hostname as `*`. 3.x resolves a site from
+  the request's Host. Caddy serves three names (`lemmiwinks.matrix.elysium`,
+  `oracle.matrix.elysium` and `10.0.99.30`), and only the wildcard answers
+  all of them. Turn on trusting X-Forwarded-* headers, since Caddy is the
+  proxy.
 - **Storage.** Turn off the locale prefix, the site prefix and "README as
   home", so the files land where `Lemmiwinks` keeps them. Then set the Git
   target: SSH, `git@github.com:Gerrrt/Lemmiwinks.git`, branch **`wikijs-3`**,
-  **Push only**, the key from `/dev/shm/wiki-git-key`. Run **Add Untracked
-  Changes**. The first commit lands on the branch, not on `main`: it
-  renames 75 files and rewrites the links in about 98 pages. 3.x's git
-  module runs ssh with `StrictHostKeyChecking=no` ([ADR-0108]).
+  **Sync**, the key from `/dev/shm/wiki-git-key`. Not Push only: 3.x
+  describes that mode as a force-push, which could replace step 5's history,
+  and nothing else writes to this branch. Run **Add Untracked Changes**.
+  The first commit lands on the branch, not on `main`. 3.x's git module runs
+  ssh with `StrictHostKeyChecking=no` ([ADR-0108]).
+- **The branch's tree.** Every page and the upload are back, 109 files
+  besides the dotfiles and `frontmatter.json`, and against `main` git sees
+  renames, not additions:
+
+  ```bash
+  cd ~/code/Gerrrt/Lemmiwinks && git fetch -q origin && git ls-tree -r --name-only origin/wikijs-3 | grep -vcE '(^|/)\.|^frontmatter\.json$' && git diff --stat -M origin/main origin/wikijs-3 | tail -1
+  ```
+
 - **Users.** Sign in as the household administrator, and delete the
   bootstrap account.
 
-**6. Check, and clean up.**
+**7. Check, and clean up.**
 
 ```bash
 docker exec wiki-db psql -U wiki -d wiki -Atqc "set search_path to wiki; select (select count(*) from pages), (select count(*) from \"pageHistory\"), (select count(*) from users)"
 ```
 
 ```bash
-shred -u /dev/shm/wiki-git-key && docker run --rm -v wiki_wiki-data:/d busybox sh -c 'ls /d/backup 2>/dev/null; rm -f /d/backup/*.wkbackup'
+shred -u /dev/shm/wiki-git-key && docker exec wiki-app sh -c 'rm -f /wiki/data/backup/*.wkbackup; ls -la /wiki/data/backup'
 ```
 
 Then the blackbox probes in [TLS](#tls) step 4, a page read signed out, and
@@ -413,14 +463,15 @@ on `prometheus` `make backup-wiki` and `ARGS=--prove` against 3.x. Then
 `gh workflow run wiki-watch.yml`: with nothing left to report against 3.3.0, it
 shuts its own issue, #1298.
 
-**7. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
+**8. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
 a PR. On that branch, turn the four `diagrams/` pages' mermaid blocks into
 3.x's diagram block, which renders them, and merge it. Then point the
 target at `main` in **Sync** mode and run **Force Sync**.
 
 **Rollback**, until the household has written to 3.x: revert the PR that
 pinned 3.3.0, and deploy the revert as in
-[Deploying a change](#deploying-a-change). `db` then mounts `pgdata` again,
+[Deploying a change](#deploying-a-change), with `--force-recreate` on its
+`up`, for the Caddyfile as in step 4. `db` then mounts `pgdata` again,
 untouched since step 2. Turn 2.x's git target back on.
 
 ## The cutover

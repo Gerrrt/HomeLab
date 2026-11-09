@@ -91,9 +91,14 @@ sync is never pointed at `main` before its first commit has been read.
   back on.
 
 **`/healthz` stays the wiki's health URL.** Caddy maps it to
-`/_site/current/favicon`, a route the server answers itself, which is also
-the app's own healthcheck. Blackbox's targets and their rule tests do not
-change.
+`/_site/lemmiwinks.matrix.elysium/favicon`, a route the server answers
+itself, which is also the app's own healthcheck. Blackbox's targets and their
+rule tests do not change.
+
+**The site's hostname stays `*`.** 3.x resolves a request to a site by its
+Host header. Caddy serves the wiki as `lemmiwinks.matrix.elysium`,
+`oracle.matrix.elysium` and `10.0.99.30`, and only the wildcard answers all
+three.
 
 **Anonymous reading is put back.** Guests get an ALLOW rule for
 `read:pages`, `read:assets` and `read:comments`, as in 2.x. Family gets back

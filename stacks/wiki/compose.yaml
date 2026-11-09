@@ -97,11 +97,15 @@ services:
   #      listens on it.
   #   4. There is no health route. /healthz is a 404, and every other path
   #      that is not a page answers 200 with the app shell. The server's own
-  #      route /_site/current/favicon resolves the site by hostname and serves
-  #      its icon, so it is the check: it proves the app is serving, as 2.x's
+  #      route /_site/<hostname>/favicon resolves the site and serves its
+  #      icon, so it is the check: it proves the app is serving, as 2.x's
   #      /healthz did, and like that one it does not query the database (the
-  #      site config is cached). GNU wget is present. Caddy keeps /healthz as
-  #      the wiki's public health URL and maps it there (Caddyfile).
+  #      site config is cached). The hostname is named, not `current`:
+  #      `current` resolves the request's Host, which is 127.0.0.1 here and
+  #      matches no site once the site has a hostname of its own. A named one
+  #      falls back to the `*` site as well (#1345 review). GNU wget is
+  #      present. Caddy keeps /healthz as the wiki's public health URL and
+  #      maps it there (Caddyfile).
   #   5. Peak 246 MiB after importing the whole wiki and rendering its 108
   #      pages; 14 threads. The image carries headless Chrome, which 3.x
   #      launches only to render a page on the server (approving a suggested
@@ -150,7 +154,7 @@ services:
     # is what #847 closed. Until then this was "80:3000" on every interface.
     expose: ["3000"]
     healthcheck:
-      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/_site/current/favicon"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/_site/lemmiwinks.matrix.elysium/favicon"]
       interval: 30s
       timeout: 5s
       retries: 3

@@ -181,9 +181,16 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
         for v in a.get("vulnerabilities") or []:
             # `2.5.315`, `3.1.0, 3.0.3` and `>=3.3.0` all occur: take the versions, not the operators.
             patched = [p for p in (ver(x) for x in PATCHED.findall(v.get("patched_versions") or "")) if p]
-            if any(p <= pin for p in patched):
+            rng = v.get("vulnerable_version_range") or ""
+            # An entry that names only an older major (`> 2.4.17` patched in 2.4.107) is about that
+            # line. Read literally against a 3.x pin it would match, and it is not a 3.x advisory.
+            named = [p for p in (ver(x) for x in PATCHED.findall(rng)) if p] + patched
+            if named and max(p[0] for p in named) < pin[0]:
+                continue
+            # Only a fix on the pin's own line is carried by it: 2.5.318 is not in 3.3.0.
+            if any(p[0] == pin[0] and p <= pin for p in patched):
                 continue  # the pin carries a listed fix
-            hit = in_range(pin, v.get("vulnerable_version_range") or "")
+            hit = in_range(pin, rng)
             if hit is False:
                 continue
             if hit is None:
@@ -507,6 +514,23 @@ def self_test() -> int:
     check("and its title does not claim an ADR-0089 trigger", "ADR-0089" in title(r), False)
     r = assess("3.3.0", [adv("GHSA-4only", "2026-11-01T00:00:00Z", "<= 3.3.0", "4.0.0")], stable, nov9)
     check("on 3.x, a fix only in 4.x is no 3.x fix", [f.kind for f in r.findings], ["clock"])
+    # #1345 review: a fix on another line must not count as carried by the pin.
+    r = assess("3.3.0", [adv("GHSA-mixed", "2026-11-08T00:00:00Z", "<= 3.3.0", "2.5.318, 3.3.1")], stable, nov9)
+    check(
+        "a 2.x fix below a 3.x pin does not hide the advisory",
+        [(f.kind, f.detail) for f in r.findings],
+        [("bump", "fixed in 3.3.1")],
+    )
+    r = assess("3.3.0", [adv("GHSA-mixed2", "2026-11-08T00:00:00Z", "<= 3.3.0", "2.5.318")], stable, nov9)
+    check("and with only a 2.x fix listed, it runs the 3.x clock", [f.kind for f in r.findings], ["clock"])
+    r = assess("3.3.0", real, stable, nov9)
+    check("2.x's legacy open-ended ranges are not 3.x advisories", r.findings, [])
+    r = assess("2.5.316", [adv("GHSA-mixed3", "2026-11-08T00:00:00Z", "<= 2.5.316", "3.0.1, 2.5.317")], releases, now)
+    check(
+        "a 3.x fix above a 2.x pin is no reason to skip a 2.x bump",
+        [f.detail for f in r.findings],
+        ["fixed in 2.5.317"],
+    )
 
     text = COMPOSE.read_text() if COMPOSE.exists() else ""
     check("the pin is read from stacks/wiki/compose.yaml", bool(PIN.search(text)), True)
