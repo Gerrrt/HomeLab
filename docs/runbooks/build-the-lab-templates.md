@@ -512,8 +512,7 @@ not from a second disc.
    | --- | --- | --- |
    | `PhoenixBuilder` | `/vms` | creating and templating 902 |
    | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
-   | `PhoenixBuilder` | `/storage/local` | the installer ISO, and the answer disc Packer uploads |
-   | `PhoenixIsoCleanup` | `/storage/local` | deleting that disc afterwards, as on `Saruman` |
+   | `PhoenixBuilder` | `/storage/local` | the installer ISO |
    | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
    | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
 
@@ -521,7 +520,11 @@ not from a second disc.
    M.2. Nothing is granted on `vmbr1` either: the range NIC belongs to the
    clone ([`build-the-playground.md`](build-the-playground.md) §5), and a
    token that can attach guests to the range bridge is a token that can put
-   one there. `pveum acl list | grep phoenix` is the check.
+   one there. Nor is `PhoenixIsoCleanup`: Kali's build serves its preseed
+   over HTTP and uploads no answer disc, so there is nothing to delete, and
+   `Datastore.Allocate` would also delete any volume on `local` and edit its
+   configuration. It was granted on 2026-11-09 and revoked the same day, from
+   review. `pveum acl list | grep phoenix` is the check.
 
    **The token is made at the build, by the person at the terminal**, so
    its secret goes straight to `phoenix` and is never in a transcript. On

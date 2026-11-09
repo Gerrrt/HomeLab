@@ -23,9 +23,11 @@ docstring gives: it is a record, not a claim about now.
   [#790](https://github.com/Gerrrt/HomeLab/issues/790): `gandalf` is ready
   for `tpl-kali`'s build, `build-the-lab-templates.md` §5 step 2's `gandalf`
   half.** `phoenix@pve` exists on `gandalf` with `PhoenixBuilder` on `/vms`,
-  `/storage/range`, `/storage/local` and `vmbr0`, `PhoenixIsoCleanup` on
-  `local`, and `PVEAuditor` on `/nodes/gandalf`. Nothing is granted on
-  `local-lvm` or `vmbr1`. The role omits `Saruman`'s `Pool.*`, which serve
+  `/storage/range`, `/storage/local` and `vmbr0`, and `PVEAuditor` on
+  `/nodes/gandalf`. Nothing is granted on `local-lvm` or `vmbr1`.
+  `PhoenixIsoCleanup` was granted on `local` and revoked the same day, from
+  review: Kali's build uploads no answer disc, so `Datastore.Allocate` there
+  bought nothing. The role omits `Saruman`'s `Pool.*`, which serve
   OpenTofu there. The API certificate was already the node's own and names
   `10.0.30.30`, so nothing was reissued. The Kali 2026.2 installer is on
   `gandalf`'s `local`, checked against the hash in
