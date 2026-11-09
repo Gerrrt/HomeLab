@@ -47,7 +47,7 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
 | Tags | `analyst`, **not** `on-demand` | Always on. `HypervisorGuestStopped` should find it stopped ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)) |
 | `onboot` | `1`, no startup order | Nothing waits for it, and it waits for nothing |
 | vCPU / RAM | 4 / 8 GiB | A desktop, Wireshark on a capture, and Defense's `siemup` lab during an exercise |
-| Disk | 80 GB on `large_data` | Captures, cases and scan results. The template's own disk is 64 |
+| Disk | 120 GB on `large_data` | Captures, cases and scan results, and the OpenVAS database (ADR-0093), which alone was 24 GB on 2026-11-09. Built at 80, grown in place; the template's own disk is 64 |
 | Domain | **Not joined** | The domain is the target and is reverted. A member would fall with it, notes and all (ADR-0091) |
 | SIEM and sensors | **Off** | Wazuh, Zeek and Suricata already run. Their binaries stay, for offline work on a pcap; their daemons do not |
 | Backup | **Yes**, `golem`'s nightly job | Its case notes are not in git |
@@ -66,7 +66,7 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
    its address.
 2. **On `Saruman`:** check `large_data`, as
    [`build-the-bloodhound-guest.md`](build-the-bloodhound-guest.md) §1 does.
-   This guest adds 80 GiB to the thin allocation.
+   This guest adds 120 GiB to the thin allocation.
 
    ```bash
    pvesm status | grep -E 'large_data|local-lvm'
@@ -688,3 +688,27 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
    - `garuda`'s key in the `analyst` rule of `.sops.yaml`, back to the
      placeholder or the rule removed with the stack
 4. Destroy template 910 only if nothing else clones it.
+
+## 14. Grow its disk
+
+`disk_gib` in `tofu/guests.tf` is the size. The provider grows a disk in place,
+online, and refuses to shrink one. `/` is the last partition (§11, #1128), so
+the guest takes the new space with no reboot.
+
+1. Check the room on `Saruman`, as §2 does.
+2. On `phoenix`, after the pull request that raises `disk_gib` merges:
+
+   ```bash
+   tofu -chdir=tofu plan -target='module.guest["garuda"]'
+   ```
+
+   The plan must read **0 to add, 1 to change, 0 to destroy**, and the change
+   must be the disk's `size` alone. Anything that replaces the guest stops
+   here. Then `apply` the same target.
+3. On `garuda`:
+
+   ```bash
+   sudo growpart /dev/sda 2 && sudo resize2fs /dev/sda2 && df -h /
+   ```
+
+   Read the device from `lsblk` first if the layout has changed since §11.
