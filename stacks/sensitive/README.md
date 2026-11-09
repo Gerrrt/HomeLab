@@ -745,6 +745,10 @@ here.
   1. Add the three in-house topics, with server
      `https://ntfy.matrix.elysium` and user `phone`. The password is in the
      password manager; the topic names are in `secrets/sensitive.sops.yaml`.
+     Each begins with its channel's word, because the iOS app shows the
+     topic name and cannot rename a subscription. Android's can: give every
+     subscription, the ntfy.sh pair included, a *Display name* in its
+     settings.
   2. Keep the two ntfy.sh subscriptions. They are the off-network pager.
   3. On iOS, leave the app's *default server* at `ntfy.sh`. The upstream
      wake-ups arrive through it.

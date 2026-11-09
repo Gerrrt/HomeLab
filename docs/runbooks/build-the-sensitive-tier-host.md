@@ -354,7 +354,7 @@ what each key is for. The values:
 | `NTFY_ALERTMANAGER_TOKEN` | the pinned image's `ntfy token generate` — the command is beside the key | No. The monitoring host's `ALERTMANAGER_NTFY_TOKEN` is the other copy |
 | `NTFY_ALERTMANAGER_PASSWORD_HASH` | `make gen-secret`, then `make hash-password` on it | No — the password is thrown away; this user logs in by token |
 | `NTFY_PHONE_PASSWORD_HASH` | `make hash-password` | **The password** — each phone's ntfy app logs in with it |
-| `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | `make gen-secret`, three times | No. The monitoring host's receiver URLs end in the same three |
+| `NTFY_TOPIC_ALERTS`, `_URGENT`, `_SECURITY` | The channel's word, a dash and `openssl rand -hex 6`: `alerts-…`, `urgent-…`, `security-…` — the example file says why | No. The monitoring host's receiver URLs end in the same three |
 | `MINIFLUX_DBPASS` | `make gen-secret` — never typed: it is spliced into a connection string | No |
 | `MINIFLUX_ADMIN_PASSWORD` | `make gen-secret` | **Yes**, it is a login |
 | `LINKDING_SUPERUSER_PASSWORD` | `make gen-secret` | **Yes**, it is a login, and the only thing guarding the list ([ADR-0061](../adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md)) |
