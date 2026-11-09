@@ -220,6 +220,11 @@ time and lives in Caddy's `/data` volume, never on disk here.
   outside their volumes were found by running them, not by reading, and each
   is a `tmpfs` or an environment variable in `compose.yaml` with the finding
   beside it.
+- **Machine learning is not on `sensitive`.** Its `/predict` has no
+  authentication, and it decodes whatever image it is sent, in any format
+  Pillow knows. So it joins only `immich-ml`, an internal network it shares
+  with immich-server alone, and `immich-ml-egress`, its own way out for a
+  model fetch. No other service here can reach port 3003 ([#978]).
 - **Machine learning is on, bounded, and one line from off.** `.env.example`
   sets `COMPOSE_PROFILES=ml`; blank it and `make up` starts five services
   instead of six. [#132] asked for the option because the ML is the most
@@ -1328,3 +1333,4 @@ it matters:
 [#533]: https://github.com/Gerrrt/HomeLab/issues/533
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535
 [#970]: https://github.com/Gerrrt/HomeLab/issues/970
+[#978]: https://github.com/Gerrrt/HomeLab/issues/978
