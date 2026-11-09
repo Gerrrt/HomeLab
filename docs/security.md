@@ -1169,6 +1169,13 @@ is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
   `sensitive`, only on the broker's network, shared with Home Assistant, and
   an egress network of its own
   ([ADR-0104](adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md)).
+- Immich's machine learning is not on `sensitive` either. Its `/predict`
+  takes an image with no authentication and decodes it with Pillow, in any
+  format Pillow supports. It shares an internal network with immich-server
+  alone, and has an egress network of its own for model downloads. A
+  compromise of another service in the tier therefore cannot reach those
+  decoders
+  ([#978](https://github.com/Gerrrt/HomeLab/issues/978)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability
