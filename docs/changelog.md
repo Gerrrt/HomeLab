@@ -34,7 +34,7 @@ docstring gives: it is a record, not a claim about now.
   `make-attack-vm.sh` and `garuda`'s module all set `ipconfig0` to DHCP, so
   their `eth0` still comes up through cloud-init. Neither template has been
   rebuilt with the change yet; until it is, both still carry the stanza.
-||||||| 2391766
+
 - **ADR-0089's trigger 3 has fired: Wiki.js 3.x is stable, and the move is
   [#1339](https://github.com/Gerrrt/HomeLab/issues/1339).** `requarks/wiki`
   published `3.0.1`, its first stable 3.x release, on 2026-11-01. Five more
@@ -68,7 +68,6 @@ docstring gives: it is a record, not a claim about now.
   for the graphs to read, so it says nothing about whether the subscription
   is up. The rack visit in runbook §5 to §7 still owes the forced-shutdown
   proof and the mains pull.
-||||||| parent of a3b8893 (fix(packer): drop tpl-kali's build-time eth0 DHCP stanza before templating (#790))
 
 - **The in-house ntfy topics are renamed so a phone can tell them apart.**
   The iOS ntfy app shows a subscription by its topic name and has no display
