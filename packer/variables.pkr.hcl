@@ -157,13 +157,13 @@ variable "arch_iso_file" {
   default = "smaug-iso:iso/archlinux-2026.10.01-x86_64.iso"
 }
 
-# A placeholder name: Kali is written and not yet built (ADR-0074 part 2), and
-# the first build on gandalf sets this to the ISO it actually has. It stays on
-# local: the ISO store's export and pass admit Saruman alone (ADR-0072), so
-# gandalf cannot mount it.
+# The 2026.2 installer on gandalf's own local storage, the same file and hash
+# as kali_saruman_iso_file's (scripts/collect-iso-store-state.sh). It sits on
+# local because the ISO store's export and pass admit Saruman alone
+# (ADR-0072), so gandalf cannot mount it.
 variable "kali_iso_file" {
   type    = string
-  default = "local:iso/kali-linux-installer-amd64.iso"
+  default = "local:iso/kali-linux-2026.2-installer-amd64.iso"
 }
 
 # 910's ISO, for garuda (#921). Saruman mounts smaug-iso, so this one sits
