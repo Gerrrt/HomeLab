@@ -214,7 +214,18 @@ links.matrix.elysium {
 # the same origin, so one block serves both. The server is claimed before its
 # first start (scripts/seed-actual-password.sh), so there is never a moment
 # when this name offers "set a password" to whoever arrives first.
+#
+# A request with any Content-Encoding is refused with 415, until the image
+# ships body-parser 2.4.0 (#970). Actual parses every body before routing and
+# auth, with inflation on, and 26.11.0's body-parser 2.3.0 lets one compressed
+# body with trailing bytes crash the process (CVE-2026-111181). Turning
+# inflation off is the advisory's workaround, and Actual has no setting for
+# it. Actual's web client never compresses what it sends. Take this matcher
+# out in the bump that clears #970.
 actual.matrix.elysium {
+	@encoded_body header Content-Encoding *
+	respond @encoded_body "Compressed request bodies are refused here." 415
+
 	reverse_proxy actual:5006
 
 	log {
