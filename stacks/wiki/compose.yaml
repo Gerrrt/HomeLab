@@ -19,25 +19,30 @@
 # ---------------------------------------------------------------------------
 # What is state here, and what is not
 # ---------------------------------------------------------------------------
-# All of it is in Postgres. Read off the running containers on 2026-09-30:
-# the database is 18 MB — 108 pages, 780 history rows, 4 users, the
-# navigation, every setting, and the git storage target's configuration,
-# deploy key included. Everything under /wiki/data is derived from it or from
-# GitHub: repo/ is a clean clone of Gerrrt/Lemmiwinks at main, secure/ holds
-# the deploy key Wiki.js writes out of the database on every start, cache/ is
-# a render cache, and uploads/ is a staging directory that was empty.
+# All of it is in Postgres. Wiki.js 3.x keeps it in the schema `wiki` of the
+# database `wiki` (DB_SCHEMA's default), on the volume `pgdata-wiki3`: every
+# page and its history, the accounts, the navigation, every setting, the
+# uploaded file (in the `db` storage target, which 3.x cannot turn off), and
+# the git storage target's configuration, deploy key included. Rehearsed on
+# 2026-11-09 from the set of that morning (#1339): 108 pages, 762 history rows
+# carried, 4 accounts. Everything under /wiki/data is derived from it or from
+# GitHub: repo/ is the git target's working copy, secure/ the deploy key 3.x
+# writes out of the database, cache/ the icon and file caches.
 #
-# /wiki/data/content, the image's one declared VOLUME and the reason the old
-# container had an anonymous volume, was EMPTY — 4 KB, its mtime the day the
-# image was built. Nothing here writes to it: the only storage target enabled
-# is git. It is a tmpfs below so that Docker has a mount at the declared path
-# and creates no anonymous volume for it; enabling "Local File System" storage
-# at that path would need a volume here first, and this comment is where that
-# is said.
+# /wiki/data/content and /wiki/data/repo are the image's two declared VOLUMEs.
+# content/ is the `disk` target's default root, and no disk target is
+# enabled. repo/ is the git target's working copy, which 3.x calls "a cache it
+# rebuilds from the remote whenever it needs to": 2.8 MB for the whole wiki in
+# the rehearsal. Both are tmpfs below, so that Docker has a mount at each
+# declared path and creates no anonymous volume; a recreate re-clones.
 #
 # So the backup is a pg_dump and nothing else — scripts/backup-wiki.sh, run on
-# prometheus, pulling (ADR-0065). wiki-data is a named volume so that a
-# recreate does not re-clone the repository, not because it holds anything.
+# prometheus, pulling (ADR-0065). wiki-data is a named volume for the caches,
+# not because it holds anything.
+#
+# The 2.x cluster, on the volume `pgdata`, is declared below and mounted by
+# nothing. It is the rollback until the move to 3.x is proved, and it is
+# retired by the follow-up to #1339, not by this file.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -67,33 +72,45 @@ services:
   # Wiki.js
   # ---------------------------------------------------------------------------
   # Pinned by tag and digest; the image line is the only place the version is
-  # written, because Dependabot rewrites that line and nothing else. The first
-  # pin, on 2026-09-30, was the digest the hand-run container had been created
-  # from — the `2` tag it was pulled by had already moved on, which is the
-  # whole argument for pinning. An upgrade is a Dependabot bump reviewed here,
-  # then README.md's fetch on the host; never a pull there.
+  # written, because Dependabot rewrites that line and nothing else. An upgrade
+  # is a Dependabot bump reviewed here, then README.md's fetch on the host;
+  # never a pull there. 3.3.0 is the floor: every 3.x before it has a published
+  # advisory, and twelve were published between 2026-11-02 and 2026-11-09
+  # (ADR-0108). scripts/wiki_watch.py reads them against this line weekly.
   #
-  # UPGRADE_COMPANION is NOT set. The old container had it, and beside it ran
-  # requarks' update companion with the Docker socket mounted — a container
-  # whose job is to pull a newer image and recreate this one outside any
-  # compose file. It is removed, not carried over: it would undo every pin
-  # below on the day it worked.
+  # Wiki.js 3.x cannot upgrade a 2.x database in place. The move was a 2.x
+  # export into a fresh 3.x on an empty database (ADR-0108, README.md § The
+  # move to 3.x), which is why the database is on a new volume.
   #
-  # MEASURED 2026-09-30, on the image pinned that day. Re-check the ones a
-  # bump could move — the uid, the paths it writes, wget — when one lands:
+  # UPGRADE_COMPANION is NOT set, and requarks' update companion is not run:
+  # it held the Docker socket and recreated Wiki.js outside any compose file,
+  # which would undo every pin here the day it worked.
+  #
+  # MEASURED 2026-11-09, on 3.3.0, in a scratch project on oracle with this
+  # service's hardening (#1339). Re-check them when a bump lands:
   #   1. It runs as `node`, uid 1000 — the same number as the operator's
   #      account on oracle, which is why the secret below can be 0400 and
   #      owned by that account rather than world-readable.
-  #   2. It writes /wiki/data, /home/node/.ssh (the git module's known_hosts)
-  #      and /tmp, and nothing else; it boots read-only with those three.
-  #   3. It listens on 3000 only. 3443 is Wiki.js's built-in Let's Encrypt
-  #      listener, which is off (SSL_ACTIVE unset) — the old container
-  #      published 443 to a port nothing answered on, and this does not.
-  #   4. /healthz answers {"ok":true}; busybox wget is present.
-  #   5. Resident at 192 MiB after thirteen hours up; 162 threads.
+  #   2. It writes /wiki/data, its two declared VOLUMEs under it, /home/node
+  #      and /tmp, and nothing else; it boots read-only with those.
+  #   3. It listens on 3000 only. The image declares 3443 too, and nothing
+  #      listens on it.
+  #   4. There is no health route. /healthz is a 404, and every other path
+  #      that is not a page answers 200 with the app shell. The server's own
+  #      route /_site/current/favicon resolves the site by hostname and serves
+  #      its icon, so it is the check: it proves the app is serving, as 2.x's
+  #      /healthz did, and like that one it does not query the database (the
+  #      site config is cached). GNU wget is present. Caddy keeps /healthz as
+  #      the wiki's public health URL and maps it there (Caddyfile).
+  #   5. Peak 246 MiB after importing the whole wiki and rendering its 108
+  #      pages; 14 threads. The image carries headless Chrome, which 3.x
+  #      launches only to render a page on the server (approving a suggested
+  #      edit), never on the markdown editor's path, so 512 MiB stands.
+  #   6. DB_PASS_FILE still works. The cluster needs `ltree` and `pg_trgm`,
+  #      which the postgres image below ships.
   app:
     <<: *service-defaults
-    image: ghcr.io/requarks/wiki:2.5.317@sha256:e4708eed80c014449c0c8426c8d466c7a52a62131555bb44372fa48378b448b8
+    image: ghcr.io/requarks/wiki:3.3.0@sha256:9cd23ece11ac49d2cbdb1d75a96224c8959a35d15b5dd969fa7fa9c325dbc357
     container_name: wiki-app
     user: "1000:1000"
     mem_limit: 512m
@@ -104,10 +121,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp:size=64m,uid=1000,gid=1000
-      - /home/node/.ssh:size=1m,uid=1000,gid=1000,mode=0700
+      - /home/node:size=8m,uid=1000,gid=1000,mode=0700
       - /wiki/data/content:size=1m,uid=1000,gid=1000
+      - /wiki/data/repo:size=64m,uid=1000,gid=1000
     environment:
-      DB_TYPE: postgres
       DB_HOST: db
       DB_PORT: "5432"
       DB_USER: wiki
@@ -117,6 +134,14 @@ services:
       # from (see the header); .env.example says where it lives on the host,
       # who owns it and why its mode is 0400.
       DB_PASS_FILE: /etc/wiki/.db-secret
+      # Read on the FIRST start against an empty database only, to create the
+      # account that runs the import, and logged as ignored on every start
+      # after. Set for that one `up` and never written down, like
+      # WIKI_DB_BOOTSTRAP_PASSWORD below; README.md § The move to 3.x. Left
+      # empty on an empty database, 3.x falls back to admin@example.com and
+      # 12345678, so never start it on an empty volume without them.
+      ADMIN_EMAIL: ${WIKI_ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_PASS: ${WIKI_ADMIN_BOOTSTRAP_PASSWORD:-}
     volumes:
       - ${WIKI_DB_SECRET:?set in .env — see .env.example}:/etc/wiki/.db-secret:ro
       - wiki-data:/wiki/data
@@ -125,7 +150,7 @@ services:
     # is what #847 closed. Until then this was "80:3000" on every interface.
     expose: ["3000"]
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/healthz"]
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://127.0.0.1:3000/_site/current/favicon"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -217,14 +242,15 @@ services:
   # Dependabot is told to ignore majors here: a major upgrade is a dump and a
   # restore, not a bump, and README.md § Upgrading has it.
   #
-  # The cluster is the EXISTING one, in the volume the old container named
-  # `pgdata` — adopted below as external, never created by this file. PGDATA is
-  # the image's default for 17 and must stay that way, or Postgres would start
-  # an empty cluster beside the real one.
+  # The cluster is Wiki.js 3.x's, in the external volume `pgdata-wiki3`,
+  # created by hand for the move (README.md § The move to 3.x) and never by
+  # this file. PGDATA is the image's default for 17 and must stay that way, or
+  # Postgres would start an empty cluster beside the real one. The 2.x cluster
+  # in `pgdata` is not mounted; see the volumes below.
   #
   # No password is given to this container in normal running. The entrypoint
-  # only reads one to INITIALISE an empty cluster, and this one has been
-  # initialised since 2025-11-12, so the secret is mounted into the app alone.
+  # only reads one to INITIALISE an empty cluster, and this one is initialised
+  # once, at the move, so the secret is mounted into the app alone.
   # Initialising a fresh cluster — a restore onto an empty volume — is the one
   # time it is needed, and WIKI_DB_BOOTSTRAP_PASSWORD carries it for that one
   # `up`; README.md § Restore has the procedure.
@@ -253,7 +279,7 @@ services:
       POSTGRES_PASSWORD: ${WIKI_DB_BOOTSTRAP_PASSWORD:-}
       PGDATA: /var/lib/postgresql/data
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata-wiki3:/var/lib/postgresql/data
     expose: ["5432"]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "wiki", "-d", "wiki"]
@@ -266,14 +292,21 @@ networks:
   wiki:
 
 volumes:
-  # The Postgres cluster: every account, page, revision and setting. Created by
-  # the hand-run container on 2025-11-12 under this name, and adopted rather
-  # than recreated — `external` means `docker compose down -v` cannot remove it.
-  # Backed up by scripts/backup-wiki.sh as a pg_dump, never as this directory.
+  # The Postgres cluster of Wiki.js 3.x: every account, page, revision and
+  # setting. Created by hand at the move (`docker volume create pgdata-wiki3`),
+  # and `external` so that `docker compose down -v` cannot remove it. Backed up
+  # by scripts/backup-wiki.sh as a pg_dump, never as this directory.
+  pgdata-wiki3:
+    external: true
+    name: pgdata-wiki3
+  # The 2.x cluster, created by the hand-run container on 2025-11-12. Mounted by
+  # nothing: it is the rollback until the move is proved (ADR-0108), declared
+  # here so that the file says it exists. Pointing `db` back at it, with the
+  # 2.5.317 pin, is the whole rollback. The follow-up to #1339 retires it.
   pgdata:
     external: true
     name: pgdata
-  # Wiki.js's working directory: the git clone, the render cache, the deploy
-  # key it writes out of the database. Derived, all of it; kept only so a
-  # recreate does not re-clone. Not backed up, by decision (ADR-0065).
+  # Wiki.js's working directory: the icon and file caches, and the deploy key
+  # it writes out of the database. Derived, all of it. Not backed up, by
+  # decision (ADR-0065).
   wiki-data:

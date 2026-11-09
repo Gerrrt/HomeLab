@@ -612,9 +612,11 @@ wiki's engine is watched the same way:
 [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
 `requarks/wiki`'s own advisories and releases every Monday against the
 pinned version. It keeps one issue, labelled `security` and `wiki`, open while
-an advisory affects the pin or an ADR-0089 trigger has fired. That is what
-starts the 30-day clock for an advisory nobody fixes. Run it locally with
-`python3 scripts/wiki_watch.py`.
+an advisory affects the pin, and starts a 30-day clock for one that nobody
+fixes. On a 3.x pin an advisory with a later 3.x fix is a bump, and ADR-0089's
+triggers for leaving 2.x are spent
+([ADR-0108](../adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)).
+Run it locally with `python3 scripts/wiki_watch.py`.
 
 Some of the scan's issues stay open because there is nothing to bump to. The
 pinned digest is already upstream's newest, and the fix waits on a rebuild
@@ -624,11 +626,14 @@ There is no ignore list, as for the secret scan in
 [`security.md`](../security.md).
 
 - **`ghcr.io/requarks/wiki`,
-  [#984](https://github.com/Gerrrt/HomeLab/issues/984).** The findings are in
-  the npm packages that Wiki.js 2.x bundles. Why they are not a reason to
-  leave 2.x is
+  [#984](https://github.com/Gerrrt/HomeLab/issues/984).** The findings were in
+  the npm packages that Wiki.js 2.x bundles, and no 2.x image carried their
+  fixes. Why they were not a reason to leave 2.x is
   [ADR-0089](../adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)'s
-  second note.
+  second note. The pin is 3.x since
+  [ADR-0108](../adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md),
+  a different image: the next scan rewrites #984 with what 3.x's packages
+  carry, or closes it.
 
 The scan skips one file, `/usr/local/bin/gosu`, and only in the repositories
 [`scripts/gosu-skip.txt`](../../scripts/gosu-skip.txt) lists: `postgres`

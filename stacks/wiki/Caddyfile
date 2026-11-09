@@ -31,5 +31,11 @@ http:// {
 # The names the leaf carries, and the address, which blackbox probes too.
 https://lemmiwinks.matrix.elysium, https://oracle.matrix.elysium, https://10.0.99.30 {
 	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	# /healthz is the wiki's health URL: blackbox probes it, this file's
+	# healthcheck reads it, and README.md's commands name it. Wiki.js 3.x has
+	# no health route, answers /healthz with a 404, and answers every other
+	# unknown path with its app shell and a 200, so the path is mapped here
+	# to the one the app's own healthcheck reads (compose.yaml, MEASURED 4).
+	rewrite /healthz /_site/current/favicon
 	reverse_proxy app:3000
 }

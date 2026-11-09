@@ -16,7 +16,7 @@ until this directory ([#251]).
 | Service | Container | Port | Purpose |
 | --- | --- | --- | --- |
 | caddy | `wiki-caddy` | 443 (https), and 80, which only redirects to it; to the segment and to Hicks | TLS in front of Wiki.js, at `https://lemmiwinks.matrix.elysium`, on a leaf from the estate's CA ([ADR-0082]) |
-| app | `wiki-app` | none (3000, to Caddy) | Wiki.js 2 |
+| app | `wiki-app` | none (3000, to Caddy) | Wiki.js 3 ([ADR-0108]) |
 | db | `wiki-db` | none | Postgres 17, the wiki's only state |
 
 ## Deploying a change
@@ -222,11 +222,16 @@ That command, on `prometheus`, restores the newest set into a scratch Postgres
 and counts it against what the set's MANIFEST recorded.
 
 **Nothing else**, by decision. Everything under `/wiki/data` is derived from
-the database or from GitHub. `repo/` is a clone of `Gerrrt/Lemmiwinks`,
-`secure/` holds the deploy key Wiki.js writes out of the database on each
-start, and `cache/` is a render cache. `compose.yaml`'s header has the
-measurements. The pages are in GitHub regardless, so what the dump protects is
-everything else: accounts, history, navigation and settings.
+the database or from GitHub. `repo/` is the git target's working copy of
+`Gerrrt/Lemmiwinks`, on a tmpfs and re-cloned on a recreate, `secure/` holds
+the deploy key Wiki.js writes out of the database, and `cache/` holds the icon
+and file caches. `compose.yaml`'s header has the measurements. The pages are
+in GitHub regardless, so what the dump protects is everything else: accounts,
+history, navigation and settings.
+
+Wiki.js 3 keeps its tables in the schema `wiki`, where 2.x used `public`.
+`backup-wiki.sh` counts with `search_path` set to both, so the same script
+reads either engine.
 
 A set holds the git storage target's deploy key, because the database does.
 It is ciphertext to the same keys that open `grafana.db`.
@@ -255,7 +260,7 @@ To put it back:
    `up` and never written down:
 
    ```bash
-   docker volume create pgdata
+   docker volume create pgdata-wiki3
    ```
 
    ```bash
@@ -270,15 +275,17 @@ To put it back:
    initialised and ignores its absence from then on. Then restore as in (1),
    and bring the rest up with the same command and `up -d`.
 
-   Rehearsed on `oracle` on 2026-09-30 against a scratch project, with this
-   file's hardening. The bootstrap, the restore of a dump of the live
-   database (108 pages, 4 users), the app booting read-only and healthy, and
-   a page rendering all worked. The git storage target was disabled in the
-   scratch copy first, so the rehearsal could not push to `Lemmiwinks`. Do
-   the same in any rehearsal:
+   Rehearsed for 2.x on `oracle` on 2026-09-30 against a scratch project,
+   with this file's hardening: the bootstrap, the restore of a dump of the
+   live database (108 pages, 4 users), the app booting read-only and
+   healthy, and a page rendering all worked. Not yet rehearsed for a 3.x set.
+
+   In any rehearsal, disable the git storage target in the scratch copy
+   before Wiki.js starts on it, so it cannot push to `Lemmiwinks`. On 3.x the
+   `db` target cannot be turned off and is left alone:
 
    ```sql
-   update storage set "isEnabled" = false;
+   update wiki.storage set "isEnabled" = false where module <> 'db';
    ```
 
 ## Upgrading
@@ -289,15 +296,132 @@ take a set, point `db` at a new empty volume and a new image, and restore
 into it as in (2) above. A dump restores into a newer Postgres, and the
 on-disk cluster does not.
 
-The weekly CVE scan's issue for this image, [#984], is expected to stay
-open. Its findings are in the npm packages that Wiki.js 2.x bundles, and no
-2.x image carries their fixes yet, so Dependabot has nothing to propose. The
-scan count does not decide when the wiki moves off 2.x. [ADR-0089]'s
-triggers do, and its note records why.
+3.x moves fast: twelve advisories were published in its first nine days of
+stable releases, each fixed in the next one. [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml)
+reads them against the pin every Monday, after Dependabot's Sunday PRs, and
+keeps one issue open while an advisory affects the pin. An advisory with a
+3.x fix is a bump. One with none after 30 days is a decision for a person
+([ADR-0108]).
 
 The update companion that ran beside the old container is gone on purpose.
 It held the Docker socket and recreated Wiki.js from the floating `2` tag,
 outside any compose file, which would undo every pin here the day it worked.
+
+## The move to 3.x
+
+Wiki.js 3 cannot upgrade a 2.x database in place ([ADR-0108]). 2.x, at
+2.5.317, exports a `.wkbackup` package, and a fresh 3.x on an empty database
+imports it. The new cluster is on its own volume, `pgdata-wiki3`. 2.x's
+`pgdata` is left untouched as the rollback. Rehearsed on `oracle` on
+2026-11-09 from that morning's set ([#1339]). What the rehearsal found is
+written into the steps below.
+
+**What changes for a reader.** 3.x stores a path with hyphens, lowercased:
+`/runbooks/a_machine_died` becomes `/runbooks/a-machine-died`. About 74 of
+the 108 pages move, and their old URLs do not redirect. Links inside the wiki
+are rewritten by the import. The card names only the host, so it still
+works. A bookmark to a deep page does not.
+
+As `atropos` on `oracle`, in the checkout, at a time the household has been
+told about. The wiki is read-only from step 2 until step 6.
+
+**1. A set, proved.** On `prometheus`:
+
+```bash
+make backup-wiki && make backup-wiki ARGS=--prove
+```
+
+**2. Freeze 2.x and export it.** In 2.x, **Administration → Storage → Git →
+Force Sync**, then turn the target off, so nothing written after the export
+reaches GitHub from 2.x. Then **Administration → Utilities → Export for
+Wiki.js 3.x**, with every kind ticked, and download the package to the
+computer that will run the import: 3.x reads it in the browser. It holds every
+password hash and TOTP secret. Delete it there once step 5 is done, and from
+the `wiki-data` volume, where 2.x wrote it (`/wiki/data/backup/`), in step 6.
+
+**3. Keep the deploy key for 3.x.** 3.x does not import module settings, so
+the git target is entered again by hand. Its key is in the 2.x database, and
+it goes to a file only `atropos` can read, in memory:
+
+```bash
+install -m 0600 /dev/null /dev/shm/wiki-git-key && docker exec wiki-db psql -U wiki -d wiki -Atc "select config::jsonb->>'sshPrivateKeyContent' from storage where key='git'" > /dev/shm/wiki-git-key
+```
+
+**4. Deploy the merged commit onto a new cluster.** Run
+[Deploying a change](#deploying-a-change) steps 1 to 3, but end step 3 at
+`test "$(git rev-parse HEAD)" = "$SHA"`, without its `up`. Then create the
+volume, initialise the cluster with the database password, and start
+Wiki.js 3 with a bootstrap administrator. Each variable is given for one `up`
+and never written down:
+
+```bash
+docker volume create pgdata-wiki3
+```
+
+```bash
+cd /opt/wiki/HomeLab && WIKI_DB_BOOTSTRAP_PASSWORD="$(cat /etc/wiki/.db-secret)" docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait db && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait db
+```
+
+```bash
+cd /opt/wiki/HomeLab && read -rs "WIKI_ADMIN_BOOTSTRAP_PASSWORD?bootstrap admin password: " && export WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL=bootstrap@lemmiwinks.invalid && docker compose -f stacks/wiki/compose.yaml --env-file /opt/wiki/.env up -d --wait && unset WIKI_ADMIN_BOOTSTRAP_PASSWORD WIKI_ADMIN_BOOTSTRAP_EMAIL
+```
+
+The address is deliberately not a household account's. The import never
+writes to the account running it, so a household account used here would
+keep the bootstrap password and lose its own. `read -rs` is zsh's form, and
+`oracle`'s login shell is zsh.
+
+**5. Import, and put back what the import does not carry.** Sign in at
+`https://lemmiwinks.matrix.elysium` as the bootstrap administrator. The
+rehearsal found each of these:
+
+- **Administration → Utilities → Import from Wiki.js 2.x.** Choose the
+  package, tick every kind, and turn on **Overwrite on conflict**. A fresh
+  3.x already has a default sidebar, and without it the 2.x navigation is
+  skipped. Expect 108 pages, 762 history rows (2.x keeps 44 more, for pages
+  it has deleted), and 3 accounts plus Guest.
+- **Groups → Guests.** 3.x keeps its own DENY rule here, and the import
+  cannot change a built-in group, so a reader who is not signed in would see
+  nothing. Replace it with one ALLOW rule for `read:pages`, `read:assets`
+  and `read:comments` on every path, as 2.x had.
+- **Groups → Family.** 2.x gave it `read:source` and `read:history`
+  group-wide. The import carries only page rules, so add both to its rule.
+- **Settings.** Set the site's hostname to `lemmiwinks.matrix.elysium`, and
+  turn on trusting X-Forwarded-* headers, since Caddy is the proxy.
+- **Storage.** Turn off the locale prefix, the site prefix and "README as
+  home", so the files land where `Lemmiwinks` keeps them. Then set the Git
+  target: SSH, `git@github.com:Gerrrt/Lemmiwinks.git`, branch **`wikijs-3`**,
+  **Push only**, the key from `/dev/shm/wiki-git-key`. Run **Add Untracked
+  Changes**. The first commit lands on the branch, not on `main`: it
+  renames 75 files and rewrites the links in about 98 pages. 3.x's git
+  module runs ssh with `StrictHostKeyChecking=no` ([ADR-0108]).
+- **Users.** Sign in as the household administrator, and delete the
+  bootstrap account.
+
+**6. Check, and clean up.**
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "set search_path to wiki; select (select count(*) from pages), (select count(*) from \"pageHistory\"), (select count(*) from users)"
+```
+
+```bash
+shred -u /dev/shm/wiki-git-key && docker run --rm -v wiki_wiki-data:/d busybox sh -c 'ls /d/backup 2>/dev/null; rm -f /d/backup/*.wkbackup'
+```
+
+Then the blackbox probes in [TLS](#tls) step 4, a page read signed out, and
+on `prometheus` `make backup-wiki` and `ARGS=--prove` against 3.x. Then
+`gh workflow run wiki-watch.yml`: with nothing left to report against 3.3.0, it
+shuts its own issue, #1298.
+
+**7. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
+a PR. On that branch, turn the four `diagrams/` pages' mermaid blocks into
+3.x's diagram block, which renders them, and merge it. Then point the
+target at `main` in **Sync** mode and run **Force Sync**.
+
+**Rollback**, until the household has written to 3.x: revert the PR that
+pinned 3.3.0, and deploy the revert as in
+[Deploying a change](#deploying-a-change). `db` then mounts `pgdata` again,
+untouched since step 2. Turn 2.x's git target back on.
 
 ## The cutover
 
@@ -349,8 +473,8 @@ to 13:55:36 UTC.
 [ADR-0043]: ../../docs/adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md
 [ADR-0065]: ../../docs/adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md
 [ADR-0082]: ../../docs/adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md
-[ADR-0089]: ../../docs/adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md
+[ADR-0108]: ../../docs/adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md
 [#251]: https://github.com/Gerrrt/HomeLab/issues/251
 [#833]: https://github.com/Gerrrt/HomeLab/issues/833
 [#847]: https://github.com/Gerrrt/HomeLab/issues/847
-[#984]: https://github.com/Gerrrt/HomeLab/issues/984
+[#1339]: https://github.com/Gerrrt/HomeLab/issues/1339

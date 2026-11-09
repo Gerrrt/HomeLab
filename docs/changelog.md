@@ -19,6 +19,41 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-09
 
+- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki's move to
+  Wiki.js 3.x passed both gates, and
+  [ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)
+  decides how it is made.**
+  - **The live wiki was on 2.5.316,** though `main` had pinned 2.5.317 since
+    #1258. That bump had never been deployed. It was deployed by the
+    signed-checkout procedure (`e66cb0c`). The wiki was down for under a
+    minute, and git sync initialised cleanly.
+  - **Gate 1, read against the 3.3.0 source:** internal-only, Postgres, and a
+    `git` storage module all survive.
+  - **Gate 2, rehearsed on `oracle` in a scratch project:**
+    1. That morning's set, `20261109T044615Z`, was restored and counted:
+       108 pages, 806 history rows, 4 users.
+    2. A scratch 2.5.317 exported it.
+    3. 3.3.0's own importer took it into a fresh 3.3.0 under the stack's
+       hardening: 108 pages, the 762 history rows whose page still exists,
+       3 accounts and Guest, and the navigation.
+  - **What it found:**
+    - 3.x stores paths with hyphens, so about 74 URLs change, without
+      redirects.
+    - The built-in Guests group denies reading.
+    - Family loses `read:source` and `read:history`.
+    - mermaid renders as code, not as a diagram.
+    - `/healthz` is gone.
+    - The tables are in the schema `wiki`.
+    - The git module does not verify the host key.
+  - **What it measured:** uid 1000, a 246 MiB peak, port 3000 only, and it
+    boots read-only.
+  - **The PR:**
+    - pins 3.3.0;
+    - moves `db` to `pgdata-wiki3`;
+    - maps `/healthz` in Caddy;
+    - counts with `search_path` set to `wiki, public`;
+    - points `wiki-watch` at 3.x advisories.
+  - **Left:** the cutover, and the `Lemmiwinks` PR.
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `RangeSubnetLeaked`
   is written, and `build-the-playground.md` §8 ran on `gandalf`.**
   - **The rule** is ADR-0014's optional one: any `filterlog` line, block or
