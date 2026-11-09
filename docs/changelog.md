@@ -28,7 +28,8 @@ docstring gives: it is a record, not a claim about now.
   carries ADR-0014's three rules and `phoenix`'s 8006 rule. `cluster.fw`
   sets the alias to `10.0.30.30`, which leaves that address alone in the
   `management` set. The firewall was enabled at `policy_in: ACCEPT`, read
-  back and then flipped to `DROP`. The session from Hicks stayed up. The
+  back and then flipped to `DROP`. The session from Hicks stayed up, and §4's
+  probe from `morpheus` read `8006 exit=1` and `control exit=0`. The
   flip first stalled on an `overwrite?` prompt, because root's `cp` on
   `gandalf` is `cp -i`, and §4 now says so. There are no guests, so no guest
   NIC needed clearing. There is no collector or alert drill, because

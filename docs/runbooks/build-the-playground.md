@@ -385,7 +385,8 @@ them.
 > `using user defined local_network: 10.0.30.30`, and the
 > `PVEFW-0-management-v4` set held `10.0.30.30` alone. The flip left the SSH
 > session from Hicks up. The empty `management-v6` set means nothing reaches
-> 8006 over IPv6 at all.
+> 8006 over IPv6 at all. The probe from `morpheus`, aimed at `10.0.30.30`,
+> read `8006 exit=1` and `control exit=0`.
 >
 > **Write the files with `command cp -f`, not `cp`.** Root's shell on
 > `gandalf` aliases `cp` to `cp -i`. A new file is written with no prompt, but

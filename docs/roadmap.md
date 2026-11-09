@@ -286,11 +286,9 @@ Gated on the domain, on a household observation, or on something to publish.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
   `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. The host is installed
-  as of 2026-11-07: Proxmox VE 9, the `range` pool and both bridges, the
-  runbook's §1 and §2. §3 ran the same night: `Saruman` is at `.20`. §4
-  closed `gandalf`'s management plane on 2026-11-09. Next is §5, the attack
-  VM, then §6–§9.
+  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§4
+  are behind it: the host, its bridges, `Saruman` at `.20` and the closed
+  management plane. Next is §5, the attack VM, then §6–§9, in order.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
