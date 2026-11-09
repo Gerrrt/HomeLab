@@ -489,76 +489,100 @@ node. The preseed is served over Packer's HTTP server on port 8800 of
 not from a second disc.
 
 > **Ran 2026-11-09** ([#790](https://github.com/Gerrrt/HomeLab/issues/790),
-> [#421](https://github.com/Gerrrt/HomeLab/issues/421)). Steps 2–5 below are
-> what ran. The first build took 10 min 33 s and the `-force` rebuild
-> 10 min 41 s. `packer-smoke.sh 902` passed after each. `gandalf`'s 10 s
-> `boot_wait` was enough with no boot order, unlike 910 on `Saruman`. The
-> clone `ragnarok` then read `running` with 0 failed units and no account
-> expiring at the epoch, the check
+> [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The first build took
+> 10 min 33 s and the `-force` rebuild 10 min 41 s. `packer-smoke.sh 902`
+> passed after each. `gandalf`'s 10 s `boot_wait` was enough with no boot
+> order, unlike 910 on `Saruman`. The clone `ragnarok` then read `running`
+> with 0 failed units and no account expiring at the epoch, the check
 > [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
 
-1. **Port 8800 on `phoenix`.** If `ufw` is active, run
-   `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp` for the build
-   and delete the rule afterwards. On 2026-11-09 `ufw` was inactive on
-   `phoenix`, so there was nothing to open. Debian's build (§4) needs this
-   step and no other here.
-2. **The user, the roles and the token, on `gandalf`, as root.** `gandalf` is
-   not clustered with `Saruman`
-   ([ADR-0039](../adr/0039-decline-proxmox-clustering-while-ifrit-is-the-range.md)),
-   so it is its own API with its own users. The role is
-   [`build-the-jumpbox.md`](build-the-jumpbox.md) §4's plus §2's
-   `VM.GuestAgent.Audit`. The storage is `range`, and the bridges are both
-   `vmbr0` and `vmbr1`, because the attack VM's second NIC is on the range
-   bridge:
+1. Admit the guest to that port on `phoenix` for the length of the build. If
+   `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
+   and delete the rule afterwards. Debian's build (§4) needs this step and
+   no other here. On 2026-11-09 `ufw` was inactive on `phoenix`, so there
+   was nothing to open.
+2. Give `phoenix` a user on `gandalf`, and trust `gandalf`'s CA on
+   `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins `Saruman` in a
+   cluster, it is its own API with its own users, so `phoenix@pve` there is a
+   second user with the same name, not the same one. `phoenix`'s 8006 rule is
+   already in `gandalf`'s `host.fw`
+   ([`build-the-playground.md`](build-the-playground.md) §4).
+
+   **The `gandalf` half ran 2026-11-09**
+   ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). The certificate
+   was already the node's own: issuer `PVE Cluster Manager CA`, names
+   including `10.0.30.30`, and no custom `pveproxy-ssl.pem`. The roles are
+   [`build-the-jumpbox.md`](build-the-jumpbox.md) §4's list plus §2's
+   `VM.GuestAgent.Audit`. `Pool.Allocate` and `Pool.Audit` are left out,
+   because they are for OpenTofu's pools on `Saruman` and nothing on `gandalf`
+   is provisioned that way. The grants are narrower than `Saruman`'s:
+
+   | Role | Path | Why |
+   | --- | --- | --- |
+   | `PhoenixBuilder` | `/vms` | creating and templating 902 |
+   | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
+   | `PhoenixBuilder` | `/storage/local` | the installer ISO |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
+   | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
+
+   Nothing is granted on `local-lvm`, because the range's disks stay off the
+   M.2. Nothing is granted on `vmbr1` either: the range NIC belongs to the
+   clone ([`build-the-playground.md`](build-the-playground.md) §5), and a
+   token that can attach guests to the range bridge is a token that can put
+   one there. Nor is `PhoenixIsoCleanup`: Kali's build serves its preseed
+   over HTTP and uploads no answer disc, so there is nothing to delete, and
+   `Datastore.Allocate` would also delete any volume on `local` and edit its
+   configuration. It was granted on 2026-11-09 and revoked the same day, from
+   review. `pveum acl list | grep phoenix` is the check.
+
+   **What `gandalf` holds is not that table, as of the build.** A second
+   paste of the grants, from an older draft of this step, ran on `gandalf`
+   the same night. The token's effective privileges, read through
+   `/access/permissions` after the build, include two rows the table
+   leaves out:
+
+   | Role | Path | Status |
+   | --- | --- | --- |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | live. [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) uses it to put `ragnarok`'s `net1` on the range bridge |
+   | `PhoenixIsoCleanup` | `/storage/local` | live, and buys nothing here. Revoke it again |
+
+   That paste went first into a zsh on `phoenix`, where `pveum` does not
+   exist, and the paste handling turned every space after the first line
+   into a literal `\s`. Nothing ran there. Paste into the node's **Shell**
+   in the web UI, or an SSH session from Hicks. The two builds, the two
+   smoke tests and `make-attack-vm.sh` asked for nothing beyond the live
+   set.
+
+   **The token is made at the build, by the person at the terminal**, so
+   its secret goes straight to `phoenix` and is never in a transcript. On
+   `gandalf`:
 
    ```bash
-   pveum role add PhoenixBuilder --privs "VM.Allocate VM.Clone VM.Config.CDROM VM.Config.CPU VM.Config.Cloudinit VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Console VM.PowerMgmt VM.Audit VM.Snapshot VM.GuestAgent.Audit Datastore.AllocateSpace Datastore.AllocateTemplate Datastore.Audit SDN.Use"
-   pveum role add PhoenixIsoCleanup --privs "Datastore.Allocate"
-   pveum user add phoenix@pve --comment "deployment host, ADR-0043"
-   pveum acl modify /vms --users phoenix@pve --roles PhoenixBuilder
-   pveum acl modify /storage/local --users phoenix@pve --roles PhoenixBuilder,PhoenixIsoCleanup
-   pveum acl modify /storage/range --users phoenix@pve --roles PhoenixBuilder
-   pveum acl modify /sdn/zones/localnetwork/vmbr0 --users phoenix@pve --roles PhoenixBuilder
-   pveum acl modify /sdn/zones/localnetwork/vmbr1 --users phoenix@pve --roles PhoenixBuilder
-   pveum acl modify /nodes/gandalf --users phoenix@pve --roles PVEAuditor
-   pveum acl list | grep phoenix
    pveum user token add phoenix@pve builder --privsep 0
    ```
 
-   Paste this into the node's **Shell** in the web UI, or into an SSH session
-   from Hicks. On 2026-11-09 a first paste went into a zsh on `phoenix`,
-   where `pveum` does not exist. The paste handling there also turned every
-   space after the first line into a literal `\s`. Nothing ran, and nothing
-   needed undoing. No privilege beyond these was asked for by the two
-   builds, the two smoke tests or `scripts/make-attack-vm.sh`.
-
-   **The installer goes on `gandalf`'s own `local`.** It is the same 2026.2
-   ISO as 910's, checked against the hash
-   [`collect-iso-store-state.sh`](../../scripts/collect-iso-store-state.sh)
-   pins:
+   On `phoenix`, keep it in a file of its own,
+   `~/.config/proxmox/gandalf.env` (mode 0600), with `PROXMOX_URL`,
+   `PROXMOX_TOKEN_ID` and `PROXMOX_TOKEN_SECRET` pointing at
+   `https://10.0.30.30:8006/api2/json`. For this build, source
+   `phoenix.env` first and `gandalf.env` after it. `phoenix.env` exports
+   `PKR_VAR_build_password`, which every build validates (§3), even Kali's.
+   `gandalf.env` then overrides the three API variables. Rewriting
+   `phoenix.env` instead would point the next `Saruman` build at `gandalf`.
 
    ```bash
-   cd /var/lib/vz/template/iso && wget -nc https://cdimage.kali.org/kali-2026.2/kali-linux-2026.2-installer-amd64.iso && echo "6dbefacc95e3b556c19c48e8bae39b8b505e2d3a1aba0bfb7ab62b036c3d2ba3  kali-linux-2026.2-installer-amd64.iso" | sha256sum -c -
+   set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
    ```
 
-3. **`phoenix` trusts `gandalf`'s CA and holds its token apart.** `gandalf`
-   serves its own `PVE Cluster Manager CA` certificate, naming `10.0.30.30`
-   (read 2026-11-09, so it needs no fix of the kind §2 records for
-   `Saruman`). Relay the CA from Hicks:
-   `ssh gandalf cat /etc/pve/pve-root-ca.pem | ssh phoenix 'cat > ~/gandalf-pve-root-ca.crt'`.
-   Install it on `phoenix` as
-   `/usr/local/share/ca-certificates/gandalf-pve-root-ca.crt`, as §2 does
-   for `Saruman`'s. The token goes in **`~/.config/proxmox/gandalf.env`**,
-   mode 600, with its own `PROXMOX_URL=https://10.0.30.30:8006/api2/json`,
-   `PROXMOX_TOKEN_ID=phoenix@pve!builder` and `PROXMOX_TOKEN_SECRET`. It is
-   not added to `phoenix.env`, so a build for `Saruman` can never be pointed
-   at `gandalf` by accident, or the reverse. Prove it with §2's `curl …/version`
-   line, with `gandalf.env` sourced in place of `phoenix.env`.
-4. **Build.** Source `phoenix.env` first and `gandalf.env` over it. The
-   variables file refuses an empty `PKR_VAR_build_password` for every source,
-   Kali included, and that password lives in `phoenix.env`. The `PROXMOX_*`
-   lines in `gandalf.env` then win. `disk_storage` defaults to `large_data`,
-   which is `Saruman`'s pool, so name `range`:
+   Then trust `gandalf`'s CA: relay
+   `/etc/pve/pve-root-ca.pem` as §2 does, under the name
+   `gandalf-pve-root-ca.crt`, and prove it with the same `curl`, without
+   `-k`.
+3. Build, naming **`gandalf`'s** storage. The ISO is the 2026.2 installer
+   on `gandalf`'s `local`, put there 2026-11-09 and checked against the hash
+   in `scripts/collect-iso-store-state.sh`. It is `kali_iso_file`'s default.
+   `disk_storage` defaults to `large_data`, which is `Saruman`'s pool, and
+   the disk creation fails without the override:
 
    ```bash
    set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
@@ -566,15 +590,14 @@ not from a second disc.
    packer build -force -only='kali.proxmox-iso.kali' -var disk_storage=range packer/
    ```
 
-   `kali_iso_file` defaults to the ISO from step 2.
-5. **Prove it**, with `gandalf.env` sourced:
+4. Prove it on `gandalf`, as §6 does on `Saruman`:
 
    ```bash
    PROXMOX_NODE=gandalf scripts/packer-smoke.sh 902
    ```
 
-   Then run the build and the smoke test a second time, which is #790's
-   acceptance and §8's rule.
+   Then run §8's second `-force` build and smoke test, which is #790's
+   acceptance.
 
 ## 5b. Kali on `Saruman`, for `garuda`
 

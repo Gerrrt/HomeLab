@@ -23,13 +23,18 @@ docstring gives: it is a record, not a claim about now.
   [#790](https://github.com/Gerrrt/HomeLab/issues/790): `tpl-kali` (902) is
   built on `gandalf`, and the attack VM `ragnarok` is up,
   `build-the-playground.md` §5.**
-  - **Access.** `gandalf` is not clustered, so it got its own `phoenix@pve`
-    user, `PhoenixBuilder` and `PhoenixIsoCleanup` roles and
-    `phoenix@pve!builder` token. The role is `build-the-jumpbox.md` §4's plus
-    `VM.GuestAgent.Audit`. Its ACLs cover `range`, `local`, and both
-    `vmbr0` and `vmbr1`. The two builds, the two smoke tests and the attack
-    VM asked for nothing more. `phoenix` trusts `gandalf`'s own cluster CA
-    and keeps the token in `gandalf.env`, apart from `phoenix.env`.
+  - **Access.** `gandalf` is not clustered, so it has its own `phoenix@pve`
+    user and `phoenix@pve!builder` token, made at the build. The grants
+    are not quite the entry below's. A second paste, from an older draft
+    of the step, ran on `gandalf` the same night, and the token's
+    effective privileges after the build still include `PhoenixBuilder`
+    on `vmbr1` and `PhoenixIsoCleanup` on `local`. That corrects the entry
+    below, which says neither is granted. `make-attack-vm.sh` uses the
+    `vmbr1` grant for `ragnarok`'s range NIC. `PhoenixIsoCleanup` buys
+    nothing and is to be revoked again. The two builds, the two smoke tests
+    and the attack VM asked for nothing beyond that set. `phoenix` trusts
+    `gandalf`'s own cluster CA and keeps the token in `gandalf.env`, apart
+    from `phoenix.env`.
   - **The builds.** The ISO is the 2026.2 installer already pinned for 910,
     fetched onto `gandalf`'s `local` and checked against that hash. The
     first build stopped at validation, because the variables file refuses
@@ -58,6 +63,23 @@ docstring gives: it is a record, not a claim about now.
     [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
   - **What is not done.** Sliver is not installed, there are no targets
     (§6), and §8's first, second and fourth checks and §9 have not run.
+
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
+  [#790](https://github.com/Gerrrt/HomeLab/issues/790): `gandalf` is ready
+  for `tpl-kali`'s build, `build-the-lab-templates.md` §5 step 2's `gandalf`
+  half.** `phoenix@pve` exists on `gandalf` with `PhoenixBuilder` on `/vms`,
+  `/storage/range`, `/storage/local` and `vmbr0`, and `PVEAuditor` on
+  `/nodes/gandalf`. Nothing is granted on `local-lvm` or `vmbr1`.
+  `PhoenixIsoCleanup` was granted on `local` and revoked the same day, from
+  review: Kali's build uploads no answer disc, so `Datastore.Allocate` there
+  bought nothing. The role omits `Saruman`'s `Pool.*`, which serve
+  OpenTofu there. The API certificate was already the node's own and names
+  `10.0.30.30`, so nothing was reissued. The Kali 2026.2 installer is on
+  `gandalf`'s `local`, checked against the hash in
+  `scripts/collect-iso-store-state.sh`, and `kali_iso_file` now defaults to
+  it. No token was made: it is made at the build so its secret goes straight
+  to `phoenix`. The build, the smoke test and the `-force` rebuild are
+  still #790's, from `phoenix`.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): `gandalf`'s
   management plane is closed, `build-the-playground.md` §4.** The firewall
