@@ -496,6 +496,15 @@ not from a second disc.
 > with 0 failed units and no account expiring at the epoch, the check
 > [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
 
+The preseed writes `/etc/network/interfaces.d/eth0`, a DHCP stanza, so the
+build has a network. The build's first provisioner deletes it before
+templating, so a clone's network is only what cloud-init writes from its
+`ipconfigN`. A template built before that change still holds the stanza. A
+static-only clone of one raises DHCP beside its static address, and with no
+DHCP server dhcpcd adds a `169.254.x.x` address and a link-local default
+route ([`build-the-playground.md`](build-the-playground.md) §8). Rebuild 902
+and 910 with this section and §5b to clear it.
+
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
    and delete the rule afterwards. Debian's build (§4) needs this step and

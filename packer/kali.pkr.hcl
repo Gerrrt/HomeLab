@@ -241,6 +241,18 @@ build {
       "ln -sf /dev/null /etc/systemd/system-generators/systemd-sslh-generator",
       "ln -sf /usr/lib/systemd/system/cloud-init.target /etc/systemd/system/multi-user.target.wants/cloud-init.target",
       "apt-get clean",
+      # The preseed's eth0 DHCP stanza is the build's network only. Left in
+      # the template, ifupdown raised it beside cloud-init's static stanza on
+      # a static-only clone, dhcpcd got no lease on vmbr1, fell back to
+      # 169.254.x.x and added `default dev eth0 scope link`: a target with a
+      # default route, which build-the-playground.md §8 check four fails
+      # (found 2026-11-09 on gandalf, a throwaway clone of 902). Every clone
+      # gets a NoCloud drive, so cloud-init writes each NIC's stanza, DHCP
+      # included. Removing the file does not take down the running build's
+      # eth0. The installer's ens18 stanza in /etc/network/interfaces stays:
+      # no ens18 exists on Kali (eth0 naming, see the preseed), so ifupdown
+      # never raises it.
+      "rm -f /etc/network/interfaces.d/eth0",
       "rm -f /etc/ssh/ssh_host_*",
       "cloud-init clean --logs --machine-id",
     ]

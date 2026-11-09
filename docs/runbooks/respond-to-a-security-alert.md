@@ -118,6 +118,29 @@ tooling, so it is the more serious of the two.
   also means the ADR-0042 blocks are missing, or ordered below the
   catch-all ([`open-the-remote-path.md`](open-the-remote-path.md)).
 
+## RangeSubnetLeaked
+
+pfSense logged a packet whose source is in `172.30.30.0/24`, the range bridge
+on `gandalf`. That bridge has no physical port and no gateway (ADR-0017), so
+the packet was forwarded out by a guest that should not forward. Either
+`ragnarok` has forwarding on, or a target has a NIC on `vmbr0`.
+
+```logql
+{app="filterlog"} |~ `,172\.30\.30\.[0-9]+,[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+,`
+```
+
+- **Unless [`build-the-playground.md`](build-the-playground.md) §9 is being
+  run on purpose right now, contain first.** Power `gandalf` off. It is off
+  between sessions anyway (§7), and nothing on it is kept.
+- **Then find which guest.** The source address names the target. On
+  `ragnarok`, run §8's third check: forwarding, and NAT in either table.
+  Docker resets `ip_forward` at every daemon start. On `gandalf`, run
+  `qm config <vmid> | grep ^net` for each target: every NIC must say
+  `bridge=vmbr1`.
+- **A `pass` rather than a `block`** also means a firewall rule now passes a
+  source outside `10.0.30.0/24` on `igc0.30`. Treat that as the
+  `LabSegmentReachedInternalNetwork` case above: find the rule and revert it.
+
 ## UnknownDeviceOnManagementSegment
 
 A MAC address took a DHCP lease on VLAN 99 for the first time in seven days.

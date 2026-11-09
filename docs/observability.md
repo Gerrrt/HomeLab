@@ -326,6 +326,14 @@ rather than from the segment. A `10.0.30.x` source is the lab, a `172.31.x`
 source is a remote peer, and a `172.30.x` source is neither — that is `gandalf`'s
 range bridge escaping, which is a different incident.
 
+**That incident has its own alert, `RangeSubnetLeaked`.** ADR-0014 chose
+`172.30.30.0/24` so that a forwarded packet from the range would miss the
+`→ any` pass, hit default deny and be logged: "a leak reports itself". The
+rule reads any `filterlog` line, block or pass, whose *source* is in that
+subnet. A range address as a destination is followed by a port, not a second
+address, so it does not match. `build-the-playground.md` §9 proves the rule
+by causing a leak.
+
 A tripwire that never fires is indistinguishable from a broken one, which is
 this whole family of defect, so the logging path was proven rather than assumed:
 logging was briefly enabled on the lowest-volume terminal egress rule, and 49 of
@@ -344,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-179 rules in total: 159 metric-based in `prometheus/rules/`, and 20 log-based in
+180 rules in total: 159 metric-based in `prometheus/rules/`, and 21 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
