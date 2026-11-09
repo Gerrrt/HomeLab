@@ -995,6 +995,13 @@ What has to be true around it is here.
   [ADR-0022]'s decision. Logins and the first-run claim allow five failures per
   client per fifteen minutes, and `ACTUAL_TRUSTED_PROXIES` names Caddy alone,
   so the client counted is the phone rather than the proxy.
+- **Compressed request bodies are refused, until the image is fixed.** Caddy
+  answers 415 to any request to `actual.matrix.elysium` that carries a
+  `Content-Encoding` header. 26.11.0 ships body-parser 2.3.0, and Actual
+  parses every body before routing and login. So one compressed body with
+  trailing bytes, sent by anyone on Hicks, crashes the server
+  (CVE-2026-111181, [#970]). Actual's clients never compress what they send.
+  The rule goes out in the bump that clears [#970].
 - **No bank sync.** GoCardless and SimpleFIN are configured in the app, and
   neither is. Transactions come in as imported files (OFX, QFX, QIF, CSV,
   CAMT). Turning bank sync on is a decision ([ADR-0062] §4). It puts a third
@@ -1320,3 +1327,4 @@ it matters:
 [#455]: https://github.com/Gerrrt/HomeLab/issues/455
 [#533]: https://github.com/Gerrrt/HomeLab/issues/533
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535
+[#970]: https://github.com/Gerrrt/HomeLab/issues/970
