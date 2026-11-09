@@ -544,7 +544,8 @@ not from a second disc.
    `gandalf` the same night. It granted the `vmbr1` row, and it granted
    `PhoenixIsoCleanup` on `/storage/local` again. The token's effective
    privileges, read through `/access/permissions` after the build, still
-   hold `Datastore.Allocate` there. It buys nothing here, so revoke it:
+   held `Datastore.Allocate` there. It buys nothing here, so it was revoked
+   again that night, and `/access/permissions` confirmed it:
 
    ```bash
    pveum acl delete /storage/local --users phoenix@pve --roles PhoenixIsoCleanup

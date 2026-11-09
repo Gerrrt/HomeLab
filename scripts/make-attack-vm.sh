@@ -153,9 +153,14 @@ trap 'rm -f "${KNOWN_HOSTS}"' EXIT
 printf '%s %s %s\n' "${addr}" "${ktype}" "${kblob}" >"${KNOWN_HOSTS}"
 ok "host key $(ssh-keygen -lf "${KNOWN_HOSTS}" | cut -d' ' -f2)"
 
+# ControlPath=none: a multiplexed session (ControlMaster auto in a user's
+# ssh_config) does no key exchange, so it would skip the check altogether,
+# and a master opened earlier by an unchecked ssh would be trusted. Found on
+# phoenix 2026-11-09, where a key that was not ragnarok's passed that way.
 SSH=(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=yes
      -o UserKnownHostsFile="${KNOWN_HOSTS}" -o GlobalKnownHostsFile=/dev/null
-     -o HostKeyAlgorithms=ssh-ed25519 -o LogLevel=ERROR -o ConnectTimeout=10)
+     -o HostKeyAlgorithms=ssh-ed25519 -o ControlMaster=no -o ControlPath=none
+     -o LogLevel=ERROR -o ConnectTimeout=10)
 for _ in $(seq 1 18); do
   "${SSH[@]}" "kali@${addr}" true 2>/dev/null && break
   sleep 10

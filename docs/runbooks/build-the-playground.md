@@ -628,9 +628,11 @@ One VM, and it is the only guest with a leg on both bridges.
 > forwarding sysctls read `0`, neither table had NAT, and the one default
 > route was via `10.0.30.1` on `eth0`. `eth1` held `172.30.30.10/24` and
 > nothing else. Its cloud-init user is `kali`, with `phoenix`'s key. That
-> first run predates the host-key check and the stricter NAT reads. The
-> stricter NAT check passed on `ragnarok` the same night. The key check runs
-> at the next make.
+> first run predates the host-key check and the stricter NAT reads. Once the
+> grant above was made, the script from the key read on was run against
+> `ragnarok` the same night and passed. An impostor key was refused, once
+> the script turned off SSH connection sharing (`ControlPath=none`):
+> without that, a reused connection skips the check.
 
 - **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at

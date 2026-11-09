@@ -32,7 +32,7 @@ docstring gives: it is a record, not a claim about now.
     below, which says neither is granted. The `vmbr1` grant is kept, by
     decision: `make-attack-vm.sh` uses it for `ragnarok`'s range NIC, and
     the token already holds `/vms` on a host that is only the range.
-    `PhoenixIsoCleanup` buys nothing and is to be revoked again. The two builds, the two smoke tests
+    `PhoenixIsoCleanup` buys nothing and was revoked again the same night. The two builds, the two smoke tests
     and the attack VM asked for nothing beyond that set. `phoenix` trusts
     `gandalf`'s own cluster CA and keeps the token in `gandalf.env`, apart
     from `phoenix.env`.
@@ -56,9 +56,14 @@ docstring gives: it is a record, not a claim about now.
     caught both before merge. The script now checks the key against one
     read through the guest agent (ADR-0085's way, with `PhoenixHostKeys`
     granted on `/vms/130` alone) and passes a table only after reading it,
-    including legacy `SNAT`. The stricter NAT check passed on `ragnarok`
-    the same night. The key check has not run yet: it waits on that grant
-    and the next make.
+    including legacy `SNAT`. With the grant in place, everything after the
+    clone was run against the live `ragnarok` the same night and passed.
+    The key read through the agent matched the one the guest reported,
+    and an impostor key was refused. That test found a hole of its own:
+    `phoenix`'s `ssh_config` multiplexes (`ControlMaster auto`), and a
+    reused connection does no key exchange, so an impostor key passed
+    until the script set `ControlPath=none`. The clone itself, with the
+    preflight, runs at the next make.
   - **#1196's check.** On the fresh clone it read `running`, 0 failed units
     and 0 accounts expiring at the epoch, the check
     [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
