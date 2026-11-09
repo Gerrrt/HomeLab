@@ -54,6 +54,25 @@ docstring gives: it is a record, not a claim about now.
     - counts with `search_path` set to `wiki, public`;
     - points `wiki-watch` at 3.x advisories.
   - **Left:** the cutover, and the `Lemmiwinks` PR.
+- **[#977](https://github.com/Gerrrt/HomeLab/issues/977): Home Assistant goes
+  from 2026.10.4 to 2026.11.1, and the scan drops from 8 critical and 121 high
+  to 1 and 42.**
+  - **Why by hand:** 2026.11.0 was out on 2026-11-04, and Dependabot's run on
+    2026-11-08 did not offer it.
+  - **The measurement:** the pinned trivy, with `scan-images.sh`'s flags, on
+    both digests. Gone: pillow, bind, curl, zip, pyasn1, go2rtc's Go stdlib
+    and `x/net`. Left: Authlib 1.7.2 (the one critical, CVE-2026-96760),
+    urllib3 2.7.0, msgpack, oauthlib, setuptools, libexpat, the
+    openssh-client packages, and Go stdlib 1.26.5 and `x/crypto` 0.31.0 in
+    `/usr/bin/tempio`. The 2026-10-10 reading on the issue found that tempio
+    runs only during init and is never on the network. The issue stays open.
+  - **The release notes against this install:** the Ring sensors 2026.11
+    removes are referenced by no package and no dashboard. `ring-doorbell` is
+    still 0.9.14, so `ring_push_guard` still applies (ADR-0101). The change of
+    sign for sun offsets affects the new `sun.*` triggers only. The legacy
+    `trigger: sun` in `packages/lighting.yaml` still uses its offset as
+    written.
+
 - **Caddy refuses compressed request bodies to Actual, as a stopgap for
   [#970](https://github.com/Gerrrt/HomeLab/issues/970).** 26.11.0 ships
   body-parser 2.3.0 (CVE-2026-111181), and Actual parses every body before
