@@ -553,6 +553,9 @@ the console password.
   - **Still owed:** the same check on 902 (gandalf's Kali, same preseed) when it
     is next built — [#1196](https://github.com/Gerrrt/HomeLab/issues/1196),
     tied to [#790](https://github.com/Gerrrt/HomeLab/issues/790).
+  - **Paid 2026-11-09:** 902 was built twice on `gandalf`, and its clone
+    `ragnarok` read `running`, 0 failed units and 0 accounts at the epoch
+    ([`build-the-lab-templates.md`](build-the-lab-templates.md) §5).
 - **§12, phase 2, 2026-10-10**
   ([#1163](https://github.com/Gerrrt/HomeLab/pull/1163),
   [ADR-0092](../adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).

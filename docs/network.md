@@ -713,7 +713,8 @@ Where things get broken on purpose.
   away before the attack VM starts taking leases from the same pool.
 - A second hypervisor, `gandalf`, carries the attack tooling and the
   deliberately-vulnerable targets. It is installed (Proxmox VE 9,
-  2026-11-07) and has no guests yet. It sits on this segment single-homed, on
+  2026-11-07) and has one guest, the attack VM `ragnarok` (VMID 130, made
+  2026-11-09). It sits on this segment single-homed, on
   `neo`'s untagged `ether20`, at `10.0.30.30`: a static below `.100`, with a
   reservation. Its Intel AMT, which would be the name `ifrit`, is disabled
   ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
@@ -726,7 +727,7 @@ Where things get broken on purpose.
   is the third private block in the house and the only one that is not routed
   anywhere, which is what makes a `172.30.30.x` source in a firewall block a
   leak reporting itself. The attack VM takes a lease from the pool like any
-  other guest. The build is
+  other guest, with no reservation, and holds `172.30.30.10` on the bridge. The build is
   [`build-the-playground.md`](runbooks/build-the-playground.md).
 
 - **The WireGuard peers live on `172.31.0.0/24`, and it is routed rather than

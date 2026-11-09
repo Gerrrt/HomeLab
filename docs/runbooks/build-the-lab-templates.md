@@ -1,8 +1,8 @@
 # Runbook: Build the lab's VM templates with Packer, from `phoenix`
 
 **Target:** templates 901, 903–912 on `Saruman`, built from
-`phoenix` through the Proxmox API. 902, Kali, is written here and built on
-`gandalf`, the range host, installed 2026-11-07 and not yet built on. 910 is the same Kali build on `Saruman`, for
+`phoenix` through the Proxmox API. 902, Kali, is built on `gandalf`, the
+range host, through `gandalf`'s own API (§5, first built 2026-11-09). 910 is the same Kali build on `Saruman`, for
 `garuda` (§5b, [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)). 903 (Debian), 904 (Fedora), 905 (openSUSE
 Tumbleweed), 906 (Arch), 907 (Alpine), 908 (Gentoo) and 909 (NixOS) are the
 dotfiles OS layers' templates
@@ -488,10 +488,19 @@ node. The preseed is served over Packer's HTTP server on port 8800 of
 `phoenix`, because Debian's installer reads one from a URL or its own medium,
 not from a second disc.
 
+> **Ran 2026-11-09** ([#790](https://github.com/Gerrrt/HomeLab/issues/790),
+> [#421](https://github.com/Gerrrt/HomeLab/issues/421)). The first build took
+> 10 min 33 s and the `-force` rebuild 10 min 41 s. `packer-smoke.sh 902`
+> passed after each. `gandalf`'s 10 s `boot_wait` was enough with no boot
+> order, unlike 910 on `Saruman`. The clone `ragnarok` then read `running`
+> with 0 failed units and no account expiring at the epoch, the check
+> [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
+
 1. Admit the guest to that port on `phoenix` for the length of the build. If
    `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
    and delete the rule afterwards. Debian's build (§4) needs this step and
-   no other here.
+   no other here. On 2026-11-09 `ufw` was inactive on `phoenix`, so there
+   was nothing to open.
 2. Give `phoenix` a user on `gandalf`, and trust `gandalf`'s CA on
    `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins `Saruman` in a
    cluster, it is its own API with its own users, so `phoenix@pve` there is a
@@ -514,17 +523,40 @@ not from a second disc.
    | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
    | `PhoenixBuilder` | `/storage/local` | the installer ISO |
    | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | `ragnarok`'s range NIC, which [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) attaches ([`build-the-playground.md`](build-the-playground.md) §5). Kept 2026-11-09 |
    | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
 
    Nothing is granted on `local-lvm`, because the range's disks stay off the
-   M.2. Nothing is granted on `vmbr1` either: the range NIC belongs to the
-   clone ([`build-the-playground.md`](build-the-playground.md) §5), and a
-   token that can attach guests to the range bridge is a token that can put
-   one there. Nor is `PhoenixIsoCleanup`: Kali's build serves its preseed
+   M.2. The `vmbr1` row was first left out, on the grounds that a token
+   that can attach guests to the range bridge is a token that can put one
+   there. It was granted anyway the same night, and kept by decision: the
+   attack VM is remade by one command, and the token already holds `/vms`
+   on a host whose only purpose is the range, so the bridge adds little.
+   §8 of the playground runbook is still what proves what is on `vmbr1`.
+   Nothing is granted for `PhoenixIsoCleanup`: Kali's build serves its preseed
    over HTTP and uploads no answer disc, so there is nothing to delete, and
    `Datastore.Allocate` would also delete any volume on `local` and edit its
    configuration. It was granted on 2026-11-09 and revoked the same day, from
    review. `pveum acl list | grep phoenix` is the check.
+
+   **What `gandalf` holds is not quite that table, as of the build.** A
+   second paste of the grants, from an older draft of this step, ran on
+   `gandalf` the same night. It granted the `vmbr1` row, and it granted
+   `PhoenixIsoCleanup` on `/storage/local` again. The token's effective
+   privileges, read through `/access/permissions` after the build, still
+   held `Datastore.Allocate` there. It buys nothing here, so it was revoked
+   again that night, and `/access/permissions` confirmed it:
+
+   ```bash
+   pveum acl delete /storage/local --users phoenix@pve --roles PhoenixIsoCleanup
+   ```
+
+   That paste went first into a zsh on `phoenix`, where `pveum` does not
+   exist, and the paste handling turned every space after the first line
+   into a literal `\s`. Nothing ran there. Paste into the node's **Shell**
+   in the web UI, or an SSH session from Hicks. The two builds, the two
+   smoke tests and `make-attack-vm.sh` asked for nothing beyond the live
+   set.
 
    **The token is made at the build, by the person at the terminal**, so
    its secret goes straight to `phoenix` and is never in a transcript. On
@@ -558,9 +590,9 @@ not from a second disc.
    the disk creation fails without the override:
 
    ```bash
-   packer build -only='kali.proxmox-iso.kali' \
-     -var disk_storage=range \
-     packer/
+   set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
+   packer init packer/
+   packer build -force -only='kali.proxmox-iso.kali' -var disk_storage=range packer/
    ```
 
 4. Prove it on `gandalf`, as §6 does on `Saruman`:

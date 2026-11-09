@@ -156,6 +156,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `export-dashboards.sh`, `export_dashboards.py` | `dashboards-export` | Folds UI edits in the running Grafana back over the committed JSON |
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
+| `make-attack-vm.sh` | — | Makes the range's attack VM, `ragnarok`, on `gandalf` from 902, and proves it neither forwards nor NATs, over SSH checked against a host key read through the guest agent ([`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §5) |
 | `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs, and the two Debian packages `garuda` installs, into `${SOC_DATA_DIR}/agent-msi` on `odin`, which the SOC stack's Caddy serves. The vendor packages are checked against their pins; the Velociraptor `.deb` is built by the server and its hash printed ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)) |
 | `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |

@@ -658,7 +658,7 @@
 <rect x="1202" y="1420" width="492" height="26" rx="8" class="card"/>
 <rect x="1202" y="1424" width="4" height="18" rx="2" fill="#2ea043"/>
 <text x="1216" y="1438" class="hn">gandalf</text>
-<text x="1282" y="1438" class="sub">Proxmox VE · range host, no guests yet</text>
+<text x="1282" y="1438" class="sub">Proxmox VE · range host · attack VM ragnarok</text>
 <text x="1682" y="1438" class="ip" text-anchor="end" fill="#2ea043">.30</text>
 </g>
 </g>

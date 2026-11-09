@@ -40,6 +40,57 @@ docstring gives: it is a record, not a claim about now.
   in-house channel.
 
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
+  [#790](https://github.com/Gerrrt/HomeLab/issues/790): `tpl-kali` (902) is
+  built on `gandalf`, and the attack VM `ragnarok` is up,
+  `build-the-playground.md` §5.**
+  - **Access.** `gandalf` is not clustered, so it has its own `phoenix@pve`
+    user and `phoenix@pve!builder` token, made at the build. The grants
+    are not quite the entry below's. A second paste, from an older draft
+    of the step, ran on `gandalf` the same night, and the token's
+    effective privileges after the build still include `PhoenixBuilder`
+    on `vmbr1` and `PhoenixIsoCleanup` on `local`. That corrects the entry
+    below, which says neither is granted. The `vmbr1` grant is kept, by
+    decision: `make-attack-vm.sh` uses it for `ragnarok`'s range NIC, and
+    the token already holds `/vms` on a host that is only the range.
+    `PhoenixIsoCleanup` buys nothing and was revoked again the same night. The two builds, the two smoke tests
+    and the attack VM asked for nothing beyond that set. `phoenix` trusts
+    `gandalf`'s own cluster CA and keeps the token in `gandalf.env`, apart
+    from `phoenix.env`.
+  - **The builds.** The ISO is the 2026.2 installer already pinned for 910,
+    fetched onto `gandalf`'s `local` and checked against that hash. The
+    first build stopped at validation, because the variables file refuses
+    an empty `PKR_VAR_build_password` even for Kali. Sourcing `phoenix.env`
+    under `gandalf.env` fixed it, and §5 says so now. The build took
+    10 min 33 s and the `-force` rebuild 10 min 41 s. `packer-smoke.sh 902`
+    passed after each, which is #790's acceptance. 910's boot-order and 20 s
+    fixes were not needed here. `ufw` is inactive on `phoenix`, so no port
+    was opened.
+  - **The attack VM.** `ragnarok`, VMID 130, is a full clone on `range` with
+    4 cores and 8 GiB, made by the new `scripts/make-attack-vm.sh`. `net0` is
+    on `vmbr0` by DHCP and took `10.0.30.111`. `net1` is on `vmbr1` at
+    `172.30.30.10/24` with no gateway. Both have the firewall flag off. The
+    script wrote `99-no-forward.conf` and ran §8's third check: both
+    sysctls `0`, no NAT in nft or iptables, and one default route, via
+    `10.0.30.1`. That first run took the guest's host key unchecked, and
+    its NAT reads would have printed "no NAT" had they failed. Review
+    caught both before merge. The script now checks the key against one
+    read through the guest agent (ADR-0085's way, with `PhoenixHostKeys`
+    granted on `/vms/130` alone) and passes a table only after reading it,
+    including legacy `SNAT`. With the grant in place, everything after the
+    clone was run against the live `ragnarok` the same night and passed.
+    The key read through the agent matched the one the guest reported,
+    and an impostor key was refused. That test found a hole of its own:
+    `phoenix`'s `ssh_config` multiplexes (`ControlMaster auto`), and a
+    reused connection does no key exchange, so an impostor key passed
+    until the script set `ControlPath=none`. The clone itself, with the
+    preflight, runs at the next make.
+  - **#1196's check.** On the fresh clone it read `running`, 0 failed units
+    and 0 accounts expiring at the epoch, the check
+    [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.
+  - **What is not done.** Sliver is not installed, there are no targets
+    (§6), and §8's first, second and fourth checks and §9 have not run.
+
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421),
   [#790](https://github.com/Gerrrt/HomeLab/issues/790): `gandalf` is ready
   for `tpl-kali`'s build, `build-the-lab-templates.md` §5 step 2's `gandalf`
   half.** `phoenix@pve` exists on `gandalf` with `PhoenixBuilder` on `/vms`,
