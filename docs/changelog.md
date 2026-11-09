@@ -45,7 +45,14 @@ docstring gives: it is a record, not a claim about now.
     `172.30.30.10/24` with no gateway. Both have the firewall flag off. The
     script wrote `99-no-forward.conf` and ran §8's third check: both
     sysctls `0`, no NAT in nft or iptables, and one default route, via
-    `10.0.30.1`.
+    `10.0.30.1`. That first run took the guest's host key unchecked, and
+    its NAT reads would have printed "no NAT" had they failed. Review
+    caught both before merge. The script now checks the key against one
+    read through the guest agent (ADR-0085's way, with `PhoenixHostKeys`
+    granted on `/vms/130` alone) and passes a table only after reading it,
+    including legacy `SNAT`. The stricter NAT check passed on `ragnarok`
+    the same night. The key check has not run yet: it waits on that grant
+    and the next make.
   - **#1196's check.** On the fresh clone it read `running`, 0 failed units
     and 0 accounts expiring at the epoch, the check
     [#1196](https://github.com/Gerrrt/HomeLab/issues/1196) owed 902.

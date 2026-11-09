@@ -600,6 +600,23 @@ One VM, and it is the only guest with a leg on both bridges.
 > scripts/make-attack-vm.sh
 > ```
 >
+> Once, on `gandalf` as root, and again after any destroy of 130, which
+> drops the VMID's ACLs (the script checks before it clones):
+>
+> ```bash
+> pveum role add PhoenixHostKeys --privs "VM.GuestAgent.FileRead"
+> pveum acl modify /vms/130 --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys
+> ```
+>
+> The script reads `ragnarok`'s ed25519 host key through the guest agent
+> once cloud-init has finished, and its SSH accepts that key and no other,
+> as [ADR-0085](../adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)
+> does for the lab domain: the check below crosses VLAN 30, and a PASS
+> from whatever answered for the lease would prove nothing. The grant is on
+> 130 alone, not on `/vms`, where FileRead would read any range guest. A
+> grant on `/vms/130` replaces the inherited `PhoenixBuilder` there, so it
+> names both roles.
+>
 > [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) clones onto `range` and sets
 > 4 cores and 8 GiB. ADR-0017's "roughly half" of 32 GB counted BloodHound,
 > which [ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md) moved
@@ -610,7 +627,10 @@ One VM, and it is the only guest with a leg on both bridges.
 > rebuilt, not repaired. On its first run, `ragnarok` took `10.0.30.111`. Both
 > forwarding sysctls read `0`, neither table had NAT, and the one default
 > route was via `10.0.30.1` on `eth0`. `eth1` held `172.30.30.10/24` and
-> nothing else. Its cloud-init user is `kali`, with `phoenix`'s key.
+> nothing else. Its cloud-init user is `kali`, with `phoenix`'s key. That
+> first run predates the host-key check and the stricter NAT reads. The
+> stricter NAT check passed on `ragnarok` the same night. The key check runs
+> at the next make.
 
 - **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at

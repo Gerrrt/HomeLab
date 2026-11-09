@@ -17,9 +17,19 @@
 # `sysctl --system`, and §8 check three: both forwarding sysctls 0 and no NAT
 # in nft or legacy iptables.
 #
+# HOST KEY. The SSH that reports §8 check three crosses VLAN 30, where ARP
+# spoofing is expected (docs/security.md), so the key ragnarok presents is
+# checked against one read through the guest agent, as ADR-0085 does for the
+# lab domain: Proxmox reads /etc/ssh/ssh_host_ed25519_key.pub inside the
+# guest, and phoenix asks Proxmox over verified TLS. Anything else answering
+# for the lease is refused, so a PASS is ragnarok's own.
+#
 # WHAT IT NEEDS. gandalf.env sourced (PROXMOX_URL at 10.0.30.30, the
 # phoenix@pve!builder token on gandalf), gandalf's CA in phoenix's trust store
-# (build-the-lab-templates.md §5), curl and jq.
+# (build-the-lab-templates.md §5), curl, jq and ssh-keygen, and the token
+# holding VM.GuestAgent.FileRead on /vms/130 alone (PhoenixHostKeys,
+# build-the-playground.md §5). Destroying the VM drops that ACL, so it is
+# checked before anything is cloned.
 #
 # Usage:
 #   set -a; . ~/.config/proxmox/gandalf.env; set +a
@@ -43,6 +53,7 @@ done
 [[ "${PROXMOX_URL}" == *10.0.30.30* ]] || die "PROXMOX_URL is not gandalf's: source gandalf.env, not phoenix.env"
 command -v curl >/dev/null || die "curl is required"
 command -v jq >/dev/null || die "jq is required (apt install jq)"
+command -v ssh-keygen >/dev/null || die "ssh-keygen is required"
 
 # The token goes to curl on stdin, never as -H, as in packer-smoke.sh (#846).
 api() {
@@ -69,6 +80,13 @@ api GET "/nodes/${NODE}/qemu/${TEMPLATE}/config" | jq -e '.data.template == 1' >
 if api GET "/nodes/${NODE}/qemu/${VMID}/status/current" >/dev/null 2>&1; then
   die "VMID ${VMID} already exists on ${NODE}. The range is rebuilt, not repaired: destroy it first"
 fi
+# The host-key read needs FileRead on this VMID, and a destroy removes the
+# VMID's ACLs. Better to stop here than after a ten-minute clone.
+api GET /access/permissions -G --data-urlencode "path=/vms/${VMID}" \
+  | jq -e --arg p "/vms/${VMID}" '.data[$p]["VM.GuestAgent.FileRead"] == 1' >/dev/null \
+  || die "${PROXMOX_TOKEN_ID} lacks VM.GuestAgent.FileRead on /vms/${VMID}. On ${NODE} as root:
+  pveum acl modify /vms/${VMID} --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys
+(build-the-playground.md §5)"
 
 info "full clone ${TEMPLATE} -> ${VMID} (${NAME}) on range"
 wait_task "$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \
@@ -112,32 +130,69 @@ done
 [[ -n "${addr}" ]] || die "no 10.0.30.x address from the guest agent after 10 minutes"
 ok "agent reports ${addr}"
 
-SSH=(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no
-     -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -o ConnectTimeout=10)
+# Read the host key once cloud-init has finished, not before: its first boot
+# deletes the template's keys and makes new ones (ssh_deletekeys), and a key
+# read in between would be the one about to go. boot-finished marks the end.
+agent_read() {
+  api GET "/nodes/${NODE}/qemu/${VMID}/agent/file-read" -G --data-urlencode "file=$1" 2>/dev/null \
+    | jq -er '.data.content'
+}
+info "reading the host key through the guest agent (ADR-0085)"
+for _ in $(seq 1 60); do
+  agent_read /var/lib/cloud/instance/boot-finished >/dev/null && break
+  sleep 10
+done
+agent_read /var/lib/cloud/instance/boot-finished >/dev/null \
+  || die "cloud-init on ${NAME} has not finished after 10 minutes"
+read -r ktype kblob _ <<<"$(agent_read /etc/ssh/ssh_host_ed25519_key.pub)" \
+  || die "agent/file-read of ${NAME}'s host key failed"
+[[ "${ktype}" == ssh-ed25519 && "${kblob}" =~ ^[A-Za-z0-9+/]{68}$ ]] \
+  || die "${NAME}'s /etc/ssh/ssh_host_ed25519_key.pub is not an ed25519 public key"
+KNOWN_HOSTS="$(mktemp)"
+trap 'rm -f "${KNOWN_HOSTS}"' EXIT
+printf '%s %s %s\n' "${addr}" "${ktype}" "${kblob}" >"${KNOWN_HOSTS}"
+ok "host key $(ssh-keygen -lf "${KNOWN_HOSTS}" | cut -d' ' -f2)"
+
+SSH=(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=yes
+     -o UserKnownHostsFile="${KNOWN_HOSTS}" -o GlobalKnownHostsFile=/dev/null
+     -o HostKeyAlgorithms=ssh-ed25519 -o LogLevel=ERROR -o ConnectTimeout=10)
 for _ in $(seq 1 18); do
   "${SSH[@]}" "kali@${addr}" true 2>/dev/null && break
   sleep 10
 done
 "${SSH[@]}" "kali@${addr}" true || die "kali@${addr} admitted no SSH login in three minutes"
-ok "phoenix's key opens kali@${addr}"
+ok "phoenix's key opens kali@${addr}, which presents the agent-read host key"
 
 info "forwarding off, persistently (§5), then §8 check three"
-# shellcheck disable=SC2016 # expanded on the guest, not here
-"${SSH[@]}" "kali@${addr}" 'sudo sh -eu -c "
-printf \"net.ipv4.ip_forward = 0\nnet.ipv6.conf.all.forwarding = 0\n\" > /etc/sysctl.d/99-no-forward.conf
+"${SSH[@]}" "kali@${addr}" 'sudo sh -eu -s' <<'GUEST' || die "writing 99-no-forward.conf failed"
+printf 'net.ipv4.ip_forward = 0\nnet.ipv6.conf.all.forwarding = 0\n' > /etc/sysctl.d/99-no-forward.conf
 sysctl --system >/dev/null
-"'
-out="$("${SSH[@]}" "kali@${addr}" 'sudo sh -c "
+GUEST
+# Each "no ... NAT" line is printed only after its read succeeded, so a failed
+# read cannot pass for an empty table. Kali's iptables is the nft one, so
+# legacy tables are read with iptables-legacy, and only if the kernel has a
+# legacy nat table at all: /proc/net/ip{,6}_tables_names lists them.
+out="$("${SSH[@]}" "kali@${addr}" 'sudo sh -eu -s' <<'GUEST'
 sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
-nft list ruleset 2>/dev/null | grep -Ei \"masquerade|snat\" || echo \"no NAT\"
-iptables -t nat -S 2>/dev/null | grep -- \"-j MASQUERADE\" || echo \"no legacy NAT\"
-ip -br addr; ip route
-"')"
+rs="$(nft list ruleset)" || { echo "nft list ruleset failed"; exit 1; }
+if printf '%s\n' "$rs" | grep -Eiq 'masquerade|snat'; then echo "nft has NAT"; else echo "no NAT"; fi
+legacy=""
+for fam in ip ip6; do
+  grep -qsx nat "/proc/net/${fam}_tables_names" || continue
+  cmd="iptables-legacy"; [ "$fam" = ip6 ] && cmd="ip6tables-legacy"
+  rules="$("$cmd" -t nat -S)" || { echo "$cmd -t nat -S failed"; exit 1; }
+  printf '%s\n' "$rules" | grep -Eq -- '-j (MASQUERADE|SNAT)' && legacy=1
+done
+if [ -n "$legacy" ]; then echo "legacy NAT present"; else echo "no legacy NAT"; fi
+ip -br addr
+ip route
+GUEST
+)" || die "§8 check three did not run to the end on ${NAME}: ${out:-no output}"
 printf '%s\n' "${out}"
 grep -qx 'net.ipv4.ip_forward = 0' <<<"${out}" || die "ip_forward is not 0"
 grep -qx 'net.ipv6.conf.all.forwarding = 0' <<<"${out}" || die "IPv6 forwarding is not 0"
 grep -qx 'no NAT' <<<"${out}" || die "nft has a NAT rule"
-grep -qx 'no legacy NAT' <<<"${out}" || die "iptables-legacy has a MASQUERADE rule"
+grep -qx 'no legacy NAT' <<<"${out}" || die "a legacy nat table has a MASQUERADE or SNAT rule"
 grep -q "${RANGE_ADDR%/*}/24" <<<"${out}" || die "${RANGE_ADDR} is not on any interface"
 [[ "$(grep -c '^default' <<<"${out}")" == 1 ]] || die "expected exactly one default route"
 grep -q '^default via 10\.0\.30\.1 ' <<<"${out}" || die "the default route is not via 10.0.30.1"
