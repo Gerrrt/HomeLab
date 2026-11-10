@@ -40,7 +40,9 @@
 # Alarm's way into Home Assistant, decided by ADR-0104, and the reason for
 # DIFFERENCE 14, the tier's second and third networks. Immich's machine
 # learning was moved onto two networks of its own after it had been running
-# (#978), and that is DIFFERENCE 15.
+# (#978), and that is DIFFERENCE 15. Paperless's database and broker
+# followed onto a network shared with Paperless alone, and that is
+# DIFFERENCE 16.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -51,7 +53,7 @@
 # NOT repeated here; two copies of an argument drift the same way two copies
 # of a config do. What IS written out here is every place this stack differs
 # from that one, because those are the only lines a reader cannot get from
-# the sibling file. There are fifteen such places, each marked DIFFERENCE.
+# the sibling file. There are sixteen such places, each marked DIFFERENCE.
 
 name: sensitive
 
@@ -1333,6 +1335,9 @@ services:
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
+    # `paperless-backend` as well, the only way to reach its database and its
+    # broker (DIFFERENCE 16).
+    networks: [sensitive, paperless-backend]
     depends_on:
       paperless-db:
         condition: service_healthy
@@ -1423,6 +1428,8 @@ services:
     <<: *service-defaults
     image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
     container_name: sensitive-paperless-db
+    # Not `sensitive`: DIFFERENCE 16 says why.
+    networks: [paperless-backend]
     user: "999:999"
     mem_limit: 512m
     memswap_limit: 512m
@@ -1465,6 +1472,21 @@ services:
     <<: *service-defaults
     image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     container_name: sensitive-paperless-broker
+    # DIFFERENCE 16: not on `sensitive`, and neither is paperless-db. The
+    # broker has no password: any client that can open 6379 is Valkey's
+    # default user, with every command. Paperless accepts Celery tasks as JSON
+    # as well as signed pickle, so on `sensitive` any other service here could
+    # read task results, flush the queue, or queue Paperless's own tasks with
+    # arguments of its choosing — `empty_trash` with a list of ids is a hard
+    # delete. paperless-db does ask for a password, but it has the same one
+    # client, and off `sensitive` its pre-login code is out of reach too.
+    #
+    #   paperless-backend  internal, no gateway. Paperless, its database and
+    #                      this broker are its only members. Neither store
+    #                      fetches anything, so there is no egress network.
+    #
+    # Backups are unchanged: backup-volumes.sh reads the volumes, not a port.
+    networks: [paperless-backend]
     # DIFFERENCE 5 and 8 again: the image's entrypoint is `tini --
     # docker-entrypoint.sh`, an init of its own, and under docker-init it runs
     # as PID 2 and logs on every start that zombies "will not be re-parented
@@ -2183,6 +2205,10 @@ networks:
   # other member.
   immich-ml-egress:
     driver: bridge
+  # DIFFERENCE 16: Paperless's database and broker, shared only with Paperless.
+  paperless-backend:
+    driver: bridge
+    internal: true
 
 volumes:
   caddy-data:

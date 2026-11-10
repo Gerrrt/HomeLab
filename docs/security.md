@@ -1176,6 +1176,12 @@ is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
   compromise of another service in the tier therefore cannot reach those
   decoders
   ([#978](https://github.com/Gerrrt/HomeLab/issues/978)).
+- Paperless's broker and database are not on `sensitive` either. The broker,
+  a Valkey, has no password, and Paperless accepts Celery tasks as JSON, so
+  any client that reached it could queue Paperless's own tasks, a hard delete
+  from the trash among them. Both share an internal network with Paperless
+  alone, so another service in the tier can reach neither
+  ([#1377](https://github.com/Gerrrt/HomeLab/issues/1377)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability

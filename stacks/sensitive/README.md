@@ -121,7 +121,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-three services, three networks, health-gated ordering;
+compose.yaml               twenty-three services, six networks, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml, packages/ and custom_components/,
@@ -361,6 +361,13 @@ time and lives in Caddy's `/data` volume, never on disk here.
 
 ### Paperless-ngx in particular
 
+- **Its database and broker are not on `sensitive`.** The broker is a Valkey
+  with no password, and Paperless takes Celery tasks as JSON as well as signed
+  pickle, so anything that could open 6379 could queue Paperless's own tasks,
+  `empty_trash` with a list of ids among them. Both join only
+  `paperless-backend`, an internal network they share with Paperless alone.
+  Neither fetches anything, so there is no egress network. Backups read the
+  volumes, not a port, and are unchanged ([#1377]).
 - **It runs as the operator, with nothing left to escalate to.** Upstream's
   rootless form — `user:` set, no `USERMAP_*` — as `${RENDER_UID}`, the uid
   that ran `make up`, with `cap_drop: [ALL]`. Measured on the boot above:
@@ -1334,3 +1341,4 @@ it matters:
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535
 [#970]: https://github.com/Gerrrt/HomeLab/issues/970
 [#978]: https://github.com/Gerrrt/HomeLab/issues/978
+[#1377]: https://github.com/Gerrrt/HomeLab/issues/1377
