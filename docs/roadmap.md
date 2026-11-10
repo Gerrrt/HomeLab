@@ -90,13 +90,6 @@ Closes when it is empty.
   that lets it connect, the HomePods' ports read from the firewall log while
   pairing, and the lines in `network.md` and `security.md` that say Home
   Assistant has not added them yet.
-- **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248) The VTech monitor
-  in Home Assistant, by a bridge on Skids.** Decided by
-  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).
-  Gate: the two purchases in *Everything still to buy*, in order — the used
-  phone first, because the key extraction is the step that decides whether
-  the Pi is ordered at all. Then a reservation, three rows on `morpheus`, and
-  the camera read from `trinity`.
 - **[#1240](https://github.com/Gerrrt/HomeLab/issues/1240) Retire
   `ring_push_guard`.** Decided by
   [ADR-0101](adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
@@ -413,8 +406,6 @@ move and stay until they are bought or dropped.
 | Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Any time; the #919 move is done |
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | The next time the DL360 is out of the rack: not fitted in the #919 move |
-| A used Android phone that KernelSU or Magisk supports (a Pixel), to be rooted, used once and wiped | The one-time extraction of the VTech camera's TUTK license key, UID and channel password ([#1248](https://github.com/Gerrrt/HomeLab/issues/1248)) | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | First: nothing else in #1248 starts until the keys exist |
-| Raspberry Pi 4 or 5, 2 GB or more, with PSU, case and a 32 GB card | `heimdall`, the monitor bridge on Skids at `10.0.20.30` | [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md) | After the extraction succeeds, and not before |
 
 **The last one, bought 2026-10-05:** `gandalf`, the range host — a quiet
 SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC
