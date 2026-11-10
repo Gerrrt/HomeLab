@@ -41,6 +41,10 @@ yaml = require_yaml()
 
 def scratch(cfg: dict, work: str, for_tests: bool = False) -> dict:
     cfg["common"]["path_prefix"] = f"{work}/data"
+    # Advertise loopback in the ring. Left unset, Loki looks for an address on
+    # eth0/en0 and exits when there is none, which is every run under
+    # --network none (#1178). One process with an in-memory ring reaches itself.
+    cfg["common"]["instance_addr"] = "127.0.0.1"
     cfg["common"]["storage"]["filesystem"] = {
         "chunks_directory": f"{work}/data/chunks",
         "rules_directory": f"{work}/data/rules",
