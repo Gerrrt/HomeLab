@@ -33,6 +33,9 @@ from typing import Any
 PATCHED_VERSIONS = frozenset({"0.4.5"})
 # Header name in app_data, the parameter 0.4.5's slice expects at its start.
 _HEADERS = (("crypto-key", "dh"), ("encryption", "salt"))
+# The Web Push parameter names (RFC 8188, RFC 8291, RFC 8292) the warning may
+# name. Any other segment is logged as "<other>".
+_LOGGABLE_PARAMS = frozenset({"dh", "salt", "rs", "keyid", "p256ecdsa"})
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -70,12 +73,22 @@ def _normalise_headers(msg: Any) -> None:
                 item.value = f"{name}={webpush_header_param(item.value, name)}"
 
 
+def _param_name(segment: str) -> str:
+    """Name one header segment for the log, or redact it.
+
+    Only names on the allowlist are logged. A bare value has no name, and its
+    text before any "=" is key material, so it is never echoed.
+    """
+    param, sep, _ = segment.strip().partition("=")
+    return param if sep and param in _LOGGABLE_PARAMS else "<other>"
+
+
 def _shape(msg: Any) -> str:
     """Describe the headers by length and parameter names, never by content."""
     parts = []
     for item in msg.app_data:
         if item.key in {key for key, _ in _HEADERS}:
-            names = [s.strip().partition("=")[0] for s in item.value.split(";")]
+            names = [_param_name(s) for s in item.value.split(";")]
             parts.append(f"{item.key}: len={len(item.value)} params={names}")
     return "; ".join(parts) or "no crypto headers"
 
