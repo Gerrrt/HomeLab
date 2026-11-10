@@ -187,7 +187,10 @@ other services that a reset to no defaults leaves on and nothing here uses:
 ```
 
 That leaves `ssh`, `winbox` (the way back in by MAC), `www` until Phase 2 and
-`www-ssl`. A reset switch has nothing to take time from on the bench and
+`www-ssl`. `api-ssl` is turned back on later, for Home Assistant alone, by
+[`connect-the-switch-to-home-assistant.md`](connect-the-switch-to-home-assistant.md)
+([ADR-0111](../adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)).
+Do that after the swap, not here. A reset switch has nothing to take time from on the bench and
 keeps whatever date it last had, so set the clock by hand in UTC with
 `/system/clock/set`.
 

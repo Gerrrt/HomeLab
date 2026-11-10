@@ -233,7 +233,11 @@ that interface carries six logged blocks — one per VLAN — above an egress ru
 renamed *Allow internet*, with DNS and NTP to the gateway the only passes above
 them ([#229](https://github.com/Gerrrt/HomeLab/issues/229)); since 2026-09-06
 nothing on Winterfell can reach it either
-([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)).
+([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)), apart from
+SNMP from `10.0.99.20`. A second pass is decided and not yet created:
+`trinity`'s Home Assistant to the switch's `api-ssl` on `8729`
+([ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md),
+[#1388](https://github.com/Gerrrt/HomeLab/issues/1388)).
 
 **IPv6 terminates at the WAN and is not carried inside the estate.** That was
 never written down and is now measured rather than assumed
@@ -938,6 +942,29 @@ switch-UI probe, by the decision recorded in
 because adding one would need a new `10.0.99.20 → 10.7.7.2:443` pass. The date
 is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
 [`successor-handover.md`](runbooks/successor-handover.md) instead.
+
+### Home Assistant reads the switch without verifying it (decided)
+
+[ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
+gives Home Assistant on `trinity` a read-only view of `neo` through the core
+MikroTik integration. The switch serves `api-ssl` on `8729` with the UI's
+leaf, to `10.0.99.40` alone. Plain `api` stays off. The user is in a group
+with `read,api,test`, so the switch refuses any write, reboot or port change
+Home Assistant offers. It has no `sensitive` policy, so the SNMPv3
+passphrases stay hidden from it.
+
+**The residual is that the integration encrypts and does not
+authenticate.** Its *Verify SSL certificate* option turns TLS on with
+`CERT_NONE` and no hostname check, in the pinned image and upstream alike.
+Anything that answers on `10.7.7.2` gets the password. To answer there, an
+attacker must already own `morpheus`, `neo` or a host on Winterfell that can
+poison `trinity`'s ARP entry for the gateway. What they would get is a
+read-only login that works from `10.0.99.40` only.
+[`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md)
+§5 verifies the certificate once, by hand, when the integration is set up.
+The residual is reopened by an integration release whose option verifies.
+None of this is deployed until
+[#1388](https://github.com/Gerrrt/HomeLab/issues/1388).
 
 ## Hardening applied to the stack
 
