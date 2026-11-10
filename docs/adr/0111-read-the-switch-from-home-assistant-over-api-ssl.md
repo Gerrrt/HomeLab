@@ -41,11 +41,11 @@ creates:
 | Platform | What it reads or does | RouterOS path |
 | --- | --- | --- |
 | `sensor`, `binary_sensor` | CPU, memory, temperature, uptime, each port's link state | reads |
-| `update` | RouterOS and RouterBOARD versions | reads |
+| `update` | RouterOS and RouterBOARD versions, and installs an upgrade, RouterOS's with an optional backup first | reads, and system commands to install |
 | `device_tracker` | Clients, from the wireless registration table or, failing that, the DHCP server's leases | reads |
 | `switch` | Enables and disables a port | `/interface/enable`, `/interface/disable` |
 | `select` | Sets a port's PoE mode | `/interface/ethernet/poe/set` |
-| `button` | Reboots or shuts down the switch | system commands |
+| `button` | Reboots, shuts down or backs up the switch | system commands |
 
 **Presence comes from nowhere on this device.** `update_devices` builds its
 client list from wireless interfaces, then from DHCP leases. `neo` has no
@@ -104,9 +104,11 @@ and TLS that encrypts without authenticating, recorded as a residual.**
    `test`, the minimum the integration's documentation names. `test` is for
    its ARP ping, which a switch with no leases never uses, but the
    integration expects it. With no `write`, the switch refuses the port
-   switches, the PoE selects and the restart and shutdown buttons, whatever
-   Home Assistant offers. Those entities are disabled in the UI so that they
-   do not sit there failing. A user with `write` would be a credential in
+   switches, the PoE selects, the restart, shutdown and backup buttons and
+   the update entities' *Install*, whatever Home Assistant offers. The
+   switches, selects and buttons are disabled in the UI so that they do not
+   sit there failing. The update entities stay enabled, because they are
+   where the versions show, and their *Install* is refused. A user with `write` would be a credential in
    Home Assistant's store that can disable any port, including port 1, the
    untagged link ADR-0041 keeps as the way back in. The operator did not ask
    for control, and it is not granted.

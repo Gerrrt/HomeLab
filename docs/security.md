@@ -949,7 +949,7 @@ is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
 gives Home Assistant on `trinity` a read-only view of `neo` through the core
 MikroTik integration. The switch serves `api-ssl` on `8729` with the UI's
 leaf, to `10.0.99.40` alone. Plain `api` stays off. The user is in a group
-with `read,api,test`, so the switch refuses any write, reboot or port change
+with `read,api,test`, so the switch refuses any write, reboot, backup, upgrade or port change
 Home Assistant offers. It has no `sensitive` policy, so the SNMPv3
 passphrases stay hidden from it.
 

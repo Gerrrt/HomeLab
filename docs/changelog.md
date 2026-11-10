@@ -41,7 +41,8 @@ docstring gives: it is a record, not a claim about now.
     *Block access to the untagged LAN*. `api-ssl` on, on the UI's leaf,
     for `10.0.99.40` only, with plain `api` still off. A
     `homeassistant` user in a group with `read,api,test`, so the switch
-    refuses the port, PoE and restart controls the integration creates.
+    refuses the port, PoE, restart, backup and upgrade controls the
+    integration creates.
     `network.md` and `security.md` carry it as decided, and
     `swap-the-switch.md` §1.4 points a rebuild at the new runbook.
 

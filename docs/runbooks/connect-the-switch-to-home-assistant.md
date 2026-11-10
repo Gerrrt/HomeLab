@@ -162,13 +162,24 @@ In Home Assistant: Settings → Devices & services → Add integration →
 | Port | `8729` |
 | Verify SSL certificate | **on** (in this integration this turns TLS on, and verifies nothing) |
 
-With the box off, the integration speaks plaintext to a TLS listener and
-cannot connect. Nothing leaks, but the setup fails.
+**Do not submit the form with the box off.** The integration then logs in
+in plaintext, and `librouteros` sends the `/login` request, password
+included, before it reads any reply. The TLS listener refuses the session,
+but the password has already crossed Winterfell and the switch LAN in
+clear. If that happens, treat the password as spent: set a new one on the
+switch (§2, §3) and use that.
 
 Then, on the new device's page, disable the entities that write: every
-port's switch, any PoE select, and the *Restart* and *Shutdown* buttons. The
-switch would refuse them anyway. Disabled, they don't sit on a dashboard
-looking like controls. Leave the options at their defaults: *Force scanning
+port's switch, any PoE select, and the *Restart*, *Shutdown* and *Backup*
+buttons. The switch would refuse them anyway. Disabled, they don't sit on a
+dashboard looking like controls.
+
+Keep the two update entities, *RouterOS* and *RouterBOARD*, enabled. They
+are where the installed and latest versions show, and disabling them loses
+that. They do offer *Install*, and the RouterOS one offers a backup first.
+The switch refuses both, because the group has no `write` or `reboot`. An
+upgrade is still done by hand from Hicks, as before. Hide them from
+dashboards if the button is a nuisance. Leave the options at their defaults: *Force scanning
 using DHCP* and *ARP ping* have nothing to read on a switch.
 
 Check: the CPU, memory, temperature and uptime sensors have values, and
