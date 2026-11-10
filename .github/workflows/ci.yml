@@ -215,8 +215,12 @@ jobs:
             sd="stacks/$stack"
             [ -f "$sd/prometheus/prometheus.yaml" ] || { echo "== $stack: no prometheus.yaml"; continue; }
             echo "== $stack"
-            docker run --rm --entrypoint promtool \
-              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" \
+            # --network none and a read-only mount, as validate.sh runs the
+            # same tools: on a fork PR these files are the author's, and a
+            # checker needs nothing but them. check_image_pins.py fails a
+            # docker run that does not state its --network (#1178).
+            docker run --rm --network none --entrypoint promtool \
+              -v "$PWD:/repo:ro" -w /repo "$PROM_IMAGE" \
               check config "$sd/prometheus/prometheus.yaml" || fail=1
 
             rules=$(find "$sd/prometheus/rules" -name '*.rules.yaml' 2>/dev/null | sort)
@@ -226,8 +230,8 @@ jobs:
               continue
             fi
             # shellcheck disable=SC2086
-            docker run --rm --entrypoint promtool \
-              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" check rules $rules || fail=1
+            docker run --rm --network none --entrypoint promtool \
+              -v "$PWD:/repo:ro" -w /repo "$PROM_IMAGE" check rules $rules || fail=1
             if [ -z "$tests" ]; then
               echo "::error::$stack has alert rules and no promtool tests —"
               echo "::error::a rule that cannot fire still passes check rules (#63)"
@@ -235,8 +239,8 @@ jobs:
               continue
             fi
             # shellcheck disable=SC2086
-            docker run --rm --entrypoint promtool \
-              -v "$PWD:/repo" -w /repo "$PROM_IMAGE" test rules $tests || fail=1
+            docker run --rm --network none --entrypoint promtool \
+              -v "$PWD:/repo:ro" -w /repo "$PROM_IMAGE" test rules $tests || fail=1
           done
           # The per-stack guard above refuses a stack with no tests at all; this
           # refuses a single untested rule inside a tested stack (#843).
@@ -254,8 +258,8 @@ jobs:
           for f in $(./scripts/stacks.sh --paths | sed 's|$|/alertmanager/alertmanager.yaml|'); do
             [ -f "$f" ] || continue
             echo "== $f"
-            docker run --rm --entrypoint amtool \
-              -v "$PWD:/repo" -w /repo "$AM_IMAGE" check-config "$f" || fail=1
+            docker run --rm --network none --entrypoint amtool \
+              -v "$PWD:/repo:ro" -w /repo "$AM_IMAGE" check-config "$f" || fail=1
           done
           exit $fail
 
@@ -278,8 +282,8 @@ jobs:
           while read -r expected labels; do
             [ -n "$expected" ] || continue
             # shellcheck disable=SC2086
-            docker run --rm --entrypoint amtool \
-              -v "$PWD:/repo" -w /repo "$AM_IMAGE" \
+            docker run --rm --network none --entrypoint amtool \
+              -v "$PWD:/repo:ro" -w /repo "$AM_IMAGE" \
               config routes test \
               --config.file="$cfg" \
               --verify.receivers="$expected" $labels \
@@ -311,8 +315,11 @@ jobs:
           found=$(find stacks -path '*/alloy/*.alloy' | sort)
           [ -n "$found" ] || { echo "::error::no *.alloy under stacks/"; exit 1; }
           for f in $found; do
-            docker run --rm --entrypoint alloy \
-              -v "$PWD:/repo" -w /repo "$ALLOY_IMAGE" \
+            # Alloy's image runs as root, so it runs as the runner here: a root
+            # process with the checkout writable could rewrite what later steps
+            # in this job execute (#1177, #1178).
+            docker run --rm --network none --user "$(id -u):$(id -g)" -e HOME=/tmp \
+              --entrypoint alloy -v "$PWD:/repo:ro" -w /repo "$ALLOY_IMAGE" \
               fmt --test "$f"
           done
 
@@ -531,8 +538,10 @@ jobs:
             fi
             python3 scripts/check_dashboards.py --stack "$stack" --emit-promql \
               > "/tmp/dashboard-exprs-$stack.yaml"
-            docker run --rm --entrypoint promtool \
-              -v /tmp:/tmp "$PROM_IMAGE" check rules "/tmp/dashboard-exprs-$stack.yaml" || fail=1
+            # The one file, read-only, rather than all of the runner's /tmp.
+            docker run --rm --network none --entrypoint promtool \
+              -v "/tmp/dashboard-exprs-$stack.yaml:/exprs.yaml:ro" "$PROM_IMAGE" \
+              check rules /exprs.yaml || fail=1
           done
           exit $fail
 

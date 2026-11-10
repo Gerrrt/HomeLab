@@ -100,7 +100,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
     if [[ "${TOFU[0]}" == tofu ]]; then
       (cd "${dir}" && TF_IN_AUTOMATION=1 TF_VAR_state_passphrase="${PP}" tofu "$@")
     else
-      docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 \
+      docker run --network none --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 \
         -e TF_VAR_state_passphrase="${PP}" -v "${dir}:/w" -w /w \
         "$("${REPO_ROOT}/scripts/image-for.sh" tofu)" "$@"
     fi

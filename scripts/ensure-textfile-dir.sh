@@ -44,7 +44,7 @@ if [[ -d "$DIR" ]]; then
 fi
 
 IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" alloy)"
-docker run --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
+docker run --network none --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
   -c 'mkdir -p /hostvarlib/node_exporter/textfile_collector && chmod 0755 /hostvarlib/node_exporter /hostvarlib/node_exporter/textfile_collector'
 
 # Assert the result rather than trusting the exit status: the point is that

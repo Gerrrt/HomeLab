@@ -187,7 +187,7 @@ if [[ "${RUNNER}" == "loki" ]]; then
 else
   # --user: without it Loki writes as uid 10001 and the runner cannot delete
   # the scratch directory afterwards, filling the log with rm errors.
-  RUN=(docker run --rm --user "$(id -u):$(id -g)" \
+  RUN=(docker run --network none --rm --user "$(id -u):$(id -g)" \
        -v "${WORK}:${WORK}" -w "${WORK}" --entrypoint loki "${LOKI_IMAGE}")
 fi
 

@@ -82,6 +82,25 @@ Dependabot bumps would have validated the config on one release and run it on
 another, green (#848). The pairs are read off the mounts; see
 shared_config_pairs().
 
+The network rule
+----------------
+Every `docker run` and `docker create` must pass `--network` (or `--net`)
+explicitly. `none` is the expected value for anything that only reads the
+checkout or a volume; anything else — `bridge`, `host`, a named network — is
+allowed, but it is then a choice that shows up in the diff rather than
+Docker's default. That default is a network, and a tool reading a fork PR's
+files with a parsing bug should have nothing to reach (#1001, #1013). The
+convention was held only by comments in lint.sh and validate.sh, and CI's
+promtool, amtool and alloy steps were missed (#1178). `docker pull` is
+exempt: it has no container to attach. As with the image rule, a `--network`
+token is looked for anywhere among the arguments, so `-e --network` would pass;
+that takes deliberate effort, and refusing it would need the flag table the
+section above declines to keep.
+
+Read-only mounts are not checked mechanically. Mount syntax varies
+(`-v a:b:ro`, `--mount ...,readonly`), and some runs write by design
+(restore-volumes.sh, ensure-textfile-dir.sh), so `:ro` stays a review point.
+
 There is deliberately no ignore mechanism. If a case needs one, the rule is
 wrong — see the .gitleaksignore argument in the docstring of check_docs.py.
 
@@ -393,8 +412,8 @@ def segments(text: str) -> list[list[str]]:
     return segs
 
 
-def invocation(tokens: list[str]) -> list[str] | None:
-    """Return the arguments of a `docker run|pull|create`, or None.
+def invocation(tokens: list[str]) -> tuple[str, list[str]] | None:
+    """Return the verb and arguments of a `docker run|pull|create`, or None.
 
     The subcommand must follow `docker` adjacently, past global flags and an
     optional container/image management word. That is what keeps
@@ -413,7 +432,7 @@ def invocation(tokens: list[str]) -> list[str] | None:
             else:
                 break
         if j < len(tokens) and tokens[j] in SUBCOMMANDS:
-            return tokens[j + 1 :]
+            return tokens[j], tokens[j + 1 :]
         return None
     return None
 
@@ -520,6 +539,20 @@ def socket_reach(args: list[str]) -> str | None:
     return None
 
 
+NETWORK_FLAGS = ("--network", "--net")
+
+
+def network_choice(args: list[str]) -> str | None:
+    """The network a docker run/create names, or None when it names none."""
+    for i, a in enumerate(args):
+        if a in NETWORK_FLAGS:
+            return args[i + 1] if i + 1 < len(args) else ""
+        flag, eq, value = a.partition("=")
+        if eq and flag in NETWORK_FLAGS:
+            return value
+    return None
+
+
 def proxy_names(lines: list[Line]) -> set[str]:
     """Names assigned from `image-for.sh docker-socket-proxy`."""
     names: set[str] = set()
@@ -530,20 +563,37 @@ def proxy_names(lines: list[Line]) -> set[str]:
     return names
 
 
-def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
+def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int, int]:
+    """Problems, invocations seen, and run/create invocations on --network none."""
     traced = traced_names(lines)
     proxies = proxy_names(lines)
-    problems, seen = [], 0
+    problems, seen, isolated = [], 0, 0
     for line in lines:
         pending = [line.text]
         while pending:
             inner, flat = extract_substs(pending.pop())
             pending.extend(inner)
             for tokens in segments(flat):
-                args = invocation(tokens)
-                if args is None:
+                found = invocation(tokens)
+                if found is None:
                     continue
+                verb, args = found
                 seen += 1
+                if verb in ("run", "create"):
+                    network = network_choice(args)
+                    if network is None:
+                        where = f"{rel}:{line.lineno}"
+                        if line.context:
+                            where += f" ({line.context})"
+                        problems.append(
+                            f"{where}: this docker {verb} does not state "
+                            f"--network. Pass --network none if it only reads "
+                            f"files; otherwise name the network it needs "
+                            f"(bridge, host, a named one) so the choice is in "
+                            f"the diff, not Docker's default (#1178)"
+                        )
+                    elif network == "none":
+                        isolated += 1
                 reach = socket_reach(args)
                 # The exemption is for the IMAGE being the proxy, not for the
                 # proxy's variable appearing somewhere: `-e "$PROXY_IMAGE"`
@@ -570,7 +620,7 @@ def check_file(rel: str, lines: list[Line]) -> tuple[list[str], int]:
                     f"to stacks/observability/compose.yaml if the image is not "
                     f"a running one (see the `archiver` service, and #65)"
                 )
-    return problems, seen
+    return problems, seen, isolated
 
 
 def sources() -> list[tuple[str, list[Line]]]:
@@ -793,16 +843,17 @@ def shared_config_problems() -> tuple[list[str], int]:
 
 
 def main() -> int:
-    problems, sites, files = [], 0, 0
+    problems, sites, files, isolated = [], 0, 0, 0
     problems.extend(pattern_problems())
     problems.extend(digest_problems())
     problems.extend(arch_tag_problems())
     shared, pairs = shared_config_problems()
     problems.extend(shared)
     for rel, lines in sources():
-        found, seen = check_file(rel, lines)
+        found, seen, none = check_file(rel, lines)
         problems.extend(found)
         sites += seen
+        isolated += none
         files += 1 if seen else 0
 
     for problem in problems:
@@ -810,7 +861,8 @@ def main() -> int:
     if problems:
         print(
             f"\n{len(problems)} image pin problem(s): a docker command running an "
-            f"image from outside compose.yaml or holding the Docker socket, or "
+            f"image from outside compose.yaml, holding the Docker socket or "
+            f"not stating its --network, or "
             f"a compose image without a digest, on a single-architecture tag, "
             f"or apart from the stack whose config it mounts",
             file=sys.stderr,
@@ -822,17 +874,18 @@ def main() -> int:
     print(
         f"image pins OK — {sites} docker run/pull/create invocation(s) across "
         f"{files} file(s), every image resolved from compose.yaml via "
-        f"scripts/image-for.sh; {pairs} shared-config pin pair(s) identical"
+        f"scripts/image-for.sh and every run/create stating its --network "
+        f"({isolated} with none); {pairs} shared-config pin pair(s) identical"
     )
     return 0
 
 
 def self_test() -> int:
-    """The socket rule against fixture shell; the image rule is CI's own run."""
+    """The socket and network rules against fixture shell; the image rule is CI's own run."""
 
-    def problems(*text: str) -> int:
+    def problems(*text: str, rule: str = "socket proxy") -> int:
         lines = [Line(i + 1, t, "") for i, t in enumerate(text)]
-        return sum("socket proxy" in p for p in check_file("fixture", lines)[0])
+        return sum(rule in p for p in check_file("fixture", lines)[0])
 
     img = 'IMAGE="$(./scripts/image-for.sh alloy)"'
     proxy = 'PROXY_IMAGE="$(./scripts/image-for.sh docker-socket-proxy)"'
@@ -909,6 +962,24 @@ def self_test() -> int:
     failed = 0
     for name, want, text in cases:
         got = problems(*text)
+        ok = got == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))
+
+    # The network rule (#1178).
+    network_cases = [
+        ("a docker run with no --network fails", 1, (img, 'docker run --rm -v "$PWD:/repo:ro" "$IMAGE" fmt')),
+        ("a docker create with no --network fails", 1, (img, 'docker create --name x "$IMAGE"')),
+        ("the long form `docker container run` is the same verb", 1, (img, 'docker container run --rm "$IMAGE"')),
+        ("--network none passes", 0, (img, 'docker run --rm --network none -v "$PWD:/repo:ro" "$IMAGE" fmt')),
+        ("--network=host is a stated choice and passes", 0, (img, 'docker run --rm --network=host "$IMAGE"')),
+        ("--net bridge is a stated choice and passes", 0, (img, 'docker run --rm --net bridge "$IMAGE"')),
+        ("a named network passes", 0, (img, 'docker run -d --network alloy "$IMAGE"')),
+        ("docker pull has no container to attach", 0, (img, 'docker pull "$IMAGE"')),
+        ("docker compose run reads compose.yaml and is not checked", 0, ("docker compose run --rm alloy",)),
+    ]
+    for name, want, text in network_cases:
+        got = problems(*text, rule="--network")
         ok = got == want
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got}, expected {want})"))

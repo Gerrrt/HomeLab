@@ -363,7 +363,7 @@ docker)
   # is a property of the host's distribution, and the image's own alloy group
   # (473 today) is a property of the pinned image.
   LOG_GID="$(stat -c %g /var/log/syslog 2>/dev/null || echo 4)"
-  ALLOY_GID="$(docker run --rm --entrypoint sh "$IMAGE" -c 'stat -c %g /var/lib/alloy')"
+  ALLOY_GID="$(docker run --network none --rm --entrypoint sh "$IMAGE" -c 'stat -c %g /var/lib/alloy')"
   [[ "$ALLOY_GID" =~ ^[0-9]+$ ]] || die "could not read the alloy group out of the image (got '${ALLOY_GID}')"
 
   # The config lives in a named volume, populated from the stage by the image
@@ -373,14 +373,14 @@ docker)
   # the estate's CA. The stage holds exactly FILES, so /src/* is that list.
   docker volume create alloy-config >/dev/null
   docker volume create alloy-data >/dev/null
-  docker run --rm -v alloy-config:/dst -v "${STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
+  docker run --network none --rm -v alloy-config:/dst -v "${STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
     -c 'rm -f /dst/*.alloy /dst/*.pem && cp /src/* /dst/ && chmod 0644 /dst/*'
 
   # node_exporter reads this on every scrape and logs level=error while it is
   # missing — which would hold the gate below shut forever. Same privilege
   # class as the volume step above: docker-group membership is root on the host
   # already, and this is one mkdir.
-  docker run --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
+  docker run --network none --rm -v /var/lib:/hostvarlib --entrypoint sh "$IMAGE" \
     -c 'mkdir -p /hostvarlib/node_exporter/textfile_collector && chmod 0755 /hostvarlib/node_exporter /hostvarlib/node_exporter/textfile_collector'
 
   # The socket proxy, before Alloy, and the reason Alloy below has no socket.
@@ -401,7 +401,7 @@ docker)
   # (Tecnativa/docker-socket-proxy#182). A volume for the alloy-config reason:
   # no root-owned bind mount, and the running config is the shipped one.
   docker volume create alloy-socket-proxy-config >/dev/null
-  docker run --rm -v alloy-socket-proxy-config:/dst -v "${PROXY_STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
+  docker run --network none --rm -v alloy-socket-proxy-config:/dst -v "${PROXY_STAGE}:/src:ro" --entrypoint sh "$IMAGE" \
     -c 'rm -f /dst/* && cp /src/haproxy.cfg /dst/ && chmod 0644 /dst/haproxy.cfg'
   docker run -d --name alloy-socket-proxy \
     --network alloy \

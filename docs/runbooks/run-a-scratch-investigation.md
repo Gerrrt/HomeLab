@@ -108,7 +108,7 @@ checkout.** Do not commit it, and do not push from this guest.
 Make the two hashes with the indexer image's tool, as in soc's §5:
 
 ```bash
-docker run --rm -it --entrypoint bash \
+docker run --network none --rm -it --entrypoint bash \
   "$(COMPOSE_FILE=stacks/scratch/compose.yaml scripts/image-for.sh wazuh.indexer)" \
   /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
 ```

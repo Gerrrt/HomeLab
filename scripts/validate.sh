@@ -148,6 +148,9 @@ head_ "Prometheus"
 # run as root, run as the caller: a tool those files subvert must not be able
 # to rewrite scripts/ that this script then runs on the host, such as
 # gitleaks-history.sh straight after the working-tree scan.
+# scripts/check_image_pins.py enforces the --network half of this: a docker
+# run that does not state its --network fails it (#1178). The read-only mount
+# and --user are not checked mechanically, so they stay a review point.
 if have promtool; then
   PROMTOOL=(promtool)
 elif have_docker; then

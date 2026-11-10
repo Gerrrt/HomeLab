@@ -250,7 +250,7 @@ shell history; run it twice, once for `INDEXER_PASSWORD` and once for
 `DASHBOARD_PASSWORD`, and paste each hash into the matching `*_HASH` key:
 
 ```bash
-docker run --rm -it --entrypoint bash \
+docker run --network none --rm -it --entrypoint bash \
   "$(COMPOSE_FILE=stacks/soc/compose.yaml scripts/image-for.sh wazuh.indexer)" \
   /usr/share/wazuh-indexer/plugins/opensearch-security/tools/hash.sh
 ```

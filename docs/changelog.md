@@ -17,6 +17,29 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-10
+
+- **[#1178](https://github.com/Gerrrt/HomeLab/issues/1178): every
+  `docker run` and `docker create` now states its `--network`, and
+  `check_image_pins.py` fails one that does not.**
+  - **CI's checkers were the gap.** #1175 had converted only the gitleaks
+    steps. The promtool, amtool and `alloy fmt` steps still ran with a network
+    and a read-write mount of a fork PR's checkout, and alloy ran as root. They
+    now run with `--network none` and a read-only mount, and alloy runs as the
+    runner's UID. The dashboard PromQL step had mounted all of the runner's
+    `/tmp` read-write to read one file. It now mounts that file read-only.
+  - **The convention is now a check.** It had lived in comments in `lint.sh`,
+    `validate.sh` and `ci.yml`. The rule is that `none` is expected and
+    anything else is allowed if it is spelled out. It has `--self-test`
+    fixtures. Read-only mounts are not checked mechanically, because mount
+    syntax varies and some runs write by design.
+  - **29 of 71 invocations named no network.** 27 of them needed none,
+    because each touches only files or volumes or is reached through
+    `docker exec`. That includes the throwaway Grafana, Postgres and socket
+    proxy that the checks start, and the four helper runs in
+    `deploy-agent.sh`. Only Trivy's database download and `lint.sh`'s tofu
+    `init` keep a network, and they now say `--network bridge`.
+
 ## 2026-11-09
 
 - **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki's move to
