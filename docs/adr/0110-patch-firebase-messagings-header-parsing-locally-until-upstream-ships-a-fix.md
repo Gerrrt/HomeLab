@@ -1,4 +1,4 @@
-# ADR-0109: Patch firebase_messaging's header parsing locally until upstream ships a fix
+# ADR-0110: Patch firebase_messaging's header parsing locally until upstream ships a fix
 
 **Status:** Accepted · 2026-11
 

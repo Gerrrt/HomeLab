@@ -2,7 +2,7 @@
 # Loads custom_components/ring_push_guard, which keeps the Ring integration's
 # push receiver from shutting down on Ring pushes that have no ding.id
 # (ADR-0101), or whose Web Push crypto-key header has two parameters
-# (ADR-0109). A custom integration only loads when its domain is in the
+# (ADR-0110). A custom integration only loads when its domain is in the
 # configuration, and it takes no options.
 #
 # Each patch is deleted when Home Assistant ships the fixed library:

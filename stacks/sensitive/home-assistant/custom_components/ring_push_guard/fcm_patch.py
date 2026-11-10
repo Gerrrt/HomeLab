@@ -1,4 +1,4 @@
-"""Keep firebase_messaging's push client alive on Web Push headers it misreads (ADR-0109).
+"""Keep firebase_messaging's push client alive on Web Push headers it misreads (ADR-0110).
 
 firebase_messaging 0.4.5 takes the decryption key and salt out of each push
 by position: ``crypto-key[3:]`` to drop ``dh=`` and ``encryption[5:]`` to drop
@@ -122,7 +122,7 @@ def apply_patch() -> bool:
         _LOGGER.warning(
             "firebase_messaging is %s, not one this patch was written for (%s). "
             "Not patched. If that release reads Web Push headers by name, delete "
-            "the firebase_messaging patch from ring_push_guard (ADR-0109)",
+            "the firebase_messaging patch from ring_push_guard (ADR-0110)",
             version,
             ", ".join(sorted(PATCHED_VERSIONS)),
         )

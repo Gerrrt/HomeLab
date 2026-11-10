@@ -117,7 +117,7 @@ absent is as deliberate as what is here:
   Ring pushes without a `ding.id` [ADR-0101](../../docs/adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
   The other is for `firebase_messaging` 0.4.5, the push client underneath,
   which shuts down on a push whose `crypto-key` header has two parameters
-  [ADR-0109](../../docs/adr/0109-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md).
+  [ADR-0110](../../docs/adr/0110-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md).
   Either failure takes every real-time Ring event with it. The component is
   mounted read-only like the packages and is reviewed here. It is not a HACS
   channel. Each patch is deleted when its fixed library reaches Home

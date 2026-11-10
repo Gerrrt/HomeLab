@@ -20,7 +20,7 @@ newer one is expected to carry the fix.
 
 ``fcm_patch`` covers a second failure on the same receiver, one layer down:
 firebase_messaging 0.4.5 misreads some Ring pushes' Web Push headers and
-shuts the client down before any Ring code runs (ADR-0109). Each patch is
+shuts the client down before any Ring code runs (ADR-0110). Each patch is
 gated on its own library's version and retires on its own: the parser patch
 when a fixed ring_doorbell reaches Home Assistant (#1240), the
 firebase_messaging one when a fixed firebase-messaging does. When both have
