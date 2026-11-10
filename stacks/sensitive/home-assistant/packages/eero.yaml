@@ -10,8 +10,9 @@
 # This check is slow but needs nothing new. The fast check is Prometheus's:
 # the `blackbox-eero` job pings each unit every minute and EeroUnreachable
 # fires after five minutes (ADR-0110). It is the operator's alert, it depends
-# on a firewall pass, and its targets stay commented until that pass exists. This one is the household's, and it reads Kea,
-# so if the two disagree, suspect the network path rather than the unit.
+# on a firewall pass, and its targets stay commented until that pass exists.
+# This one is the household's, and it reads Kea, so if the two disagree,
+# suspect the network path rather than the unit.
 #
 # Each unit has a Kea reservation below its segment's pool, so the address
 # is the unit and no MAC is written here. The rows in network.md name which
