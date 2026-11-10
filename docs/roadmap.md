@@ -88,7 +88,8 @@ Closes when it is empty.
   reservations and the rules on `morpheus` are in force. Left: adding each
   HomePod by address from `trinity`, the Home app's speaker-access setting
   that lets it connect, the HomePods' ports read from the firewall log while
-  pairing, and the rows in `network.md` and `security.md` moved to in force.
+  pairing, and the lines in `network.md` and `security.md` that say Home
+  Assistant has not added them yet.
 - **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248) The VTech monitor
   in Home Assistant, by a bridge on Skids.** Decided by
   [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).
