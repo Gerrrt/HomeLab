@@ -16,8 +16,15 @@ cannot parse is skipped and logged at debug level rather than raised, so a
 malformed push can no longer stop the receiver.
 
 Any other ring_doorbell version is left alone, with a warning, because a
-newer one is expected to carry the fix. Then this component and its
-package are to be deleted.
+newer one is expected to carry the fix.
+
+``fcm_patch`` covers a second failure on the same receiver, one layer down:
+firebase_messaging 0.4.5 misreads some Ring pushes' Web Push headers and
+shuts the client down before any Ring code runs (ADR-0110). Each patch is
+gated on its own library's version and retires on its own: the parser patch
+when a fixed ring_doorbell reaches Home Assistant (#1240), the
+firebase_messaging one when a fixed firebase-messaging does. When both have
+gone, this component and its package are to be deleted.
 """
 
 from __future__ import annotations
@@ -30,6 +37,8 @@ from typing import Any
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.typing import ConfigType
+
+from . import fcm_patch
 
 DOMAIN = "ring_push_guard"
 PATCHED_VERSIONS = frozenset({"0.9.14"})
@@ -123,19 +132,26 @@ def apply_patch() -> bool:
     return True
 
 
+def apply_patches() -> bool:
+    """Apply both patches; return whether either one is in place."""
+    parser = apply_patch()
+    client = fcm_patch.apply_patch()
+    return parser or client
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
-    """Apply the patch, and restart a Ring listener that started before it."""
-    if not await hass.async_add_executor_job(apply_patch):
+    """Apply the patches, and restart a Ring listener that started before them."""
+    if not await hass.async_add_executor_job(apply_patches):
         return True
     # If Ring has set up, or is setting up, its listener may already have met
     # a malformed push and stopped: Ring starts it during platform setup,
-    # while the entry still reads SETUP_IN_PROGRESS. Replacing the parser
-    # does not restart a stopped receiver, so the entry is reloaded once.
-    # async_reload takes the entry's setup lock, so a reload asked for during
-    # setup waits for it and then runs. An entry not started yet needs
-    # nothing: it will start with the patch already in place.
+    # while the entry still reads SETUP_IN_PROGRESS. Patching does not restart
+    # a stopped receiver, so the entry is reloaded once. async_reload takes
+    # the entry's setup lock, so a reload asked for during setup waits for it
+    # and then runs. An entry not started yet needs nothing: it will start
+    # with the patches already in place.
     for entry in hass.config_entries.async_entries("ring"):
         if entry.state in _RELOAD_STATES:
-            _LOGGER.info("Reloading the Ring integration so its listener uses the patch")
+            _LOGGER.info("Reloading the Ring integration so its listener uses the patches")
             hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
     return True

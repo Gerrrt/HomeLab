@@ -96,6 +96,12 @@ Closes when it is empty.
   Gate: a Home Assistant release that pins a `ring_doorbell` with the
   missing-`ding.id` fix (python-ring-doorbell#540 or #556). Until then the
   patch stays, and the issue tracks it.
+- **[#1383](https://github.com/Gerrrt/HomeLab/issues/1383) Retire
+  `ring_push_guard`'s firebase_messaging patch.** Decided by
+  [ADR-0110](adr/0110-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md).
+  Gate: a Home Assistant release that pulls a `firebase-messaging` that reads
+  Web Push headers by name (sdb9696/firebase-messaging#43 or #46). Whichever
+  of this and #1240 retires last takes the component and its package with it.
 
 The rest of the milestone has no order between its issues.
 

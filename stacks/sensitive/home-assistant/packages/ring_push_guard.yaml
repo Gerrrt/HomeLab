@@ -1,11 +1,13 @@
 ---
 # Loads custom_components/ring_push_guard, which keeps the Ring integration's
 # push receiver from shutting down on Ring pushes that have no ding.id
-# (ADR-0101). A custom integration only loads when its domain is in the
+# (ADR-0101), or whose Web Push crypto-key header has two parameters
+# (ADR-0110). A custom integration only loads when its domain is in the
 # configuration, and it takes no options.
 #
-# Delete this file and the component once Home Assistant ships a
-# ring_doorbell release with the fix. The component warns in the log when the
-# installed version is not 0.9.14.
+# Each patch is deleted when Home Assistant ships the fixed library:
+# ring_doorbell (#1240), firebase-messaging (#1383). Delete this file and the
+# component with the last one. The component warns in the log when an
+# installed version is not the one its patch was written for.
 
 ring_push_guard:
