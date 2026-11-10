@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-10
 
+- **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
+  will read the switch over `api-ssl`, read-only.
+  [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
+  decides it, and
+  [`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md)
+  is the procedure. Nothing is deployed yet.**
+  - **The integration does not verify the switch's certificate.** In the
+    pinned image, 2026.11.1, and on upstream `dev`, the MikroTik
+    integration's *Verify SSL certificate* option turns TLS on and sets
+    `CERT_NONE` with no hostname check (`coordinator.py`, `get_api`). It
+    builds its context without Home Assistant's `util/ssl.py`, so
+    `REQUESTS_CA_BUNDLE` is never read. The operator accepted the
+    residual. The runbook verifies the certificate once, by hand, from
+    inside the container.
+  - **No presence.** The integration finds clients in a wireless table or
+    a DHCP server's leases, and `neo` has neither. It gives the switch's
+    health: CPU, temperature, uptime, port link states and the RouterOS
+    update.
+  - **Decided:** one pass, `10.0.99.40 → 10.7.7.2:8729/tcp`, above
+    *Block access to the untagged LAN*. `api-ssl` on, on the UI's leaf,
+    for `10.0.99.40` only, with plain `api` still off. A
+    `homeassistant` user in a group with `read,api,test`, so the switch
+    refuses the port, PoE, restart, backup and upgrade controls the
+    integration creates.
+    `network.md` and `security.md` carry it as decided, and
+    `swap-the-switch.md` §1.4 points a rebuild at the new runbook.
+
 - **Correction to the #1228 entry below: the eero ping ADR is
   [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md), not
   ADR-0110.** #1386 and #1384 each merged an ADR numbered 0110 on this date,

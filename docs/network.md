@@ -146,6 +146,17 @@ truth for what a box actually does.
   what ADR-0018 recorded and the swap closed.
 - **SNMP is v3 authPriv only**, user `prometheus` (SHA/AES), with the agent
   restricted to `10.0.99.20`. No v2c community exists, `public` included.
+- **The RouterOS API: decided, not yet in force.**
+  [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
+  turns `api-ssl` on at `8729` for Home Assistant on `trinity` alone, with
+  the same leaf as the UI and `address=10.0.99.40/32`. The user is
+  `homeassistant`, in a group with `read,api,test` and nothing else, and it
+  is also limited to `10.0.99.40`. Plain `api` stays off. The integration
+  does not verify the certificate, and ADR-0111 records why that is
+  accepted. Until
+  [#1388](https://github.com/Gerrrt/HomeLab/issues/1388) runs
+  [`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md),
+  `api` and `api-ssl` are both off.
 - DHCP disabled.
 
 > [!CAUTION]
@@ -235,6 +246,15 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   and wake `mediatv`, as tested on 2026-10-19 from standby. The CasaBonita notes and
   [ADR-0097](adr/0097-reach-the-lg-tv-from-home-assistant-and-wake-it-across-the-vlan.md)
   give the reasons.
+- **One pass into the switch LAN, decided and not yet created:**
+  `10.0.99.40 → 10.7.7.2:8729/tcp`, *Allow HA API to LAN Switch*, **above**
+  *Block access to the untagged LAN*. It is for Home Assistant's read-only
+  view of `neo` over `api-ssl`. It is the second pass from Winterfell into
+  the switch LAN, beside SNMP from `10.0.99.20`.
+  [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
+  records the reasons, and
+  [#1388](https://github.com/Gerrrt/HomeLab/issues/1388) creates it with
+  [`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md).
 - DHCP enabled, with static reservations for everything listed.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
