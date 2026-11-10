@@ -71,7 +71,7 @@ it, no rows open into Skids for it, and nothing is bought for it.**
 
 ## Consequences
 
-- **Home Assistant cannot see the nursery camera.** This one camera is an
+- **Home Assistant cannot see the VTech monitor.** This one camera is an
   exception to the household's rule that Home Assistant is where everything
   is seen. It is accepted rather than worked around.
 - **ADR-0102's risks never arrive.** There is no unreviewed native bridge
