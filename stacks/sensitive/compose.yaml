@@ -42,7 +42,7 @@
 # learning was moved onto two networks of its own after it had been running
 # (#978), and that is DIFFERENCE 15. Paperless's database and broker
 # followed onto a network shared with Paperless alone, and that is
-# DIFFERENCE 16.
+# DIFFERENCE 16; Immich's did the same.
 #
 # ---------------------------------------------------------------------------
 # On the comments in this file
@@ -1030,8 +1030,9 @@ services:
     image: ghcr.io/immich-app/immich-server:v3.3.6@sha256:e1981983b1c13f6024b57d72e7ecae3342eed1581201ab09fb248932d86c593a
     container_name: sensitive-immich-server
     # `immich-ml` as well, the only way to reach machine learning
-    # (DIFFERENCE 15).
-    networks: [sensitive, immich-ml]
+    # (DIFFERENCE 15), and `immich-backend`, the only way to reach its
+    # database and its job queue (DIFFERENCE 16).
+    networks: [sensitive, immich-ml, immich-backend]
     init: false
     # 3 GiB: the server transcodes video with ffmpeg inside this container,
     # and a 4K clip is the largest single working set anything here will have.
@@ -1171,6 +1172,8 @@ services:
     # version, so Dependabot bumps both halves together.
     image: ghcr.io/immich-app/postgres:17-vectorchord0.4.3@sha256:79b95b795f0911e95ffa4d092a2162c4d81a984d5629bc8f786afe0bc0657671
     container_name: sensitive-immich-db
+    # Not `sensitive`: DIFFERENCE 16 again, at immich-valkey.
+    networks: [immich-backend]
     # 2 GiB: upstream's stated floor for a Postgres under a container limit.
     mem_limit: 2048m
     memswap_limit: 2048m
@@ -1229,6 +1232,19 @@ services:
     # and one variant for both brokers is one thing to rebuild and rescan.
     image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
     container_name: sensitive-immich-valkey
+    # DIFFERENCE 16 again, Paperless's argument for Immich: not on
+    # `sensitive`, and neither is immich-db. Valkey has no password, and the
+    # job queue in it is what immich-server's workers obey. Its FileDelete job
+    # unlinks whatever paths it carries, so on `sensitive` any other service
+    # here could have queued the deletion of the originals in the library.
+    # immich-db asks for a password but has the same one client.
+    #
+    #   immich-backend  internal, no gateway. immich-server, its database and
+    #                   this queue are its only members, and neither store
+    #                   fetches anything, so there is no egress network.
+    #
+    # Machine learning reaches neither; it talks only to immich-server.
+    networks: [immich-backend]
     # As paperless-broker: the image's entrypoint is `tini --
     # docker-entrypoint.sh`, an init of its own. One init is enough.
     init: false
@@ -2207,6 +2223,11 @@ networks:
     driver: bridge
   # DIFFERENCE 16: Paperless's database and broker, shared only with Paperless.
   paperless-backend:
+    driver: bridge
+    internal: true
+  # DIFFERENCE 16 again: Immich's database and job queue, shared only with
+  # immich-server.
+  immich-backend:
     driver: bridge
     internal: true
 

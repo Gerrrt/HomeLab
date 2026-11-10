@@ -1182,6 +1182,11 @@ is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
   from the trash among them. Both share an internal network with Paperless
   alone, so another service in the tier can reach neither
   ([#1377](https://github.com/Gerrrt/HomeLab/issues/1377)).
+- Immich's job queue and database are off `sensitive` the same way, on an
+  internal network shared with immich-server alone. The queue, another Valkey
+  with no password, is what Immich's workers obey, and one of its jobs deletes
+  the files it names
+  ([#1377](https://github.com/Gerrrt/HomeLab/issues/1377)).
 
 Alloy no longer runs `privileged: true`. It never needed it: `cgroup: host` is
 what makes cAdvisor see the host's cgroups, and dropping every capability

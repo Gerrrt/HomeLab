@@ -121,7 +121,7 @@ absent is as deliberate as what is here:
 ## Layout
 
 ```text
-compose.yaml               twenty-three services, six networks, health-gated ordering;
+compose.yaml               twenty-three services, seven networks, health-gated ordering;
                            Immich's machine learning sits behind the `ml` profile
 Caddyfile                  every route the tier serves; validated in CI
 home-assistant/            configuration.yaml, packages/ and custom_components/,
@@ -225,6 +225,12 @@ time and lives in Caddy's `/data` volume, never on disk here.
   Pillow knows. So it joins only `immich-ml`, an internal network it shares
   with immich-server alone, and `immich-ml-egress`, its own way out for a
   model fetch. No other service here can reach port 3003 ([#978]).
+- **The database and the job queue are not on `sensitive` either.**
+  immich-valkey has no password, and the jobs in it are what the server's
+  workers carry out, `FileDelete` among them, which unlinks the paths it is
+  given. immich-db and immich-valkey join only `immich-backend`, an internal
+  network shared with immich-server alone, with no egress network because
+  neither fetches anything ([#1377]).
 - **Machine learning is on, bounded, and one line from off.** `.env.example`
   sets `COMPOSE_PROFILES=ml`; blank it and `make up` starts five services
   instead of six. [#132] asked for the option because the ML is the most
