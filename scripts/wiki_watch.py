@@ -27,6 +27,14 @@ WHAT IT REPORTS, in the job summary and in one issue (`security`, `wiki`):
 The issue is created when there is something to report, rewritten each week,
 and closed by the run that finds nothing. It is keyed on a hidden marker.
 
+ON A 3.x PIN (ADR-0108, #1339). Triggers 2 and 3 are about leaving 2.x, so
+they are read only while the pin is 2.x; once the pin is 3.x they are spent
+and not reported. The advisory reading stays, because it was never about 2.x:
+"a fix" means a fix in the pin's own major, so on 3.x an advisory fixed in a
+later 3.x is a bump, and one with no 3.x fix runs the same 30-day clock for a
+person to act on. 3.x ships its fixes as `>=3.3.0`, so a patched version is
+read out of whatever operator it carries.
+
 THE RANGES ARE UPSTREAM'S, AND MESSY. Seen in the real list: `<2.5.314`,
 `<= v2.5.314`, a bare `2.5.303`, `>=2.5.80 <2.5.151`, and `> 2.4.17` patched
 in 2.4.107, which read literally flags every later 2.x. So the order is:
@@ -77,6 +85,7 @@ VERSION = re.compile(r"v?(\d+)\.(\d+)\.(\d+)")
 STABLE_3 = re.compile(r"^v?3\.\d+\.\d+$")
 TWO_X = re.compile(r"^v?2\.\d+\.\d+$")
 CLAUSE = re.compile(r"(<=|>=|<|>|=)?\s*v?(\d+\.\d+\.\d+)")
+PATCHED = re.compile(r"v?\d+\.\d+\.\d+")
 
 
 def ver(text: str) -> tuple[int, int, int] | None:
@@ -170,10 +179,18 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
             "age_days": age,
         }
         for v in a.get("vulnerabilities") or []:
-            patched = [p for p in (ver(x) for x in re.split(r"[,\s]+", v.get("patched_versions") or "") if x) if p]
-            if any(p <= pin for p in patched):
+            # `2.5.315`, `3.1.0, 3.0.3` and `>=3.3.0` all occur: take the versions, not the operators.
+            patched = [p for p in (ver(x) for x in PATCHED.findall(v.get("patched_versions") or "")) if p]
+            rng = v.get("vulnerable_version_range") or ""
+            # An entry that names only an older major (`> 2.4.17` patched in 2.4.107) is about that
+            # line. Read literally against a 3.x pin it would match, and it is not a 3.x advisory.
+            named = [p for p in (ver(x) for x in PATCHED.findall(rng)) if p] + patched
+            if named and max(p[0] for p in named) < pin[0]:
+                continue
+            # Only a fix on the pin's own line is carried by it: 2.5.318 is not in 3.3.0.
+            if any(p[0] == pin[0] and p <= pin for p in patched):
                 continue  # the pin carries a listed fix
-            hit = in_range(pin, v.get("vulnerable_version_range") or "")
+            hit = in_range(pin, rng)
             if hit is False:
                 continue
             if hit is None:
@@ -181,12 +198,16 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
                     Finding(**base, kind="unreadable", detail=f"range `{v.get('vulnerable_version_range')}`")
                 )
                 continue
-            fix_2x = sorted(p for p in patched if p[0] == 2 and p > pin)
-            if fix_2x:
-                report.findings.append(Finding(**base, kind="bump", detail="fixed in " + ".".join(map(str, fix_2x[0]))))
+            fix_same = sorted(p for p in patched if p[0] == pin[0] and p > pin)
+            if fix_same:
+                report.findings.append(
+                    Finding(**base, kind="bump", detail="fixed in " + ".".join(map(str, fix_same[0])))
+                )
             else:
                 report.findings.append(Finding(**base, kind="fired" if age >= CLOCK_DAYS else "clock"))
             break  # one finding per advisory
+    if pin[0] != 2:
+        return report  # triggers 2 and 3 are about leaving 2.x, and are spent (ADR-0108)
     for r in releases:
         tag = r.get("tag_name", "")
         if r.get("draft") or not r.get("published_at"):
@@ -202,13 +223,24 @@ def assess(pin_text: str, advisories: list[dict], releases: list[dict], now: dt.
 
 
 def render(report: Report, now: dt.datetime) -> str:
-    out = [f"## Wiki.js: ADR-0089's triggers, against the pinned {report.pin}", ""]
-    labels = {
-        "fired": "**Trigger 1 FIRED**: no 2.x fix after 30 days",
-        "clock": "Trigger 1 clock running: no 2.x fix yet",
-        "bump": "Affects the pin, and a 2.x fix exists: bump the pin",
-        "unreadable": "Range not understood: read it",
-    }
+    major = report.pin.split(".")[0]
+    on_2x = major == "2"
+    if on_2x:
+        out = [f"## Wiki.js: ADR-0089's triggers, against the pinned {report.pin}", ""]
+        labels = {
+            "fired": "**Trigger 1 FIRED**: no 2.x fix after 30 days",
+            "clock": "Trigger 1 clock running: no 2.x fix yet",
+            "bump": "Affects the pin, and a 2.x fix exists: bump the pin",
+            "unreadable": "Range not understood: read it",
+        }
+    else:
+        out = [f"## Wiki.js: published advisories, against the pinned {report.pin}", ""]
+        labels = {
+            "fired": f"**No {major}.x fix after 30 days**: decide what to do",
+            "clock": f"No {major}.x fix yet",
+            "bump": f"Affects the pin, and a {major}.x fix exists: bump the pin",
+            "unreadable": "Range not understood: read it",
+        }
     if report.findings:
         out += ["| Advisory | Severity | Published | Days | State |", "| --- | --- | --- | --- | --- |"]
         for f in sorted(report.findings, key=lambda f: f.published):
@@ -219,6 +251,9 @@ def render(report: Report, now: dt.datetime) -> str:
     else:
         out.append(f"No published `{UPSTREAM}` advisory affects {report.pin}.")
     out.append("")
+    if not on_2x:
+        out.append("ADR-0089's triggers 2 and 3 were about leaving 2.x, and are spent (ADR-0108).")
+        return "\n".join(out) + "\n"
     if report.latest_2x:
         tag, when = report.latest_2x
         days = (now - when).days
@@ -289,6 +324,8 @@ def fetch() -> tuple[list[dict], list[dict]]:
 
 def title(report: Report) -> str:
     fired = [f for f in report.findings if f.kind == "fired"]
+    if fired and not report.pin.startswith("2."):
+        return f"Wiki.js {report.pin}: an advisory has had no fix for 30 days"
     if fired or report.stale or report.stable_3:
         return "Wiki.js: an ADR-0089 trigger has fired"
     return f"Wiki.js {report.pin}: advisories to act on"
@@ -443,6 +480,57 @@ def self_test() -> int:
     check("a stable v3.0.0 is trigger 3", assess("2.5.316", [], ga, now).stable_3, "v3.0.0")
     pre = releases + [{"tag_name": "v3.0.0", "published_at": "2026-10-05T00:00:00Z", "prerelease": True}]
     check("a v3.0.0 marked prerelease is not", assess("2.5.316", [], pre, now).stable_3, None)
+
+    # On a 3.x pin (ADR-0108). The advisories are the real list of 2026-11-09.
+    nov9 = dt.datetime(2026, 11, 9, tzinfo=dt.UTC)
+    real3 = [
+        adv("GHSA-35r7-33j8-ghwg", "2026-11-05T00:00:00Z", "<= 2.5.317", "3.1.0"),
+        adv("GHSA-3c74-j8g3-p255", "2026-11-05T00:00:00Z", "<=3.0.2", "3.1.0"),
+        adv("GHSA-2rx3-7vrr-h3gv", "2026-11-08T00:00:00Z", ">=3.0.0,<=3.1.1", ">=3.2.0"),
+        adv("GHSA-pq85-v5r4-w5xj", "2026-11-09T00:00:00Z", "=3.2.0", ">=3.3.0"),
+    ]
+    stable = [{"tag_name": "3.3.0", "published_at": "2026-11-09T00:00:00Z", "prerelease": False}]
+    r = assess("3.3.0", real3, stable, nov9)
+    check("3.3.0 carries every fix published by 2026-11-09", r.findings, [])
+    check("on 3.x a stable 3.x release is not trigger 3", r.stable_3, None)
+    check("on 3.x the 2.x release history is not trigger 2", r.stale, False)
+    check("so on 3.3.0 there is nothing to report", r.anything, False)
+    check("and the summary says the triggers are spent", "spent" in render(r, nov9), True)
+    r = assess("2.5.317", real3, stable, nov9)
+    # `<=3.0.2` read literally includes every 2.x, and #1298 reported it so; that is unchanged.
+    check(
+        "the same list against 2.5.317: a fix only in 3.x is the clock",
+        [(f.ghsa, f.kind) for f in r.findings],
+        [("GHSA-35r7-33j8-ghwg", "clock"), ("GHSA-3c74-j8g3-p255", "clock")],
+    )
+    r = assess("3.2.0", real3, stable, nov9)
+    check(
+        "a `>=3.3.0` fix above a 3.2.0 pin is a bump",
+        [(f.kind, f.detail) for f in r.findings],
+        [("bump", "fixed in 3.3.0")],
+    )
+    r = assess("3.3.0", [adv("GHSA-3open", "2026-10-01T00:00:00Z", "<= 3.3.0", "")], stable, nov9)
+    check("on 3.x, no fix after 30 days still fires", [f.kind for f in r.findings], ["fired"])
+    check("and its title does not claim an ADR-0089 trigger", "ADR-0089" in title(r), False)
+    r = assess("3.3.0", [adv("GHSA-4only", "2026-11-01T00:00:00Z", "<= 3.3.0", "4.0.0")], stable, nov9)
+    check("on 3.x, a fix only in 4.x is no 3.x fix", [f.kind for f in r.findings], ["clock"])
+    # #1345 review: a fix on another line must not count as carried by the pin.
+    r = assess("3.3.0", [adv("GHSA-mixed", "2026-11-08T00:00:00Z", "<= 3.3.0", "2.5.318, 3.3.1")], stable, nov9)
+    check(
+        "a 2.x fix below a 3.x pin does not hide the advisory",
+        [(f.kind, f.detail) for f in r.findings],
+        [("bump", "fixed in 3.3.1")],
+    )
+    r = assess("3.3.0", [adv("GHSA-mixed2", "2026-11-08T00:00:00Z", "<= 3.3.0", "2.5.318")], stable, nov9)
+    check("and with only a 2.x fix listed, it runs the 3.x clock", [f.kind for f in r.findings], ["clock"])
+    r = assess("3.3.0", real, stable, nov9)
+    check("2.x's legacy open-ended ranges are not 3.x advisories", r.findings, [])
+    r = assess("2.5.316", [adv("GHSA-mixed3", "2026-11-08T00:00:00Z", "<= 2.5.316", "3.0.1, 2.5.317")], releases, now)
+    check(
+        "a 3.x fix above a 2.x pin is no reason to skip a 2.x bump",
+        [f.detail for f in r.findings],
+        ["fixed in 2.5.317"],
+    )
 
     text = COMPOSE.read_text() if COMPOSE.exists() else ""
     check("the pin is read from stacks/wiki/compose.yaml", bool(PIN.search(text)), True)
