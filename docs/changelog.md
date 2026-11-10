@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-10
 
+- **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248): the VTech
+  monitor stays out of Home Assistant.
+  [ADR-0109](adr/0109-leave-the-vtech-monitor-out-of-home-assistant.md)
+  supersedes
+  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).**
+  The bridge's gate was a used phone bought to be rooted for one afternoon,
+  and the operator ruled out buying a device solely to make this work. Both
+  bridge projects need a rooted phone, for the uprobe capture and for the
+  bionic root filesystem. The one way around the phone, the VTech app under
+  redroid on an arm64 host, is untested, may be refused by DexGuard, and
+  still needs the Pi, so it was set aside. Nothing had been bought or built.
+  Both purchases leave *Everything still to buy* (thirteen items to eleven).
+  The `heimdall` reservation at `10.0.20.30` and its three planned rows from
+  Winterfell leave `network.md` and `security.md`. The removed `security.md`
+  passage had named the decision as ADR-0103; ADR-0102 was meant. The
+  monitor stays on Skids as an appliance, used through its parent unit and
+  the app.
+
 - **[#1178](https://github.com/Gerrrt/HomeLab/issues/1178): every
   `docker run` and `docker create` now states its `--network`, and
   `check_image_pins.py` fails one that does not.**
