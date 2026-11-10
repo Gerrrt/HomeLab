@@ -112,11 +112,16 @@ absent is as deliberate as what is here:
   Hue bridge is its own radio and the speakers are Wi-Fi, and no USB radio
   means where `trinity` sits is not this service's concern.
 - **One custom integration, and it is ours.** `home-assistant/custom_components/`
-  holds `ring_push_guard`, a version-gated patch for `ring_doorbell` 0.9.14,
-  whose push parser dies on Ring pushes without a `ding.id` and takes every
-  real-time Ring event with it. It is mounted read-only like the packages and
-  is reviewed here. It is not a HACS channel, and it is deleted when a fixed
-  `ring_doorbell` reaches Home Assistant [ADR-0101](../../docs/adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
+  holds `ring_push_guard`, two version-gated patches that keep Ring's push
+  receiver alive. One is for `ring_doorbell` 0.9.14, whose push parser dies on
+  Ring pushes without a `ding.id` [ADR-0101](../../docs/adr/0101-patch-ring-doorbells-push-parser-locally-until-upstream-ships-a-fix.md).
+  The other is for `firebase_messaging` 0.4.5, the push client underneath,
+  which shuts down on a push whose `crypto-key` header has two parameters
+  [ADR-0109](../../docs/adr/0109-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md).
+  Either failure takes every real-time Ring event with it. The component is
+  mounted read-only like the packages and is reviewed here. It is not a HACS
+  channel. Each patch is deleted when its fixed library reaches Home
+  Assistant, and the component with the last one.
 
 ## Layout
 

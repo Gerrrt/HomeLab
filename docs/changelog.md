@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-10
 
+- **Ring events had stopped again, below ADR-0101's patch
+  ([ADR-0109](adr/0109-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md),
+  [#1383](https://github.com/Gerrrt/HomeLab/issues/1383),
+  [#1240](https://github.com/Gerrrt/HomeLab/issues/1240)).**
+  - **What was found:** the Ring `event.*` entities on `trinity` had
+    recorded no real event in the recorder's ten days, back to 2026-10-31.
+    `ring_push_guard`'s parser patch was in place, and there was no
+    `KeyError: 'id'`. The log at 00:30 UTC held *Unknown error: Incorrect
+    padding, shutting down FcmPushClient*. firebase_messaging 0.4.5 slices
+    the `crypto-key` header by position, and some Ring pushes now carry
+    `dh=…; p256ecdsa=…` (sdb9696/firebase-messaging#44). The failure comes
+    before the push is acknowledged, so FCM resends it and the client dies
+    again at every login. So ADR-0101's patch alone did not keep events
+    flowing, and #1240's first checkbox is not met.
+  - **The change:** `ring_push_guard` gains `fcm_patch.py`, gated to
+    firebase_messaging 0.4.5. It reads `dh` and `salt` by name, as upstream
+    #43 does. A push it still cannot decrypt is logged and acknowledged
+    instead of stopping the client. Tested in the pinned image against the
+    library's own code.
+  - **Upstream on this date:** ring_doorbell is still 0.9.14, with #540 and
+    #556 open, and Home Assistant 2026.11.1 and `dev` both pin it.
+    firebase-messaging is still 0.4.5, with #43 and #46 open.
+
 - **[#1178](https://github.com/Gerrrt/HomeLab/issues/1178): every
   `docker run` and `docker create` now states its `--network`, and
   `check_image_pins.py` fails one that does not.**
@@ -39,6 +62,7 @@ docstring gives: it is a record, not a claim about now.
     proxy that the checks start, and the four helper runs in
     `deploy-agent.sh`. Only Trivy's database download and `lint.sh`'s tofu
     `init` keep a network, and they now say `--network bridge`.
+||||||| Stash base
 
 ## 2026-11-09
 
