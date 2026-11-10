@@ -83,6 +83,26 @@ docstring gives: it is a record, not a claim about now.
     `init` keep a network, and they now say `--network bridge`.
 ||||||| Stash base
 
+- **[#1228](https://github.com/Gerrrt/HomeLab/issues/1228): the eeros get a
+  ping probe, decided in
+  [ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md).**
+  - **ICMP needs no capability.** `blackbox-latency.yaml` had said an `icmp`
+    prober needs CAP_NET_RAW. That was checked against the pinned v0.29.1, with
+    every capability dropped, as uid 65534, on a read-only root. `CapEff` read
+    0 and `ping_group_range` read `0 2147483647`. Echoes to `10.0.99.1` and
+    `10.0.99.20` succeeded over an unprivileged datagram socket. Echoes to two
+    eeros timed out, as expected with no pass in place.
+  - **Added:** the `icmp_echo` module, the `blackbox-eero` job and its eight
+    targets, and `EeroUnreachable`, a warning after five minutes. A route test
+    in `validate.sh` keeps it off `urgent`. Home Assistant's lease check stays
+    as the household's alert.
+  - **Waiting on:** one Winterfell row, `10.0.99.20 → eeros` on ICMP
+    `echoreq`. Without it all eight targets read 0, so they merge commented
+    out: `prometheus` converges hourly and would otherwise report eight eeros
+    down. Winterfell's blocks do not log, so whether an eero answers ping is
+    unconfirmed. The row comes first, then a ping from `prometheus`, then the
+    targets are uncommented.
+
 ## 2026-11-09
 
 - **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki's move to

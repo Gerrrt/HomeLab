@@ -1,0 +1,56 @@
+---
+# eero probe targets, consumed by the `blackbox-eero` job via file_sd_configs.
+# Hot-reloaded every 5 minutes, with no Prometheus restart.
+#
+# WHY THESE EXIST (#1228, ADR-0110). Home Assistant already shows each eero
+# as seen when it has renewed its DHCP lease in the last two hours
+# (stacks/sensitive/home-assistant/packages/eero.yaml). That costs nothing,
+# but a unit that dies is only noticed up to two hours later. An echo request
+# every minute notices within about six.
+#
+# WHY ICMP. The eeros are bridged, run no local API and serve nothing the
+# firewall passes, so ping is the only question this host can ask them. The
+# `icmp_echo` module needs no capability; blackbox.yaml says why.
+#
+# WHY A SEPARATE JOB. EndpointUnreachable is `probe_success{job="blackbox"}`
+# at critical, routed to `urgent`. An access point down is a morning job, not
+# a page, so these get EeroUnreachable at warning instead. A job boundary
+# makes that structural, as it does for blackbox-dns and blackbox-latency.
+#
+# THE FIREWALL, AND WHY EVERY TARGET IS COMMENTED OUT. 10.0.99.20 reaches
+# these addresses through one Winterfell row, `10.0.99.20 → eeros` on ICMP
+# echoreq, above the *Block access to …* rows (network.md), which is created
+# by hand. Until it exists every target here reads 0 and EeroUnreachable fires
+# for all eight. `prometheus` converges on main hourly (converge-the-host.md),
+# so a live target merged before the row would report eight eeros down within
+# the hour. The targets therefore stay commented until the row exists and
+# `ping -c3 10.0.50.11` from `prometheus` gets an answer. Enabling them is then
+# an uncomment here, hot-reloaded, with no restart.
+#
+# The addresses are the Kea reservations network.md lists, below each pool.
+# No MAC is written here.
+#
+# LABELS:
+#   segment  the VLAN the unit serves, as network.md names it.
+#   role     `wifi`.
+#   name     not written here. The job builds it from `segment` and the last
+#            octet, `eero Hicks 11`, which is the Home Assistant entity's
+#            name, so the two sources name a unit the same way.
+
+# - targets: ["10.0.50.11", "10.0.50.12", "10.0.50.13"]
+#   labels:
+#     module: icmp_echo
+#     segment: Hicks
+#     role: wifi
+
+# - targets: ["10.0.20.11", "10.0.20.12", "10.0.20.13"]
+#   labels:
+#     module: icmp_echo
+#     segment: Skids
+#     role: wifi
+
+# - targets: ["10.0.10.11", "10.0.10.12"]
+#   labels:
+#     module: icmp_echo
+#     segment: Degens
+#     role: wifi

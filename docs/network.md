@@ -218,6 +218,17 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Skids notes and
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   give the reasons.
+- **One row into Hicks, Skids and Degens, decided and not yet created:**
+  `10.0.99.20 →` alias `eeros` (the eight eero reservations, `10.0.50.11–.13`,
+  `10.0.20.11–.13` and `10.0.10.11–.12`) on ICMP `echoreq` only, above the
+  *Block access to …* rows. It is for the `blackbox-eero` job, which pings each
+  unit every minute so `EeroUnreachable` notices a dead one within about six
+  minutes, not the two hours Home Assistant's lease check takes. These are the
+  first passes from Winterfell into Hicks or Degens, and they are host- and
+  protocol-scoped, so Winterfell's catch-all still reaches no segment.
+  [ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md) records the
+  decision; [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) creates it,
+  and checks that an eero answers before the job's targets are enabled.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive

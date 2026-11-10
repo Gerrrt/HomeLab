@@ -304,11 +304,12 @@ urgent    severity=critical category=correctness
 default   severity=warning category=capacity
 default   severity=warning category=hardware
 default   severity=warning category=monitoring
+default   alertname=EeroUnreachable severity=warning category=availability
 null      severity=info category=correctness
 ROUTES
 
   if ((routes_ok)); then
-    pass "${stack}: amtool config routes test (11 assertions)"
+    pass "${stack}: amtool config routes test (12 assertions)"
   else
     fail "${stack}: amtool config routes test"
   fi

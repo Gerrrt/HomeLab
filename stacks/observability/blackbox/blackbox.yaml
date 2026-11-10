@@ -7,8 +7,9 @@
 # unreachable for an unknown period and nothing here noticed, because nothing
 # here was ever looking from the outside.
 #
-# Modules are referenced by name from targets/blackbox.yaml and, for the two
-# `dns` ones, targets/blackbox-dns.yaml. Pick by what the endpoint actually
+# Modules are referenced by name from targets/blackbox.yaml, for the two
+# `dns` ones from targets/blackbox-dns.yaml, and for `icmp_echo` from
+# targets/blackbox-eero.yaml. Pick by what the endpoint actually
 # serves, not by what would be nice:
 #
 #   http_2xx_lab_ca       https, certificate issued by certificates/ca.pem
@@ -16,10 +17,11 @@
 #   http_2xx_self_signed  https, certificate the device made for itself
 #   http_2xx_plain        http, no TLS on offer
 #   tcp_connect           anything at all holding the port open
+#   icmp_echo             a device that serves nothing it can be asked on, only ping
 #   dns_answers           a resolver, asked whether it still answers at all
 #   dns_filters           a resolver, asked whether it is still filtering
 #
-# The two `dns` modules are a different shape from the five above them and the
+# The two `dns` modules are a different shape from the others and the
 # block at the foot of this file says why: an http module is picked by what the
 # endpoint serves, a dns module carries its own question.
 #
@@ -160,9 +162,30 @@ modules:
       preferred_ip_protocol: ip4
       ip_protocol_fallback: false
 
+  # An echo request, for a device that answers nothing else it can be asked
+  # from here: today the eight eero units (#1228, ADR-0110). They are bridged,
+  # serve no local API and hold no port the firewall passes, so ping is the
+  # whole question.
+  #
+  # NO CAPABILITY. The exporter runs with `cap_drop: [ALL]` as uid 65534, so
+  # it cannot open a raw socket. It does not need to: when it is not root,
+  # blackbox opens an unprivileged ICMP datagram socket, which Linux allows to
+  # any gid in net.ipv4.ping_group_range, and Docker sets that to
+  # `0 2147483647` inside every container. Checked on 2026-11-10 with this
+  # image's pinned digest, every capability dropped, uid 65534 and a
+  # read-only root: CapEff 0, ping_group_range `0 2147483647`, and
+  # probe_success 1 against 10.0.99.1 and 10.0.99.20. An eero timed out, as
+  # it should until the firewall passes the echo.
+  icmp_echo:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: ip4
+      ip_protocol_fallback: false
+
   # --- Asking a resolver what it answered ------------------------------------
   #
-  # The five modules above ask whether an endpoint can be reached. These two ask
+  # The modules above ask whether an endpoint can be reached. These two ask
   # the question only a DNS server can be asked — *what did you say?* — and they
   # exist because ADR-0010 deliberately made one failure silent.
   #

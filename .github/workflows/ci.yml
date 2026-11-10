@@ -270,13 +270,13 @@ jobs:
       # check-config still reports SUCCESS. Verified: that mutation passes
       # check-config and fails the assertions below.
       #
-      # Same eight assertions as scripts/validate.sh. Both places, one commit:
+      # Same twelve assertions as scripts/validate.sh. Both places, one commit:
       # this pair has drifted before (#68).
       - name: amtool config routes test
         run: |
           fail=0
           # The estate's tree. Asserted against the one stack that has an
-          # Alertmanager rather than against every stack, because these eight
+          # Alertmanager rather than against every stack, because these twelve
           # rows are that tree's routing and not a property all stacks share.
           cfg=stacks/observability/alertmanager/alertmanager.yaml
           while read -r expected labels; do
@@ -290,12 +290,16 @@ jobs:
               || { echo "::error::expected $expected for $labels"; fail=1; }
           done <<'ROUTES'
           heartbeat,default alertname=Watchdog severity=none category=monitoring
+          null      alertname=LokiRulerWatchdog severity=none category=monitoring
           urgent    severity=critical category=power
           security  severity=critical category=security
           security  severity=warning category=security
           urgent    severity=critical category=availability
+          urgent    severity=critical category=correctness
           default   severity=warning category=capacity
           default   severity=warning category=hardware
+          default   severity=warning category=monitoring
+          default   alertname=EeroUnreachable severity=warning category=availability
           null      severity=info category=correctness
           ROUTES
           exit $fail

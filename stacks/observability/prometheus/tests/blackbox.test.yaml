@@ -902,3 +902,53 @@ tests:
       - eval_time: 1h
         alertname: TlsCertificateExpiryImminent
         exp_alerts: []
+
+  # --- EeroUnreachable: fires at warning, and EndpointUnreachable stays out --
+  # Six minutes of failed echoes from one unit. The labels are what the
+  # blackbox-eero job's relabelling produces, `name` included. The second
+  # assertion is the job boundary: the same probe failing must never page
+  # through the critical rule.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-eero",instance="10.0.50.12",name="eero Hicks 12",segment="Hicks"}'
+        values: "1x5 0x10"
+      - series: 'probe_success{job="blackbox-eero",instance="10.0.20.11",name="eero Skids 11",segment="Skids"}'
+        values: "1x15"
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: EeroUnreachable
+        exp_alerts:
+          - exp_labels:
+              job: blackbox-eero
+              instance: 10.0.50.12
+              name: eero Hicks 12
+              segment: Hicks
+              component: blackbox
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "eero Hicks 12 is not answering ping"
+              description: >-
+                The Hicks eero at 10.0.50.12 has not answered an echo request
+                for five minutes. Check its power and the eero app first. If
+                every eero is firing together, the cause is more likely the
+                Winterfell pass from 10.0.99.20 to the `eeros` alias than the
+                units themselves.
+      - eval_time: 12m
+        alertname: EndpointUnreachable
+        exp_alerts: []
+
+  # --- EeroUnreachable: quiet through a short reboot ------------------------
+  # Three missed probes, then answering again. Under `for: 5m` that is a unit
+  # restarting, not a unit down.
+  - interval: 1m
+    input_series:
+      - series: 'probe_success{job="blackbox-eero",instance="10.0.10.11",name="eero Degens 11",segment="Degens"}'
+        values: "1x5 0x3 1x10"
+    alert_rule_test:
+      - eval_time: 9m
+        alertname: EeroUnreachable
+        exp_alerts: []
+      - eval_time: 15m
+        alertname: EeroUnreachable
+        exp_alerts: []

@@ -9,13 +9,14 @@
 # was "I can't tell you", and that is what these targets change.
 #
 # WHY tcp_connect AND NOT icmp. #166 called ICMP "the one wrinkle", because an
-# `icmp` prober needs CAP_NET_RAW. Since then blackbox-exporter runs with
-# `cap_drop: [ALL]`, as uid 65534, on a read-only root filesystem (#187, #330,
-# #186) — so an ICMP module would mean handing exactly one container back a
-# capability the rest of the stack just gave up, to measure something a TCP
-# handshake measures for free.
+# `icmp` prober was thought to need CAP_NET_RAW, which blackbox-exporter gave up
+# with `cap_drop: [ALL]`, uid 65534 and a read-only root (#187, #330, #186).
+# That premise turned out wrong: as a non-root user, blackbox pings over an
+# unprivileged datagram socket, with no capability at all, and `icmp_echo` now
+# does so for the eeros (ADR-0110). The choice here stands on the next
+# paragraph alone.
 #
-# A TCP connect is also the better measurement here, not merely the cheaper one:
+# A TCP connect is the better measurement here, not merely the cheaper one:
 # ISPs routinely deprioritise ICMP, so a ping time is not what a game or a video
 # call experiences. Every target below answers TCP on a port it already serves.
 #
