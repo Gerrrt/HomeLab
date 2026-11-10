@@ -236,7 +236,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   protocol-scoped, so Winterfell's catch-all still reaches no segment.
   [ADR-0109](adr/0109-probe-the-eeros-by-icmp-from-prometheus.md) records the
   decision; [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) creates it,
-  and checks that an eero answers before the job is deployed.
+  and checks that an eero answers before the job's targets are enabled.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive

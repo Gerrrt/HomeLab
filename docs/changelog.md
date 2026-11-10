@@ -54,9 +54,11 @@ docstring gives: it is a record, not a claim about now.
     in `validate.sh` keeps it off `urgent`. Home Assistant's lease check stays
     as the household's alert.
   - **Waiting on:** one Winterfell row, `10.0.99.20 → eeros` on ICMP
-    `echoreq`. Until the row exists all eight targets read 0. Winterfell's
-    blocks do not log, so whether an eero answers ping is unconfirmed. The
-    row comes first, then a ping from `prometheus`, then the deploy.
+    `echoreq`. Without it all eight targets read 0, so they merge commented
+    out: `prometheus` converges hourly and would otherwise report eight eeros
+    down. Winterfell's blocks do not log, so whether an eero answers ping is
+    unconfirmed. The row comes first, then a ping from `prometheus`, then the
+    targets are uncommented.
 
 ## 2026-11-09
 

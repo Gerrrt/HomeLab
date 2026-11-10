@@ -44,7 +44,8 @@ as it should with no pass in place.
    request to each of the eight reserved addresses, from the exporter on
    `prometheus`. The exporter keeps every capability dropped. The targets live
    in `targets/blackbox-eero.yaml`, and the job builds each unit's `name`
-   (`eero Hicks 11`) to match its Home Assistant entity.
+   (`eero Hicks 11`) to match its Home Assistant entity. They merge commented
+   out and are enabled once the firewall row is in place (Consequences).
 2. **`EeroUnreachable` at warning, `category: availability`.** It fires on
    five failed probes in a row and routes to `default`. `validate.sh` pins
    that route. The job is separate so `EndpointUnreachable`, which is critical
@@ -90,12 +91,16 @@ as it should with no pass in place.
   ICMP.
 - **Not yet verified: that an eero answers an echo request.** Winterfell's
   blocks do not log, so the 2026-11-10 timeouts cannot tell a dropped echo from
-  an ignored one. The first deploy step checks it: create the row, ping one
-  unit from `prometheus`, and only then deploy the job. If the eeros do not
-  answer, the row is removed and this ADR is superseded.
-- **Order matters on deploy.** Without the row, all eight targets read 0 and
-  `EeroUnreachable` fires eight times. The rule's description says that eight
-  firing together points at the row before the units.
+  an ignored one. The first step after merge checks it: create the row, ping
+  one unit from `prometheus`, and only then enable the targets. If the eeros
+  do not answer, the row is removed and this ADR is superseded.
+- **The targets merge commented out.** `prometheus` converges on `main`
+  hourly, so live targets merged before the row would read 0 and fire
+  `EeroUnreachable` eight times within the hour. The module, the job and the
+  rule deploy with the merge and probe nothing. Enabling the targets is an
+  uncomment in a follow-up, hot-reloaded. If the row is ever removed, all
+  eight fire together, and the rule's description points at the row before
+  the units.
 - **Glance shows them.** Its *Estate* and *Uptime* widgets read
   `probe_success` from every job, as they already do for the latency and DNS
   probes. So the eight units appear by name on the household and homelab
