@@ -226,7 +226,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   minutes, not the two hours Home Assistant's lease check takes. These are the
   first passes from Winterfell into Hicks or Degens, and they are host- and
   protocol-scoped, so Winterfell's catch-all still reaches no segment.
-  [ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md) records the
+  [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md) records the
   decision; [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) creates it,
   and checks that an eero answers before the job's targets are enabled.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**

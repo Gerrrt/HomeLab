@@ -2,7 +2,7 @@
 # eero probe targets, consumed by the `blackbox-eero` job via file_sd_configs.
 # Hot-reloaded every 5 minutes, with no Prometheus restart.
 #
-# WHY THESE EXIST (#1228, ADR-0110). Home Assistant already shows each eero
+# WHY THESE EXIST (#1228, ADR-0112). Home Assistant already shows each eero
 # as seen when it has renewed its DHCP lease in the last two hours
 # (stacks/sensitive/home-assistant/packages/eero.yaml). That costs nothing,
 # but a unit that dies is only noticed up to two hours later. An echo request
