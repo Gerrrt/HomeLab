@@ -355,7 +355,7 @@ groups:
             only one is, it is that provider. Slow is not down: nothing here is
             unreachable, or EndpointUnreachable would be firing instead.
 
-      # An eero has stopped answering ping (#1228, ADR-0110). The probes are
+      # An eero has stopped answering ping (#1228, ADR-0112). The probes are
       # in their own job, blackbox-eero, so EndpointUnreachable never sees
       # them. A Wi-Fi access point down is a morning job, not a page:
       # warning, which routes to `default`, and validate.sh pins that route.

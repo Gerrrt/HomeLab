@@ -411,7 +411,7 @@ way into Skids. The HomePods therefore see the firewall's address, not
 `trinity`'s, and they treat it as a device on their own network.
 
 **One more, into Hicks, Skids and Degens, is decided and not yet created**
-([ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md),
+([ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md),
 [#1228](https://github.com/Gerrrt/HomeLab/issues/1228)): `prometheus` to the
 alias `eeros`, the eight eero units' reserved addresses, on ICMP `echoreq` and
 nothing else. It is the first pass from Winterfell into Hicks or Degens. It

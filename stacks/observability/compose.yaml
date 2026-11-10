@@ -650,7 +650,7 @@ services:
     # the healthcheck stand as written.
     #
     # Nothing in blackbox.yaml needs a capability, and the exporter binds only
-    # 9115, above 1024. That includes `icmp_echo` (ADR-0110): as a non-root
+    # 9115, above 1024. That includes `icmp_echo` (ADR-0112): as a non-root
     # user, blackbox pings over an unprivileged ICMP datagram socket, which
     # Docker's container default net.ipv4.ping_group_range `0 2147483647`
     # allows. It does not use a raw socket, so CAP_NET_RAW is still not
