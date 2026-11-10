@@ -80,9 +80,15 @@ Closes when it is empty.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
-  No gate: the HomePods and `trinity` both exist. The work is four
-  reservations and three rules on `morpheus`, then adding each HomePod by
-  address from `trinity`.
+  Gate: a Home Assistant release that pins a pyatv with the fix for
+  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
+  open upstream as
+  [postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930).
+  Without it the Apple TV config flow cannot find a HomePod. The
+  reservations and the rules on `morpheus` are in force. Left: adding each
+  HomePod by address from `trinity`, the Home app's speaker-access setting
+  that lets it connect, the HomePods' ports read from the firewall log while
+  pairing, and the rows in `network.md` and `security.md` moved to in force.
 - **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248) The VTech monitor
   in Home Assistant, by a bridge on Skids.** Decided by
   [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md).
