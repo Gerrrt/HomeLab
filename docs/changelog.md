@@ -143,6 +143,19 @@ docstring gives: it is a record, not a claim about now.
     unconfirmed. The row comes first, then a ping from `prometheus`, then the
     targets are uncommented.
 
+- **[#1139](https://github.com/Gerrrt/HomeLab/issues/1139): the lab segment
+  is refused at the SOC's web UIs, proved on `odin`.**
+  - #1152 put the Wazuh dashboard (`443`) and the Velociraptor GUI (`8889`)
+    behind the stack's `caddy`, which answers only Hicks's `10.0.50.0/24`.
+    It landed on 2026-10-10 with CI's checks, but the live half of
+    [build-the-soc-guest.md](runbooks/build-the-soc-guest.md) §10 was not
+    recorded until now.
+  - Run from a VLAN 30 host other than `odin`, the runbook's `curl` loop got
+    `403` on both `443` and `8889`.
+  - This entry records the refusal only. The login from Hicks was not part
+    of this run.
+  - Nothing changed in the stack.
+
 ## 2026-11-09
 
 - **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki's move to
