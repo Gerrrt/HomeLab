@@ -225,7 +225,7 @@ curl -sG http://localhost:9090/api/v1/query \
 #    under unified storage they do not even appear in the legacy dashboard
 #    table. What exists only in the volume is the user table. Read it straight
 #    out of the database and skip the credential entirely:
-docker run --rm -v observability_grafana-data:/d:ro \
+docker run --network none --rm -v observability_grafana-data:/d:ro \
   "$(./scripts/image-for.sh archiver)" cat /d/grafana.db > /tmp/g.db
 python3 -c "import sqlite3;print(sqlite3.connect('/tmp/g.db').execute(
   \"select login, created from user\").fetchall())"

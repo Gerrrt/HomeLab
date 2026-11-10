@@ -78,7 +78,7 @@ printf 'placeholders: %s\n' "${vars[*]}"
 
 # --user for the reason scripts/lint.sh gives its containers: a file written
 # into a bind mount takes the container's uid, and root's would outlive the run.
-docker run --rm \
+docker run --network none --rm \
   --user "$(id -u):$(id -g)" \
   -v "${REPO_ROOT}/${SNMP_DIR}:/opt/" \
   "${flags[@]}" \

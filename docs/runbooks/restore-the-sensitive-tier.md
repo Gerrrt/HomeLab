@@ -213,7 +213,7 @@ make up STACK=sensitive && make ps STACK=sensitive
 #    absent from db.sqlite3 alone and present once the -wal came with it.
 mkdir -p /tmp/vw
 for f in db.sqlite3 db.sqlite3-wal db.sqlite3-shm; do
-  docker run --rm -v sensitive_vaultwarden-data:/d:ro \
+  docker run --network none --rm -v sensitive_vaultwarden-data:/d:ro \
     "$(./scripts/image-for.sh archiver)" cat "/d/$f" > "/tmp/vw/$f" 2>/dev/null || true
 done
 python3 -c "import sqlite3;print(sqlite3.connect('/tmp/vw/db.sqlite3').execute(
@@ -256,7 +256,7 @@ docker exec sensitive-home-assistant wget -q -O - http://localhost:8123/api/onbo
 #    clean. created_ts is epoch seconds.
 mkdir -p /tmp/memos
 for f in memos_prod.db memos_prod.db-wal memos_prod.db-shm; do
-  docker run --rm -v sensitive_memos-data:/d:ro \
+  docker run --network none --rm -v sensitive_memos-data:/d:ro \
     "$(./scripts/image-for.sh archiver)" cat "/d/$f" > "/tmp/memos/$f" 2>/dev/null || true
 done
 python3 -c "import sqlite3;print(sqlite3.connect('/tmp/memos/memos_prod.db').execute(
@@ -636,7 +636,7 @@ STAMP=20260909T231558Z
 printf '%s\n' "$STAMP" | script -qec \
   "COMPOSE_PROJECT_NAME=rehearse STACK=sensitive ./scripts/restore-volumes.sh --from $STAMP" /dev/null
 
-docker run -d --name rehearse-vaultwarden --init --cap-drop ALL \
+docker run --network none -d --name rehearse-vaultwarden --init --cap-drop ALL \
   --security-opt no-new-privileges:true --read-only --tmpfs /tmp:size=16m \
   -v rehearse_vaultwarden-data:/data -e ROCKET_PORT=8080 \
   -e DOMAIN=https://vaultwarden.matrix.elysium -e SIGNUPS_ALLOWED=false \

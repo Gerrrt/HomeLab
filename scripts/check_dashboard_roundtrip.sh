@@ -130,7 +130,7 @@ info "booting ${GRAFANA_IMAGE%%@*} with ${n_dash} provisioned dashboard(s)"
 # The datasource URLs are never contacted — no panel is queried here — but
 # provisioning fails to parse without the variables, and a datasource that fails
 # to provision takes the dashboard provisioner down with it.
-docker run -d --name "${CONTAINER}" \
+docker run --network none -d --name "${CONTAINER}" \
   -e GF_AUTH_ANONYMOUS_ENABLED=true \
   -e GF_AUTH_ANONYMOUS_ORG_ROLE=Admin \
   -e GF_AUTH_BASIC_ENABLED=false \

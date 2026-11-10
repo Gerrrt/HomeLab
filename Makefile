@@ -771,7 +771,7 @@ hash-password: ## Bcrypt a password for AdGuard's admin or ntfy's users (prompte
 	@# STACK=sensitive`; render-config.sh escapes it for compose's .env.
 	@tty=""; [ -t 0 ] && tty="-t"; \
 	img="$$(COMPOSE_FILE=stacks/sensitive/compose.yaml ./scripts/image-for.sh caddy)"; \
-	docker run --rm -i $$tty "$$img" caddy hash-password
+	docker run --network none --rm -i $$tty "$$img" caddy hash-password
 
 .PHONY: screenshots
 screenshots: ## Render the dashboards to docs/images/ (stack must be up)

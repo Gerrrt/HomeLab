@@ -92,7 +92,7 @@ pydeps="$(python3 "${REPO_ROOT}/scripts/_deps.py" --pythonpath)" \
 # ---------------------------------------------------------------------------
 info "drift: this config is upstream's template plus the two marked changes"
 # ---------------------------------------------------------------------------
-docker run --rm --entrypoint cat "${IMAGE}" /usr/local/etc/haproxy/haproxy.cfg.template \
+docker run --network none --rm --entrypoint cat "${IMAGE}" /usr/local/etc/haproxy/haproxy.cfg.template \
   > "${WORK}/upstream.template" || die "could not read the template out of ${IMAGE}"
 
 python3 - "${CFG}" "${WORK}/rebuilt.template" <<'REBUILD' || fail "could not rebuild upstream's template from ${CFG##*/}"
@@ -147,7 +147,7 @@ chmod -R a+rX "${WORK}/cfg"
 
 # homelab.logs=off keeps production Alloy, if it runs on this daemon, from
 # ingesting this container's request log.
-docker run -d --name "${TAG}" --label homelab.logs=off \
+docker run --network none -d --name "${TAG}" --label homelab.logs=off \
   --cap-drop ALL --security-opt no-new-privileges:true \
   --env-file "${WORK}/env" \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \

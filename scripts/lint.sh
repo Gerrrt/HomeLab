@@ -150,8 +150,10 @@ runner_for() {
 # files and prints, and on a fork PR the files are the author's. A linter with
 # a parsing bug should then have nothing to reach. Triage of the linter images'
 # CVEs had been saying "no network" while every runner had a network (#1001,
-# #1013). tofu keeps one because `init` fetches the providers that `validate`
-# needs, and the three tofu calls share this runner.
+# #1013). tofu keeps one, --network bridge, because `init` fetches the
+# providers that `validate` needs, and the three tofu calls share this runner.
+# scripts/check_image_pins.py fails a docker run that does not state its
+# --network, so a new one cannot quietly take Docker's default (#1178).
 pinned_runner_for() {
   local tool="$1" img
   case "${tool}" in
@@ -244,14 +246,14 @@ pinned_runner_for() {
         return 0
       fi ;;
     tofu)
-      # Same shape as packer, but with a network: `init` below downloads the
+      # Same shape as packer, but on --network bridge: `init` below downloads the
       # providers. The entrypoint IS tofu, and --user so that the provider cache
       # `init` writes under tofu/.terraform/ (gitignored) is not root-owned on a
       # workstation. That cache outlives the run, so the linters that walk the
       # tree exclude it (.markdownlint-cli2.yaml, .yamllint.yaml).
       if have_docker; then
         img="$(./scripts/image-for.sh tofu)"
-        RUNNER=(docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")
+        RUNNER=(docker run --network bridge --rm --user "$(id -u):$(id -g)" -e HOME=/tmp -e TF_IN_AUTOMATION=1 -v "${REPO_ROOT}:/repo" -w /repo "${img}")
         return 0
       fi ;;
   esac

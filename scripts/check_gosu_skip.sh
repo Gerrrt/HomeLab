@@ -147,7 +147,7 @@ boot() { # image user markdir name mode data...
   shift 5
   local as=()
   [[ "${user}" == root ]] || as=(--user "${user}")
-  docker run -d --name "${name}" --label homelab.logs=off --label "homelab.gosucheck=${TAG}" \
+  docker run --network none -d --name "${name}" --label homelab.logs=off --label "homelab.gosucheck=${TAG}" \
     "${as[@]}" -e POSTGRES_PASSWORD=gosucheck "$@" \
     -v "${WORK}/bin/gosu:/usr/local/bin/gosu:ro" -v "${mark}:/gosu-mark" \
     "${img}" >/dev/null
@@ -235,7 +235,7 @@ for img in "${images[@]}"; do
   # with gosu out of the way, so the 999:999 boots meet a usable directory.
   vol="${TAG}-${n}"
   docker volume create --label "homelab.gosucheck=${TAG}" "${vol}" >/dev/null
-  docker run --rm --label "homelab.gosucheck=${TAG}" --user 0 --entrypoint sh \
+  docker run --network none --rm --label "homelab.gosucheck=${TAG}" --user 0 --entrypoint sh \
     -v "${vol}:${pgdata}" "${img}" -c "chown 999:999 '${pgdata}' && chmod 0700 '${pgdata}'"
   for mode in init existing; do
     newmark

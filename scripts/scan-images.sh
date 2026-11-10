@@ -139,8 +139,9 @@ if [[ -n "${EXTRA}" ]]; then
 fi
 
 # --user keeps the cache and reports owned by whoever ran this, not root.
+# --network bridge: Trivy downloads its vulnerability databases below.
 trivy() {
-  docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+  docker run --network bridge --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
     -v "${CACHE}:/cache" "${TRIVY_IMAGE}" "$@" --cache-dir /cache
 }
 
