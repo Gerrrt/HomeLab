@@ -1,4 +1,4 @@
-# ADR-0110: Probe the eeros by ICMP from `prometheus`
+# ADR-0112: Probe the eeros by ICMP from `prometheus`
 
 **Status:** Accepted · 2026-11 · adds to the lease check #1228 built, and
 corrects a premise `targets/blackbox-latency.yaml` stated about ICMP

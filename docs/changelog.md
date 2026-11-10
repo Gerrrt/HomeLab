@@ -46,6 +46,21 @@ docstring gives: it is a record, not a claim about now.
     `network.md` and `security.md` carry it as decided, and
     `swap-the-switch.md` §1.4 points a rebuild at the new runbook.
 
+- **Correction to the #1228 entry below: the eero ping ADR is
+  [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md), not
+  ADR-0110.** #1386 and #1384 each merged an ADR numbered 0110 on this date,
+  and `check_docs.py` allows one ADR per number. The firebase_messaging
+  patch landed first and keeps 0110. The eero ADR moved to 0112, because
+  0111 is taken by the switch ADR in #1389, which is still open. The #1228
+  entry's text is left as written, still saying ADR-0110, but its link's
+  target is changed to the renamed file, because `check_docs.py` fails a
+  relative link to a file that does not exist. Every current-state reference
+  now names ADR-0112, and README's ADR count, which both PRs had set to 110,
+  is 111. The same merges had left
+  two diff3 base-marker lines in this file, `||||||| 5f2db11` and
+  `||||||| Stash base`, between the entries. They were merge debris, not
+  text of any entry, and are removed.
+
 - **Ring events had stopped again, below ADR-0101's patch
   ([ADR-0110](adr/0110-patch-firebase-messagings-header-parsing-locally-until-upstream-ships-a-fix.md),
   [#1383](https://github.com/Gerrrt/HomeLab/issues/1383),
@@ -68,7 +83,6 @@ docstring gives: it is a record, not a claim about now.
   - **Upstream on this date:** ring_doorbell is still 0.9.14, with #540 and
     #556 open, and Home Assistant 2026.11.1 and `dev` both pin it.
     firebase-messaging is still 0.4.5, with #43 and #46 open.
-||||||| 5f2db11
 
 - **[#1248](https://github.com/Gerrrt/HomeLab/issues/1248): the VTech
   monitor stays out of Home Assistant.
@@ -108,11 +122,10 @@ docstring gives: it is a record, not a claim about now.
     proxy that the checks start, and the four helper runs in
     `deploy-agent.sh`. Only Trivy's database download and `lint.sh`'s tofu
     `init` keep a network, and they now say `--network bridge`.
-||||||| Stash base
 
 - **[#1228](https://github.com/Gerrrt/HomeLab/issues/1228): the eeros get a
   ping probe, decided in
-  [ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md).**
+  [ADR-0110](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md).**
   - **ICMP needs no capability.** `blackbox-latency.yaml` had said an `icmp`
     prober needs CAP_NET_RAW. That was checked against the pinned v0.29.1, with
     every capability dropped, as uid 65534, on a read-only root. `CapEff` read

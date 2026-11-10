@@ -212,7 +212,7 @@ scrape_configs:
         replacement: blackbox-exporter:9115
 
   # ---------------------------------------------------------------------------
-  # eero probes: is each access point answering at all (#1228, ADR-0110).
+  # eero probes: is each access point answering at all (#1228, ADR-0112).
   #
   # A fourth job on the same exporter, separate for the reason the two above
   # are: EndpointUnreachable is critical and routed to `urgent`, and an eero
