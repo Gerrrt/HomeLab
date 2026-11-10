@@ -218,14 +218,6 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Skids notes and
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   give the reasons.
-- **Three rows into Skids, decided and not yet created:** `10.0.99.40 →
-  10.0.20.30` on `8554/tcp` and `22/tcp`, and `10.0.99.20 → 10.0.20.30` on
-  `9100/tcp`, above *Block access to Skids*, for `heimdall`, the Raspberry
-  Pi that will bridge the VTech monitor's stream to Home Assistant, be
-  scraped by `prometheus` and be maintained from `trinity`.
-  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md)
-  records the decision; [#1248](https://github.com/Gerrrt/HomeLab/issues/1248) creates them after the
-  reservation.
 - **One row into Hicks, Skids and Degens, decided and not yet created:**
   `10.0.99.20 →` alias `eeros` (the eight eero reservations, `10.0.50.11–.13`,
   `10.0.20.11–.13` and `10.0.10.11–.12`) on ICMP `echoreq` only, above the
@@ -234,7 +226,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   minutes, not the two hours Home Assistant's lease check takes. These are the
   first passes from Winterfell into Hicks or Degens, and they are host- and
   protocol-scoped, so Winterfell's catch-all still reaches no segment.
-  [ADR-0109](adr/0109-probe-the-eeros-by-icmp-from-prometheus.md) records the
+  [ADR-0110](adr/0110-probe-the-eeros-by-icmp-from-prometheus.md) records the
   decision; [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) creates it,
   and checks that an eero answers before the job's targets are enabled.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
@@ -886,14 +878,6 @@ the least trusted.
 [^Monitor]: [VTech baby monitor](https://www.vtechkids.com/monitors)
 
 ---
-
-- **One more reservation is decided and not yet made:** `heimdall` at
-  `10.0.20.30`, a Raspberry Pi that will run the VTech monitor's bridge, and
-  the first general-purpose computer on this segment. It joins the table
-  above when it exists, and the three rows that reach it are in the
-  Winterfell notes.
-  [ADR-0102](adr/0102-bridge-the-vtech-monitor-into-home-assistant-from-a-pi-on-skids.md);
-  [#1248](https://github.com/Gerrrt/HomeLab/issues/1248).
 
 ## Degens — VLAN 10 — Guest
 

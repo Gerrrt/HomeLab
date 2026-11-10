@@ -163,7 +163,7 @@ modules:
       ip_protocol_fallback: false
 
   # An echo request, for a device that answers nothing else it can be asked
-  # from here: today the eight eero units (#1228, ADR-0109). They are bridged,
+  # from here: today the eight eero units (#1228, ADR-0110). They are bridged,
   # serve no local API and hold no port the firewall passes, so ping is the
   # whole question.
   #

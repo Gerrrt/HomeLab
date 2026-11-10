@@ -13,7 +13,7 @@
 # with `cap_drop: [ALL]`, uid 65534 and a read-only root (#187, #330, #186).
 # That premise turned out wrong: as a non-root user, blackbox pings over an
 # unprivileged datagram socket, with no capability at all, and `icmp_echo` now
-# does so for the eeros (ADR-0109). The choice here stands on the next
+# does so for the eeros (ADR-0110). The choice here stands on the next
 # paragraph alone.
 #
 # A TCP connect is the better measurement here, not merely the cheaper one:
