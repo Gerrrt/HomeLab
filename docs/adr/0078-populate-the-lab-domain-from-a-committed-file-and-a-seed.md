@@ -4,6 +4,10 @@
 [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) (a
 third secret in `phoenix.env`)
 
+> [!NOTE]
+> [ADR-0083](0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md) adds the weaknesses this ADR said would come.
+> The text here is left as written, per ADR-0001 and ADR-0115.
+
 ## Context
 
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

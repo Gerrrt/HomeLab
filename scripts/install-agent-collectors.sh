@@ -418,6 +418,44 @@ for target in "${TARGETS[@]}"; do
     pass "${target}: hostname ${remote_hostname}; no selected row writes a .prom, so no textfile directory needed"
   fi
 
+  # THREE AGENT UNITS SHARE A NAME WITH THE ESTATE'S: homelab-patch-state,
+  # homelab-smart-state and homelab-prune-images are in systemd/ for the
+  # monitoring host and in systemd/agent/ for agent hosts, and both installers
+  # write /etc/systemd/system/<name>.service. Run against the monitoring host,
+  # this script would replace the estate's unit, which reports through
+  # run-scheduled.sh, with the agent's, which does not, and the job's
+  # ScheduledJob* alerts would go stale with nothing broken to find. The
+  # estate's units are recognisable by `run-scheduled.sh --job`; the agent's
+  # one run-scheduled unit calls /usr/local/bin/homelab-run-scheduled instead.
+  # So a host that already holds an estate unit of a selected name is refused.
+  names=()
+  for row in "${COLLECTORS[@]}"; do
+    read -r name _ <<<"$row"
+    [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
+    names+=("${REMOTE_UNITS}/homelab-${name}.service")
+  done
+  # An absent unit is the normal case and grep's no-match (1) is an answer;
+  # anything else (an unreadable unit, a failed login) is not, and an empty
+  # answer from a failed inspection must not read as "no estate units". The
+  # remote loop exits 3 on a real error, and so does a dropped connection
+  # (ssh's 255), so either refuses the host.
+  # shellcheck disable=SC2016  # $@ and $f expand in the REMOTE sh, not here
+  probe='for f in "$@"; do [ -e "$f" ] || continue; grep -l "run-scheduled.sh --job" "$f"; rc=$?; [ "$rc" -le 1 ] || exit 3; done; exit 0'
+  estate_rc=0
+  estate="$(ssh_q "$target" sh -c "'${probe}'" _ "${names[@]}" | tr -d '\r')" || estate_rc=$?
+  if ((estate_rc != 0)); then
+    fail "${target}: could not read its existing units to check for the estate's (exit ${estate_rc});
+       nothing was installed"
+    continue
+  fi
+  if [[ -n "$estate" ]]; then
+    fail "${target}: holds the estate's own unit of the same name, installed by
+       install-timers.sh: $(printf '%s' "${estate}" | tr '\n' ' ')
+       That is the monitoring host's schedule, and an agent unit would replace
+       it. Agent collectors do not go on the monitoring host."
+    continue
+  fi
+
   staged=()
   if ((! CHECK_ONLY)); then
     step "${target}: shipping collectors"

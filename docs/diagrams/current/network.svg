@@ -127,7 +127,7 @@
 <circle cx="1174" cy="338" r="2.5" fill="#8b949e"/>
 <text x="1184" y="342" class="role">Suricata IDS</text>
 <circle cx="1174" cy="354" r="2.5" fill="#8b949e"/>
-<text x="1184" y="358" class="role">NUT server: orderly shutdown on mjolnir</text>
+<text x="1184" y="358" class="role">NUT server on mjolnir; Saruman and smaug subscribe</text>
 <circle cx="1174" cy="370" r="2.5" fill="#8b949e"/>
 <text x="1184" y="374" class="role">Dynamic DNS for the WireGuard endpoint</text>
 <circle cx="1174" cy="386" r="2.5" fill="#8b949e"/>
@@ -447,7 +447,7 @@
 <text x="830" y="876" class="role">  Jellyfin · Quick Sync transcoding</text>
 <text x="830" y="892" class="role">  Audiobookshelf · Navidrome</text>
 <text x="830" y="908" class="role">  SMB share · node_exporter</text>
-<text x="830" y="924" class="role">NFS: ISO store to Saruman</text>
+<text x="830" y="924" class="role">NFS: ISO store to Saruman, PBS store to golem</text>
 </g>
 <g class="host" data-host="mediatv">
 <rect x="816" y="956" width="342" height="50" rx="8" class="card"/>
@@ -487,7 +487,7 @@
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
 <text x="1204" y="1460" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
-<text x="1204" y="1476" class="foot">9090/3100, Saruman → smaug NFS. Hicks reaches all of it;</text>
+<text x="1204" y="1476" class="foot">9090/3100; Saruman, golem → smaug NFS. Hicks: all of it.</text>
 <text x="1204" y="1492" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
 <rect x="1202" y="772" width="492" height="642" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>

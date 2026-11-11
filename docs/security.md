@@ -1173,7 +1173,11 @@ from Home Assistant with *not enough permissions*.
   the same flags to every Docker host it deploys to, so `oracle`'s agent is
   no longer the privileged copy it was until #88; on `Saruman` the native
   package runs as its own unprivileged `alloy` user.
-- Every service runs with a read-only root filesystem (#186). Writable state is
+- Every service runs with a read-only root filesystem (#186) but two.
+  speedtest-tracker is an s6-overlay image that starts as root and prepares its
+  own runtime before dropping to `PUID`.
+  docker-socket-proxy's entrypoint generates `haproxy.cfg` at every start, the
+  exception its `compose.yaml` entry records. On the others, writable state is
   confined to the named volumes and, where a process genuinely needs scratch
   space, to a sized `tmpfs`: 64 MiB on Grafana, which extracts plugins into
   `/tmp`, and 32 + 16 MiB on Alloy for `/tmp` and `/root/.cache`. The sizes are
