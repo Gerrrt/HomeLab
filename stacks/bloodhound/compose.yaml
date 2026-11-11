@@ -199,11 +199,51 @@ services:
     expose:
       # Prometheus metrics, for alloy/bloodhound.alloy. Not published.
       - "2112"
-    ports:
-      - "${BIND_ADDR:-0.0.0.0}:${BLOODHOUND_PORT:-8443}:8080"
+    # The UI is NOT published (#1428): caddy below publishes the same host
+    # port, answers Hicks's /24 only and proxies here; see the Caddyfile.
     depends_on:
       app-db:
         condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # The UI's fence (#1428), soc's #1139 shape: Hicks only, the rest of VLAN 30,
+  # the weak domain included, refused.
+  # ---------------------------------------------------------------------------
+  caddy:
+    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    container_name: bloodhound-ui-proxy
+    restart: unless-stopped
+    logging: *default-logging
+    init: true
+    pids_limit: 64
+    networks: [bloodhound]
+    user: "65534:65534"
+    group_add:
+      - "${RENDER_GID:?run make render STACK=bloodhound}"
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=65534,gid=65534
+      - /config:size=1m,uid=65534,gid=65534
+      - /tmp:size=1m
+    mem_limit: 64m
+    memswap_limit: 64m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../certificates/bloodhound.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/bloodhound.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
+      - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${BLOODHOUND_PORT:-8443}:8443"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2020/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # ---------------------------------------------------------------------------
   # Docker socket proxy (#836), exactly as stacks/sensor has it; that file and
