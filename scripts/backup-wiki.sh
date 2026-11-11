@@ -286,9 +286,10 @@ wiki_remote() { "${SSH[@]}" "${WIKI_SSH_TARGET}" "$@" </dev/null; }
 DOCKER_EXEC="docker exec '${WIKI_DB_CONTAINER}'"
 # Wiki.js 3.x keeps its tables in the schema `wiki` (DB_SCHEMA's default); 2.x
 # kept them in `public`. The search path names both, so the same query counts
-# either engine: the 2.x cluster until the cutover, and its 3.x successor after
-# it (ADR-0108, #1339). No single quote may appear here: the remote call wraps it
-# in one. -q keeps psql 17 from printing the SET's own `SET` line.
+# either engine: 3.x since the cutover on 2026-11-10, and the 2.x cluster in
+# `pgdata` if the stack is ever rolled back to it (ADR-0108, #1339). No single
+# quote may appear here: the remote call wraps it in one. -q keeps psql 17 from
+# printing the SET's own `SET` line.
 COUNT_SQL='set search_path to wiki, public; select (select count(*) from pages), (select count(*) from users)'
 
 # ---------------------------------------------------------------------------

@@ -17,6 +17,42 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-11
+
+- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki runs
+  Wiki.js 3.3.0. The cutover ran on `oracle` on 2026-11-10, by
+  [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.**
+  - **The new cluster.** `pgdata-wiki3` was created at 00:12 UTC, and
+    `wiki-db` was initialised on it. `wiki-app` was on 3.3.0 from 03:03, and
+    the first sync to the `wikijs-3` branch succeeded at 03:05.
+  - **After the import:**
+    - 108 pages;
+    - 976 history rows (762 carried, plus 3.x's own entries for the import
+      and the link rewrites);
+    - 3 accounts and Guest. The bootstrap administrator was deleted.
+  - **Put back by hand, as the rehearsal predicted:**
+    - Guests' ALLOW rule for `read:pages`, `read:assets` and `read:comments`.
+    - Family's `read:source` and `read:history`.
+
+    The package was removed from `/wiki/data/backup`, and the copied deploy
+    key was shredded.
+  - **[#1298](https://github.com/Gerrrt/HomeLab/issues/1298) is closed.** The
+    `wiki-watch` run dispatched at 03:05 found nothing against 3.3.0.
+  - **The mirror.** `Gerrrt/Lemmiwinks#320` merged `wikijs-3` into `main` at
+    14:40 UTC. It carried 3.x's renamed tree and the four `diagrams/` pages
+    in 3.x's diagram block.
+  - **Found: the merge deleted the branch the target still pointed at.**
+    - Step 8 moves the target to `main` after the merge. GitHub deleted
+      `wikijs-3` on merge, and every sync from 14:40 UTC on failed: *the
+      branch "wikijs-3" does not exist on the remote*.
+    - It was found on 2026-11-11 and fixed at 03:09 UTC that day: the
+      target was moved to `main` in **Sync** mode and force-synced. Its
+      state read `healthy`, and the scheduled sync at 03:10 succeeded.
+    - No page had been edited in between. That sync published 0 queued
+      changes, so nothing went unmirrored.
+    - The README's step 8 now moves the target before the merge.
+  - **`pgdata`, 2.x's cluster, is kept** as the rollback. Nothing mounts it.
+
 ## 2026-11-10
 
 - **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
