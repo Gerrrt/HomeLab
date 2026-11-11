@@ -1730,7 +1730,7 @@ services:
   # No depends_on, for Vaultwarden's reason.
   glance:
     <<: *service-defaults
-    image: glanceapp/glance:v0.8.7@sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+    image: glanceapp/glance:v0.8.8@sha256:4d7445bc7971836858ffddee5d7501f1efbabb6e694a45b1dde1a789bb1943bb
     container_name: sensitive-glance
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
     mem_limit: 96m
