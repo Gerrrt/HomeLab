@@ -46,6 +46,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_compose_health.py` | `check-compose-health` | Every `depends_on: service_healthy` can actually be satisfied |
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_glance_config.sh` | — | `stacks/sensitive/glance/glance.yml`, validated by the pinned Glance |
+| `check_detection_config.sh` | — | Wazuh's rules, `ossec.conf` and `agent.conf` parse, and the rule ids are unique and in range; the indexer JSON parses; and in their pinned images, `wazuh-analysisd -t` and `zeek --parse-only` accept the configs odin and fenrir run |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_shared_blocks.py` | — | Every copy of a `# shared-block:` (code copied because a collector installs as one file) matches the others, so a fix cannot land in one copy only |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext, now and (`--history`) in every past revision |

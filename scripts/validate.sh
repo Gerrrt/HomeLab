@@ -517,6 +517,15 @@ GLANCE_SKIPS="$(mktemp)"
 SKIPPED=$((SKIPPED + $(wc -l < "${GLANCE_SKIPS}")))
 rm -f "${GLANCE_SKIPS}"
 
+# The detection and sensor configs: Wazuh's rules and ossec.conf, the
+# indexer's JSON, Zeek's local.zeek and ja4. XML/JSON everywhere; the
+# manager's and Zeek's own parsers in their pinned images when docker is up
+# (#1426).
+DETECTION_SKIPS="$(mktemp)"
+./scripts/check_detection_config.sh --skips-file "${DETECTION_SKIPS}" || FAILED=1
+SKIPPED=$((SKIPPED + $(wc -l < "${DETECTION_SKIPS}")))
+rm -f "${DETECTION_SKIPS}"
+
 # ---------------------------------------------------------------------------
 head_ "Grafana dashboards"
 # ---------------------------------------------------------------------------

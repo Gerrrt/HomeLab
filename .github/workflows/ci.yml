@@ -500,6 +500,18 @@ jobs:
       - name: Validate glance.yml
         run: ./scripts/require-no-skip.sh ./scripts/check_glance_config.sh
 
+      # The detection and sensor configs that break only on odin or fenrir
+      # otherwise: Wazuh's rules and ossec.conf through wazuh-analysisd -t,
+      # Zeek's local.zeek and ja4 through zeek --parse-only, each in its pinned
+      # image, and the XML and JSON parse (#1426).
+      - name: Validate the detection and sensor configs
+        run: ./scripts/require-no-skip.sh ./scripts/check_detection_config.sh
+
+      # The vendored ja4 and Sysmon config match the upstream commit VENDORED
+      # names. Both re-fetch upstream, so this needs the network (#1426).
+      - name: Vendored detection content matches upstream
+        run: ./scripts/vendor-ja4.sh --check && ./scripts/vendor-sysmon-config.sh --check
+
       # The device list is spread across snmp.yaml, generator.yaml,
       # render-config.sh's REQUIRED array and the example secrets file. Drift
       # between them is invisible until a poll goes out with an empty community,
