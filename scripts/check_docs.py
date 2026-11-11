@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Twelve assertions, each comparing prose against something machine-readable:
+Thirteen assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -50,6 +50,9 @@ Twelve assertions, each comparing prose against something machine-readable:
                            resolves to a file in the tree, and its anchor to a
                            heading. The one check that runs over records too: a
                            dead link is a structural fault, not a claim.
+ 13. Diagram render       docs/diagrams/current/network.png changes whenever
+                           network.svg does, in the working tree and in the
+                           last commit that touched either.
 
 Only present-tense documents are checked for their claims — the relative-link
 assertion (12) is the exception, and scans every tracked file including the
@@ -78,6 +81,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -473,6 +477,26 @@ def count_runbooks() -> int:
     return len(list((REPO / "docs/runbooks").glob("*.md")))
 
 
+def count_scrape_jobs() -> int:
+    """scrape_configs entries in the estate's prometheus.yaml.
+
+    observability.md said "Prometheus scrapes twelve jobs" while the file held
+    fourteen, and nothing could see it (#20 of the 2026-11-11 audit).
+    """
+    config = yaml.safe_load((STACK / "prometheus/prometheus.yaml").read_text(encoding="utf-8"))
+    return len(config.get("scrape_configs") or [])
+
+
+def count_saruman_guests() -> int:
+    """Rows in docs/network.md whose kind is a KVM guest on Saruman.
+
+    The host table is the inventory; README's diagram caption said "its ten
+    guests" when the table and the diagram both held twenty-one.
+    """
+    text = (REPO / "docs/network.md").read_text(encoding="utf-8")
+    return len(re.findall(r"^\|.*\|\s*KVM guest on `Saruman`\s*\|", text, re.MULTILINE))
+
+
 def facts() -> dict:
     prom_rules = sorted((STACK / "prometheus/rules").glob("*.rules.yaml"))
     loki_rules = sorted((STACK / "loki/rules").glob("*.rules.yaml"))
@@ -497,6 +521,8 @@ def facts() -> dict:
         "vlans": count_vlans(),
         "adrs": count_adrs(),
         "runbooks": count_runbooks(),
+        "scrape_jobs": count_scrape_jobs(),
+        "saruman_guests": count_saruman_guests(),
     }
 
 
@@ -633,6 +659,12 @@ def check_counts(f: dict) -> list[str]:
         # facts dict after building the registry; facts() cannot compute it,
         # because the registry closes over the dict facts() is still building.
         (rf"{COUNT}" + WS + r"assertions", {f["assertions"]}, "assertions"),
+        # Two counts the 2026-11-11 audit found stale where nothing looked.
+        # Narrow phrasings only: "N guests" alone is also how dated readings
+        # and runbook steps talk about a subset ("the six guests", "two guests
+        # first received a placeholder"), and those are not inventories.
+        (r"scrapes" + WS + COUNT + WS + r"jobs", {f["scrape_jobs"]}, "scrape jobs"),
+        (r"(?:hosting|its)" + WS + COUNT + WS + r"guests", {f["saruman_guests"]}, "guests on Saruman"),
     )
     problems = []
     for rel in PROSE:
@@ -1090,6 +1122,57 @@ def check_adr_numbers() -> list[str]:
                 f"ADR-{num} is claimed by {len(names)} files: {', '.join(names)} — renumber the one that landed second"
             )
 
+    problems.extend(check_adr_backlinks(adr_dir))
+    return problems
+
+
+# The verbs by which an ADR's status line says it changes an earlier one
+# (ADR-0115). "as ADR-N did" and "decides #N" end a clause: a precedent or an
+# issue, not a change.
+_ADR_CHANGE = re.compile(
+    r"(supersedes|amends|adds to|widens|narrows|replaces|reverses|carries out|revises|overrides)", re.IGNORECASE
+)
+
+
+def check_adr_backlinks(adr_dir: pathlib.Path) -> list[str]:
+    """Every ADR a status line says it changes names the ADR that changed it.
+
+    ADR-0115: a decision changed in part keeps `Accepted` with a note naming
+    the later ADR. The audit of 2026-11-11 found eight later ADRs that said so
+    in their status line while the earlier one never mentioned them, so a
+    reader acting on the earlier ADR had no way to know (#1444). This reads
+    each status block, takes the ADRs that follow a changing verb, and fails
+    if one of them never mentions the ADR that changed it.
+    """
+    files = {p.name[:4]: p for p in sorted(adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md"))}
+    problems: list[str] = []
+    for num, path in files.items():
+        lines = path.read_text().splitlines()
+        start = next((i for i, line in enumerate(lines) if line.startswith("**Status:**")), None)
+        if start is None:
+            continue
+        block = []
+        for line in lines[start:]:
+            if not line.strip():
+                break
+            block.append(line)
+        status = re.sub(r"\]\([^)]*\)", "]", " ".join(block))
+        for verb in _ADR_CHANGE.finditer(status):
+            clause = re.split(r"[;.]\s|\bas \[?ADR|\bdecides\b", status[verb.end() :], maxsplit=1)[0]
+            for other in re.findall(r"ADR-(\d{4})", clause):
+                if other == num:
+                    continue
+                if other not in files:
+                    problems.append(
+                        f"{path.name}: its status {verb.group(1).lower()} ADR-{other}, which does not exist"
+                    )
+                    continue
+                text = files[other].read_text()
+                if f"ADR-{num}" not in text and path.name not in text:
+                    problems.append(
+                        f"ADR-{num} {verb.group(1).lower()} ADR-{other}, and {files[other].name} never mentions it: "
+                        f"add a note under its status naming ADR-{num} (ADR-0115)"
+                    )
     return problems
 
 
@@ -1476,6 +1559,48 @@ def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]
     return problems
 
 
+def check_diagram_render() -> list[str]:
+    """The PNG is re-rendered whenever the SVG changes.
+
+    network.svg is hand-written and network.png is rendered from it with
+    rsvg-convert (CLAUDE.md). README shows the SVG and the wiki copies the PNG,
+    so an edit that skips the render leaves two diagrams that disagree, and
+    nothing compared them (the 2026-11-11 audit). A byte comparison against a
+    fresh render cannot work, because rsvg-convert versions do not produce
+    identical files, so this checks the pairing instead: an uncommitted change
+    to one without the other, or a last commit that touched one and not the
+    other. In a shallow clone the history half proves nothing and is skipped.
+    """
+    svg = "docs/diagrams/current/network.svg"
+    png = "docs/diagrams/current/network.png"
+    problems = []
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=False).stdout.rstrip("\n")
+
+    # Not stripped at the left: porcelain's first column is often a space.
+    dirty = {line[3:] for line in git("status", "--porcelain", "--", svg, png).splitlines()}
+    if svg in dirty and png not in dirty:
+        problems.append(f"{svg} is changed and {png} is not; re-render it (CLAUDE.md says how)")
+    if dirty:
+        return problems
+    if git("rev-parse", "--is-shallow-repository") == "true":
+        # Locally a shallow clone is someone's choice, and the working-tree
+        # half above has already run. In CI it is a checkout that lost its
+        # fetch-depth, and this half would pass on every push without looking.
+        if os.environ.get("CI"):
+            problems.append(f"the clone is shallow, so the history of {svg} cannot be read; CI needs fetch-depth: 0")
+        return problems
+    last_svg = git("log", "-1", "--format=%H", "--", svg)
+    last_png = git("log", "-1", "--format=%H", "--", png)
+    if last_svg != last_png:
+        problems.append(
+            f"the last commit to touch {svg} ({last_svg[:7]}) is not the last to "
+            f"touch {png} ({last_png[:7]}); they are rendered and committed together"
+        )
+    return problems
+
+
 def check_relative_links() -> list[str]:
     """Every relative Markdown link resolves to a file, and its anchor to a heading.
 
@@ -1515,6 +1640,7 @@ def main() -> int:
         ("README's outstanding-purchase count against the roadmap's table", check_buy_list),
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
         ("relative Markdown links resolve to a file and an anchor", check_relative_links),
+        ("network.png rendered with network.svg", check_diagram_render),
     )
 
     # The registry is the source for README's "N assertions", so adding a
@@ -1606,6 +1732,31 @@ def self_test() -> int:
             ("a missing cross-file anchor is caught", "no heading for #ghost" in joined),
             ("a missing same-file anchor is caught", "#ghost is not a heading" in joined),
             ("a target leaving the repository is caught", "leaves the repository" in joined),
+        ]
+
+    # ADR back-links (ADR-0115). A precedent named after "as" is not a change,
+    # whether it is written as a link or as plain text.
+    with tempfile.TemporaryDirectory() as d:
+        adr = pathlib.Path(d)
+
+        def adrs(status: str, first_mentions: bool) -> list[str]:
+            for f in adr.glob("*.md"):
+                f.unlink()
+            (adr / "0001-first.md").write_text(
+                "# ADR-0001\n\n**Status:** Accepted\n" + ("See ADR-0002.\n" if first_mentions else "")
+            )
+            (adr / "0002-second.md").write_text(f"# ADR-0002\n\n**Status:** {status}\n")
+            (adr / "0003-third.md").write_text("# ADR-0003\n\n**Status:** Accepted\n")
+            return check_adr_backlinks(adr)
+
+        cases += [
+            ("an amended ADR that links back passes", not adrs("Accepted · amends ADR-0001", True)),
+            ("an amended ADR with no back-link fails", bool(adrs("Accepted · amends ADR-0001", False))),
+            ("a plain-text precedent is not a change", not adrs("Accepted · amends ADR-0001, as ADR-0003 did", True)),
+            (
+                "nor is a linked one",
+                not adrs("Accepted · amends [ADR-0001](0001-first.md), as [ADR-0003](0003-third.md) did", True),
+            ),
         ]
 
     failed = 0

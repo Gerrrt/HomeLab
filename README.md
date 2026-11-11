@@ -111,7 +111,7 @@ documents for different readers.
   `promtool`, `amtool`, `alloy fmt`, a real Loki boot to parse the LogQL rules,
   dashboard-JSON and datasource checks, every dashboard's PromQL parsed, plus
   `gitleaks` over the full history.
-- **CI that validates the documentation too.** Twelve assertions cross-check
+- **CI that validates the documentation too.** Thirteen assertions cross-check
   this prose against the configs it describes — counted claims (rules,
   dashboards, panels, Alloy agents, VLANs, ADRs, runbooks), the SNMP
   inventory and the compute table against `docs/network.md`, the host/stack
@@ -119,7 +119,8 @@ documents for different readers.
   against `docs/firewall-claims.yaml`, guest rows against each other, this
   file's outstanding-purchase count against the roadmap's buy table, every
   critical alert's `runbook_url` against the runbook and heading it names,
-  every relative Markdown link against the file and heading it points at, and
+  every relative Markdown link against the file and heading it points at, the
+  network diagram's PNG against its SVG, and
   a ban on image versions in prose — Dependabot edits only `compose.yaml`, so
   a version written anywhere else is stale from the next bump. A document
   that disagrees with the repository fails the build. That opening count is
@@ -134,7 +135,7 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 114 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 115 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 53
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -146,7 +147,7 @@ documents for different readers.
 morpheus, the core switch neo and the 32U rack across the top; below them one
 panel per VLAN in its patch-cable colour, holding every addressed host —
 Winterfell's monitoring, wiki and household hosts, Hicks' workstations by role,
-CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its ten guests,
+CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its twenty-one guests,
 Skids' IoT by class, and the guest
 network.](docs/diagrams/current/network.svg)](docs/diagrams/current/network.svg)
 
@@ -194,7 +195,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
 | Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
-| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; not built yet, and off between sessions |
+| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; off between sessions |
 | Lab provisioning | [Packer](packer), [OpenTofu](tofu), [Ansible](ansible) | `phoenix` | VM templates, guests cloned from them, and the `ad.matrix.elysium` domain's configuration |
 | Secrets | [SOPS + age](secrets) | in the repo | Encrypted in-repo, decrypted at deploy time |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | GitHub | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
@@ -221,6 +222,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── soc/                  # Wazuh and Velociraptor on odin (ADR-0030)
 │   ├── sensor/               # Zeek on fenrir, on a mirror of the lab bridge (ADR-0068)
 │   ├── bloodhound/           # BloodHound CE on eden, off between sessions (ADR-0081)
+│   ├── analyst/              # Alloy on garuda, the Kali Purple workstation (ADR-0091)
 │   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
 ├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md
@@ -233,7 +235,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 114 ADRs — architecture decision records
+│   ├── adr/                  # 115 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
 │   └── runbooks/             # 53 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help

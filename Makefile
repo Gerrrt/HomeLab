@@ -292,6 +292,23 @@ secrets-remove-recipient: ## Remove an age recipient and re-key (PUBKEY=age1...)
 secrets-show: ## Print the decrypted secrets to stdout (careful)
 	sops --decrypt $(SECRETS)
 
+.PHONY: secrets-get
+# NAME reaches the recipe through the environment, never spliced into its
+# source: a $(NAME) in the shell line would run a backtick in the value before
+# the check below could refuse it.
+secrets-get: export NAME := $(value NAME)
+secrets-get: ## Print one decrypted value (NAME=KEY_NAME), not the whole file
+	@# For a runbook step that needs one value, such as another guest's ingest
+	@# token: secrets-show prints every secret in the file to the terminal and
+	@# its scrollback, to fetch one. NAME is checked against the shape every key
+	@# here has, because NAME is spliced into sops's --extract expression.
+	@[[ "$${NAME:-}" =~ ^[A-Z][A-Z0-9_]*$$ ]] || { \
+		printf '\033[0;31merror:\033[0m NAME=KEY_NAME is required, in capitals\n' >&2; \
+		printf '  make secrets-get STACK=lab NAME=INGEST_TOKEN_ODIN\n' >&2; \
+		exit 2; \
+	}
+	@sops --decrypt --extract "[\"$${NAME}\"]" $(SECRETS); echo
+
 .PHONY: render
 render: ## Decrypt secrets and render runtime config
 	./scripts/render-config.sh $(STACK)

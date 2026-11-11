@@ -3,6 +3,10 @@
 **Status:** Accepted · 2026-10
 
 > [!NOTE]
+> [ADR-0108](0108-move-the-wiki-to-wikijs-3-by-export-and-import.md) carries this out: trigger 3 fired on 2026-11-01, and
+> the wiki moved to Wiki.js 3.x. The text here is left as written, per ADR-0001
+> and ADR-0115.
+>
 > **Trigger 1 is enforced from 2026-10-07.**
 > [`wiki-watch.yml`](../../.github/workflows/wiki-watch.yml) reads
 > `requarks/wiki`'s published advisories and releases every Monday, through
