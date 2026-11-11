@@ -469,7 +469,15 @@ shuts its own issue, #1298.
 
 **8. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
 a PR. On that branch, turn the four `diagrams/` pages' mermaid blocks into
-3.x's diagram block, which renders them.
+3.x's diagram block, which renders them. Push that, and run **Force Sync**
+while the target is still on `wikijs-3`, so the wiki pulls the conversions.
+Each of the four pages must then render the diagram and not the mermaid
+source. The query prints `t|f` for each, and anything else means the sync
+has not brought them in yet:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select path, position('block-diagram' in render) > 0, position('language-mermaid' in render) > 0 from wiki.pages where path like 'diagrams/%'"
+```
 
 Before merging the PR, point the target at `main` in **Sync** mode. GitHub
 deletes the PR's branch when it merges, and 3.x's sync fails on a branch the
