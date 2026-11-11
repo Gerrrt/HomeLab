@@ -107,16 +107,40 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   exit "${FAILED}"
 fi
 
+# The image ships /var/ossec/etc's defaults outside /var/ossec and copies them
+# in at first start (its "permanent data"), and analysisd reads
+# etc/internal_options.conf relative to /var/ossec. Run cold, with our three
+# files bind-mounted into an otherwise empty etc/, it stopped at "Could not
+# open file 'etc/internal_options.conf'" before reading a line of ours. So
+# the files are mounted aside, the image's own defaults are restored into the
+# container's writable layer, ours are laid over them, and the test runs from
+# /var/ossec, which is what the manager's init does before it starts.
+# shellcheck disable=SC2016  # expanded by the container's sh, not here
+wazuh_test='
+set -e
+if [ ! -f /var/ossec/etc/internal_options.conf ]; then
+  src="$(find / -xdev -path /proc -prune -o -name internal_options.conf -print 2>/dev/null \
+    | grep -v "^/var/ossec/etc/" | head -1)"
+  [ -n "$src" ] || { echo "no internal_options.conf anywhere in the image"; exit 3; }
+  cp -a "$(dirname "$src")/." /var/ossec/etc/
+fi
+mkdir -p /var/ossec/etc/rules /var/ossec/etc/shared/default
+cp /hl/ossec.conf /var/ossec/etc/ossec.conf
+cp /hl/local_rules.xml /var/ossec/etc/rules/local_rules.xml
+cp /hl/agent.conf /var/ossec/etc/shared/default/agent.conf
+cd /var/ossec
+exec bin/wazuh-analysisd -t
+'
 # The compose service is wazuh.manager. An image that cannot be resolved is a
 # failure of this check, not an empty reference handed to docker: the first
 # CI run asked for wazuh-manager and docker said "invalid reference format".
 if ! manager="$(COMPOSE_FILE=stacks/soc/compose.yaml ./scripts/image-for.sh wazuh.manager)" || [[ -z "${manager}" ]]; then
   fail "could not resolve wazuh.manager's image from stacks/soc/compose.yaml"
-elif out="$(docker run --rm --network none --entrypoint /var/ossec/bin/wazuh-analysisd \
-      -v "${REPO_ROOT}/${OSSEC}:/var/ossec/etc/ossec.conf:ro" \
-      -v "${REPO_ROOT}/${RULES}:/var/ossec/etc/rules/local_rules.xml:ro" \
-      -v "${REPO_ROOT}/${AGENT}:/var/ossec/etc/shared/default/agent.conf:ro" \
-      "${manager}" -t 2>&1)"; then
+elif out="$(docker run --rm --network none --entrypoint /bin/sh \
+      -v "${REPO_ROOT}/${OSSEC}:/hl/ossec.conf:ro" \
+      -v "${REPO_ROOT}/${RULES}:/hl/local_rules.xml:ro" \
+      -v "${REPO_ROOT}/${AGENT}:/hl/agent.conf:ro" \
+      "${manager}" -c "${wazuh_test}" 2>&1)"; then
   pass "wazuh-analysisd -t accepts ossec.conf and the rules (${manager%%@*})"
 else
   printf '%s\n' "${out}" | tail -20 | sed 's/^/        /'
