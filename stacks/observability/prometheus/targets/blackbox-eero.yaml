@@ -17,15 +17,12 @@
 # a page, so these get EeroUnreachable at warning instead. A job boundary
 # makes that structural, as it does for blackbox-dns and blackbox-latency.
 #
-# THE FIREWALL, AND WHY EVERY TARGET IS COMMENTED OUT. 10.0.99.20 reaches
-# these addresses through one Winterfell row, `10.0.99.20 → eeros` on ICMP
-# echoreq, above the *Block access to …* rows (network.md), which is created
-# by hand. Until it exists every target here reads 0 and EeroUnreachable fires
-# for all eight. `prometheus` converges on main hourly (converge-the-host.md),
-# so a live target merged before the row would report eight eeros down within
-# the hour. The targets therefore stay commented until the row exists and
-# `ping -c3 10.0.50.11` from `prometheus` gets an answer. Enabling them is then
-# an uncomment here, hot-reloaded, with no restart.
+# THE FIREWALL. 10.0.99.20 reaches these addresses through one Winterfell
+# row, `10.0.99.20 → eeros` on ICMP echoreq, above the *Block access to …*
+# rows (network.md). It is created by hand and has been in force since
+# 2026-11-11, when `ping -c3` from `prometheus` got an answer from an eero on
+# each of Hicks, Skids and Degens. If that row goes, every target here reads 0
+# and EeroUnreachable fires for all eight at once.
 #
 # The addresses are the Kea reservations network.md lists, below each pool.
 # No MAC is written here.
@@ -37,20 +34,20 @@
 #            octet, `eero Hicks 11`, which is the Home Assistant entity's
 #            name, so the two sources name a unit the same way.
 
-# - targets: ["10.0.50.11", "10.0.50.12", "10.0.50.13"]
-#   labels:
-#     module: icmp_echo
-#     segment: Hicks
-#     role: wifi
+- targets: ["10.0.50.11", "10.0.50.12", "10.0.50.13"]
+  labels:
+    module: icmp_echo
+    segment: Hicks
+    role: wifi
 
-# - targets: ["10.0.20.11", "10.0.20.12", "10.0.20.13"]
-#   labels:
-#     module: icmp_echo
-#     segment: Skids
-#     role: wifi
+- targets: ["10.0.20.11", "10.0.20.12", "10.0.20.13"]
+  labels:
+    module: icmp_echo
+    segment: Skids
+    role: wifi
 
-# - targets: ["10.0.10.11", "10.0.10.12"]
-#   labels:
-#     module: icmp_echo
-#     segment: Degens
-#     role: wifi
+- targets: ["10.0.10.11", "10.0.10.12"]
+  labels:
+    module: icmp_echo
+    segment: Degens
+    role: wifi
