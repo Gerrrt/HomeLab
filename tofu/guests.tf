@@ -156,7 +156,39 @@ locals {
     })
   }
 
-  guests = merge(local.lab_domain, local.dotfiles, local.analyst, local.proof_guests)
+  # #451's eden (141), BloodHound CE, ADR-0081's shape as
+  # build-the-bloodhound-guest.md §0 tabulates it: the OS disk on local-lvm,
+  # the HDD mirror, without the SSD flag; Postgres on a 32 GiB data disk on
+  # large_data; a static .41, because the stack's certificate and the
+  # analyst's browser name it; off between sessions. Built by hand first, and
+  # brought here by #1443: imported once, then rebuilt from the pipeline,
+  # which ADR-0081 allows because the graph is derived data and eden is not
+  # backed up. `garnet`, not `operator`: the user alexander's operator logs in
+  # as, with that key beside phoenix's (var.eden_operator_key_file).
+  bloodhound = {
+    for name, g in {
+      eden = { vm_id = 141, template = 901, cores = 4, memory_mib = 8192, disk_gib = 32 }
+    } :
+    name => merge(g, {
+      pool        = "bloodhound"
+      mac_address = var.guest_identities[name].mac_address
+      smbios_uuid = var.guest_identities[name].smbios_uuid
+      startup     = null
+      linux       = true
+      on_boot     = false
+      tags        = ["bloodhound", "on-demand"]
+      password    = null
+      username    = "garnet"
+      datastore   = "local-lvm"
+      os_disk_ssd = false
+      data_disks  = [{ datastore = "large_data", size_gib = 32 }]
+      ipv4        = { address = "10.0.30.41/24", gateway = "10.0.30.1" }
+      dns_servers = ["10.0.30.1"]
+      extra_keys  = [trimspace(file(pathexpand(var.eden_operator_key_file)))]
+    })
+  }
+
+  guests = merge(local.lab_domain, local.dotfiles, local.analyst, local.bloodhound, local.proof_guests)
 
   # A pool exists exactly while it groups a guest: it is derived from the
   # guests, not listed beside them, so the last guest leaving a pool takes the
@@ -196,7 +228,13 @@ module "guest" {
   secure_boot = lookup(each.value, "secure_boot", true)
   # Absent means Proxmox's default. dot-windows runs VirtIO GPU (#1108).
   vga      = lookup(each.value, "vga", null)
-  ssh_keys = each.value.linux ? [trimspace(file(pathexpand(var.ssh_public_key_file)))] : []
+  ssh_keys = each.value.linux ? concat([trimspace(file(pathexpand(var.ssh_public_key_file)))], lookup(each.value, "extra_keys", [])) : []
+  # eden's shape (#1443). Absent means what every other guest has.
+  datastore   = lookup(each.value, "datastore", "large_data")
+  os_disk_ssd = lookup(each.value, "os_disk_ssd", true)
+  data_disks  = lookup(each.value, "data_disks", [])
+  ipv4        = lookup(each.value, "ipv4", null)
+  dns_servers = lookup(each.value, "dns_servers", [])
 
   mac_address = each.value.mac_address
   smbios_uuid = each.value.smbios_uuid

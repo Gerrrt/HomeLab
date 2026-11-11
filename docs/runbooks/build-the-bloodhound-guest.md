@@ -6,7 +6,9 @@
 **Time:** about an evening. §1–§3 take under an hour, because the OS comes
 from a template rather than an installer.
 
-**You will need:** root on `Saruman`, the Ubuntu template `901`
+**You will need:** `phoenix` with the toolchain
+([`provision-lab-guests.md`](provision-lab-guests.md)), root on `Saruman`, the
+Ubuntu template `901`
 ([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)),
 a shell on `prometheus` for §4's certificate, the Mac on Hicks to carry it to
 `eden`, and `alexander`.
@@ -44,14 +46,14 @@ same, this runbook points there and does not keep a second copy that drifts.
 
 ## 1. Create the VM, from the template
 
-On `Saruman`. The guest is a **full clone of template `901`**, Packer's Ubuntu
+The guest is a **full clone of template `901`**, Packer's Ubuntu
 26.04 ([ADR-0074](../adr/0074-build-the-lab-templates-with-packer-from-phoenix.md)),
 not an ISO install. A clone needs no console, and it starts from an image that
 has already passed `scripts/packer-smoke.sh`. It also inherits the template's
 shape, which differs from `alexander`'s and `odin`'s: q35 and OVMF, with an EFI
 disk, and the guest agent already installed.
 
-Check the room first, against both numbers ADR-0081 states. `pvesm status`
+Check the room first, on `Saruman`, against both numbers ADR-0081 states. `pvesm status`
 gives what is written, and the `lvs` sum gives what is allocated:
 
 ```bash
@@ -64,43 +66,82 @@ On 2026-10-06 that was 28.7% written and 920 GiB allocated of 876. This guest
 adds 32 to the allocation. If the written figure is past half, stop and ask
 why before adding anything.
 
-Clone onto `local-lvm`. That puts the OS disk, the EFI disk and the cloud-init
-drive on the HDD mirror, as ADR-0081 decides:
+The guest is declared in [`tofu/`](../../tofu/README.md) (`guests.tf`,
+`bloodhound`), and made from `phoenix` like every pipeline guest
+([`provision-lab-guests.md`](provision-lab-guests.md)). The declaration is §0's
+table:
+
+- the OS disk, the EFI disk and the cloud-init drive on `local-lvm`, the HDD
+  mirror, without the template's `ssd=1`, as ADR-0081 decides;
+- a 32 GiB data disk on `large_data`, as `scsi1`;
+- `10.0.30.41/24` with the gateway and nameserver `10.0.30.1`;
+- `firewall=0` on `net0`, its MAC pinned;
+- tags `bloodhound` and `on-demand`, `onboot` off, and the `bloodhound` pool.
+
+The search domain is not set, so Proxmox fills it from the host,
+`Isengard.Lab`. That is harmless, but it was not chosen.
+
+Three things have to be in place first:
+
+1. **The pool grant**, as root on `Saruman`, once: the `/pool/bloodhound` line
+   in [`provision-lab-guests.md` §2](provision-lab-guests.md#2-what-the-token-is-missing-on-saruman).
+2. **`eden`'s MAC in `tofu/identities.auto.tfvars`** on `phoenix`, under
+   `eden`, then escrowed with
+   [`provision-lab-guests.md` §3](provision-lab-guests.md)'s command. A first
+   build takes any free `BC:24:11` address; a rebuild keeps the one it had.
+3. **`garnet`'s key on `phoenix`.** The guest's user is `garnet`, and it takes
+   two keys: `phoenix`'s, which every pipeline guest has, and the one in
+   `garnet`'s `authorized_keys` on `alexander`. Read that one on `Saruman`,
+   and put it on `phoenix` as `~/.config/proxmox/eden-garnet.pub`
+   (`var.eden_operator_key_file`):
+
+   ```bash
+   qm guest exec 140 -- cat /home/garnet/.ssh/authorized_keys \
+     | python3 -c 'import json,sys;print(json.load(sys.stdin)["out-data"],end="")' \
+     | grep ssh-ed25519
+   ```
+
+Then, on `phoenix`:
 
 ```bash
-qm clone 901 141 --name eden --full 1 --storage local-lvm
+cd ~/code/Gerrrt/HomeLab
+umask 077; set -a; . ~/.config/proxmox/phoenix.env; set +a
+tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
 ```
 
-Then size it, add the data disk on the SSDs, and give cloud-init the user, the
-key and the address. The key is the one already in `garnet`'s
-`authorized_keys` on `alexander`:
-
-```bash
-qm guest exec 140 -- cat /home/garnet/.ssh/authorized_keys \
-  | python3 -c 'import json,sys;print(json.load(sys.stdin)["out-data"],end="")' \
-  | grep ssh-ed25519 > /root/eden.pub
-```
-
-```bash
-qm set 141 \
-  --cores 4 --memory 8192 --balloon 0 --onboot 0 --tags on-demand \
-  --net0 virtio,bridge=vmbr0,firewall=0 \
-  --scsi0 local-lvm:vm-141-disk-1,cache=none,discard=on,iothread=1,replicate=0 \
-  --scsi1 large_data:32,discard=on,iothread=1,ssd=1 \
-  --ciuser garnet --sshkeys /root/eden.pub \
-  --ipconfig0 ip=10.0.30.41/24,gw=10.0.30.1 --nameserver 10.0.30.1
-```
-
-- **`--net0` is restated** to get `firewall=0`, as on every guest here, and a
-  fresh `bc:24:11` MAC.
-- **`--scsi0` is restated** to drop the template's `ssd=1`. That disk is on the
-  HDD mirror now, and the flag would tell the guest otherwise.
-- **The search domain** is not set, so Proxmox fills it from the host,
-  `Isengard.Lab`. It is harmless, but it was not chosen. Add
-  `--searchdomain` if that matters.
-
-`qm set` warns that the sum of thin volumes exceeds the pool. That is the
+The plan should add the guest and the `bloodhound` pool, and nothing else.
+Proxmox warns that the sum of thin volumes exceeds the pool. That is the
 allocation ADR-0081 accepts, and the warning is expected.
+
+### Once: bring the hand-built `eden` into the pipeline
+
+`eden` was first built by hand, with `qm clone 901 141` and `qm set`
+(2026-10-07), so the state does not know it. Import it once, as the domain's
+six were ([`build-the-lab-domain.md`](build-the-lab-domain.md#rebuild-from-the-pipeline)):
+
+```bash
+tofu -chdir=tofu import 'module.guest["eden"].proxmox_virtual_environment_vm.this' Saruman/141
+tofu -chdir=tofu plan -target='module.guest["eden"]'
+```
+
+The plan should **replace** `eden` and **create** the `bloodhound` pool, and
+nothing else. A guest built by hand has no `clone` to read back, so this is the
+one plan where a replace is expected. Anything else is a stop.
+
+The replace destroys both disks, the graph and the guest's age key with them.
+ADR-0081 accepts that: the graph is one collection run from rebuilt, and the
+key is replaced by issuing new values. So take it out of the stack first, then
+let the pipeline make it again:
+
+```bash
+tofu -chdir=tofu destroy -target='module.guest["eden"]'
+tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
+```
+
+Then continue from §2. At §3, the guest is new and so is its key: follow §11
+for the `.sops.yaml` rule and the secrets file.
 
 ## 2. First boot, and the data disk
 
@@ -372,8 +413,10 @@ On the same day, in one pull request with §5's lab changes:
 
 ## 10. Take it out
 
-1. `qm shutdown 141` then `qm destroy 141 --purge`. `--purge` removes it from
-   every backup job and HA group that names it. None should.
+1. Remove `eden` from `tofu/guests.tf` and its line from
+   `identities.auto.tfvars` (and the escrow). Then on `phoenix`,
+   `tofu -chdir=tofu apply`. The plan should destroy the guest and the
+   `bloodhound` pool, and nothing else.
 2. Remove the `bloodhound` rule from `.sops.yaml`, then
    `secrets/bloodhound.sops.yaml`. On `alexander`, remove `INGEST_TOKEN_EDEN`
    from the five places §5 added it.

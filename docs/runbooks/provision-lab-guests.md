@@ -115,6 +115,7 @@ pveum acl modify /pool/proof --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /pool/lab-domain --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /pool/dotfiles --users phoenix@pve --roles PhoenixBuilder
 pveum acl modify /pool/analyst --users phoenix@pve --roles PhoenixBuilder
+pveum acl modify /pool/bloodhound --users phoenix@pve --roles PhoenixBuilder
 pveum acl list | grep phoenix
 ```
 
@@ -135,6 +136,7 @@ Each later pool gets its own `acl modify` line here and a row below:
 | `/pool/lab-domain` | `PhoenixBuilder` | ADR-0029's six. A rebuild destroys with `-target=module.guest`, so the pool and this grant outlive the guests. An untargeted `tofu destroy` takes both, and this line must be run again before the next apply |
 | `/pool/dotfiles` | `PhoenixBuilder` | [ADR-0090](../adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)'s on-demand dotfiles VMs, 191–198. The same rule as `lab-domain`: rebuild one with `-target`, or run this line again |
 | `/pool/analyst` | `PhoenixBuilder` | [ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)'s `garuda`, 162. The pool is its own resource, so a targeted destroy of the guest leaves the pool and this grant. Teardown destroys both targets (build-the-analyst-workstation.md §13), and then this line must be run again before a rebuild |
+| `/pool/bloodhound` | `PhoenixBuilder` | [ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)'s `eden`, 141, brought into the pipeline by [#1443](https://github.com/Gerrrt/HomeLab/issues/1443). Its own pool, so a targeted destroy of the guest leaves the pool and this grant |
 
 If an apply fails with `Permission check failed (/…, Some.Privilege)`, add that
 privilege to the role and record it here. This is ADR-0043's rule again.

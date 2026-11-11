@@ -23,4 +23,5 @@ guest_identities = {
   dot-nixos    = { mac_address = "BC:24:11:00:00:C5" }
   dot-windows  = { mac_address = "BC:24:11:00:00:C6" }
   garuda       = { mac_address = "BC:24:11:00:00:A2" }
+  eden         = { mac_address = "BC:24:11:00:00:8D" }
 }
