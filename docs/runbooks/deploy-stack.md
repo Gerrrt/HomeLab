@@ -32,7 +32,7 @@ make validate         # confirm the configs are sound before starting anything
 make up
 ```
 
-`make up` renders the decrypted config and starts all six services. Give it a
+`make up` renders the decrypted config and starts the ten services outside a profile. Give it a
 minute — Grafana waits on Prometheus and Loki reporting healthy.
 
 It then asserts on its own result: every service that declares a healthcheck
@@ -92,7 +92,7 @@ after 15 minutes (#914):
 ## Verify
 
 ```bash
-make ps                                     # all six services healthy
+make ps                                     # all ten services healthy
 curl -s localhost:9090/-/healthy            # Prometheus
 curl -s localhost:3100/ready                # Loki
 curl -s localhost:9093/-/healthy            # Alertmanager

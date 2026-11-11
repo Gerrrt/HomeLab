@@ -240,8 +240,8 @@ make secrets-edit STACK=sensor
 ```
 
 Set `INGEST_TOKEN` to `INGEST_TOKEN_FENRIR` from `secrets/lab.sops.yaml` on
-`alexander` (`make secrets-show STACK=lab` there). Then commit `.sops.yaml`,
-which now carries `fenrir`'s public key, and the new
+`alexander`, read there with `make secrets-get STACK=lab NAME=INGEST_TOKEN_FENRIR`.
+Then commit `.sops.yaml`, which now carries `fenrir`'s public key, and the new
 `secrets/sensor.sops.yaml`, through a pull request.
 
 Before the first start, check that the site policy parses on the pinned

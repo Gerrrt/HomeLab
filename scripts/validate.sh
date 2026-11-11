@@ -675,6 +675,22 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Shared blocks"
+# ---------------------------------------------------------------------------
+# Code copied on purpose, because a collector installs as one file, is marked
+# `# shared-block: <name>` in every copy, and each copy must match the others.
+# A fix that lands in one copy fails here until it lands in all of them.
+if have python3; then
+  if python3 scripts/check_shared_blocks.py; then
+    pass "every marked shared block agrees with its other copies"
+  else
+    fail "a shared block differs between its copies"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Scheduled jobs"
 # ---------------------------------------------------------------------------
 # The cadence lives in systemd/*.timer and the staleness threshold lives in the

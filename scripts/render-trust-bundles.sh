@@ -54,7 +54,9 @@ HA_ONLY=0
 [[ "${2:-}" == "--home-assistant-only" ]] && HA_ONLY=1
 
 INGEST_CA="${REPO_ROOT}/stacks/observability/alloy/ingest-ca.pem"
-TIER_CA="${REPO_ROOT}/certificates/tier-ca.pem"
+# TIER_CA may be overridden, for check_hardened_boot.sh alone: CI has no tier
+# CA, and boots Glance with a throwaway one in its place.
+TIER_CA="${TIER_CA:-${REPO_ROOT}/certificates/tier-ca.pem}"
 SYSTEM_ROOTS="${SYSTEM_ROOTS:-/etc/ssl/certs/ca-certificates.crt}"
 
 die() { printf 'render-trust-bundles: %s\n' "$*" >&2; exit 1; }
