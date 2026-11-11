@@ -36,6 +36,24 @@ docstring gives: it is a record, not a claim about now.
   - **Left:** `docker volume rm pgdata` on `oracle`, by hand, after the
     merge.
 
+- **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226): the HomePods'
+  upstream gate is carried locally.
+  [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+  adds `pyatv_scan_guard`, a custom component that patches pyatv 0.18.0's
+  scan by address with postlund/pyatv#2930's change, and
+  [#1393](https://github.com/Gerrrt/HomeLab/issues/1393) tracks its
+  removal. Nothing is deployed yet.**
+  - **Upstream had not moved.** #2930 had no review since 2026-10-21, pyatv
+    had no commit since 0.18.0 on 2026-06-19, and Home Assistant 2026.11.1
+    and `dev` pinned `pyatv==0.18.0`.
+  - **Measured in the pinned image, from a container on
+    `sensitive_sensitive`:** the scan of `10.0.20.21`–`.23` found no HomePod
+    in 3 runs unpatched, and `.21` and `.23` in each of 6 runs patched.
+    `.22` answered no mDNS query that day, patched or not.
+  - **The Apple TV integration scans on every connect, not only when a
+    device is added.** An entry that set up before the patch loaded keeps
+    retrying, at most five minutes apart, so the component reloads nothing.
+
 - **[#1387](https://github.com/Gerrrt/HomeLab/issues/1387): each switch
   port's VLAN is in Prometheus as `dot1qPvid`, and `SwitchPortVlanChanged`
   fires for an hour after any port's PVID changes.** The drift check used
