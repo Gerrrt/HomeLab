@@ -7,7 +7,8 @@
 #
 # The docker-backed checks (check_loki_rules.sh, test_loki_rules.py,
 # check_syslog_senders.sh, check_socket_proxy.sh, check_gosu_skip.sh,
-# check_caddyfile.sh, check_glance_config.sh, check_dashboard_roundtrip.sh)
+# check_caddyfile.sh, check_glance_config.sh, check_dashboard_roundtrip.sh,
+# check_detection_config.sh)
 # print SKIP and exit 0 when they cannot reach docker or their binary. That is
 # right for a local run, where validate.sh counts the skips through
 # --skips-file. CI called them bare, so a runner that lost its daemon, or an
