@@ -63,8 +63,10 @@ docstring gives: it is a record, not a claim about now.
   - **2026-10-14, [#1194](https://github.com/Gerrrt/HomeLab/issues/1194):
     Kali clones stopped booting degraded.** Kali's package scripts leave
     service accounts such as `lightdm` with an account expiry at the epoch.
-    The greeter's PAM account step then failed, so every clone of templates
-    910 and 902 booted degraded. The preseed now clears the expiry on
+    systemd starts a user manager for `lightdm`, and its PAM account step
+    (`pam_unix(systemd-user:account)`) refused the expired account, so every
+    clone of templates 910 and 902 booted degraded. The greeter itself kept
+    working. The preseed now clears the expiry on
     exactly those accounts.
 
 - **[ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
