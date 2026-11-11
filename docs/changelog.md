@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
+  reads the switch over `api-ssl`, read-only, in force.** This is the
+  deployment the 2026-11-10 entry below left as "nothing is deployed yet".
+  - **The pass is in place.** *Allow HA API to LAN Switch* sits directly
+    above Winterfell's *Block access to the untagged LAN* in `pfctl -sr`,
+    and `trinity` connects to `10.7.7.2:8729`.
+  - **The certificate is the estate leaf.** `openssl s_client` from
+    `trinity` and the runbook's §5 both verified `neo.matrix.elysium`
+    against the estate CA, with the name checked.
+  - **Writes are refused.** §5's same-name identity write and a
+    `switch.turn_off` on an unused SFP+ port from Home Assistant both
+    came back *not enough permissions*.
+  - **The integration reads.** CPU, temperature, memory, disk, uptime and
+    every port's link state have values. The port switches and the
+    Restart, Shutdown and Backup buttons are disabled; the two update
+    entities stay. A CRS326 has no PoE, so there is no select.
+  - **Three snags, now in the runbook.** The `homeassistant` user already
+    existed from an earlier pass at §3, with no password anyone could
+    account for, so the runbook says how to check it and set one. RouterOS
+    7 renamed the service's `address` to `available-from`. And pasting §5
+    in one piece handed its next line to `read` as the password, so the
+    prompt is now a block of its own.
+  - **`make check-firewall` is clean**, run from `prometheus`: 14 posture
+    assertions on 7 interfaces, Winterfell's catch-all still reaching
+    nothing. ADR-0111 expected that, because `docs/firewall-claims.yaml`
+    tracks only wholesale reach and the pass is one port to one host.
+
 - **[#1387](https://github.com/Gerrrt/HomeLab/issues/1387): each switch
   port's VLAN is in Prometheus as `dot1qPvid`, and `SwitchPortVlanChanged`
   fires for an hour after any port's PVID changes.** The drift check used

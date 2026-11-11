@@ -234,7 +234,7 @@ renamed *Allow internet*, with DNS and NTP to the gateway the only passes above
 them ([#229](https://github.com/Gerrrt/HomeLab/issues/229)); since 2026-09-06
 nothing on Winterfell can reach it either
 ([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)), apart from
-SNMP from `10.0.99.20`. A second pass is decided and not yet created:
+SNMP from `10.0.99.20`. A second pass has been in force since 2026-11-11:
 `trinity`'s Home Assistant to the switch's `api-ssl` on `8729`
 ([ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md),
 [#1388](https://github.com/Gerrrt/HomeLab/issues/1388)).
@@ -943,7 +943,7 @@ because adding one would need a new `10.0.99.20 → 10.7.7.2:443` pass. The date
 is in [`schedule-maintenance.md`](runbooks/schedule-maintenance.md) and
 [`successor-handover.md`](runbooks/successor-handover.md) instead.
 
-### Home Assistant reads the switch without verifying it (decided)
+### Home Assistant reads the switch without verifying it
 
 [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
 gives Home Assistant on `trinity` a read-only view of `neo` through the core
@@ -963,8 +963,10 @@ read-only login that works from `10.0.99.40` only.
 [`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md)
 §5 verifies the certificate once, by hand, when the integration is set up.
 The residual is reopened by an integration release whose option verifies.
-None of this is deployed until
-[#1388](https://github.com/Gerrrt/HomeLab/issues/1388).
+In force since 2026-11-11
+([#1388](https://github.com/Gerrrt/HomeLab/issues/1388)): §5 verified the
+leaf and the name, and the switch refused both §5's write and a port toggle
+from Home Assistant with *not enough permissions*.
 
 ## Hardening applied to the stack
 
