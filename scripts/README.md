@@ -73,6 +73,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_mounted_config.py`, `check_container_health.py`, `check_alert_channels.py` | via `up` | After a deploy: each container runs the repo's config, its healthcheck passes, and Alertmanager can read every receiver URL |
 | `seed-ha-http.sh`, `seed-actual-password.sh` | via `up` | First-start state for Home Assistant and Actual, written before anything can reach them |
 | `deploy-agent.sh` | `deploy-agent` | Deploys the Alloy agent on a monitored host, with no privilege on the target |
+| `smaug-fetch.sh` | — | Prints the block that fetches files onto `smaug` from one reviewed commit, each verified by sha256 against your checkout, and with `--verify` the command that checks what `smaug` has; its fixtures run in `self-tests.sh` |
 | `install-timers.sh` | `install-timers`, `check-timers` | The schedule, and the staleness each job's alert allows — see [`systemd/`](../systemd/README.md) |
 | `install-agent-collectors.sh` | `install-agent-collectors` | The textfile collectors on an agent host. Run by hand, once per host, with a TTY for its sudo prompt |
 | `run-scheduled.sh` | — | Runs a job under a lock and records its outcome as `homelab_job_*` metrics |
