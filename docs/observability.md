@@ -199,8 +199,8 @@ Docker. **A directly scraped target that dies sets `up` to 0. A remote-writing
 agent that dies just stops pushing, so its `up` goes stale and ages out instead
 of falling** — and `InstanceDown` is `up == 0`, so it cannot see that at all.
 
-Eleven of those twelve jobs are containers on the compose network or devices
-behind an exporter. The twelfth is `node`, and it is a MACHINE — `smaug`, which
+Every one of those jobs but one is a container on the compose network or a
+device behind an exporter. The exception is `node`, and it is a MACHINE — `smaug`, which
 [ADR-0016](adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md) put
 on a segment that may not initiate upward, so Prometheus reaches in and scrapes
 it rather than being pushed to ([#256](https://github.com/Gerrrt/HomeLab/issues/256)).
