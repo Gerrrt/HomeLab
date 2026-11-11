@@ -3,6 +3,9 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) amends the "join none of the estate's loops"
+> consequence. The text here is left as written, per ADR-0001 and ADR-0115.
+>
 > The host this ADR calls `zion` is named **`smaug`** since 2026-09
 > ([ADR-0038](0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
 > The address, the rules and the decision are unchanged — only the label. The

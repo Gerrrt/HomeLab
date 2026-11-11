@@ -19,6 +19,56 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **Recorded late: seven changes from 2026-10-05 to 2026-10-14 that reached
+  `main` without an entry here.** The 2026-11-11 audit found them by
+  comparing closed issues against this file. Each one is dated to its merge
+  commit. The current state is in the files each one names, and this entry
+  changes none of them.
+  - **2026-10-05, [#914](https://github.com/Gerrrt/HomeLab/issues/914):
+    why the internet is slow.** speedtest-tracker joined the observability
+    stack on `prometheus`, testing every 30 minutes. The *Internet*
+    dashboard puts them beside WAN utilisation, WAN receive errors,
+    round-trip time, latency under load and the uplink's loss.
+    `internet.rules.yaml` alerts on three slow tests in a row and on a WAN
+    held near its ceiling. On 2026-10-06 the Hicks pass to `prometheus:8443`
+    was recorded for its UI (`network.md`'s Hicks notes).
+  - **2026-10-07, [#845](https://github.com/Gerrrt/HomeLab/issues/845): the
+    lab's services got the estate's hardening.** That covered Wazuh in `soc`
+    and `scratch`, and the lab's Prometheus, Loki and Grafana.
+    - `check_compose_health.py` now fails a long-running service without
+      `no-new-privileges` unless `NNP_EXEMPT` records why.
+    - Making the lab's Loki read-only broke its compactor's retention: it
+      writes deletion markers into `/tmp`. Both Lokis took a `/tmp` tmpfs
+      the same day. The estate's Loki had most likely been failing the same
+      way since #186, because #186's boot test never reached data old enough
+      to compact.
+  - **2026-10-07, [#954](https://github.com/Gerrrt/HomeLab/issues/954): the
+    renderer was hardened, and `NNP_EXEMPT` emptied.** The image renders
+    with Chromium's own sandbox off, so the container's settings are the
+    only ones in force. Before and after the change, measured renders of the
+    lab Grafana were byte-identical.
+  - **2026-10-07, [#859](https://github.com/Gerrrt/HomeLab/issues/859) and
+    [#860](https://github.com/Gerrrt/HomeLab/issues/860): two decisions
+    to change nothing yet.**
+    - [ADR-0089](adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md)
+      keeps the wiki on Wiki.js 2.x until one of its named triggers fires.
+    - Pocket ID was weighed against
+      [ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md)
+      and recorded as a note there. It is the first candidate if a reopen
+      condition fires, and changes nothing until then.
+  - **2026-10-08, [#1095](https://github.com/Gerrrt/HomeLab/issues/1095):
+    `NasOomKill`.** None of the estate's OOM rules could see `smaug`, which
+    ships no logs and runs no cAdvisor. The new rule reads node_exporter's
+    `node_vmstat_oom_kill` for `smaug` alone.
+  - **2026-10-14, [#1194](https://github.com/Gerrrt/HomeLab/issues/1194):
+    Kali clones stopped booting degraded.** Kali's package scripts leave
+    service accounts such as `lightdm` with an account expiry at the epoch.
+    systemd starts a user manager for `lightdm`, and its PAM account step
+    (`pam_unix(systemd-user:account)`) refused the expired account, so every
+    clone of templates 910 and 902 booted degraded. The greeter itself kept
+    working. The preseed now clears the expiry on
+    exactly those accounts.
+
 - **[ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
   MakeMKV joins the media stack, written and not deployed.** The household
   wants its discs in Jellyfin, and the house's two optical drives are

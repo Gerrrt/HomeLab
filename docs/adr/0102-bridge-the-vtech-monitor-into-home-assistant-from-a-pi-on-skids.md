@@ -1,7 +1,11 @@
 # ADR-0102: Bridge the VTech monitor into Home Assistant from a Pi on Skids
 
 **Status:** Superseded · 2026-11 · by
-[ADR-0109](0109-leave-the-vtech-monitor-out-of-home-assistant.md)
+[ADR-0109](0109-leave-the-vtech-monitor-out-of-home-assistant.md) · accepted 2026-10
+
+> [!NOTE]
+> Wholly superseded: [ADR-0109](0109-leave-the-vtech-monitor-out-of-home-assistant.md) leaves the monitor out of Home
+> Assistant. The text here is left as written, per ADR-0001 and ADR-0115.
 
 ## Context
 
