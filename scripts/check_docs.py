@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Twelve assertions, each comparing prose against something machine-readable:
+Thirteen assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -50,6 +50,9 @@ Twelve assertions, each comparing prose against something machine-readable:
                            resolves to a file in the tree, and its anchor to a
                            heading. The one check that runs over records too: a
                            dead link is a structural fault, not a claim.
+ 13. Diagram render       docs/diagrams/current/network.png changes whenever
+                           network.svg does, in the working tree and in the
+                           last commit that touched either.
 
 Only present-tense documents are checked for their claims — the relative-link
 assertion (12) is the exception, and scans every tracked file including the
@@ -78,6 +81,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -1555,6 +1559,48 @@ def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]
     return problems
 
 
+def check_diagram_render() -> list[str]:
+    """The PNG is re-rendered whenever the SVG changes.
+
+    network.svg is hand-written and network.png is rendered from it with
+    rsvg-convert (CLAUDE.md). README shows the SVG and the wiki copies the PNG,
+    so an edit that skips the render leaves two diagrams that disagree, and
+    nothing compared them (the 2026-11-11 audit). A byte comparison against a
+    fresh render cannot work, because rsvg-convert versions do not produce
+    identical files, so this checks the pairing instead: an uncommitted change
+    to one without the other, or a last commit that touched one and not the
+    other. In a shallow clone the history half proves nothing and is skipped.
+    """
+    svg = "docs/diagrams/current/network.svg"
+    png = "docs/diagrams/current/network.png"
+    problems = []
+
+    def git(*args: str) -> str:
+        return subprocess.run(["git", *args], cwd=REPO, capture_output=True, text=True, check=False).stdout.rstrip("\n")
+
+    # Not stripped at the left: porcelain's first column is often a space.
+    dirty = {line[3:] for line in git("status", "--porcelain", "--", svg, png).splitlines()}
+    if svg in dirty and png not in dirty:
+        problems.append(f"{svg} is changed and {png} is not; re-render it (CLAUDE.md says how)")
+    if dirty:
+        return problems
+    if git("rev-parse", "--is-shallow-repository") == "true":
+        # Locally a shallow clone is someone's choice, and the working-tree
+        # half above has already run. In CI it is a checkout that lost its
+        # fetch-depth, and this half would pass on every push without looking.
+        if os.environ.get("CI"):
+            problems.append(f"the clone is shallow, so the history of {svg} cannot be read; CI needs fetch-depth: 0")
+        return problems
+    last_svg = git("log", "-1", "--format=%H", "--", svg)
+    last_png = git("log", "-1", "--format=%H", "--", png)
+    if last_svg != last_png:
+        problems.append(
+            f"the last commit to touch {svg} ({last_svg[:7]}) is not the last to "
+            f"touch {png} ({last_png[:7]}); they are rendered and committed together"
+        )
+    return problems
+
+
 def check_relative_links() -> list[str]:
     """Every relative Markdown link resolves to a file, and its anchor to a heading.
 
@@ -1594,6 +1640,7 @@ def main() -> int:
         ("README's outstanding-purchase count against the roadmap's table", check_buy_list),
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
         ("relative Markdown links resolve to a file and an anchor", check_relative_links),
+        ("network.png rendered with network.svg", check_diagram_render),
     )
 
     # The registry is the source for README's "N assertions", so adding a

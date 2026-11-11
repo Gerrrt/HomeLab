@@ -73,9 +73,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
+      # Full history, for check_docs.py's diagram assertion: it compares the
+      # last commit to touch network.svg with the last to touch network.png,
+      # and a shallow clone has only the one commit, so it proved nothing.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       # ghcr.io rate-limits by the identity asking, and an anonymous pull from
       # a runner is identified by an egress IP shared with everything else on
