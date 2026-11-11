@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **Three addresses Lemmiwinks recorded differently, checked at the device:
+  HomeLab was right on all three**
+  ([#1416](https://github.com/Gerrrt/HomeLab/issues/1416)). The issue's other
+  two items, the old shelf switch and the successor handover's rack positions,
+  were corrected in [#1418](https://github.com/Gerrrt/HomeLab/pull/1418).
+  - **`10.0.40.101` is the Xumo Stream Box**, as `docs/network.md` has it.
+    Lemmiwinks' `xione-scb` is stale.
+  - **`10.0.50.10` is a household laptop**, as `laptop-01` says. Lemmiwinks'
+    desktop is stale.
+  - **`10.0.50.112` stays `wearable-01`.** Lemmiwinks placed a desktop's
+    second network card there on MokerLink port 7, and nothing is plugged
+    into port 7. Its MAC is locally administered, which is how a watch's
+    private address looks.
+  - Nothing in HomeLab's current-state documents changed. The three rows to
+    correct are in Lemmiwinks.
+
 - **Recorded late: seven changes from 2026-10-05 to 2026-10-14 that reached
   `main` without an entry here.** The 2026-11-11 audit found them by
   comparing closed issues against this file. Each one is dated to its merge
