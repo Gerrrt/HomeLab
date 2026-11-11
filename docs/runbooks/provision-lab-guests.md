@@ -156,10 +156,19 @@ cannot decrypt the result. Re-run it whenever either changes:
 cd ~/code/Gerrrt/HomeLab && git pull
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 umask 077
-{ printf 'TOFU_STATE_PASSPHRASE: %s\n' "${TF_VAR_state_passphrase}"
-  printf 'TOFU_GUEST_IDENTITIES: |\n'; sed 's/^/  /' tofu/identities.auto.tfvars; } \
-  | sops --encrypt --filename-override secrets/tofu.sops.yaml \
-         --input-type yaml --output-type yaml /dev/stdin > secrets/tofu.sops.yaml
+# Into a new file, moved over the escrow only if every step worked: a missing
+# identities file or a failed encrypt must leave the old escrow as it was. An
+# explicit && chain, because `set -e` does nothing in a list like this one.
+if test -n "${TF_VAR_state_passphrase}" && test -s tofu/identities.auto.tfvars \
+  && ( set -o pipefail
+       { printf 'TOFU_STATE_PASSPHRASE: %s\n' "${TF_VAR_state_passphrase}"
+         printf 'TOFU_GUEST_IDENTITIES: |\n'; sed 's/^/  /' tofu/identities.auto.tfvars; } \
+         | sops --encrypt --filename-override secrets/tofu.sops.yaml \
+                --input-type yaml --output-type yaml /dev/stdin > secrets/tofu.sops.yaml.new ); then
+  mv secrets/tofu.sops.yaml.new secrets/tofu.sops.yaml
+else
+  rm -f secrets/tofu.sops.yaml.new; echo 'escrow NOT written; the old one is unchanged'
+fi
 grep -c 'age1' secrets/tofu.sops.yaml          # 2: the estate key and the second recipient
 sops --decrypt secrets/tofu.sops.yaml          # fails here, and that is the design
 printf '%s' "${TF_VAR_state_passphrase}" | sha256sum
