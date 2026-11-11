@@ -3,6 +3,11 @@
 **Status:** Accepted · 2026-08
 
 > [!NOTE]
+> [ADR-0067](0067-authenticate-the-ingest-ports-with-a-token-per-client.md) and [ADR-0086](0086-serve-the-ingest-ports-over-tls-under-the-estate-ca.md) moved Prometheus (9090) and Loki
+> (3100) behind the ingest proxy, with a token per client and then TLS. The
+> ports below are no longer the services' own. The text here is left as written,
+> per ADR-0001 and ADR-0115.
+>
 > The Alloy syslog row below is out of date. Its port is now **6514/tcp, TLS with
 > morpheus's pinned client certificate**, bound to `${INGEST_BIND_ADDR}`. The
 > 1514/udp listener, and the 514 published beside it, were removed because a

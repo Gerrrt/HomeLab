@@ -52,12 +52,13 @@ die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 WORK_DIR="$(mktemp -d)"
 trap 'rm -rf "${WORK_DIR}"' EXIT
 
-# Running VMs from `qm list`, by shape rather than column — the same parse as
-# collect-guest-state.sh, copied because collectors install as single files.
-# Output: vmid name, for running guests only. A stopped guest has no agent to
-# ask, and HypervisorGuestStopped already says it is stopped.
-parse_running_vms() {
-  awk '
+# `qm list`, parsed by shape rather than column: collect-guest-state.sh's
+# parser, copied because collectors install as single files, and kept
+# identical to it by scripts/check_shared_blocks.py.
+# shared-block: parse_guest_list
+parse_guest_list() {
+  local kind="$1"
+  awk -v kind="$kind" '
     $1 == "VMID" { next }
     $1 !~ /^[0-9]+$/ { next }
     {
@@ -67,13 +68,20 @@ parse_running_vms() {
           status = $i; status_at = i; break
         }
       }
-      if (status != "running") next
+      if (status == "") next
       name = ""
       for (i = 2; i < status_at; i++) name = name (name == "" ? "" : " ") $i
       if (name == "") name = "vmid-" vmid
-      printf "%s %s\n", vmid, name
+      printf "%s %s %s %s\n", kind, vmid, name, status
     }
   '
+}
+# end shared-block: parse_guest_list
+
+# Running VMs only, as "vmid name". A stopped guest has no agent to ask, and
+# HypervisorGuestStopped already says it is stopped.
+parse_running_vms() {
+  parse_guest_list qemu | awk '$NF == "running" { $1 = ""; $NF = ""; sub(/^ +/, ""); sub(/ +$/, ""); print }'
 }
 
 # render MANIFEST — the exposition, from a manifest of one tab-separated line per

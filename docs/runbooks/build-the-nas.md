@@ -834,20 +834,28 @@ one: **Apps → Configuration → Choose Pool → `erebor`**, and wait for Apps 
 report running. That creates `erebor/ix-apps`, where Docker's images and named
 volumes live from then on.
 
-**Then fetch the files the stack is.** The repository is public and this
-host has egress, so they come straight from `main`. The `.env` is copied
-as-is, because every value in it is a plain host fact. The third file is the
-SMART collector §6.4 runs from cron
-([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md));
-`curl` does not preserve an exec bit, hence the `chmod`:
+**Then fetch the files the stack is.** This host has no checkout, so every
+file here, and every script later sections run as root from cron, is fetched
+from GitHub. It is never fetched from `main`: on your own machine, in a
+checkout of `main`, [`scripts/smaug-fetch.sh`](../../scripts/smaug-fetch.sh)
+prints a block that fetches each file from that one commit and checks it
+against a sha256 computed from your checkout before it replaces anything
+([#1424](https://github.com/Gerrrt/HomeLab/issues/1424)). Paste that block
+here. A file that does not match stops the block and is not installed; its
+`.new` is left for you to look at. The `.env` is copied as-is, because every
+value in it is a plain host fact. The third file is the SMART collector §6.4
+runs from cron
+([ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)):
 
 ```bash
-mkdir -p /mnt/erebor/apps/stack && cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/compose.yaml \
-  && curl -fsSL  https://raw.githubusercontent.com/Gerrrt/HomeLab/main/stacks/media/.env.example -o .env \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-smart-state.sh \
-  && chmod 0755 collect-smart-state.sh
+mkdir -p /mnt/erebor/apps/stack
+# Then paste the output of, on your machine:
+#   scripts/smaug-fetch.sh stacks/media/compose.yaml stacks/media/.env.example:.env scripts/collect-smart-state.sh
 ```
+
+To see later whether what smaug runs is still what the repository holds, paste
+the output of `scripts/smaug-fetch.sh --verify` with the same files: it prints
+`OK` or `FAILED` for each one.
 
 The folder is under `erebor/apps` because that is the dataset §4 set aside
 for application state; its name is arbitrary, since the compose file sets its
@@ -1272,9 +1280,8 @@ Confirmed from the monitoring host on 2026-09-21, over the read path §6.2
 opened. It is idempotent: run it whether or not the file is there.
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-smart-state.sh \
-  && chmod 0755 collect-smart-state.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/collect-smart-state.sh
 mkdir -p /mnt/erebor/apps/textfile && chmod 0755 /mnt/erebor/apps/textfile
 PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 600 /bin/bash /mnt/erebor/apps/stack/collect-smart-state.sh --print --host smaug
 ```
@@ -1430,9 +1437,8 @@ From the console shell, as root, fetch the script next to the collector and
 prove it writes:
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/mark-clean-shutdown.sh \
-  && chmod 0755 mark-clean-shutdown.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/mark-clean-shutdown.sh
 /bin/bash /mnt/erebor/apps/stack/mark-clean-shutdown.sh --self-test
 ```
 
@@ -1718,9 +1724,8 @@ upgrade replacing the root touches neither of. It is **not** pulled over
 is idempotent; `--print` writes nothing:
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-truenas-version.sh \
-  && chmod 0755 collect-truenas-version.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/collect-truenas-version.sh
 /bin/bash /mnt/erebor/apps/stack/collect-truenas-version.sh --print --host smaug
 ```
 
@@ -1794,9 +1799,8 @@ gone a day unpaged.
 writes nothing:
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-zpool-state.sh \
-  && chmod 0755 collect-zpool-state.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/collect-zpool-state.sh
 PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-zpool-state.sh --print --host smaug
 ```
 
@@ -1975,9 +1979,8 @@ fires if the job stops.
 **1. Fetch it and read one run**, in the TrueNAS shell:
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-container-state.sh \
-  && chmod 0755 collect-container-state.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/collect-container-state.sh
 PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-container-state.sh --print --project media
 ```
 
@@ -2022,9 +2025,8 @@ days, and `CertExpiryStateStale` fires if the job stops.
 **1. Fetch it and read one run**, in the TrueNAS shell:
 
 ```bash
-cd /mnt/erebor/apps/stack \
-  && curl -fsSLO https://raw.githubusercontent.com/Gerrrt/HomeLab/main/scripts/collect-cert-expiry.sh \
-  && chmod 0755 collect-cert-expiry.sh
+# Paste the output of, on your machine (see §6's fetch):
+#   scripts/smaug-fetch.sh scripts/collect-cert-expiry.sh
 PATH=/usr/sbin:/usr/bin:/sbin:/bin /bin/bash /mnt/erebor/apps/stack/collect-cert-expiry.sh --print --host smaug --probe truenas-ui=smaug=127.0.0.1:443
 ```
 

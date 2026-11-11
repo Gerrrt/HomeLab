@@ -2,6 +2,12 @@
 
 **Status:** Accepted · 2025-11
 
+> [!NOTE]
+> [ADR-0016](0016-open-casabonita-inward-and-keep-it-terminal-outward.md) added the first scrape into a monitored VLAN:
+> Prometheus scrapes `smaug`'s `node_exporter` on 99→40:9100, management
+> initiating downward. The text here is left as written, per ADR-0001 and
+> ADR-0115.
+
 ## Context
 
 The lab needs metrics, logs and alerting on a monitoring host with modest
