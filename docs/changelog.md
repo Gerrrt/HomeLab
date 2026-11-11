@@ -19,6 +19,12 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **`wearable-01` reserved at `10.0.50.14`, below the Hicks pool.** This
+  corrects the `.114` the #1416 entry below recorded, which was the watch's
+  lease. The reservation was added in the pfSense UI on 2026-11-11, below the
+  `.100–.200` pool, by the estate's convention. `docs/network.md`
+  and the diagram say `.14`.
+
 - **Three addresses Lemmiwinks recorded differently, checked: HomeLab was
   right on two and wrong on the third**
   ([#1416](https://github.com/Gerrrt/HomeLab/issues/1416)). The issue's other

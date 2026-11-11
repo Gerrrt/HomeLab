@@ -299,11 +299,15 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | workstation-02 | `10.0.50.70` | `4c:ea:41:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
-| wearable-01 | `10.0.50.114` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
 
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
+- **The pool is `.100–.200`, and `wearable-01` is a Kea reservation at `.14`,
+  below it, since 2026-11-11.** It held `.114` by lease before that. The
+  reservation is on the watch's private Wi-Fi address, so it holds only while
+  the watch keeps that address *Fixed* rather than *Rotating* for this network.
 - **What this segment reaches on Winterfell is a list of destinations, not the
   segment.** Twelve passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
