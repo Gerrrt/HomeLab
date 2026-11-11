@@ -786,6 +786,14 @@ allowlisted in the one shared file before, and a path allowlist applies to
 every commit a history scan walks, so the purged key under `certificates/`
 was exactly the path that scan could not see.
 
+One path allowlist stays in the history configuration: the files directly
+under `secrets/` that end in `.sops.yaml` or `.example.yaml`. SOPS ciphertext
+trips the entropy rules, so the scan cannot read those files. A past revision
+of one that held a value in the clear is checked instead by
+`scripts/check-sops-encrypted.sh --history`, which reads every `*.sops.yaml`
+blob ever committed, at any path, and runs beside the history scan in CI
+([#1417](https://github.com/Gerrrt/HomeLab/issues/1417)).
+
 ### Everything above sits on an unencrypted disk
 
 Every entry in that table is something that happened once. This one is a

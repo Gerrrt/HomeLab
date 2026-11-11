@@ -47,7 +47,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_caddyfile.sh` | — | Every stack's Caddyfile, validated by the pinned Caddy |
 | `check_glance_config.sh` | — | `stacks/sensitive/glance/glance.yml`, validated by the pinned Glance |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
-| `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext |
+| `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext, now and (`--history`) in every past revision |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `gitleaks-history.sh` | — | The full-history secret scan CI and `validate.sh` both run, which fails a scan of zero commits because gitleaks exits 0 when git cannot read the repository; its fixtures run in `self-tests.sh` |
 | `check_dashboard_roundtrip.sh` | `check-dashboard-roundtrip` | `make dashboards-export` still round-trips, without a live stack |
