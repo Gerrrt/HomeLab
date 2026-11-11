@@ -460,6 +460,12 @@ Televisions and consoles. Internet only.
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
   it, and `alexander` is refused.
+- **One more from Hicks is specified and not yet created.**
+  `Allow 5800 to smaug`, Hicks → `10.0.40.30:5800`, is for MakeMKV's web GUI,
+  the disc ripper that runs on `smaug` only while someone is ripping
+  ([ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md)).
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.11 creates it, above
+  *Block access to CasaBonita*, and until then it does not exist.
 - **One pair lets `smaug` initiate, and only to its own gateway.**
   `Allow NUT from smaug`, `10.0.40.30 → 10.0.40.1:3493`, sits above
   `Block NUT to pfSense`, CasaBonita net → `10.0.40.1:3493`, and both sit
