@@ -19,10 +19,12 @@
 # not, so the role looks in both views.
 soc_agents_wazuh_manager: 10.0.30.60
 # This must match the wazuh/wazuh-manager image in stacks/soc/compose.yaml
-# (build-the-soc-guest.md §11). That manager is 4.14.8; the six were installed
-# with 4.14.7 and still carry it, so the pin stays 4.14.7 until the agents are
-# upgraded in step with the manager — a bump moves the version, product code
-# and sha256 together, with the 4.14.8 MSI in hand.
+# (build-the-soc-guest.md §11). Read that pin rather than trusting a number
+# here: this comment said 4.14.8 while the manager ran 4.14.10 (#1439). The six
+# were installed with 4.14.7 and still carry it, so the pin stays 4.14.7 until
+# the agents are upgraded in step with the manager. A bump moves the version,
+# product code and sha256 together, with the manager's MSI in hand; #1439 has
+# the steps, and Velociraptor's client below lags its server the same way.
 soc_agents_wazuh_version: "4.14.7"
 soc_agents_wazuh_product_id: "{D9770AF7-8335-4FEB-927C-C575B11A1F7B}"
 soc_agents_wazuh_msi_sha256: "e967f36b75589d6210244fd58239c7021fa53a77c38d92315c3b3bd115002ede"
