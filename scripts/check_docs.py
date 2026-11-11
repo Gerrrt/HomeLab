@@ -81,6 +81,7 @@ from __future__ import annotations
 
 import functools
 import json
+import os
 import pathlib
 import re
 import subprocess
@@ -1505,6 +1506,11 @@ def check_diagram_render() -> list[str]:
     if dirty:
         return problems
     if git("rev-parse", "--is-shallow-repository") == "true":
+        # Locally a shallow clone is someone's choice, and the working-tree
+        # half above has already run. In CI it is a checkout that lost its
+        # fetch-depth, and this half would pass on every push without looking.
+        if os.environ.get("CI"):
+            problems.append(f"the clone is shallow, so the history of {svg} cannot be read; CI needs fetch-depth: 0")
         return problems
     last_svg = git("log", "-1", "--format=%H", "--", svg)
     last_png = git("log", "-1", "--format=%H", "--", png)
