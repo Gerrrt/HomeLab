@@ -36,7 +36,7 @@ is never edited. ADR-0002 and ADR-0013 move to this form, and the six above
 already follow it.
 
 **Whole supersession is the only `Superseded`.** It reads
-`**Status:** Superseded · <date superseded> · by [ADR-N](…) · accepted <date accepted>`,
+`**Status:** Superseded · <date superseded> · by ADR-N · accepted <date accepted>`,
 so neither date is lost, plus a note saying the text is left as written.
 ADR-0102 is restored to that form, accepted 2026-10.
 
