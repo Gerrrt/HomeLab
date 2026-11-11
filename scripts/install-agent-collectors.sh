@@ -253,12 +253,15 @@ verify_one() {
   # someone ran it again, and every check below still passed on the old copy
   # (#1422). One SSH call: a hash per file, in order, or `-` for one that is
   # not there, read by position rather than by the path sha256sum prints.
-  local bin stale=() i
+  local bin stale=() i line
   local -a src dst got
   bin="$(bin_for "$name" "$prom_pattern" "$script")"
   src=("${REPO}/${script}" "${UNIT_DIR}/homelab-${name}.service" "${UNIT_DIR}/homelab-${name}.timer")
   dst=("${bin}" "${REMOTE_UNITS}/homelab-${name}.service" "${REMOTE_UNITS}/homelab-${name}.timer")
-  mapfile -t got < <(ssh_q "$target" "for f in ${dst[*]}; do if [ -r \"\$f\" ]; then sha256sum < \"\$f\" | cut -d' ' -f1; else echo -; fi; done" | tr -d '\r')
+  # A read loop, not mapfile: --check runs from a Mac too, whose /bin/bash is 3.2.
+  got=()
+  while IFS= read -r line; do got+=("$line"); done \
+    < <(ssh_q "$target" "for f in ${dst[*]}; do if [ -r \"\$f\" ]; then sha256sum < \"\$f\" | cut -d' ' -f1; else echo -; fi; done" | tr -d '\r')
   for i in 0 1 2; do
     [[ "${got[i]:-}" == "$(sha256_local "${src[i]}")" ]] || stale+=("${dst[i]}")
   done

@@ -534,7 +534,7 @@ if [[ "${MODE}" == check ]]; then
       esac
       for kind in service timer; do
         render_unit "${SENSITIVE_UNIT_DIR}/${unit}.${kind}" "${want_dir}/${unit}.${kind}" \
-          "${REPO_ROOT}" "${run_user}" "$(id -gn)" "${run_home}"
+          "${REPO_ROOT}" "${run_user}" "$(id -gn "${run_user}")" "${run_home}"
         cmp -s "${want_dir}/${unit}.${kind}" "${SYSTEMD_DIR}/${unit}.${kind}" \
           || stale+=("${unit}.${kind}")
       done
