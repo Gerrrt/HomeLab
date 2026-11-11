@@ -18,7 +18,7 @@ updates:
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 25  # above the image count (#1433)
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "observability"]
@@ -27,16 +27,6 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
-    # Grafana below 13.2.4 is skipped (#1122). By the pinned trivy, 13.2.3
-    # carries one more fixable HIGH/CRITICAL than the 13.0.10 pin: it adds
-    # two grpc findings in the bundled Prometheus and Loki datasource plugins,
-    # which we use. 13.1.7 clears only one of the seven findings. The 13.x patch
-    # releases already being prepared carry the Go and x/net fixes, so wait
-    # for 13.2.4 and scan it before merging. Drop this entry once the pin is
-    # at 13.2.4 or later.
-    ignore:
-      - dependency-name: grafana/grafana
-        versions: ["< 13.2.4"]
 
   # The lab stack. A second entry rather than a second directory on the one
   # above, because Dependabot takes a single directory per entry — and without
@@ -50,7 +40,7 @@ updates:
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10  # above the image count (#1433)
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "lab"]
@@ -59,11 +49,6 @@ updates:
         patterns: ["grafana/*"]
       prometheus-stack:
         patterns: ["prom/*"]
-    # Skips Grafana below 13.2.4 for the reason given on the observability
-    # entry (#1122).
-    ignore:
-      - dependency-name: grafana/grafana
-        versions: ["< 13.2.4"]
 
   # The sensitive tier. Its images share nothing with the other stacks, so
   # no groups; each bump is its own PR, and each merge is a deploy: trinity's
@@ -82,8 +67,8 @@ updates:
   # build's tag moves with both the Postgres major and the extension's, and
   # either is a migration Immich documents, not a bump.
   #
-  # The PR limit is above the stack's image count, not the 5 the other
-  # entries use. With no groups, every release is its own PR, and a limit
+  # The PR limit is above the stack's image count, the rule every entry
+  # follows since #1433. With no groups, every release is its own PR, and a limit
   # below the image count drops bumps silently: the 2026-11-08 run opened
   # five and stopped, and Mealie v3.30.0, out since 2026-10-31, never got
   # its PR while #981 counted 9 critical CVEs it fixed. Keep the limit
@@ -97,7 +82,10 @@ updates:
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
-      - dependency-name: ghcr.io/immich-app/postgres
+      # Without the registry: Dependabot names a ghcr.io image as its path
+      # (its PRs read "Bump immich-app/immich-server"), so a ghcr.io/ prefix
+      # here matched nothing and a Postgres major could reach trinity (#1433).
+      - dependency-name: immich-app/postgres
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
@@ -126,7 +114,7 @@ updates:
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 20  # above the image count (#1433)
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "soc", "scratch"]
@@ -152,7 +140,7 @@ updates:
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10  # above the image count (#1433)
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "media"]
@@ -200,7 +188,7 @@ updates:
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 10  # above the image count (#1433)
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
