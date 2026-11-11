@@ -50,12 +50,14 @@ FAKE
   case_ 3 3 "no docker daemon"  "a check's own failing status wins over a skip"
   rc=0; "${BASH_SOURCE[0]}" >/dev/null 2>&1 || rc=$?
   if [[ "${rc}" == 2 ]]; then ok "no check named is a usage error"; else bad "no check named (exit ${rc}, want 2)"; fi
+  rc=0; TMPDIR="${T}/missing" "${BASH_SOURCE[0]}" "${T}/check" >/dev/null 2>&1 || rc=$?
+  if [[ "${rc}" == 1 ]]; then ok "no skips file to hand the check fails, not passes"; else bad "no skips file (exit ${rc}, want 1)"; fi
   exit "${fail}"
 fi
 
 (($#)) || { printf 'usage: %s <check> [args...] | --self-test\n' "$0" >&2; exit 2; }
 
-skips="$(mktemp)"
+skips="$(mktemp)" || { printf 'could not create a skips file; nothing was checked\n' >&2; exit 1; }
 trap 'rm -f "${skips}"' EXIT
 
 rc=0
