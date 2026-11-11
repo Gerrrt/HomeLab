@@ -376,6 +376,23 @@ leaves is up to a day between a replacement and the page; a template built
 inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
+**One more from Hicks is specified, not created, and it writes.**
+`vlan50 net → 10.0.40.30:5800`, `Allow 5800 to smaug`, is for MakeMKV, the
+disc ripper
+([ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md));
+[`build-the-nas.md`](runbooks/build-the-nas.md) §6.11 creates it. The GUI
+behind it has **no login**, and while it runs everything on CasaBonita
+reaches it too, the game consoles included. Whoever reaches it can read the
+disc in the drive and write into `erebor/media/rips`, the one library folder
+it mounts, and no other. That is a way to fill the pool, not to reach the
+films, and the other services' read-only mounts are unchanged. The control is
+time: the service sits behind a compose profile, a session ends with the
+container removed, and between sessions nothing listens on `5800`. Its
+restart policy is `"no"`, so a reboot does not reopen it, and every start
+first checks that the SCSI-generic node it is handed is still the DVD drive
+and not a pool disk. Accepted
+on those terms. A container left running is the failure to watch for, and
+[`rip-a-disc.md`](runbooks/rip-a-disc.md) ends every session with its removal.
 **Three more, for the television, exist since 2026-10-19.**
 `10.0.99.40 → 10.0.40.40` passes `3001/tcp` and `9/udp` and rejects
 `3000/tcp`, so Home Assistant can drive `mediatv` and wake it
@@ -973,7 +990,13 @@ from Home Assistant with *not enough permissions*.
 ## Hardening applied to the stack
 
 - Anonymous Grafana access disabled; sign-up disabled; admin password from SOPS.
-- Every service except Alloy and speedtest-tracker runs as a non-root uid.
+- Every service except Alloy, speedtest-tracker and the media stack's MakeMKV
+  runs as a non-root uid. MakeMKV's image starts `/init` as root, which runs
+  the ripper itself as 65534. It is cut to six capabilities, keeps
+  no-new-privileges, and runs only while a disc is being ripped
+  ([ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md)).
+  Its capability set was written from the image's design and is measured at
+  its first start ([`build-the-nas.md`](runbooks/build-the-nas.md) §6.11).
   speedtest-tracker's image is built on s6-overlay, which must start as root
   and as PID 1; s6 then runs nginx, php-fpm and the test itself as the
   operator's `${RENDER_UID}`. Its capabilities are cut to the six that drop

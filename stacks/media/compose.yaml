@@ -36,6 +36,9 @@
 # the same day for music, which is the weakest thing Jellyfin does, with the
 # Subsonic API's ecosystem of phone clients behind it.
 #
+# MakeMKV (ADR-0114) is a fourth, and not a server: it is behind the `rip`
+# profile and runs only while someone is ripping a disc in smaug's drive.
+#
 # ---------------------------------------------------------------------------
 # Why there is no reverse proxy here, and why that is not an oversight
 # ---------------------------------------------------------------------------
@@ -419,6 +422,145 @@ services:
       # About two seconds on a first boot. A start with a large library to
       # scan still answers /ping first; the scan runs behind it.
       start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # MakeMKV — the disc ripper, started only to rip (ADR-0114)
+  # ---------------------------------------------------------------------------
+  # smaug's DVD-RW is one of the house's two optical drives, and the only one
+  # beside the library. This is MakeMKV's GUI in a virtual display, served to a
+  # browser on 5800: a person at a Hicks workstation opens the disc, picks the
+  # titles and rips into rips/, then moves the file into movies/ over the
+  # media share. docs/runbooks/rip-a-disc.md is that loop, and
+  # build-the-nas.md §6.11 is the deploy.
+  #
+  # BEHIND A PROFILE, so the stack's normal `docker compose up -d` never starts
+  # it. A session starts with rip-a-disc.md's guarded start, which runs
+  # `docker compose --profile rip up -d makemkv` only if MAKEMKV_SG_DEVICE
+  # still belongs to sr0, and ends with `docker compose rm -sf makemkv`.
+  # `restart: "no"` below keeps a reboot from starting one. Between sessions
+  # there is no container, so
+  # there is no unauthenticated GUI on the segment with the game consoles —
+  # the reason ADR-0114 declined running it all day.
+  #
+  # READ FROM THE REGISTRY 2026-11-10, NOT YET MEASURED IN A CONTAINER. No
+  # daemon was available where this was authored, so the lines below that a
+  # sibling service would mark MEASURED are written from the image's config
+  # and build history instead, and §6.11's first start is what measures them:
+  #
+  #   1. The image declares NO user and starts `/init` as root, which creates
+  #      the app user from USER_ID/GROUP_ID, prepares /config and runs MakeMKV
+  #      as that user. So there is no `user:` line: this is the estate's third
+  #      image that starts as root, after Alloy and speedtest-tracker, and
+  #      docs/security.md says so.
+  #
+  #   2. Alpine. `wget` is installed by the image's own build step, and the
+  #      noVNC front end answers on 5800, which decides the healthcheck.
+  #
+  #   3. It declares /config, /output AND /storage as volumes. /storage is
+  #      where upstream expects the host's whole filesystem; here it is masked
+  #      by an empty tmpfs below, because an unmounted VOLUME gets an anonymous
+  #      volume from Docker on every start.
+  #
+  #   4. AUTO_DISC_RIPPER is off by default, and is set off below so a change
+  #      of default upstream cannot turn this into the automated writer
+  #      ADR-0050 deferred and ADR-0114 declined.
+  makemkv:
+    <<: *service-defaults
+    profiles: ["rip"]
+    image: jlesage/makemkv:v26.09.2@sha256:bfdddd29c5a9958da3003df1e673de7ad6915c846723449c76196d4ef6ca1ca2
+    container_name: media-makemkv
+    # NOT the anchor's `unless-stopped`. A profile only decides what `up`
+    # starts; Docker's restart manager ignores it. Inherited, a reboot of
+    # smaug or a Docker restart mid-session would bring the unauthenticated,
+    # writable GUI back with nobody having started a session. "no" means an
+    # interrupted session stays down until a person starts the next one, through
+    # rip-a-disc.md's guarded start.
+    restart: "no"
+    # The image's /init is its PID 1 and supervises MakeMKV, the X server and
+    # the web front end; tini in front of it would only stand between it and
+    # the signals it handles.
+    init: false
+    # A session container, not a service: collect-container-state.sh skips
+    # this label, so a stopped ripper is not ContainerNotRunning, which is how
+    # backup-volumes.sh's archiver and the observability renderer are marked.
+    # smaug runs no Alloy, so the label's other meaning changes nothing here.
+    labels:
+      homelab.logs: "off"
+    environment:
+      # MakeMKV runs as this pair after /init. 65534, so the rips are owned
+      # like everything Jellyfin reads, and inherit erebor/media's
+      # `everyone@` read entry (build-the-nas.md §5).
+      USER_ID: "${MAKEMKV_UID:?}"
+      GROUP_ID: "${MAKEMKV_GID:?}"
+      TZ: America/Los_Angeles
+      # See (4) above. Set off, not left to the image's default.
+      AUTO_DISC_RIPPER: "0"
+      # The image fetches MakeMKV's current beta key on start, which covers
+      # Blu-ray while MakeMKV is in beta; DVD ripping needs no key at all.
+      MAKEMKV_KEY: BETA
+      # The front end's browser file manager and terminal are off by default,
+      # and set off so an upstream default cannot give a shell to the segment.
+      WEB_FILE_MANAGER: "0"
+      WEB_TERMINAL: "0"
+      # The raw VNC server listens on loopback only. 5900 is not published
+      # either; this keeps it off the container network as well.
+      VNC_LOCALHOST_ONLY: "1"
+    # The optical drive's block device and its SCSI-generic node. MakeMKV on
+    # Linux needs both. The sg node is read off the host and NEVER guessed: on
+    # smaug the pool's two Exos and the boot SSD have sg nodes too, and a wrong
+    # number here is raw SCSI access to a pool disk. .env.example says how it
+    # was read.
+    devices:
+      - "${MAKEMKV_SR_DEVICE:?}:${MAKEMKV_SR_DEVICE:?}"
+      - "${MAKEMKV_SG_DEVICE:?}:${MAKEMKV_SG_DEVICE:?}"
+    # A ceiling to catch a leak, not a measurement — there is no measurement
+    # yet. MakeMKV holds a title's buffers and the GUI is Java on a virtual X
+    # display; 2g is Jellyfin's ceiling, and §6.11 replaces it with a number.
+    mem_limit: 2g
+    memswap_limit: 2g
+    # Written from the image's design, the way speedtest-tracker's set was
+    # measured: /init needs CHOWN, FOWNER and DAC_OVERRIDE to prepare /config,
+    # SETUID and SETGID to drop to USER_ID, and KILL because, still root, it
+    # signals processes running as another uid. no-new-privileges holds
+    # because the drop is setuid(2), not a setuid binary. §6.11 measures the
+    # set and narrows it if the container runs without one.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+    # NOT read_only: /init writes the app user into /etc/passwd and generates
+    # the front end's config on every start. §6.11 confirms it.
+    tmpfs:
+      # See (3). Empty and not writable, so MakeMKV's file dialogs show
+      # nothing of the host here.
+      - /storage:size=1m,mode=0555
+    volumes:
+      # MakeMKV's settings and the fetched key. On erebor/apps with the other
+      # services' state, so the nightly snapshot holds it, though nothing here
+      # would be missed: it is not one of backup-nas.sh's pulls. Created 0755
+      # 65534:65534 before first start (§6.11).
+      - ${MAKEMKV_CONFIG_PATH:?}:/config
+      # The ONLY writable path into the library, and not one any Jellyfin
+      # library points at. A person moves each rip into movies/ — a rename
+      # inside erebor/media, so it is instant over the share. Jellyfin's own
+      # /media mount stays read-only (ADR-0114).
+      - ${MEDIA_PATH:?}/rips:/output
+    # PUBLISHED while a session runs, for the person at a Hicks workstation,
+    # through `Allow 5800 to smaug` in build-the-nas.md §0.5 — ADR-0012's named
+    # off-host consumer. Everything on CasaBonita reaches it too, as it
+    # reaches 8096, and this GUI has no login. That residual is why the
+    # service is behind a profile; docs/security.md records it.
+    ports:
+      - "${MAKEMKV_BIND_ADDR:?}:5800:5800"
+    healthcheck:
+      # The noVNC front end's page, and the status code. wget, per (2).
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5800/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      # /init starts an X server, a window manager, nginx and a JVM before
+      # the page answers.
+      start_period: 60s
 
   # ---------------------------------------------------------------------------
   # node_exporter — how this host is monitored at all (#256, ADR-0016)

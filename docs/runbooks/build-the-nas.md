@@ -251,6 +251,7 @@ first row here on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's othe
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
 | ImaginationLAN (30) | `tcp` `10.0.30.20` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
+| Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `5800` | `Allow 5800 to smaug` | **above** *Block access to CasaBonita* — §6.11, **specified, not yet created** |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 wrote three.** The Hicks pass is one rule per port rather than one rule
@@ -2059,6 +2060,118 @@ The expiry line, `homelab_cert_checked` at `1`, and `node_textfile_scrape_error`
 at `0`. **When the UI's certificate is reissued** (System → Certificates), the
 next day's file carries the new date; see
 [`generate-certificates.md`](generate-certificates.md#management-console-certificates).
+
+### §6.11 — Add MakeMKV, the disc ripper
+
+[ADR-0114](../adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md).
+MakeMKV is in `compose.yaml` behind the `rip` profile, so the steps above,
+and every later `docker compose up -d`, leave it stopped. **None of these
+steps has been done yet.** The service was written from the image's registry
+config, with no daemon to boot it, so step 5 is where its hardening is first
+measured.
+
+1. **The 5800 pass.** Create `Allow 5800 to smaug` on Hicks exactly as the
+   §0.5 table gives it, as a copy of `Allow 4533 to smaug` with the port
+   changed. Read its position from `morpheus` with the §0.6 `pfctl` line: it
+   sits above *Block access to CasaBonita* on `igc0.50`. From the monitoring
+   host, `nc -z -w3 10.0.40.30 5800` is refused.
+2. **Confirm the drive.** In the TrueNAS shell, the DVD-RW is still the sg
+   node `.env.example` names. The numbers follow probe order, so a changed
+   drive or controller can move them:
+
+   ```bash
+   ls /sys/class/scsi_generic/*/device/block/
+   ls -l /dev/sr0 /dev/sg3
+   ```
+
+   The line naming `sr0` must be `sg3`. If it is not, change
+   `MAKEMKV_SG_DEVICE` in `.env.example` in a commit **before** going on,
+   and never point it at an sg node whose block device is `sda`, `sdb` or
+   `sdc`. Note the group of both nodes for step 5.
+3. **The directories**, as root on this host:
+
+   ```bash
+   install -d -m 0755 -o 65534 -g 65534 /mnt/erebor/apps/makemkv/config
+   mkdir -p /mnt/erebor/media/rips /mnt/erebor/media/movies \
+     && chown 65534:65534 /mnt/erebor/media/rips
+   ```
+
+   `rips/` is where MakeMKV writes, and `movies/` is the Jellyfin library.
+   Both are in `erebor/media`, so moving a rip from one to the other is a
+   rename.
+
+   **No `chmod` and no `install -m` in `erebor/media`.** It is on the SMB
+   preset (§4), which refuses a mode change on its inherited NFSv4 ACL.
+   `music/` and `audiobooks/` were made with a plain `mkdir` for the same
+   reason. The two folders inherit §5's ACL, and that ACL does two jobs:
+   `builtin_users` Modify lets `samwise` move rips out of `rips/`, and
+   `everyone@` read lets Jellyfin see them. `chown` is what lets MakeMKV,
+   as 65534, write into `rips/`. `erebor/apps` is on the Apps preset and
+   takes the mode, so the config directory uses `install`, as Jellyfin's
+   did.
+4. **Re-fetch the two files** with the `curl` lines in §6, then start a
+   session from the same folder. **Use the guarded start in
+   *1. Start the ripper* in [`rip-a-disc.md`](rip-a-disc.md), never a bare `up`,** here and for
+   every trial in step 5. It starts the container only if the sg node `.env`
+   names still belongs to `sr0`, which step 2 read once and a reboot can
+   change. Then:
+
+   ```bash
+   docker compose ps makemkv
+   ```
+
+   `media-makemkv` reads `healthy` inside about a minute. The other services
+   are unchanged.
+5. **Measure what compose.yaml could only infer,** and write the results in
+   its comments as MEASURED, in the commit that fills the Done block below:
+
+   ```bash
+   docker exec media-makemkv sh -c 'grep Cap /proc/1/status; ps -o user,pid,comm | head -20'
+   docker stats --no-stream media-makemkv
+   ```
+
+   - **The capability set.** Remove one capability at a time from `cap_add`,
+     `rm -sf`, and start again with the guarded start. **A healthy start is
+     not the test**, because some capabilities matter only after start: the
+     page answers whether or not the drive opens, and `KILL` matters at
+     shutdown. A reduced set passes only if all three of these work:
+     - **Rip.** Open a disc, rip a short title into `rips/`, and check the
+       file is owned `65534:65534`.
+     - **Eject.** Eject from MakeMKV's toolbar.
+     - **Stop cleanly.** `time docker compose stop makemkv` returns well
+       inside compose's ten-second grace. `docker inspect -f
+       '{{.State.ExitCode}}' media-makemkv` is `0`, not `137`, which would
+       mean Docker had to SIGKILL it. The last lines of `docker logs
+       media-makemkv` show the services stopping in order.
+
+     Record the set that passed all three, and the trial that failed for each
+     capability kept.
+   - **The user.** MakeMKV and the front end run as `65534`, and only
+     `/init` is root.
+   - **The device groups.** `/dev/sr0` and `/dev/sg3` inside the container
+     carry the groups from step 2, and the app user is in them. That is what
+     lets MakeMKV open the drive.
+   - **Memory.** RSS idle with a disc open, and the peak during a rip.
+     Replace the 2g ceiling with three times the peak.
+6. **Prove the reach.** From a Hicks workstation, open
+   `http://10.0.40.30:5800`. MakeMKV's window appears, and its drive list
+   shows the DVD-RW. Rip one disc by [`rip-a-disc.md`](rip-a-disc.md), and
+   confirm the file in `rips/` is owned `65534:65534`.
+7. **Add the Jellyfin library.** In Jellyfin's dashboard, **Libraries → Add
+   Media Library**: content type *Movies*, folder `/media/movies`. Move the
+   test rip there over the share, scan, and play it on a television.
+8. **End the session**, as every session ends:
+
+   ```bash
+   docker compose rm -sf makemkv
+   ```
+
+   No container is left, so the container-state collector of §6.9 has
+   nothing to report. The label `homelab.logs=off` would skip it anyway.
+9. **Re-read the tripwire** from `morpheus`: the `igc0.40` packet count is
+   still **zero**. Then change this section, §0.5's row and the current-state
+   documents from *specified* to *created*, in one commit, the way `4533`
+   was.
 
 ## §7 — Verify
 

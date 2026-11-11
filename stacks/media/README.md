@@ -47,6 +47,20 @@ them, and say why they are bind mounts and not volumes.
 Four services, and three of them are the tier. `node-exporter` is here
 because of the section below.
 
+**One more is in the file and is not one of the four, because it is not a
+server: MakeMKV, the disc ripper** ([ADR-0114]). It sits behind the compose
+profile `rip`, so the `up -d` above never starts it. It runs only while
+someone rips a disc in `smaug`'s DVD-RW from a browser on Hicks:
+[`rip-a-disc.md`](../../docs/runbooks/rip-a-disc.md) is a session, and
+[`build-the-nas.md`] §6.11 is its first deploy, **not yet done**. It is the
+one service here that writes into `erebor/media`, and only into `rips/`. A
+person moves each film from there into `movies/`, and every server's library
+mount stays read-only.
+
+| Service | Image | Port | Purpose |
+| --- | --- | --- | --- |
+| makemkv | `jlesage/makemkv` | 5800 (http), to Hicks through the 5800 pass, only during a session | MakeMKV's GUI in the browser, reading `smaug`'s DVD-RW and writing into `erebor/media/rips` ([ADR-0114]) |
+
 Jellyfin is the one video service, and that is a decision rather than a
 starting point. [ADR-0016]
 built **Jellyfin alone** and deferred Plex against one test, whether any screen
@@ -98,6 +112,7 @@ every television would have to trust, and a second thing to be down.
 | A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 the seventh (§6.6) |
 | A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
 | `Saruman`, on `2049` | `10.0.30.20 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, to mount `erebor/iso` as the ISO store. Not the media stack's, and listed because it is a way into this host. **Created 2026-10-01** by [`build-the-nas.md`] §5b, and mounted by `Saruman` ([ADR-0072]) |
+| A Hicks workstation, on `5800` | `50 → 10.0.40.30:5800`, `Allow 5800 to smaug`, for MakeMKV's web GUI while a disc is being ripped. **Specified, not yet created**: [`build-the-nas.md`] §6.11 creates it ([ADR-0114](../../docs/adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md)) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
@@ -379,3 +394,4 @@ reopen condition is closed; the stack stays here.
 [#413]: https://github.com/Gerrrt/HomeLab/issues/413
 [#528]: https://github.com/Gerrrt/HomeLab/issues/528
 [#484]: https://github.com/Gerrrt/HomeLab/issues/484
+[ADR-0114]: ../../docs/adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md

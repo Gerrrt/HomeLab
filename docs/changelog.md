@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **[ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
+  MakeMKV joins the media stack, written and not deployed.** The household
+  wants its discs in Jellyfin, and the house's two optical drives are
+  `smaug`'s DVD-RW and `oracle`'s.
+  - **Where it rips.** It rips on `smaug`, behind the compose profile `rip`,
+    from a browser on Hicks on `5800`. It writes only into
+    `erebor/media/rips`, and a person moves each film into `movies/`.
+  - **The drive's sg node was read, not guessed.** `smaug` lists `sg3` as
+    `sr0`. The pool's Exos are `sg1` and `sg2` and the boot SSD is `sg4`,
+    so a guessed number could have been a pool disk.
+  - **Read from the registry, not booted.** No daemon was available where
+    it was written. The image's config shows it starts `/init` as root,
+    ships `wget`, and declares a `/storage` volume, now masked by a tmpfs.
+    The capability set, the memory ceiling and the device groups are
+    measured at the first start in `build-the-nas.md` §6.11, which also
+    creates `Allow 5800 to smaug`. Neither exists yet.
+  - **Blu-ray is not covered.** The DVD-RW cannot read BD, and nobody knows
+    yet whether the household owns any Blu-rays.
+
 - **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
   reads the switch over `api-ssl`, read-only, in force.** This is the
   deployment the 2026-11-10 entry below left as "nothing is deployed yet".

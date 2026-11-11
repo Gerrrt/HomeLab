@@ -622,7 +622,11 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   wrong; the BIOS summary is what caught it. The optical drive came out on
   2026-09-16 and the boot disk took its place, its port and both its cables.
   **It went back in on 2026-09-29**, at the swap, for burning discs. It
-  answers as `sr0` on `ata5` at 1.5 Gbps. The boot disk stays on its bracket
+  answers as `sr0` on `ata5` at 1.5 Gbps, and as `/dev/sg3` on the
+  SCSI-generic side, read on 2026-11-10. It is also the drive the media
+  stack's MakeMKV rips DVDs from
+  ([ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md)).
+  It reads DVDs and not Blu-ray. The boot disk stays on its bracket
   in the same place and on `ata6`, and the cage fan was re-checked spinning.
   The bay is a cage carrying its own fan on the board's `AUX1_FAN` header, and
   that fan is **not optional**: it is the airflow over the drive bays, and two
