@@ -19,8 +19,8 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
-- **Three addresses Lemmiwinks recorded differently, checked at the device:
-  HomeLab was right on all three**
+- **Three addresses Lemmiwinks recorded differently, checked: HomeLab was
+  right on two, and the third is not disproved**
   ([#1416](https://github.com/Gerrrt/HomeLab/issues/1416)). The issue's other
   two items, the old shelf switch and the successor handover's rack positions,
   were corrected in [#1418](https://github.com/Gerrrt/HomeLab/pull/1418).
@@ -28,10 +28,10 @@ docstring gives: it is a record, not a claim about now.
     Lemmiwinks' `xione-scb` is stale.
   - **`10.0.50.10` is a household laptop**, as `laptop-01` says. Lemmiwinks'
     desktop is stale.
-  - **`10.0.50.112` stays `wearable-01`.** Lemmiwinks placed a desktop's
-    second network card there on MokerLink port 7, and nothing is plugged
-    into port 7. Its MAC is locally administered, which is how a watch's
-    private address looks.
+  - **`10.0.50.112` stays `wearable-01`, unverified.** Lemmiwinks placed a
+    desktop's second network card there on MokerLink port 7, and nothing is
+    plugged into port 7 now. That shows Lemmiwinks' row is stale, not that
+    the address is the watch's: its Kea lease was not read.
   - Nothing in HomeLab's current-state documents changed. The three rows to
     correct are in Lemmiwinks.
 
