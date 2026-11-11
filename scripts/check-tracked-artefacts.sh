@@ -72,6 +72,7 @@ PATTERNS=(
   'backups/'
   '[^/]*\.tfstate'
   '[^/]*\.tfplan'
+  '[^/]*\.tfvars$'
   '\.terraform/'
   'ansible/\.ansible/'
   'ansible/\.collections/'
@@ -98,6 +99,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
     stacks/x/.env.example
     tofu/.terraform.lock.hcl
     tofu/versions.tf
+    tofu/identities.auto.tfvars.example
     docs/tfstate-notes.md
     docs/runbooks/back-up-the-age-key.md
     ansible/requirements.yml
@@ -142,6 +144,8 @@ if [[ "${1:-}" == "--self-test" ]]; then
     a/b/terraform.tfstate.backup
     tofu/terraform.tfstate.d/proof/terraform.tfstate
     tofu/proof.tfplan
+    tofu/identities.auto.tfvars
+    a/terraform.tfvars
     tofu/.terraform/providers/registry.opentofu.org/x
     modules/y/.terraform/terraform.tfstate
     ansible/.ansible/collections/ansible_collections/ansible/windows/tests/root-key.pem

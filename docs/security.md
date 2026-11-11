@@ -1286,7 +1286,12 @@ fingerprint of a house is not. Withheld on purpose:
   identifier. Full MACs enable device tracking and, on some networks, MAC-based
   access control bypass. This is also why the unknown-device rules hold no
   allowlist: the set of known devices is whatever Loki has seen in the last
-  seven days, so nothing in this repository has to enumerate them.
+  seven days, so nothing in this repository has to enumerate them. The lab
+  guests' MACs, and the domain guests' SMBIOS UUIDs with them, are read by
+  `tofu/` from a gitignored file on `phoenix` and escrowed in
+  `secrets/tofu.sops.yaml`
+  ([#1420](https://github.com/Gerrrt/HomeLab/issues/1420)). Until 2026-11-11
+  they were committed in `tofu/guests.tf`, so git history still holds them.
 - **Owner-linked device names.** Personal devices are listed by role
   (`laptop-01`) rather than by person, and a child's bedroom is not labelled.
 - **Camera-to-room mapping.** Knowing there are nine cameras is fine. Knowing

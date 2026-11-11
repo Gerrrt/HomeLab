@@ -51,26 +51,33 @@ locals {
   #   - the MAC, which morpheus's reservations are keyed by. That holds for
   #     the two DCs too, which first boot on DHCP before `base` makes the same
   #     address static (ADR-0077 decision 6);
-  #   - the SMBIOS UUID, which the endpoints' bought Windows 11 Pro
-  #     activation is tied to. The servers keep theirs only for symmetry: an
-  #     evaluation licence has nothing to carry;
+  #   - the SMBIOS UUID. It does not carry the endpoints' bought Windows 11
+  #     Pro activation, measured 2026-10-10 (build-the-lab-domain.md); it is
+  #     kept so a rebuilt guest differs from the hand-built one in nothing
+  #     that need not change;
   #   - the startup order: DCs before members, and none for the endpoints,
   #     which are on demand (ADR-0029's duty cycle). It is recorded here but
   #     set by root on Saruman, not by this tree: Proxmox wants Sys.Modify on
   #     `/` for it (modules/guest/main.tf). See `startup_orders` below.
   #
+  # The MAC and the UUID come from var.guest_identities (variables.tf), not
+  # this file.
+  #
   # No password here. A Windows clone's comes from the template's build
   # password, which `base` rotates to LAB_ADMIN_PASSWORD on its first run.
   lab_domain = {
     for name, g in {
-      bahamut   = { vm_id = 150, template = 912, memory_mib = 4096, disk_gib = 60, startup = 1, mac_address = "BC:24:11:06:2D:3A", smbios_uuid = "aeec15bb-f21b-448c-b120-167e54900039" }
-      leviathan = { vm_id = 151, template = 912, memory_mib = 4096, disk_gib = 60, startup = 2, mac_address = "BC:24:11:DB:1F:85", smbios_uuid = "dd9abbda-e839-40db-b183-e8b356961401" }
-      titan     = { vm_id = 152, template = 912, memory_mib = 6144, disk_gib = 80, startup = 3, mac_address = "BC:24:11:B4:4C:CF", smbios_uuid = "ab85583e-ab7c-45c2-886f-0bbee7e1a2b2" }
-      ramuh     = { vm_id = 153, template = 912, memory_mib = 6144, disk_gib = 80, startup = 4, mac_address = "BC:24:11:99:74:9D", smbios_uuid = "b0af306f-f641-4184-8dfb-88279a5dbf5f" }
-      carbuncle = { vm_id = 154, template = 911, memory_mib = 4096, disk_gib = 64, startup = null, mac_address = "BC:24:11:29:0B:91", smbios_uuid = "6c44c33b-9383-41df-8c9a-1ea62ac94388" }
-      siren     = { vm_id = 155, template = 911, memory_mib = 4096, disk_gib = 64, startup = null, mac_address = "BC:24:11:E3:4C:9D", smbios_uuid = "dfb1eb59-2a5b-490c-b96a-ea31465c5208" }
+      bahamut   = { vm_id = 150, template = 912, memory_mib = 4096, disk_gib = 60, startup = 1 }
+      leviathan = { vm_id = 151, template = 912, memory_mib = 4096, disk_gib = 60, startup = 2 }
+      titan     = { vm_id = 152, template = 912, memory_mib = 6144, disk_gib = 80, startup = 3 }
+      ramuh     = { vm_id = 153, template = 912, memory_mib = 6144, disk_gib = 80, startup = 4 }
+      carbuncle = { vm_id = 154, template = 911, memory_mib = 4096, disk_gib = 64, startup = null }
+      siren     = { vm_id = 155, template = 911, memory_mib = 4096, disk_gib = 64, startup = null }
     } :
     name => merge(g, {
+      mac_address = var.guest_identities[name].mac_address
+      smbios_uuid = var.guest_identities[name].smbios_uuid
+
       pool    = "lab-domain"
       cores   = 2
       linux   = false
@@ -92,24 +99,26 @@ locals {
   # from its `clean` snapshot for a run and shut down after it, so `on-demand`
   # keeps HypervisorGuestStopped quiet (ADR-0079), and none boots with the
   # host. The MACs are fixed for morpheus's reservations, .91-.98, as the
-  # domain's are. No SMBIOS UUID: dot-windows is an unactivated Windows 11, so
-  # there is no activation to carry. Arch's Secure Boot is off, as its
+  # domain's are, and come from var.guest_identities. No SMBIOS UUID:
+  # dot-windows is an unactivated Windows 11, so there is no activation to
+  # carry. Arch's Secure Boot is off, as its
   # template's is: Arch ships no Microsoft-signed shim, and Alpine's and
   # Gentoo's cloud images and NixOS boot without one too.
   dotfiles = {
     for name, g in {
-      dot-debian   = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:D0:51:9D" }
-      dot-fedora   = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:81:DB:CC" }
-      dot-opensuse = { vm_id = 193, template = 905, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:E9:5A:7B" }
-      dot-arch     = { vm_id = 194, template = 906, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, mac_address = "BC:24:11:9A:27:EC", secure_boot = false }
-      dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 8, linux = true, mac_address = "BC:24:11:B9:94:6A", secure_boot = false }
-      dot-gentoo   = { vm_id = 196, template = 908, cores = 4, memory_mib = 8192, disk_gib = 60, linux = true, mac_address = "BC:24:11:CB:16:C3", secure_boot = false }
-      dot-nixos    = { vm_id = 197, template = 909, cores = 2, memory_mib = 4096, disk_gib = 40, linux = true, mac_address = "BC:24:11:69:5A:40", secure_boot = false }
-      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, mac_address = "BC:24:11:E0:A4:9A", vga = "virtio" }
+      dot-debian   = { vm_id = 191, template = 903, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true }
+      dot-fedora   = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true }
+      dot-opensuse = { vm_id = 193, template = 905, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true }
+      dot-arch     = { vm_id = 194, template = 906, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, secure_boot = false }
+      dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 8, linux = true, secure_boot = false }
+      dot-gentoo   = { vm_id = 196, template = 908, cores = 4, memory_mib = 8192, disk_gib = 60, linux = true, secure_boot = false }
+      dot-nixos    = { vm_id = 197, template = 909, cores = 2, memory_mib = 4096, disk_gib = 40, linux = true, secure_boot = false }
+      dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, vga = "virtio" }
     } :
     name => merge(g, {
       pool        = "dotfiles"
-      smbios_uuid = null
+      mac_address = var.guest_identities[name].mac_address
+      smbios_uuid = var.guest_identities[name].smbios_uuid
       startup     = null
       on_boot     = false
       tags        = ["dotfiles", "on-demand"]
@@ -131,11 +140,12 @@ locals {
   # module's `operator`, for the reason the dotfiles VMs give below.
   analyst = {
     for name, g in {
-      garuda = { vm_id = 162, template = 910, cores = 4, memory_mib = 8192, disk_gib = 120, mac_address = "BC:24:11:ED:98:3F" }
+      garuda = { vm_id = 162, template = 910, cores = 4, memory_mib = 8192, disk_gib = 120 }
     } :
     name => merge(g, {
       pool        = "analyst"
-      smbios_uuid = null
+      mac_address = var.guest_identities[name].mac_address
+      smbios_uuid = var.guest_identities[name].smbios_uuid
       startup     = null
       linux       = true
       on_boot     = true

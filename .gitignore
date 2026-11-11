@@ -75,6 +75,10 @@ stacks/*/snmp-exporter/mibs/
 *.tfplan
 **/.terraform/
 tofu/state/
+# Variable files. tofu/identities.auto.tfvars holds the guests' MACs and SMBIOS
+# UUIDs, which docs/security.md does not publish (variables.tf, guest_identities).
+# Its .example, which holds placeholders, does not match and is committed.
+*.tfvars
 # .terraform.lock.hcl is NOT ignored. It pins provider hashes and is committed.
 
 # ---- Backups ----

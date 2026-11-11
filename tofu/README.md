@@ -32,6 +32,10 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   VMs (191–198, [ADR-0090]), in the `dotfiles` pool, #921's always-on
   analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool, and
   the proof guest, 998, only under `-var proof=true`.
+- `identities.auto.tfvars` holds each guest's MAC and SMBIOS UUID. It exists
+  only on `phoenix`, is gitignored, and is escrowed in
+  `secrets/tofu.sops.yaml`; `identities.auto.tfvars.example` shows its shape.
+  `docs/security.md` does not publish full MACs.
 - `modules/guest/` makes one full clone, with the flags the hand-built guests
   have: q35, OVMF and an EFI disk, a TPM on Windows, and the MAC and SMBIOS UUID
   each guest is given. It leaves `startup` alone: setting it takes
