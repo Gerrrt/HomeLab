@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-10
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421): the range's leak
+  reports itself.** `build-the-playground.md` §9 ran on `gandalf` once
+  `RangeSubnetLeaked` was deployed, and before any target existed.
+  - With forwarding on in `ragnarok` and no NAT, the throwaway guest
+    `leaktest` at `172.30.30.199` pinged `1.1.1.1` through it. tcpdump on
+    `ragnarok`'s `eth0` saw the requests leave onto VLAN 30.
+  - The firewall logged them as a block. Loki returned the
+    `172.30.30.199` source, and `RangeSubnetLeaked` fired on the security
+    channel. That is ADR-0014's "a leak reports itself", shown by both the
+    query and the alert.
+  - Teardown: forwarding was turned off, VMID 199 was destroyed, and §8's
+    checks one to three passed again. §6, the targets, is next.
+
 - **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
   will read the switch over `api-ssl`, read-only.
   [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)

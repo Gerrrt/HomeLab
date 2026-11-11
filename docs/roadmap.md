@@ -311,9 +311,10 @@ Gated on the domain, on a household observation, or on something to publish.
   are behind it: the host, its bridges, `Saruman` at `.20`, the closed
   management plane, and the attack VM `ragnarok` on template 902. §8 ran
   before any target, because §9's leak proof must run before any vulnerable
-  image is on the machine. Next is §9, which waits on `RangeSubnetLeaked`
-  being deployed so that the leak proves the alert as well as the query.
-  Then §6, the targets. Sliver goes on `ragnarok` before the first exercise.
+  image is on the machine. §9 passed on 2026-11-10: a leak caused on purpose
+  was logged as a block, and `RangeSubnetLeaked` fired on the security
+  channel. Next is §6, the targets. Sliver goes on `ragnarok` before the
+  first exercise.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)

@@ -806,6 +806,26 @@ That is worth proving once, and it can only be proved by causing one. **Do this
 with a throwaway Linux guest on `vmbr1`, before any vulnerable image exists on
 the machine.**
 
+> **Ran on `gandalf` 2026-11-10** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)),
+> after `RangeSubnetLeaked` was deployed on `prometheus`, and before any
+> target existed. **It passed.**
+>
+> - **The guest** was §8's VMID 199 `leaktest`, at `172.30.30.199` on `vmbr1`
+>   only. §8's checks one, two and three were rerun first, and all passed.
+> - **Steps 1–2:** with forwarding on in `ragnarok` and no NAT, `leaktest`
+>   pinged `1.1.1.1` through `172.30.30.10`. Every packet was lost. While a
+>   second ping ran, tcpdump on `ragnarok`'s `eth0` showed the echo requests
+>   leaving with source `172.30.30.199`. So the packet was forwarded onto
+>   VLAN 30, and anything silent after that would have been the firewall's
+>   or the pipeline's fault.
+> - **Step 3:** the Loki query returned a block row with source
+>   `172.30.30.199`. `RangeSubnetLeaked` fired and reached the security
+>   channel.
+> - **Step 4:** forwarding was turned back off, the route was removed, and
+>   VMID 199 was destroyed with `--purge`. §8 check three on `ragnarok` gave
+>   both sysctls `= 0` and no NAT in either table. `vmbr1` then held only
+>   `tap130i1`, with no addresses.
+
 1. On the attack VM, turn forwarding on for the test only —
    `sysctl -w net.ipv4.ip_forward=1`. Add **no** NAT: without it nothing comes
    back, which is what keeps this bounded.
