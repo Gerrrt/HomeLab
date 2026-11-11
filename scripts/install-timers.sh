@@ -473,6 +473,7 @@ if [[ "${MODE}" == check ]]; then
     skip_offhost "not the deployment checkout — installed timers unchecked (they are not installed here, and should not be)"
   else
     missing=()
+    stale=()
     for row in "${JOBS[@]}"; do
       unit="$(job_unit "${row}")"
       # verify-key-backup has no unit: it is a deadline declared for a human,
@@ -483,6 +484,13 @@ if [[ "${MODE}" == check ]]; then
         enabled | enabled-runtime | static | indirect | generated) ;;
         *) missing+=("$(job_name "${row}") (${unit}.timer: ${state:-not installed})") ;;
       esac
+      # Enabled is not the same as current. --install COPIES the units, so a
+      # merged change to an OnCalendar= or an ExecStart= reached this host
+      # only when someone ran it again, and nothing said it had not (#1422).
+      for kind in service timer; do
+        cmp -s "${UNIT_DIR}/${unit}.${kind}" "${SYSTEMD_DIR}/${unit}.${kind}" \
+          || stale+=("${unit}.${kind}")
+      done
     done
     if ((${#missing[@]} == 0)); then
       pass "every declared timer is enabled on this host"
@@ -491,6 +499,12 @@ if [[ "${MODE}" == check ]]; then
       printf '        These jobs do not run and nothing alerts on them — max_age is\n'
       printf '        written by --install, so ScheduledJobNeverRan has no series to\n'
       printf '        fire on either. Fix with: sudo %s --install\n' "$0"
+    fi
+    if ((${#stale[@]} == 0)); then
+      pass "every installed unit matches systemd/"
+    else
+      fail "installed but not as committed: ${stale[*]}"
+      printf '        systemd is running an older copy. Fix with: sudo %s --install\n' "$0"
     fi
   fi
 
@@ -502,6 +516,12 @@ if [[ "${MODE}" == check ]]; then
     skip_offhost "the sensitive stack is not served from this checkout — its timers are not this host's"
   else
     missing=()
+    stale=()
+    # What --install would write, rendered the way it renders: this checkout,
+    # and the user who owns it, which is who runs this check on trinity.
+    want_dir="$(mktemp -d)"
+    run_user="$(id -un)"
+    run_home="$(getent passwd "${run_user}" | cut -d: -f6)"
     for row in "${SENSITIVE_JOBS[@]}"; do
       unit="$(job_unit "${row}")"
       # household-copy and household-proof are human jobs, "-" as on the
@@ -512,11 +532,24 @@ if [[ "${MODE}" == check ]]; then
         enabled | enabled-runtime | static | indirect | generated) ;;
         *) missing+=("$(job_name "${row}") (${unit}.timer: ${state:-not installed})") ;;
       esac
+      for kind in service timer; do
+        render_unit "${SENSITIVE_UNIT_DIR}/${unit}.${kind}" "${want_dir}/${unit}.${kind}" \
+          "${REPO_ROOT}" "${run_user}" "$(id -gn)" "${run_home}"
+        cmp -s "${want_dir}/${unit}.${kind}" "${SYSTEMD_DIR}/${unit}.${kind}" \
+          || stale+=("${unit}.${kind}")
+      done
     done
+    rm -rf "${want_dir}"
     if ((${#missing[@]} == 0)); then
       pass "every sensitive timer is enabled on this host"
     else
       fail "the sensitive stack runs here but these are not enabled: ${missing[*]}"
+      printf '        Fix with: make install-timers PROFILE=sensitive\n'
+    fi
+    if ((${#stale[@]} == 0)); then
+      pass "every installed sensitive unit matches systemd/sensitive/, as rendered here"
+    else
+      fail "installed but not as committed and rendered: ${stale[*]}"
       printf '        Fix with: make install-timers PROFILE=sensitive\n'
     fi
   fi
