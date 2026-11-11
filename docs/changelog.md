@@ -37,6 +37,25 @@ docstring gives: it is a record, not a claim about now.
     device is added.** An entry that set up before the patch loaded keeps
     retrying, at most five minutes apart, so the component reloads nothing.
 
+- **[#1377](https://github.com/Gerrrt/HomeLab/issues/1377): Immich's and
+  Paperless's databases and Valkeys are off `sensitive`, deployed and
+  verified.** #1378 put immich-db and immich-valkey on `immich-backend`,
+  and #1379 put paperless-db and paperless-broker on `paperless-backend`.
+  Each network is internal and is shared only with its application. Both
+  were deployed on `trinity` on 2026-11-10.
+  - **The check:** a throwaway container on `sensitive_sensitive` tried
+    each of the four. Neither the service names nor the container names
+    resolved, and a TCP connect to each backend address timed out.
+    miniflux-db, the control, resolved and accepted a connection from the
+    same container, so the failures are the isolation and not the probe.
+  - **The applications still use them:** no connection errors in either
+    log since the restart, Paperless's scheduled mail check succeeding on
+    the broker every ten minutes, and live client connections on both
+    Valkeys.
+  - **miniflux-db stays on `sensitive`.** It requires a SCRAM password,
+    and the audit in #1377 put it out of scope with the other listeners
+    that require a login.
+
 ## 2026-11-10
 
 - **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
@@ -162,6 +181,19 @@ docstring gives: it is a record, not a claim about now.
     down. Winterfell's blocks do not log, so whether an eero answers ping is
     unconfirmed. The row comes first, then a ping from `prometheus`, then the
     targets are uncommented.
+
+- **[#1139](https://github.com/Gerrrt/HomeLab/issues/1139): the lab segment
+  is refused at the SOC's web UIs, proved on `odin`.**
+  - #1152 put the Wazuh dashboard (`443`) and the Velociraptor GUI (`8889`)
+    behind the stack's `caddy`, which answers only Hicks's `10.0.50.0/24`.
+    It landed on 2026-10-10 with CI's checks, but the live half of
+    [build-the-soc-guest.md](runbooks/build-the-soc-guest.md) §10 was not
+    recorded until now.
+  - Run from a VLAN 30 host other than `odin`, the runbook's `curl` loop got
+    `403` on both `443` and `8889`.
+  - This entry records the refusal only. The login from Hicks was not part
+    of this run.
+  - Nothing changed in the stack.
 
 ## 2026-11-09
 
