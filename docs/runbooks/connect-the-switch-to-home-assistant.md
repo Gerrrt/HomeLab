@@ -86,16 +86,31 @@ No `write`, `reboot`, `policy` or `sensitive`. Without `write` the switch
 refuses the port, PoE and restart controls the integration creates. Without
 `sensitive` it hides the SNMPv3 passphrases.
 
+If `/user/add` answers *user with the same name already exists*, an earlier
+run got this far. Check the account with
+`/user/print detail where name=homeassistant` and
+`/log/print where message~"homeassistant"`: the group and address should
+match the lines above, and the log should show who added it. Then set the
+password from §2 on it, and look for a `user homeassistant changed` line
+afterwards, because a password you cannot account for is not one to keep:
+
+```text
+/user/set homeassistant password="<from §2>"
+```
+
 Turn `api-ssl` on with the leaf `www-ssl` already serves, for `trinity` only.
 Plain `api` stays off:
 
 ```text
-/ip/service/set api-ssl certificate=neo.matrix.elysium address=10.0.99.40/32 disabled=no
+/ip/service/set api-ssl certificate=neo.matrix.elysium available-from=10.0.99.40/32 disabled=no
 /ip/service/print where name~"api"
 ```
 
 `api` reads `X` (disabled), and `api-ssl` reads port `8729`, the
-certificate and the address.
+certificate and `10.0.99.40/32` under *AVAILABLE-FROM*. RouterOS 7 renamed
+the service's `address` to `available-from`; the old keyword still works
+with a deprecation warning. The user's `address` in `/user/add` is a
+different setting and keeps its name.
 
 ## 4. Name resolution from the container
 
@@ -114,8 +129,17 @@ integration does not. It connects with the certificate **verified** against
 the estate CA and the name checked, and it tries one harmless write: setting
 the switch's identity to the name it already has.
 
+Read the password first, on its own. Paste it at the prompt and press Enter;
+nothing echoes:
+
 ```bash
-read -rs NEO_HA_PW && export NEO_HA_PW
+read -rsp 'homeassistant password on neo: ' NEO_HA_PW; echo; export NEO_HA_PW
+```
+
+Then paste the rest. Pasted together with the line above, the shell hands
+the block's next line to `read` as the password:
+
+```bash
 docker exec -i -e NEO_HA_PW sensitive-home-assistant python3 - <<'EOF'
 import os, ssl, librouteros
 from librouteros.exceptions import TrapError
@@ -142,6 +166,9 @@ unset NEO_HA_PW
 The expected output is `verified TLS, read identity: …` and then
 `write refused: … not enough permissions …`.
 
+- `invalid user name or password` after a clean connection means the TLS
+  check passed and the password is not the one on the switch. Set it again
+  (§3) and rerun.
 - A certificate error means `api-ssl` is serving something other than the
   estate leaf. Fix §3 before going on.
 - `FAIL: the write was accepted` means the group has `write`. Remove it

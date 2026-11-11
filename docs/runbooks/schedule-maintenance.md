@@ -140,13 +140,21 @@ from the estate CA on 2026-10-05 and expires at 2029-01-06 23:51 UTC (read off t
 the switch cannot renew it
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 Nothing here watches it: there is no probe of the switch UI, by decision — the
-switch LAN is closed to VLAN 99 apart from SNMP, and
+switch LAN is closed to VLAN 99 apart from SNMP from `prometheus` and Home
+Assistant's `api-ssl`
+([ADR-0111](../adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)),
+neither of which checks the leaf's expiry, and
 [`swap-the-switch.md`](swap-the-switch.md) Phase 3 records why none was added —
 so no expiry rule ever sees this leaf, and a lapse shows up as a browser on
 Hicks refusing `https://10.7.7.2/`. Reissue from the main checkout well before
 the date, then upload, import and bind it as
-[`swap-the-switch.md`](swap-the-switch.md) §1.4 does. The CA does not change,
-so nothing needs re-trusting. The same date is in
+[`swap-the-switch.md`](swap-the-switch.md) §1.4 does. Bind `api-ssl` to it
+too, with `/ip/service/set api-ssl certificate=neo.matrix.elysium`: Home
+Assistant does not verify the certificate, so it would go on reading over a
+lapsed leaf and nothing would say so. Then rerun
+[`connect-the-switch-to-home-assistant.md`](connect-the-switch-to-home-assistant.md)
+§5, which does verify it. The CA does not change, so nothing needs
+re-trusting. The same date is in
 [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
 
 `dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
