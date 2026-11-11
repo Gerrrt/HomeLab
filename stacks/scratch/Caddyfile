@@ -1,0 +1,47 @@
+# The two SOC UIs on diabolos, answering Hicks only (#1428).
+#
+# soc's Caddyfile minus the agent-MSI site: soc fenced its dashboard and
+# Velociraptor GUI behind a Hicks-only Caddy in #1139, and this stack, which
+# is soc's shape, published both on 0.0.0.0 to all of VLAN 30. On the guest
+# where samples are detonated, that put the SIEM's and the DFIR tool's login
+# pages in reach of the sample. pfSense never sees traffic inside VLAN 30, so
+# the source filter has to be here.
+
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8443 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	@hicks remote_ip 10.0.50.0/24
+	handle @hicks {
+		reverse_proxy https://wazuh.dashboard:5601 {
+			header_up Host {hostport}
+			transport http {
+				tls_trust_pool file /etc/caddy/tls/ca.pem
+				tls_server_name wazuh.dashboard
+			}
+		}
+	}
+	respond 403
+}
+
+:8889 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	@hicks remote_ip 10.0.50.0/24
+	handle @hicks {
+		reverse_proxy https://velociraptor:8889 {
+			header_up Host {hostport}
+			transport http {
+				tls_insecure_skip_verify
+			}
+		}
+	}
+	respond 403
+}
+
+:2020 {
+	respond /healthz 200
+}

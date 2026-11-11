@@ -24,7 +24,8 @@ make up STACK=bloodhound
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `bloodhound` | `specterops/bloodhound` | 8443 (https) | The API, the ingest workers and the UI. TLS on a leaf from the estate's CA. Serves the SharpHound and AzureHound release it was built with |
+| `bloodhound` | `specterops/bloodhound` | *internal* (https) | The API, the ingest workers and the UI. TLS on a leaf from the estate's CA. Serves the SharpHound and AzureHound release it was built with |
+| `caddy` | `caddy` | 8443 (https) | The UI's fence: answers Hicks's `10.0.50.0/24` only and refuses the rest of VLAN 30, the weak domain included, with BloodHound's own leaf ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
 | `app-db` | `postgres` | *internal* | Users, saved queries, upload jobs, audit log, **and the graph**: BloodHound's Postgres graph driver, not upstream's default Neo4j ([ADR-0081]) |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | This guest's collector. Pushes to `alexander`, and scrapes BloodHound's metrics as `job="bloodhound"` |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |

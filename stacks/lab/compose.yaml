@@ -265,11 +265,20 @@ services:
       INGEST_TOKEN_EDEN: ${INGEST_TOKEN_EDEN:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_GARUDA: ${INGEST_TOKEN_GARUDA:?set in secrets/lab.sops.yaml}
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/lab.sops.yaml}
+    # Grafana's leaf and key, for the Hicks-only :3443 site (#1428). The key is
+    # 0640 to the checkout owner's group, which Grafana reads it through too.
+    group_add:
+      - "${RENDER_GID:?run make render STACK=lab}"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../../certificates/grafana-lab.matrix.elysium.pem:/etc/caddy/tls/cert.pem:ro
+      - ../../certificates/grafana-lab.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
+      - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
     ports:
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_PORT:-9090}:9090"
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_PORT:-3100}:3100"
+      # Grafana, on the host port it had, for Hicks only (#1428).
+      - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3443"
     depends_on:
       prometheus:
         condition: service_healthy
@@ -339,8 +348,11 @@ services:
       - ../../certificates/grafana-lab.matrix.elysium-key.pem:/etc/grafana/tls/key.pem:ro
     group_add:
       - "${RENDER_GID:?run make render STACK=lab}"
-    ports:
-      - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3000"
+    # NOT published (#1428): a port here answered all of VLAN 30, the weak
+    # domain included. caddy publishes the same host port, answers Hicks's /24
+    # only and proxies here over the stack network; see the Caddyfile.
+    expose:
+      - "3000"
     depends_on:
       prometheus:
         condition: service_healthy

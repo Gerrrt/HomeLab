@@ -233,8 +233,11 @@ services:
       - ../soc/wazuh/dashboard/opensearch_dashboards.yml:/usr/share/wazuh-dashboard/config/opensearch_dashboards.yml:ro
       - dashboard-config:/usr/share/wazuh-dashboard/data/wazuh/config
       - dashboard-custom:/usr/share/wazuh-dashboard/plugins/wazuh/public/assets/custom
-    ports:
-      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:5601"
+    # DIFFERENCE 6: soc's #1139 fence, which this stack had not copied. The
+    # dashboard is not published; the caddy service below publishes the same
+    # host port and answers Hicks's /24 only (#1428).
+    expose:
+      - "5601"
     depends_on:
       wazuh.indexer:
         condition: service_healthy
@@ -280,14 +283,49 @@ services:
       # lab's Prometheus scrapes it; nothing scrapes this guest (ADR-0071), and
       # an unauthenticated listener with no consumer is the ADR-0012 case. The
       # listener still exists inside the container, which the healthcheck uses.
+      # 8889, the GUI, is not published: caddy below is (DIFFERENCE 6).
       - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_FRONTEND_PORT:-8000}:8000"
-      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8003/metrics"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 120s
+
+  # DIFFERENCE 6: soc's caddy without its agent-MSI site. It publishes the two
+  # UIs on the host ports they had, answers Hicks's /24 only, and proxies over
+  # the scratch network; the Caddyfile has the reason (#1428).
+  caddy:
+    <<: *service-defaults
+    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    container_name: scratch-ui-proxy
+    user: "1000:1000"
+    pids_limit: 64
+    mem_limit: 128m
+    memswap_limit: 128m
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /data:size=1m,uid=1000,gid=1000
+      - /config:size=1m,uid=1000,gid=1000
+      - /tmp:size=1m
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./wazuh/certs/wazuh.dashboard.pem:/etc/caddy/tls/cert.pem:ro
+      - ./wazuh/certs/wazuh.dashboard-key.pem:/etc/caddy/tls/key.pem:ro
+      - ./wazuh/certs/root-ca.pem:/etc/caddy/tls/ca.pem:ro
+    ports:
+      - "${BIND_ADDR:-0.0.0.0}:${WAZUH_DASHBOARD_PORT:-443}:8443"
+      - "${BIND_ADDR:-0.0.0.0}:${VELOCIRAPTOR_GUI_PORT:-8889}:8889"
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:2020/healthz"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
 
   # DIFFERENCE 5: no Alloy. odin's pushes its journal, container logs and the
   # indexer's health to the lab's stores on alexander; this guest's would put a
