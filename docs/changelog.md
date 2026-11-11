@@ -53,6 +53,19 @@ docstring gives: it is a record, not a claim about now.
     - The README's step 8 now moves the target before the merge.
   - **`pgdata`, 2.x's cluster, is kept** as the rollback. Nothing mounts it.
 
+- **[#1228](https://github.com/Gerrrt/HomeLab/issues/1228): the eeros answer
+  ping, and the probe is on.** The Winterfell row
+  [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md) decided was
+  created in pfSense: the alias `eeros` (the eight reservations) and a pass
+  from `10.0.99.20` on ICMP `echoreq`, above the *Block access to …* rows.
+  `ping -c3` from `prometheus` got an answer from `10.0.50.11`, `10.0.20.11`
+  and `10.0.10.11`. So the open question #1384 left, whether an eero answers
+  an echo at all, is settled, and ADR-0112 stands. The eight targets in
+  `targets/blackbox-eero.yaml` are uncommented, and `network.md` and
+  `security.md` carry the row as in force. Winterfell's *Reaches* cell now
+  names the ping. Still to check once `prometheus` converges:
+  `probe_success{job="blackbox-eero"}` reads 1 for all eight.
+
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226): the HomePods'
   upstream gate is carried locally.
   [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
