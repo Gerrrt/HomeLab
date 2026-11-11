@@ -301,7 +301,8 @@ modules:
           values: ["^/"]
 
   # MikroTik CRS326-24G-2S+RM on RouterOS 7 (neo, 10.7.7.2), in service since
-  # 2026-11-05 (#444, ADR-0041) — IF-MIB, five columns plus sysDescr.
+  # 2026-11-05 (#444, ADR-0041) — IF-MIB, five columns plus sysDescr, and two
+  # bridge columns for each port's VLAN (#1387, below).
   #
   # It replaced a MokerLink whose management CPU wedged under exporter polling,
   # bricked once under a full walk, and returned a zero-length ifSpecific that
@@ -332,16 +333,42 @@ modules:
   # sysDescr now carries the model and the RouterOS release, where the
   # MokerLink's said only "Switch". scripts/check_versions.py selects the
   # pfSense claim by device name, so it is unaffected.
+  #
+  # dot1qPvid is each port's untagged VLAN, the port map's claim in one series
+  # (#1387). It replaces the MokerLink's vlan.cgi page, which the drift check
+  # scraped over HTTP until the swap (Lemmiwinks#316); #482 asked for this and
+  # was closed because the MokerLink had no Q-BRIDGE-MIB. SwitchPortVlanChanged
+  # reads it. Measured 2026-11-11 with scripts/snmp-walk.sh over v3:
+  #
+  #   dot1qPvid             24 rows, indexed by bridge port 1–24 (ether1–24;
+  #                         the SFP+ cages are not bridge ports). Under bridge
+  #                         VLAN filtering it is the bridge port's pvid: port 1
+  #                         reads 7, ether17 (smaug) 40, ether20 30, as
+  #                         network.md has them. 1 request, 0.55s, one
+  #                         overshoot into dot1qPortAcceptableFrameTypes.
+  #   dot1dBasePortIfIndex  bridge port N is ifIndex N+1 on every row, the same
+  #                         port-plus-one as IF-MIB. One overshoot, an OID.
+  #   dot1qVlanStaticName   not implemented: 0 rows. So there are no VLAN names.
+  #
+  # The bridge port is not an ifIndex, so the two lookups chain: bridge port to
+  # ifIndex, then ifIndex to ifDescr, and dot1qPvid carries the same port name
+  # as every IF-MIB series. scripts/snmp-mibs.sh says why it takes seven MIBs.
   crs326:
     walk:
-      - 1.3.6.1.2.1.2.2.1.1     # ifIndex
-      - 1.3.6.1.2.1.2.2.1.2     # ifDescr       (metric, and the lookup below)
-      - 1.3.6.1.2.1.2.2.1.8     # ifOperStatus  (SwitchInterfaceDown)
-      - 1.3.6.1.2.1.31.1.1.1.6  # ifHCInOctets  (64-bit)
-      - 1.3.6.1.2.1.31.1.1.1.10 # ifHCOutOctets (64-bit)
-      - 1.3.6.1.2.1.1.1         # sysDescr      (model and RouterOS release)
+      - 1.3.6.1.2.1.2.2.1.1        # ifIndex
+      - 1.3.6.1.2.1.2.2.1.2        # ifDescr       (metric, and the lookups below)
+      - 1.3.6.1.2.1.2.2.1.8        # ifOperStatus  (SwitchInterfaceDown)
+      - 1.3.6.1.2.1.31.1.1.1.6     # ifHCInOctets  (64-bit)
+      - 1.3.6.1.2.1.31.1.1.1.10    # ifHCOutOctets (64-bit)
+      - 1.3.6.1.2.1.1.1            # sysDescr      (model and RouterOS release)
+      - 1.3.6.1.2.1.17.7.1.4.5.1.1 # dot1qPvid     (SwitchPortVlanChanged)
+      - 1.3.6.1.2.1.17.1.4.1.2     # dot1dBasePortIfIndex (the lookup below)
     lookups:
       - source_indexes: [ifIndex]
+        lookup: ifDescr
+      - source_indexes: [dot1dBasePort]
+        lookup: dot1dBasePortIfIndex
+      - source_indexes: [dot1dBasePortIfIndex]
         lookup: ifDescr
 
   # HPE ProLiant DL360 Gen9 iLO (shiva, 10.0.30.10) — SNMPv2-MIB system group
