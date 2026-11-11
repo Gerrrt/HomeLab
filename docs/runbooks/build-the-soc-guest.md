@@ -269,9 +269,9 @@ unquoted, so no `"`, `\` or `$`.
 
 The eighth, `INGEST_TOKEN`, is not generated here. It is `odin`'s token for the
 lab's ingest proxy, and its other copy is `INGEST_TOKEN_ODIN` in
-`secrets/lab.sops.yaml` on `alexander`. Copy it from there
-(`make secrets-show STACK=lab`). Without it, `make up STACK=soc` refuses, and
-the proxy would refuse every push anyway
+`secrets/lab.sops.yaml` on `alexander`. Copy it from there with
+`make secrets-get STACK=lab NAME=INGEST_TOKEN_ODIN`. Without it,
+`make up STACK=soc` refuses, and the proxy would refuse every push anyway
 ([#834](https://github.com/Gerrrt/HomeLab/issues/834)).
 
 Commit and push `.sops.yaml` and `secrets/soc.sops.yaml` from here, then:
