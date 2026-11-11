@@ -866,11 +866,13 @@ the least trusted.
   from another subnet. With that, discovery from `trinity` finds all three.
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   records the reading, the NAT and why audio stays out.
-  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them. Adding
-  the HomePods in Home Assistant waits on
-  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
-  because the config flow's scan asks only for a service HomePods do not
-  answer.
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them.
+  Home Assistant has not added the HomePods yet. Its Apple TV scan by
+  address asks only for a service HomePods do not answer
+  ([postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929)),
+  and
+  [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+  patches that locally until upstream ships the fix.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 - **The pool rows above were read from `morpheus`'s lease table on
