@@ -53,9 +53,9 @@ above CasaBonita, which the spectrum does not. Reasoning in
     close.
 
 [^hicks]: Hicks has the broadest path into management of any VLAN, and since
-    2026-09-02 that path is a list of destinations rather than the segment: ten
+    2026-09-02 that path is a list of destinations rather than the segment: twelve
     passes sit above a logged *Block access to Winterfell*, everything else from
-    50 to 99 is dropped, and the ten are enumerated in the Hicks notes below. It
+    50 to 99 is dropped, and the twelve are enumerated in the Hicks notes below. It
     is not the only way into 99 — two host-scoped passes carry ImaginationLAN
     to `10.0.99.20`. Going the other
     way, Hicks reaches ImaginationLAN entire, by a TCP rule of its own and the

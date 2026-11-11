@@ -146,7 +146,7 @@ documents for different readers.
 morpheus, the core switch neo and the 32U rack across the top; below them one
 panel per VLAN in its patch-cable colour, holding every addressed host —
 Winterfell's monitoring, wiki and household hosts, Hicks' workstations by role,
-CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its ten guests,
+CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its twenty-one guests,
 Skids' IoT by class, and the guest
 network.](docs/diagrams/current/network.svg)](docs/diagrams/current/network.svg)
 
@@ -194,7 +194,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 | Lab observability | [Prometheus, Loki, Grafana](stacks/lab) | `alexander` | The lab's own Prometheus; only liveness crosses to the estate's, never telemetry |
 | Security tooling | [Wazuh, Velociraptor](stacks/soc) | `odin` | SIEM and endpoint forensics for the lab domain |
 | Network sensor | [Zeek](stacks/sensor) | `fenrir` | East-west traffic on the lab bridge, from a `tc` mirror |
-| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; not built yet, and off between sessions |
+| Attack paths | [BloodHound CE](stacks/bloodhound) | `eden` | Which path to Domain Admin exists in the lab domain; off between sessions |
 | Lab provisioning | [Packer](packer), [OpenTofu](tofu), [Ansible](ansible) | `phoenix` | VM templates, guests cloned from them, and the `ad.matrix.elysium` domain's configuration |
 | Secrets | [SOPS + age](secrets) | in the repo | Encrypted in-repo, decrypted at deploy time |
 | CI | [GitHub Actions](.github/workflows/ci.yml) | GitHub | Lint, config validation, secret scanning, digest pinning, [close keywords in prose](.github/workflows/close-keywords.yml) |
@@ -221,6 +221,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── soc/                  # Wazuh and Velociraptor on odin (ADR-0030)
 │   ├── sensor/               # Zeek on fenrir, on a mirror of the lab bridge (ADR-0068)
 │   ├── bloodhound/           # BloodHound CE on eden, off between sessions (ADR-0081)
+│   ├── analyst/              # Alloy on garuda, the Kali Purple workstation (ADR-0091)
 │   └── scratch/              # a DISPOSABLE copy of soc on diabolos (ADR-0071)
 ├── packer/  tofu/  ansible/  # lab templates, guests and domain, run from phoenix
 ├── secrets/                  # SOPS-encrypted; see secrets/README.md

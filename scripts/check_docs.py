@@ -473,6 +473,26 @@ def count_runbooks() -> int:
     return len(list((REPO / "docs/runbooks").glob("*.md")))
 
 
+def count_scrape_jobs() -> int:
+    """scrape_configs entries in the estate's prometheus.yaml.
+
+    observability.md said "Prometheus scrapes twelve jobs" while the file held
+    fourteen, and nothing could see it (#20 of the 2026-11-11 audit).
+    """
+    config = yaml.safe_load((STACK / "prometheus/prometheus.yaml").read_text(encoding="utf-8"))
+    return len(config.get("scrape_configs") or [])
+
+
+def count_saruman_guests() -> int:
+    """Rows in docs/network.md whose kind is a KVM guest on Saruman.
+
+    The host table is the inventory; README's diagram caption said "its ten
+    guests" when the table and the diagram both held twenty-one.
+    """
+    text = (REPO / "docs/network.md").read_text(encoding="utf-8")
+    return len(re.findall(r"^\|.*\|\s*KVM guest on `Saruman`\s*\|", text, re.MULTILINE))
+
+
 def facts() -> dict:
     prom_rules = sorted((STACK / "prometheus/rules").glob("*.rules.yaml"))
     loki_rules = sorted((STACK / "loki/rules").glob("*.rules.yaml"))
@@ -497,6 +517,8 @@ def facts() -> dict:
         "vlans": count_vlans(),
         "adrs": count_adrs(),
         "runbooks": count_runbooks(),
+        "scrape_jobs": count_scrape_jobs(),
+        "saruman_guests": count_saruman_guests(),
     }
 
 
@@ -633,6 +655,12 @@ def check_counts(f: dict) -> list[str]:
         # facts dict after building the registry; facts() cannot compute it,
         # because the registry closes over the dict facts() is still building.
         (rf"{COUNT}" + WS + r"assertions", {f["assertions"]}, "assertions"),
+        # Two counts the 2026-11-11 audit found stale where nothing looked.
+        # Narrow phrasings only: "N guests" alone is also how dated readings
+        # and runbook steps talk about a subset ("the six guests", "two guests
+        # first received a placeholder"), and those are not inventories.
+        (r"scrapes" + WS + COUNT + WS + r"jobs", {f["scrape_jobs"]}, "scrape jobs"),
+        (r"(?:hosting|its)" + WS + COUNT + WS + r"guests", {f["saruman_guests"]}, "guests on Saruman"),
     )
     problems = []
     for rel in PROSE:
