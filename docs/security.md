@@ -387,7 +387,10 @@ disc in the drive and write into `erebor/media/rips`, the one library folder
 it mounts, and no other. That is a way to fill the pool, not to reach the
 films, and the other services' read-only mounts are unchanged. The control is
 time: the service sits behind a compose profile, a session ends with the
-container removed, and between sessions nothing listens on `5800`. Accepted
+container removed, and between sessions nothing listens on `5800`. Its
+restart policy is `"no"`, so a reboot does not reopen it, and every start
+first checks that the SCSI-generic node it is handed is still the DVD drive
+and not a pool disk. Accepted
 on those terms. A container left running is the failure to watch for, and
 [`rip-a-disc.md`](runbooks/rip-a-disc.md) ends every session with its removal.
 **Three more, for the television, exist since 2026-10-19.**

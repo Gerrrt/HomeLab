@@ -2092,18 +2092,31 @@ measured.
 
    ```bash
    install -d -m 0755 -o 65534 -g 65534 /mnt/erebor/apps/makemkv/config
-   install -d -m 0755 -o 65534 -g 65534 /mnt/erebor/media/rips /mnt/erebor/media/movies
+   mkdir -p /mnt/erebor/media/rips /mnt/erebor/media/movies \
+     && chown 65534:65534 /mnt/erebor/media/rips
    ```
 
    `rips/` is where MakeMKV writes, and `movies/` is the Jellyfin library.
    Both are in `erebor/media`, so moving a rip from one to the other is a
    rename.
+
+   **No `chmod` and no `install -m` in `erebor/media`.** It is on the SMB
+   preset (§4), which refuses a mode change on its inherited NFSv4 ACL.
+   `music/` and `audiobooks/` were made with a plain `mkdir` for the same
+   reason. The two folders inherit §5's ACL, and that ACL does two jobs:
+   `builtin_users` Modify lets `samwise` move rips out of `rips/`, and
+   `everyone@` read lets Jellyfin see them. `chown` is what lets MakeMKV,
+   as 65534, write into `rips/`. `erebor/apps` is on the Apps preset and
+   takes the mode, so the config directory uses `install`, as Jellyfin's
+   did.
 4. **Re-fetch the two files** with the `curl` lines in §6, then start a
-   session from the same folder:
+   session from the same folder. **Use the guarded start in
+   *1. Start the ripper* in [`rip-a-disc.md`](rip-a-disc.md), never a bare `up`,** here and for
+   every trial in step 5. It starts the container only if the sg node `.env`
+   names still belongs to `sr0`, which step 2 read once and a reboot can
+   change. Then:
 
    ```bash
-   cd /mnt/erebor/apps/stack
-   docker compose --profile rip up -d makemkv
    docker compose ps makemkv
    ```
 
@@ -2118,8 +2131,21 @@ measured.
    ```
 
    - **The capability set.** Remove one capability at a time from `cap_add`,
-     `rm -sf` and start again. Keep only the ones it will not start healthy
-     without.
+     `rm -sf`, and start again with the guarded start. **A healthy start is
+     not the test**, because some capabilities matter only after start: the
+     page answers whether or not the drive opens, and `KILL` matters at
+     shutdown. A reduced set passes only if all three of these work:
+     - **Rip.** Open a disc, rip a short title into `rips/`, and check the
+       file is owned `65534:65534`.
+     - **Eject.** Eject from MakeMKV's toolbar.
+     - **Stop cleanly.** `time docker compose stop makemkv` returns well
+       inside compose's ten-second grace. `docker inspect -f
+       '{{.State.ExitCode}}' media-makemkv` is `0`, not `137`, which would
+       mean Docker had to SIGKILL it. The last lines of `docker logs
+       media-makemkv` show the services stopping in order.
+
+     Record the set that passed all three, and the trial that failed for each
+     capability kept.
    - **The user.** MakeMKV and the front end run as `65534`, and only
      `/init` is root.
    - **The device groups.** `/dev/sr0` and `/dev/sg3` inside the container

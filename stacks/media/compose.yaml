@@ -434,8 +434,11 @@ services:
   # build-the-nas.md §6.11 is the deploy.
   #
   # BEHIND A PROFILE, so the stack's normal `docker compose up -d` never starts
-  # it. A session is `docker compose --profile rip up -d makemkv` and ends with
-  # `docker compose rm -sf makemkv`. Between sessions there is no container, so
+  # it. A session starts with rip-a-disc.md's guarded start, which runs
+  # `docker compose --profile rip up -d makemkv` only if MAKEMKV_SG_DEVICE
+  # still belongs to sr0, and ends with `docker compose rm -sf makemkv`.
+  # `restart: "no"` below keeps a reboot from starting one. Between sessions
+  # there is no container, so
   # there is no unauthenticated GUI on the segment with the game consoles —
   # the reason ADR-0114 declined running it all day.
   #
@@ -466,6 +469,13 @@ services:
     profiles: ["rip"]
     image: jlesage/makemkv:v26.09.2@sha256:bfdddd29c5a9958da3003df1e673de7ad6915c846723449c76196d4ef6ca1ca2
     container_name: media-makemkv
+    # NOT the anchor's `unless-stopped`. A profile only decides what `up`
+    # starts; Docker's restart manager ignores it. Inherited, a reboot of
+    # smaug or a Docker restart mid-session would bring the unauthenticated,
+    # writable GUI back with nobody having started a session. "no" means an
+    # interrupted session stays down until a person starts the next one, through
+    # rip-a-disc.md's guarded start.
+    restart: "no"
     # The image's /init is its PID 1 and supervises MakeMKV, the X server and
     # the web front end; tini in front of it would only stand between it and
     # the signals it handles.

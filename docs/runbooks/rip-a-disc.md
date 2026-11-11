@@ -28,10 +28,27 @@ In the TrueNAS shell (**System → Shell**):
 
 ```bash
 cd /mnt/erebor/apps/stack
-docker compose --profile rip up -d makemkv
+sg=$(sed -n 's|^MAKEMKV_SG_DEVICE=/dev/||p' .env)
+if [ -n "$sg" ] && [ "$(ls "/sys/class/scsi_generic/$sg/device/block" 2>/dev/null)" = sr0 ]; then
+  docker compose --profile rip up -d makemkv
+else
+  echo "REFUSING: ${sg:-no sg device} is not the DVD drive. See build-the-nas.md §6.11 step 2."
+fi
 ```
 
+**The check is the point, so never skip it.** SCSI-generic numbers follow
+probe order and can move after a reboot or a change of drives. `.env` names
+the node that was the DVD drive when it was last read, and a node that has
+since become a pool disk would hand the container raw SCSI access to it. The
+start runs only if the node `.env` names still belongs to `sr0`. If it
+refuses, re-read the nodes by §6.11 step 2, change `MAKEMKV_SG_DEVICE` in
+`.env.example` in a commit, re-fetch, and start again.
+
 Wait for `docker compose ps makemkv` to read `healthy`, about a minute.
+
+**If `smaug` restarts during a session, the ripper stays down.** Its restart
+policy is `"no"`, so the GUI never comes back without someone starting it.
+Start it again with the block above, which repeats the check.
 
 ### 2. Rip each disc
 

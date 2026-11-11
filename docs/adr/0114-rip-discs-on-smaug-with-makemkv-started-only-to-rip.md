@@ -51,7 +51,12 @@ profile `rip`, so it runs only while someone is ripping.**
 - **It is not running between sessions.** `docker compose --profile rip up -d
   makemkv` starts it, and `docker compose stop makemkv` ends the session.
   A plain `docker compose up -d`, the media stack's normal deploy, does not
-  start it.
+  start it. Its restart policy is `"no"`, not the stack's `unless-stopped`,
+  because a profile does not bind Docker's restart manager. A reboot
+  mid-session leaves it down rather than reopening the GUI on its own.
+- **Every start checks the drive first.** SCSI-generic numbers follow probe
+  order, so the session start in `rip-a-disc.md` refuses to run unless the sg
+  node `.env` names still belongs to `sr0`.
 - **Its state** is `/mnt/erebor/apps/makemkv/config`, on the snapshotted apps
   dataset with the other services' state. It holds MakeMKV's settings and the
   beta key, and nothing anyone would miss.
