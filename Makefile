@@ -639,8 +639,8 @@ scan: ## Scan the working tree and history for secrets
 	@if docker info >/dev/null 2>&1; then \
 		git_common="$$(git rev-parse --path-format=absolute --git-common-dir)"; \
 		gl=(docker run --rm --network none --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
-		    -v "$$PWD:/repo:ro" -v "$$git_common:$$git_common:ro" -w /repo \
-		    "$$(./scripts/image-for.sh gitleaks)"); \
+			-v "$$PWD:/repo:ro" -v "$$git_common:$$git_common:ro" -w /repo \
+			"$$(./scripts/image-for.sh gitleaks)"); \
 	elif command -v gitleaks >/dev/null 2>&1; then \
 		printf 'note: no docker daemon; using the local %s, not the pinned image\n' "$$(gitleaks version)"; \
 		gl=(gitleaks); \
