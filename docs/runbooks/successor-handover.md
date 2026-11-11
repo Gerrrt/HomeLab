@@ -50,13 +50,13 @@ running system.
 
 ## What this estate is
 
-A pfSense firewall called `morpheus` (an HP ProDesk 600 G4 Mini, rack U5) with
+A pfSense firewall called `morpheus` (an HP ProDesk 600 G4 Mini, rack U15) with
 every segment terminating on it: six numbered VLANs plus an untagged
 switch-management LAN, default deny between them, all trunked over one managed
 switch called `neo`. One compose stack — Prometheus, Alertmanager, Loki, Grafana,
 `snmp-exporter`, `blackbox-exporter` and a Grafana Alloy agent — runs on
-`prometheus`, a 2012 MacBook Pro on a shelf, and watches the estate two ways:
-Alloy agents push metrics and logs from the Linux hosts, and `snmp-exporter`
+`prometheus`, a 2012 MacBook Pro on the shelf at U10, and watches the estate
+two ways: Alloy agents push metrics and logs from the Linux hosts, and `snmp-exporter`
 polls the four devices that cannot run an agent (firewall, switch, UPS, iLO).
 A second stack exists for the lab (`stacks/lab`) and is not deployed.
 
