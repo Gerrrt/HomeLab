@@ -1090,6 +1090,57 @@ def check_adr_numbers() -> list[str]:
                 f"ADR-{num} is claimed by {len(names)} files: {', '.join(names)} — renumber the one that landed second"
             )
 
+    problems.extend(check_adr_backlinks(adr_dir))
+    return problems
+
+
+# The verbs by which an ADR's status line says it changes an earlier one
+# (ADR-0115). "as ADR-N did" and "decides #N" end a clause: a precedent or an
+# issue, not a change.
+_ADR_CHANGE = re.compile(
+    r"(supersedes|amends|adds to|widens|narrows|replaces|reverses|carries out|revises|overrides)", re.IGNORECASE
+)
+
+
+def check_adr_backlinks(adr_dir: pathlib.Path) -> list[str]:
+    """Every ADR a status line says it changes names the ADR that changed it.
+
+    ADR-0115: a decision changed in part keeps `Accepted` with a note naming
+    the later ADR. The audit of 2026-11-11 found eight later ADRs that said so
+    in their status line while the earlier one never mentioned them, so a
+    reader acting on the earlier ADR had no way to know (#1444). This reads
+    each status block, takes the ADRs that follow a changing verb, and fails
+    if one of them never mentions the ADR that changed it.
+    """
+    files = {p.name[:4]: p for p in sorted(adr_dir.glob("[0-9][0-9][0-9][0-9]-*.md"))}
+    problems: list[str] = []
+    for num, path in files.items():
+        lines = path.read_text().splitlines()
+        start = next((i for i, line in enumerate(lines) if line.startswith("**Status:**")), None)
+        if start is None:
+            continue
+        block = []
+        for line in lines[start:]:
+            if not line.strip():
+                break
+            block.append(line)
+        status = re.sub(r"\]\([^)]*\)", "]", " ".join(block))
+        for verb in _ADR_CHANGE.finditer(status):
+            clause = re.split(r"[;.]\s|\bas \[ADR|\bdecides\b", status[verb.end() :], maxsplit=1)[0]
+            for other in re.findall(r"ADR-(\d{4})", clause):
+                if other == num:
+                    continue
+                if other not in files:
+                    problems.append(
+                        f"{path.name}: its status {verb.group(1).lower()} ADR-{other}, which does not exist"
+                    )
+                    continue
+                text = files[other].read_text()
+                if f"ADR-{num}" not in text and path.name not in text:
+                    problems.append(
+                        f"ADR-{num} {verb.group(1).lower()} ADR-{other}, and {files[other].name} never mentions it: "
+                        f"add a note under its status naming ADR-{num} (ADR-0115)"
+                    )
     return problems
 
 

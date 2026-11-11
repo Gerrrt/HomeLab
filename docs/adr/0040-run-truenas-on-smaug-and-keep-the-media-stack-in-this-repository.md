@@ -4,6 +4,9 @@
 [ADR-0016](0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
 
 > [!NOTE]
+> [ADR-0045](0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md) writes the first snapshot schedule that decision 4
+> below asked for. The text here is left as written, per ADR-0001 and ADR-0115.
+>
 > **Decision 1 below is wrong in one detail, found on 2026-09-16 while the
 > rules were about to be created.** It says the address, the three rules and
 > the scrape direction "were never OS decisions". The *ports* in ADR-0016's
