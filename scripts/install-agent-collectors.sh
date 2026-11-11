@@ -434,7 +434,20 @@ for target in "${TARGETS[@]}"; do
     [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
     names+=("${REMOTE_UNITS}/homelab-${name}.service")
   done
-  estate="$(ssh_q "$target" "grep -l 'run-scheduled.sh --job' ${names[*]} 2>/dev/null" | tr -d '\r')"
+  # An absent unit is the normal case and grep's no-match (1) is an answer;
+  # anything else (an unreadable unit, a failed login) is not, and an empty
+  # answer from a failed inspection must not read as "no estate units". The
+  # remote loop exits 3 on a real error, and so does a dropped connection
+  # (ssh's 255), so either refuses the host.
+  # shellcheck disable=SC2016  # $@ and $f expand in the REMOTE sh, not here
+  probe='for f in "$@"; do [ -e "$f" ] || continue; grep -l "run-scheduled.sh --job" "$f"; rc=$?; [ "$rc" -le 1 ] || exit 3; done; exit 0'
+  estate_rc=0
+  estate="$(ssh_q "$target" sh -c "'${probe}'" _ "${names[@]}" | tr -d '\r')" || estate_rc=$?
+  if ((estate_rc != 0)); then
+    fail "${target}: could not read its existing units to check for the estate's (exit ${estate_rc});
+       nothing was installed"
+    continue
+  fi
   if [[ -n "$estate" ]]; then
     fail "${target}: holds the estate's own unit of the same name, installed by
        install-timers.sh: $(printf '%s' "${estate}" | tr '\n' ' ')
