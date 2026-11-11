@@ -642,7 +642,9 @@ jobs:
             boot-proofs-${{ hashFiles('stacks/sensitive/compose.yaml',
             'stacks/sensitive/home-assistant/**', 'stacks/sensitive/ntfy/**',
             'stacks/sensitive/stirling-pdf/**', 'stacks/sensitive/mosquitto/**',
-            'stacks/sensitive/ring-mqtt/**', 'stacks/soc/compose.yaml',
+            'stacks/sensitive/ring-mqtt/**', 'stacks/sensitive/adguard/**',
+            'stacks/sensitive/glance/**', 'stacks/soc/compose.yaml',
+            'stacks/soc/Caddyfile',
             'scripts/seed-validation-env.sh', 'scripts/check_hardened_boot.sh') }}
           restore-keys: boot-proofs-
 
@@ -700,6 +702,32 @@ jobs:
         run: >-
           ./scripts/check_hardened_boot.sh --stack sensitive
           --service ring-mqtt --proof-cache .boot-proofs/proofs.txt
+
+      # Four more of trinity's, chosen for what they hold and because each
+      # boots alone (#1441): Vaultwarden (the household's passwords), AdGuard
+      # (every query in the house resolves through it), Memos and Glance.
+      # Every merge to stacks/sensitive deploys within the hour (#533), so a
+      # bump that crash-loops under read-only, cap_drop: ALL or
+      # no-new-privileges should fail here rather than on trinity.
+      - name: Boot Vaultwarden under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service vaultwarden --proof-cache .boot-proofs/proofs.txt
+
+      - name: Boot AdGuard Home under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service adguard --proof-cache .boot-proofs/proofs.txt
+
+      - name: Boot Memos under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service memos --proof-cache .boot-proofs/proofs.txt
+
+      - name: Boot Glance under its hardening
+        run: >-
+          ./scripts/check_hardened_boot.sh --stack sensitive
+          --service glance --proof-cache .boot-proofs/proofs.txt
 
       # The SOC stack's MSI server (#1068) is a numeric user, read-only, with
       # every capability dropped but NET_BIND_SERVICE. Its first deploy on odin

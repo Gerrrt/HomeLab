@@ -128,7 +128,20 @@ for v in svc.get("volumes") or []:
         print(os.path.basename(src) + " " + v["target"])
 ' "${SERVICE}")" || die "could not read ${SERVICE}'s mounts"
 if [[ -n "${missing}" ]]; then
-  "${REPO_ROOT}/scripts/render-trust-bundles.sh" "${WORK}/rendered" --home-assistant-only >/dev/null \
+  # glance-ca.pem is the tier CA plus the estate's, and the tier CA lives only
+  # on trinity (certificates/ is gitignored). A boot proves the container
+  # starts under its hardening with a CA file where it expects one, not that
+  # it trusts the right one, so a throwaway CA stands in for the tier's here.
+  # It is made in this run's scratch directory and never leaves it.
+  tier_ca="${REPO_ROOT}/certificates/tier-ca.pem"
+  if [[ ! -s "${tier_ca}" ]]; then
+    tier_ca="${WORK}/stand-in-tier-ca.pem"
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 1 \
+      -subj "/CN=check_hardened_boot stand-in tier CA" \
+      -keyout "${WORK}/stand-in-tier-ca.key" -out "${tier_ca}" >/dev/null 2>&1 \
+      || die "could not make a stand-in tier CA for the boot"
+  fi
+  TIER_CA="${tier_ca}" "${REPO_ROOT}/scripts/render-trust-bundles.sh" "${WORK}/rendered" >/dev/null \
     || die "could not write the trust bundles for the boot"
   printf 'services:\n  %s:\n    volumes:\n' "${SERVICE}" >> "${OVERRIDE}"
   while read -r name target; do
@@ -188,6 +201,25 @@ key="$( {
   if [[ -d "${CONFIG_DIR}" ]]; then
     find "${CONFIG_DIR}" -type f -print0 | sort -z | xargs -0 sha256sum
   fi
+  # Every tracked file the service bind-mounts, wherever it sits. CONFIG_DIR
+  # covers the usual layout, but the SOC caddy mounts stacks/soc/Caddyfile,
+  # which is outside it, so a Caddyfile-only edit reused the old proof and
+  # never booted. Hashed by path relative to the checkout, for the same
+  # reason as --no-path-resolution above.
+  docker compose --env-file "${ENV_FILE}" -f "${COMPOSE}" config --format json \
+    | python3 -c '
+import hashlib, json, os, sys
+root = os.path.realpath(sys.argv[2])
+svc = json.load(sys.stdin)["services"][sys.argv[1]]
+for v in sorted(svc.get("volumes") or [], key=lambda v: v.get("source") or ""):
+    src = v.get("source") or ""
+    if v.get("type") != "bind" or not os.path.isfile(src):
+        continue
+    real = os.path.realpath(src)
+    if real.startswith(root + os.sep):
+        with open(real, "rb") as f:
+            print(hashlib.sha256(f.read()).hexdigest(), os.path.relpath(real, root))
+' "${SERVICE}" "${REPO_ROOT}"
   sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1
 } | sha256sum | cut -d' ' -f1)"
 proof="${STACK}/${SERVICE} ${key}"
