@@ -6,7 +6,6 @@
 # be here, as soc's is (#1139). BloodHound's own leaf is reused, and the
 # upstream is verified against the estate CA under the `bloodhound` name its
 # certificate carries.
-
 {
 	admin off
 	auto_https off

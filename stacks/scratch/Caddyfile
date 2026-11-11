@@ -6,7 +6,6 @@
 # where samples are detonated, that put the SIEM's and the DFIR tool's login
 # pages in reach of the sample. pfSense never sees traffic inside VLAN 30, so
 # the source filter has to be here.
-
 {
 	admin off
 	auto_https off
