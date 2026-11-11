@@ -67,7 +67,7 @@ task() {
 ## 1. Reserve the addresses, on `morpheus`
 
 In the UI, go to *Services → DHCP Server → ImaginationLAN* and add one
-reservation per guest, with the MAC from `tofu/guests.tf`'s `dotfiles` map
+reservation per guest, with the MAC from `tofu/identities.auto.tfvars` on `phoenix`
 and the address from the table above. The guests take DHCP from cloud-init
 (Linux) or Windows' default. Below `.100` it is the reservation that gives
 them their address, so do this before the first boot, not after.

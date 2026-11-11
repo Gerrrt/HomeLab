@@ -299,8 +299,10 @@ The run needs these three in place first:
 - **A reservation on `morpheus` for all six, by MAC.** That includes the two
   DCs at `.50` and `.51`. A rebuilt DC first boots on DHCP, and `base` then
   makes the same address static. The reservations survive a rebuild because
-  [`tofu/guests.tf`](../../tofu/guests.tf) pins each guest's MAC to the one
-  the hand-built six had (ADR-0077 decision 6).
+  `tofu/` pins each guest's MAC to the one the hand-built six had (ADR-0077
+  decision 6). The MACs are in `tofu/identities.auto.tfvars` on `phoenix`, not
+  the repository
+  ([`provision-lab-guests.md` §3](provision-lab-guests.md#3-escrow-the-passphrase-and-the-guest-identities-before-the-first-apply)).
 - **A way in.** Every clone of the templates has `sshd`, key-only, admitting
   `phoenix` alone ([`openssh.ps1`](../../packer/windows/scripts/openssh.ps1)).
   The six built by hand on 2026-09-24/25 had none. **Each was given the same
@@ -351,7 +353,8 @@ replaces §1 and the install half of §2. The rest of this page is still the
 *why*.
 
 `tofu/guests.tf` declares the six with the values the hand-built ones had:
-VMID, template, memory, disk, MAC and SMBIOS UUID, and records the startup
+VMID, template, memory and disk, with the MAC and SMBIOS UUID from
+`tofu/identities.auto.tfvars` on `phoenix`, and records the startup
 order that root on `Saruman` sets after the apply (step 7). The MAC
 keeps `morpheus`'s reservations true. The SMBIOS UUID is kept as well, but
 it does **not** carry the endpoints' bought Windows 11 Pro activation.

@@ -61,7 +61,7 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
 ## 2. Reserve the address, and check the room
 
 1. **On `morpheus`:** *Services → DHCP Server → ImaginationLAN*. Reserve
-   `10.0.30.62` for the MAC in `tofu/guests.tf`'s `analyst` map. Do this
+   `10.0.30.62` for `garuda`'s MAC in `tofu/identities.auto.tfvars` on `phoenix`. Do this
    before the first boot: below `.100`, the reservation is what gives a guest
    its address.
 2. **On `Saruman`:** check `large_data`, as

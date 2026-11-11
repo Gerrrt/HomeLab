@@ -139,19 +139,36 @@ Each later pool gets its own `acl modify` line here and a row below:
 If an apply fails with `Permission check failed (/…, Some.Privilege)`, add that
 privilege to the role and record it here. This is ADR-0043's rule again.
 
-## 3. Escrow the passphrase, before the first apply
+## 3. Escrow the passphrase and the guest identities, before the first apply
 
-On `phoenix`, encrypt the passphrase to the catch-all rule's recipients. `sops`
-needs only the public keys, which are in `.sops.yaml`, so this works on a host
-that cannot decrypt the result:
+`tofu/` needs two things the repository does not hold: the state passphrase,
+and `tofu/identities.auto.tfvars`, each guest's MAC and SMBIOS UUID
+(`docs/security.md` does not publish them). Make the second from
+`identities.auto.tfvars.example`, with each guest's values from `qm config
+<vmid>` on `Saruman`. It is gitignored, and tofu loads it by itself; a plan
+without it fails.
+
+On `phoenix`, encrypt both to the catch-all rule's recipients. `sops` needs
+only the public keys, which are in `.sops.yaml`, so this works on a host that
+cannot decrypt the result. Re-run it whenever either changes:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab && git pull
 set -a; . ~/.config/proxmox/phoenix.env; set +a
 umask 077
-printf 'TOFU_STATE_PASSPHRASE: %s\n' "${TF_VAR_state_passphrase}" \
-  | sops --encrypt --filename-override secrets/tofu.sops.yaml \
-         --input-type yaml --output-type yaml /dev/stdin > secrets/tofu.sops.yaml
+# Into a new file, moved over the escrow only if every step worked: a missing
+# identities file or a failed encrypt must leave the old escrow as it was. An
+# explicit && chain, because `set -e` does nothing in a list like this one.
+if test -n "${TF_VAR_state_passphrase}" && test -s tofu/identities.auto.tfvars \
+  && ( set -o pipefail
+       { printf 'TOFU_STATE_PASSPHRASE: %s\n' "${TF_VAR_state_passphrase}"
+         printf 'TOFU_GUEST_IDENTITIES: |\n'; sed 's/^/  /' tofu/identities.auto.tfvars; } \
+         | sops --encrypt --filename-override secrets/tofu.sops.yaml \
+                --input-type yaml --output-type yaml /dev/stdin > secrets/tofu.sops.yaml.new ); then
+  mv secrets/tofu.sops.yaml.new secrets/tofu.sops.yaml
+else
+  rm -f secrets/tofu.sops.yaml.new; echo 'escrow NOT written; the old one is unchanged'
+fi
 grep -c 'age1' secrets/tofu.sops.yaml          # 2: the estate key and the second recipient
 sops --decrypt secrets/tofu.sops.yaml          # fails here, and that is the design
 printf '%s' "${TF_VAR_state_passphrase}" | sha256sum
@@ -165,6 +182,8 @@ sops --decrypt secrets/tofu.sops.yaml | sed -n 's/^TOFU_STATE_PASSPHRASE: //p' |
 ```
 
 The two hashes match. That proves the estate key can recover the state key.
+`sops --decrypt --extract '["TOFU_GUEST_IDENTITIES"]' secrets/tofu.sops.yaml`
+there prints the identities file back.
 Proving the second recipient through
 [`back-up-the-age-key.md`](back-up-the-age-key.md) covers this file as well,
 because the recipients are the same.
@@ -240,7 +259,8 @@ Record the date, and the PASS lines from half one, in §6.
 
 ## 5. Adding a guest
 
-Add an entry to `locals` in `tofu/guests.tf`. Give the new pool a grant in §2
+Add an entry to `locals` in `tofu/guests.tf`, and its MAC (and a UUID, if it
+needs one) to `tofu/identities.auto.tfvars`; then escrow again as in §3. Give the new pool a grant in §2
 first, then run plan and apply as in §4. The module refuses:
 
 - a VMID inside the template range;
@@ -282,11 +302,12 @@ The state is only recoverable if its file is. Take it from `phoenix`'s backup.
 The passphrase comes from escrow, on `prometheus`:
 
 ```bash
-sops --decrypt secrets/tofu.sops.yaml   # TOFU_STATE_PASSPHRASE
+sops --decrypt secrets/tofu.sops.yaml   # TOFU_STATE_PASSPHRASE, TOFU_GUEST_IDENTITIES
 ```
 
-Carry it to the rebuilt `phoenix` by hand, as `TF_VAR_state_passphrase` in
-`phoenix.env`, and run `tofu -chdir=tofu plan`. No changes means the state and
+Carry both to the rebuilt `phoenix` by hand: the passphrase as
+`TF_VAR_state_passphrase` in `phoenix.env`, and the identities block as
+`tofu/identities.auto.tfvars`. Then run `tofu -chdir=tofu plan`. No changes means the state and
 the key are back.
 
 If the state file is lost and only the guests remain, write `import` blocks for

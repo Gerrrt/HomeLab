@@ -630,7 +630,7 @@ Where things get broken on purpose.
   ([#921](https://github.com/Gerrrt/HomeLab/issues/921),
   [`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
   It is off-decade for `diabolos`'s reason, in `odin`'s decade beside the SOC it
-  works from. It is a Kea reservation by the MAC pinned in `tofu/guests.tf`,
+  works from. It is a Kea reservation by the MAC `tofu/` pins,
   always on and not tagged `on-demand`. It is not a lab-domain member, so it
   resolves at `10.0.30.1`. It needs no rule of its own: Hicks reaches its
   console through `Saruman`, its Alloy pushes to `alexander` within the
@@ -657,7 +657,7 @@ Where things get broken on purpose.
   on 2026-10-08 and `.93`–`.97` on 2026-10-09, and are in the table above.
   They are off-decade for `diabolos`'s reason,
   in `fenrir`'s decade because it is the one with eight free addresses. Each
-  is a Kea reservation by the MAC pinned in `tofu/guests.tf`. They are off
+  is a Kea reservation by the MAC `tofu/` pins. They are off
   between runs and tagged `on-demand`, and are not lab-domain members, so
   they resolve at `10.0.30.1`. They need no rule of their own: a run reaches
   the internet for packages and `git clone`, and `phoenix` reaches them

@@ -1,0 +1,26 @@
+# tofu/identities.auto.tfvars: the guests' MACs and SMBIOS UUIDs (variables.tf,
+# guest_identities). Copy this to identities.auto.tfvars on phoenix and replace
+# every value with the guest's own, from `qm config <vmid>` on Saruman or from
+# the escrow, TOFU_GUEST_IDENTITIES in secrets/tofu.sops.yaml. That file is
+# gitignored, and check-tracked-artefacts.sh fails a tracked one: the values are
+# on docs/security.md's do-not-publish list. These placeholders only show the
+# shape: a MAC in Proxmox's BC:24:11 prefix, upper case, and a UUID for the six
+# domain guests and no one else.
+
+guest_identities = {
+  bahamut      = { mac_address = "BC:24:11:00:00:96", smbios_uuid = "00000000-0000-0000-0000-000000000150" }
+  leviathan    = { mac_address = "BC:24:11:00:00:97", smbios_uuid = "00000000-0000-0000-0000-000000000151" }
+  titan        = { mac_address = "BC:24:11:00:00:98", smbios_uuid = "00000000-0000-0000-0000-000000000152" }
+  ramuh        = { mac_address = "BC:24:11:00:00:99", smbios_uuid = "00000000-0000-0000-0000-000000000153" }
+  carbuncle    = { mac_address = "BC:24:11:00:00:9A", smbios_uuid = "00000000-0000-0000-0000-000000000154" }
+  siren        = { mac_address = "BC:24:11:00:00:9B", smbios_uuid = "00000000-0000-0000-0000-000000000155" }
+  dot-debian   = { mac_address = "BC:24:11:00:00:BF" }
+  dot-fedora   = { mac_address = "BC:24:11:00:00:C0" }
+  dot-opensuse = { mac_address = "BC:24:11:00:00:C1" }
+  dot-arch     = { mac_address = "BC:24:11:00:00:C2" }
+  dot-alpine   = { mac_address = "BC:24:11:00:00:C3" }
+  dot-gentoo   = { mac_address = "BC:24:11:00:00:C4" }
+  dot-nixos    = { mac_address = "BC:24:11:00:00:C5" }
+  dot-windows  = { mac_address = "BC:24:11:00:00:C6" }
+  garuda       = { mac_address = "BC:24:11:00:00:A2" }
+}

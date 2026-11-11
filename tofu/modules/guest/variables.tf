@@ -55,7 +55,7 @@ variable "mac_address" {
 variable "smbios_uuid" {
   type        = string
   default     = null
-  description = "The guest's smbios1 uuid. Pinned where an activation is keyed to it."
+  description = "The guest's smbios1 uuid. Pinned to the hand-built guest's, so a rebuild changes nothing it need not."
 }
 
 variable "cores" {
