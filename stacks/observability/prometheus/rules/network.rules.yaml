@@ -100,6 +100,31 @@ groups:
         annotations:
           summary: "Interface {{ $labels.ifDescr }} on {{ $labels.device }} went down"
 
+      - alert: SwitchPortVlanChanged
+        # dot1qPvid is a port's untagged VLAN (#1387). Any change fires, wanted
+        # or not, and the alert clears an hour later on its own. Its job is the
+        # prompt to write the change into network.md's port map, so an
+        # unrecorded move like #481 is noticed the hour it happens, not at the
+        # next walk of the switch. Whether the switch matches the port map is
+        # Lemmiwinks' drift check, which reads this same series; that is not
+        # this rule's job.
+        #
+        # The `and` keeps the current PVID as the value; changes() alone would
+        # give the number of changes. A port that leaves the bridge takes its
+        # series with it, and this rule does not see that.
+        expr: |
+          dot1qPvid
+          and on (instance, dot1dBasePort) (changes(dot1qPvid[1h]) > 0)
+        labels:
+          component: network
+          severity: warning
+          category: config
+        annotations:
+          summary: "{{ $labels.ifDescr }} on {{ $labels.device }} changed its PVID; it is now VLAN {{ $value }}"
+          description: >-
+            Record the change in docs/network.md's port map, or put the port
+            back. Clears an hour after the change.
+
       # No counter-wrap rule. One stood here reading rate(ifInOctets[5m]) < 0,
       # and it could never fire: rate() treats a decrease as a counter reset,
       # never as a wrap, so it is never negative (#63 again — loaded, healthy,
