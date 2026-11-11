@@ -550,9 +550,6 @@ the console password.
   - **Verified:** 910 rebuilt (`packer build -force`, `BUILD_EXIT=0`),
     `packer-smoke.sh 910` passed, and a throwaway full-clone booted
     `system: running` with 0 failed units and 0 accounts at the epoch.
-  - **Still owed:** the same check on 902 (gandalf's Kali, same preseed) when it
-    is next built — [#1196](https://github.com/Gerrrt/HomeLab/issues/1196),
-    tied to [#790](https://github.com/Gerrrt/HomeLab/issues/790).
   - **Paid 2026-11-09:** 902 was built twice on `gandalf`, and its clone
     `ragnarok` read `running`, 0 failed units and 0 accounts at the epoch
     ([`build-the-lab-templates.md`](build-the-lab-templates.md) §5).
