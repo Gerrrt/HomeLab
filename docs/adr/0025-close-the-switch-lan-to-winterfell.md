@@ -1,7 +1,13 @@
 # ADR-0025: Default deny holds everywhere except Hicks
 
-**Status:** Accepted · 2026-09 · supersedes
+**Status:** Accepted · 2026-09 · supersedes part of
 [ADR-0013](0013-segment-access-as-implemented.md)
+
+> [!NOTE]
+> [ADR-0031](0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md) closed the last exception this records: default deny
+> now holds on every segment, and "Hicks is the one segment whose catch-all
+> reaches another" describes a rule rather than an omission. The text here is
+> left as written, per ADR-0001 and ADR-0115.
 
 ## Context
 
