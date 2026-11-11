@@ -111,8 +111,22 @@ jobs:
       # the other backup suites stand one in: what those two suites prove is
       # that a set opens with either recipient's key and not a third's, and a
       # shim opens everything.
+      #
+      # Built with `go install` rather than taken from apt. The apt install
+      # resolved security.ubuntu.com, and when the runners lost DNS for it
+      # (2026-11-11) every PR's validate job went red before checking anything.
+      # The module proxy and checksum database verify the source, so the
+      # version is the only pin: the one the hosts' apt (26.04) installs.
+      # No cache: a restored module cache is input this job did not verify.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: '1.24'
+          cache: false
       - name: Install age
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends age
+        run: |
+          go install filippo.io/age/cmd/age@v1.2.1 filippo.io/age/cmd/age-keygen@v1.2.1
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+          "$(go env GOPATH)/bin/age" --version
 
       # Every embedded fixture suite in the repository — the collectors that
       # parse output no host here can be asked to produce, the CA-key proof that
