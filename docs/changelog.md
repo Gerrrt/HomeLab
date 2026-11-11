@@ -43,6 +43,25 @@ docstring gives: it is a record, not a claim about now.
     `cpqSm2NicLocation` and `cpqSm2NicStatsLocation`) now hold the enum
     name instead of the number. No rule or dashboard reads them.
 
+- **[#1377](https://github.com/Gerrrt/HomeLab/issues/1377): Immich's and
+  Paperless's databases and Valkeys are off `sensitive`, deployed and
+  verified.** #1378 put immich-db and immich-valkey on `immich-backend`,
+  and #1379 put paperless-db and paperless-broker on `paperless-backend`.
+  Each network is internal and is shared only with its application. Both
+  were deployed on `trinity` on 2026-11-10.
+  - **The check:** a throwaway container on `sensitive_sensitive` tried
+    each of the four. Neither the service names nor the container names
+    resolved, and a TCP connect to each backend address timed out.
+    miniflux-db, the control, resolved and accepted a connection from the
+    same container, so the failures are the isolation and not the probe.
+  - **The applications still use them:** no connection errors in either
+    log since the restart, Paperless's scheduled mail check succeeding on
+    the broker every ten minutes, and live client connections on both
+    Valkeys.
+  - **miniflux-db stays on `sensitive`.** It requires a SCRAM password,
+    and the audit in #1377 put it out of scope with the other listeners
+    that require a login.
+
 ## 2026-11-10
 
 - **[#1388](https://github.com/Gerrrt/HomeLab/issues/1388): Home Assistant
