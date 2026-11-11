@@ -329,7 +329,8 @@ services:
     command:
       - |
         set -eu
-        tables="$$(psql -h /var/run/postgresql -U wiki -d wiki -tAc "select count(*) from information_schema.tables where table_schema = 'public'")"
+        q="select count(*) from information_schema.tables where table_schema = 'public'"
+        tables="$$(psql -h /var/run/postgresql -U wiki -d wiki -tAc "$$q")"
         if [ "$$tables" != 0 ]; then
           echo "database holds $$tables tables: not a first start"
           exit 0
