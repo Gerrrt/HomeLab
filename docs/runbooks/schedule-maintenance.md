@@ -608,6 +608,14 @@ worktree — it skips, the same way the `systemd-analyze verify` check does. **O
 the monitoring host, a merged row that nobody installed is now a failed
 `make validate` rather than silence.**
 
+It also compares every installed `.service` and `.timer` with the committed
+one (on `trinity`, with the sensitive units rendered as `--install` renders
+them). `--install` copies the units, so a merged change to an `OnCalendar=` or
+an `ExecStart=` reaches the host only when it is run again; until then the
+check names each unit that differs. `scripts/install-agent-collectors.sh
+--check` does the same for an agent host's collector scripts and units
+([#1422](https://github.com/Gerrrt/HomeLab/issues/1422)).
+
 `make check-digests` is deliberately **not** here. It needs no host and no
 secret, so it runs weekly in GitHub Actions
 ([`digests.yml`](../../.github/workflows/digests.yml)) instead — genuinely
@@ -916,6 +924,7 @@ expected rather than a second fault.
 | `ScheduledJobMetricsAbsent` fires and nothing else in `backup.rules.yaml` ever has | This step was never run at all | `systemctl list-unit-files 'homelab*'` reports *0 unit files* and `/var/lib/node_exporter/textfile_collector` does not exist. The other rules here join against a series `--install` writes, so none of them can fire — that alert is the only one that can, and it is doing its job ([#215](https://github.com/Gerrrt/HomeLab/issues/215)). Run `make install-timers` |
 | `converge` fails every hour with a signature error | GitHub's signing key was never imported into `robo`'s keyring, so nothing on this host can verify | The one-time import in [`converge-the-host.md`](converge-the-host.md) §Set it up. Every other job here is unaffected |
 | `refusing to install from …` | You are in a worktree or a second clone | The units hardcode the deployment path. Install from `/home/robo/code/Gerrrt/HomeLab` |
+| `make check-timers` fails with *installed but not as committed* | A unit changed in the repository after the last `--install` | Re-run `sudo ./scripts/install-timers.sh --install` (or `make install-timers PROFILE=sensitive` on `trinity`) |
 | `make validate` fails on the schedule | A cadence and its threshold disagree | `make check-timers` names the job and both numbers. Fix the `JOBS` table or the `.timer`, not the alert |
 | `make validate` fails with *no `homelab-*` units are installed* | The stack is running on this host but the schedule was never installed | Exactly the condition above, caught before an alert has to. Only a host running the stack is asked; a laptop with the repository checked out skips it |
 

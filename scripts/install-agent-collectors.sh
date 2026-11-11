@@ -208,6 +208,13 @@ ssh_in()  { ssh -o BatchMode=yes -o ConnectTimeout=10 "$1" "${@:2}"; }
 # The .prom a collector writes. smart-state names its file after the host, so the
 # SSH mode on the monitoring host cannot overwrite the local mode's output; the
 # table carries the placeholder and it is resolved per target.
+# A local sha256, on Linux (sha256sum) or macOS (shasum), where this is run by
+# hand from.
+sha256_local() {
+  if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1"; else shasum -a 256 "$1"; fi \
+    | cut -d' ' -f1
+}
+
 prom_for() {
   local pattern="$1" hostname="$2"
   printf '%s' "${pattern/HOST/$hostname}"
@@ -229,7 +236,7 @@ bin_for() {
 }
 
 verify_one() {
-  local target="$1" name="$2" prom_pattern="$3" need="$4" remote_hostname="$5"
+  local target="$1" name="$2" prom_pattern="$3" need="$4" remote_hostname="$5" script="$6"
 
   # Per collector, not per host: a host without apt still gets SMART, and a host
   # without smartmontools still gets patch state. Reporting the one it cannot
@@ -240,6 +247,30 @@ verify_one() {
     return
   fi
   pass "${target}/${name}: ${need} present"
+
+  # THE INSTALLED COPIES ARE THE COMMITTED ONES. The installer copies the
+  # script and both units, so a fix merged here reached the host only when
+  # someone ran it again, and every check below still passed on the old copy
+  # (#1422). One SSH call: a hash per file, in order, or `-` for one that is
+  # not there, read by position rather than by the path sha256sum prints.
+  local bin stale=() i line
+  local -a src dst got
+  bin="$(bin_for "$name" "$prom_pattern" "$script")"
+  src=("${REPO}/${script}" "${UNIT_DIR}/homelab-${name}.service" "${UNIT_DIR}/homelab-${name}.timer")
+  dst=("${bin}" "${REMOTE_UNITS}/homelab-${name}.service" "${REMOTE_UNITS}/homelab-${name}.timer")
+  # A read loop, not mapfile: --check runs from a Mac too, whose /bin/bash is 3.2.
+  got=()
+  while IFS= read -r line; do got+=("$line"); done \
+    < <(ssh_q "$target" "for f in ${dst[*]}; do if [ -r \"\$f\" ]; then sha256sum < \"\$f\" | cut -d' ' -f1; else echo -; fi; done" | tr -d '\r')
+  for i in 0 1 2; do
+    [[ "${got[i]:-}" == "$(sha256_local "${src[i]}")" ]] || stale+=("${dst[i]}")
+  done
+  if ((${#stale[@]} == 0)); then
+    pass "${target}/${name}: installed script and units match the repository"
+  else
+    fail "${target}/${name}: not as committed (missing or changed): ${stale[*]}
+       Re-run this installer for this host to bring them up to date."
+  fi
 
   local state
   state="$(ssh_q "$target" "systemctl is-enabled homelab-${name}.timer 2>&1" | tr -d '\r')"
@@ -435,9 +466,9 @@ for target in "${TARGETS[@]}"; do
 
   step "${target}: verifying"
   for row in "${COLLECTORS[@]}"; do
-    read -r name _script prom need <<<"$row"
+    read -r name script prom need <<<"$row"
     [[ -n "$ONLY" && "$ONLY" != "$name" ]] && continue
-    verify_one "$target" "$name" "$prom" "$need" "$remote_hostname"
+    verify_one "$target" "$name" "$prom" "$need" "$remote_hostname" "$script"
   done
 done
 
