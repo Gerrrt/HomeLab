@@ -317,12 +317,18 @@ run_linter markdownlint-cli2
 # a worktree or a gitignored tree cannot change what it sees. A directory with a
 # VENDORED marker is upstream code pinned by sha256 and checked by its
 # vendor-*.sh --check; linting it would fail on code this repository must not
-# edit. An empty list is a failure, not a pass.
+# edit. Only a tracked marker counts: an untracked VENDORED file in a working
+# copy would otherwise drop a tracked script here and not in CI. An empty list
+# is a failure, not a pass.
 sh_files=()
 if have git; then
+  declare -A vendored=()
+  while IFS= read -r -d '' f; do
+    vendored["$(dirname "${f}")"]=1
+  done < <(git ls-files -z -- 'VENDORED' '*/VENDORED')
   while IFS= read -r -d '' f; do
     [[ -e "${f}" ]] || continue
-    [[ -e "$(dirname "${f}")/VENDORED" ]] && continue
+    [[ -n "${vendored["$(dirname "${f}")"]:-}" ]] && continue
     sh_files+=("${f}")
   done < <(git ls-files -z -- '*.sh')
 fi
