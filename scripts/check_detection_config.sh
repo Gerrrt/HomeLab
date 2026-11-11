@@ -16,7 +16,7 @@
 #   - the indexer's two JSON files parse.
 #
 # In the pinned images, when docker is reachable (SKIP otherwise):
-#   - `wazuh-analysisd -t` in compose.yaml's wazuh-manager, with the three
+#   - `wazuh-analysisd -t` in compose.yaml's wazuh.manager, with the three
 #     files mounted where the manager reads them;
 #   - `zeek --parse-only` in compose.yaml's zeek, with local.zeek and the
 #     vendored ja4 mounted as stacks/sensor/compose.yaml mounts them.
@@ -107,8 +107,12 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   exit "${FAILED}"
 fi
 
-manager="$(COMPOSE_FILE=stacks/soc/compose.yaml ./scripts/image-for.sh wazuh-manager)"
-if out="$(docker run --rm --network none --entrypoint /var/ossec/bin/wazuh-analysisd \
+# The compose service is wazuh.manager. An image that cannot be resolved is a
+# failure of this check, not an empty reference handed to docker: the first
+# CI run asked for wazuh-manager and docker said "invalid reference format".
+if ! manager="$(COMPOSE_FILE=stacks/soc/compose.yaml ./scripts/image-for.sh wazuh.manager)" || [[ -z "${manager}" ]]; then
+  fail "could not resolve wazuh.manager's image from stacks/soc/compose.yaml"
+elif out="$(docker run --rm --network none --entrypoint /var/ossec/bin/wazuh-analysisd \
       -v "${REPO_ROOT}/${OSSEC}:/var/ossec/etc/ossec.conf:ro" \
       -v "${REPO_ROOT}/${RULES}:/var/ossec/etc/rules/local_rules.xml:ro" \
       -v "${REPO_ROOT}/${AGENT}:/var/ossec/etc/shared/default/agent.conf:ro" \
