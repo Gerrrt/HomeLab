@@ -23,6 +23,11 @@ concurrency:
 # place that defines what a stack is, and the thing that fails when a directory
 # under stacks/ has no compose.yaml.
 #
+# Each step assigns the list before looping over it. `for x in $(stacks.sh)`
+# ignores the substitution's exit status, so under the runner's `bash -e` a
+# directory with no compose.yaml was dropped from the loop and the step passed
+# green. An assignment carries that status, so `-e` stops the step.
+#
 # Image versions are NOT duplicated here either. They are resolved from
 # compose.yaml at run time by scripts/image-for.sh, because Dependabot only
 # updates compose.yaml — hardcoded copies went stale silently and CI ended up
@@ -156,7 +161,8 @@ jobs:
       # the file being validated.
       - name: Seed a validation-only .env
         run: |
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             ./scripts/seed-validation-env.sh "stacks/$stack/.env" "$stack"
           done
 
@@ -174,7 +180,8 @@ jobs:
 
       - name: docker compose config
         run: |
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             echo "== $stack"
             docker compose -f "stacks/$stack/compose.yaml" config -q
           done
@@ -211,7 +218,8 @@ jobs:
       - name: promtool check config, check rules, test rules
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             sd="stacks/$stack"
             [ -f "$sd/prometheus/prometheus.yaml" ] || { echo "== $stack: no prometheus.yaml"; continue; }
             echo "== $stack"
@@ -255,7 +263,9 @@ jobs:
       - name: amtool check-config
         run: |
           fail=0
-          for f in $(./scripts/stacks.sh --paths | sed 's|$|/alertmanager/alertmanager.yaml|'); do
+          paths="$(./scripts/stacks.sh --paths)"
+          for sd in $paths; do
+            f="$sd/alertmanager/alertmanager.yaml"
             [ -f "$f" ] || continue
             echo "== $f"
             docker run --rm --network none --entrypoint amtool \
@@ -377,7 +387,9 @@ jobs:
       - name: Verify health dependencies are satisfiable and probe the images
         run: |
           fail=0
-          for f in $(./scripts/stacks.sh --paths | sed 's|$|/compose.yaml|'); do
+          paths="$(./scripts/stacks.sh --paths)"
+          for sd in $paths; do
+            f="$sd/compose.yaml"
             echo "== $f"
             python3 scripts/check_compose_health.py \
               --probe --proof-cache .probe-proofs/proofs.txt "$f" || fail=1
@@ -399,7 +411,8 @@ jobs:
       - name: Validate Loki rules and dashboard LogQL
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             ./scripts/check_loki_rules.sh --stack "$stack" || fail=1
           done
           exit $fail
@@ -412,7 +425,8 @@ jobs:
       - name: Behaviour-test the Loki rules
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             python3 scripts/test_loki_rules.py --stack "$stack" || fail=1
           done
           exit $fail
@@ -446,7 +460,8 @@ jobs:
       - name: Validate Caddyfiles
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             ./scripts/check_caddyfile.sh --stack "$stack" || fail=1
           done
           exit $fail
@@ -515,7 +530,8 @@ jobs:
       - name: Validate Grafana dashboards
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             python3 scripts/check_dashboards.py --stack "$stack" || fail=1
           done
           # A captured dashboard taller than the renderer's ceiling would be
@@ -531,7 +547,8 @@ jobs:
       - name: Parse every dashboard PromQL expression
         run: |
           fail=0
-          for stack in $(./scripts/stacks.sh); do
+          stacks="$(./scripts/stacks.sh)"
+          for stack in $stacks; do
             # --emit-promql fails on a stack with no dashboards, deliberately:
             # its output is what proves the panel queries parse, so emitting an
             # empty file would pass promtool over nothing (#68). The guard is
