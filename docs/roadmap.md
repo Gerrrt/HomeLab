@@ -58,7 +58,8 @@ Closes when it is empty.
   Both gates passed on 2026-11-09, and
   [ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)
   records how the move is made: 2.x's export into a fresh 3.3.0 on a new
-  volume, `pgdata-wiki3`, with 2.x's `pgdata` kept as the rollback. Left:
+  volume, `pgdata-wiki3`. 2.x's `pgdata`, kept as the rollback, is retired
+  by [#1398](https://github.com/Gerrrt/HomeLab/issues/1398). Left:
   the cutover on `oracle`, by
   [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.
   After it, the `Lemmiwinks` PR from the `wikijs-3` branch, which carries

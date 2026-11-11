@@ -233,9 +233,11 @@ Wiki.js 3 keeps its tables in the schema `wiki`, where 2.x used `public`.
 `backup-wiki.sh` counts with `search_path` set to `wiki` alone, so `--prove`
 fails on a 2.x set rather than counting it. One 2.x set, the last taken before
 the move to 3.x, is kept out of the rotation in `backups/wiki-2x-final/` on
-`prometheus` ([#1398]). Nothing walks or proves it: it is restored by hand,
-with `pg_restore` as in [Restore](#restore), into a 2.5.317 on an empty
-volume.
+`prometheus` ([#1398]). Nothing walks or proves it. It is restored by hand,
+with `pg_restore`, into a scratch Postgres on a throwaway volume of its own,
+read by a separate Wiki.js 2.5.317. Never into `wiki-db` or `pgdata-wiki3`:
+[Restore](#restore)'s commands target the live 3.x cluster, and would load
+2.x's `public` tables beside 3.x's.
 
 A set holds the git storage target's deploy key, because the database does.
 It is ciphertext to the same keys that open `grafana.db`.
