@@ -83,6 +83,12 @@ Each collector's own output is watched instead: an alert fires when a host that
 *was* reporting stops. `install-agent-collectors.sh` installs only the
 collectors a host can run, and reports the rest as skipped.
 
+Three agent units share a name with the monitoring host's: `homelab-patch-state`,
+`homelab-smart-state` and `homelab-prune-images`. Both installers write the same
+path under `/etc/systemd/system`, so `install-agent-collectors.sh` refuses a
+host that already holds the estate's unit of a name it would install. Agent
+collectors do not go on the monitoring host.
+
 The one exception is `homelab-zeek-archive-prune` on `fenrir` (#850). The
 installer ships `run-scheduled.sh` with it as `/usr/local/bin/homelab-run-scheduled`,
 and its outcome goes to the lab's Prometheus, which has `ScheduledJob*` rules

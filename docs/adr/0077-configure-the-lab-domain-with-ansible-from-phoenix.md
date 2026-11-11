@@ -7,6 +7,11 @@ consequence of
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
 
 > [!NOTE]
+> Added to by [ADR-0078](0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md) (a third secret in `phoenix.env`),
+> [ADR-0080](0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md) (a role and two playbooks in `ansible/`) and
+> [ADR-0083](0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md) (a sixth secret, and the weaknesses). The text here is left as
+> written, per ADR-0001 and ADR-0115.
+>
 > "Host keys are not pinned" (decision 2, below) is amended by
 > [ADR-0085](0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md),
 > 2026-10. Host keys are checked, against keys `scripts/lab-known-hosts.sh`

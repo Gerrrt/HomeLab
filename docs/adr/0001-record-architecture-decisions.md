@@ -2,6 +2,11 @@
 
 **Status:** Accepted · 2025-11
 
+> [!NOTE]
+> [ADR-0115](0115-mark-partial-supersession-with-a-note-and-check-the-back-links.md) amends the sentence on supersession: a decision
+> changed in part keeps `Accepted` with a note like this one, and only a
+> whole replacement is `Superseded`. The text here is left as written.
+
 ## Context
 
 This lab has been rebuilt several times. Each rebuild re-litigated decisions
