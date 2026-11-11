@@ -78,6 +78,7 @@ import pathlib
 import re
 import subprocess
 import sys
+from collections.abc import Callable
 
 # PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -104,6 +105,64 @@ SECOND_RECIPIENT_REQUIRED = {
     "secrets/lab.sops.yaml": "PBS_ENCRYPTION_KEY, the only key that reads Saruman's backups on golem, and alexander's "
     "own backup is encrypted with it, so its key cannot be the only way in (#671)",
 }
+
+
+# The stacks whose secrets file the estate catch-all rule is meant to
+# encrypt. Every other stack either has a rule of its own or has no secrets
+# file at all: media and wiki by decision (.sops.yaml, secrets/README.md),
+# which leaves their path on the catch-all, "harmless ONLY while that file does
+# not exist". A secrets file for any of them on the catch-all is a host's
+# secrets encrypted to the estate key: ADR-0020's and ADR-0030's recipient
+# separation, eroding with nothing to say so (#1437).
+CATCH_ALL_STACKS = {
+    "observability": "the estate itself: prometheus holds the estate key",
+}
+
+
+def check_separation(
+    rules: list[dict], matched_by: dict[str, str], exists: Callable[[str], bool] | None = None
+) -> list[str]:
+    """Each stack lands on its own rule or a listed catch-all one, and no host
+    key opens two rules' files.
+
+    A rule's FIRST recipient is its host key. The second recipient (ADR-0024)
+    is meant to be on several rules and is not compared.
+    """
+    exists = exists or (lambda path: (REPO / path).exists())
+    problems: list[str] = []
+    catch_all = matched_by.get("secrets/observability.sops.yaml")
+    for path, raw in matched_by.items():
+        if not path.startswith("secrets/"):
+            continue
+        stack = path[len("secrets/") : -len(".sops.yaml")]
+        on_catch_all = raw == catch_all
+        if on_catch_all and stack not in CATCH_ALL_STACKS and exists(path):
+            problems.append(
+                f"{path} falls through to the catch-all rule {raw!r}, so it would be "
+                f"encrypted to the estate key. Give {stack} a creation_rule of its own "
+                f"with its host's key, or add it to CATCH_ALL_STACKS with the reason"
+            )
+        if not on_catch_all and stack in CATCH_ALL_STACKS:
+            problems.append(
+                f"{stack} is in CATCH_ALL_STACKS but {path} matches its own rule {raw!r}: drop it from the list"
+            )
+    hosts: dict[str, list[str]] = {}
+    for rule in rules:
+        keys = [k.strip() for k in str(rule.get("age") or "").split(",") if k.strip()]
+        if keys and not keys[0].startswith("REPLACE_WITH_"):
+            hosts.setdefault(keys[0], []).append(str(rule.get("path_regex")))
+    for rule in rules:
+        keys = [k.strip() for k in str(rule.get("age") or "").split(",") if k.strip()]
+        for key in keys[1:]:
+            if key in hosts:
+                hosts[key].append(str(rule.get("path_regex")) + " (as its second)")
+    for key, where in hosts.items():
+        if len(where) > 1:
+            problems.append(
+                f"host key {key[:16]}… opens {len(where)} rules' files: {', '.join(where)}. "
+                f"One host key per rule, or one host can read another's secrets"
+            )
+    return problems
 
 
 def stacks() -> list[str]:
@@ -278,6 +337,63 @@ def self_test() -> int:
     for name, ok in advice:
         failed += not ok
         print(f"  {'PASS' if ok else 'FAIL'} {name}")
+
+    # Recipient separation (#1437).
+    ca = "(secrets/.*|backups/firewall/.*)"
+    base = [
+        {"path_regex": "secrets/lab", "age": "age1lab, age1second"},
+        {"path_regex": ca, "age": "age1estate, age1second"},
+    ]
+    sep = [
+        (
+            "a listed stack on the catch-all, and a stack on its own rule, pass",
+            check_separation(
+                base, {"secrets/observability.sops.yaml": ca, "secrets/lab.sops.yaml": "secrets/lab"}, lambda p: True
+            ),
+            0,
+        ),
+        (
+            "a stack on the catch-all with no secrets file (media, wiki) passes",
+            check_separation(
+                base, {"secrets/observability.sops.yaml": ca, "secrets/media.sops.yaml": ca}, lambda p: "media" not in p
+            ),
+            0,
+        ),
+        (
+            "a stack whose secrets file falls through to the catch-all fails",
+            check_separation(
+                base, {"secrets/observability.sops.yaml": ca, "secrets/newhost.sops.yaml": ca}, lambda p: True
+            ),
+            1,
+        ),
+        (
+            "a listed stack that now has its own rule fails, so the list cannot go stale",
+            check_separation(
+                [{"path_regex": "secrets/observability", "age": "age1estate"}] + base,
+                {"secrets/observability.sops.yaml": "secrets/observability", "secrets/wiki.sops.yaml": ca},
+                lambda p: "wiki" not in p,
+            ),
+            1,
+        ),
+        (
+            "the shared second recipient on every rule passes",
+            check_separation(base, {"secrets/observability.sops.yaml": ca}, lambda p: True),
+            0,
+        ),
+        (
+            "one host key on two rules fails",
+            check_separation(
+                base + [{"path_regex": "secrets/soc", "age": "age1lab"}],
+                {"secrets/observability.sops.yaml": ca},
+                lambda p: True,
+            ),
+            1,
+        ),
+    ]
+    for name, got, want in sep:
+        ok = len(got) == want
+        failed += not ok
+        print(f"  {'PASS' if ok else 'FAIL'} {name}" + ("" if ok else f" (got {got})"))
     return 1 if failed else 0
 
 
@@ -365,6 +481,7 @@ def main() -> int:
             )
 
     problems.extend(check_household(rules, matched_by))
+    problems.extend(check_separation(rules, matched_by))
 
     # Checks 5 and 6, over every committed secrets file, tofu's included.
     files: dict[str, set[str]] = {}
