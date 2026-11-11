@@ -111,7 +111,11 @@ def tracked_files() -> dict[str, str]:
             continue
         path = REPO / rel
         if path.is_file():
-            files[rel] = path.read_text(encoding="utf-8", errors="replace")
+            # Bytes, decoded losslessly: read_text() would turn CRLF into LF
+            # and errors="replace" would fold different invalid bytes into
+            # one character, so two copies that differ on disk could compare
+            # equal. surrogateescape keeps every byte distinct.
+            files[rel] = path.read_bytes().decode("utf-8", errors="surrogateescape")
     return files
 
 
@@ -165,6 +169,32 @@ def self_test() -> int:
         else:
             print("\033[0;31m  FAIL\033[0m a drifted copy in a git tree passed")
             failed = 1
+
+        # Byte-level differences the reader must not normalise away.
+        for desc, other in (
+            ("a CRLF copy of an LF block is read and fails", a.replace("\n", "\r\n").encode()),
+            (
+                "copies differing only in invalid UTF-8 bytes are read and fail",
+                None,
+            ),
+        ):
+            if other is None:
+                first = block("parse", "x").encode().replace(b"x\n", b"\xff\n")
+                other = block("parse", "x").encode().replace(b"x\n", b"\xfe\n")
+                (root / "a.sh").write_bytes(first)
+            else:
+                (root / "a.sh").write_text(a)
+            (root / "b.sh").write_bytes(other)
+            saved, REPO = REPO, root
+            try:
+                got = 1 if check(tracked_files()) else 0
+            finally:
+                REPO = saved
+            if got == 1:
+                print(f"\033[0;32m  PASS\033[0m {desc}")
+            else:
+                print(f"\033[0;31m  FAIL\033[0m {desc}")
+                failed = 1
     return failed
 
 
