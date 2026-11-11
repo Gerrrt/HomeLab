@@ -413,6 +413,12 @@ jobs:
           python3 scripts/check_compose_health.py --cross-stack || fail=1
           exit $fail
 
+      # Every docker-backed check below runs through require-no-skip.sh. Each
+      # prints SKIP and exits 0 when it cannot reach docker or its binary, which
+      # is right locally and wrong here: CI called them bare, so a runner that
+      # lost its daemon went green with nothing checked. A skip in CI is a
+      # check nobody runs, as with lint.sh and self-tests.sh --require-all.
+      #
       # promtool cannot check these — it parses PromQL and rejects every LogQL
       # stream selector. Loki itself is the only thing that understands them, so
       # the checker boots the pinned image with the rules mounted.
@@ -427,7 +433,7 @@ jobs:
           fail=0
           stacks="$(./scripts/stacks.sh)"
           for stack in $stacks; do
-            ./scripts/check_loki_rules.sh --stack "$stack" || fail=1
+            ./scripts/require-no-skip.sh ./scripts/check_loki_rules.sh --stack "$stack" || fail=1
           done
           exit $fail
 
@@ -441,7 +447,7 @@ jobs:
           fail=0
           stacks="$(./scripts/stacks.sh)"
           for stack in $stacks; do
-            python3 scripts/test_loki_rules.py --stack "$stack" || fail=1
+            ./scripts/require-no-skip.sh python3 scripts/test_loki_rules.py --stack "$stack" || fail=1
           done
           exit $fail
 
@@ -451,21 +457,21 @@ jobs:
       # forged hostname from the allowed one. Neither may change what is stored
       # (#844).
       - name: Check the syslog sender allowlist
-        run: ./scripts/check_syslog_senders.sh
+        run: ./scripts/require-no-skip.sh ./scripts/check_syslog_senders.sh
 
       # The Docker socket proxies' HAProxy config: Alloy's three /containers
       # paths answer, and archive, export, top and the rest are refused by the
       # proxy itself (Tecnativa/docker-socket-proxy#182). It also fails when an
       # image bump changes upstream's template under the committed copy.
       - name: Check the socket proxy allowlist
-        run: ./scripts/check_socket_proxy.sh
+        run: ./scripts/require-no-skip.sh ./scripts/check_socket_proxy.sh
 
       # scan-images.sh skips gosu in the repositories scripts/gosu-skip.txt
       # lists. This boots each pinned one as 999:999 with a stand-in gosu, and
       # fails if the entrypoint calls it, so an image bump can't turn the skip
       # into hidden findings (#995, #980).
       - name: Check the gosu skip still holds
-        run: ./scripts/check_gosu_skip.sh
+        run: ./scripts/require-no-skip.sh ./scripts/check_gosu_skip.sh
 
       # Same shape for the reverse proxy's config: `caddy validate` and
       # `caddy fmt --diff` in the pinned image, per stack, so a Caddyfile that
@@ -476,13 +482,13 @@ jobs:
           fail=0
           stacks="$(./scripts/stacks.sh)"
           for stack in $stacks; do
-            ./scripts/check_caddyfile.sh --stack "$stack" || fail=1
+            ./scripts/require-no-skip.sh ./scripts/check_caddyfile.sh --stack "$stack" || fail=1
           done
           exit $fail
 
       # The same for Glance's config, in the pinned image (ADR-0098).
       - name: Validate glance.yml
-        run: ./scripts/check_glance_config.sh
+        run: ./scripts/require-no-skip.sh ./scripts/check_glance_config.sh
 
       # The device list is spread across snmp.yaml, generator.yaml,
       # render-config.sh's REQUIRED array and the example secrets file. Drift
@@ -591,7 +597,7 @@ jobs:
       # detect for itself: with allowUiUpdates back at false the command still
       # succeeds, still exits zero, and silently writes nothing (#100).
       - name: Verify the dashboards round-trip through Grafana
-        run: ./scripts/check_dashboard_roundtrip.sh
+        run: ./scripts/require-no-skip.sh ./scripts/check_dashboard_roundtrip.sh
 
   # ---------------------------------------------------------------------------
   # Home Assistant's hardening — read-only root, every capability dropped,
