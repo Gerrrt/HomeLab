@@ -1,0 +1,12 @@
+---
+# Loads custom_components/pyatv_scan_guard, which lets the Apple TV config
+# flow find a HomePod by address from another subnet: pyatv 0.18.0's unicast
+# scan asks only for _device-info._tcp, which the HomePods don't answer
+# (postlund/pyatv#2929, ADR-0113). A custom integration only loads when its
+# domain is in the configuration, and it takes no options.
+#
+# Delete this file and the component when Home Assistant ships a pyatv with
+# the fix (postlund/pyatv#2930), under #1393. The component warns in the log when the
+# installed pyatv is not the version its patch was written for.
+
+pyatv_scan_guard:
