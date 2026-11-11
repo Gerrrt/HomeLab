@@ -230,8 +230,14 @@ in GitHub regardless, so what the dump protects is everything else: accounts,
 history, navigation and settings.
 
 Wiki.js 3 keeps its tables in the schema `wiki`, where 2.x used `public`.
-`backup-wiki.sh` counts with `search_path` set to both, so the same script
-reads either engine.
+`backup-wiki.sh` counts with `search_path` set to `wiki` alone, so `--prove`
+fails on a 2.x set rather than counting it. One 2.x set, the last taken before
+the move to 3.x, is kept out of the rotation in `backups/wiki-2x-final/` on
+`prometheus` ([#1398]). Nothing walks or proves it. It is restored by hand,
+with `pg_restore`, into a scratch Postgres on a throwaway volume of its own,
+read by a separate Wiki.js 2.5.317. Never into `wiki-db` or `pgdata-wiki3`:
+[Restore](#restore)'s commands target the live 3.x cluster, and would load
+2.x's `public` tables beside 3.x's.
 
 A set holds the git storage target's deploy key, because the database does.
 It is ciphertext to the same keys that open `grafana.db`.
@@ -312,7 +318,8 @@ outside any compose file, which would undo every pin here the day it worked.
 Wiki.js 3 cannot upgrade a 2.x database in place ([ADR-0108]). 2.x, at
 2.5.317, exports a `.wkbackup` package, and a fresh 3.x on an empty database
 imports it. The new cluster is on its own volume, `pgdata-wiki3`. 2.x's
-`pgdata` is left untouched as the rollback. Rehearsed on `oracle` on
+`pgdata` was left untouched as the rollback, and retired once the household
+had written to 3.x ([#1398]). Rehearsed on `oracle` on
 2026-11-09 from that morning's set ([#1339]). What the rehearsal found is
 written into the steps below.
 
@@ -489,11 +496,12 @@ is no longer an error:
 docker exec wiki-db psql -U wiki -d wiki -Atqc "select config->>'branch', state->>'status' from wiki.storage where module='git'"
 ```
 
-**Rollback**, until the household has written to 3.x: revert the PR that
-pinned 3.3.0, and deploy the revert as in
-[Deploying a change](#deploying-a-change), with `--force-recreate` on its
-`up`, for the Caddyfile as in step 4. `db` then mounts `pgdata` again,
-untouched since step 2. Turn 2.x's git target back on.
+**Rollback** is no longer possible, and was never meant to outlast the
+household's first edit to 3.x. Until then, reverting the PR that pinned 3.3.0
+pointed `db` back at 2.x's `pgdata`, untouched since step 2. That volume is
+retired ([#1398]). Going back to 2.x now would mean the kept 2.x set in
+`backups/wiki-2x-final/` and the loss of every edit since the move, so a
+problem with 3.x is fixed forward, or restored from a 3.x set.
 
 ## The cutover
 
@@ -550,3 +558,4 @@ to 13:55:36 UTC.
 [#833]: https://github.com/Gerrrt/HomeLab/issues/833
 [#847]: https://github.com/Gerrrt/HomeLab/issues/847
 [#1339]: https://github.com/Gerrrt/HomeLab/issues/1339
+[#1398]: https://github.com/Gerrrt/HomeLab/issues/1398

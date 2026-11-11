@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-11
 
+- **[#1398](https://github.com/Gerrrt/HomeLab/issues/1398): Wiki.js 2.x's
+  Postgres volume `pgdata` leaves `stacks/wiki/compose.yaml`.** It had been
+  mounted by nothing since the move to 3.3.0 on `pgdata-wiki3` on
+  2026-11-10, and was kept only as the rollback
+  ([ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)).
+  The issue's gates are that the household has written to 3.x, so the
+  rollback no longer applies, and that a set taken from 3.x has passed
+  `make backup-wiki ARGS=--prove`.
+  - **Decided:** the last 2.x set taken before the move is kept, encrypted,
+    out of the rotation in `backups/wiki-2x-final/` on `prometheus`.
+    Nothing walks or proves it.
+  - **`backup-wiki.sh` counts in the schema `wiki` alone.** 2.x's `public`
+    leaves the search path, so `--prove` fails on a 2.x set instead of
+    counting it.
+  - **Left:** `docker volume rm pgdata` on `oracle`, by hand, after the
+    merge.
+
 - **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki runs
   Wiki.js 3.3.0. The cutover ran on `oracle` on 2026-11-10, by
   [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.**
