@@ -31,7 +31,7 @@ below.
 | U17 | *gap* | — | Keeps the range off the sensitive tier's box |
 | U16 | HP ProDesk 600 G4 Mini on a 1U tray[^ProDeskRackmount] (`trinity`) | PDU outlet 7, by its brick | The sensitive tier. Its 2 TB USB photo disk is strapped to the same tray |
 | U15 | HP ProDesk 600 G4 Mini[^ProDesk] on a 1U tray (`morpheus`) | PDU outlet 6, by its brick | pfSense firewall |
-| U14 | MokerLink 26-port managed switch[^MokerLink], used as a plain switch | UPS outlet group 3 | Feeds the two laptops below it from `neo`'s `ether2`. It was the main switch until 2026-11-05 and replaced the 8-port TP-Link that sat here |
+| U14 | MokerLink 26-port managed switch[^MokerLink], used as a plain switch | UPS outlet group 3 | Feeds the two laptops below it from `neo`'s `ether2`. It was the main switch until 2026-11-05 and replaced the 5-port TP-Link TL-SG605 that sat here |
 | U13 | *gap* | — | Air over `oracle` |
 | U12 | 1U vented shelf: `oracle`, flat, lid closed | Its own cell; its charger on UPS outlet group 2 | One laptop per shelf. They do not fit side by side in 19" |
 | U11 | *gap* | — | Air over `prometheus` |

@@ -192,8 +192,8 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   built from.
 - `ether2` of the main switch (read from its forwarding table on 2026-11-07)
   feeds the MokerLink that was the main switch until 2026-11-05, now at U14
-  in place of the 8-port TP-Link, as a plain switch that `prometheus` and
-  `oracle` hang off. It draws from a UPS-fed outlet, so on a mains cut the
+  in place of the 5-port TP-Link TL-SG605, as a plain switch that
+  `prometheus` and `oracle` hang off. It draws from a UPS-fed outlet, so on a mains cut the
   two laptops keep their network as well as their batteries
   ([#110](https://github.com/Gerrrt/HomeLab/issues/110)).
 - **`trinity` polls the internet on a timer.** Miniflux ([#147](https://github.com/Gerrrt/HomeLab/issues/147)) fetches every
