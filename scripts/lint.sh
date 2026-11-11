@@ -59,7 +59,8 @@
 #   - yamllint walks `.`, so its exclusions live in .yamllint.yaml
 #   - markdownlint-cli2 globs `**/*.md`, which DOES match dot directories, so
 #     its exclusions live in .markdownlint-cli2.yaml
-#   - shellcheck is handed scripts/*.sh below — one literal glob, cannot wander
+#   - shellcheck is handed a `git ls-files '*.sh'` list built below, so it sees
+#     tracked scripts and nothing else
 #   - ruff walks `.` but honours .gitignore, which already names every one of
 #     those trees. Verified with --show-files: the tracked .py files and
 #     nothing else, with worktrees present
@@ -310,7 +311,32 @@ run_linter() {
 run_linter yamllint --strict .
 # No arguments: the globs live in .markdownlint-cli2.yaml.
 run_linter markdownlint-cli2
-run_linter shellcheck scripts/*.sh
+# Every tracked shell script, not just scripts/*.sh: the packer installers,
+# the gvm netns helper and the sensitive stack's smoke tests were never linted.
+# Listed on the host for the reason editorconfig-checker's list is (below), so
+# a worktree or a gitignored tree cannot change what it sees. A directory with a
+# VENDORED marker is upstream code pinned by sha256 and checked by its
+# vendor-*.sh --check; linting it would fail on code this repository must not
+# edit. Only a tracked marker counts: an untracked VENDORED file in a working
+# copy would otherwise drop a tracked script here and not in CI. An empty list
+# is a failure, not a pass.
+sh_files=()
+if have git; then
+  declare -A vendored=()
+  while IFS= read -r -d '' f; do
+    vendored["$(dirname "${f}")"]=1
+  done < <(git ls-files -z -- 'VENDORED' '*/VENDORED')
+  while IFS= read -r -d '' f; do
+    [[ -e "${f}" ]] || continue
+    [[ -n "${vendored["$(dirname "${f}")"]:-}" ]] && continue
+    sh_files+=("${f}")
+  done < <(git ls-files -z -- '*.sh')
+fi
+if ((${#sh_files[@]})); then
+  run_linter shellcheck "${sh_files[@]}"
+else
+  fail "shellcheck: git listed no shell scripts to check"
+fi
 # Two calls, one tool, as with packer: check is what the code does (#853), and
 # format is how it is laid out (#938). Both read ruff.toml. --diff so a failure
 # shows the fix, and `ruff format scripts/` applies it.
