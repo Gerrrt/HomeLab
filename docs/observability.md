@@ -192,7 +192,7 @@ it should report hundreds. Both were invisible for hours because the only view
 of the collection path was `up{job="alloy"}`, which stayed `1` throughout.
 
 `up` is a poor liveness signal for half of what this stack collects, and the
-dashboard says so rather than papering over it. Prometheus scrapes twelve jobs
+dashboard says so rather than papering over it. Prometheus scrapes fourteen jobs
 directly; the rest arrive by remote_write — one `<host>-metrics` and one
 `<host>-alloy` per agent, plus `integrations/cadvisor` wherever there is
 Docker. **A directly scraped target that dies sets `up` to 0. A remote-writing
