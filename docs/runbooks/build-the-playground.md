@@ -712,7 +712,10 @@ image was built with.
 **How an image goes on.** Download it on `gandalf` into a scratch directory, and
 check it against its published hash before anything else. Import the disk with
 `qm importdisk <vmid> <vmdk> range --format raw` into a VM created with one NIC
-on `vmbr1`, `firewall=0`, and `--onboot 0`. Then, **before its first boot**,
+on `vmbr1`, `firewall=0`, and `--onboot 0`. The import leaves the volume as
+`unused0`, so attach it on the table's controller and boot from it:
+`qm set <vmid> --sata0 range:vm-<vmid>-disk-0 --boot order=sata0` (`ide0` for
+`ms2`). Then, **before its first boot**,
 mount its root filesystem on the host and replace the DHCP stanza in
 `/etc/network/interfaces` with `address` and `netmask` only, with no `gateway`.
 Keep the original beside it as `interfaces.orig-dhcp`. Check
