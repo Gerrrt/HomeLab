@@ -414,7 +414,7 @@ discovery from another subnet, so that traffic is NATed to `10.0.20.1` on its
 way into Skids. The HomePods therefore see the firewall's address, not
 `trinity`'s, and they treat it as a device on their own network.
 
-**One more, into Hicks, Skids and Degens, is decided and not yet created**
+**One more, into Hicks, Skids and Degens, exists since 2026-11-11**
 ([ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md),
 [#1228](https://github.com/Gerrrt/HomeLab/issues/1228)): `prometheus` to the
 alias `eeros`, the eight eero units' reserved addresses, on ICMP `echoreq` and

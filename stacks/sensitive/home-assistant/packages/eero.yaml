@@ -9,8 +9,8 @@
 #
 # This check is slow but needs nothing new. The fast check is Prometheus's:
 # the `blackbox-eero` job pings each unit every minute and EeroUnreachable
-# fires after five minutes (ADR-0112). It is the operator's alert, it depends
-# on a firewall pass, and its targets stay commented until that pass exists.
+# fires after five minutes (ADR-0112). It is the operator's alert, and it
+# depends on a firewall pass, in force since 2026-11-11.
 # This one is the household's, and it reads Kea, so if the two disagree,
 # suspect the network path rather than the unit.
 #
