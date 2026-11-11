@@ -54,6 +54,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `self-tests.sh` | — | Every fixture suite embedded in the scripts above |
 | `volume-selftest-fixture.sh` | — | Sourced, not run: the throwaway repository, volumes and age keys that `backup-volumes.sh` and `restore-volumes.sh` round-trip in their fixtures |
 | `seed-validation-env.sh` | — | A throwaway `.env` that satisfies `${VAR:?}` guards, so `docker compose config` can run |
+| `require-no-skip.sh` | — | CI's wrapper for the docker-backed checks above: runs one with a skips file and fails if it skipped, because a skip in CI is a check nobody runs |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
 | `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
