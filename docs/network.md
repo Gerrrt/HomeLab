@@ -299,7 +299,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | workstation-02 | `10.0.50.70` | `4c:ea:41:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
-| wearable-01 | `10.0.50.112` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| wearable-01 | `10.0.50.114` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
 
 ### Notes
 

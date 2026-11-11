@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-11
 
 - **Three addresses Lemmiwinks recorded differently, checked: HomeLab was
-  right on two, and the third is not disproved**
+  right on two and wrong on the third**
   ([#1416](https://github.com/Gerrrt/HomeLab/issues/1416)). The issue's other
   two items, the old shelf switch and the successor handover's rack positions,
   were corrected in [#1418](https://github.com/Gerrrt/HomeLab/pull/1418).
@@ -28,12 +28,13 @@ docstring gives: it is a record, not a claim about now.
     Lemmiwinks' `xione-scb` is stale.
   - **`10.0.50.10` is a household laptop**, as `laptop-01` says. Lemmiwinks'
     desktop is stale.
-  - **`10.0.50.112` stays `wearable-01`, unverified.** Lemmiwinks placed a
-    desktop's second network card there on MokerLink port 7, and nothing is
-    plugged into port 7 now. That shows Lemmiwinks' row is stale, not that
-    the address is the watch's: its Kea lease was not read.
-  - Nothing in HomeLab's current-state documents changed. The three rows to
-    correct are in Lemmiwinks.
+  - **`wearable-01` is at `10.0.50.114`, not `.112`.** The Kea lease for
+    its MAC (`f6:b8:72:xx:xx:xx`, hostname `watch`), read in the pfSense UI
+    on 2026-11-11, gives `.114`, so `docs/network.md` and the diagram now
+    say `.114`. Nothing answered at `.112` in the ARP table that day, and
+    nothing is plugged into MokerLink port 7, where Lemmiwinks placed a
+    desktop's second network card on `.112`: that row is stale too.
+  - The rows for all three still to correct are in Lemmiwinks.
 
 - **Recorded late: seven changes from 2026-10-05 to 2026-10-14 that reached
   `main` without an entry here.** The 2026-11-11 audit found them by
