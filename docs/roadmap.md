@@ -49,21 +49,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339) Move the wiki to
-  Wiki.js 3.x.** Required by
-  [ADR-0089](adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md),
-  whose trigger 3 has fired. First in the milestone because it has a date:
-  2026-12-05, when the four unfixed 2.x advisories in
-  [#1298](https://github.com/Gerrrt/HomeLab/issues/1298) fire trigger 1.
-  Both gates passed on 2026-11-09, and
-  [ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)
-  records how the move is made: 2.x's export into a fresh 3.3.0 on a new
-  volume, `pgdata-wiki3`, with 2.x's `pgdata` kept as the rollback. Left:
-  the cutover on `oracle`, by
-  [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.
-  After it, the `Lemmiwinks` PR from the `wikijs-3` branch, which carries
-  the renamed paths and the mermaid diagrams, and then the git target moved
-  to `main`.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
