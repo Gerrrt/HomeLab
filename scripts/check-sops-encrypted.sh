@@ -31,11 +31,22 @@
 #
 # Usage:
 #   scripts/check-sops-encrypted.sh                one line per file, exit 1 on any failure
+#   scripts/check-sops-encrypted.sh --history      every *.sops.yaml blob in all of history
 #   scripts/check-sops-encrypted.sh --self-test    fixtures, in a temporary directory
 #
-# No other arguments and no options. Both callers — scripts/validate.sh and
-# the workflow — want exactly this, and a --quiet nobody asked for is a flag
-# that can be passed by accident in the one place the output matters.
+# --history exists because gitleaks cannot see this. Its history scan reads
+# .gitleaks.toml, which path-allowlists secrets/*.sops.yaml so ciphertext does
+# not trip the entropy rules, and a path allowlist applies to every commit the
+# scan walks. A past revision of a SOPS file holding a value in the clear was
+# therefore invisible to every check here: this script read HEAD only, and
+# gitleaks skipped the path. --history reads every blob ever committed under a
+# *.sops.yaml name, at any path, with the same two tests. It needs the full
+# history (CI's secret-scan job checks out with fetch-depth: 0) and refuses a
+# shallow clone rather than pass over the commits it cannot see.
+#
+# No other options. Both callers — scripts/validate.sh and the workflow — want
+# exactly these, and a --quiet nobody asked for is a flag that can be passed by
+# accident in the one place the output matters.
 
 set -euo pipefail
 
@@ -46,15 +57,20 @@ set -euo pipefail
 # sops does not quote ciphertext, so that is a hand edit holding no plaintext.
 # POSIX awk only — the hosts run mawk, and a gawk-only form would fail the read
 # rather than the file, which is why a failed read is itself a failure below.
-plaintext_reason() {  # <file>  prints a reason and returns 1, or returns 0
-  local f="$1" line
+# The reason names a line NUMBER, never the line: the value on it may be a live
+# credential, and this prints into CI logs. With <allow-redacted> set, a value
+# that is exactly purge-history.sh's placeholder passes: a past revision that
+# the documented purge rewrote holds no secret, and failing it would leave CI
+# red for good after the purge worked.
+plaintext_reason() {  # <file> [allow-redacted]  prints a reason and returns 1, or returns 0
+  local f="$1" redacted="${2:-0}" line
   if ! grep -q '^sops:' "${f}"; then
     printf 'no sops: metadata block'
     return 1
   fi
   # The quote characters arrive in a variable: a single quote cannot appear
   # inside a single-quoted awk program, and \x27 is not POSIX.
-  if ! line="$(awk -v q="'\"" '
+  if ! line="$(awk -v q="'\"" -v redacted="${redacted}" '
     BEGIN { key = "^[^[:space:]" q "][^:]*:([[:space:]]|$)"; quote = "^[" q "]" }
     /^sops:/ { exit }
     /^[[:space:]]*(#|$)/ { next }
@@ -68,7 +84,8 @@ plaintext_reason() {  # <file>  prints a reason and returns 1, or returns 0
         sub(/^[^:]*:[[:space:]]+/, "", v)
       }
       sub(quote, "", v)
-      if (v !~ /^ENC\[/) { print NR ": " $0; exit }
+      if (redacted && v ~ ("^REDACTED-ROTATED-CREDENTIAL[" q "]?$")) next
+      if (v !~ /^ENC\[/) { print NR; exit }
     }' "${f}")"; then
     printf 'the awk read failed'
     return 1
@@ -119,16 +136,124 @@ if [[ "${1:-}" == "--self-test" ]] && (($# == 1)); then
   case_ 1 "a block scalar, which sops never writes, fails" \
     $'KEY: |\n    several lines of something\n    pasted in the clear\n'"${SOPS_BLOCK}"
   case_ 1 "an empty file fails" ""
+
+  # --history, against throwaway repositories holding a copy of this script.
+  ENC_FILE=$'KEY: ENC[AES256_GCM,data:abc,iv:def,tag:ghi,type:str]\n'"${SOPS_BLOCK}"
+  hist_case() {  # <want rc> <what> <dir>
+    local rc=0
+    "$3/scripts/check-sops-encrypted.sh" --history >/dev/null 2>&1 || rc=$?
+    if ((rc == $1)); then ok "$2"; else bad "$2 (got ${rc}, wanted $1)"; fi
+  }
+  mkrepo() {  # <dir>: a repository with this script in scripts/
+    mkdir -p "$1/scripts" "$1/secrets"
+    cp "${BASH_SOURCE[0]}" "$1/scripts/check-sops-encrypted.sh"
+    git -C "$1" init -q
+  }
+  commit() {  # <dir> <path> <body>
+    printf '%s' "$3" > "$1/$2"
+    git -C "$1" add -A
+    git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q -m x
+  }
+  mkrepo "${T}/clean"
+  commit "${T}/clean" .sops.yaml $'creation_rules: []\n'
+  commit "${T}/clean" secrets/a.sops.yaml "${ENC_FILE}"
+  hist_case 0 "--history: every revision encrypted passes, and .sops.yaml is not read" "${T}/clean"
+  mkrepo "${T}/fixed"
+  commit "${T}/fixed" secrets/a.sops.yaml $'KEY: hunter2\n'"${SOPS_BLOCK}"
+  commit "${T}/fixed" secrets/a.sops.yaml "${ENC_FILE}"
+  hist_case 1 "--history: a plaintext revision fails though HEAD is encrypted" "${T}/fixed"
+  mkrepo "${T}/nested"
+  commit "${T}/nested" secrets/a.sops.yaml "${ENC_FILE}"
+  mkdir -p "${T}/nested/stacks/x/secrets"
+  commit "${T}/nested" stacks/x/secrets/b.sops.yaml $'KEY: hunter2\n'"${SOPS_BLOCK}"
+  hist_case 1 "--history: a plaintext SOPS file outside secrets/ fails" "${T}/nested"
+  mkrepo "${T}/none"
+  commit "${T}/none" README $'nothing\n'
+  hist_case 1 "--history: no SOPS blob in history at all fails" "${T}/none"
+  mkrepo "${T}/shared"
+  commit "${T}/shared" secrets/a.sops.yaml "${ENC_FILE}"
+  commit "${T}/shared" notes.yaml $'KEY: hunter2\n'"${SOPS_BLOCK}"
+  commit "${T}/shared" secrets/b.sops.yaml $'KEY: hunter2\n'"${SOPS_BLOCK}"
+  hist_case 1 "--history: a plaintext revision whose blob is also a non-SOPS file fails" "${T}/shared"
+  mkrepo "${T}/purged"
+  commit "${T}/purged" secrets/a.sops.yaml $'KEY: REDACTED-ROTATED-CREDENTIAL\n'"${SOPS_BLOCK}"
+  commit "${T}/purged" secrets/a.sops.yaml "${ENC_FILE}"
+  hist_case 0 "--history: a revision purge-history.sh redacted passes" "${T}/purged"
+  case_ 1 "the purge placeholder at HEAD still fails" \
+    $'KEY: REDACTED-ROTATED-CREDENTIAL\n'"${SOPS_BLOCK}"
+  out="$("${T}/fixed/scripts/check-sops-encrypted.sh" --history 2>&1 || true)"
+  if [[ "${out}" == *"line 1"* && "${out}" != *hunter2* ]]; then
+    ok "--history names the line and never prints the value"
+  else
+    bad "--history output leaks the value or names no line: ${out//hunter2/<VALUE>}"
+  fi
+  git clone -q --depth 1 "file://${T}/clean" "${T}/shallow" 2>/dev/null
+  mkdir -p "${T}/shallow/scripts" && cp "${BASH_SOURCE[0]}" "${T}/shallow/scripts/"
+  hist_case 1 "--history: a shallow clone is refused, not passed" "${T}/shallow"
   exit "${fail}"
 fi
 
-if (($# > 0)); then
-  printf 'usage: %s [--self-test]\n' "$0" >&2
+HISTORY=0
+if [[ "${1:-}" == "--history" ]] && (($# == 1)); then
+  HISTORY=1
+elif (($# > 0)); then
+  printf 'usage: %s [--history | --self-test]\n' "$0" >&2
   exit 2
 fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${REPO_ROOT}"
+
+if ((HISTORY)); then
+  if [[ "$(git rev-parse --is-shallow-repository)" != "false" ]]; then
+    printf 'shallow clone: history this check cannot see would pass unread.\n' >&2
+    printf 'Run git fetch --unshallow first.\n' >&2
+    exit 1
+  fi
+  T="$(mktemp -d)"
+  trap 'rm -rf "${T}"' EXIT
+  # Every (blob, path) a commit on any ref introduced, merge resolutions
+  # included (--diff-merges=separate), and root commits (--root). Not
+  # `git rev-list --objects`: that names each blob once, under whichever path
+  # it met first, so a plaintext revision byte-identical to a file committed
+  # under another name would be read under that name and filtered out here.
+  # A name with something before .sops.yaml, so .sops.yaml (the rules) is not
+  # read. Any directory, so a SOPS file committed outside secrets/ is read too.
+  # Each blob is read once, under the first SOPS path it appears at.
+  git log --all --root --diff-merges=separate --no-renames --no-abbrev \
+    --format= --raw > "${T}/raw"
+  awk -F '\t' '
+    $1 ~ /^:/ {
+      split($1, m, " "); blob = m[4]
+      if (blob ~ /^0+$/) next
+      if ($2 !~ /(^|\/)[^\/]+\.sops\.yaml$/) next
+      if (!(blob in seen)) { seen[blob] = 1; print blob " " $2 }
+    }' "${T}/raw" > "${T}/objects"
+  n=0
+  bad=0
+  while read -r blob path; do
+    n=$((n + 1))
+    git cat-file blob "${blob}" > "${T}/blob"
+    if ! reason="$(plaintext_reason "${T}/blob" 1)"; then
+      commit="$(git log --all --format=%h -1 --find-object="${blob}")"
+      printf '  PLAINTEXT  %s at %s (blob %s) — %s\n' \
+        "${path}" "${commit}" "${blob:0:12}" "${reason}" >&2
+      bad=1
+    fi
+  done < "${T}/objects"
+  if ((n == 0)); then
+    printf 'no *.sops.yaml blob in history — this check has stopped checking anything\n' >&2
+    exit 1
+  fi
+  if ((bad)); then
+    printf '\nA SOPS file was committed with a value in the clear. Re-encrypting it\n' >&2
+    printf 'now does not remove it: rotate the value, then purge it from history\n' >&2
+    printf 'per docs/runbooks/purge-git-history.md.\n' >&2
+    exit 1
+  fi
+  printf '%d SOPS blob(s) across history, all encrypted\n' "${n}"
+  exit 0
+fi
 
 shopt -s nullglob
 FILES=(secrets/*.sops.yaml)

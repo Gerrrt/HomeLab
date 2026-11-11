@@ -790,5 +790,8 @@ jobs:
       - name: Assert the committed ingest CA is a CA certificate only
         run: ./scripts/check_ingest_ca.sh --self-test && ./scripts/check_ingest_ca.sh
 
+      # --history too: every SOPS blob ever committed, which the gitleaks
+      # history scan above cannot see because it path-allowlists these files.
+      # This job's fetch-depth: 0 is what lets it; a shallow clone is refused.
       - name: Assert SOPS files are actually encrypted
-        run: ./scripts/check-sops-encrypted.sh
+        run: ./scripts/check-sops-encrypted.sh && ./scripts/check-sops-encrypted.sh --history

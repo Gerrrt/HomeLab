@@ -61,10 +61,19 @@ tags = ["tfstate", "credential"]
 description = "Templates, placeholders and encrypted files"
 
 paths = [
-  # Encrypted at rest — the ciphertext is meant to be committed.
-  '''secrets/.*\.sops\.yaml$''',
+  # Encrypted at rest — the ciphertext is meant to be committed, and trips the
+  # entropy rules. Anchored to the files directly under secrets/ that .sops.yaml
+  # encrypts and check-sops-encrypted.sh reads: unanchored, a
+  # stacks/x/secrets/y.sops.yaml matched too, which nothing encrypts or checks.
+  # The `./` is how a --no-git scan may name the path.
+  #
+  # This entry also applies to every commit the history scan walks, so gitleaks
+  # cannot see a past revision of these files that held a value in the clear.
+  # scripts/check-sops-encrypted.sh --history can: it reads every *.sops.yaml
+  # blob in history, at any path, and runs beside this scan in CI.
+  '''^(\./)?secrets/[^/]+\.sops\.yaml$''',
   # Documents required key names and deliberately carries change-me values.
-  '''secrets/.*\.example\.yaml$''',
+  '''^(\./)?secrets/[^/]+\.example\.yaml$''',
   # Nothing gitignored is allowlisted HERE. This file is what the full-history
   # scan reads (scripts/gitleaks-history.sh), and a path allowlist applies to
   # every commit a history scan walks, not only to the working tree: with

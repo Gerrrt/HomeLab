@@ -838,6 +838,18 @@ else
   fail "every SOPS file is encrypted"
 fi
 
+# Every past revision too, which the gitleaks history scan cannot see: it
+# path-allowlists secrets/*.sops.yaml. A shallow clone has history it cannot
+# read, so that is a skip here; CI's secret-scan job has the full history.
+if [[ "$(git rev-parse --is-shallow-repository 2>/dev/null)" != "false" ]]; then
+  skip "shallow clone — SOPS history unchecked (git fetch --unshallow)"
+elif SOPS_HISTORY="$(./scripts/check-sops-encrypted.sh --history 2>&1)"; then
+  pass "every SOPS blob in history is encrypted: ${SOPS_HISTORY##*$'\n'}"
+else
+  printf '%s\n' "${SOPS_HISTORY}"
+  fail "every SOPS blob in history is encrypted"
+fi
+
 if ./scripts/check-tracked-artefacts.sh >/dev/null; then
   pass "no rendered, decrypted, purge-secrets, certificate or backup files tracked"
 else
