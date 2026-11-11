@@ -383,7 +383,11 @@ install -m 0600 /dev/null /dev/shm/wiki-git-key && docker exec wiki-db psql -U w
 `test "$(git rev-parse HEAD)" = "$SHA"`, without its `up`. Then create the
 volume, initialise the cluster with the database password, and start
 Wiki.js 3 with a bootstrap administrator. Each variable is given for one `up`
-and never written down:
+and never written down. Forgetting them can no longer leave the default
+administrator behind: `bootstrap-guard` reads the database before `app`
+starts and refuses an empty one unless both are set, since Wiki.js 3 would
+otherwise create `admin@example.com` with the password `12345678`
+([#1435](https://github.com/Gerrrt/HomeLab/issues/1435)):
 
 ```bash
 docker volume create pgdata-wiki3

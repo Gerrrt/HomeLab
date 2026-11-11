@@ -9,7 +9,7 @@ how a checkbox stops being true, and for a month this file was the second
 place — [#577](https://github.com/Gerrrt/HomeLab/issues/577) moved the history
 out.
 
-The order is the seven
+The order is the five open
 [milestones](https://github.com/Gerrrt/HomeLab/milestones), each of which
 states what closes it. This file adds what a milestone cannot say: the order
 between them, and inside each the order and the gate where an issue cannot
@@ -30,20 +30,15 @@ What an entry here may contain:
 ## The order
 
 1. [**Nothing blocks these**](https://github.com/Gerrrt/HomeLab/milestone/1)
-   — first because nothing gates them, and three of them carry a date.
-2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the return
-   on the box closes 2026-10-08, and the rehearsal is the step that ends it.
-3. [**NAS**](https://github.com/Gerrrt/HomeLab/milestone/4) and
-   [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — side by side, with no order between them. The domain, which everything
-   else on `Saruman` points at, is built and closed; the NAS's first issue,
-   the one-disk mirror, is done.
+   — first because nothing gates them; most wait on an upstream release.
+2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the host
+   is built and serving; what is left is its gates, and the off-estate copy.
+3. [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
+   — one proof left, the lab's second key.
 4. [**automation**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
-   pipeline that populates the domain; it runs from `phoenix`, which exists.
+   pipeline is built; what is left is using it, as exercises.
 5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
    domain, on a household observation, or on something to publish.
-6. [**Tier extras**](https://github.com/Gerrrt/HomeLab/milestone/7) —
-   decision-gated, and outside the order until one is decided.
 
 ## Nothing blocks these
 
@@ -99,77 +94,23 @@ The rest of the milestone has no order between its issues.
 
 ## trinity
 
-Closes when the nine services serve from `trinity` and the firewall restore
-has been rehearsed on it.
+Closes when #404 and #132 close, and #455 has its holder.
 
-- **[#92](https://github.com/Gerrrt/HomeLab/issues/92) Rehearse the firewall
-  restore — done 2026-09-27.** The machine was proved on 2026-09-26, inside
-  the return window that closed 2026-10-08 (#674). The rehearsal restored
-  `config-20260926T043704Z` — taken from `oracle`, schema `24.6`, 112 rules —
-  onto pfSense CE 2.9.0 on `trinity` in 42 minutes, and it booted with **no
-  interface-assignment prompt**: WAN on `em0`, LAN on `igc0`, all six VLANs,
-  112 rules, the four tripwires, the twelve `Tunnel_Peers` rules and six Kea
-  scopes, and a laptop tagged into VLAN 99 leased `10.0.99.100`. Three things
-  asked questions the runbook had not answered — Secure Boot (and HP's
-  four-digit confirmation code), a kernel panic from the undisclosed
-  Wireless-AC 9560 under `iwm` (fixed with `hint.iwm.0.disabled`), and an
-  installer that needs the internet — and all three are now in §3. The box
-  went to #404 with the I226 card still fitted. It was recorded as in the
-  drawer until the build found it in the slot on 2026-09-28, and it stays
-  there, unconfigured, for the day `trinity` has to be the firewall.
-  → [runbook](runbooks/restore-the-firewall.md#rehearse-the-restore-on-the-spare)
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
   host.** **Built and deployed 2026-09-28**
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages (and
-    closes [#135](https://github.com/Gerrrt/HomeLab/issues/135));
-  - the step 10 gate, which the first real photos passed on 2026-09-28
-    while most of it was still open: the second age recipient, the
-    off-estate copy, ADR-0022's identity-provider record and ADR-0023's
-    *Independent* test. The Immich restore rehearsal is done
-    ([#132](https://github.com/Gerrrt/HomeLab/issues/132), →
-    [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)). Until
-    [#455](https://github.com/Gerrrt/HomeLab/issues/455) exists, the
-    originals' only copy beyond the USB disk is the nightly one to `oracle`,
-    in the same room
+  - the DNS failure test, which proves `AdGuardNotAnswering` pages. #135
+    closed on 2026-09-28 without a record of it, so it is owed here
+    (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
+  - the step 10 gate: the second age recipient, the off-estate copy
+    (#455), ADR-0022's identity-provider record and ADR-0023's
+    *Independent* test. Until #455 exists, the originals' only copy beyond
+    the USB disk is the nightly one to `oracle`, in the same room
     ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
-
-  [#533](https://github.com/Gerrrt/HomeLab/issues/533)'s converge timer is
-  authored and installs report-only; it closes when `trinity` applies and a
-  Dependabot bump to `stacks/sensitive` lands with nobody at a shell
-  (→ [runbook](runbooks/converge-the-host.md#on-trinity)).
-  [#534](https://github.com/Gerrrt/HomeLab/issues/534)'s CI re-check is
-  already done (#646).
-- **The nine services**, each authored ahead of the hardware and each open
-  until it serves from the host:
-  [#129](https://github.com/Gerrrt/HomeLab/issues/129) Caddy and
-  [#130](https://github.com/Gerrrt/HomeLab/issues/130) step-ca first, because
-  everything else sits behind the one and is issued by the other
-  ([ADR-0037](adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)
-  — → [runbook](runbooks/build-the-tier-ca.md)); then
-  [#135](https://github.com/Gerrrt/HomeLab/issues/135) AdGuard Home, serving
-  since 2026-09-28 with `morpheus` forwarding to it alone
-  ([ADR-0010](adr/0010-keep-the-resolver-on-the-gateway.md),
-  [ADR-0055](adr/0055-forward-to-adguard-alone.md)) and both probes live, open
-  only for the failure test (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
-  [#131](https://github.com/Gerrrt/HomeLab/issues/131) Vaultwarden;
-  [#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich;
-  [#133](https://github.com/Gerrrt/HomeLab/issues/133) Paperless-ngx;
-  [#134](https://github.com/Gerrrt/HomeLab/issues/134) Home Assistant
-  ([ADR-0035](adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md));
-  [#136](https://github.com/Gerrrt/HomeLab/issues/136) ntfy — authored, with
-  the decision taken both ways at once: the in-house topics replace ntfy.sh for
-  all three real channels, and `urgent` and `security` page ntfy.sh as well,
-  because a phone away from home cannot reach the tier. The deploy and the
-  observed end-to-end check remain
-  (→ [runbook](runbooks/verify-the-alert-path.md#cutting-over-to-the-in-house-ntfy));
-  and [#137](https://github.com/Gerrrt/HomeLab/issues/137) the household's
-  page at `home.matrix.elysium`, a directory and not a status page, with live
-  numbers only where a read-only token can read them (Immich, Paperless-ngx).
-  It was Homepage until [ADR-0103](adr/0103-retire-homepage-and-serve-the-household-page-from-glance.md) moved it onto Glance's Household
-  page. The restore path is rehearsed already:
-  → [runbook](runbooks/restore-the-sensitive-tier.md).
+- **[#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich**, the one of
+  ADR-0008's nine still open; the issue says what is left. Its restore is
+  rehearsed (→ [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)).
 - **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
   **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
   ([`hardware.md`](hardware.md)). **The key is decided**: on 2026-10-01
@@ -198,12 +139,6 @@ has been rehearsed on it.
   has only the nightly volume set on `oracle`. Adding it to the copy is
   part of this, and Memos' *Durable* row is not met before it is.
 
-## NAS
-
-Closes when a workstation can mount the share. Its other condition, the
-faulted Exos replaced and the mirror resilvered, is met and is in
-[`changelog.md`](changelog.md).
-
 ## Saruman: the domain, then the SOC
 
 Closes when it is empty. Both things its name names are done. The domain was
@@ -216,82 +151,20 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   second key.** `secrets/lab.sops.yaml` is encrypted to the offline technical
   second as well as `alexander`'s key since 2026-10-07. What remains is
   `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
-- **[#920](https://github.com/Gerrrt/HomeLab/issues/920) One on-demand VM
-  per dotfiles OS layer.** It ships in four phases
-  ([ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)):
-  1. Debian, Fedora and Windows
-     ([`test-the-dotfiles-layers.md`](runbooks/test-the-dotfiles-layers.md));
-  2. openSUSE and Arch;
-  3. Alpine and Gentoo, from their published images;
-  4. NixOS.
-- **[#921](https://github.com/Gerrrt/HomeLab/issues/921) `garuda`, an
-  analyst workstation.** Kali Purple without its SOC, always on beside `odin`,
-  and the home of `dotfiles-Defense`
-  ([ADR-0091](adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
-  It ships in three phases:
-  1. Template 910, the guest, its tools and dotfiles
-     ([`build-the-analyst-workstation.md`](runbooks/build-the-analyst-workstation.md)).
-  2. Enrolling it in Wazuh and Velociraptor, the first Linux guest in either
-     ([ADR-0092](adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)).
-  3. OpenVAS on demand, scoped to the domain's six by nftables
-     ([ADR-0093](adr/0093-run-openvas-on-garuda-on-demand-scoped-to-the-domain-by-nftables.md)).
-- **[#538](https://github.com/Gerrrt/HomeLab/issues/538),
-  [#529](https://github.com/Gerrrt/HomeLab/issues/529),
-  [#562](https://github.com/Gerrrt/HomeLab/issues/562) and
-  [#576](https://github.com/Gerrrt/HomeLab/issues/576)** are the host's own
-  blind spots, with no order between them. #576 watches the Proxmox firewall
-  that #566 turned on, so it is the one of the four that has already lost its
-  excuse for waiting.
 
 ## automation
 
-Closes on BloodHound running where nothing attacks it.
+Closes when #449 does. The pipeline it names is built: Packer, OpenTofu,
+Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
+[`changelog.md`](changelog.md).
 
-- **A chain, in this order:**
-  [#440](https://github.com/Gerrrt/HomeLab/issues/440) Packer (done
-  2026-10-03,
-  [ADR-0074](adr/0074-build-the-lab-templates-with-packer-from-phoenix.md):
-  901 Ubuntu, 911 Windows 11 and 912 Server 2025 built from `smaug-iso`,
-  each clone passing `scripts/packer-smoke.sh`, SSH included,
-  → [runbook](runbooks/build-the-lab-templates.md); Kali's 902
-  built on `gandalf` 2026-11-09, [#790](https://github.com/Gerrrt/HomeLab/issues/790)) →
-  [#445](https://github.com/Gerrrt/HomeLab/issues/445) OpenTofu (done
-  2026-10-03,
-  [ADR-0076](adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md):
-  state encrypted, escrowed, and both proofs run against a real apply,
-  → [runbook](runbooks/provision-lab-guests.md)) →
-  [#448](https://github.com/Gerrrt/HomeLab/issues/448) Ansible and ADR-0029's
-  six guests from the pipeline (written,
-  [ADR-0077](adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md),
-  → [`ansible/`](../ansible/README.md); applied to the hand-built six on
-  2026-10-03, with a second run of `changed=0` and `verify.yml` passing on
-  all six; closes on a `tofu destroy` and rebuild,
-  so it waits for the six to be declared in `tofu/` with pinned MACs; #440's
-  templates exist since 2026-10-03) →
-  [#449](https://github.com/Gerrrt/HomeLab/issues/449) users and deliberate
-  weaknesses (the population and the authentication generator are
-  `--tags population,authgen`,
-  [ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md);
-  what remains is the rest of
-  [`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md) §5, which
-  covers the tiers, the SPN account, the Tier 0 GPO and the shares, and then
-  the weaknesses, each its own tag on top of the population) and
-  [#450](https://github.com/Gerrrt/HomeLab/issues/450) Sysmon and Pktmon
-  ([ADR-0080](adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md))
-  → [#451](https://github.com/Gerrrt/HomeLab/issues/451)
-  BloodHound ([ADR-0081](adr/0081-run-bloodhound-ce-on-a-saruman-guest.md),
-  → [runbook](runbooks/build-the-bloodhound-guest.md)), which closes the
-  milestone. All of it runs from `phoenix`
-  ([ADR-0043](adr/0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md),
-  → [runbook](runbooks/build-the-jumpbox.md)).
-  **#440's templates read their installers from `smaug-iso`**, the ISO store
-  [ADR-0072](adr/0072-put-the-iso-store-on-smaug-over-nfs-to-saruman-alone.md)
-  put on `erebor/iso`. Every file there is hashed daily on `Saruman` against
-  the list in `scripts/collect-iso-store-state.sh`, and `IsoChecksumMismatch`
-  pages if one changes, because the export trusts an address and Packer does
-  not check an ISO it is handed from storage. Copying the installers there,
-  listing their hashes and installing the check is
-  [`build-the-lab-templates.md`](runbooks/build-the-lab-templates.md) §2b.
+- **[#449](https://github.com/Gerrrt/HomeLab/issues/449) Users and deliberate
+  weaknesses.** Every weakness role exists, one tag each, and the loop ran
+  config-only on 2026-10-08. What is left is to use them: apply one weakness at
+  a time, find its path in BloodHound, exploit it from `ragnarok`, and record
+  what Wazuh and Zeek saw as an exercise in [`exercises/`](exercises/). It
+  closes on the first five exercises, one per weakness, each with a detection
+  outcome. → [runbook](runbooks/build-the-lab-domain.md)
 
 ## last
 
@@ -315,38 +188,10 @@ Gated on the domain, on a household observation, or on something to publish.
 
 ## Tier extras
 
-Beyond ADR-0008's nine: each needs its own decision before it is authored, and
-none is in the order until one is taken.
-
-- **[#147](https://github.com/Gerrrt/HomeLab/issues/147) Miniflux** — decided by [ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md), deployed on `trinity` 2026-09-29.
-  What remains is committing the encrypted `secrets/sensitive.sops.yaml`
-  that carries its two keys, and seeing `miniflux-db-data` in a nightly set.
-- **[#145](https://github.com/Gerrrt/HomeLab/issues/145) Memos** — decided by
-  [ADR-0059](adr/0059-add-memos-to-the-sensitive-tier-for-notes-and-keep-documentation-in-docs.md)
-  and deployed on `trinity` 2026-09-29, and reachable from Hicks by name the
-  same day. The admin registered and closed registration on 2026-10-02.
-  Nothing is left; #145 closes with this. It holds real notes since
-  2026-10-22, ahead of ADR-0023's *Durable* condition, by the operator's
-  accepted exception (the changelog of that day). The condition is the
-  tier's and not this issue's, and what it still owes Memos is written on
-  #455 below.
-- **[#146](https://github.com/Gerrrt/HomeLab/issues/146) Mealie, as
-  `recipes.matrix.elysium`.** Decided by
-  [ADR-0060](adr/0060-add-mealie-to-the-sensitive-tier-as-recipes.md) and
-  **deployed on `trinity` 2026-09-29**. It is the one service here meant for
-  the household to open rather than to benefit from. It uses no new firewall
-  rule and no SOPS secret, and it has no second factor, which is named
-  alongside Immich and AdGuard. The default admin was renamed and
-  re-passworded the same day. Nothing is left.
-- **[#144](https://github.com/Gerrrt/HomeLab/issues/144) linkding** — decided by [ADR-0061](adr/0061-add-linkding-to-the-sensitive-tier-behind-one-factor.md) and authored in `stacks/sensitive`.
-  **Deployed on `trinity` 2026-09-29**, with its host override, and the
-  operator's first login with the superuser password from SOPS is done.
-  Nothing is left.
-- **[#143](https://github.com/Gerrrt/HomeLab/issues/143) Stirling-PDF** is
-  **deployed on `trinity` 2026-09-29** ([ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md)): behind Caddy at
-  `pdf.matrix.elysium`, login from SOPS, and its documents held on a tmpfs so
-  none reaches a disk. The `pdf` override on `morpheus` is in, and TOTP is
-  enrolled on the admin. Nothing is left; #143 closes with this.
+Empty: its five issues are closed, and the milestone with them. The heading
+stays because [ADR-0063](adr/0063-add-stirling-pdf-to-the-sensitive-tier-and-keep-its-documents-in-memory.md),
+a record, links here. A new extra starts with its own decision, in
+*Nothing blocks these*.
 
 ## Everything still to buy
 

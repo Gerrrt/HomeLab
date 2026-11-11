@@ -24,8 +24,8 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40 | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]) |
-| `grafana` | `grafana/grafana` | 3000 (https) | Dashboards, the one service a human opens |
+| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
+| `grafana` | `grafana/grafana` | *internal* (https) | Dashboards, the one service a human opens, through caddy's 3000 |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
 

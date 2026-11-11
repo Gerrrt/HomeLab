@@ -44,8 +44,9 @@ changes when an investigation starts or ends.
 | --- | --- | --- | --- |
 | `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch: the store. The same 2 GiB heap and shard ceiling as `odin`, and no delete policy |
 | `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | For the agents of whatever is under investigation. Enrolment still needs a password, this guest's own |
-| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | 443 (https) | Query it hard |
-| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8889 (https) | Collection from the endpoints involved, with a CA that dies with the guest |
+| `wazuh.dashboard` | `wazuh/wazuh-dashboard` | *internal*, through caddy's 443 | Query it hard |
+| `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000; 8889 through caddy | Collection from the endpoints involved, with a CA that dies with the guest |
+| `caddy` | `caddy` | 443, 8889 (https) | soc's #1139 fence: the two UIs answer Hicks's `10.0.50.0/24` only, so a detonated sample cannot reach the SIEM's or the DFIR tool's login ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
 | `wazuh.certs-generator` | `wazuh/wazuh-certs-generator` | — | Behind the `certs` profile: run once per incarnation |
 
 The images and digests are `stacks/soc`'s. Dependabot opens a PR for each

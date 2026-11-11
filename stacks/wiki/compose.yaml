@@ -139,7 +139,8 @@ services:
       # after. Set for that one `up` and never written down, like
       # WIKI_DB_BOOTSTRAP_PASSWORD below; README.md § The move to 3.x. Left
       # empty on an empty database, 3.x falls back to admin@example.com and
-      # 12345678, so never start it on an empty volume without them.
+      # 12345678, so never start it on an empty volume without them, which
+      # bootstrap-guard below now enforces rather than asks (#1435).
       ADMIN_EMAIL: ${WIKI_ADMIN_BOOTSTRAP_EMAIL:-}
       ADMIN_PASS: ${WIKI_ADMIN_BOOTSTRAP_PASSWORD:-}
     volumes:
@@ -158,6 +159,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      bootstrap-guard:
+        condition: service_completed_successfully
 
   # ---------------------------------------------------------------------------
   # Caddy: TLS in front of Wiki.js (ADR-0082, #847)
@@ -270,7 +273,6 @@ services:
       - no-new-privileges:true
     read_only: true
     tmpfs:
-      - /var/run/postgresql:size=1m,uid=999,gid=999,mode=0755
       - /tmp:size=64m
     environment:
       POSTGRES_DB: wiki
@@ -279,6 +281,10 @@ services:
       PGDATA: /var/lib/postgresql/data
     volumes:
       - pgdata-wiki3:/var/lib/postgresql/data
+      # The socket directory, a volume rather than a tmpfs so bootstrap-guard
+      # can reach the local socket, which pg_hba trusts, without the password
+      # (#1435). It holds a socket and a lock file and nothing else.
+      - wiki-pgsocket:/var/run/postgresql
     expose: ["5432"]
     healthcheck:
       test: ["CMD", "pg_isready", "-U", "wiki", "-d", "wiki"]
@@ -286,6 +292,59 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Refuses to let app start on an empty database without the bootstrap admin
+  # (#1435). Wiki.js 3.x, started against an empty database with ADMIN_EMAIL
+  # and ADMIN_PASS unset, creates admin@example.com with the password
+  # 12345678, and a comment asking you not to was the only control. A restore
+  # onto a new volume, the one time the database is empty on purpose, loads
+  # the dump before app starts, so this passes then. A fresh `up` that skipped
+  # the restore, or forgot the two variables, stops here. One-shot: no
+  # restart policy, so it is not a long-running service.
+  # ---------------------------------------------------------------------------
+  bootstrap-guard:
+    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    container_name: wiki-bootstrap-guard
+    restart: "no"
+    logging: *default-logging
+    networks: [wiki]
+    init: true
+    pids_limit: 32
+    # db's uid, as every postgres container here runs (gosu-skip.txt, #995).
+    # It reads no password: it connects over db's socket, which pg_hba trusts.
+    user: "999:999"
+    mem_limit: 64m
+    memswap_limit: 64m
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    environment:
+      ADMIN_EMAIL: ${WIKI_ADMIN_BOOTSTRAP_EMAIL:-}
+      ADMIN_PASS: ${WIKI_ADMIN_BOOTSTRAP_PASSWORD:-}
+    volumes:
+      - wiki-pgsocket:/var/run/postgresql
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        q="select count(*) from information_schema.tables where table_schema = 'public'"
+        tables="$$(psql -h /var/run/postgresql -U wiki -d wiki -tAc "$$q")"
+        if [ "$$tables" != 0 ]; then
+          echo "database holds $$tables tables: not a first start"
+          exit 0
+        fi
+        if [ -z "$$ADMIN_EMAIL" ] || [ -z "$$ADMIN_PASS" ] || [ "$$ADMIN_PASS" = 12345678 ]; then
+          echo "refusing: the database is empty and WIKI_ADMIN_BOOTSTRAP_EMAIL/PASSWORD are not set"
+          echo "Wiki.js would create admin@example.com with the password 12345678."
+          echo "Restore the dump first, or set both for this one up (README.md, The move to 3.x)."
+          exit 1
+        fi
+        echo "empty database: Wiki.js will create the bootstrap admin you set"
+    depends_on:
+      db:
+        condition: service_healthy
 
 networks:
   wiki:
@@ -302,3 +361,6 @@ volumes:
   # it writes out of the database. Derived, all of it. Not backed up, by
   # decision (ADR-0065).
   wiki-data:
+  # db's socket directory, shared with bootstrap-guard (#1435). Not backed up:
+  # a socket and a lock file.
+  wiki-pgsocket:

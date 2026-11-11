@@ -1,0 +1,32 @@
+# BloodHound's UI, answering Hicks only (#1428).
+#
+# It was published on all of VLAN 30, which holds the deliberately weak domain
+# whose attack paths it graphs: a foothold there could read the defenders' map
+# of it. pfSense never sees traffic inside the VLAN, so the source filter has to
+# be here, as soc's is (#1139). BloodHound's own leaf is reused, and the
+# upstream is verified against the estate CA under the `bloodhound` name its
+# certificate carries.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8443 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	@hicks remote_ip 10.0.50.0/24
+	handle @hicks {
+		reverse_proxy https://bloodhound:8080 {
+			header_up Host {hostport}
+			transport http {
+				tls_trust_pool file /etc/caddy/tls/ca.pem
+				tls_server_name bloodhound
+			}
+		}
+	}
+	respond 403
+}
+
+:2020 {
+	respond /healthz 200
+}

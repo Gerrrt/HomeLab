@@ -36,6 +36,30 @@ docstring gives: it is a record, not a claim about now.
     desktop's second network card on `.112`: that row is stale too.
   - The rows for all three still to correct are in Lemmiwinks.
 
+- **The roadmap brought back to its own rules**
+  ([#1431](https://github.com/Gerrrt/HomeLab/issues/1431)). An audit found
+  about 25 closed issues still listed as outstanding. Their entries left
+  `roadmap.md` as its rules require, and what they recorded is already in
+  this file under their own dates.
+  - **Left the milestones:** #92, the firewall restore rehearsed on
+    `trinity`; #129–#131 and #133–#137, eight of ADR-0008's nine services;
+    #533 and #534, the tier's converge timer and its CI re-check; #538,
+    #920 and #921 under *Saruman*; #440, #445, #448, #450 and #451, the
+    automation chain; #143–#147, every *Tier extras* issue.
+  - **Two milestones are met.** *NAS* closed on #523, and *Tier extras* has
+    no issue left. Both sections left the order. *Tier extras* keeps an empty
+    heading, because ADR-0063 links to it.
+  - **#449's close condition is restated.** Every weakness role exists, and
+    the loop ran config-only on 2026-10-08. *automation* closes on #449, and
+    #449 on the first five exercises, one per weakness, each with a detection
+    outcome.
+  - **The DNS failure test is owed, not done.** #135 closed on 2026-09-28,
+    and no record shows that `AdGuardNotAnswering` was ever made to page. The
+    test moved under #404.
+  - **#790 and #1196 close.** Their acceptance is recorded above, under
+    2026-11-09: 902 was built twice on `gandalf`, and `ragnarok` read
+    `running` with 0 accounts at the epoch.
+
 - **Recorded late: seven changes from 2026-10-05 to 2026-10-14 that reached
   `main` without an entry here.** The 2026-11-11 audit found them by
   comparing closed issues against this file. Each one is dated to its merge
