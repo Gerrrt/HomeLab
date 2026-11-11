@@ -3,6 +3,9 @@
 **Status:** Accepted · 2026-10
 
 > [!NOTE]
+> [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) amends decision 6: the way in is now part of the
+> image. The text here is left as written, per ADR-0001 and ADR-0115.
+>
 > 2026-10-08: [ADR-0090](0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
 > adds templates 903–909 for the dotfiles OS layers
 > ([#920](https://github.com/Gerrrt/HomeLab/issues/920)). Debian's (903) joins
