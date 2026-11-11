@@ -23,7 +23,7 @@ above CasaBonita, which the spectrum does not. Reasoning in
 | --- | --- | --- | --- | --- | --- |
 | WAN | — | — | ISP-assigned | Uplink | — |
 | LAN | — | — | `10.7.7.0/24` | Switch management only | Everything[^lan] |
-| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 and 40 |
+| [Winterfell](#winterfell--vlan-99--management) | 99 | 🔴 Red | `10.0.99.0/24` | Infrastructure management | Internet, named ports on 20 and 40, ping to the eeros on 10, 20 and 50 |
 | [Hicks](#hicks--vlan-50--trusted) | 50 | 🟠 Orange | `10.0.50.0/24` | Trusted workstations | Internet, 30, named ports on 99[^hicks] |
 | [CasaBonita](#casabonita--vlan-40--media) | 40 | 🟡 Yellow | `10.0.40.0/24` | TVs and consoles | Internet |
 | [ImaginationLAN](#imaginationlan--vlan-30--lab) | 30 | 🟢 Green | `10.0.30.0/24` | Hypervisor / lab | Internet |
@@ -229,7 +229,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   Skids notes and
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   give the reasons.
-- **One row into Hicks, Skids and Degens, decided and not yet created:**
+- **One row into Hicks, Skids and Degens, in force since 2026-11-11:**
   `10.0.99.20 →` alias `eeros` (the eight eero reservations, `10.0.50.11–.13`,
   `10.0.20.11–.13` and `10.0.10.11–.12`) on ICMP `echoreq` only, above the
   *Block access to …* rows. It is for the `blackbox-eero` job, which pings each
@@ -238,8 +238,10 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   first passes from Winterfell into Hicks or Degens, and they are host- and
   protocol-scoped, so Winterfell's catch-all still reaches no segment.
   [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md) records the
-  decision; [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) creates it,
-  and checks that an eero answers before the job's targets are enabled.
+  decision. It was created under
+  [#1228](https://github.com/Gerrrt/HomeLab/issues/1228), and `ping -c3` from
+  `prometheus` got an answer from an eero on each of the three segments the
+  same day, before the job's targets were enabled.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -864,11 +866,13 @@ the least trusted.
   from another subnet. With that, discovery from `trinity` finds all three.
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)
   records the reading, the NAT and why audio stays out.
-  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them. Adding
-  the HomePods in Home Assistant waits on
-  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
-  because the config flow's scan asks only for a service HomePods do not
-  answer.
+  [#1226](https://github.com/Gerrrt/HomeLab/issues/1226) created them.
+  Home Assistant has not added the HomePods yet. Its Apple TV scan by
+  address asks only for a service HomePods do not answer
+  ([postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929)),
+  and
+  [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+  patches that locally until upstream ships the fix.
 - Device addresses and rooms are collapsed above deliberately. The exact
   camera-to-room mapping is not something a public repository needs to carry.
 - **The pool rows above were read from `morpheus`'s lease table on

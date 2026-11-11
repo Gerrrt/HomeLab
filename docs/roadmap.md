@@ -49,21 +49,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339) Move the wiki to
-  Wiki.js 3.x.** Required by
-  [ADR-0089](adr/0089-keep-the-wiki-on-wikijs-2-until-a-named-trigger-fires.md),
-  whose trigger 3 has fired. First in the milestone because it has a date:
-  2026-12-05, when the four unfixed 2.x advisories in
-  [#1298](https://github.com/Gerrrt/HomeLab/issues/1298) fire trigger 1.
-  Both gates passed on 2026-11-09, and
-  [ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)
-  records how the move is made: 2.x's export into a fresh 3.3.0 on a new
-  volume, `pgdata-wiki3`, with 2.x's `pgdata` kept as the rollback. Left:
-  the cutover on `oracle`, by
-  [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.
-  After it, the `Lemmiwinks` PR from the `wikijs-3` branch, which carries
-  the renamed paths and the mermaid diagrams, and then the git target moved
-  to `main`.
 - **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
   UPS's signal.** Decided by
   [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
@@ -80,12 +65,12 @@ Closes when it is empty.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
-  Gate: a Home Assistant release that pins a pyatv with the fix for
-  [postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929),
-  open upstream as
-  [postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930).
-  Without it the Apple TV config flow cannot find a HomePod. The
-  reservations and the rules on `morpheus` are in force. Left: adding each
+  Gate: `pyatv_scan_guard` deployed. It patches pyatv 0.18.0's scan by
+  address, which cannot find a HomePod
+  ([postlund/pyatv#2929](https://github.com/postlund/pyatv/issues/2929)),
+  until Home Assistant pins a pyatv with the fix
+  ([ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)).
+  The reservations and the rules on `morpheus` are in force. Left: adding each
   HomePod by address from `trinity`, the Home app's speaker-access setting
   that lets it connect, the HomePods' ports read from the firewall log while
   pairing, and the lines in `network.md` and `security.md` that say Home
@@ -102,6 +87,13 @@ Closes when it is empty.
   Gate: a Home Assistant release that pulls a `firebase-messaging` that reads
   Web Push headers by name (sdb9696/firebase-messaging#43 or #46). Whichever
   of this and #1240 retires last takes the component and its package with it.
+- **[#1393](https://github.com/Gerrrt/HomeLab/issues/1393) Retire
+  `pyatv_scan_guard`.** Decided by
+  [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md).
+  Gate: a Home Assistant release that pins a pyatv with the unicast-scan fix
+  ([postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930) or an
+  equivalent). The component and its package go then. The mount stays while
+  `ring_push_guard` does.
 
 The rest of the milestone has no order between its issues.
 

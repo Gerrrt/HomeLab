@@ -414,7 +414,7 @@ discovery from another subnet, so that traffic is NATed to `10.0.20.1` on its
 way into Skids. The HomePods therefore see the firewall's address, not
 `trinity`'s, and they treat it as a device on their own network.
 
-**One more, into Hicks, Skids and Degens, is decided and not yet created**
+**One more, into Hicks, Skids and Degens, exists since 2026-11-11**
 ([ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md),
 [#1228](https://github.com/Gerrrt/HomeLab/issues/1228)): `prometheus` to the
 alias `eeros`, the eight eero units' reserved addresses, on ICMP `echoreq` and
@@ -442,7 +442,9 @@ The row ADR-0008 wrote as `99 → 20` is narrower than it read: one host,
 HomePods on ADR-0099's three rows, with every other device on Skids still
 unreachable from anywhere, and both segments still initiating nothing. The
 HomePod rows reach the devices today. Home Assistant has not added them yet,
-because of a pyatv bug, and that is not a firewall matter. The tripwire below is the check
+because of a pyatv bug that
+[ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+patches locally, and that is not a firewall matter. The tripwire below is the check
 that the second half holds — waiting on Skids, and since 2026-09-16 actually
 checking on CasaBonita.
 

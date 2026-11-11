@@ -230,8 +230,14 @@ in GitHub regardless, so what the dump protects is everything else: accounts,
 history, navigation and settings.
 
 Wiki.js 3 keeps its tables in the schema `wiki`, where 2.x used `public`.
-`backup-wiki.sh` counts with `search_path` set to both, so the same script
-reads either engine.
+`backup-wiki.sh` counts with `search_path` set to `wiki` alone, so `--prove`
+fails on a 2.x set rather than counting it. One 2.x set, the last taken before
+the move to 3.x, is kept out of the rotation in `backups/wiki-2x-final/` on
+`prometheus` ([#1398]). Nothing walks or proves it. It is restored by hand,
+with `pg_restore`, into a scratch Postgres on a throwaway volume of its own,
+read by a separate Wiki.js 2.5.317. Never into `wiki-db` or `pgdata-wiki3`:
+[Restore](#restore)'s commands target the live 3.x cluster, and would load
+2.x's `public` tables beside 3.x's.
 
 A set holds the git storage target's deploy key, because the database does.
 It is ciphertext to the same keys that open `grafana.db`.
@@ -312,9 +318,14 @@ outside any compose file, which would undo every pin here the day it worked.
 Wiki.js 3 cannot upgrade a 2.x database in place ([ADR-0108]). 2.x, at
 2.5.317, exports a `.wkbackup` package, and a fresh 3.x on an empty database
 imports it. The new cluster is on its own volume, `pgdata-wiki3`. 2.x's
-`pgdata` is left untouched as the rollback. Rehearsed on `oracle` on
+`pgdata` was left untouched as the rollback, and retired once the household
+had written to 3.x ([#1398]). Rehearsed on `oracle` on
 2026-11-09 from that morning's set ([#1339]). What the rehearsal found is
 written into the steps below.
+
+**Run on `oracle` on 2026-11-10.** `docs/changelog.md` records the counts
+and the one thing the steps missed, which step 8 now has. The steps stay as
+the procedure for a future major that also has to move by export and import.
 
 **What changes for a reader.** 3.x stores a path with hyphens, lowercased:
 `/runbooks/a_machine_died` becomes `/runbooks/a-machine-died`. About 74 of
@@ -465,14 +476,32 @@ shuts its own issue, #1298.
 
 **8. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
 a PR. On that branch, turn the four `diagrams/` pages' mermaid blocks into
-3.x's diagram block, which renders them, and merge it. Then point the
-target at `main` in **Sync** mode and run **Force Sync**.
+3.x's diagram block, which renders them. Push that, and run **Force Sync**
+while the target is still on `wikijs-3`, so the wiki pulls the conversions.
+Each of the four pages must then render the diagram and not the mermaid
+source. The query prints `t|f` for each, and anything else means the sync
+has not brought them in yet:
 
-**Rollback**, until the household has written to 3.x: revert the PR that
-pinned 3.3.0, and deploy the revert as in
-[Deploying a change](#deploying-a-change), with `--force-recreate` on its
-`up`, for the Caddyfile as in step 4. `db` then mounts `pgdata` again,
-untouched since step 2. Turn 2.x's git target back on.
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select path, position('block-diagram' in render) > 0, position('language-mermaid' in render) > 0 from wiki.pages where path like 'diagrams/%'"
+```
+
+Before merging the PR, point the target at `main` in **Sync** mode. GitHub
+deletes the PR's branch when it merges, and 3.x's sync fails on a branch the
+remote no longer has. In 2026-11-10's run that went unnoticed for a day.
+Then merge the PR and run **Force Sync**, and check that the target's state
+is no longer an error:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select config->>'branch', state->>'status' from wiki.storage where module='git'"
+```
+
+**Rollback** is no longer possible, and was never meant to outlast the
+household's first edit to 3.x. Until then, reverting the PR that pinned 3.3.0
+pointed `db` back at 2.x's `pgdata`, untouched since step 2. That volume is
+retired ([#1398]). Going back to 2.x now would mean the kept 2.x set in
+`backups/wiki-2x-final/` and the loss of every edit since the move, so a
+problem with 3.x is fixed forward, or restored from a 3.x set.
 
 ## The cutover
 
@@ -529,3 +558,4 @@ to 13:55:36 UTC.
 [#833]: https://github.com/Gerrrt/HomeLab/issues/833
 [#847]: https://github.com/Gerrrt/HomeLab/issues/847
 [#1339]: https://github.com/Gerrrt/HomeLab/issues/1339
+[#1398]: https://github.com/Gerrrt/HomeLab/issues/1398

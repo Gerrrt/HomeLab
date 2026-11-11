@@ -40,10 +40,6 @@
 # prometheus, pulling (ADR-0065). wiki-data is a named volume for the caches,
 # not because it holds anything.
 #
-# The 2.x cluster, on the volume `pgdata`, is declared below and mounted by
-# nothing. It is the rollback until the move to 3.x is proved, and it is
-# retired by the follow-up to #1339, not by this file.
-#
 # ---------------------------------------------------------------------------
 # On the comments in this file
 # ---------------------------------------------------------------------------
@@ -249,8 +245,7 @@ services:
   # The cluster is Wiki.js 3.x's, in the external volume `pgdata-wiki3`,
   # created by hand for the move (README.md § The move to 3.x) and never by
   # this file. PGDATA is the image's default for 17 and must stay that way, or
-  # Postgres would start an empty cluster beside the real one. The 2.x cluster
-  # in `pgdata` is not mounted; see the volumes below.
+  # Postgres would start an empty cluster beside the real one.
   #
   # No password is given to this container in normal running. The entrypoint
   # only reads one to INITIALISE an empty cluster, and this one is initialised
@@ -303,13 +298,6 @@ volumes:
   pgdata-wiki3:
     external: true
     name: pgdata-wiki3
-  # The 2.x cluster, created by the hand-run container on 2025-11-12. Mounted by
-  # nothing: it is the rollback until the move is proved (ADR-0108), declared
-  # here so that the file says it exists. Pointing `db` back at it, with the
-  # 2.5.317 pin, is the whole rollback. The follow-up to #1339 retires it.
-  pgdata:
-    external: true
-    name: pgdata
   # Wiki.js's working directory: the icon and file caches, and the deploy key
   # it writes out of the database. Derived, all of it. Not backed up, by
   # decision (ADR-0065).

@@ -46,6 +46,88 @@ docstring gives: it is a record, not a claim about now.
     nothing. ADR-0111 expected that, because `docs/firewall-claims.yaml`
     tracks only wholesale reach and the pass is one port to one host.
 
+- **[#1398](https://github.com/Gerrrt/HomeLab/issues/1398): Wiki.js 2.x's
+  Postgres volume `pgdata` leaves `stacks/wiki/compose.yaml`.** It had been
+  mounted by nothing since the move to 3.3.0 on `pgdata-wiki3` on
+  2026-11-10, and was kept only as the rollback
+  ([ADR-0108](adr/0108-move-the-wiki-to-wikijs-3-by-export-and-import.md)).
+  The issue's gates are that the household has written to 3.x, so the
+  rollback no longer applies, and that a set taken from 3.x has passed
+  `make backup-wiki ARGS=--prove`.
+  - **Decided:** the last 2.x set taken before the move is kept, encrypted,
+    out of the rotation in `backups/wiki-2x-final/` on `prometheus`.
+    Nothing walks or proves it.
+  - **`backup-wiki.sh` counts in the schema `wiki` alone.** 2.x's `public`
+    leaves the search path, so `--prove` fails on a 2.x set instead of
+    counting it.
+  - **Left:** `docker volume rm pgdata` on `oracle`, by hand, after the
+    merge.
+
+- **[#1339](https://github.com/Gerrrt/HomeLab/issues/1339): the wiki runs
+  Wiki.js 3.3.0. The cutover ran on `oracle` on 2026-11-10, by
+  [`stacks/wiki/README.md`](../stacks/wiki/README.md) § The move to 3.x.**
+  - **The new cluster.** `pgdata-wiki3` was created at 00:12 UTC, and
+    `wiki-db` was initialised on it. `wiki-app` was on 3.3.0 from 03:03, and
+    the first sync to the `wikijs-3` branch succeeded at 03:05.
+  - **After the import:**
+    - 108 pages;
+    - 976 history rows (762 carried, plus 3.x's own entries for the import
+      and the link rewrites);
+    - 3 accounts and Guest. The bootstrap administrator was deleted.
+  - **Put back by hand, as the rehearsal predicted:**
+    - Guests' ALLOW rule for `read:pages`, `read:assets` and `read:comments`.
+    - Family's `read:source` and `read:history`.
+
+    The package was removed from `/wiki/data/backup`, and the copied deploy
+    key was shredded.
+  - **[#1298](https://github.com/Gerrrt/HomeLab/issues/1298) is closed.** The
+    `wiki-watch` run dispatched at 03:05 found nothing against 3.3.0.
+  - **The mirror.** `Gerrrt/Lemmiwinks#320` merged `wikijs-3` into `main` at
+    14:40 UTC. It carried 3.x's renamed tree and the four `diagrams/` pages
+    in 3.x's diagram block.
+  - **Found: the merge deleted the branch the target still pointed at.**
+    - Step 8 moves the target to `main` after the merge. GitHub deleted
+      `wikijs-3` on merge, and every sync from 14:40 UTC on failed: *the
+      branch "wikijs-3" does not exist on the remote*.
+    - It was found on 2026-11-11 and fixed at 03:09 UTC that day: the
+      target was moved to `main` in **Sync** mode and force-synced. Its
+      state read `healthy`, and the scheduled sync at 03:10 succeeded.
+    - No page had been edited in between. That sync published 0 queued
+      changes, so nothing went unmirrored.
+    - The README's step 8 now moves the target before the merge.
+  - **`pgdata`, 2.x's cluster, is kept** as the rollback. Nothing mounts it.
+
+- **[#1228](https://github.com/Gerrrt/HomeLab/issues/1228): the eeros answer
+  ping, and the probe is on.** The Winterfell row
+  [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md) decided was
+  created in pfSense: the alias `eeros` (the eight reservations) and a pass
+  from `10.0.99.20` on ICMP `echoreq`, above the *Block access to …* rows.
+  `ping -c3` from `prometheus` got an answer from `10.0.50.11`, `10.0.20.11`
+  and `10.0.10.11`. So the open question #1384 left, whether an eero answers
+  an echo at all, is settled, and ADR-0112 stands. The eight targets in
+  `targets/blackbox-eero.yaml` are uncommented, and `network.md` and
+  `security.md` carry the row as in force. Winterfell's *Reaches* cell now
+  names the ping. Still to check once `prometheus` converges:
+  `probe_success{job="blackbox-eero"}` reads 1 for all eight.
+
+- **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226): the HomePods'
+  upstream gate is carried locally.
+  [ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+  adds `pyatv_scan_guard`, a custom component that patches pyatv 0.18.0's
+  scan by address with postlund/pyatv#2930's change, and
+  [#1393](https://github.com/Gerrrt/HomeLab/issues/1393) tracks its
+  removal. Nothing is deployed yet.**
+  - **Upstream had not moved.** #2930 had no review since 2026-10-21, pyatv
+    had no commit since 0.18.0 on 2026-06-19, and Home Assistant 2026.11.1
+    and `dev` pinned `pyatv==0.18.0`.
+  - **Measured in the pinned image, from a container on
+    `sensitive_sensitive`:** the scan of `10.0.20.21`–`.23` found no HomePod
+    in 3 runs unpatched, and `.21` and `.23` in each of 6 runs patched.
+    `.22` answered no mDNS query that day, patched or not.
+  - **The Apple TV integration scans on every connect, not only when a
+    device is added.** An entry that set up before the patch loaded keeps
+    retrying, at most five minutes apart, so the component reloads nothing.
+
 - **[#1387](https://github.com/Gerrrt/HomeLab/issues/1387): each switch
   port's VLAN is in Prometheus as `dot1qPvid`, and `SwitchPortVlanChanged`
   fires for an hour after any port's PVID changes.** The drift check used
