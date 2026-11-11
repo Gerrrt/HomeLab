@@ -173,6 +173,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-10
 
+- **[#421](https://github.com/Gerrrt/HomeLab/issues/421): the range has
+  targets.** `build-the-playground.md` §6 ran on `gandalf` after §9 passed.
+  - Three targets went onto `vmbr1`, at `172.30.30.100`–`.102`: Metasploitable
+    2, Metasploitable 3 (Ubuntu 14.04) and VulnHub's Mr-Robot: 1. Each has a
+    static address with no gateway, written into its disk before its first
+    boot, and a `clean` snapshot.
+  - **SourceForge's Metasploitable 2 download does not match the published
+    MD5.** It is a different build from the one VulnHub mirrors and hashes.
+    The VulnHub copy is the one in use, and the runbook says to check the
+    hash first.
+  - Proxmox filters `/dev/zd*` out of LVM, so reaching an image's LVM root
+    from the host takes a one-command `--config` override. The runbook
+    records it.
+  - §8's check four passed over SSH on both Metasploitables. Mr-Robot has no
+    login, so it was checked offline.
+
 - **[#421](https://github.com/Gerrrt/HomeLab/issues/421): the range's leak
   reports itself.** `build-the-playground.md` §9 ran on `gandalf` once
   `RangeSubnetLeaked` was deployed, and before any target existed.

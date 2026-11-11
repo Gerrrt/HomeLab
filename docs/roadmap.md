@@ -303,8 +303,8 @@ Gated on the domain, on a household observation, or on something to publish.
   are behind it: the host, its bridges, `Saruman` at `.20`, the closed
   management plane, and the attack VM `ragnarok` on template 902. So are §8
   and §9, which ran before any target, because the leak proof must run
-  before any vulnerable image is on the machine. Next is §6, the targets.
-  Sliver goes on `ragnarok` before the first exercise.
+  before any vulnerable image is on the machine, and then §6, the targets.
+  Next, Sliver goes on `ragnarok`, before the first exercise.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)

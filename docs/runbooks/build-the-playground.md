@@ -696,6 +696,67 @@ stopped being a target and become part of the estate** — which lives on
 `Saruman`, where it is instrumented. That is ADR-0007's judgement turned into a
 placement rule, and it is the question to ask before adding anything here.
 
+### The working list
+
+| VMID | Name | Address | Image | Disk, NIC | Login |
+| --- | --- | --- | --- | --- | --- |
+| 100 | `ms2` | `172.30.30.100` | Metasploitable 2, Ubuntu 8.04, `metasploitable-linux-2.0.0.zip` from VulnHub's mirror | `ide0`, `e1000` | `msfadmin`, the image's documented default |
+| 101 | `ms3-ub1404` | `172.30.30.101` | Metasploitable 3, Ubuntu 14.04, Vagrant Cloud's `rapid7/metasploitable3-ub1404` 0.1.12-weekly, VirtualBox provider | `sata0`, `e1000` | `vagrant`, the box's default |
+| 102 | `mrrobot` | `172.30.30.102` | VulnHub's Mr-Robot: 1, `mrRobot.ova` | `sata0`, `e1000` | None: root is the exercise |
+
+All three run with one core (two for 101) and 1–2 GB, which leaves ADR-0017's
+32 GB room for `ragnarok` and a fourth target. The old kernels get IDE or SATA
+and an `e1000` rather than virtio, so the disk and NIC names match what the
+image was built with.
+
+**How an image goes on.** Download it on `gandalf` into a scratch directory, and
+check it against its published hash before anything else. Import the disk with
+`qm importdisk <vmid> <vmdk> range --format raw` into a VM created with one NIC
+on `vmbr1`, `firewall=0`, and `--onboot 0`. The import leaves the volume as
+`unused0`, so attach it on the table's controller and boot from it:
+`qm set <vmid> --sata0 range:vm-<vmid>-disk-0 --boot order=sata0` (`ide0` for
+`ms2`). Then, **before its first boot**,
+mount its root filesystem on the host and replace the DHCP stanza in
+`/etc/network/interfaces` with `address` and `netmask` only, with no `gateway`.
+Keep the original beside it as `interfaces.orig-dhcp`. Check
+`/etc/udev/rules.d/70-persistent-net.rules`, `rc.local` and `if-up.d` for
+anything else that sets a route.
+
+Proxmox's `lvm.conf` filters out `/dev/zd*`, so an image with its root on LVM
+(both Metasploitables) is invisible to the host until the filter is overridden
+for that one command:
+
+```bash
+C='devices { global_filter=[ "a|/dev/zd.*|", "r|.*|" ] filter=[ "a|.*|" ] }'
+lvs --config "$C"                        # check the guest VG name is not `pve`
+lvchange --config "$C" -ay <vg>/root     # mount /dev/<vg>/root, edit, unmount
+lvchange --config "$C" -an <vg>/root     # release it before the guest boots
+```
+
+Then boot it, run §8's check four on it, power it off and take the snapshot
+`clean`.
+
+> **Built on `gandalf` 2026-11-10** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)),
+> after §9 had passed.
+>
+> - **Hashes.** Mr-Robot matched VulnHub's MD5. **SourceForge's Metasploitable
+>   2 zip did not:** it is a different build, with a vmdk about 20 MB smaller
+>   and other timestamps. VulnHub's mirror matched the published
+>   `8825f250…` and is the copy in use. Vagrant Cloud publishes no checksum
+>   for the Metasploitable 3 box, so it is taken on trust.
+> - **Static override.** Every image used DHCP on `eth0`, and none carried a
+>   persistent-net rule, so the new NIC came up as `eth0`. Metasploitable 3
+>   ships Docker. Its `docker0` adds `172.17.0.0/16` to the route table and
+>   no default, which is the case ADR-0017 placed the subnet for.
+> - **Check four.** It passed on 100 and 101, over SSH from `ragnarok`: the
+>   only routes were the range's `/24` (and `docker0` on 101), and both pings
+>   gave `Network is unreachable`. Mr-Robot has no login to run it from. So
+>   it was checked offline instead: no gateway, no NetworkManager, no
+>   cloud-init, and nothing in `rc.local` or `if-up.d` that sets a route.
+>   All three answered `ragnarok`'s ping.
+> - **Snapshots.** All three were powered off, then `clean` was taken. Mr-Robot
+>   ignores an ACPI shutdown, so `qm stop` it.
+
 ---
 
 ## 7. Powering the range
