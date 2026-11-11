@@ -442,7 +442,9 @@ The row ADR-0008 wrote as `99 → 20` is narrower than it read: one host,
 HomePods on ADR-0099's three rows, with every other device on Skids still
 unreachable from anywhere, and both segments still initiating nothing. The
 HomePod rows reach the devices today. Home Assistant has not added them yet,
-because of a pyatv bug, and that is not a firewall matter. The tripwire below is the check
+because of a pyatv bug that
+[ADR-0113](adr/0113-patch-pyatvs-unicast-scan-locally-until-upstream-ships-a-fix.md)
+patches locally, and that is not a firewall matter. The tripwire below is the check
 that the second half holds — waiting on Skids, and since 2026-09-16 actually
 checking on CasaBonita.
 
