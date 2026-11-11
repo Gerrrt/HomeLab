@@ -32,6 +32,30 @@ docstring gives: it is a record, not a claim about now.
   names the ping. Still to check once `prometheus` converges:
   `probe_success{job="blackbox-eero"}` reads 1 for all eight.
 
+- **[#1387](https://github.com/Gerrrt/HomeLab/issues/1387): each switch
+  port's VLAN is in Prometheus as `dot1qPvid`, and `SwitchPortVlanChanged`
+  fires for an hour after any port's PVID changes.** The drift check used
+  to read the MokerLink's `vlan.cgi` page for this, and that page went with
+  the swap ([#444](https://github.com/Gerrrt/HomeLab/issues/444)).
+  [#482](https://github.com/Gerrrt/HomeLab/issues/482) had asked for it over
+  SNMP and was closed because the MokerLink had no Q-BRIDGE-MIB. The CRS326
+  has one.
+  - **Measured on `neo` over v3 before the module changed:** `dot1qPvid`
+    has 24 rows, one per bridge port, and the values match the port map:
+    port 1 is 7, `ether17` (`smaug`) is 40, `ether20` is 30. Bridge port N
+    is ifIndex N+1, so the series gets the same `ifDescr` port name as the
+    IF-MIB ones. `dot1qVlanStaticName` returns no rows, so VLAN names are
+    not polled.
+  - **The generator needs seven more MIBs** for those two columns, most of
+    them an import chain down to TOKEN-RING-RMON-MIB.
+    `scripts/snmp-mibs.sh` fetches the four that net-snmp lacks from the
+    observium commit already pinned for UPS-MIB.
+  - **The regeneration also carries in a change from the v0.31.0
+    generator** that #1303 did not pick up (snmp_exporter #1624). Three iLO
+    index labels in the `cpqSm2` tables (`cpqSm2CommPort`,
+    `cpqSm2NicLocation` and `cpqSm2NicStatsLocation`) now hold the enum
+    name instead of the number. No rule or dashboard reads them.
+
 - **[#1377](https://github.com/Gerrrt/HomeLab/issues/1377): Immich's and
   Paperless's databases and Valkeys are off `sensitive`, deployed and
   verified.** #1378 put immich-db and immich-valkey on `immich-backend`,

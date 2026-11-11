@@ -70,6 +70,9 @@ UPS_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae63
 # already pins for UPS-MIB carries mibs/apc/PowerNet-MIB too, so this adds a
 # path to an existing pin and inherits its argument unchanged.
 POWERNET_MIB_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae634709198decf99aca7380693351/mibs/apc/PowerNet-MIB'
+# The Q-BRIDGE set for the switch's PVID table (#1387), from the same commit
+# again, for the same reason: net-snmp v5.9 does not ship these four.
+OBSERVIUM_MIBS_URL='https://raw.githubusercontent.com/pgmillon/observium/9064fa3ae1ae634709198decf99aca7380693351/mibs'
 HPE_URL='https://downloads.hpe.com/pub/softlib2/software1/pubsw-linux/p1580676047/v229101/upd11.85mib.tar.gz'
 
 CURL_OPTS=(-L -sS --retry 3 --retry-delay 3 --fail --max-time 180)
@@ -119,6 +122,30 @@ fetch UPS-MIB "${UPS_MIB_URL}"
 # ---------------------------------------------------------------------------
 info "PowerNet-MIB (APC)"
 fetch PowerNet-MIB "${POWERNET_MIB_URL}"
+
+# ---------------------------------------------------------------------------
+# Bridge MIBs for the switch's per-port VLAN (#1387). The crs326 module walks
+# two columns: Q-BRIDGE-MIB's dot1qPvid and BRIDGE-MIB's dot1dBasePortIfIndex.
+# Everything else here is an import chain, and every link is load-bearing —
+# each was removed in turn on 2026-11-11 and the generator failed with
+# "Missing MIB":
+#
+#   Q-BRIDGE-MIB  -> P-BRIDGE-MIB (EnabledStatus), SNMP-FRAMEWORK-MIB
+#                    (SnmpAdminString), BRIDGE-MIB, RMON2-MIB (TimeFilter)
+#   RMON2-MIB     -> RMON-MIB, TOKEN-RING-RMON-MIB
+#
+# TOKEN-RING-RMON-MIB is here for one textual convention three hops away; its
+# own SMIv1 imports (RFC1155-SMI, RFC-1212, RFC1271-MIB) net-snmp resolves
+# without the files. net-snmp v5.9 carries the first three below and not the
+# other four, which come from the observium commit already pinned above.
+# ---------------------------------------------------------------------------
+info "Bridge MIBs (switch PVID)"
+for m in BRIDGE-MIB RMON-MIB SNMP-FRAMEWORK-MIB; do
+  fetch "${m}" "${NET_SNMP_URL}/${m}.txt"
+done
+for m in Q-BRIDGE-MIB P-BRIDGE-MIB RMON2-MIB TOKEN-RING-RMON-MIB; do
+  fetch "${m}" "${OBSERVIUM_MIBS_URL}/${m}"
+done
 
 # ---------------------------------------------------------------------------
 # pfSense exposes pf through FreeBSD's bsnmpd. BEGEMOT-PF-MIB imports from
