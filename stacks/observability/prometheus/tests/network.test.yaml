@@ -914,3 +914,41 @@ tests:
               category: availability
             exp_annotations:
               summary: "Interface ether15 on neo went down"
+
+  # SwitchPortVlanChanged: ether9 moves from VLAN 50 to 99 at 30m and fires at once,
+  # and the alert holds for the hour changes() can see the move, then clears.
+  # ether17 never changes and stays quiet. The labels are what the crs326 module
+  # stamps: the bridge port, its ifIndex (port plus one, measured 2026-11-11)
+  # and the ifDescr found through it.
+  - interval: 1m
+    input_series:
+      - series: 'dot1qPvid{job="snmp",instance="10.7.7.2",device="neo",dot1dBasePort="9",dot1dBasePortIfIndex="10",ifDescr="ether9"}'
+        values: "50x30 99x100"
+      - series: 'dot1qPvid{job="snmp",instance="10.7.7.2",device="neo",dot1dBasePort="17",dot1dBasePortIfIndex="18",ifDescr="ether17"}'
+        values: "40x130"
+    alert_rule_test:
+      - eval_time: 29m
+        alertname: SwitchPortVlanChanged
+        exp_alerts: []
+      - eval_time: 31m
+        alertname: SwitchPortVlanChanged
+        exp_alerts:
+          - exp_labels:
+              alertname: SwitchPortVlanChanged
+              job: snmp
+              instance: 10.7.7.2
+              device: neo
+              dot1dBasePort: 9
+              dot1dBasePortIfIndex: 10
+              ifDescr: ether9
+              component: network
+              severity: warning
+              category: config
+            exp_annotations:
+              summary: "ether9 on neo changed its PVID; it is now VLAN 99"
+              description: >-
+                Record the change in docs/network.md's port map, or put the
+                port back. Clears an hour after the change.
+      - eval_time: 95m
+        alertname: SwitchPortVlanChanged
+        exp_alerts: []
