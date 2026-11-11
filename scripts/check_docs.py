@@ -1126,7 +1126,7 @@ def check_adr_backlinks(adr_dir: pathlib.Path) -> list[str]:
             block.append(line)
         status = re.sub(r"\]\([^)]*\)", "]", " ".join(block))
         for verb in _ADR_CHANGE.finditer(status):
-            clause = re.split(r"[;.]\s|\bas \[ADR|\bdecides\b", status[verb.end() :], maxsplit=1)[0]
+            clause = re.split(r"[;.]\s|\bas \[?ADR|\bdecides\b", status[verb.end() :], maxsplit=1)[0]
             for other in re.findall(r"ADR-(\d{4})", clause):
                 if other == num:
                     continue
@@ -1657,6 +1657,31 @@ def self_test() -> int:
             ("a missing cross-file anchor is caught", "no heading for #ghost" in joined),
             ("a missing same-file anchor is caught", "#ghost is not a heading" in joined),
             ("a target leaving the repository is caught", "leaves the repository" in joined),
+        ]
+
+    # ADR back-links (ADR-0115). A precedent named after "as" is not a change,
+    # whether it is written as a link or as plain text.
+    with tempfile.TemporaryDirectory() as d:
+        adr = pathlib.Path(d)
+
+        def adrs(status: str, first_mentions: bool) -> list[str]:
+            for f in adr.glob("*.md"):
+                f.unlink()
+            (adr / "0001-first.md").write_text(
+                "# ADR-0001\n\n**Status:** Accepted\n" + ("See ADR-0002.\n" if first_mentions else "")
+            )
+            (adr / "0002-second.md").write_text(f"# ADR-0002\n\n**Status:** {status}\n")
+            (adr / "0003-third.md").write_text("# ADR-0003\n\n**Status:** Accepted\n")
+            return check_adr_backlinks(adr)
+
+        cases += [
+            ("an amended ADR that links back passes", not adrs("Accepted · amends ADR-0001", True)),
+            ("an amended ADR with no back-link fails", bool(adrs("Accepted · amends ADR-0001", False))),
+            ("a plain-text precedent is not a change", not adrs("Accepted · amends ADR-0001, as ADR-0003 did", True)),
+            (
+                "nor is a linked one",
+                not adrs("Accepted · amends [ADR-0001](0001-first.md), as [ADR-0003](0003-third.md) did", True),
+            ),
         ]
 
     failed = 0
