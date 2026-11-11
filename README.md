@@ -93,9 +93,9 @@ documents for different readers.
   and the HomePods on Skids since 2026-10-21
   ([ADR-0099](docs/adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md)),
   each by host-scoped passes that only Home Assistant's host can open.
-  Default deny holds everywhere except the trusted workstation segment and the
-  switch LAN, both of which are listed rather than counted.
-  [Why](docs/adr/0013-segment-access-as-implemented.md)
+  Default deny holds on every segment except the trusted workstation segment,
+  which reaches management on a named list and the whole lab by decision.
+  [Why](docs/adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)
 - **Full observability pipeline for a mixed estate.** Grafana Alloy agents push
   metrics and logs from Linux hosts; `snmp_exporter` polls the four devices that
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
@@ -156,8 +156,12 @@ network.](docs/diagrams/current/network.svg)](docs/diagrams/current/network.svg)
 [`docs/diagrams/`](docs/diagrams/README.md).</sub>
 
 Each panel's footer says what that segment reaches, and that is the short
-version. Default deny holds for every segment except Hicks and the switch LAN,
-both of which reach further than any picture of exceptions suggests.
+version. Default deny holds for every segment except Hicks, which reaches
+further than any picture of exceptions suggests: a named list into Winterfell
+and all of ImaginationLAN
+([ADR-0031](docs/adr/0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)).
+The switch LAN was the other exception until 2026-09-06
+([ADR-0025](docs/adr/0025-close-the-switch-lan-to-winterfell.md)).
 [`network.md`](docs/network.md)'s *Reaches* column is the segment-level
 summary. The host-scoped passes underneath it are in each segment's notes in
 the same file, and the two together are the current state. Two examples:
