@@ -5,6 +5,12 @@
 # (postlund/pyatv#2929, ADR-0113). A custom integration only loads when its
 # domain is in the configuration, and it takes no options.
 #
+# It loads at Home Assistant's start, and `make up` does not restart Home
+# Assistant when only a package or custom_components changed. After
+# deploying, restart it (`docker restart sensitive-home-assistant`) and look
+# for Home Assistant's startup warning that it found the custom integration
+# pyatv_scan_guard, before adding a HomePod.
+#
 # Delete this file and the component when Home Assistant ships a pyatv with
 # the fix (postlund/pyatv#2930), under #1393. The component warns in the log when the
 # installed pyatv is not the version its patch was written for.

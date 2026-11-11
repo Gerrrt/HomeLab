@@ -52,6 +52,11 @@ pyatv 0.18.0, and delete it when a fixed release reaches Home Assistant.**
   answers first and the fallback never runs.
 - It applies only when pyatv is 0.18.0. On any other version it patches
   nothing and logs a warning to delete it.
+- It loads only when Home Assistant starts. `make up` does not restart Home
+  Assistant for a new package or custom component, so the deploy is `make up`
+  and then a restart of `sensitive-home-assistant`. The startup warning that
+  Home Assistant found the custom integration `pyatv_scan_guard` confirms it
+  loaded. The *Patched pyatv* line is at INFO, below the default log level.
 - It reloads nothing. The config flow scans when a HomePod is added. An entry
   that set up before the component loaded found nothing and keeps retrying in
   its connect loop, first after 15 seconds and then never more than five
