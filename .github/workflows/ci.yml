@@ -225,6 +225,12 @@ jobs:
       - name: Verify every docker image comes from compose.yaml
         run: python3 scripts/check_image_pins.py
 
+      # Collectors install as single files, so a helper two of them need is
+      # copied into both, marked `# shared-block:`. This fails a fix that
+      # reached one copy and not the others.
+      - name: Verify every copy of a shared block agrees
+        run: python3 scripts/check_shared_blocks.py
+
       # Every stack that runs a Prometheus. A stack with rules and no unit
       # tests fails, which is stricter than the single-stack version was: rules
       # that cannot fire pass `check rules` (#63), so the moment to notice a

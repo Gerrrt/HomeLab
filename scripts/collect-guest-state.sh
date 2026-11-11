@@ -114,6 +114,7 @@ trap 'rm -f "${STDERR_FILE}"' EXIT
 # collector learned: a row without a PID, or a name containing a space, shifts
 # every position-based field. VMID is the leading integer, STATUS is the field
 # that IS a status, and NAME is what sits between them.
+# shared-block: parse_guest_list
 parse_guest_list() {
   local kind="$1"
   awk -v kind="$kind" '
@@ -134,6 +135,7 @@ parse_guest_list() {
     }
   '
 }
+# end shared-block: parse_guest_list
 
 # `qm config <vmid>` / `pct config <vmid>` print `key: value` lines:
 #
