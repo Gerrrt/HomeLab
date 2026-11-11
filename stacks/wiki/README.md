@@ -323,6 +323,10 @@ had written to 3.x ([#1398]). Rehearsed on `oracle` on
 2026-11-09 from that morning's set ([#1339]). What the rehearsal found is
 written into the steps below.
 
+**Run on `oracle` on 2026-11-10.** `docs/changelog.md` records the counts
+and the one thing the steps missed, which step 8 now has. The steps stay as
+the procedure for a future major that also has to move by export and import.
+
 **What changes for a reader.** 3.x stores a path with hyphens, lowercased:
 `/runbooks/a_machine_died` becomes `/runbooks/a-machine-died`. About 74 of
 the 108 pages move, and their old URLs do not redirect. Links inside the wiki
@@ -472,8 +476,25 @@ shuts its own issue, #1298.
 
 **8. Bring the mirror back to `main`.** In `Lemmiwinks`, review `wikijs-3` as
 a PR. On that branch, turn the four `diagrams/` pages' mermaid blocks into
-3.x's diagram block, which renders them, and merge it. Then point the
-target at `main` in **Sync** mode and run **Force Sync**.
+3.x's diagram block, which renders them. Push that, and run **Force Sync**
+while the target is still on `wikijs-3`, so the wiki pulls the conversions.
+Each of the four pages must then render the diagram and not the mermaid
+source. The query prints `t|f` for each, and anything else means the sync
+has not brought them in yet:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select path, position('block-diagram' in render) > 0, position('language-mermaid' in render) > 0 from wiki.pages where path like 'diagrams/%'"
+```
+
+Before merging the PR, point the target at `main` in **Sync** mode. GitHub
+deletes the PR's branch when it merges, and 3.x's sync fails on a branch the
+remote no longer has. In 2026-11-10's run that went unnoticed for a day.
+Then merge the PR and run **Force Sync**, and check that the target's state
+is no longer an error:
+
+```bash
+docker exec wiki-db psql -U wiki -d wiki -Atqc "select config->>'branch', state->>'status' from wiki.storage where module='git'"
+```
 
 **Rollback** is no longer possible, and was never meant to outlast the
 household's first edit to 3.x. Until then, reverting the PR that pinned 3.3.0
