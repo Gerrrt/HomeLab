@@ -409,7 +409,7 @@
 <rect x="450" y="1220" width="322" height="50" rx="8" class="card"/>
 <rect x="450" y="1226" width="4" height="38" rx="2" fill="#db6d28"/>
 <text x="464" y="1242" class="hn">wearable-01</text>
-<text x="760" y="1242" class="ip" text-anchor="end" fill="#db6d28">.112</text>
+<text x="760" y="1242" class="ip" text-anchor="end" fill="#db6d28">.114</text>
 <text x="464" y="1260" class="sub">Apple Watch</text>
 </g>
 <g class="host" data-host="eero mesh · trusted">
