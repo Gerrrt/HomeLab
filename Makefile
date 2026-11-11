@@ -629,8 +629,26 @@ scan-images: ## Scan every pinned image for fixable HIGH/CRITICAL CVEs (reports 
 
 .PHONY: scan
 scan: ## Scan the working tree and history for secrets
-	gitleaks detect --no-banner --redact -c .gitleaks-worktree.toml
-	gitleaks detect --no-banner --redact -c .gitleaks.toml --log-opts="--all"
+	@# The same two scans CI and validate.sh run. The working-tree line needs
+	@# --no-git: without it gitleaks walks history instead, under the worktree
+	@# config's allowlist, and "no leaks" said nothing about the tree. The
+	@# history line goes through gitleaks-history.sh, which fails a scan of zero
+	@# commits. The pinned image from compose.yaml comes first, as in CI; a
+	@# local binary is the fallback, and says so, because its version is not
+	@# the one compose.yaml pins.
+	@if docker info >/dev/null 2>&1; then \
+		git_common="$$(git rev-parse --path-format=absolute --git-common-dir)"; \
+		gl=(docker run --rm --network none --user "$$(id -u):$$(id -g)" -e HOME=/tmp \
+		    -v "$$PWD:/repo:ro" -v "$$git_common:$$git_common:ro" -w /repo \
+		    "$$(./scripts/image-for.sh gitleaks)"); \
+	elif command -v gitleaks >/dev/null 2>&1; then \
+		printf 'note: no docker daemon; using the local %s, not the pinned image\n' "$$(gitleaks version)"; \
+		gl=(gitleaks); \
+	else \
+		printf 'error: no docker daemon and no gitleaks binary; nothing was scanned\n' >&2; exit 1; \
+	fi; \
+	"$${gl[@]}" detect --no-git --no-banner --redact -c .gitleaks-worktree.toml; \
+	./scripts/gitleaks-history.sh "$${gl[@]}"
 
 # ---------------------------------------------------------------------------
 # Maintenance
