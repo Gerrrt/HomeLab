@@ -40,29 +40,34 @@ sha256_of() {
 die() { printf 'error: %s\n' "$*" >&2; exit 1; }
 
 # <rev> <dir> <spec>... -> the fetch block, on stdout
+#
+# Every operand is shell-quoted with %q, because the block is pasted into a
+# shell: a --dir or NAME with a space in it would otherwise split, and the
+# checksum line would name a different file than curl wrote.
 emit_fetch() {
   local rev="$1" dir="$2" spec path name sum
   shift 2
-  printf 'cd %s \\\n' "${dir}"
+  printf 'cd %q \\\n' "${dir}"
   for spec in "$@"; do
     path="${spec%%:*}"
     name="$(basename "${path}")"
     [[ "${spec}" == *:* ]] && name="${spec#*:}"
     sum="$(sha256_of "${path}")"
-    printf '  && curl -fsSL https://raw.githubusercontent.com/%s/%s/%s -o %s.new \\\n' \
-      "${REPO_SLUG}" "${rev}" "${path}" "${name}"
-    printf "  && echo '%s  %s.new' | sha256sum -c - \\\\\n" "${sum}" "${name}"
-    printf '  && mv %s.new %s \\\n' "${name}" "${name}"
-    [[ "${name}" == *.sh ]] && printf '  && chmod 0755 %s \\\n' "${name}"
+    printf '  && curl -fsSL %q -o %q \\\n' \
+      "https://raw.githubusercontent.com/${REPO_SLUG}/${rev}/${path}" "${name}.new"
+    printf '  && printf %%s\\\\n %q | sha256sum -c - \\\n' "${sum}  ${name}.new"
+    printf '  && mv %q %q \\\n' "${name}.new" "${name}"
+    [[ "${name}" == *.sh ]] && printf '  && chmod 0755 %q \\\n' "${name}"
   done
   printf "  && echo 'fetched from %s, every sha256 matched'\n" "${rev:0:12}"
 }
 
-# <dir> <spec>... -> the drift check, on stdout
+# <dir> <spec>... -> the drift check, on stdout. sha256sum -c reads each
+# name to the end of its line, so only the directory needs quoting.
 emit_verify() {
   local dir="$1" spec path name
   shift
-  printf 'cd %s && sha256sum -c - <<'"'"'EOF'"'"'\n' "${dir}"
+  printf 'cd %q && sha256sum -c - <<'"'"'EOF'"'"'\n' "${dir}"
   for spec in "$@"; do
     path="${spec%%:*}"
     name="$(basename "${path}")"
@@ -110,6 +115,19 @@ if [[ "${1:-}" == "--self-test" ]]; then
   else
     bad "a mismatched file was installed"
   fi
+  # A --dir and a NAME with spaces survive being pasted into a shell (the
+  # stand-in curl copies the good file again).
+  # shellcheck disable=SC2016
+  printf '#!/bin/sh\nsrc=""; out=""\nwhile [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2;; -*) shift;; *) src="$1"; shift;; esac; done\ncp "%s/${src#*deadbeefcafe/}" "$out"\n' "${T}" > "${T}/bin/curl"
+  mkdir -p "${T}/sm aug"
+  sp="$(emit_fetch deadbeefcafe "${T}/sm aug" "scripts/a.sh:collector copy.sh")"
+  if PATH="${T}/bin:${PATH}" bash -c "${sp}" >/dev/null 2>&1 && [[ -x "${T}/sm aug/collector copy.sh" ]]; then
+    ok "a directory and a NAME with spaces are quoted in the fetch block"
+  else
+    bad "a directory or NAME with spaces broke the fetch block"
+  fi
+  vs="$(emit_verify "${T}/sm aug" "scripts/a.sh:collector copy.sh")"
+  if bash -c "${vs}" >/dev/null 2>&1; then ok "--verify quotes a directory with spaces"; else bad "--verify broke on a directory with spaces"; fi
   cp scripts/a.sh "${T}/smaug/a.sh"; cp stacks/media/.env.example "${T}/smaug/.env"
   v="$(emit_verify "${T}/smaug" scripts/a.sh stacks/media/.env.example:.env)"
   if bash -c "${v}" >/dev/null 2>&1; then ok "--verify passes files that match"; else bad "--verify failed matching files"; fi
