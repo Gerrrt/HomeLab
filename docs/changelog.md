@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-12
 
+- **Immich's two images ran a release apart on `trinity`, and are now bumped
+  together.** [#1461](https://github.com/Gerrrt/HomeLab/pull/1461) moved
+  `immich-server` to v3.4.1 and left `immich-machine-learning` on v3.3.6,
+  because Dependabot opened one PR per image, and the merge deployed within
+  the hour. Read on `trinity` the same day: machine learning answered the
+  new server ("became healthy") and faces were still detected after the bump,
+  so nothing failed. The ML image is now v3.4.1, and `.github/dependabot.yml`
+  groups the two so a release arrives as one PR. `immich-app/postgres` is
+  left out of the group, because its majors are held.
+
 - **`dot-alpine`'s disk is 16 GiB, and `tofu/guests.tf` now says so.** The
   dotfiles install outgrew the 8 GiB that
   [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)

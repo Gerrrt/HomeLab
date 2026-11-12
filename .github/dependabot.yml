@@ -50,11 +50,15 @@ updates:
       prometheus-stack:
         patterns: ["prom/*"]
 
-  # The sensitive tier. Its images share nothing with the other stacks, so
-  # no groups; each bump is its own PR, and each merge is a deploy: trinity's
-  # homelab-converge-sensitive applies it within the hour (#533), so review
-  # it as one. Written before the host existed, for the reason the lab entry
-  # gives: pins rot from the day they are written.
+  # The sensitive tier. Its images share nothing with the other stacks, and
+  # each bump is its own PR except Immich's two, and each merge is a deploy:
+  # trinity's homelab-converge-sensitive applies it within the hour (#533), so
+  # review it as one. Immich's server and machine-learning images are one
+  # release and run as a matched pair; ungrouped, #1461 moved the server to
+  # v3.4.1 alone and trinity ran it beside machine-learning v3.3.6. The group
+  # names both and not immich-app/postgres, whose majors are held below.
+  # Written before the host existed, for the reason the lab entry gives: pins
+  # rot from the day they are written.
   #
   # Postgres majors are held, by wiki's rule below: the tier's three Postgres
   # volumes — Immich's, Paperless's and Miniflux's — are quiesced data
@@ -90,6 +94,9 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "sensitive"]
+    groups:
+      immich:
+        patterns: ["immich-app/immich-server", "immich-app/immich-machine-learning"]
 
   # The SOC stack, on odin. Three wazuh/* images that move together and are
   # grouped so one PR carries a release — the indexer, manager and dashboard
