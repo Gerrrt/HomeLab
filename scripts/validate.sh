@@ -684,6 +684,23 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+head_ "Ingest bind address"
+# ---------------------------------------------------------------------------
+# The ingest proxies publish on INGEST_BIND_ADDR and must answer on one
+# specific address. A port clash with the stores' loopback binds used to
+# refuse a wildcard at `make up`; since #1430 closed the lab's plain ports
+# nothing did, so this does (check_ingest_bind.py says why).
+if have python3; then
+  if python3 scripts/check_ingest_bind.py; then
+    pass "INGEST_BIND_ADDR is one specific address in every stack"
+  else
+    fail "INGEST_BIND_ADDR is a wildcard, missing or inconsistent"
+  fi
+else
+  skip "python3 not installed"
+fi
+
+# ---------------------------------------------------------------------------
 head_ "Shared blocks"
 # ---------------------------------------------------------------------------
 # Code copied on purpose, because a collector installs as one file, is marked

@@ -35,6 +35,53 @@ docstring gives: it is a record, not a claim about now.
   issue, #1334, stays `observability`. Both scripts gained fixtures, and
   `scan-images.sh --self-test` is new.
 
+- **The tracker brought into line with the roadmap** (the audit's tracker
+  pass).
+  - **Labels:** three kinds now. Type: `feature`, renamed from `enhancement`,
+    then `bug`, `docs` (renamed from `documentation`), `security`, `ci` and
+    `dependencies`. Area: the stack labels, plus new `infra` and `pipeline`.
+    Status: `blocked`. Nineteen labels were deleted: GitHub's unused
+    defaults, `priority/*` (a one-off review in 2026-10),
+    `status/authored`, and `seq/1`–`seq/9`. The roadmap holds the order, and
+    two places holding it is how it drifts. The scanner-owned labels are
+    unchanged, because `cve_report.py` writes them by name.
+    `.github/ISSUE_TEMPLATE/change.yml` now labels new changes `feature`.
+  - **Milestones:** `automation` is renamed `exercises`, and closes when #449
+    does. #1430, #1439 and #1454 joined *Nothing blocks these*, and #1176 and
+    #1443 joined *last*. NAS and Tier extras were already closed.
+  - **Issues:**
+    - [#1228](https://github.com/Gerrrt/HomeLab/issues/1228) closed: its
+      three steps were deployed by 2026-10-21, and the optional probe became
+      ADR-0112.
+    - [#1139](https://github.com/Gerrrt/HomeLab/issues/1139) closed: the
+      SOC's UIs are fenced to Hicks (#1429), the lab-side refusal was proved
+      on 2026-11-10, and the owner logged in from Hicks.
+    - #449 is split into six exercises, #1475–#1480, and now closes on all
+      six, not the first five the roadmap said.
+    - Sliver is split out of #421 as #1481.
+    - #455 is retitled for what is left: ADR-0023's second-person proof.
+
+- **`ragnarok` rebuilt by OpenTofu on `gandalf`, and proved**
+  ([#1464](https://github.com/Gerrrt/HomeLab/pull/1464), ADR-0116). The
+  script-built VM 130 was destroyed, `/vms/130` was granted to `phoenix@pve`
+  again with `PhoenixBuilder` and `PhoenixHostKeys`, and a targeted plan
+  added one VM and nothing else. `scripts/finish-attack-vm.sh` then passed
+  every check: the config read back; the guest agent reported the VLAN 30
+  lease; SSH presented the host key read through the agent, and phoenix's key
+  opened it; forwarding is off persistently; there is no NAT; and the one
+  default route is via `10.0.30.1` on `eth0`, with `172.30.30.10/24` on
+  `eth1`. The new MAC took a new lease, `10.0.30.100`; the build-the-playground
+  §5 as-run of 2026-11-09 recorded `.111`, and stays as written.
+  - **Before it, the tofu pipeline was brought back on `phoenix`.** The
+    identities file #1421 moved out of `guests.tf` was rebuilt, with all 17
+    guests, and escrowed in `secrets/tofu.sops.yaml`
+    ([#1469](https://github.com/Gerrrt/HomeLab/pull/1469)). The plan that
+    checked it found `dot-alpine`'s disk declared smaller than the guest
+    ([#1468](https://github.com/Gerrrt/HomeLab/pull/1468)), and `eden`'s
+    operator key file missing from `phoenix`, which every plan reads; both
+    are in place. `eden` is still outside the state, so every plan and
+    apply keeps `-target` until it is brought in (#1443).
+
 - **The lab's ingest proxy answers over TLS alone: its plain `9090` and `3100`
   are closed** ([#1430](https://github.com/Gerrrt/HomeLab/issues/1430)). This
   is the second step of the rollout #1465 began on 2026-11-11, which put TLS
