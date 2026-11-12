@@ -87,7 +87,24 @@ resource "proxmox_virtual_environment_vm" "this" {
     size         = var.disk_gib
     discard      = "on"
     iothread     = true
-    ssd          = true
+    ssd          = var.os_disk_ssd
+  }
+
+  # A data disk is created empty: the guest formats and mounts it (eden's is
+  # build-the-bloodhound-guest.md §2). It is part of the VM, so a destroy or
+  # a replace takes it, which ADR-0081 accepts for eden: its graph is derived
+  # data, one collection run from rebuilt.
+  dynamic "disk" {
+    for_each = var.data_disks
+    content {
+      interface    = "scsi${disk.key + 1}"
+      datastore_id = disk.value.datastore
+      size         = disk.value.size_gib
+      file_format  = "raw"
+      discard      = "on"
+      iothread     = true
+      ssd          = true
+    }
   }
 
   network_device {
@@ -123,7 +140,14 @@ resource "proxmox_virtual_environment_vm" "this" {
       datastore_id = var.datastore
       ip_config {
         ipv4 {
-          address = "dhcp"
+          address = var.ipv4 == null ? "dhcp" : var.ipv4.address
+          gateway = var.ipv4 == null ? null : var.ipv4.gateway
+        }
+      }
+      dynamic "dns" {
+        for_each = length(var.dns_servers) > 0 ? [1] : []
+        content {
+          servers = var.dns_servers
         }
       }
       user_account {

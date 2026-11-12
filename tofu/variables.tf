@@ -10,6 +10,12 @@ variable "ssh_public_key_file" {
   description = "phoenix's key, the one ADR-0043 says the toolchain puts on every guest it builds. Same default as packer/."
 }
 
+variable "eden_operator_key_file" {
+  type        = string
+  default     = "~/.config/proxmox/eden-garnet.pub"
+  description = "garnet's public key from alexander, which eden's operator logs in with beside phoenix's own (build-the-bloodhound-guest.md §1). A public key, but kept beside the credentials so the checkout stays the same on every host."
+}
+
 # Each guest's MAC and, for the six domain guests, the SMBIOS UUID the
 # hand-built one had. They are not in this repository: docs/security.md's
 # "What this repository deliberately does not publish" withholds full MACs,

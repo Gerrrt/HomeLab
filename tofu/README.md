@@ -30,8 +30,9 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   lives exactly as long as a guest in it does. It holds ADR-0029's six domain
   guests (150–155), in the `lab-domain` pool, #920's on-demand dotfiles
   VMs (191–198, [ADR-0090]), in the `dotfiles` pool, #921's always-on
-  analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool, and
-  the proof guest, 998, only under `-var proof=true`.
+  analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool,
+  #451's BloodHound guest `eden` (141, [ADR-0081]), in the `bloodhound` pool,
+  and the proof guest, 998, only under `-var proof=true`.
 - `identities.auto.tfvars` holds each guest's MAC and SMBIOS UUID. It exists
   only on `phoenix`, is gitignored, and is escrowed in
   `secrets/tofu.sops.yaml`; `identities.auto.tfvars.example` shows its shape.
@@ -54,7 +55,8 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   reservations are keyed by MAC, and the endpoints' activation by the UUID.
   A rebuild is
   [`build-the-lab-domain.md`'s](../docs/runbooks/build-the-lab-domain.md#rebuild-from-the-pipeline),
-  and it destroys with `-target=module.guest` so the pool's grant survives.
+  and it destroys and applies with a `-target` per domain guest, so the
+  pool's grant survives and no other guest in `module.guest` goes with them.
 - **CI proves that the tree parses and that the encryption holds. `phoenix`
   proves that it applies.** `scripts/lint.sh` runs `fmt -check` and
   `validate`, and `scripts/self-tests.sh` runs the encryption proof. Both use
@@ -62,5 +64,6 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   finished once the runbook's §4 has passed against a real apply.
 
 [ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
+[ADR-0081]: ../docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md
 [ADR-0076]: ../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
 [runbook]: ../docs/runbooks/provision-lab-guests.md

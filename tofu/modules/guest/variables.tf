@@ -145,3 +145,37 @@ variable "password" {
   default   = null
   sensitive = true
 }
+
+# The variables below exist for eden (#1443), the first guest whose hand-built
+# shape the module did not already describe. Each defaults to what every other
+# guest has, so their plans are unchanged.
+
+variable "os_disk_ssd" {
+  type        = bool
+  default     = true
+  description = "Tell the guest scsi0 is an SSD. True on large_data. False for an OS disk on local-lvm, the HDD mirror (eden, ADR-0081), where the flag would say otherwise."
+}
+
+variable "data_disks" {
+  type = list(object({
+    datastore = string
+    size_gib  = number
+  }))
+  default     = []
+  description = "Disks after scsi0, as scsi1, scsi2 and on, each with discard, iothread and ssd. eden's Postgres disk is the one so far (ADR-0081: 32 GiB on large_data)."
+}
+
+variable "ipv4" {
+  type = object({
+    address = string
+    gateway = string
+  })
+  default     = null
+  description = "A static address in CIDR form and its gateway, written to cloud-init. Null is DHCP from morpheus's reservation, as every other Linux guest has."
+}
+
+variable "dns_servers" {
+  type        = list(string)
+  default     = []
+  description = "cloud-init nameservers. Empty leaves Proxmox to fill them from the host, as before."
+}
