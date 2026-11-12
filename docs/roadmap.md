@@ -35,8 +35,8 @@ What an entry here may contain:
    is built and serving; what is left is its gates, and the off-estate copy.
 3. [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
    — one proof left, the lab's second key.
-4. [**automation**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
-   pipeline is built; what is left is using it, as exercises.
+4. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
+   pipeline is built; what is left is using it, one exercise per weakness.
 5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
    domain, on a household observation, or on something to publish.
 
@@ -89,6 +89,19 @@ Closes when it is empty.
   ([postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930) or an
   equivalent). The component and its package go then. The mount stays while
   `ring_push_guard` does.
+- **[#922](https://github.com/Gerrrt/HomeLab/issues/922) Decide: a 2.5 Gbit
+  WAN, or a cheaper plan.** The decision was due around 2026-11-03, on four
+  weeks of `WanLinkSaturated`. If it implies a purchase, the purchase enters
+  through *Everything still to buy* in the same PR that decides it.
+- **[#1439](https://github.com/Gerrrt/HomeLab/issues/1439) Bring the SOC's
+  agents up to its servers.** The Wazuh agent pin in
+  `ansible/roles/soc_agents` trails the manager, and the Velociraptor client
+  trails the server. Bump each with its product code and checksum, then
+  re-run the role.
+- **[#1454](https://github.com/Gerrrt/HomeLab/issues/1454) Deploy MakeMKV on
+  `smaug`.** Decided by
+  [ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
+  deploy it, measure what capabilities it needs, and create the `5800` pass.
 
 The rest of the milestone has no order between its issues.
 
@@ -152,7 +165,7 @@ Wazuh and Velociraptor reported the six agents in on 2026-09-27.
   second as well as `alexander`'s key since 2026-10-07. What remains is
   `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
 
-## automation
+## exercises
 
 Closes when #449 does. The pipeline it names is built: Packer, OpenTofu,
 Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
@@ -162,9 +175,12 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
   weaknesses.** Every weakness role exists, one tag each, and the loop ran
   config-only on 2026-10-08. What is left is to use them: apply one weakness at
   a time, find its path in BloodHound, exploit it from `ragnarok`, and record
-  what Wazuh and Zeek saw as an exercise in [`exercises/`](exercises/). It
-  closes on the first five exercises, one per weakness, each with a detection
-  outcome. → [runbook](runbooks/build-the-lab-domain.md)
+  what Wazuh and Zeek saw as an exercise in [`exercises/`](exercises/). One
+  sub-issue per weakness: #1475 kerberoast, #1476 AS-REP roast, #1477 DCSync,
+  #1478 resource-based constrained delegation, #1479 unconstrained delegation
+  and #1480 constrained delegation. It closes when all six are recorded, each
+  with a detection outcome. Gated on #1430: the lab's ingest is TLS-only
+  before its telemetry is evidence. → [runbook](runbooks/build-the-lab-domain.md)
 
 ## last
 
@@ -177,10 +193,21 @@ Gated on the domain, on a household observation, or on something to publish.
   management plane, and the attack VM `ragnarok` on template 902. So are §8
   and §9, which ran before any target, because the leak proof must run
   before any vulnerable image is on the machine, and then §6, the targets.
-  Next, Sliver goes on `ragnarok`, before the first exercise.
+  `ragnarok` is declared in `tofu/` and was rebuilt and proved on
+  2026-11-12. Next, Sliver goes on it before the first exercise:
+  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481).
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
+- **[#1443](https://github.com/Gerrrt/HomeLab/issues/1443) Bring `eden` into
+  `tofu/`.** `ragnarok` is in, and `eden` is declared but still the hand-built
+  guest: importing it plans a replace, which rebuilds it and its key
+  ([`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
+  Until then every plan and apply keeps `-target`.
+- **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
+  Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
+  certificate generator, and it is the only path that closes the CVE issues
+  #1008 and #1011.
 - **[#447](https://github.com/Gerrrt/HomeLab/issues/447) A cloud relay** —
   only if there is ever something to publish; the day it exists it replaces
   the dynamic DNS record
