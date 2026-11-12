@@ -66,6 +66,7 @@ the `Makefile`, so those paths count for every host.
 
 For the tools run from the Mac, compare these paths against the last
 deploy you know of:
+
 - **The agent:** `stacks/observability/alloy/`, the image pin in
   `stacks/observability/compose.yaml`, and `scripts/deploy-agent.sh`.
 - **The collectors:** `scripts/collect-*`, `systemd/agent/` and
