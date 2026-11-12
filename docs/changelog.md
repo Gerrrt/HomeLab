@@ -66,6 +66,19 @@ docstring gives: it is a record, not a claim about now.
     are in place. `eden` is still outside the state, so every plan and
     apply keeps `-target` until it is brought in (#1443).
 
+- **The lab's ingest proxy answers over TLS alone: its plain `9090` and `3100`
+  are closed** ([#1430](https://github.com/Gerrrt/HomeLab/issues/1430)). This
+  is the second step of the rollout #1465 began on 2026-11-11, which put TLS
+  under the estate CA on `9443` and `13100` beside the plain ports. All six lab
+  agents (`odin`, `fenrir`, `eden`, `garuda` from their stacks, `phoenix` and
+  `golem` through `deploy-agent.sh`) were on the TLS ports by 2026-11-12, the
+  operator reported, and this change deletes the plain sites from
+  `stacks/lab/Caddyfile` and their two `ports:` lines. The tokens no longer
+  cross VLAN 30 in the clear, so the residual `docs/security.md` recorded is
+  closed. The runbooks' port checks (`build-the-jumpbox.md` §5,
+  `build-the-playground.md` §4's control probe) and the lab README's `401`
+  proofs now name the TLS ports.
+
 - **Immich's two images ran a release apart on `trinity`, and are now bumped
   together.** [#1461](https://github.com/Gerrrt/HomeLab/pull/1461) moved
   `immich-server` to v3.4.1 and left `immich-machine-learning` on v3.3.6,
