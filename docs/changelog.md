@@ -19,8 +19,9 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-12
 
-- **#1473 is deployed on `alexander` and verified.** This completes the entry
-  below, which records the change merged, not deployed. After `make up
+- **#1473 is deployed on `alexander` and verified.** This completes the #1430
+  entry further down this date, which records the change merged, not
+  deployed. After `make up
   STACK=lab` on 2026-11-12, the operator ran `stacks/lab/README.md`'s checks
   and all passed: `http://10.0.30.40:9090` and `:3100` answer nothing (`000`),
   the three `401` proofs on `9443` and `13100` still print `401`, and every one
