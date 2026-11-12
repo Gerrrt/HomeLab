@@ -21,6 +21,15 @@
 # reported against all three. A reference without a digest is refused: the scan
 # is a statement about what is deployed, and a tag is not that.
 #
+# An image whose service is profiled `lint` or `scan` only is reported under
+# the pseudo-stack `tooling`, not the stack whose compose.yaml pins it. Those
+# are the linters and scanners CI and the Mac run (markdownlint, tofu, packer,
+# gitleaks, trivy, ...); they are pinned in stacks/observability/compose.yaml
+# so Dependabot sees them, and never run on prometheus. Reported under
+# `observability`, their CVE issues said they did. cve_report.py labels
+# `tooling` as `ci`. Every other profile (capture, backup, rip, ml, certs)
+# runs on its stack's host, and keeps its stack.
+#
 # How
 # ---
 # trivy, pinned in stacks/observability/compose.yaml, with --image-src remote:
@@ -50,6 +59,7 @@
 #   --cache DIR   trivy's cache, i.e. the database (default: ~/.cache/trivy)
 #   --extra REF   also scan REF, reported under the pseudo-stack `test`. This
 #                 is how a known-vulnerable image proves the issue path works.
+#   --self-test   run the compose-reading fixtures, then exit (no docker)
 #
 # Writes DIR/images.tsv (index, reference, comma-separated stacks) and, per
 # image, DIR/<index>.json or DIR/<index>.err.
@@ -64,12 +74,102 @@ EXTRA=""
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 info() { printf '\033[0;34m--\033[0m %s\n' "$*" >&2; }
 
+# Every `image:` in a compose file, one per line as `<reference>\t<tool>`,
+# where <tool> is 1 when the image's service is profiled `lint` or `scan` and
+# nothing else, and 0 otherwise. A service's `profiles:` may come before or
+# after its `image:` (gitleaks lists it first), so each service is held until
+# the next one starts. Only the inline list form (`profiles: ["lint"]`) is read,
+# which is the only form in this tree; any other form counts as not a tool, so a
+# misread keeps an image under its stack rather than moving it. Quotes are
+# stripped as pin-digests.sh strips them.
+images_of() {
+  awk '
+    function flush() {
+      if (img != "") print img "\t" ((prof != "" && tool) ? 1 : 0)
+      img = ""; prof = ""; tool = 1
+    }
+    BEGIN { tool = 1 }
+    /^[^[:space:]#]/ { flush(); in_services = ($0 ~ /^services:[[:space:]]*$/); next }
+    in_services && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { flush(); next }
+    $1 == "image:" {
+      v = $2
+      sub(/^"/, "", v); sub(/"$/, "", v)
+      sub(/^\047/, "", v); sub(/\047$/, "", v)
+      if (v == "") next
+      if (!in_services) { print v "\t0"; next }
+      img = v; next
+    }
+    in_services && $1 == "profiles:" {
+      line = $0
+      sub(/^[^:]*:[[:space:]]*/, "", line)
+      if (line !~ /^\[.*\]/) { prof = "?"; tool = 0; next }
+      gsub(/[][\"\047[:space:]]/, "", line)
+      n = split(line, names, ",")
+      prof = line
+      for (k = 1; k <= n; k++) if (names[k] != "lint" && names[k] != "scan") tool = 0
+      if (n == 0) tool = 0
+      next
+    }
+    END { flush() }
+  ' "$1"
+}
+
+self_test() {
+  local dir failed=0 got want
+  dir="$(mktemp -d)" || die "mktemp failed"
+  trap 'rm -rf "${dir}"' RETURN
+  ok() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
+  bad() { printf '\033[0;31m  FAIL\033[0m %s\n' "$*"; failed=1; }
+  cat >"${dir}/compose.yaml" <<'YAML'
+x-defaults: &defaults
+  restart: unless-stopped
+
+services:
+  app:
+    <<: *defaults
+    image: "app:1@sha256:aa"
+  gitleaks:
+    profiles: ["scan"]
+    image: zricethezav/gitleaks:v8@sha256:bb
+  markdownlint:
+    image: 'davidanson/markdownlint-cli2:v0@sha256:cc'
+    profiles: ["lint"]
+  capture:
+    image: tcpdump:1@sha256:dd
+    profiles: ["capture"]
+  mixed:
+    image: tool:1@sha256:ee
+    profiles: ["lint", "backup"]
+  block:
+    image: other:1@sha256:ff
+    profiles:
+      - lint
+
+volumes:
+  data:
+YAML
+  got="$(images_of "${dir}/compose.yaml")"
+  want="$(printf '%s\n' 'app:1@sha256:aa	0' 'zricethezav/gitleaks:v8@sha256:bb	1' \
+    'davidanson/markdownlint-cli2:v0@sha256:cc	1' 'tcpdump:1@sha256:dd	0' \
+    'tool:1@sha256:ee	0' 'other:1@sha256:ff	0')"
+  check() { if [[ "$2" == "$3" ]]; then ok "$1"; else bad "$1: got [$2] want [$3]"; fi; }
+  check "a service with no profile keeps its stack" "$(sed -n 1p <<<"${got}")" "$(sed -n 1p <<<"${want}")"
+  check "profiles before image: a scan tool" "$(sed -n 2p <<<"${got}")" "$(sed -n 2p <<<"${want}")"
+  check "profiles after image: a lint tool, quotes stripped" "$(sed -n 3p <<<"${got}")" "$(sed -n 3p <<<"${want}")"
+  check "a host-side profile keeps its stack" "$(sed -n 4p <<<"${got}")" "$(sed -n 4p <<<"${want}")"
+  check "lint plus a host profile keeps its stack" "$(sed -n 5p <<<"${got}")" "$(sed -n 5p <<<"${want}")"
+  check "a block-list profile is not read as a tool" "$(sed -n 6p <<<"${got}")" "$(sed -n 6p <<<"${want}")"
+  check "every image is listed once, none outside services invented" "$(wc -l <<<"${got}" | tr -d ' ')" "6"
+  return "${failed}"
+}
+
 while (($#)); do
   case "$1" in
     --out) OUT="${2:?--out needs a directory}"; shift 2 ;;
     --cache) CACHE="${2:?--cache needs a directory}"; shift 2 ;;
     --extra) EXTRA="${2:-}"; shift 2 ;;
-    -h | --help) sed -n '45,54p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    --self-test) self_test; exit $? ;;
+    -h | --help) sed -n '55,65p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) die "unknown argument: $1" ;;
   esac
 done
@@ -117,17 +217,10 @@ stack_paths="$("${REPO_ROOT}/scripts/stacks.sh" --paths)" || die "scripts/stacks
 unpinned=()
 while read -r sd; do
   stack="${sd#stacks/}"
-  while read -r ref; do
+  while IFS=$'\t' read -r ref tool; do
     [[ "${ref}" == *@sha256:* ]] || { unpinned+=("${stack}: ${ref}"); continue; }
-    add "${ref}" "${stack}"
-  done < <(awk '
-    $1 == "image:" {
-      v = $2
-      sub(/^"/, "", v); sub(/"$/, "", v)
-      sub(/^\047/, "", v); sub(/\047$/, "", v)
-      if (v != "") print v
-    }
-  ' "${REPO_ROOT}/${sd}/compose.yaml")
+    if ((tool)); then add "${ref}" "tooling"; else add "${ref}" "${stack}"; fi
+  done < <(images_of "${REPO_ROOT}/${sd}/compose.yaml")
 done <<<"${stack_paths}"
 
 ((${#unpinned[@]} == 0)) || die "refusing to scan unpinned references: ${unpinned[*]}"

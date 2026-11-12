@@ -92,7 +92,13 @@ FINDING_ID = re.compile(r"\b(?:CVE-\d{4}-\d{4,}|GHSA(?:-[0-9a-z]{4}){3})\b")
 UNCOMPARABLE = re.compile(r"^v0\.0\.0-\d{14}-[0-9a-f]{12}\+dirty$")
 
 # Stacks whose label is not their name. `test` is scan-images.sh --extra.
-LABEL_FOR = {"test": "ci"}
+# `tooling` is scan-images.sh's pseudo-stack for an image whose service is
+# profiled `lint` or `scan` only: CI's and the Mac's linters and scanners,
+# pinned in stacks/observability/compose.yaml but never run on prometheus.
+LABEL_FOR = {"test": "ci", "tooling": "ci"}
+# The pseudo-stacks: not in scripts/stacks.sh, but their labels are the
+# scanner's to add and remove all the same.
+PSEUDO_STACKS = frozenset(LABEL_FOR)
 
 # An issue body is capped at 65,536 characters; leave room for the frame.
 BODY_LIMIT = 60_000
@@ -381,7 +387,7 @@ def plan(
     ones an edit may remove. It defaults to the stacks the images name."""
     if stack_names is None:
         stack_names = {s for i in images for s in i.stacks}
-    owned = {LABEL_FOR.get(s, s) for s in stack_names | {"test"}}
+    owned = {LABEL_FOR.get(s, s) for s in stack_names | PSEUDO_STACKS}
     by_repo: dict[str, list[Image]] = {}
     for i in images:
         by_repo.setdefault(i.repo, []).append(i)
@@ -737,6 +743,20 @@ def self_test() -> int:
     check("a stack the image left loses its label", actions[0].remove_labels == ("sensitive",))
     check("and the image's current stack is added", actions[0].labels == ("security", "wiki"))
     check("labels the scanner does not own are kept", "priority/critical" not in actions[0].remove_labels)
+
+    tool = {
+        "number": 23,
+        "body": "<!-- cve-scan: example/linter -->",
+        "labels": [{"name": "security"}, {"name": "observability"}],
+    }
+    actions, _ = plan(
+        [Image("example/linter:1@sha256:cc", ["tooling"], vuln)],
+        [tool],
+        labels,
+        {"observability", "sensitive", "wiki"},
+    )
+    check("a lint/scan tool is labelled ci", actions[0].labels == ("security", "ci"))
+    check("and loses the stack that only pins it", actions[0].remove_labels == ("observability",))
 
     text = summary(images)
     check("summary lists every image, clean ones too", all(f"`{i.name}`" in text for i in images))
