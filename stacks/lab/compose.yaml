@@ -236,10 +236,10 @@ services:
   # environment) and is not repeated. What differs is the clients, which are
   # this segment's own (stacks/lab/Caddyfile), and the address it holds.
   #
-  # INGEST_BIND_ADDR is alexander's own address and must be specific, for the
-  # estate's reason: Docker cannot publish 0.0.0.0:9090 while prometheus holds
-  # 127.0.0.1:9090. odin, phoenix and fenrir already push to 10.0.30.40 on
-  # these two ports, so their URLs do not change; only the header they send.
+  # INGEST_BIND_ADDR is alexander's own address, never a wildcard: the proxy
+  # answers on the address every agent dials and nowhere else. Since #1430 the
+  # agents push over TLS on 9443 and 13100; the plain 9090 and 3100 the proxy
+  # held from #834 were closed on 2026-11-12, once all six had moved.
   # ---------------------------------------------------------------------------
   caddy:
     <<: *service-defaults
@@ -276,13 +276,10 @@ services:
       - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
     ports:
       # TLS under the estate CA, with Grafana's leaf, which names 10.0.30.40
-      # (#1430). The agents push here.
+      # (#1430). The agents push here, and nowhere else: the plain 9090 and
+      # 3100 were closed on 2026-11-12.
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_TLS_PORT:-9443}:9443"
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_TLS_PORT:-13100}:13100"
-      # Plain http, only until every agent is on the two above. #1430's second
-      # step removes these two lines and the Caddyfile's plain sites.
-      - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_PORT:-9090}:9090"
-      - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_PORT:-3100}:3100"
       # Grafana, on the host port it had, for Hicks only (#1428).
       - "${BIND_ADDR:-0.0.0.0}:${GRAFANA_PORT:-3000}:3443"
     depends_on:

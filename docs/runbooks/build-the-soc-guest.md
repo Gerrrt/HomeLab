@@ -342,14 +342,14 @@ that client (ADR-0030), and `phoenix` got there first —
 edit. Confirm the doors are open before going on:
 
 ```bash
-ss -ltn '( sport = :9090 or sport = :3100 )'
+ss -ltn '( sport = :9443 or sport = :13100 or sport = :9090 or sport = :3100 )'
 ```
 
-Since [#834](https://github.com/Gerrrt/HomeLab/issues/834) both must show
-`10.0.30.40`, which is the lab's ingest proxy, and `127.0.0.1`, which is the
-stores behind it. `0.0.0.0` on either port is the old unauthenticated
-publish: `alexander`'s checkout is behind, or its rollout has not run
-(`stacks/lab/README.md`). If either is missing, `cd ~/code/Gerrrt/HomeLab &&
+Since [#1430](https://github.com/Gerrrt/HomeLab/issues/1430), `9443` and
+`13100` must show `10.0.30.40`, which is the lab's ingest proxy over TLS, and
+`9090` and `3100` must show `127.0.0.1` only, which is the stores behind it.
+`10.0.30.40` or `0.0.0.0` on `9090` or `3100` is an old plain publish:
+`alexander`'s checkout is behind (`stacks/lab/README.md`). If either is missing, `cd ~/code/Gerrrt/HomeLab &&
 git pull && make up STACK=lab` and check again. Read the comment above each block in `compose.yaml` once — it says what
 is listening on the segment that exists to hold attackers, and that is a thing
 to know rather than discover.

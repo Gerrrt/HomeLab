@@ -312,13 +312,16 @@ What is left is applying it where the stack runs, **on `alexander`**:
 cd ~/code/Gerrrt/HomeLab
 git pull
 make up STACK=lab
-ss -ltn '( sport = :9090 or sport = :3100 )'
+ss -ltn '( sport = :9443 or sport = :13100 )'
 ```
 
-Both lines must show `10.0.30.40` or `0.0.0.0`. Then from `phoenix`:
+Both lines must show `10.0.30.40`. These are the proxy's TLS ports, the only
+ones it publishes since 2026-11-12
+([#1430](https://github.com/Gerrrt/HomeLab/issues/1430)); when this guest was
+built they were the plain `9090` and `3100`. Then from `phoenix`:
 
 ```bash
-nc -zv -w 3 10.0.30.40 9090 3100
+nc -zv -w 3 10.0.30.40 9443 13100
 ```
 
 Both open: on to §6. Nothing on `morpheus` is involved — the path is
@@ -377,7 +380,7 @@ Two flags, both load-bearing:
   meant.
 
 The script's own arrival check queries `10.0.30.40` afterwards. If it warns
-*"is the pass to 10.0.30.40:9090 in place?"* the answer is that there is no
+to check the pass to `10.0.30.40:9443`, the answer is that there is no
 pass to place — go back to §5, because that message was written for hosts on
 another VLAN and this one is not.
 

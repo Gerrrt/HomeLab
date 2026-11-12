@@ -583,19 +583,16 @@ and `stacks/lab/Caddyfile` on `10.0.30.40` with one token each for `odin`,
 `secrets/lab.sops.yaml`. A lab host never holds an estate token, and
 `deploy-agent.sh` refuses to decrypt the estate's file for a lab target.
 
-Two residuals are recorded rather than fixed:
+One residual is recorded rather than fixed, and a second was fixed:
 
-- **The tokens crossed a segment built for ARP spoofing in plain HTTP,** so
-  anyone in a position to spoof could take one. A stolen token can still only
-  push, or read; it cannot quit or delete. Since
-  [#1430](https://github.com/Gerrrt/HomeLab/issues/1430) the proxy also serves
-  TLS under the estate CA on `9443` and `13100`, as the estate's does
-  (ADR-0086), with `alexander`'s Grafana leaf, which names `10.0.30.40`, and
-  every lab agent is configured for those ports. **Authored, and live only
-  after its rollout** (`stacks/lab/README.md`, *The move to TLS*): until each
-  agent has been redeployed, it still sends its token in the clear on `9090`
-  and `3100`, and those two plain ports stay open until #1430's second step
-  closes them.
+- **The tokens no longer cross the segment in plain HTTP.** VLAN 30 is built
+  for ARP spoofing, so a token sent in the clear was a token any foothold
+  could take. Since [#1430](https://github.com/Gerrrt/HomeLab/issues/1430) the
+  proxy serves TLS under the estate CA on `9443` and `13100`, as the estate's
+  does (ADR-0086), with `alexander`'s Grafana leaf, which names `10.0.30.40`.
+  All six lab agents push there, and the plain `9090` and `3100` were closed on
+  2026-11-12 (`stacks/lab/README.md`, *The move to TLS*). A stolen token could
+  only ever push, or read; it cannot quit or delete.
 - **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
   and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
   a step in the rollout check, not a rule. Making the lab's failures reach the
