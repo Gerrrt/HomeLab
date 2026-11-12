@@ -21,12 +21,27 @@ docstring gives: it is a record, not a claim about now.
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
   entry further down this date, which records the change merged, not
-  deployed. After `make up
-  STACK=lab` on 2026-11-12, the operator ran `stacks/lab/README.md`'s checks
+  deployed. After `make up STACK=lab` on 2026-11-12, the operator ran `stacks/lab/README.md`'s checks
   and all passed: `http://10.0.30.40:9090` and `:3100` answer nothing (`000`),
   the three `401` proofs on `9443` and `13100` still print `401`, and every one
   of the six lab hosts' newest data in the lab's Grafana is minutes old, so no
   agent was left on the plain ports.
+
+- **CVE issues for CI's own tools are labelled `ci`, not `observability`.**
+  The linters and scanners CI and the Mac run (gitleaks, trivy, actionlint,
+  editorconfig-checker, zizmor, markdownlint, shellcheck, packer and
+  opentofu) are pinned in `stacks/observability/compose.yaml`, behind the
+  `lint` and `scan` profiles, so Dependabot sees them. Nothing ever runs them on
+  `prometheus`. `scripts/scan-images.sh` labelled their CVE issues by
+  the file that pins them, so #974, #982, #989, #993, #1001, #1013 and #1118
+  said `observability`. It now reads each service's profiles. An image
+  profiled `lint` or `scan` and nothing else is reported under the pseudo-stack
+  `tooling`, which `scripts/cve_report.py` labels `ci`, and the next weekly
+  scan moves those issues. Every other profile runs on its stack's host and
+  keeps its stack. That includes `debian`, which is the `backup` profile's
+  archiver on `prometheus`: the audit had listed it with the tools, and its
+  issue, #1334, stays `observability`. Both scripts gained fixtures, and
+  `scan-images.sh --self-test` is new.
 
 - **The tracker brought into line with the roadmap** (the audit's tracker
   pass).
