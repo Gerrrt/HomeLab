@@ -141,13 +141,6 @@ Some merges come with a step that is run once and is then done. Each one is
 listed here while its issue is open, and leaves this page when the issue
 closes.
 
-- **The lab's move to TLS ([#1430](https://github.com/Gerrrt/HomeLab/issues/1430)).**
-  The order is in [`stacks/lab/README.md`](../../stacks/lab/README.md#the-move-to-tls-1430):
-  1. `alexander` first, then the three `curl`s, which must print `200`, `401`
-     and `400`.
-  2. Then the six agents: `odin`, `fenrir`, `garuda` and `eden` by `make up`;
-     `phoenix` and `golem` by `deploy-agent.sh`.
-  3. Only then the change that closes the plain ports.
 - **`eden` and `ragnarok` into the pipeline ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)).**
   Before the first plan on `phoenix`:
   1. Add `TF_VAR_gandalf_endpoint` and `TF_VAR_gandalf_api_token` to
