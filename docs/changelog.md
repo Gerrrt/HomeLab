@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-12
 
+- **CVE issues for CI's own tools are labelled `ci`, not `observability`.**
+  The linters and scanners CI and the Mac run (gitleaks, trivy, actionlint,
+  editorconfig-checker, zizmor, markdownlint, shellcheck, packer and
+  opentofu) are pinned in `stacks/observability/compose.yaml`, behind the
+  `lint` and `scan` profiles, so Dependabot sees them. Nothing ever runs them on
+  `prometheus`. `scripts/scan-images.sh` labelled their CVE issues by
+  the file that pins them, so #974, #982, #989, #993, #1001, #1013 and #1118
+  said `observability`. It now reads each service's profiles. An image
+  profiled `lint` or `scan` and nothing else is reported under the pseudo-stack
+  `tooling`, which `scripts/cve_report.py` labels `ci`, and the next weekly
+  scan moves those issues. Every other profile runs on its stack's host and
+  keeps its stack. That includes `debian`, which is the `backup` profile's
+  archiver on `prometheus`: the audit had listed it with the tools, and its
+  issue, #1334, stays `observability`. Both scripts gained fixtures, and
+  `scan-images.sh --self-test` is new.
+
 - **Immich's two images ran a release apart on `trinity`, and are now bumped
   together.** [#1461](https://github.com/Gerrrt/HomeLab/pull/1461) moved
   `immich-server` to v3.4.1 and left `immich-machine-learning` on v3.3.6,
