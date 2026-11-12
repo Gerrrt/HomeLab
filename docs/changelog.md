@@ -40,6 +40,27 @@ docstring gives: it is a record, not a claim about now.
   CI's hardened boot could not have caught it, because it starts on an empty
   database, where refusing is the right answer.
 
+- **`dot-alpine`'s disk is 16 GiB, and `tofu/guests.tf` now says so.** The
+  dotfiles install outgrew the 8 GiB that
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+  sized it at, and the disk was grown to 16 GiB on `Saruman` to finish it.
+  Nothing recorded that, so the first `tofu plan` after
+  [#1421](https://github.com/Gerrrt/HomeLab/pull/1421)'s identities file
+  planned an in-place change, 16 → 8, that Proxmox cannot make: a disk
+  does not shrink. The declaration now matches the guest. ADR-0090 is left
+  as written; its table is the size it decided on.
+
+- **The wiki's bootstrap guard counted the wrong schema, and refused the live
+  database** ([#1435](https://github.com/Gerrrt/HomeLab/issues/1435)). The
+  guard [#1436](https://github.com/Gerrrt/HomeLab/pull/1436) added counted
+  tables in `public`. Wiki.js 3 keeps them in `wiki`, so on the first deploy
+  after it, Wiki.js 3.3.1 on `oracle`, it read the live database as empty and
+  `app` did not start. The database was not empty: 57 tables in `wiki`, read
+  with `psql` before anything was forced. `app` was then started once with
+  `--no-deps`, and came up healthy on 3.3.1. The guard now counts `wiki`.
+  CI's hardened boot could not have caught it, because it starts on an empty
+  database, where refusing is the right answer.
+
 ## 2026-11-11
 
 - **`wearable-01` reserved at `10.0.50.14`, below the Hicks pool.** This
