@@ -179,8 +179,7 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
   sub-issue per weakness: #1475 kerberoast, #1476 AS-REP roast, #1477 DCSync,
   #1478 resource-based constrained delegation, #1479 unconstrained delegation
   and #1480 constrained delegation. It closes when all six are recorded, each
-  with a detection outcome. Gated on #1430: the lab's ingest is TLS-only
-  before its telemetry is evidence. → [runbook](runbooks/build-the-lab-domain.md)
+  with a detection outcome. → [runbook](runbooks/build-the-lab-domain.md)
 
 ## last
 
@@ -193,8 +192,7 @@ Gated on the domain, on a household observation, or on something to publish.
   management plane, and the attack VM `ragnarok` on template 902. So are §8
   and §9, which ran before any target, because the leak proof must run
   before any vulnerable image is on the machine, and then §6, the targets.
-  `ragnarok` is declared in `tofu/` and was rebuilt and proved on
-  2026-11-12. Next, Sliver goes on it before the first exercise:
+  Next, Sliver goes on `ragnarok` before the first exercise:
   [#1481](https://github.com/Gerrrt/HomeLab/issues/1481).
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
