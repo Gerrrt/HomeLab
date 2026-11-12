@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-12
 
+- **`dot-alpine`'s disk is 16 GiB, and `tofu/guests.tf` now says so.** The
+  dotfiles install outgrew the 8 GiB that
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+  sized it at, and the disk was grown to 16 GiB on `Saruman` to finish it.
+  Nothing recorded that, so the first `tofu plan` after
+  [#1421](https://github.com/Gerrrt/HomeLab/pull/1421)'s identities file
+  planned an in-place change, 16 → 8, that Proxmox cannot make: a disk
+  does not shrink. The declaration now matches the guest. ADR-0090 is left
+  as written; its table is the size it decided on.
+
 - **The wiki's bootstrap guard counted the wrong schema, and refused the live
   database** ([#1435](https://github.com/Gerrrt/HomeLab/issues/1435)). The
   guard [#1436](https://github.com/Gerrrt/HomeLab/pull/1436) added counted
