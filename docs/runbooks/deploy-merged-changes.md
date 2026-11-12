@@ -44,21 +44,38 @@ On the Mac, `git pull` first: `deploy-agent.sh`, `install-agent-collectors.sh`
 and `smaug-fetch.sh` all ship this checkout's files, so a stale checkout ships
 stale files.
 
-Then list what changed since a host was last deployed. On the host, its
-checkout's `HEAD` is the commit it runs; compare that with `main`:
+Then list what changed since a host was last deployed. That is not the
+checkout's `HEAD`: a `git pull` whose `make up` failed, or never ran, moves
+`HEAD` and leaves the old configuration running (the 2026-10-01 incident in
+`scripts/record-applied.sh`). For a host deployed by `make up`, read the
+revision its last finished `make up` recorded, and compare that with `main`:
 
 ```bash
-git fetch origin main && git diff --stat HEAD origin/main -- stacks/lab
+git fetch origin main && ./scripts/record-applied.sh --read lab
 ```
 
-Use the path from the table above. An empty diff means the host has nothing
-to take. For the agents, compare the paths their tools ship:
-`stacks/observability/alloy/` and `scripts/deploy-agent.sh` for the agent,
-`scripts/collect-*` and `scripts/install-agent-collectors.sh` for the
-collectors.
+```bash
+git diff --stat <the printed revision> origin/main -- stacks/lab stacks/observability/alloy scripts Makefile
+```
 
-Changes to `.github/`, `docs/` and the `check_*` scripts never reach a host.
-A merge that touched only those needs nothing below.
+Use the host's stack and path from the table above. An empty or `-dirty`
+record means nothing is known about what runs: deploy, do not skip. A stack
+reads more than its own directory. Every lab stack mounts files from
+`stacks/observability/alloy/`, and `make up` runs scripts from `scripts/` and
+the `Makefile`, so those paths count for every host.
+
+For the tools run from the Mac, compare these paths against the last
+deploy you know of:
+- **The agent:** `stacks/observability/alloy/`, the image pin in
+  `stacks/observability/compose.yaml`, and `scripts/deploy-agent.sh`.
+- **The collectors:** `scripts/collect-*`, `systemd/agent/` and
+  `scripts/install-agent-collectors.sh`.
+
+Changes to `.github/` and to offline-only validation need nothing below. Not
+every file under `docs/` or every `check_*` script is offline-only, though:
+`make up` runs `scripts/check_mounted_config.py`, and the `firewall-claims`
+timer reads `docs/firewall-claims.yaml`. A merge that touched one of those
+reaches the hosts that run them.
 
 ## 2. `prometheus` and `trinity`
 
@@ -70,7 +87,12 @@ fast-forwards and runs `make up`.
   `make converge STACK=sensitive` on `trinity`.
 - **Report-only mode:** if `/etc/default/homelab-timers` holds
   `HOMELAB_CONVERGE_APPLY=0`, converge reports and changes nothing, and
-  `DeployApplyDisabled` says so. Run `make up` by hand, or turn it back on
+  `DeployApplyDisabled` says so. Report-only does not fast-forward, so a
+  bare `make up` there redeploys the old revision (and on `trinity`, without
+  `STACK=sensitive`, the wrong stack). Run the converge commands above by
+  hand instead: the setting is read by the timer's unit, not by your shell,
+  so a hand run verifies, fast-forwards and applies. Check that your shell
+  does not export `HOMELAB_CONVERGE_APPLY=0`. Or turn the timer back on
   (*Letting it act* in [`converge-the-host.md`](converge-the-host.md)).
 - **A change under `systemd/`:** converge does not install units. Run
   `make install-timers` from the deployment checkout (`PROFILE=sensitive`
@@ -107,13 +129,23 @@ From the Mac, after `git pull`:
 
 - **The Alloy agent.** `make deploy-agent ARGS="<user>@<host>"` for `oracle`
   and `Saruman`, which push to `prometheus`. For `phoenix` and `golem`, which
-  push to the lab, add `--monitoring-host 10.0.30.40`. The script checks
-  that the agent's data arrives, and fails if it does not.
-- **The collectors.** `make install-agent-collectors AGENT=<user>@<host>`
-  on each host that runs the changed collector. `ARGS=--check` compares an
-  installed host with this checkout and changes nothing, so run it first to
-  find the hosts that are behind. The build runbooks give each host's
-  `--only` list.
+  push to the lab, add `--monitoring-host 10.0.30.40`.
+  - **Tokens.** For a lab host, nothing is decrypted on the Mac: export
+    `INGEST_TOKEN` and `INGEST_TOKEN_READER` from `secrets/lab.sops.yaml` on
+    `alexander` first. For `Saruman`, export them from the password manager.
+    Header comments in `scripts/deploy-agent.sh` give the reason.
+  - **Arrival check.** The script checks that the agent's data arrives. A
+    missing or refused reader token, or a proxy it cannot reach, makes it
+    skip that check with a warning and still exit 0. Only a `PASS` on
+    arrival is proof. After a skip, check the host's newest data in Grafana
+    by hand.
+- **The collectors.** `make install-agent-collectors AGENT=<user>@<host>
+  ARGS='--only <collector>'`, for each changed collector and each host that
+  runs it. Without `--only` the installer tries every collector and starts
+  each one whose prerequisites it finds, so an update to one can start
+  others. Check a host first with `--check --only <collector>`, which
+  changes nothing. The host's build runbook lists which collectors it
+  runs.
 
 ## 7. `phoenix`
 
