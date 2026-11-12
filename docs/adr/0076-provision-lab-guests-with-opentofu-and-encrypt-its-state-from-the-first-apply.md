@@ -2,6 +2,13 @@
 
 **Status:** Accepted · 2026-10
 
+> [!NOTE]
+> Amended by [ADR-0116](0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md):
+> the provider gains an alias for `gandalf`, read from `phoenix.env`, and the
+> range's attack VM is declared in this tree with a script that finishes and
+> proves it after every apply. The text here is left as written, per ADR-0001
+> and ADR-0115.
+
 ## Context
 
 [ADR-0074](0074-build-the-lab-templates-with-packer-from-phoenix.md) makes

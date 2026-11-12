@@ -588,51 +588,84 @@ has never fired is a rule nobody knows can.
 
 One VM, and it is the only guest with a leg on both bridges.
 
-> **Made on `gandalf` 2026-11-09** ([#421](https://github.com/Gerrrt/HomeLab/issues/421)):
-> **`ragnarok`, VMID 130**, a full clone of `tpl-kali` (902). 902 was built
-> on `gandalf` from `phoenix` the same night
-> ([`build-the-lab-templates.md`](build-the-lab-templates.md) §5,
-> [#790](https://github.com/Gerrrt/HomeLab/issues/790)). Everything below is
-> one command on `phoenix`:
->
-> ```bash
-> set -a; . ~/.config/proxmox/gandalf.env; set +a
-> scripts/make-attack-vm.sh
-> ```
->
-> Once, on `gandalf` as root, and again after any destroy of 130, which
-> drops the VMID's ACLs (the script checks before it clones):
->
-> ```bash
-> pveum role add PhoenixHostKeys --privs "VM.GuestAgent.FileRead"
-> pveum acl modify /vms/130 --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys
-> ```
->
-> The script reads `ragnarok`'s ed25519 host key through the guest agent
-> once cloud-init has finished, and its SSH accepts that key and no other,
-> as [ADR-0085](../adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)
-> does for the lab domain: the check below crosses VLAN 30, and a PASS
-> from whatever answered for the lease would prove nothing. The grant is on
-> 130 alone, not on `/vms`, where FileRead would read any range guest. A
-> grant on `/vms/130` replaces the inherited `PhoenixBuilder` there, so it
-> names both roles.
->
-> [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) clones onto `range` and sets
-> 4 cores and 8 GiB. ADR-0017's "roughly half" of 32 GB counted BloodHound,
-> which [ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md) moved
-> to `eden`. It gives `net0` on `vmbr0` DHCP and `net1` on `vmbr1`
-> `172.30.30.10/24` with no gateway, both with the guest firewall flag off. It
-> reads the config back, then writes `99-no-forward.conf` over SSH and runs
-> §8's third check. It refuses to run if VMID 130 exists, because the range is
-> rebuilt, not repaired. On its first run, `ragnarok` took `10.0.30.111`. Both
-> forwarding sysctls read `0`, neither table had NAT, and the one default
-> route was via `10.0.30.1` on `eth0`. `eth1` held `172.30.30.10/24` and
-> nothing else. Its cloud-init user is `kali`, with `phoenix`'s key. That
-> first run predates the host-key check and the stricter NAT reads. Once the
-> grant above was made, the script from the key read on was run against
-> `ragnarok` the same night and passed. An impostor key was refused, once
-> the script turned off SSH connection sharing (`ControlPath=none`):
-> without that, a reused connection skips the check.
+**Made by OpenTofu, finished and proved by a script**
+([ADR-0116](../adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md)).
+`ragnarok`, VMID 130, is `module.range_guest` in
+[`tofu/guests.tf`](../../tofu/guests.tf): a full clone of `tpl-kali` (902)
+on `range`, 4 cores and 8 GiB, `net0` on `vmbr0` with DHCP and its MAC
+pinned, `net1` on `vmbr1` at `172.30.30.10/24` with **no gateway**, both
+firewall flags off, cloud-init user `kali` with `phoenix`'s key, and in no
+pool. ADR-0017's "roughly half" of 32 GB counted BloodHound, which
+[ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md) moved to
+`eden`.
+
+**Once, on `gandalf` as root, and again after any destroy of 130,** which
+drops the VMID's ACLs:
+
+```bash
+pveum role add PhoenixHostKeys --privs "VM.GuestAgent.FileRead"   # once; it exists after the first time
+pveum acl modify /vms/130 --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys
+```
+
+The grant is on 130 alone, not on `/vms`, where FileRead would read any range
+guest. A grant on `/vms/130` replaces the inherited `PhoenixBuilder` there, so
+it names both roles. The ACL can be set while 130 does not exist.
+
+**Once, on `phoenix`,** give `phoenix.env` the two lines the aliased provider
+reads. They go there, not in `gandalf.env`, so that every step that sources
+`phoenix.env` before a plan keeps working. Then put `ragnarok`'s MAC in
+`tofu/identities.auto.tfvars` (any free `BC:24:11` address), then escrow it
+([`provision-lab-guests.md`](provision-lab-guests.md) §3):
+
+```bash
+( umask 077; set -a; . ~/.config/proxmox/gandalf.env; set +a
+  printf 'TF_VAR_gandalf_endpoint=https://10.0.30.30:8006/\nTF_VAR_gandalf_api_token=%s=%s\n' \
+    "${PROXMOX_TOKEN_ID}" "${PROXMOX_TOKEN_SECRET}" >> ~/.config/proxmox/phoenix.env )
+```
+
+**Make it, then finish it.** Every plan reads `gandalf` as well as `Saruman`,
+so have `gandalf` up. The script reads `gandalf.env`, so source it after
+`phoenix.env`:
+
+```bash
+cd ~/code/Gerrrt/HomeLab
+umask 077; set -a; . ~/.config/proxmox/phoenix.env; . ~/.config/proxmox/gandalf.env; set +a
+tofu -chdir=tofu plan -target='module.range_guest["ragnarok"]' -out=ragnarok.tfplan
+tofu -chdir=tofu apply ragnarok.tfplan && rm tofu/ragnarok.tfplan
+scripts/finish-attack-vm.sh
+```
+
+**The apply is not the end.** Until
+[`finish-attack-vm.sh`](../../scripts/finish-attack-vm.sh) has run, the guest
+has not had forwarding turned off. The script:
+
+- reads the config back (`net1` on `vmbr1` at `.10/24` with no gateway, `net0`
+  on `vmbr0`);
+- starts the guest if it is stopped;
+- reads its ed25519 host key through the guest agent once cloud-init has
+  finished, and its SSH accepts that key and no other, as
+  [ADR-0085](../adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)
+  does for the lab domain (the check crosses VLAN 30, and a PASS from
+  whatever answered for the lease would prove nothing);
+- writes `99-no-forward.conf` and runs §8's third check.
+
+The range is rebuilt, not repaired: a change to `ragnarok` is a destroy and
+apply of 130, then the script.
+
+**The script-built `ragnarok` is replaced, not imported.** It was made by
+`make-attack-vm.sh` on 2026-11-09, outside the pipeline. Importing it would
+plan a replace anyway, because `clone` cannot be read back
+([`build-the-lab-domain.md`](build-the-lab-domain.md)), and the range is
+disposable. So, once, as root on `gandalf`: `qm stop 130` and
+`qm destroy 130 --purge`. Then grant `/vms/130` again as above, and make it as
+above.
+
+> **As run on 2026-11-09, by the earlier script.** `ragnarok` took
+> `10.0.30.111`. Both forwarding sysctls read `0`, neither table had NAT, and
+> the one default route was via `10.0.30.1` on `eth0`. `eth1` held
+> `172.30.30.10/24` and nothing else. An impostor host key was refused, once
+> the script turned off SSH connection sharing (`ControlPath=none`): without
+> that, a reused connection skips the check.
 
 - **Its disk on `range`**, the SATA SSD's pool from §1, like every guest here.
 - **`net0` on `vmbr0`** — ImaginationLAN, DHCP from the pool. Nothing points at

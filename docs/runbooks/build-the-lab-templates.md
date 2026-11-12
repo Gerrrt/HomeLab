@@ -532,7 +532,7 @@ and 910 with this section and §5b to clear it.
    | `PhoenixBuilder` | `/storage/range` | the template's disks, on the range pool ([ADR-0096](../adr/0096-fit-ifrits-range-disk-as-a-sata-ssd-in-the-tinys-bay.md)) |
    | `PhoenixBuilder` | `/storage/local` | the installer ISO |
    | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr0` | the build NIC |
-   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | `ragnarok`'s range NIC, which [`make-attack-vm.sh`](../../scripts/make-attack-vm.sh) attaches ([`build-the-playground.md`](build-the-playground.md) §5). Kept 2026-11-09 |
+   | `PhoenixBuilder` | `/sdn/zones/localnetwork/vmbr1` | `ragnarok`'s range NIC, which `tofu/` attaches ([ADR-0116](../adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md)) ([`build-the-playground.md`](build-the-playground.md) §5). Kept 2026-11-09 |
    | `PVEAuditor` | `/nodes/gandalf` | read-only. Lower case, as `pvesh get /nodes` prints it |
 
    Nothing is granted on `local-lvm`, because the range's disks stay off the

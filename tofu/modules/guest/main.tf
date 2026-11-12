@@ -118,6 +118,18 @@ resource "proxmox_virtual_environment_vm" "this" {
     # networking (packer/variables.pkr.hcl says the same).
   }
 
+  # net1 and on. The range's leg must have no gateway: the attack VM is the one
+  # dual-homed guest, and a second default route is a second way out
+  # (ADR-0017). ip_config below gives these addresses with gateway unset.
+  dynamic "network_device" {
+    for_each = var.extra_networks
+    content {
+      bridge   = network_device.value.bridge
+      model    = "virtio"
+      firewall = false
+    }
+  }
+
   agent {
     enabled = true
   }
@@ -142,6 +154,14 @@ resource "proxmox_virtual_environment_vm" "this" {
         ipv4 {
           address = var.ipv4 == null ? "dhcp" : var.ipv4.address
           gateway = var.ipv4 == null ? null : var.ipv4.gateway
+        }
+      }
+      dynamic "ip_config" {
+        for_each = var.extra_networks
+        content {
+          ipv4 {
+            address = ip_config.value.ipv4_address
+          }
         }
       }
       dynamic "dns" {

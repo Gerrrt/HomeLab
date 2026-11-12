@@ -240,6 +240,59 @@ module "guest" {
   smbios_uuid = each.value.smbios_uuid
 }
 
+# The range, on gandalf (ADR-0017, ADR-0116): #421's attack VM. A separate
+# module call, because a module instance has one provider and this one is
+# gandalf's alias. The same module, so the clone, the EFI disk and the agent
+# are what every guest here has.
+#
+# ragnarok is the one guest with a leg on both bridges. net0 on vmbr0 takes a
+# DHCP lease from the pool: nothing points at it, so morpheus holds no
+# reservation, but the MAC is pinned like every other guest's. net1 on vmbr1
+# is 172.30.30.10/24 with NO gateway. Forwarding off and no NAT are not this
+# tree's to make: scripts/finish-attack-vm.sh writes 99-no-forward.conf and
+# proves both after every apply, over SSH checked against a host key read
+# through the guest agent (ADR-0085). No pool: phoenix's token on gandalf
+# holds no pool grant, and this keeps it so. Secure Boot off, as tpl-kali's
+# is. `kali`, the user the template and the script have always used.
+locals {
+  range_guests = {
+    for name, g in {
+      ragnarok = { vm_id = 130, template = 902, cores = 4, memory_mib = 8192, disk_gib = 64 }
+    } :
+    name => merge(g, {
+      mac_address    = var.guest_identities[name].mac_address
+      smbios_uuid    = var.guest_identities[name].smbios_uuid
+      tags           = ["attack", "range"]
+      extra_networks = [{ bridge = "vmbr1", ipv4_address = "172.30.30.10/24" }]
+    })
+  }
+}
+
+module "range_guest" {
+  source    = "./modules/guest"
+  for_each  = local.range_guests
+  providers = { proxmox = proxmox.gandalf }
+
+  name           = each.key
+  node           = "gandalf"
+  datastore      = "range"
+  vm_id          = each.value.vm_id
+  template       = each.value.template
+  cores          = each.value.cores
+  memory_mib     = each.value.memory_mib
+  disk_gib       = each.value.disk_gib
+  linux          = true
+  on_boot        = false
+  secure_boot    = false
+  tags           = each.value.tags
+  username       = "kali"
+  password       = null
+  ssh_keys       = [trimspace(file(pathexpand(var.ssh_public_key_file)))]
+  mac_address    = each.value.mac_address
+  smbios_uuid    = each.value.smbios_uuid
+  extra_networks = each.value.extra_networks
+}
+
 output "startup_orders" {
   description = "What root on Saruman sets after an apply, one `qm set` per guest that boots with the host."
   value = {

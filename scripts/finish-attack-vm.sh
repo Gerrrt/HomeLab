@@ -1,21 +1,24 @@
 #!/usr/bin/env bash
 #
-# Make the range's attack VM, ragnarok, on gandalf from tpl-kali (902), and
-# prove it does not forward (#421, build-the-playground.md §5).
+# Finish the range's attack VM, ragnarok, after tofu has made it on gandalf,
+# and prove it does not forward (#421, build-the-playground.md §5, ADR-0116).
 #
-# WHY A SCRIPT. The range is rebuilt, not repaired (ADR-0017), so the one guest
-# on it worth configuring carefully is one command to make again. The
-# isolation it depends on is in what this sets, and §8's third check runs at
-# the end of every make rather than when someone remembers to.
-#
-# WHAT IT MAKES. A full clone of 902 at VMID 130, its disk on `range`:
-#   net0  vmbr0, ImaginationLAN, DHCP from the pool. No reservation: nothing
-#         points at it (§5).
+# WHAT TOFU MAKES (tofu/guests.tf, module.range_guest). A full clone of 902
+# (tpl-kali) at VMID 130 on `range`, with:
+#   net0  vmbr0, ImaginationLAN, DHCP from the pool. Its MAC is pinned, but
+#         nothing points at it, so morpheus holds no reservation (§5).
 #   net1  vmbr1, the range bridge, 172.30.30.10/24 and NO gateway.
-# Both with the guest firewall flag off (§4's last step). Cloud-init user
-# `kali`, phoenix's key. Then, over SSH: /etc/sysctl.d/99-no-forward.conf,
+# Both with the guest firewall flag off. Cloud-init user `kali`, phoenix's key.
+#
+# WHAT THIS DOES, AFTER EVERY APPLY. It reads the config back, because the one
+# thing a mistake there would break is the isolation. It starts the guest if it
+# is stopped. Then, over SSH: /etc/sysctl.d/99-no-forward.conf,
 # `sysctl --system`, and §8 check three: both forwarding sysctls 0 and no NAT
-# in nft or legacy iptables.
+# in nft or legacy iptables. Writing the sysctl file stays here rather than in
+# cloud-init, because a cloud-init snippet would need tofu to upload it to
+# gandalf over SSH, a second credential path for one file (ADR-0116). The
+# range is still rebuilt, not repaired (ADR-0017): a change is a tofu
+# destroy and apply of 130, then this.
 #
 # HOST KEY. The SSH that reports §8 check three crosses VLAN 30, where ARP
 # spoofing is expected (docs/security.md), so the key ragnarok presents is
@@ -29,11 +32,11 @@
 # (build-the-lab-templates.md §5), curl, jq and ssh-keygen, and the token
 # holding VM.GuestAgent.FileRead on /vms/130 alone (PhoenixHostKeys,
 # build-the-playground.md §5). Destroying the VM drops that ACL, so it is
-# checked before anything is cloned.
+# checked first.
 #
 # Usage:
 #   set -a; . ~/.config/proxmox/gandalf.env; set +a
-#   scripts/make-attack-vm.sh
+#   scripts/finish-attack-vm.sh
 set -euo pipefail
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -41,7 +44,6 @@ info() { printf '\033[0;34m--\033[0m %s\n' "$*"; }
 ok() { printf '\033[0;32m  PASS\033[0m %s\n' "$*"; }
 
 NODE=gandalf
-TEMPLATE=902
 VMID=130
 NAME=ragnarok
 RANGE_ADDR=172.30.30.10/24
@@ -75,48 +77,30 @@ wait_task() {
   die "task ${upid} still running after 30 minutes"
 }
 
-api GET "/nodes/${NODE}/qemu/${TEMPLATE}/config" | jq -e '.data.template == 1' >/dev/null \
-  || die "VM ${TEMPLATE} on ${NODE} is not a template: build tpl-kali first"
-if api GET "/nodes/${NODE}/qemu/${VMID}/status/current" >/dev/null 2>&1; then
-  die "VMID ${VMID} already exists on ${NODE}. The range is rebuilt, not repaired: destroy it first"
-fi
+api GET "/nodes/${NODE}/qemu/${VMID}/status/current" >/dev/null 2>&1 \
+  || die "VMID ${VMID} does not exist on ${NODE}: tofu makes it (build-the-playground.md §5), then this runs"
 # The host-key read needs FileRead on this VMID, and a destroy removes the
-# VMID's ACLs. Better to stop here than after a ten-minute clone.
+# VMID's ACLs, so a fresh apply of 130 needs the grant again. Stop here, not
+# after waiting ten minutes for cloud-init.
 api GET /access/permissions -G --data-urlencode "path=/vms/${VMID}" \
   | jq -e --arg p "/vms/${VMID}" '.data[$p]["VM.GuestAgent.FileRead"] == 1' >/dev/null \
   || die "${PROXMOX_TOKEN_ID} lacks VM.GuestAgent.FileRead on /vms/${VMID}. On ${NODE} as root:
   pveum acl modify /vms/${VMID} --users phoenix@pve --roles PhoenixBuilder,PhoenixHostKeys
 (build-the-playground.md §5)"
 
-info "full clone ${TEMPLATE} -> ${VMID} (${NAME}) on range"
-wait_task "$(api POST "/nodes/${NODE}/qemu/${TEMPLATE}/clone" \
-  --data-urlencode "newid=${VMID}" --data-urlencode "name=${NAME}" \
-  --data-urlencode "full=1" --data-urlencode "storage=range" | jq -r '.data')"
-ok "cloned"
-
-# sshkeys is URL-encoded inside the form value, as packer-smoke.sh does.
-keys="$(jq -rn --arg k "$(cat "${SSH_KEY}.pub")" '$k | @uri')"
-api PUT "/nodes/${NODE}/qemu/${VMID}/config" \
-  --data-urlencode "cores=4" --data-urlencode "memory=8192" \
-  --data-urlencode "net0=virtio,bridge=vmbr0,firewall=0" \
-  --data-urlencode "net1=virtio,bridge=vmbr1,firewall=0" \
-  --data-urlencode "ipconfig0=ip=dhcp" \
-  --data-urlencode "ipconfig1=ip=${RANGE_ADDR}" \
-  --data-urlencode "ciuser=kali" --data-urlencode "sshkeys=${keys}" \
-  --data-urlencode "tags=range;attack" \
-  --data-urlencode "description=The range's attack VM (#421, build-the-playground.md §5). Made by scripts/make-attack-vm.sh." \
-  >/dev/null
-ok "net0 vmbr0 DHCP, net1 vmbr1 ${RANGE_ADDR} no gateway, firewall flags off"
-
-# The one thing a typo here would break is the isolation, so read it back.
+# The one thing a mistake in tofu/guests.tf would break is the isolation, so
+# read it back before anything else.
 cfg="$(api GET "/nodes/${NODE}/qemu/${VMID}/config")"
 jq -e '(.data.net1 | test("bridge=vmbr1")) and (.data.net0 | test("bridge=vmbr0"))
+       and ((.data.ipconfig1 // "") | test("ip=172\\.30\\.30\\.10/24"))
        and ((.data.ipconfig1 // "") | test("gw") | not)' <<<"${cfg}" >/dev/null \
   || die "the config did not read back as written: $(jq -c '.data | {net0,net1,ipconfig0,ipconfig1}' <<<"${cfg}")"
 ok "config reads back"
 
-info "starting"
-wait_task "$(api POST "/nodes/${NODE}/qemu/${VMID}/status/start" | jq -r '.data')"
+if [[ "$(api GET "/nodes/${NODE}/qemu/${VMID}/status/current" | jq -r '.data.status')" != running ]]; then
+  info "starting"
+  wait_task "$(api POST "/nodes/${NODE}/qemu/${VMID}/status/start" | jq -r '.data')"
+fi
 
 info "waiting for the guest agent to report the VLAN 30 lease"
 addr=""
