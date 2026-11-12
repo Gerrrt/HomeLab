@@ -1,7 +1,7 @@
 ---
 name: Planned change
 description: New device, new service, or a change to the network
-labels: ["enhancement"]
+labels: ["feature"]
 body:
   - type: textarea
     id: goal
