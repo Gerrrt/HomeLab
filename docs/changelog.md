@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-12
+
+- **`dot-alpine`'s disk is 16 GiB, and `tofu/guests.tf` now says so.** The
+  dotfiles install outgrew the 8 GiB that
+  [ADR-0090](adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md)
+  sized it at, and the disk was grown to 16 GiB on `Saruman` to finish it.
+  Nothing recorded that, so the first `tofu plan` after
+  [#1421](https://github.com/Gerrrt/HomeLab/pull/1421)'s identities file
+  planned an in-place change, 16 → 8, that Proxmox cannot make: a disk
+  does not shrink. The declaration now matches the guest. ADR-0090 is left
+  as written; its table is the size it decided on.
+
 ## 2026-11-11
 
 - **`wearable-01` reserved at `10.0.50.14`, below the Hicks pool.** This

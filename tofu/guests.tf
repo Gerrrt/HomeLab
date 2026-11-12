@@ -110,7 +110,10 @@ locals {
       dot-fedora   = { vm_id = 192, template = 904, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true }
       dot-opensuse = { vm_id = 193, template = 905, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true }
       dot-arch     = { vm_id = 194, template = 906, cores = 2, memory_mib = 4096, disk_gib = 32, linux = true, secure_boot = false }
-      dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 8, linux = true, secure_boot = false }
+      # 16, not ADR-0090's 8: the dotfiles install filled 8 GiB, and the disk
+      # was grown on Saruman to finish it. A disk cannot shrink, so 8 here
+      # planned a change the apply would refuse.
+      dot-alpine   = { vm_id = 195, template = 907, cores = 1, memory_mib = 1024, disk_gib = 16, linux = true, secure_boot = false }
       dot-gentoo   = { vm_id = 196, template = 908, cores = 4, memory_mib = 8192, disk_gib = 60, linux = true, secure_boot = false }
       dot-nixos    = { vm_id = 197, template = 909, cores = 2, memory_mib = 4096, disk_gib = 40, linux = true, secure_boot = false }
       dot-windows  = { vm_id = 198, template = 911, cores = 4, memory_mib = 8192, disk_gib = 64, linux = false, vga = "virtio" }
