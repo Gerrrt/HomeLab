@@ -56,8 +56,9 @@ updates:
   # review it as one. Immich's server and machine-learning images are one
   # release and run as a matched pair; ungrouped, #1461 moved the server to
   # v3.4.1 alone and trinity ran it beside machine-learning v3.3.6. The group
-  # names both and not immich-app/postgres, whose majors are held below. Written before the host existed, for the reason the lab entry
-  # gives: pins rot from the day they are written.
+  # names both and not immich-app/postgres, whose majors are held below.
+  # Written before the host existed, for the reason the lab entry gives: pins
+  # rot from the day they are written.
   #
   # Postgres majors are held, by wiki's rule below: the tier's three Postgres
   # volumes — Immich's, Paperless's and Miniflux's — are quiesced data
