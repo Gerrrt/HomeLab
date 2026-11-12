@@ -170,7 +170,9 @@ locals {
   # as, with that key beside phoenix's (var.eden_operator_key_file).
   bloodhound = {
     for name, g in {
-      eden = { vm_id = 141, template = 901, cores = 4, memory_mib = 8192, disk_gib = 32 }
+      # eden's OS disk is 48, not ADR-0081's 32: the hand-built guest was grown
+      # to 48 on Saruman, and the operator keeps it at that size on the rebuild.
+      eden = { vm_id = 141, template = 901, cores = 4, memory_mib = 8192, disk_gib = 48 }
     } :
     name => merge(g, {
       pool        = "bloodhound"
