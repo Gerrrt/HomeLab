@@ -536,7 +536,7 @@ segment and is not Hicks, so it is the right prober; a second probe to a host
 that should answer keeps a broken `nc` from reading as a closed port:
 
 ```bash
-ssh admin@10.0.99.1 'nc -z -w 3 10.0.30.20 8006; echo "8006 exit=$?"; nc -z -w 3 10.0.30.40 3100; echo "control exit=$?"'
+ssh admin@10.0.99.1 'nc -z -w 3 10.0.30.20 8006; echo "8006 exit=$?"; nc -z -w 3 10.0.30.40 13100; echo "control exit=$?"'
 ```
 
 Expect `8006 exit=1` and `control exit=0`. Then confirm the hypervisor's own

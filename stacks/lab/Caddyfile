@@ -51,10 +51,10 @@
 	}
 }
 
-# THE ROUTES, ONCE, AND TWO WAYS IN (#1430). Each port's allowlist is a
-# snippet so the plain port and its TLS twin cannot drift apart. The TLS sites
-# are what the agents use; the plain ones stay only until every agent has
-# moved, and a later change deletes the two plain sites and their ports.
+# THE ROUTES (#1430). Each port's allowlist is a snippet. They were written
+# that way so the plain ports and their TLS twins could not drift apart while
+# the agents moved; since 2026-11-12 the plain ports are gone and the TLS sites
+# below are the only way in.
 (prometheus_routes) {
 	import ingest_auth
 
@@ -136,16 +136,6 @@
 
 :13100 {
 	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
-	import loki_routes
-}
-
-# The plain ports, until every agent is on the TLS ones (#1430's second step
-# removes them).
-:9090 {
-	import prometheus_routes
-}
-
-:3100 {
 	import loki_routes
 }
 
