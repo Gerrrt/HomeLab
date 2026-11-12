@@ -24,7 +24,7 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9443, 13100 (https) and 9090, 3100 (plain, until #1430's second step) on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
+| `caddy` | `caddy` | 9443, 13100 (https) on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
 | `grafana` | `grafana/grafana` | *internal* (https) | Dashboards, the one service a human opens, through caddy's 3000 |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
@@ -86,10 +86,12 @@ thing entirely on this segment.
 
 ## The ingest proxy, and the order it goes in
 
-Since [#834], `caddy` holds `10.0.30.40:9090` and `:3100`, and Prometheus and
-Loki are on loopback. odin, phoenix, fenrir, golem, eden and garuda push with a token each, and
+Since [#834], `caddy` is the only way in to Prometheus and Loki, which are on
+loopback. It holds `10.0.30.40:9443` for Prometheus and `:13100` for Loki, over
+TLS since [#1430] (below); until 2026-11-12 it held the plain `9090` and
+`3100`. odin, phoenix, fenrir, golem, eden and garuda push with a token each, and
 everything else on the segment gets a 401, except the two health paths
-(`/-/healthy` and `/-/ready` on 9090, `/ready` on 3100), which answer without a
+(`/-/healthy` and `/-/ready` on 9443, `/ready` on 13100), which answer without a
 token. The 401s include `/-/quit`, Loki's
 delete API, and any query without the reader token.
 
@@ -115,19 +117,20 @@ their pushes until each one catches up.
    ([`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §6).
 5. **On `alexander`**, `make up STACK=lab`. The proxy is now in front.
 
-**Then prove it.** From any VLAN 30 address, or on `alexander` against its own
-address, each of these must print `401`:
+**Then prove it.** From any VLAN 30 address with a checkout, or on `alexander`
+against its own address, each of these must print `401`. They name the TLS
+ports, which are the only ones open since 2026-11-12 (#1430):
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/-/quit
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:9443/-/quit
 ```
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:3100/loki/api/v1/delete
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:13100/loki/api/v1/delete
 ```
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/api/v1/write
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:9443/api/v1/write
 ```
 
 The three clients must still deliver. In the lab's Grafana, `up` and the
@@ -142,14 +145,13 @@ any change to the Caddyfile. A lab failure that reaches the estate is
 
 ## The move to TLS (#1430)
 
-Since [#1430], the proxy also serves the same two allowlists over TLS under
-the estate CA, on `9443` (Prometheus) and `13100` (Loki), with Grafana's leaf,
-`grafana-lab.matrix.elysium`, which already names `10.0.30.40`. The routes are
-one snippet each in the `Caddyfile`, so a plain port and its TLS twin cannot
-drift apart. Every agent's configuration now points at the TLS ports and
-mounts the committed estate CA, `stacks/observability/alloy/ingest-ca.pem`.
-The plain ports stay open until every agent has moved, because an agent still
-on `http` stops pushing the moment they close.
+**Done 2026-11-12.** Since [#1430], the proxy serves its two allowlists over
+TLS under the estate CA, on `9443` (Prometheus) and `13100` (Loki), with
+Grafana's leaf, `grafana-lab.matrix.elysium`, which already names
+`10.0.30.40`. Every agent's configuration points at the TLS ports and mounts
+the committed estate CA, `stacks/observability/alloy/ingest-ca.pem`. All six
+agents had moved by 2026-11-12, and the plain `9090` and `3100` were closed
+that day. The steps are kept as the record of how it was done.
 
 **The proxy first, then the agents, then close.** The reverse of #834's order,
 because here the clients' new configuration is what needs a server to answer
@@ -177,7 +179,15 @@ it.
 3. **Close the plain ports,** in a second change once all six have moved:
    delete the `:9090` and `:3100` sites from the `Caddyfile` and their two
    `ports:` lines, then `make up STACK=lab`. An agent that was missed then
-   fails loudly, with a refused connection.
+   fails loudly, with a refused connection. Merged 2026-11-12; then, on
+   `alexander`, `git pull` and `make up STACK=lab`, and prove it closed:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 http://10.0.30.40:9090/-/ready
+   curl -s -o /dev/null -w '%{http_code}\n' --max-time 5 http://10.0.30.40:3100/ready
+   ```
+
+   Both print `000`: nothing answers on the plain ports.
 
 [#1430]: https://github.com/Gerrrt/HomeLab/issues/1430
 
