@@ -225,8 +225,14 @@ services:
     environment:
       # alexander, the lab's own stores. Nothing here points at 10.0.99.20,
       # and nothing may (ADR-0007).
-      LOKI_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_PORT:-3100}/loki/api/v1/push
-      PROMETHEUS_REMOTE_WRITE_URL: http://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_PORT:-9090}/api/v1/write
+      # https under the estate CA, on the lab proxy's TLS ports (#1430). New
+      # variable names, so a .env still holding the plain ports cannot build an
+      # https URL to a plain port.
+      LOKI_URL: https://${LAB_HOST:-10.0.30.40}:${LAB_LOKI_TLS_PORT:-13100}/loki/api/v1/push
+      PROMETHEUS_REMOTE_WRITE_URL: https://${LAB_HOST:-10.0.30.40}:${LAB_PROMETHEUS_TLS_PORT:-9443}/api/v1/write
+      # The CA both writers verify alexander's leaf against: the committed
+      # estate CA, check_ingest_ca.sh-guarded, mounted below (config.alloy).
+      INGEST_CA_FILE: /etc/alloy/ingest-ca.pem
       ALLOY_HOSTNAME: ${ALLOY_HOSTNAME:-fenrir}
       # Read by docker.alloy's three components; the socket is not mounted (#836).
       DOCKER_API: tcp://docker-socket-proxy:2375
@@ -241,6 +247,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - ./alloy/zeek.alloy:/etc/alloy/zeek.alloy:ro
       - zeek-logs:/zeek/logs:ro

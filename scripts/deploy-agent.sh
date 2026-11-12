@@ -57,11 +57,11 @@
 # never — it is the listener morpheus sends to, and it belongs on the
 # monitoring host alone. The header of alloy/config.alloy has the reasoning.
 #
-# ingest-ca.pem, the estate CA's certificate, goes with them when the target
-# pushes to the estate's proxy, and INGEST_CA_FILE names it (#764): the writers
-# verify an https endpoint against it. It is committed, so the Mac's checkout
-# has it too. It does not go to a host of the lab's proxy, which has its own
-# CA question (stacks/lab/README.md) and serves plain http meanwhile.
+# ingest-ca.pem, the estate CA's certificate, goes with them to every target,
+# and INGEST_CA_FILE names it: the writers verify an https endpoint against it.
+# Both proxies serve https under that CA, the estate's since #764 and the lab's
+# since #1430, which reuses alexander's Grafana leaf. It is committed, so the
+# Mac's checkout has it too.
 #
 # The token
 # ---------
@@ -149,19 +149,21 @@ tag="$("${REPO_ROOT}/scripts/image-for.sh" --tag-only alloy)"
 VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
 
-# The estate's proxy serves https under the estate CA (#764); the lab's still
-# serves http. CURL_CA is what every curl below adds to reach the same proxy
-# the agent will: the committed CA, so the Mac verifies exactly what the agent
-# does, with no certificates/ directory on it.
+# Both proxies serve https under the estate CA: the estate's on 9090 and 3100
+# (#764), the lab's on 9443 and 13100 (#1430), beside its plain ports until
+# every lab agent has moved. CURL_CA is what every curl below adds to reach the
+# same proxy the agent will: the committed CA, so the Mac verifies exactly what
+# the agent does, with no certificates/ directory on it.
 ESTATE_MON="10.0.99.20"
 if [[ "${MON}" == "${ESTATE_MON}" ]]; then
-  SCHEME="https"; CURL_CA=(--cacert "${ALLOY_DIR}/ingest-ca.pem")
+  PROM_PORT=9090; LOKI_PORT=3100
 else
-  SCHEME="http"; CURL_CA=()
+  PROM_PORT=9443; LOKI_PORT=13100
 fi
-MON_URL="${SCHEME}://${MON}"
-LOKI_URL="${MON_URL}:3100/loki/api/v1/push"
-PROMETHEUS_REMOTE_WRITE_URL="${MON_URL}:9090/api/v1/write"
+CURL_CA=(--cacert "${ALLOY_DIR}/ingest-ca.pem")
+MON_URL="https://${MON}"
+LOKI_URL="${MON_URL}:${LOKI_PORT}/loki/api/v1/push"
+PROMETHEUS_REMOTE_WRITE_URL="${MON_URL}:${PROM_PORT}/api/v1/write"
 
 SSH=(ssh -o BatchMode=yes -o ConnectTimeout=10 "$TARGET")
 
@@ -194,12 +196,11 @@ FILES=(config.alloy)
 # The estate's CA, at the path the agent will read it from: /etc/alloy is the
 # config directory on both runtimes, and Alloy loads only *.alloy from it
 # (measured on the pinned image with a .pem beside the config).
-INGEST_CA_FILE=""
-if [[ "${MON}" == "${ESTATE_MON}" ]]; then
-  [[ -f "${ALLOY_DIR}/ingest-ca.pem" ]] || die "no ingest-ca.pem under ${ALLOY_DIR} — it is committed; is this checkout current?"
-  FILES+=(ingest-ca.pem)
-  INGEST_CA_FILE="/etc/alloy/ingest-ca.pem"
-fi
+# Both proxies' leaves are from the estate CA (#764, #1430), so every target
+# gets it.
+[[ -f "${ALLOY_DIR}/ingest-ca.pem" ]] || die "no ingest-ca.pem under ${ALLOY_DIR} — it is committed; is this checkout current?"
+FILES+=(ingest-ca.pem)
+INGEST_CA_FILE="/etc/alloy/ingest-ca.pem"
 
 pass "target ${HOST} · runtime ${RUNTIME} · alloy ${VERSION} · files ${FILES[*]}"
 
@@ -505,7 +506,7 @@ native)
   # Only the files this host was sent. A stale docker.alloy left behind would
   # be loaded — a directory is one config — and log errors every interval.
   $SUDO install -d -m 0755 /etc/alloy /var/lib/node_exporter/textfile_collector
-  # The CA likewise, so a host moved to the lab's proxy does not keep it.
+  # The CA likewise: removed, then installed again below from this checkout.
   $SUDO find /etc/alloy -maxdepth 1 \( -name '*.alloy' -o -name '*.pem' \) -delete
   $SUDO install -m 0644 -o root -g root "${STAGE}"/*.alloy /etc/alloy/
   if [[ -n "${INGEST_CA_FILE}" ]]; then
@@ -611,10 +612,10 @@ arrival_failed=0
 if ((VERIFY)); then
   if [[ -z "${INGEST_TOKEN_READER:-}" ]]; then
     warn "no reader token (INGEST_TOKEN_READER) — skipping the arrival check; run it by hand with the queries below"
-  elif ! curl -fsS --max-time 5 ${CURL_CA[@]+"${CURL_CA[@]}"} "${MON_URL}:9090/-/ready" >/dev/null 2>&1; then
-    warn "${MON_URL}:9090 is not reachable from here, or its certificate does not verify against ${CURL_CA[1]:-nothing}; skipping the arrival check"
-  elif ! mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
-    warn "${MON}:9090 refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
+  elif ! curl -fsS --max-time 5 ${CURL_CA[@]+"${CURL_CA[@]}"} "${MON_URL}:${PROM_PORT}/-/ready" >/dev/null 2>&1; then
+    warn "${MON_URL}:${PROM_PORT} is not reachable from here, or its certificate does not verify against ${CURL_CA[1]:-nothing}; skipping the arrival check"
+  elif ! mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" --data-urlencode "query=vector(1)" >/dev/null 2>&1; then
+    warn "${MON}:${PROM_PORT} refused the reader token — is INGEST_TOKEN_READER the one in ${TOKEN_FILE}? Skipping the arrival check"
   else
     # The marker. logger(1) is util-linux, present on every target this ships
     # to, and needs no root. If it is missing anyway, fall back to asking for
@@ -635,10 +636,10 @@ if ((VERIFY)); then
       # matches nothing and exits 1, pipefail makes that the pipeline's
       # status, and set -e ended the whole script here with no word said
       # (oracle, 2026-09-30). No match is an answer (0 jobs), not an error.
-      jobs="$(mon_curl "${MON_URL}:9090/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
+      jobs="$(mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
       jobs="${jobs:-0}"
-      if mon_curl -G "${MON_URL}:3100/loki/api/v1/query_range" \
+      if mon_curl -G "${MON_URL}:${LOKI_PORT}/loki/api/v1/query_range" \
            --data-urlencode "query=${loki_query}" --data-urlencode "start=${loki_since}000000000" \
            --data-urlencode "end=${loki_until}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
@@ -658,13 +659,13 @@ if ((VERIFY)); then
       pass "Loki has ${loki_what} for host=\"${HOST}\""
     else
       if ((marker_sent)); then
-        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100. The marker was logged on ${HOST} as: ${MARKER}"
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}. The marker was logged on ${HOST} as: ${MARKER}"
       else
-        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:3100."
+        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}."
       fi
       arrival_failed=1
     fi
-    dropped="$(mon_curl "${MON_URL}:9090/api/v1/query" \
+    dropped="$(mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" \
                  --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
                | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
     if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then
