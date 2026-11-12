@@ -32,7 +32,10 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   VMs (191–198, [ADR-0090]), in the `dotfiles` pool, #921's always-on
   analyst workstation `garuda` (162, [ADR-0091]), in the `analyst` pool,
   #451's BloodHound guest `eden` (141, [ADR-0081]), in the `bloodhound` pool,
-  and the proof guest, 998, only under `-var proof=true`.
+  and the proof guest, 998, only under `-var proof=true`. On `gandalf`,
+  through the provider's `gandalf` alias, it holds the range's attack VM
+  `ragnarok` (130, [ADR-0116]), in no pool, which
+  `scripts/finish-attack-vm.sh` finishes and proves after every apply.
 - `identities.auto.tfvars` holds each guest's MAC and SMBIOS UUID. It exists
   only on `phoenix`, is gitignored, and is escrowed in
   `secrets/tofu.sops.yaml`; `identities.auto.tfvars.example` shows its shape.
@@ -64,5 +67,6 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
 
 [ADR-0090]: ../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md
 [ADR-0081]: ../docs/adr/0081-run-bloodhound-ce-on-a-saruman-guest.md
+[ADR-0116]: ../docs/adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md
 [ADR-0076]: ../docs/adr/0076-provision-lab-guests-with-opentofu-and-encrypt-its-state-from-the-first-apply.md
 [runbook]: ../docs/runbooks/provision-lab-guests.md

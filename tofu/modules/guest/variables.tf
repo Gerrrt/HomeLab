@@ -29,7 +29,9 @@ variable "node" {
 }
 
 variable "pool_id" {
-  type = string
+  type        = string
+  default     = null
+  description = "The pool on the guest's node. Null puts it in none: ragnarok, on gandalf, where phoenix's token holds no pool grant (ADR-0116)."
 }
 
 variable "datastore" {
@@ -178,4 +180,13 @@ variable "dns_servers" {
   type        = list(string)
   default     = []
   description = "cloud-init nameservers. Empty leaves Proxmox to fill them from the host, as before."
+}
+
+variable "extra_networks" {
+  type = list(object({
+    bridge       = string
+    ipv4_address = string
+  }))
+  default     = []
+  description = "NICs after net0, as net1 and on, each with a static address and NO gateway, the firewall flag off, and a MAC Proxmox chooses. ragnarok's range leg is the one so far: vmbr1, 172.30.30.10/24 (ADR-0017, ADR-0116)."
 }

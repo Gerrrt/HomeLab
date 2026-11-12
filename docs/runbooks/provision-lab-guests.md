@@ -97,6 +97,14 @@ else
 fi
 ```
 
+**Two more lines, for `gandalf`.** Since
+[ADR-0116](../adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md),
+the tree also reads `gandalf` through an aliased provider, from
+`TF_VAR_gandalf_endpoint` and `TF_VAR_gandalf_api_token`. They go in this file
+too, so a plan needs `phoenix.env` alone, and every plan needs `gandalf` up.
+[`build-the-playground.md` §5](build-the-playground.md#5-the-attack-vm)
+writes them.
+
 `passphrase length 44` and `API 200`. Then `rm` the `.bak-445` copy, which
 holds the token. A full root makes the copy fail. The first run hit exactly
 that, and the build's §2 now grows the volume (`build-the-jumpbox.md`). A

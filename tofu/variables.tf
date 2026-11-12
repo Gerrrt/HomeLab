@@ -46,3 +46,17 @@ variable "guest_identities" {
     error_message = "Each of the six domain guests needs its smbios_uuid in guest_identities, as tofu/identities.auto.tfvars.example shows."
   }
 }
+
+# gandalf's API, for the aliased provider (providers.tf, ADR-0116). No default:
+# every plan reads gandalf as well as Saruman, so the two lines must be in
+# phoenix.env and gandalf must be up. That cost was chosen over a second tree (#1443).
+variable "gandalf_endpoint" {
+  type        = string
+  description = "https://10.0.30.30:8006/, from TF_VAR_gandalf_endpoint in phoenix.env."
+}
+
+variable "gandalf_api_token" {
+  type        = string
+  sensitive   = true
+  description = "phoenix@pve!builder=<secret> on gandalf, from TF_VAR_gandalf_api_token in phoenix.env."
+}

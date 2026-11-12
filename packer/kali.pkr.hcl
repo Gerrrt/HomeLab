@@ -5,7 +5,8 @@
 # BUILT on gandalf 2026-11-09, twice, each build smoke-tested (#790). It goes
 # through gandalf's own API with gandalf's own token (gandalf.env, not
 # phoenix.env), and its disk on `range`: build-the-lab-templates.md §5. The
-# attack VM, ragnarok, is cloned from it by scripts/make-attack-vm.sh.
+# attack VM, ragnarok, is cloned from it by tofu/ and finished by
+# scripts/finish-attack-vm.sh (ADR-0116).
 #
 # The one source here that uses Packer's HTTP server. Debian's installer reads
 # a preseed from the install medium or from a URL, not from a second disc, so
