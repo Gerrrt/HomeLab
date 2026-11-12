@@ -179,7 +179,16 @@ it.
 3. **Close the plain ports,** in a second change once all six have moved:
    delete the `:9090` and `:3100` sites from the `Caddyfile` and their two
    `ports:` lines, then `make up STACK=lab`. An agent that was missed then
-   fails loudly, with a refused connection. Merged 2026-11-12; then, on
+   fails loudly, with a refused connection. Merged 2026-11-12. Before its
+   `make up`, prove nothing on the segment still uses the plain ports. On
+   `alexander`:
+
+   ```bash
+   ss -tn state established '( sport = :9090 or sport = :3100 )'
+   ```
+
+   Only `127.0.0.1` peers may be listed: the stores' own loopback. A
+   `10.0.30.x` peer is an agent still on plain http; move it first. Then, on
    `alexander`, `git pull` and `make up STACK=lab`, and prove it closed:
 
    ```bash
