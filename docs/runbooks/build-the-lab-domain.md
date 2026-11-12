@@ -400,11 +400,16 @@ skips step 4.
    `lab-domain` pool (an import brings in guests, not their pool), and do
    nothing else. That is the one plan where a replace is expected:
    `clone` cannot be read back from a running guest. Anything else is a stop.
-5. **Destroy.** Only the guests. On a later rebuild, that leaves the pool
-   and its grant in place:
+5. **Destroy.** Only the six, named one by one. On a later rebuild, that
+   leaves the pool and its grant in place. **Never `-target=module.guest`**:
+   that is every guest on `Saruman` in the tree, `garuda`, `eden` and the
+   dotfiles VMs included, and it would take `garuda`'s case notes and `eden`'s
+   graph with the domain. ADR-0081 puts BloodHound off the domain so that it
+   survives this step.
 
    ```bash
-   tofu -chdir=tofu destroy -target=module.guest
+   SIX=(); for g in bahamut leviathan titan ramuh carbuncle siren; do SIX+=(-target="module.guest[\"$g\"]"); done
+   tofu -chdir=tofu destroy "${SIX[@]}"
    ```
 
    Check on `Saruman` that `qm list` has no 150–155.
@@ -412,10 +417,12 @@ skips step 4.
    name, so that the rebuilt guests' enrolment under the same names is not
    refused as a duplicate. This comes after the destroy, so a run that stops
    before it leaves the old guests still reporting.
-7. **Apply.** This also creates the pool, the first time.
+7. **Apply,** targeted at the six as step 5 was. This also creates the pool,
+   the first time. Targeted, so that a guest declared but not yet made or
+   imported elsewhere in the tree is not created here as a side effect.
 
    ```bash
-   tofu -chdir=tofu plan -out=next.tfplan
+   tofu -chdir=tofu plan "${SIX[@]}" -out=next.tfplan
    tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
    ```
 

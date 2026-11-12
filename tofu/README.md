@@ -55,7 +55,8 @@ tofu -chdir=tofu apply next.tfplan && rm tofu/next.tfplan
   reservations are keyed by MAC, and the endpoints' activation by the UUID.
   A rebuild is
   [`build-the-lab-domain.md`'s](../docs/runbooks/build-the-lab-domain.md#rebuild-from-the-pipeline),
-  and it destroys with `-target=module.guest` so the pool's grant survives.
+  and it destroys and applies with a `-target` per domain guest, so the
+  pool's grant survives and no other guest in `module.guest` goes with them.
 - **CI proves that the tree parses and that the encryption holds. `phoenix`
   proves that it applies.** `scripts/lint.sh` runs `fmt -check` and
   `validate`, and `scripts/self-tests.sh` runs the encryption proof. Both use
