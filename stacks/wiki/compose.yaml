@@ -302,6 +302,12 @@ services:
   # the dump before app starts, so this passes then. A fresh `up` that skipped
   # the restore, or forgot the two variables, stops here. One-shot: no
   # restart policy, so it is not a long-running service.
+  #
+  # It counts the schema `wiki`, where Wiki.js 3 keeps its tables, and not
+  # `public`. As first merged it counted `public`, which 3.x leaves empty, so
+  # it refused oracle's live database (57 tables in `wiki`) on the first
+  # deploy after it (2026-11-12). CI's hardened boot cannot see that: it
+  # starts on an empty database, where refusing is right.
   # ---------------------------------------------------------------------------
   bootstrap-guard:
     image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
@@ -329,7 +335,7 @@ services:
     command:
       - |
         set -eu
-        q="select count(*) from information_schema.tables where table_schema = 'public'"
+        q="select count(*) from information_schema.tables where table_schema = 'wiki'"
         tables="$$(psql -h /var/run/postgresql -U wiki -d wiki -tAc "$$q")"
         if [ "$$tables" != 0 ]; then
           echo "database holds $$tables tables: not a first start"

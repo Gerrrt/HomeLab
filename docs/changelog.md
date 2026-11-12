@@ -29,6 +29,17 @@ docstring gives: it is a record, not a claim about now.
   groups the two so a release arrives as one PR. `immich-app/postgres` is
   left out of the group, because its majors are held.
 
+- **The wiki's bootstrap guard counted the wrong schema, and refused the live
+  database** ([#1435](https://github.com/Gerrrt/HomeLab/issues/1435)). The
+  guard [#1436](https://github.com/Gerrrt/HomeLab/pull/1436) added counted
+  tables in `public`. Wiki.js 3 keeps them in `wiki`, so on the first deploy
+  after it, Wiki.js 3.3.1 on `oracle`, it read the live database as empty and
+  `app` did not start. The database was not empty: 57 tables in `wiki`, read
+  with `psql` before anything was forced. `app` was then started once with
+  `--no-deps`, and came up healthy on 3.3.1. The guard now counts `wiki`.
+  CI's hardened boot could not have caught it, because it starts on an empty
+  database, where refusing is the right answer.
+
 ## 2026-11-11
 
 - **`wearable-01` reserved at `10.0.50.14`, below the Hicks pool.** This
