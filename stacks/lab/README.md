@@ -24,7 +24,7 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9090, 3100 on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
+| `caddy` | `caddy` | 9443, 13100 (https) and 9090, 3100 (plain, until #1430's second step) on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
 | `grafana` | `grafana/grafana` | *internal* (https) | Dashboards, the one service a human opens, through caddy's 3000 |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
@@ -139,6 +139,47 @@ Nothing pages if this later stops being true. The lab has no blackbox exporter
 and no Alertmanager (ADR-0020), so the three `curl`s are the check, re-run after
 any change to the Caddyfile. A lab failure that reaches the estate is
 [#858]'s question.
+
+## The move to TLS (#1430)
+
+Since [#1430], the proxy also serves the same two allowlists over TLS under
+the estate CA, on `9443` (Prometheus) and `13100` (Loki), with Grafana's leaf,
+`grafana-lab.matrix.elysium`, which already names `10.0.30.40`. The routes are
+one snippet each in the `Caddyfile`, so a plain port and its TLS twin cannot
+drift apart. Every agent's configuration now points at the TLS ports and
+mounts the committed estate CA, `stacks/observability/alloy/ingest-ca.pem`.
+The plain ports stay open until every agent has moved, because an agent still
+on `http` stops pushing the moment they close.
+
+**The proxy first, then the agents, then close.** The reverse of #834's order,
+because here the clients' new configuration is what needs a server to answer
+it.
+
+1. **On `alexander`**, `git pull`, then `make up STACK=lab`. Both pairs of
+   ports are now up. Prove the new pair:
+
+   ```bash
+   curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem https://10.0.30.40:9443/-/ready
+   curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:13100/loki/api/v1/delete
+   curl -s -o /dev/null -w '%{http_code}\n' http://10.0.30.40:9443/-/ready
+   ```
+
+   `200`, `401` and `400`: TLS answers under the CA, the allowlist holds, and
+   plain http to a TLS port is refused rather than redirected.
+2. **Each guest, at its own pace.** On `odin`, `fenrir`, `eden` and `garuda`,
+   `git pull`, then `make up STACK=soc`, `sensor`, `bloodhound` or `analyst`.
+   For `phoenix` and `golem`, re-run `deploy-agent.sh` from the Mac with
+   `--monitoring-host 10.0.30.40`. Its arrival check now runs over `https` on
+   `9443` and `13100`. Served pushes are not logged by the proxy, so the
+   proof is on each guest: the Alloy's `LOKI_URL` reads `https://…:13100`, its
+   log has no `x509` or `connection refused`, and the lab's Grafana shows the
+   host's newest data minutes old.
+3. **Close the plain ports,** in a second change once all six have moved:
+   delete the `:9090` and `:3100` sites from the `Caddyfile` and their two
+   `ports:` lines, then `make up STACK=lab`. An agent that was missed then
+   fails loudly, with a refused connection.
+
+[#1430]: https://github.com/Gerrrt/HomeLab/issues/1430
 
 ## Things worth knowing before editing
 

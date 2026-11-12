@@ -275,6 +275,12 @@ services:
       - ../../certificates/grafana-lab.matrix.elysium-key.pem:/etc/caddy/tls/key.pem:ro
       - ../../certificates/ca.pem:/etc/caddy/tls/ca.pem:ro
     ports:
+      # TLS under the estate CA, with Grafana's leaf, which names 10.0.30.40
+      # (#1430). The agents push here.
+      - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_TLS_PORT:-9443}:9443"
+      - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_TLS_PORT:-13100}:13100"
+      # Plain http, only until every agent is on the two above. #1430's second
+      # step removes these two lines and the Caddyfile's plain sites.
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${PROMETHEUS_PORT:-9090}:9090"
       - "${INGEST_BIND_ADDR:-10.0.30.40}:${LOKI_PORT:-3100}:3100"
       # Grafana, on the host port it had, for Hicks only (#1428).

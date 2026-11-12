@@ -51,7 +51,11 @@
 	}
 }
 
-:9090 {
+# THE ROUTES, ONCE, AND TWO WAYS IN (#1430). Each port's allowlist is a
+# snippet so the plain port and its TLS twin cannot drift apart. The TLS sites
+# are what the agents use; the plain ones stay only until every agent has
+# moved, and a later change deletes the two plain sites and their ports.
+(prometheus_routes) {
 	import ingest_auth
 
 	@health path /-/healthy /-/ready
@@ -86,7 +90,7 @@
 # Loki's delete API is on (loki-config.yaml: retention_enabled with a
 # delete_request_store), and auth_enabled is false upstream, so this allowlist
 # is the only thing between the segment and the lab's logs being edited.
-:3100 {
+(loki_routes) {
 	import ingest_auth
 
 	@health path /ready
@@ -116,6 +120,33 @@
 	}
 
 	import refuse
+}
+
+# TLS under the estate CA, as the estate's ingest is (ADR-0086). VLAN 30 holds
+# the deliberately weak domain and ARP spoofing is expected there, so a token
+# in plain HTTP is a token any foothold can read, and with it forge or blind
+# the lab's telemetry (#1430). The leaf is Grafana's, grafana-lab.matrix.elysium:
+# it already carries the IP SAN 10.0.30.40 that every agent dials, and is
+# already mounted here for :3443. Plain http to these ports gets Caddy's 400,
+# never a redirect, so an agent left on http fails loudly.
+:9443 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	import prometheus_routes
+}
+
+:13100 {
+	tls /etc/caddy/tls/cert.pem /etc/caddy/tls/key.pem
+	import loki_routes
+}
+
+# The plain ports, until every agent is on the TLS ones (#1430's second step
+# removes them).
+:9090 {
+	import prometheus_routes
+}
+
+:3100 {
+	import loki_routes
 }
 
 # The container's own healthcheck, as on the estate: not published, and it
