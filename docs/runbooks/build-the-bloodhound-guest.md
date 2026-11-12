@@ -39,7 +39,7 @@ same, this runbook points there and does not keep a second copy that drifts.
 | Tags | `on-demand` | Off between sessions, and `HypervisorGuestStopped` knows it ([ADR-0079](../adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)) |
 | `onboot` | `0` | For the same reason. A `Saruman` reboot does not bring it back, and should not |
 | vCPU / RAM | 4 / 8 GiB | The stack's limits add up to about 5.5 GiB: BloodHound's 3 and Postgres's 2. The rest is the kernel, Docker and page cache |
-| OS disk | 32 GB on `local-lvm` | `phoenix`'s choice. An OS disk does almost no I/O, and `large_data` is already allocated past its size (ADR-0081) |
+| OS disk | 48 GB on `local-lvm` | `phoenix`'s choice of `local-lvm`: an OS disk does almost no I/O, and `large_data` is already allocated past its size (ADR-0081). ADR-0081 sized it at 32; the hand-built guest was grown to 48, and the rebuild under #1443 keeps 48 |
 | Data disk | 32 GB on `large_data` | Postgres holds the graph too (ADR-0081), and its random reads are what the SSDs are for. A domain of tens of objects is megabytes of graph |
 | Backup | **None** | The graph is one collection run from rebuilt, and the guest is rebuilt from this repository. It stays out of `golem`'s job |
 | Firewall | `firewall=0`, and no rule on `morpheus` | The upload, the browser and the Alloy push are all intra-segment or already allowed (ADR-0081) |
