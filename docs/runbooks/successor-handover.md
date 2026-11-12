@@ -428,6 +428,7 @@ new keypair whose public half matches nothing.
    and what happened, dated, is [`changelog.md`](../changelog.md).
 
 The remaining runbooks are task-shaped and are best read when you have the task:
+[`deploy-merged-changes.md`](deploy-merged-changes.md),
 [`add-monitored-device.md`](add-monitored-device.md),
 [`add-a-host-override.md`](add-a-host-override.md),
 [`rotate-snmp-community.md`](rotate-snmp-community.md),
