@@ -101,7 +101,12 @@ Three things have to be in place first:
      | grep ssh-ed25519
    ```
 
-Then, on `phoenix`:
+**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), stop
+here and go to *Once: bring the hand-built `eden` into the pipeline* below.
+The commands next are for a first build only: an apply with 141 taken fails
+on the clone, after it has made the pool.
+
+For a first build, on `phoenix`:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
