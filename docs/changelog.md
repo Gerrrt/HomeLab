@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-12
 
+- **The lab's plain ingest ports are closed in the repository: TLS only, on
+  9443 and 13100** ([#1430](https://github.com/Gerrrt/HomeLab/issues/1430)).
+  All six lab agents were moved to the TLS ports the same day: `odin`,
+  `fenrir`, `eden` and `garuda` by `make up` of their stacks, `phoenix` and
+  `golem` by `deploy-agent.sh`. This change deletes the `:9090` and `:3100`
+  sites from `stacks/lab/Caddyfile` and their two published ports, and moves
+  every current procedure that still probed them: the lab README's proofs, the
+  jumpbox §5 and SOC-guest checks, and the playground §4 control probe, now
+  `13100`. It takes effect at `make up STACK=lab` on `alexander`, after the
+  `ss` check in the README's step 3 shows no VLAN 30 peer on the old ports.
+  Losing the plain ports also loses the accidental guard against a wildcard
+  `INGEST_BIND_ADDR`, which the clash with Prometheus's loopback 9090 used to
+  provide. The comments now say to keep it specific by hand.
+
 - **Immich's two images ran a release apart on `trinity`, and are now bumped
   together.** [#1461](https://github.com/Gerrrt/HomeLab/pull/1461) moved
   `immich-server` to v3.4.1 and left `immich-machine-learning` on v3.3.6,

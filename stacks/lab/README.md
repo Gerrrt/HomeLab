@@ -24,7 +24,7 @@ make up STACK=lab        # from the repository root
 | --- | --- | --- | --- |
 | `prometheus` | `prom/prometheus` | 9090 (localhost) | Metrics store, remote-write receiver, rule evaluation |
 | `loki` | `grafana/loki` | 3100 (localhost) | Log store |
-| `caddy` | `caddy` | 9443, 13100 (https) and 9090, 3100 (plain, until #1430's second step) on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
+| `caddy` | `caddy` | 9443, 13100 (https) on 10.0.30.40; 3000 (https) | The ingest proxy: odin, phoenix, fenrir, golem, eden and garuda push through it with a token each; apart from the health paths, everything else on the segment gets a 401 ([#834]). On 3000 it is also Grafana's fence: Hicks's `10.0.50.0/24` only ([#1428](https://github.com/Gerrrt/HomeLab/issues/1428)) |
 | `grafana` | `grafana/grafana` | *internal* (https) | Dashboards, the one service a human opens, through caddy's 3000 |
 | `alloy` | `grafana/alloy` | 12345 (localhost) | Metric and log collection |
 | `docker-socket-proxy` | `tecnativa/docker-socket-proxy` | *internal* | Holds the Docker socket so Alloy does not: GET-only, the estate's allowlist ([#836](https://github.com/Gerrrt/HomeLab/issues/836)) |
@@ -86,10 +86,12 @@ thing entirely on this segment.
 
 ## The ingest proxy, and the order it goes in
 
-Since [#834], `caddy` holds `10.0.30.40:9090` and `:3100`, and Prometheus and
-Loki are on loopback. odin, phoenix, fenrir, golem, eden and garuda push with a token each, and
+Since [#834], `caddy` faces the segment and Prometheus and Loki are on
+loopback. It held `10.0.30.40:9090` and `:3100` in plain http until [#1430],
+and since then holds `:9443` and `:13100` over TLS only (*The move to TLS*,
+below). odin, phoenix, fenrir, golem, eden and garuda push with a token each, and
 everything else on the segment gets a 401, except the two health paths
-(`/-/healthy` and `/-/ready` on 9090, `/ready` on 3100), which answer without a
+(`/-/healthy` and `/-/ready` on 9443, `/ready` on 13100), which answer without a
 token. The 401s include `/-/quit`, Loki's
 delete API, and any query without the reader token.
 
@@ -115,23 +117,24 @@ their pushes until each one catches up.
    ([`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §6).
 5. **On `alexander`**, `make up STACK=lab`. The proxy is now in front.
 
-**Then prove it.** From any VLAN 30 address, or on `alexander` against its own
-address, each of these must print `401`:
+**Then prove it.** From any VLAN 30 address, or on `alexander` from the
+checkout against its own address, each of these must print `401`. They are on
+the TLS ports since #1430, verified against the estate CA:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/-/quit
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:9443/-/quit
 ```
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:3100/loki/api/v1/delete
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:13100/loki/api/v1/delete
 ```
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST http://10.0.30.40:9090/api/v1/write
+curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:9443/api/v1/write
 ```
 
-The three clients must still deliver. In the lab's Grafana, `up` and the
-newest log line for `odin`, `phoenix` and `fenrir` should be minutes old.
+The six clients must still deliver. In the lab's Grafana, `up` and the
+newest log line for each should be minutes old.
 `docker logs lab-ingest-proxy` lists any refused request, with the client its
 token mapped to. A client still on its old config shows there as `-`.
 
@@ -145,11 +148,11 @@ any change to the Caddyfile. A lab failure that reaches the estate is
 Since [#1430], the proxy also serves the same two allowlists over TLS under
 the estate CA, on `9443` (Prometheus) and `13100` (Loki), with Grafana's leaf,
 `grafana-lab.matrix.elysium`, which already names `10.0.30.40`. The routes are
-one snippet each in the `Caddyfile`, so a plain port and its TLS twin cannot
-drift apart. Every agent's configuration now points at the TLS ports and
-mounts the committed estate CA, `stacks/observability/alloy/ingest-ca.pem`.
-The plain ports stay open until every agent has moved, because an agent still
-on `http` stops pushing the moment they close.
+one snippet each in the `Caddyfile`. Every agent's configuration points at the
+TLS ports and mounts the committed estate CA,
+`stacks/observability/alloy/ingest-ca.pem`. The plain ports stayed open until
+every agent had moved, because an agent still on `http` stops pushing the
+moment they close; they are closed now (step 3).
 
 **The proxy first, then the agents, then close.** The reverse of #834's order,
 because here the clients' new configuration is what needs a server to answer
@@ -174,10 +177,25 @@ it.
    proof is on each guest: the Alloy's `LOKI_URL` reads `https://…:13100`, its
    log has no `x509` or `connection refused`, and the lab's Grafana shows the
    host's newest data minutes old.
-3. **Close the plain ports,** in a second change once all six have moved:
-   delete the `:9090` and `:3100` sites from the `Caddyfile` and their two
-   `ports:` lines, then `make up STACK=lab`. An agent that was missed then
-   fails loudly, with a refused connection.
+3. **Close the plain ports,** in a second change once all six have moved.
+   That change deleted the `:9090` and `:3100` sites from the `Caddyfile` and
+   their two `ports:` lines. Before its `make up STACK=lab`, prove nothing on
+   the segment still uses them. On `alexander`:
+
+   ```bash
+   ss -tn state established '( sport = :9090 or sport = :3100 )'
+   ```
+
+   Only `127.0.0.1` peers may be listed: the stores' own loopback. A
+   `10.0.30.x` peer is an agent still on plain http; move it first. Then
+   `make up STACK=lab`, and prove the plain ports refuse:
+
+   ```bash
+   nc -z -w 3 10.0.30.40 9090; echo "9090 exit=$?"; nc -z -w 3 10.0.30.40 3100; echo "3100 exit=$?"
+   ```
+
+   Both must print `exit=1`. An agent that was missed then fails loudly, with
+   a refused connection.
 
 [#1430]: https://github.com/Gerrrt/HomeLab/issues/1430
 
@@ -235,10 +253,11 @@ it.
   commented until then;
   [`build-the-jumpbox.md`](../../docs/runbooks/build-the-jumpbox.md) §5
   published them in 2026-09
-  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)). [#834] hands them
-  to `caddy`, which wants a token from each client, once its rollout has run
-  ([*The ingest proxy*](#the-ingest-proxy-and-the-order-it-goes-in)). Until
-  then they are still published unauthenticated.
+  ([#436](https://github.com/Gerrrt/HomeLab/issues/436)). [#834] handed them
+  to `caddy`, which wants a token from each client
+  ([*The ingest proxy*](#the-ingest-proxy-and-the-order-it-goes-in)), and
+  [#1430] moved the proxy to TLS on 9443 and 13100 and closed the plain ports.
+  Prometheus and Loki themselves publish on loopback only.
 - **Image tags are pinned here but bumped separately.** `.github/dependabot.yml`
   now watches this directory as well as the estate's, so the two do not drift.
   Versions are deliberately absent from the table above — Dependabot only edits

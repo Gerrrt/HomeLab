@@ -150,8 +150,8 @@ VERSION="${tag##*:v}"
 [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "could not read a version out of '${tag}'"
 
 # Both proxies serve https under the estate CA: the estate's on 9090 and 3100
-# (#764), the lab's on 9443 and 13100 (#1430), beside its plain ports until
-# every lab agent has moved. CURL_CA is what every curl below adds to reach the
+# (#764), the lab's on 9443 and 13100 (#1430), whose plain ports are closed.
+# CURL_CA is what every curl below adds to reach the
 # same proxy the agent will: the committed CA, so the Mac verifies exactly what
 # the agent does, with no certificates/ directory on it.
 ESTATE_MON="10.0.99.20"

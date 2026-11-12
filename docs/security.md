@@ -588,14 +588,14 @@ Two residuals are recorded rather than fixed:
 - **The tokens crossed a segment built for ARP spoofing in plain HTTP,** so
   anyone in a position to spoof could take one. A stolen token can still only
   push, or read; it cannot quit or delete. Since
-  [#1430](https://github.com/Gerrrt/HomeLab/issues/1430) the proxy also serves
+  [#1430](https://github.com/Gerrrt/HomeLab/issues/1430) the proxy serves only
   TLS under the estate CA on `9443` and `13100`, as the estate's does
   (ADR-0086), with `alexander`'s Grafana leaf, which names `10.0.30.40`, and
-  every lab agent is configured for those ports. **Authored, and live only
-  after its rollout** (`stacks/lab/README.md`, *The move to TLS*): until each
-  agent has been redeployed, it still sends its token in the clear on `9090`
-  and `3100`, and those two plain ports stay open until #1430's second step
-  closes them.
+  every lab agent pushes to those ports. The plain `9090` and `3100` are
+  closed, so no token crosses the segment in the clear any more
+  (`stacks/lab/README.md`, *The move to TLS*). What a token taken before the
+  move still allows is the line above: push or read, never quit or delete,
+  until it is rotated.
 - **Nothing pages if the proxy is bypassed.** The lab has no blackbox exporter
   and no Alertmanager (ADR-0020), so its version of `IngestAuthNotEnforced` is
   a step in the rollout check, not a rule. Making the lab's failures reach the
