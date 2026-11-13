@@ -177,9 +177,11 @@ else: not into a shell on the monitoring host, where they land in history, and
 not into an agent session, where they land in a transcript. Then read the row
 back with `/snmp community print` — `security` still `private`, the
 authentication and encryption protocols still SHA1 and AES, and the address
-restriction still `10.0.99.20`. There is no v2c community on the switch to add,
-keep or delete, and there should not be one after this either: `public` and
-`private` are refused, and §2.4 checks that.
+restriction still `10.0.99.20`. There is no enabled v2c community on the switch
+to add, keep or delete, and there should not be one after this either: `public`
+and `private` are refused, and §2.4 checks that. The print also lists
+RouterOS's default `public` entry, which cannot be removed. It should show as
+disabled.
 
 **HPE iLO** (`shiva`, 10.0.30.10) — **Administration → Management → SNMP
 Settings → SNMPv3 Users**, the `prometheus` slot: both passphrases. The same
