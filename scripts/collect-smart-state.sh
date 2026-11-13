@@ -394,10 +394,24 @@ for d in docs:
         elif name in ("percent_lifetime_remain", "ssd_life_left"):
             # Reported as REMAINING; inverted so it means the same thing as the
             # NVMe metric of the same name rather than the opposite.
-            if raw is not None:
+            #
+            # The raw column is a percent on the drives this was written for,
+            # and not on every drive that uses the name: prometheus's Apple
+            # SSD SM256E rendered -78 here (2026-11-13 audit), a raw of 178,
+            # which left SmartDriveWearHigh unable to fire for that disk. A raw
+            # outside 0-100 is not a percent, so fall back to the normalised
+            # column, which starts at 100 and falls on every drive here that
+            # carries it; if that is not a percent either, render nothing
+            # rather than a number the rule would misread.
+            life_left = None
+            if raw is not None and 0 <= int(raw) <= 100:
+                life_left = int(raw)
+            elif attr.get("value") is not None and 0 <= int(attr["value"]) <= 100:
+                life_left = int(attr["value"])
+            if life_left is not None:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
-                    plain, 100 - int(raw))
+                    plain, 100 - life_left)
         elif name == "media_wearout_indicator":
             # Intel's spelling (attribute 233, the DC S3520 in smaug). The
             # NORMALISED value is the one that means something — it starts at
@@ -529,6 +543,20 @@ if ((SELF_TEST)); then
   out="$(emit)"
   check "two wear spellings render ONE series" \
     1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sdd",slot="/dev/sdd"\}'
+
+  # 3b. prometheus's Apple SSD SM256E (2026-11-13 audit): a life-left raw of
+  #     178, which rendered -78 % used. The raw value is the one measured; the
+  #     normalised 97 is illustrative, since smartctl needs root and the audit
+  #     read only the rendered series. A raw outside 0-100 falls back to the
+  #     normalised column, and a drive with neither in range renders nothing.
+  payload='[{"device":{"name":"/dev/sda"},"model_name":"APPLE SSD SM256E","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":169,"name":"Percent_Lifetime_Remain","value":97,"raw":{"value":178}}]}}]'
+  out="$(emit)"
+  check "Apple SM256E: a raw life-left over 100 reads the normalised column" \
+    1 '^homelab_smart_percentage_used\{host="fixture",device="/dev/sda",slot="/dev/sda"\} 3$'
+  payload='[{"device":{"name":"/dev/sda"},"model_name":"NO PERCENT","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":169,"name":"Percent_Lifetime_Remain","value":253,"raw":{"value":178}}]}}]'
+  out="$(emit)"
+  check "no column in 0-100: no wear series, never a negative one" \
+    0 '^homelab_smart_percentage_used'
 
   # 4. morpheus's NVMe, the other vocabulary entirely.
   payload='[{"device":{"name":"/dev/nvme0"},"model_name":"NVME DRIVE","smart_status":{"passed":true},"temperature":{"current":62},"nvme_smart_health_information_log":{"percentage_used":3,"available_spare":100,"available_spare_threshold":10,"media_errors":0,"unsafe_shutdowns":41,"critical_warning":0}}]'

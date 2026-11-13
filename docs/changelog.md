@@ -17,6 +17,26 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-13
+
+- **An audit of `prometheus` found two alerts that could not fire.** It was
+  read-only, against the repository, and ran on 2026-11-13.
+  - `SecretsKeyBackupUnproven` joined each recipient's proof to the deadline
+    row on the same `instance`. Only `prometheus` declares that row:
+    `install-timers.sh` check 8 keeps `verify-key-backup` out of trinity's
+    table. So trinity's two `sensitive` recipients have read 0, never proven,
+    with nothing firing. A host with no row of its own is now held to the
+    estate's ninety days. Evaluated against live data the same day, the new
+    expression returns exactly those two recipients, so the alert will fire
+    once this deploys, and proving both on trinity is what clears it.
+  - `collect-smart-state.sh` inverted the raw column of
+    `Percent_Lifetime_Remain` and `SSD_Life_Left`. On `prometheus`'s Apple SSD
+    SM256E that raw value is 178, which rendered -78 % used, so
+    `SmartDriveWearHigh` could not fire for the monitoring host's only disk. A
+    raw value outside 0–100 now falls back to the normalised column, and the
+    collector renders nothing when neither column is a percent.
+  - `architecture.md`'s row for the host now names `ingest-proxy`.
+
 ## 2026-11-12
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
