@@ -134,7 +134,7 @@ creation_rules:
   # recovered, by build-the-bloodhound-guest.md § 11.
   - path_regex: secrets/bloodhound(\..+)?\.sops\.ya?ml$
     age: >-
-      age189dyp4ug4s3xujzuvrm8gp8mpvcg7rge8qdv6ctdw9pcss2wacjsj0sxt9
+      age1r0hp35tdeqx3nzz87r4g6t8rr0hsvj0w9g8qaravu5acj52ecpksazuu76
 
   # The analyst workstation, garuda (#921, ADR-0091), for soc's reason: it
   # holds the case notes on what the lab's attackers did. Its key opens
