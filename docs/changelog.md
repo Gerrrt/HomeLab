@@ -17,6 +17,30 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-13
+
+- **`shiva` re-read over Redfish, from `Saruman`.** This was a read-only audit:
+  GET requests only, plus a handshake and a port check. Nothing was installed and
+  nothing was set. The 2026-09-09 hardening holds. SSH (`22`) and IPMI-over-LAN
+  (`623/udp`) are off on the iLO and closed on the wire. Federation management
+  is off. SNMP answers only the `prometheus` v3 user, with SHA and AES and no
+  community. Firmware 2.82 is still HPE's last iLO 4 release (2023-03-02), as
+  ADR-0033 assumed. Health is clean: fans, both supplies, all eight DIMMs, the
+  four drives and the Smart Storage Battery, which reads `Ok` after the
+  August–September failures in the IML. What the hardening never recorded:
+  - a second local account with every privilege, older than the retained event
+    log;
+  - the unauthenticated XML reply (`/xmldata`), SSDP with Federation's
+    multicast discovery, and HTTP on `80`;
+  - a DHCP gateway, so the BMC has the lab's internet egress, which
+    `docs/security.md`'s "its one path out of the segment deleted" overstated;
+  - no NTP server, so the iLO's clock restarts at 1970 after each power
+    removal, and the event log logs only every third failed login.
+
+  `docs/hardware.md`, `docs/security.md` and `SECURITY.md` now say so. The
+  fixes are on the iLO and on `morpheus`, by hand, and are not done in this
+  entry.
+
 ## 2026-11-12
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
