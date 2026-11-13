@@ -177,6 +177,45 @@ Nothing unusual. During the installer:
   `-r` grows the ext4 filesystem in the same step. `df -h /` should then
   read about 97G. Done on `alexander` on 2026-09-23.
 
+### SSH: keys only
+
+The installer's OpenSSH ships `PasswordAuthentication yes` and
+`X11Forwarding yes` in `/etc/ssh/sshd_config`. Guests cloned from the Packer
+template never get those, because `packer/ubuntu/user-data.pkrtpl` sets
+`allow-pw: false`, but this guest is installed by hand from the ISO and does.
+That matters more here than on most hosts. `sshd` answers on all of VLAN 30,
+which holds the deliberately weak domain and expects ARP spoofing, and this
+guest holds the lab's age key (§4).
+
+First put your public key in `~/.ssh/authorized_keys` and log in with it from
+Hicks. Keep that session open while you do the rest, so a mistake cannot lock
+you out:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-homelab.conf > /dev/null <<'EOF'
+# Keys only (build-the-lab-guest.md §2). Read before sshd_config's own lines,
+# and sshd keeps the first value it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+```
+
+Then, from Hicks, in a new terminal, prove both halves:
+
+```bash
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password 10.0.30.40 true
+```
+
+```bash
+ssh 10.0.30.40 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed.
+
 ## 3. Docker, the agent, and the repository
 
 ```bash
@@ -393,6 +432,15 @@ And that the metrics path works:
 ```promql
 up{instance="alexander"}
 ```
+
+And that `sshd` still refuses passwords (§2). The drop-in outranks any later
+edit of `sshd_config`, but only while it exists:
+
+```bash
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four must read `no`.
 
 ## 8. Write it down
 
