@@ -220,6 +220,48 @@ from `Saruman` is the check. The agent is also what lets this guest's disks
 page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and
 `/srv/sensor-data`.
 
+**Make SSH key-only, for one user.** `fenrir` listens on `22` on the
+segment that exists to hold attackers, and it has no host firewall to narrow
+who reaches that port. The installer leaves
+`/etc/ssh/sshd_config.d/50-cloud-init.conf` behind, and that file can set
+`PasswordAuthentication yes`. `sshd` keeps the **first** value it reads
+for each setting, and drop-ins are read in name order, so this file is `10-`
+to come before cloud-init's:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-homelab.conf >/dev/null <<'SSHD'
+# fenrir: key-only SSH for one user (build-the-sensor-guest.md §3).
+# Named 10- so it is read before 50-cloud-init.conf: sshd keeps the first
+# value it reads for each setting.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+AllowUsers atreus
+SSHD
+sudo chmod 644 /etc/ssh/sshd_config.d/10-homelab.conf
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding|allowusers) '
+```
+
+All five must read `no`, apart from `allowusers atreus`. **Keep the session
+you ran this from open**, and log in from a second terminal before you close
+it. If that login fails, `qm terminal 190` or the console on `Saruman` is the
+way back in.
+
+**Keep `authorized_keys` to the machines that administer this guest.** Do not
+fill it with `ssh-import-id gh:<user>`. That installs every key on the GitHub
+account, and each one can then log in to the sensor. List what is there, and
+what has actually logged in:
+
+```bash
+ssh-keygen -lf ~/.ssh/authorized_keys
+sudo journalctl -u ssh --since -30d | grep -o 'Accepted publickey .* SHA256:[^ ]*' | sort | uniq -c
+```
+
+Remove every key that is not the operator's workstation, or a host this
+repository logs in from (Hicks, for §4's `install-agent-collectors`).
+
 ## 4. Docker, the repository, and the stack
 
 Install Docker, `sops`, `age` and `make`, and clone the repository, as
