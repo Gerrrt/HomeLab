@@ -17,6 +17,26 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **The firewall's own addresses are closed to every segment, and its `sshd`
+  takes keys only
+  ([ADR-0117](adr/0117-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
+  A read-only audit of `morpheus` on 2026-11-13 found every segment reaching
+  the admin UI and `sshd` on the WAN address: each interface's *Block … to
+  pfSense* rows named only that interface's own address. From `prometheus`,
+  https there answered 200 and port 22 gave a banner, though `network.md` said
+  Winterfell was blocked from the UI. Hicks also reached both on the lab's
+  gateway, through *Allow Hicks access to ImaginationLAN*. `sshd` accepted
+  passwords; `admin` had logged in by password from Hicks and from `oracle`
+  that week. The blocks now name *This Firewall (self)*, Winterfell gains
+  *Allow SSH to pfSense from prometheus*, and *SSHd Key Only* is *Public Key
+  Only*, by
+  [`close-the-firewall-to-its-segments.md`](runbooks/close-the-firewall-to-its-segments.md).
+  `make check-firewall` was blind to it, because the WAN address is in no
+  segment. It now also asks which of the firewall's addresses each segment
+  reaches on ssh, http and https, with fixtures in CI.
+
 ## 2026-11-13
 
 - **An audit of `golem`, read-only, found its last verify failed and a

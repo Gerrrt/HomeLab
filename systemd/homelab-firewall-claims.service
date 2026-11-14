@@ -21,8 +21,10 @@
 #
 # WHAT IT ASKS. Per interface and address family: which other segments does the
 # catch-all `pass ... to any` still reach, because no full-segment block sits
-# above it. docs/firewall-claims.yaml declares the answer and this diffs it
-# against `pfctl -a '*' -sr` read over SSH. It never writes a rule body anywhere
+# above it. And per interface (ADR-0117): which of the firewall's own addresses
+# does a host there reach on ssh, http and https. docs/firewall-claims.yaml
+# declares both answers and this diffs them against `pfctl -a '*' -sr` and
+# `ifconfig`, read over SSH. It never writes a rule body anywhere
 # — output names rules by descr only — which is what lets it run unattended
 # without violating docs/security.md's "rule bodies are not published".
 #

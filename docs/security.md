@@ -287,6 +287,18 @@ timer. [ADR-0026](adr/0026-check-the-documents-where-the-truth-is.md) records
 why that is the shape, and
 [#363](https://github.com/Gerrrt/HomeLab/issues/363) is what built it.
 
+**The firewall's own addresses are closed to every segment on ssh, http and
+https**, apart from the admin UI and `sshd` at `10.0.99.1` to Hicks, and
+`sshd` there to `prometheus`
+([ADR-0117](adr/0117-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).
+Until 2026-11-14 each interface's *Block … to pfSense* rows named only that
+interface's address. Every segment reached both on the WAN address, and Hicks
+reached them on the lab's gateway as well. The question above could not see
+it, because the WAN address is in no segment, so the claims file now asks a
+second one: per interface, which of the firewall's addresses a host there
+reaches on each of the three ports. `sshd` accepts keys only, and the console
+at the rack is the one place a password still opens it.
+
 **Winterfell is the half that has since been narrowed.** On 2026-09-02 the Hicks
 interface gained ten host- and port-scoped passes into 99 and a logged *Block
 access to Winterfell* under them, so Hicks now reaches management on an

@@ -145,7 +145,7 @@ They need the running estate, so CI cannot run them. Timers do.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
-| `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset |
+| `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset: what each segment's catch-all reaches, and which of the firewall's own addresses it reaches on ssh, http and https |
 | `check_loki_coverage.py` | `check-loki-coverage` | No Loki rule is blind to a host whose logs it would match |
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
 | `qga-resync.py` | `qga-resync` | Resets a guest agent's parser and proves it with a ping, when `qm agent` says it is not running but the guest is fine — on `Saruman`, as root |

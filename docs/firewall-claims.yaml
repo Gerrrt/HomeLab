@@ -12,6 +12,15 @@
 # other segment is blocked above the catch-all, or there is no catch-all for that
 # family at all. Those are different rulesets and the same posture.
 #
+# WHAT `firewall` MEANS (ADR-0117). For each interface, which of the firewall's
+# OWN addresses a host on that segment reaches on ssh, http and https. Each
+# address is named by the segment it sits on, `WAN`, or `link-local`; never by
+# number. The 2026-11-13 audit found every segment reaching the admin UI and
+# sshd on the WAN address under rules named *Block HTTPS to pfSense*, and
+# `wholesale` could not see it, because the WAN address is in no segment.
+# A host-scoped pass (Winterfell's `prometheus` to 10.0.99.1:22) is not the
+# segment's and is not listed here; docs/network.md names it.
+#
 # It is deliberately NOT a list of what each segment can reach. The narrow
 # host-and-port exceptions — SNMP to the iLO, SSH to the firewall, the passes
 # from Hicks into management — are enumerated in docs/network.md, they change far
@@ -48,6 +57,13 @@ interfaces:
     wholesale:
       inet: []
       inet6: [OPT1, OPT2, OPT3, OPT4, OPT5, OPT6]
+    # The anti-lockout rule pfSense generates on LAN sits above every user rule
+    # and passes 22, 80 and 443 to this interface's own address, which is also
+    # its link-local. Kept as the way back in (ADR-0117).
+    firewall:
+      ssh: [Switch LAN, link-local]
+      http: [Switch LAN, link-local]
+      https: [Switch LAN, link-local]
 
   # Management. The one segment whose catch-all reaches nothing in either family.
   igc0.99:
@@ -55,6 +71,12 @@ interfaces:
     wholesale:
       inet: []
       inet6: []
+    # `prometheus` alone reaches 10.0.99.1:22, by a host-scoped pass above the
+    # blocks; the segment reaches nothing.
+    firewall:
+      ssh: []
+      http: []
+      https: []
 
   # Trusted workstations, and the one IPv4 exception in the estate: nothing
   # blocks Hicks from ImaginationLAN, so the catch-all grants that segment
@@ -71,6 +93,14 @@ interfaces:
     wholesale:
       inet: [OPT4]
       inet6: []
+    # The admin UI on 10.0.99.1:443, and ssh by *Allow SSH to Winterfell*, both
+    # above the blocks to (self). Not the lab's gateway, though *Allow Hicks
+    # access to ImaginationLAN* passes TCP to 10.0.30.0/24: the blocks sit
+    # above it.
+    firewall:
+      ssh: [Winterfell]
+      http: []
+      https: [Winterfell]
 
   # Media, lab, IoT and guest. Identical posture, and the inet6 row is identical
   # for a reason worth stating: each of these carries paired inet/inet6 blocks
@@ -84,21 +114,37 @@ interfaces:
     wholesale:
       inet: []
       inet6: [LAN]
+    firewall:
+      ssh: []
+      http: []
+      https: []
 
   igc0.30:
     segment: ImaginationLAN
     wholesale:
       inet: []
       inet6: [LAN]
+    firewall:
+      ssh: []
+      http: []
+      https: []
 
   igc0.20:
     segment: Skids
     wholesale:
       inet: []
       inet6: [LAN]
+    firewall:
+      ssh: []
+      http: []
+      https: []
 
   igc0.10:
     segment: Degens
     wholesale:
       inet: []
       inet6: [LAN]
+    firewall:
+      ssh: []
+      http: []
+      https: []

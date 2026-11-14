@@ -135,8 +135,8 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 116 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 54
+- **Documented decisions and runbooks.** 117 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 55
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -235,9 +235,9 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 116 ADRs — architecture decision records
+│   ├── adr/                  # 117 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
-│   └── runbooks/             # 54 runbooks; successor-handover.md is the front door
+│   └── runbooks/             # 55 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 
