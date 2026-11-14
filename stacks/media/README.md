@@ -15,9 +15,11 @@ and [ADR-0040] gave TrueNAS. **Deployed 2026-09-19**, from a copy of this
 directory's two files on the pool, under TrueNAS's own Docker;
 [`build-the-nas.md`] §6 is the procedure. `make up STACK=media` does **not**
 work on that host — it renders secrets this stack does not have, on a box
-without `make` or `sops` — so a change here reaches `smaug` by re-fetching
-`compose.yaml` and `.env.example` from `main` into `/mnt/erebor/apps/stack`
-and running `docker compose up -d` there. Nothing pulls from `main` on that
+without `make` or `sops` — so a change here reaches `smaug` by fetching
+`compose.yaml` and `.env.example` from one pinned commit into
+`/mnt/erebor/apps/stack`, with the block
+[`scripts/smaug-fetch.sh`](../../scripts/smaug-fetch.sh) prints, and running
+`docker compose up -d` there. Nothing pulls from `main` on that
 host on its own: a Dependabot bump is merged here and deployed there by hand.
 A third file lives beside them since [ADR-0047]: `scripts/collect-smart-state.sh`,
 fetched the same way and run by TrueNAS's cron — a change to it reaches
@@ -108,17 +110,18 @@ every television would have to trust, and a second thing to be down.
 | A Hicks workstation | Two of the rules in [`build-the-nas.md`] §0.5 — `50 → 10.0.40.30:443` and `50 → 10.0.40.30:8096`, one per port |
 | A Hicks phone, on `13378` | `50 → 10.0.40.30:13378`, `Allow 13378 to smaug` — the fifth by [ADR-0050]'s count and the seventh to exist — **created by [`build-the-nas.md`] §6.5, and reached from a Hicks workstation on 2026-09-29** ([ADR-0050]) |
 | Prometheus, on `9100` | A third — `10.0.99.20 → 10.0.40.30:9100` |
-| Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, inert until [`build-the-nas.md`] §6.2 switches SSH on for the backup pull, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
+| Prometheus, on `22` | The fourth rule — `10.0.99.20 → 10.0.40.30:22`, live since [`build-the-nas.md`] §6.2 switched SSH on for the backup pull on 2026-09-19, as `frodo` with one key and read access to `erebor/apps` ([ADR-0045]) |
 | A Hicks phone, on `4533` | `50 → 10.0.40.30:4533`, `Allow 4533 to smaug`, for Navidrome — **created 2026-09-22**, ahead of the service and of the 13378 pass, so it is the fifth that exists; 445 is the sixth, and 13378 the seventh (§6.6) |
 | A Hicks workstation, on `445` | `50 → 10.0.40.30:445`, `Allow SMB to smaug`, to mount the `media` share as `samwise` — **created 2026-09-23** by [`build-the-nas.md`] §5's *Workstations* steps, and mounted from a Hicks workstation ([ADR-0051]) |
 | `Saruman`, on `2049` | `10.0.30.20 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, to mount `erebor/iso` as the ISO store. Not the media stack's, and listed because it is a way into this host. **Created 2026-10-01** by [`build-the-nas.md`] §5b, and mounted by `Saruman` ([ADR-0072]) |
+| `golem`, on `2049` | `10.0.30.80 → 10.0.40.30:2049`, `Allow NFS from golem to smaug`, to mount `erebor/pbs` as the PBS datastore. Not the media stack's either, and listed for the same reason. **Created 2026-10-03** by [`build-the-backup-guest.md`](../../docs/runbooks/build-the-backup-guest.md) §4, and mounted by `golem` ([ADR-0053](../../docs/adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)) |
 | A Hicks workstation, on `5800` | `50 → 10.0.40.30:5800`, `Allow 5800 to smaug`, for MakeMKV's web GUI while a disc is being ripped. **Specified, not yet created**: [`build-the-nas.md`] §6.11 creates it ([ADR-0114](../../docs/adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md)) |
 | Everything else on the estate | Not at all — default deny |
 
 [ADR-0012] asks for a named off-host consumer before a port is published, and
-here there are five: every screen in the house, one workstation, the phones,
-the monitoring host, and `Saruman`, which mounts the ISO store and is the
-only consumer from ImaginationLAN ([ADR-0072]). The phones are the first consumers of a service on
+here there are six: every screen in the house, one workstation, the phones,
+the monitoring host, and from ImaginationLAN `Saruman`, which mounts the ISO
+store ([ADR-0072]), and `golem`, which mounts the PBS datastore. The phones are the first consumers of a service on
 this host that are across a segment boundary rather than on it — Jellyfin's
 case for publishing to the segment was that its clients live there, and
 Audiobookshelf's and Navidrome's do not.
@@ -132,9 +135,10 @@ of this host's filesystems, uptime and load, by the televisions — and
 `docs/security.md` records it rather than the firewall rule being mistaken
 for a boundary it is not.
 
-The NFS export on `2049` is not one of those three media ports, and it
-differs in kind. A device on CasaBonita can open the port, but the export
-itself admits `10.0.30.20` alone, so the share answers only `Saruman`. The
+The NFS exports on `2049` are not among those three media ports, and they
+differ in kind. A device on CasaBonita can open the port, but each export
+admits one address, `10.0.30.20` for the ISO store and `10.0.30.80` for
+`erebor/pbs`, so each share answers only `Saruman` or only `golem`. The
 host scope is enforced twice, by the firewall rule and by the export, and
 only the export applies on the segment.
 
@@ -246,7 +250,7 @@ operator's password manager, beside pfSense's and iLO's. `docs/security.md`
 class, and names what would retire it.
 
 What that costs is one command: `make render STACK=media` dies on the missing
-file, and that is expected. This stack is deployed by the two `curl` lines in
+file, and that is expected. This stack is deployed by the `smaug-fetch.sh` block in
 [`build-the-nas.md`] §6, never by `make up`.
 
 **Nobody needs the password to get back in.** From a workstation on Hicks,

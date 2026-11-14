@@ -377,6 +377,19 @@ leaves is up to a day between a replacement and the page; a template built
 inside that day is the one to suspect. Root on `Saruman` maps to
 `pippin`, which owns that one directory, so the hypervisor is not root on
 the NAS.
+**And one more from ImaginationLAN, for the backups, and it exists.**
+`10.0.30.80 → 10.0.40.30:2049`, `Allow NFS from golem to smaug`, carries
+`golem`'s PBS datastore on `erebor/pbs`
+([ADR-0053](adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)).
+It was created on 2026-10-03 by
+[`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md) §4;
+`golem` mounts the share through it, and `alexander` is refused. Its
+residual is the same address trust as `Saruman`'s export, and two things
+bound it: every backup is encrypted on `Saruman` before it leaves, so a host
+that took `golem`'s address reads ciphertext, and what it could still do,
+destroy the datastore, is what the fourteen daily snapshots TrueNAS keeps of
+`erebor/pbs` are for. Root on `golem` maps to `backup`, uid 34, which owns
+that one dataset.
 **One more from Hicks is specified, not created, and it writes.**
 `vlan50 net → 10.0.40.30:5800`, `Allow 5800 to smaug`, is for MakeMKV, the
 disc ripper
@@ -442,7 +455,7 @@ them, so the residual is that `prometheus` learns whether each is up. The
 exporter that sends the echo keeps `cap_drop: [ALL]`. It pings over an
 unprivileged datagram socket, not a raw one.
 
-One of CasaBonita's six is a monitoring pass, and it carries a residual worth
+One of CasaBonita's passes is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`
 on the NAS ([#256](https://github.com/Gerrrt/HomeLab/issues/256)), and that
 endpoint is **unauthenticated**. The firewall rule is what stops other segments
