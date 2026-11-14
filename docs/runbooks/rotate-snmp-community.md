@@ -119,7 +119,8 @@ protocol secure. The iLO and the UPS card moved to SNMPv3 authPriv under
 [ADR-0036](../adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md)
 — that is [§4](#4-move-a-device-to-snmpv3), a separate pass — and the switch
 has been v3 since the CRS326 replaced the MokerLink on 2026-11-05: it was set
-up with a v3 user and no v2c community at all
+up with a v3 user and no enabled v2c community (RouterOS's default `public`
+entry cannot be removed, so it is there and disabled)
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 The firewall alone stays on v2c, for reasons ADR-0036 gives.
 
@@ -293,10 +294,11 @@ device shows one `prometheus` user, not two. A second user added in §2.1 by
 mistake would still hold the old pair, and nothing from the monitoring host can
 tell you so — `snmp-verify.sh` has no old-passphrase check.
 
-On the switch, `/snmp community print` lists every row RouterOS has: one row,
-`prometheus`, with `security=private`, and no other. A row with
-`security=none` is a v1/v2c community, which this switch is meant not to
-have at all
+On the switch, `/snmp community print` lists every row RouterOS has: one
+enabled row, `prometheus`, with `security=private`, and the default `public`
+row with `security=none`, which RouterOS cannot remove and which must show as
+disabled (`X`). Any other row, or an enabled `security=none` row, is a v1/v2c
+community, which this switch is meant not to have
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md));
 the stock-community line in §2.4 catches the two defaults, and only reading the
 table catches any other string.
@@ -314,7 +316,7 @@ and each attempt dropped its SNMP agent until a reboot. This section was the
 route around that: overwrite each stale row with the current community in a
 window where the switch could be rebooted, then reboot as the test. It was run
 on 2026-09-12, and the residual it left was
-[#84](https://github.com/Gerrrt/HomeLab/issues/84). The CRS326 has no v2c
+[#84](https://github.com/Gerrrt/HomeLab/issues/84). The CRS326 has no enabled v2c
 community to overwrite, so the route left with the hardware; git history keeps
 the steps.
 
