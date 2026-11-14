@@ -458,6 +458,7 @@ docker)
     -p 127.0.0.1:12345:12345 \
     "$IMAGE" run \
       --server.http.listen-addr=0.0.0.0:12345 \
+      --disable-reporting \
       --storage.path=/var/lib/alloy/data \
       /etc/alloy >/dev/null
 
@@ -527,7 +528,7 @@ native)
 ## Written by scripts/deploy-agent.sh from the HomeLab repository. Edits here
 ## are overwritten on the next deploy; change the repository instead.
 CONFIG_FILE="/etc/alloy"
-CUSTOM_ARGS="--server.http.listen-addr=127.0.0.1:12345"
+CUSTOM_ARGS="--server.http.listen-addr=127.0.0.1:12345 --disable-reporting"
 RESTART_ON_UPGRADE=true
 ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"

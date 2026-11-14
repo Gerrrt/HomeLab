@@ -171,7 +171,7 @@ docker run -d --name "${TAG}-alloy" --label homelab.logs=off \
   --network "${NET}" --ip "${ALLOY_IP}" \
   -e LOKI_URL="http://${LOKI_IP}:3100/loki/api/v1/push" \
   -v "${WORK}/alloy:/etc/alloy:ro" -v "${WORK}/tls:/etc/syslog-tls:ro" "${ALLOY_IMAGE}" \
-  run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/tmp/alloy /etc/alloy >/dev/null
+  run --server.http.listen-addr=0.0.0.0:12345 --disable-reporting --storage.path=/tmp/alloy /etc/alloy >/dev/null
 
 wait_for() { # url seconds
   local i
