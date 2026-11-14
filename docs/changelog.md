@@ -37,9 +37,15 @@ docstring gives: it is a record, not a claim about now.
   - no NTP server, so the iLO's clock restarts at 1970 after each power
     removal, and the event log logs only every third failed login.
 
-  `docs/hardware.md`, `docs/security.md` and `SECURITY.md` now say so. The
-  fixes are on the iLO and on `morpheus`, by hand, and are not done in this
-  entry.
+  All but HTTP were fixed the same day, by hand. On the iLO, the second
+  account was deleted; the XML reply, SSDP and Federation's multicast
+  discovery were turned off; SNTP was set to `10.0.30.1` with DHCP's time
+  settings off; and every failed login is now logged. On `morpheus`, a block
+  on `igc0.30` from `10.0.30.10` to anything off the segment sits above
+  *Allow internet*. A second Redfish read confirmed the iLO side, and the
+  event log holds each change; the `morpheus` rule was not tested from the
+  BMC's side. `docs/hardware.md`, `docs/network.md`, `docs/security.md` and
+  `SECURITY.md` describe the result.
 
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM

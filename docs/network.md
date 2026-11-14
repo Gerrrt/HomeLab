@@ -574,7 +574,13 @@ Where things get broken on purpose.
 
 ### Notes
 
-- Reachable from Hicks only; outbound internet permitted.
+- Reachable from Hicks only; outbound internet permitted, except for `shiva`.
+- **`shiva` reaches nothing off the segment.** A block on `igc0.30` from
+  `10.0.30.10` to anything outside `10.0.30.0/24` sits above *Allow
+  internet*, since 2026-11-13. The iLO takes the segment's gateway by DHCP and
+  had the lab's outbound internet until then. Its SNMP replies to the
+  monitoring host still pass, because pf state carries them, as it did for the
+  return-path rule deleted on 2026-09-09.
 - **The block that stops it reaching CasaBonita is *Block access to
   CasaBonita*** on `igc0.30`, one of a run of per-segment blocks (Degens,
   Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the
