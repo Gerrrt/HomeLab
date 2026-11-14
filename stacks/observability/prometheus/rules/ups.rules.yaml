@@ -338,3 +338,75 @@ groups:
             Do NOT run a test by hand to clear this — a test transfers the load
             to battery, which on a weak pack is the outage the alert exists to
             warn about.
+
+      # The two rules below watch whether the shutdown order ADR-0049 decides
+      # has time to run. Nothing above can see it: UpsRuntimeCritical pages at
+      # five minutes, which is after the card's low-battery signal has already
+      # started the halt, and every other rule reads the pack, not the margin.
+      # Both are warnings: neither is an outage, and each is fixed at the card.
+
+      - alert: UpsLowBatteryDurationShort
+        # upsConfigLowBattTime is the card's low-battery duration, in minutes:
+        # the runtime left when it raises LB and NUT starts the halt
+        # (`battery.runtime.low` on morpheus is the same number in seconds).
+        #
+        # 16 is ADR-0107's floor: the bounded sequence to `morpheus` down is
+        # about 10½ minutes, plus half again. shut-down-on-the-ups.md §3.8 sets
+        # it and §6.5 may raise it after the pack is measured, never lower. A
+        # card reset or a restored configuration file puts it back to its
+        # default without a word, and this is what says so.
+        #
+        # Read on 2026-11-13 at 8, so this fires from the day it ships until
+        # §3.8 is done. That is the finding, not noise.
+        expr: upsConfigLowBattTime < 16
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#38-raise-the-cards-threshold-to-cover-the-bound-now"
+          summary: "UPS {{ $labels.device }} raises low battery at {{ $value }} min, under the 16 needed"
+          description: >-
+            The card signals low battery with {{ $value }} minutes of runtime
+            left, and the shutdown order to morpheus down needs about 10½
+            (ADR-0107), so a cut that outlasts the pack can empty it partway
+            through the halt. Set the low battery duration on the card to 16
+            minutes or more, then confirm battery.runtime.low on morpheus reads
+            960 or more.
+
+      - alert: UpsRideThroughShort
+        # Ride-through: the minutes a cut can last before the card raises LB
+        # and the halt starts. It is the runtime estimate less the low-battery
+        # duration, so it falls when load grows, when the pack ages, and when
+        # the duration above is raised — which is why it is a separate rule.
+        # Read on 2026-11-13 as 38 - 8 = 30, and 22 once §3.8 sets 16.
+        #
+        # 15 is half of what ADR-0107 expected ("a little under half an hour
+        # into a cut"): below it, an ordinary cut halts the rack.
+        #
+        # ON MAINS AND FULLY CHARGED ONLY. On battery the estimate falls by
+        # design and UpsOnBattery already pages. After a cut the pack spends
+        # hours recharging with a low estimate, which is UpsChargeLow's
+        # business, not a short ride-through. The estimate itself is the
+        # card's and has never been calibrated (#574), so this reads what the
+        # card will act on, not what the pack can do.
+        expr: |
+          (upsEstimatedMinutesRemaining - upsConfigLowBattTime) < 15
+          and on(device) upsSecondsOnBattery == 0
+          and on(device) upsEstimatedChargeRemaining >= 95
+        for: 30m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#64-do-the-arithmetic"
+          summary: "UPS {{ $labels.device }} would start the shutdown {{ $value }} minutes into a cut"
+          description: >-
+            On mains and fully charged, the card estimates only {{ $value }}
+            minutes between a cut starting and its low-battery signal, so a
+            short cut would halt the rack. Either the load has grown, the pack
+            has aged, or the low battery duration was raised. Read
+            upsOutputPercentLoad and upsEstimatedMinutesRemaining on the UPS &
+            Power dashboard before changing anything.

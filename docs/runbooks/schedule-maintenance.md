@@ -157,6 +157,15 @@ lapsed leaf and nothing would say so. Then rerun
 re-trusting. The same date is in
 [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
 
+**`neo`'s next RouterOS upgrade needs a space check first.** The switch has
+16 MiB of flash, and on 2026-11-13 it had about 3 MiB free with a RouterOS
+package of nearly 12 MiB. A long-term upgrade may not fit as a download. Before
+upgrading, read `/system/resource/print` for `free-hdd-space`. If the package
+does not fit, the fallback is Netinstall, which has no macOS build, so decide
+beforehand which machine will run it
+([`swap-the-switch.md`](swap-the-switch.md) has the same caveat). Do it in a
+window that avoids working hours: every VLAN crosses this switch.
+
 `dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
 and worth reading as a different kind of job. Every other row here proves that
 something *happened* — an archive was written, a device answered. These three
