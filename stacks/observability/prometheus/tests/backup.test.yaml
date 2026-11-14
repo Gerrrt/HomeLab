@@ -279,6 +279,45 @@ tests:
         alertname: SecretsKeyRecipientsUnrecorded
         exp_alerts: []
 
+  # --- SecretsKeyBackupUnproven: a host with no deadline row of its own -----
+  #
+  # trinity records its recipients but cannot declare verify-key-backup (check
+  # 8 in install-timers.sh), so the per-instance join used to find nothing and
+  # its never-proven keys were silent. It is held to the estate's deadline. The
+  # monitoring host's own fresh proof stays quiet, so the fallback branch adds
+  # trinity's alert without duplicating anyone's.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="observability",
+                 recipient="age1aaa", instance="prometheus"}'
+        values: "9000+0x180"
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="sensitive",
+                 recipient="age1ccc", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: SecretsKeyBackupUnproven
+        exp_alerts:
+          - exp_labels:
+              alertname: SecretsKeyBackupUnproven
+              stack: sensitive
+              recipient: age1ccc
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "No proven backup of age recipient age1ccc in 2h 30m 0s"
+              description: >-
+                Nothing else here proves the sensitive secrets are
+                recoverable from anywhere but this host — every other job runs
+                on the same machine, with the same key, against the same disk.
+                Proving a DIFFERENT recipient does not clear this one. Get that
+                copy out and run `make secrets-verify-backup KEY=<path>`:
+                docs/runbooks/back-up-the-age-key.md.
+
   # --- CaKeyBackupUnproven: keyed on the key's fingerprint (#496) ------------
   #
   # The re-mint shape: the old key's copy was proved 30 minutes ago and the
