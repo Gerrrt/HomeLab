@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
+- **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
+  ADR-0014 says the attack VM's "own outbound scope is limited on the VM
+  itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
+  `gandalf` found nothing doing that: `ragnarok`'s nft ruleset was empty,
+  `nftables.service` was disabled, and its default route reached the internet.
+  `build-the-playground.md` §5 had narrowed the sentence to "scope the
+  tooling", and `finish-attack-vm.sh` checked forwarding and NAT only. The
+  script now writes `/etc/nftables.conf` with a `range_scope` output policy
+  (drop, except the two subnets, DHCP, link-local multicast and IPv6
+  link-local), enables it at boot, and fails unless a ping to `1.1.1.1` is
+  refused by the filter while one to `10.0.30.1` is let out. A second table,
+  `range_scope_l2`, on `eth0`'s netdev egress hook, holds the same scope for
+  raw Ethernet: packet sockets (`nmap --send-eth`, masscan) never cross the
+  inet hook, which review on the PR caught. The script proves that half by
+  writing a raw frame to `1.1.1.1` and reading the drop counter. §5 says how to
+  lift both for a package install, and §8 check three proves it. Not yet run
+  against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
+  again from `phoenix`.
+
 - **An audit of `golem`, read-only, found its last verify failed and a
   19-day gap in the lab's backups.** It was read on the box against this
   repository at `2276e75`.
