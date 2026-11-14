@@ -38,8 +38,36 @@ docstring gives: it is a record, not a claim about now.
   never recorded; other stacks are now held to their compose guards, as
   `render-config.sh` does. This records the change, not the deploy: the row
   reaches `trinity` with `make install-timers PROFILE=sensitive` there.
+- **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
+  offering `publickey,password` on the host that holds every off-host copy
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
+  password login was 2026-09-02, and every login since had used a key. At
+  00:28 UTC a drop-in, `/etc/ssh/sshd_config.d/10-oracle-baseline.conf`,
+  turned off password and keyboard-interactive logins, root login and X11
+  forwarding. `sshd -t` passed. After the reload the server refuses
+  everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
+  is now in `stacks/wiki/README.md`.
+- **`oracle`'s five authorized keys are now limited to where they log in
+  from.** In 120 days of the journal, each key had logged in from a single
+  host or from Hicks. At 06:44 UTC each line got a `from=` pin: `robo`'s to
+  `10.0.99.20`, `trinity`'s backup key to `10.0.99.40` with no pty, and the
+  three operator keys to `10.0.50.0/24`. Port, agent and X11 forwarding and
+  `~/.ssh/rc` were turned off as well. One operator key had not logged in
+  within those 120 days. The 2026-11-15 runs from `prometheus` and `trinity`
+  are the first real logins under the pins. `command=` is not set, because
+  the pull runs `docker exec` and the copies run shell commands.
 
 ## 2026-11-13
+
+- **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
+  `sshd` taking root's password (`permitrootlogin yes`,
+  `passwordauthentication yes`), which is the Proxmox installer's default. Only
+  the host firewall kept that off VLAN 30, and on `gandalf` nothing watches the
+  firewall. `build-the-playground.md` §4 gains *SSH on `gandalf`: keys only*.
+  That step writes `/etc/ssh/sshd_config.d/10-keys-only.conf` and proves from
+  Hicks that a password is refused and a key still works. §7's per-session
+  read-back now checks it too. Root's password stays set, for `8006` and the
+  console. Not yet applied on `gandalf`.
 
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
@@ -93,7 +121,6 @@ docstring gives: it is a record, not a claim about now.
   - **Corrected here.** `architecture.md`'s `golem` row said the nightly job
     takes `odin` and the domain's six. It takes `garuda` too, as §8 and
     `tofu/guests.tf` already said, and `eden` stays out.
-||||||| parent of 8e49661 (fix(sensitive): declare trinity's age-key deadline as verify-key-backup-sensitive)
 
 - **An audit of `prometheus` found two alerts that could not fire.** It was
   read-only, against the repository, and ran on 2026-11-13.
