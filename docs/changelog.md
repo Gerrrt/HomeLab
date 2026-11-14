@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
+- **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
+  `sshd` taking root's password (`permitrootlogin yes`,
+  `passwordauthentication yes`), which is the Proxmox installer's default. Only
+  the host firewall kept that off VLAN 30, and on `gandalf` nothing watches the
+  firewall. `build-the-playground.md` §4 gains *SSH on `gandalf`: keys only*.
+  That step writes `/etc/ssh/sshd_config.d/10-keys-only.conf` and proves from
+  Hicks that a password is refused and a key still works. §7's per-session
+  read-back now checks it too. Root's password stays set, for `8006` and the
+  console. Not yet applied on `gandalf`.
+
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
   itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
