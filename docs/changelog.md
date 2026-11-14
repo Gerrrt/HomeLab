@@ -112,6 +112,24 @@ docstring gives: it is a record, not a claim about now.
     collector renders nothing when neither column is a percent.
   - `architecture.md`'s row for the host now names `ingest-proxy`.
 
+- **`eden` audited after its #1443 rebuild.** The stack matched
+  `stacks/bloodhound/compose.yaml`: five containers, each at its pinned tag
+  and digest. `8443` answered `403` to anything outside Hicks, and Postgres was
+  not published. No collection zip or graph export lay outside
+  `/srv/bloodhound-data`. Patching was current, the leaf runs to 2029, and
+  Alloy was shipping with nothing dropped. Five things came of it:
+  - Two plaintext copies of `secrets/bloodhound.sops.yaml` were in `/tmp`,
+    left by `sops edit` runs that did not exit cleanly. They were deleted.
+    After a `make secrets-edit`, look for them.
+  - `eden`'s open `sshd` and `garnet`'s `NOPASSWD` sudo are now an accepted
+    row in `security.md`.
+  - The Ubuntu template turns X11 forwarding off. `eden` keeps it on until
+    it is next cloned from a rebuilt 901.
+  - `build-the-bloodhound-guest.md` §2 now says Docker's first `up` resets
+    the data directories' modes.
+  - The admin login is still the first-start `BLOODHOUND_ADMIN_PASSWORD`,
+    never changed in the UI. Left as it is for now.
+
 ## 2026-11-12
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
