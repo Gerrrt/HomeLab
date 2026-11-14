@@ -17,6 +17,19 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
+  offering `publickey,password` on the host that holds every off-host copy
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
+  password login was 2026-09-02, and every login since had used a key. At
+  00:28 UTC a drop-in, `/etc/ssh/sshd_config.d/10-oracle-baseline.conf`,
+  turned off password and keyboard-interactive logins, root login and X11
+  forwarding. `sshd -t` passed. After the reload the server refuses
+  everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
+  is now in `stacks/wiki/README.md`. Still open: the five `authorized_keys`
+  entries are not limited by `from=` or `command=`.
+
 ## 2026-11-13
 
 - **An audit of `golem`, read-only, found its last verify failed and a

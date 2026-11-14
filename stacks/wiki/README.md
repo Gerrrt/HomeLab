@@ -119,6 +119,28 @@ the first `up` from the checkout adopts the running containers and volumes
 rather than creating a second set. The old `/opt/wiki/compose.yaml` is then
 unused; remove it so nothing runs from it by habit.
 
+### The host's SSH, once
+
+`oracle` holds every off-host copy, and nothing in this repository manages
+its sshd. Ubuntu's install leaves password logins on. Turn them off, along
+with root login and X11 forwarding. The file sorts before
+`50-cloud-init.conf`, and sshd keeps the first value it reads. First check
+that your key works, or this locks you out of SSH. The laptop's own console
+still works if it does:
+
+```bash
+printf '%s\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'PermitRootLogin no' 'X11Forwarding no' | sudo tee /etc/ssh/sshd_config.d/10-oracle-baseline.conf >/dev/null
+```
+
+```bash
+sudo sshd -t && sudo systemctl reload ssh && sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four lines should end in `no`. From another host,
+`ssh -o PreferredAuthentications=none atropos@10.0.99.30` should be refused
+with `Permission denied (publickey)` alone. The backup pushes from
+`prometheus` and `trinity` log in by key and are not affected.
+
 ## TLS
 
 Caddy serves the wiki on 443 with a leaf from the estate's CA, and answers
