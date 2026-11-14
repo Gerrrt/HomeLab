@@ -221,13 +221,15 @@ tests:
               summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
               description: >-
                 scripts/install-timers.sh declared the ninety-day deadline for
-                verify-key-backup and nothing has written
-                homelab_key_recipient_last_proof_timestamp_seconds, so
+                verify-key-backup on prometheus and nothing has written
+                homelab_key_recipient_last_proof_timestamp_seconds there, so
                 SecretsKeyBackupUnproven has nothing to read and cannot fire
-                however stale the proof is. `systemctl start
-                homelab-recipient-state.service` writes it; if that unit does
-                not exist, the timers predate #400 and `make install-timers`
-                adds it. docs/runbooks/back-up-the-age-key.md.
+                however stale the proof is. On the monitoring host `systemctl
+                start homelab-recipient-state.service` writes it; if that unit
+                does not exist, the timers predate #400 and `make
+                install-timers` adds it. On trinity, which has no such timer,
+                `make recipient-state STACK=sensitive` writes it.
+                docs/runbooks/back-up-the-age-key.md.
 
   # --- SecretsKeyBackupUnproven: one alert per recipient --------------------
   #
@@ -267,8 +269,8 @@ tests:
                 recoverable from anywhere but this host — every other job runs
                 on the same machine, with the same key, against the same disk.
                 Proving a DIFFERENT recipient does not clear this one. Get that
-                copy out and run `make secrets-verify-backup KEY=<path>`:
-                docs/runbooks/back-up-the-age-key.md.
+                copy out and run `make secrets-verify-backup KEY=<path>
+                STACK=observability`: docs/runbooks/back-up-the-age-key.md.
 
       # --- SecretsKeyRecipientsUnrecorded: silent once the file exists --------
       #
@@ -279,7 +281,114 @@ tests:
         alertname: SecretsKeyRecipientsUnrecorded
         exp_alerts: []
 
+  # --- SecretsKeyBackupUnproven: trinity's recipients, trinity's row --------
+  #
+  # trinity declares the age-key deadline as verify-key-backup-sensitive, not
+  # verify-key-backup, because one name on two instances makes every
+  # on(homelab_job) join many-to-many (install-timers.sh check 8). This pins
+  # the three things that name has to do: the stale-job rules still evaluate
+  # with both declarations present (a stale ordinary job still fires), the
+  # per-recipient rule holds trinity's never-proved recipient to trinity's
+  # row, and neither the job series nor the monitoring host's fresh proof
+  # leaks into the other host's answer.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup", instance="prometheus"}'
+        values: "3600+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup-sensitive", instance="trinity"}'
+        values: "3600+0x180"
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="observability",
+                 recipient="age1aaa", instance="prometheus"}'
+        values: "9000+0x180"
+      - series: 'homelab_key_recipient_last_proof_timestamp_seconds{stack="sensitive",
+                 recipient="age1ccc", instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="verify-key-backup-sensitive",
+                 instance="trinity"}'
+        values: "0+0x180"
+      - series: 'homelab_job_last_success_timestamp_seconds{homelab_job="backup-volumes", instance="prometheus"}'
+        values: "0+0x180"
+      - series: 'homelab_job_max_age_seconds{homelab_job="backup-volumes", instance="prometheus"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      - eval_time: 2h30m
+        alertname: SecretsKeyBackupUnproven
+        exp_alerts:
+          - exp_labels:
+              alertname: SecretsKeyBackupUnproven
+              stack: sensitive
+              recipient: age1ccc
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "No proven backup of age recipient age1ccc in 2h 30m 0s"
+              description: >-
+                Nothing else here proves the sensitive secrets are recoverable
+                from anywhere but this host — every other job runs on the same
+                machine, with the same key, against the same disk. Proving a
+                DIFFERENT recipient does not clear this one. Get that copy out
+                and run `make secrets-verify-backup KEY=<path>
+                STACK=sensitive`: docs/runbooks/back-up-the-age-key.md.
+
+      # The stale-job rule still evaluates with both declarations present, and
+      # the human proof's own job series is not its business on trinity either.
+      - eval_time: 2h30m
+        alertname: ScheduledJobStale
+        exp_alerts:
+          - exp_labels:
+              alertname: ScheduledJobStale
+              homelab_job: backup-volumes
+              instance: prometheus
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "backup-volumes has not succeeded in 2h 30m 0s"
+              description: >-
+                The timer has stopped running this, or every run since has
+                failed. Check `systemctl list-timers 'homelab-*'` and
+                `journalctl -u homelab-backup-volumes.service` on prometheus —
+                docs/runbooks/schedule-maintenance.md.
+
+      - eval_time: 2h30m
+        alertname: SecretsKeyRecipientsUnrecorded
+        exp_alerts: []
+
+  # --- SecretsKeyRecipientsUnrecorded: trinity's row with no file ----------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_job_max_age_seconds{homelab_job="verify-key-backup-sensitive", instance="trinity"}'
+        values: "3600+0x180"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: SecretsKeyRecipientsUnrecorded
+        exp_alerts:
+          - exp_labels:
+              alertname: SecretsKeyRecipientsUnrecorded
+              homelab_job: verify-key-backup-sensitive
+              instance: trinity
+              component: backup
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
+              description: >-
+                scripts/install-timers.sh declared the ninety-day deadline for
+                verify-key-backup-sensitive on trinity and nothing has written
+                homelab_key_recipient_last_proof_timestamp_seconds there, so
+                SecretsKeyBackupUnproven has nothing to read and cannot fire
+                however stale the proof is. On the monitoring host `systemctl
+                start homelab-recipient-state.service` writes it; if that unit
+                does not exist, the timers predate #400 and `make
+                install-timers` adds it. On trinity, which has no such timer,
+                `make recipient-state STACK=sensitive` writes it.
+                docs/runbooks/back-up-the-age-key.md.
+
   # --- SecretsKeyBackupUnproven: a host with no deadline row of its own -----
+  #
+  # (trinity before its timers carry verify-key-backup-sensitive.)
   #
   # trinity records its recipients but cannot declare verify-key-backup (check
   # 8 in install-timers.sh), so the per-instance join used to find nothing and
@@ -315,7 +424,8 @@ tests:
                 recoverable from anywhere but this host — every other job runs
                 on the same machine, with the same key, against the same disk.
                 Proving a DIFFERENT recipient does not clear this one. Get that
-                copy out and run `make secrets-verify-backup KEY=<path>`:
+                copy out and run `make secrets-verify-backup KEY=<path>
+                STACK=sensitive`:
                 docs/runbooks/back-up-the-age-key.md.
 
   # --- CaKeyBackupUnproven: keyed on the key's fingerprint (#496) ------------

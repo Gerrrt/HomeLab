@@ -20,13 +20,16 @@
         #   that reads "never succeeded", not an age of decades.
         # - A job is overdue when its last success is older than its declared limit
         #   (ScheduledJobStale), and flagged when its last run failed.
-        # - verify-key-backup and verify-ca-key-backup are not read from the generic
-        #   success time. One proof refreshes that for every key, so it can be green
-        #   while one key rots. They are judged per age recipient
+        # - verify-key-backup (verify-key-backup-sensitive on trinity) and
+        #   verify-ca-key-backup are not read from the generic success time. One
+        #   proof refreshes that for every key, so it can be green while one key
+        #   rots. They are judged per age recipient
         #   (homelab_key_recipient_last_proof_timestamp_seconds) and per current CA
         #   key (homelab_ca_key_backup_last_proof_timestamp_seconds) against the same
         #   limit, as SecretsKeyBackupUnproven and CaKeyBackupUnproven do. A proof
-        #   recorded as 0 reads "never proved".
+        #   recorded as 0 reads "never proved", and a declaration with no proof
+        #   series at all on its host reads "no proofs recorded" and counts as
+        #   needing attention, as SecretsKeyRecipientsUnrecorded does.
         #
         # Everything is joined on `instance`, the machine label the rules join on.
         # Needing attention comes first; the rest follow.
@@ -77,11 +80,14 @@
                 {{ range $decl }}
                   {{ $j := .String "metric.homelab_job" }}{{ $i := .String "metric.instance" }}
                   {{ $limit := .Float "value.1" }}
-                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-ca-key-backup") }}
+                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-key-backup-sensitive")
+                          (eq $j "verify-ca-key-backup") }}
                     {{ $proofs := $keys }}{{ $label := "recipient" }}
                     {{ if eq $j "verify-ca-key-backup" }}{{ $proofs = $ca }}{{ $label = "ca" }}{{ end }}
+                    {{ $n := 0 }}
                     {{ range $proofs }}
                       {{ if eq (.String "metric.instance") $i }}
+                        {{ $n = add $n 1 }}
                         {{ $age := .Float "value.1" }}{{ $never := gt $age 1e9 }}
                         {{ $isBad := or $never (gt $age $limit) }}
                         {{ if eq $pass 0 }}
@@ -102,6 +108,17 @@
                             </span>
                           </li>
                         {{ end }}
+                      {{ end }}
+                    {{ end }}
+                    {{/* Declared and nothing recorded for this host: the rule that
+                         would nag has no left side (SecretsKeyRecipientsUnrecorded). */}}
+                    {{ if eq $n 0 }}
+                      {{ if eq $pass 0 }}{{ $all = add $all 1 }}{{ $bad = add $bad 1 }}
+                      {{ else if eq $pass 1 }}
+                        <li class="flex justify-between">
+                          <span class="color-negative">{{ $j }} <span class="size-h6">on {{ $i }}</span></span>
+                          <span class="size-h6">no proofs recorded</span>
+                        </li>
                       {{ end }}
                     {{ end }}
                   {{ else }}

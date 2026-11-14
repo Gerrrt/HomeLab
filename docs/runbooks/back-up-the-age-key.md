@@ -241,6 +241,26 @@ this is the same alert it always was. With two, one timestamp for both would
 mean that proving either copy vouched for the other — which is exactly backwards,
 because the point of the second copy is that it fails independently.
 
+### On trinity
+
+`trinity` holds its own key, which opens only
+[`secrets/sensitive.sops.yaml`](../../secrets/sensitive.sops.yaml), and the
+same deadline applies to every recipient of that file. Its row is
+`verify-key-backup-sensitive` in `SENSITIVE_JOBS`, not `verify-key-backup`,
+because the alert rules join on the job name alone and a name declared on two
+hosts breaks them. Prove each copy from the checkout on `trinity`, so the proof
+lands in `trinity`'s own `key-recipients.prom`:
+
+```bash
+make secrets-verify-backup KEY=/path/to/copy/keys.txt STACK=sensitive
+```
+
+`STACK=sensitive` is what records the run under `trinity`'s job name; without
+it the make target checks the estate's file instead. `trinity` has no
+`recipient-state` timer, so `make recipient-state STACK=sensitive` is what
+rewrites its recipient list after a change that did not go through
+`add-recipient.sh`.
+
 Nagging is not as good as running it. It is a great deal better than remembering.
 The threshold lives in the `JOBS` table in
 [`install-timers.sh`](../../scripts/install-timers.sh); the mechanism is in

@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-14
 
+- **`trinity`'s age-key deadline is declared, as
+  `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
+  A read-only audit of `trinity` on 2026-11-13 found both recipients in its
+  `key-recipients.prom` at `0`, never proved, since 2026-10-03. #1488 already
+  holds them to the estate's deadline through a fallback branch; this gives
+  `trinity` a declaration of its own. Declaring `verify-key-backup` there was
+  tried under promtool first and would have broken `ScheduledJobStale` and
+  `ScheduledJobStaleCritical` for the whole estate, because they join
+  `on(homelab_job)` and one name on two instances is many-to-many. So
+  `trinity`'s row has its own name, the two key-proof rules match either name
+  (the fallback stays for a host that declares neither), the stale rules
+  exclude it, `make secrets-verify-backup STACK=sensitive` records it, and
+  Glance's maintenance page reads it per recipient and shows a declaration
+  with no proofs as needing attention. `scripts/verify-key-backup.sh` held
+  every stack to the observability file's names (Grafana, Alertmanager,
+  SNMP), so a sensitive copy failed after it had decrypted and its proof was
+  never recorded; other stacks are now held to their compose guards, as
+  `render-config.sh` does. This records the change, not the deploy: the row
+  reaches `trinity` with `make install-timers PROFILE=sensitive` there.
 - **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
   offering `publickey,password` on the host that holds every off-host copy
   ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
