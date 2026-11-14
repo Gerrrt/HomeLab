@@ -17,6 +17,24 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **`trinity`'s age-key deadline is declared, as
+  `verify-key-backup-sensitive`.** A read-only audit of `trinity` on
+  2026-11-13 found both recipients in its `key-recipients.prom` at `0`, never
+  proved, since 2026-10-03, and `SecretsKeyBackupUnproven` unable to fire for
+  either: the rule joins against a `verify-key-backup` deadline that
+  `SENSITIVE_JOBS` never declared. Declaring that name on `trinity` too was
+  tried under promtool first and would have broken `ScheduledJobStale` and
+  `ScheduledJobStaleCritical` for the whole estate, because they join
+  `on(homelab_job)` and one name on two instances is many-to-many. So
+  `trinity`'s row has its own name, the two key-proof rules match either name,
+  the stale rules exclude it, `make secrets-verify-backup STACK=sensitive`
+  records it, and Glance's maintenance page reads it per recipient. This
+  records the change, not the deploy: the row reaches `trinity` with
+  `make install-timers PROFILE=sensitive` there, and both recipients will then
+  alert until each offline copy is proved.
+
 ## 2026-11-13
 
 - **An audit of `golem`, read-only, found its last verify failed and a
@@ -52,6 +70,7 @@ docstring gives: it is a record, not a claim about now.
   - **Corrected here.** `architecture.md`'s `golem` row said the nightly job
     takes `odin` and the domain's six. It takes `garuda` too, as §8 and
     `tofu/guests.tf` already said, and `eden` stays out.
+||||||| parent of 8e49661 (fix(sensitive): declare trinity's age-key deadline as verify-key-backup-sensitive)
 
 ## 2026-11-12
 

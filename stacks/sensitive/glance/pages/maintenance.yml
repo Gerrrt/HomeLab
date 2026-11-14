@@ -20,9 +20,10 @@
         #   that reads "never succeeded", not an age of decades.
         # - A job is overdue when its last success is older than its declared limit
         #   (ScheduledJobStale), and flagged when its last run failed.
-        # - verify-key-backup and verify-ca-key-backup are not read from the generic
-        #   success time. One proof refreshes that for every key, so it can be green
-        #   while one key rots. They are judged per age recipient
+        # - verify-key-backup (verify-key-backup-sensitive on trinity) and
+        #   verify-ca-key-backup are not read from the generic success time. One
+        #   proof refreshes that for every key, so it can be green while one key
+        #   rots. They are judged per age recipient
         #   (homelab_key_recipient_last_proof_timestamp_seconds) and per current CA
         #   key (homelab_ca_key_backup_last_proof_timestamp_seconds) against the same
         #   limit, as SecretsKeyBackupUnproven and CaKeyBackupUnproven do. A proof
@@ -77,7 +78,8 @@
                 {{ range $decl }}
                   {{ $j := .String "metric.homelab_job" }}{{ $i := .String "metric.instance" }}
                   {{ $limit := .Float "value.1" }}
-                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-ca-key-backup") }}
+                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-key-backup-sensitive")
+                          (eq $j "verify-ca-key-backup") }}
                     {{ $proofs := $keys }}{{ $label := "recipient" }}
                     {{ if eq $j "verify-ca-key-backup" }}{{ $proofs = $ca }}{{ $label = "ca" }}{{ end }}
                     {{ range $proofs }}

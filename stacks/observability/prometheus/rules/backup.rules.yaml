@@ -82,7 +82,7 @@ groups:
         # shape, and HouseholdCopyStale reads them (ADR-0073).
         expr: |
           (time() - homelab_job_last_success_timestamp_seconds{
-              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
+              homelab_job!~"verify-key-backup|verify-key-backup-sensitive|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
             > on(homelab_job) group_left() homelab_job_max_age_seconds
         for: 30m
         labels:
@@ -127,7 +127,7 @@ groups:
         # that rule exists to avoid.
         expr: |
           (time() - homelab_job_last_success_timestamp_seconds{
-              homelab_job!~"verify-key-backup|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
+              homelab_job!~"verify-key-backup|verify-key-backup-sensitive|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
             > on(homelab_job) group_left() clamp_min(1.5 * homelab_job_max_age_seconds, 86400)
         for: 30m
         labels:
@@ -265,9 +265,19 @@ groups:
         # had no left side, and the deadline went unwatched from the day it was
         # deployed (#400). SecretsKeyRecipientsUnrecorded, below, is the rule
         # for that state, and the recipient-state timer is what ends it.
+        #
+        # Two declaration names, one per host. trinity proves the sensitive
+        # tier's recipients and declares the same ninety days as
+        # verify-key-backup-sensitive, because a name may be in only one of
+        # install-timers.sh's tables: ScheduledJobStale and the rules beside it
+        # join on(homelab_job) alone, and one name declared on two instances
+        # makes those joins many-to-many, so they error rather than fire. Here
+        # the join is on(instance), and each host declares exactly one of the
+        # two, so the regex still finds one row per host.
         expr: |
           (time() - homelab_key_recipient_last_proof_timestamp_seconds)
-            > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+            > on(instance) group_left()
+              homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
         for: 1h
         labels:
           component: backup
@@ -280,7 +290,7 @@ groups:
             recoverable from anywhere but this host — every other job runs on the
             same machine, with the same key, against the same disk. Proving a
             DIFFERENT recipient does not clear this one. Get that copy out and
-            run `make secrets-verify-backup KEY=<path>`:
+            run `make secrets-verify-backup KEY=<path> STACK={{ $labels.stack }}`:
             docs/runbooks/back-up-the-age-key.md.
 
       - alert: SecretsKeyRecipientsUnrecorded
@@ -305,7 +315,7 @@ groups:
         # from the textfile directory, and for a recipient-state job that has
         # never run — the last of which ScheduledJobNeverRan also names.
         expr: |
-          homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+          homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
             unless on(instance) homelab_key_recipient_last_proof_timestamp_seconds
         for: 1h
         labels:
@@ -316,12 +326,15 @@ groups:
           summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
           description: >-
             scripts/install-timers.sh declared the ninety-day deadline for
-            verify-key-backup and nothing has written
-            homelab_key_recipient_last_proof_timestamp_seconds, so
+            {{ $labels.homelab_job }} on {{ $labels.instance }} and nothing has
+            written homelab_key_recipient_last_proof_timestamp_seconds there, so
             SecretsKeyBackupUnproven has nothing to read and cannot fire however
-            stale the proof is. `systemctl start homelab-recipient-state.service`
-            writes it; if that unit does not exist, the timers predate #400 and
-            `make install-timers` adds it. docs/runbooks/back-up-the-age-key.md.
+            stale the proof is. On the monitoring host
+            `systemctl start homelab-recipient-state.service` writes it; if that
+            unit does not exist, the timers predate #400 and
+            `make install-timers` adds it. On trinity, which has no such timer,
+            `make recipient-state STACK=sensitive` writes it.
+            docs/runbooks/back-up-the-age-key.md.
 
       - alert: CaKeyBackupUnproven
         # The estate CA's private key, held to the same ninety days as the age

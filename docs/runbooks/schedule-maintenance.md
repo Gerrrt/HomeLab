@@ -739,6 +739,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
+| `verify-key-backup-sensitive` | **you**, `make secrets-verify-backup KEY=… STACK=sensitive` | no timer | 90 days |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
@@ -775,10 +776,14 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-six. The last two are the household's copy
+seven. `household-copy` and `household-proof` are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
-timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
+timer, and `HouseholdCopyStale` reads them. `verify-key-backup-sensitive` is
+the estate's `verify-key-backup` for the tier's own age recipients: no timer,
+the same ninety days, and `SecretsKeyBackupUnproven` holds every recipient in
+`trinity`'s `key-recipients.prom` to it
+([`back-up-the-age-key.md`](back-up-the-age-key.md#on-trinity)). The alert rules join on the job name alone, so a name may appear in only
 one table, and `--check` enforces that. The installer primes `backup-library`,
 `converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
@@ -904,7 +909,7 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key, for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key (on `trinity`, `verify-key-backup-sensitive`), for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
 | `ScheduledJobStaleCritical` | A job has gone three of its own periods without a success — one and a half of the allowance in the `JOBS` table, which is twice the period; a weekly backup three weeks stale, a nightly one three nights, and never under a day for the hourly collectors — and the `ScheduledJobStale` warning for it has been repeating on the in-house channel unanswered | The same first look as the warning: `systemctl list-timers 'homelab-*'`, then `journalctl -u homelab-<job>.service`. The rows below name the usual cause per job. The page holds the warning back while it is up, so a job that recovers clears both at once |
 | `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
