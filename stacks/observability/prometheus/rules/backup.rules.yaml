@@ -274,10 +274,28 @@ groups:
         # makes those joins many-to-many, so they error rather than fire. Here
         # the join is on(instance), and each host declares exactly one of the
         # two, so the regex still finds one row per host.
+        #
+        # The second branch is for a host that records proofs but declares
+        # neither name, as trinity did before its timers were reinstalled with
+        # that row: the on(instance) join has no right side there, and its
+        # recipients would sit at 0 — never proven — with nothing firing. Such
+        # a host is held to the estate's declared deadline instead, taken with
+        # max() so the ninety days is still written in one place only.
         expr: |
-          (time() - homelab_key_recipient_last_proof_timestamp_seconds)
-            > on(instance) group_left()
-              homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
+          (
+            (time() - homelab_key_recipient_last_proof_timestamp_seconds)
+              > on(instance) group_left()
+                homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
+          )
+          or
+          (
+            (
+              (time() - homelab_key_recipient_last_proof_timestamp_seconds)
+                unless on(instance)
+                  homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
+            )
+              > on() group_left() max(homelab_job_max_age_seconds{homelab_job="verify-key-backup"})
+          )
         for: 1h
         labels:
           component: backup

@@ -20,22 +20,45 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-14
 
 - **`trinity`'s age-key deadline is declared, as
-  `verify-key-backup-sensitive`.** A read-only audit of `trinity` on
-  2026-11-13 found both recipients in its `key-recipients.prom` at `0`, never
-  proved, since 2026-10-03, and `SecretsKeyBackupUnproven` unable to fire for
-  either: the rule joins against a `verify-key-backup` deadline that
-  `SENSITIVE_JOBS` never declared. Declaring that name on `trinity` too was
+  `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
+  A read-only audit of `trinity` on 2026-11-13 found both recipients in its
+  `key-recipients.prom` at `0`, never proved, since 2026-10-03. #1488 already
+  holds them to the estate's deadline through a fallback branch; this gives
+  `trinity` a declaration of its own. Declaring `verify-key-backup` there was
   tried under promtool first and would have broken `ScheduledJobStale` and
   `ScheduledJobStaleCritical` for the whole estate, because they join
   `on(homelab_job)` and one name on two instances is many-to-many. So
-  `trinity`'s row has its own name, the two key-proof rules match either name,
-  the stale rules exclude it, `make secrets-verify-backup STACK=sensitive`
-  records it, and Glance's maintenance page reads it per recipient. This
-  records the change, not the deploy: the row reaches `trinity` with
-  `make install-timers PROFILE=sensitive` there, and both recipients will then
-  alert until each offline copy is proved.
+  `trinity`'s row has its own name, the two key-proof rules match either name
+  (the fallback stays for a host that declares neither), the stale rules
+  exclude it, `make secrets-verify-backup STACK=sensitive` records it, and
+  Glance's maintenance page reads it per recipient and shows a declaration
+  with no proofs as needing attention. `scripts/verify-key-backup.sh` held
+  every stack to the observability file's names (Grafana, Alertmanager,
+  SNMP), so a sensitive copy failed after it had decrypted and its proof was
+  never recorded; other stacks are now held to their compose guards, as
+  `render-config.sh` does. This records the change, not the deploy: the row
+  reaches `trinity` with `make install-timers PROFILE=sensitive` there.
 
 ## 2026-11-13
+
+- **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
+  ADR-0014 says the attack VM's "own outbound scope is limited on the VM
+  itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
+  `gandalf` found nothing doing that: `ragnarok`'s nft ruleset was empty,
+  `nftables.service` was disabled, and its default route reached the internet.
+  `build-the-playground.md` §5 had narrowed the sentence to "scope the
+  tooling", and `finish-attack-vm.sh` checked forwarding and NAT only. The
+  script now writes `/etc/nftables.conf` with a `range_scope` output policy
+  (drop, except the two subnets, DHCP, link-local multicast and IPv6
+  link-local), enables it at boot, and fails unless a ping to `1.1.1.1` is
+  refused by the filter while one to `10.0.30.1` is let out. A second table,
+  `range_scope_l2`, on `eth0`'s netdev egress hook, holds the same scope for
+  raw Ethernet: packet sockets (`nmap --send-eth`, masscan) never cross the
+  inet hook, which review on the PR caught. The script proves that half by
+  writing a raw frame to `1.1.1.1` and reading the drop counter. §5 says how to
+  lift both for a package install, and §8 check three proves it. Not yet run
+  against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
+  again from `phoenix`.
 
 - **An audit of `golem`, read-only, found its last verify failed and a
   19-day gap in the lab's backups.** It was read on the box against this
@@ -71,6 +94,42 @@ docstring gives: it is a record, not a claim about now.
     takes `odin` and the domain's six. It takes `garuda` too, as §8 and
     `tofu/guests.tf` already said, and `eden` stays out.
 ||||||| parent of 8e49661 (fix(sensitive): declare trinity's age-key deadline as verify-key-backup-sensitive)
+
+- **An audit of `prometheus` found two alerts that could not fire.** It was
+  read-only, against the repository, and ran on 2026-11-13.
+  - `SecretsKeyBackupUnproven` joined each recipient's proof to the deadline
+    row on the same `instance`. Only `prometheus` declares that row:
+    `install-timers.sh` check 8 keeps `verify-key-backup` out of trinity's
+    table. So trinity's two `sensitive` recipients have read 0, never proven,
+    with nothing firing. A host with no row of its own is now held to the
+    estate's ninety days. Evaluated against live data the same day, the new
+    expression returns exactly those two recipients, so the alert will fire
+    once this deploys, and proving both on trinity is what clears it.
+  - `collect-smart-state.sh` inverted the raw column of
+    `Percent_Lifetime_Remain` and `SSD_Life_Left`. On `prometheus`'s Apple SSD
+    SM256E that raw value is 178, which rendered -78 % used, so
+    `SmartDriveWearHigh` could not fire for the monitoring host's only disk. A
+    raw value outside 0–100 now falls back to the normalised column, and the
+    collector renders nothing when neither column is a percent.
+  - `architecture.md`'s row for the host now names `ingest-proxy`.
+
+- **`eden` audited after its #1443 rebuild.** The stack matched
+  `stacks/bloodhound/compose.yaml`: five containers, each at its pinned tag
+  and digest. `8443` answered `403` to anything outside Hicks, and Postgres was
+  not published. No collection zip or graph export lay outside
+  `/srv/bloodhound-data`. Patching was current, the leaf runs to 2029, and
+  Alloy was shipping with nothing dropped. Five things came of it:
+  - Two plaintext copies of `secrets/bloodhound.sops.yaml` were in `/tmp`,
+    left by `sops edit` runs that did not exit cleanly. They were deleted.
+    After a `make secrets-edit`, look for them.
+  - `eden`'s open `sshd` and `garnet`'s `NOPASSWD` sudo are now an accepted
+    row in `security.md`.
+  - The Ubuntu template turns X11 forwarding off. `eden` keeps it on until
+    it is next cloned from a rebuilt 901.
+  - `build-the-bloodhound-guest.md` §2 now says Docker's first `up` resets
+    the data directories' modes.
+  - The admin login is still the first-start `BLOODHOUND_ADMIN_PASSWORD`,
+    never changed in the UI. Left as it is for now.
 
 ## 2026-11-12
 
