@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
+- **`gandalf` runs only the services the range uses.** The same audit found
+  `rpcbind` listening on `*:111` and `nfs-blkmap` running on a node with no
+  NFS storage. It also found `spiceproxy`, `postfix` and `unattended-upgrades`
+  running, and the repository named none of them. The firewall dropped
+  everything but 8006 and 22, so nothing was exposed.
+  `build-the-playground.md` §4 now has a table of every service on `gandalf`
+  and the reason it stays. It disables and masks the NFS client plumbing, and
+  it gives the `ss` read-back to expect. It records that `unattended-upgrades`
+  is how ADR-0017's "patched like any other host" happens for Debian's
+  packages. §7 adds a power-on check for Proxmox's own packages, which that
+  service does not cover. Not yet run on `gandalf`.
+
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
   itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
