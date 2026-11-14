@@ -12,8 +12,9 @@
 # Deploy with:  NOT `make up STACK=media`. That target renders a secrets file
 #              this stack does not have — by decision, #528 and
 #              docs/security.md § Secrets — on a box with neither make nor sops.
-#              A change here reaches smaug by re-fetching compose.yaml and
-#              .env.example from main into that folder and running
+#              A change here reaches smaug by fetching compose.yaml and
+#              .env.example from one pinned commit into that folder, with the
+#              block scripts/smaug-fetch.sh prints, and running
 #              `docker compose up -d` there, by hand — nothing on smaug pulls
 #              from main on its own. README.md has the procedure. A third
 #              file sits beside those two since ADR-0047:

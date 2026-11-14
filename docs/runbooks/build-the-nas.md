@@ -251,6 +251,7 @@ first row here on ImaginationLAN. `golem`'s `2049` pass is ImaginationLAN's othe
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `13378` | `Allow 13378 to smaug` | **above** *Block access to CasaBonita* — §6.5 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `445` | `Allow SMB to smaug` | **above** *Block access to CasaBonita* — §5 |
 | ImaginationLAN (30) | `tcp` `10.0.30.20` → `10.0.40.30` port `2049` | `Allow NFS from Saruman to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — §5b |
+| ImaginationLAN (30) | `tcp` `10.0.30.80` → `10.0.40.30` port `2049` | `Allow NFS from golem to smaug` | **above** *Block access to CasaBonita* on `igc0.30` — [`build-the-backup-guest.md`](build-the-backup-guest.md) §4 |
 | Hicks (50) | `tcp` `vlan50 net` → `10.0.40.30` port `5800` | `Allow 5800 to smaug` | **above** *Block access to CasaBonita* — §6.11, **specified, not yet created** |
 
 **Four, where [ADR-0016](../adr/0016-open-casabonita-inward-and-keep-it-terminal-outward.md)
@@ -900,8 +901,8 @@ mkdir -p /mnt/erebor/apps/navidrome/data /mnt/erebor/media/music \
 > ```
 >
 > The mountpoint is asked for rather than written down, because where TrueNAS
-> keeps its volumes is its business. Then re-fetch the two files (the `curl`
-> lines above), `docker compose up -d`, and prove the state came across
+> keeps its volumes is its business. Then re-fetch the two files (§6's
+> `smaug-fetch.sh` block), `docker compose up -d`, and prove the state came across
 > before anything is removed: the users and the watch history are there in
 > the web UI, and `docker exec media-jellyfin ls /config/data` lists
 > `jellyfin.db`. Only then remove the orphan — compose will warn about it on
@@ -939,8 +940,8 @@ is why this stack still has no secrets file. `-it` because it prompts twice:
 docker exec -it media-navidrome navidrome user create --admin -u <name> -n
 ```
 
-**Updating the stack is the same two `curl` lines and `docker compose up -d`
-again.** Nothing on this host pulls from `main` on its own: there is no
+**Updating the stack is the same `smaug-fetch.sh` block and
+`docker compose up -d` again.** Nothing on this host pulls from `main` on its own: there is no
 converge timer here, so a Dependabot bump that merges is not deployed until
 someone does this. That is a residual of ADR-0040's shape and not a defect in
 it, and it wants a line in `stacks/media/README.md` rather than an issue until
@@ -1287,13 +1288,16 @@ PATH=/usr/sbin:/usr/bin:/sbin:/bin timeout 600 /bin/bash /mnt/erebor/apps/stack/
 ```
 
 `--print` writes nothing. Read three things off it: `homelab_smart_devices`
-is **3**; which `/dev/sdX` carries `model="INTEL SSDSC2BB240G7"` on its
-`homelab_smart_healthy` line and `4` on its `homelab_smart_reallocated_sectors`
-line — **if it is not `sdc`, the baseline row is wrong and step 4 fixes
-it**, because the S3520 sits on the chipset AHCI, the Exos pair on the
-MegaRAID, and nothing but this run says which letter it drew; and that
-`sdb`, if it is still the faulted disk, answered at all (the `timeout` is
-there for the case it did not). Each piece of that command line is
+is **3**; that the line carrying `model="INTEL SSDSC2BB240G7"` has
+`slot="pci-0000:00:17.0-ata-6"` and `4` on its
+`homelab_smart_reallocated_sectors` line — **if the slot differs, the
+baseline row is wrong and step 4 fixes it**. The row is keyed on the port
+since [ADR-0066](../adr/0066-key-smart-series-on-the-port-not-the-letter.md),
+because the letter a disk draws is not fixed: since
+[ADR-0052](../adr/0052-cable-smaugs-pool-to-the-chipset-and-take-the-megaraid-out.md)
+all three disks share the chipset AHCI, and the S3520 has been both `sdc`
+and `sdb`. And that both Exos answered at all (the `timeout` is there for
+the case one did not). Each piece of that command line is
 load-bearing: cron's default `PATH` has no `/usr/sbin`, which is where
 `smartctl` lives; `--host` pins the label to the `instance` §6.1's target
 gives the scrape, rather than to whatever `hostname` says.
@@ -1352,7 +1356,7 @@ That re-renders `smart-baselines.prom`; confirm with
 before step 5. Nothing is silenced, here or later: a silence matches labels
 and not values, and the table is where a static count belongs.
 
-**5. The redeploy.** From the console shell, the two `curl` lines from §6 for
+**5. The redeploy.** From the console shell, §6's `smaug-fetch.sh` block for
 `compose.yaml` and `.env` — the compose file now carries the mount and the
 `.env` the path — then:
 
@@ -1516,7 +1520,7 @@ service that was not there yet. Step 8 is where that stopped being allowed.
      && mkdir -p /mnt/erebor/media/audiobooks
    ```
 
-3. **Re-fetch the stack's two files and bring it up** — §6's two `curl` lines
+3. **Re-fetch the stack's two files and bring it up** — §6's `smaug-fetch.sh` block
    for `compose.yaml` and `.env.example`, then:
 
    ```bash
@@ -1613,7 +1617,7 @@ absent from the snapshot. Step 8 is where that stopped being allowed.
    §0.5 table gives it, and read its position from `morpheus` with the
    §0.6 `pfctl` line: it sits above *Block access to CasaBonita* on `igc0.50`.
 2. **The directories**, as root on this host — the Navidrome block in §6.
-3. **Re-fetch the two files and bring it up** — the `curl` lines in §6,
+3. **Re-fetch the two files and bring it up** — §6's `smaug-fetch.sh` block,
    then `docker compose up -d`. The services already running are unchanged
    and compose leaves them running.
 4. **Create the admin, at once** — the `docker exec -it … user create`
@@ -1775,8 +1779,18 @@ it printed a SKIP naming this section. **After a TrueNAS upgrade** the next
 day's file carries the new version, and `check-versions` fails until
 `hardware.md` and `network.md` say it — which is the check doing its job.
 
-> **Not yet done.** The date and the two readings from step 4 go here, and
-> [#616](https://github.com/Gerrrt/HomeLab/issues/616) closes on them.
+> **Done 2026-09-23.** The collector was installed as the root cron job above,
+> and Prometheus read `truenas_version_info{host="smaug", release="25.10",
+> version="25.10.7"} 1`. `make check-versions`, run that day, printed both
+> PASS lines for `smaug`, `docs/hardware.md` and `docs/network.md` each
+> ending `truenas_version_info agrees`, where it had printed a SKIP. That is
+> [#616's closing comment](https://github.com/Gerrrt/HomeLab/issues/616#issuecomment-5799057014),
+> and the issue closed on it.
+>
+> **Re-read on `smaug` 2026-11-13**, locally, by a read-only audit: the cron
+> job `homelab truenas-version (#616)` still exists at 08:40 daily,
+> `truenas-version.prom` carries `25.10.7`, and `node_textfile_scrape_error`
+> is 0 on the exporter. `check-versions` was not re-run then.
 
 ### §6.8 — Turn leaf-state collection on
 
@@ -2111,7 +2125,7 @@ measured.
    as 65534, write into `rips/`. `erebor/apps` is on the Apps preset and
    takes the mode, so the config directory uses `install`, as Jellyfin's
    did.
-4. **Re-fetch the two files** with the `curl` lines in §6, then start a
+4. **Re-fetch the two files** with §6's `smaug-fetch.sh` block, then start a
    session from the same folder. **Use the guarded start in
    *1. Start the ripper* in [`rip-a-disc.md`](rip-a-disc.md), never a bare `up`,** here and for
    every trial in step 5. It starts the container only if the sg node `.env`
@@ -2234,7 +2248,7 @@ measured.
 - The `igc0.40` tripwire counter is **still zero**
 - `make backup-nas ARGS=--list` on the monitoring host shows a **complete**
   set, and the nightly `verify-backups` has passed at least once since (§6.2)
-- Port 15 on `neo` reads PVID **40**, untagged, with `smaug`'s MAC learned on it
+- `ether17` on the CRS326 reads PVID **40**, untagged, with `smaug`'s MAC learned on it
   in VLAN 40 — read in the switch UI, and **not** inferred from the host having
   an address (§0.2b)
 - The `igc0.40` tripwire's **packet** count is **still zero** — its evaluation
@@ -2275,11 +2289,11 @@ measured.
   sends the newest of each beyond it, on the second age recipient's medium,
   by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
   the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
-- **SMART is decided and not yet running** — §6.4 waits on the console; and
+- **SMART runs**, since §6.4 was done on 2026-09-21; and
   **patch state is decided and will not run**, by
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),
   which closed [#483](https://github.com/Gerrrt/HomeLab/issues/483). The
   vdev-state textfile [`replace-the-nas-disk.md`](replace-the-nas-disk.md)
   asked for rides the same mechanism. It is §6.8, built under
-  [#744](https://github.com/Gerrrt/HomeLab/issues/744), and runs once that
-  section has been done at the console.
+  [#744](https://github.com/Gerrrt/HomeLab/issues/744), and runs every five
+  minutes since that section was done on 2026-10-02.
