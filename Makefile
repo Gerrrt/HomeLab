@@ -744,7 +744,9 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 	@# enforced from the other end: a successful run records its timestamp, and
 	@# SecretsKeyBackupUnproven fires when that proof passes ninety days old.
 	@# Nagging is not as good as running it, but it beats remembering.
-	./scripts/run-scheduled.sh --job verify-key-backup --lock keys \
+	@# STACK=sensitive records verify-key-backup-sensitive, trinity's row in
+	@# install-timers.sh: a job name may be declared on one host only.
+	./scripts/run-scheduled.sh --job verify-key-backup$(if $(filter sensitive,$(STACK)),-sensitive) --lock keys \
 		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
 
 .PHONY: certs-verify-backup

@@ -702,6 +702,8 @@ services:
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
+      # No usage reports to Grafana Labs, as Grafana and Loki send none.
+      - --disable-reporting
       - --storage.path=/var/lib/alloy/data
       - /etc/alloy
     # No depends_on, unlike the lab's Alloy. This is the guest's own collector

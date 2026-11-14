@@ -17,9 +17,50 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **`trinity`'s age-key deadline is declared, as
+  `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
+  A read-only audit of `trinity` on 2026-11-13 found both recipients in its
+  `key-recipients.prom` at `0`, never proved, since 2026-10-03. #1488 already
+  holds them to the estate's deadline through a fallback branch; this gives
+  `trinity` a declaration of its own. Declaring `verify-key-backup` there was
+  tried under promtool first and would have broken `ScheduledJobStale` and
+  `ScheduledJobStaleCritical` for the whole estate, because they join
+  `on(homelab_job)` and one name on two instances is many-to-many. So
+  `trinity`'s row has its own name, the two key-proof rules match either name
+  (the fallback stays for a host that declares neither), the stale rules
+  exclude it, `make secrets-verify-backup STACK=sensitive` records it, and
+  Glance's maintenance page reads it per recipient and shows a declaration
+  with no proofs as needing attention. `scripts/verify-key-backup.sh` held
+  every stack to the observability file's names (Grafana, Alertmanager,
+  SNMP), so a sensitive copy failed after it had decrypted and its proof was
+  never recorded; other stacks are now held to their compose guards, as
+  `render-config.sh` does. This records the change, not the deploy: the row
+  reaches `trinity` with `make install-timers PROFILE=sensitive` there.
+- **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
+  offering `publickey,password` on the host that holds every off-host copy
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
+  password login was 2026-09-02, and every login since had used a key. At
+  00:28 UTC a drop-in, `/etc/ssh/sshd_config.d/10-oracle-baseline.conf`,
+  turned off password and keyboard-interactive logins, root login and X11
+  forwarding. `sshd -t` passed. After the reload the server refuses
+  everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
+  is now in `stacks/wiki/README.md`.
+- **`oracle`'s five authorized keys are now limited to where they log in
+  from.** In 120 days of the journal, each key had logged in from a single
+  host or from Hicks. At 06:44 UTC each line got a `from=` pin: `robo`'s to
+  `10.0.99.20`, `trinity`'s backup key to `10.0.99.40` with no pty, and the
+  three operator keys to `10.0.50.0/24`. Port, agent and X11 forwarding and
+  `~/.ssh/rc` were turned off as well. One operator key had not logged in
+  within those 120 days. The 2026-11-15 runs from `prometheus` and `trinity`
+  are the first real logins under the pins. `command=` is not set, because
+  the pull runs `docker exec` and the copies run shell commands.
+
 ## 2026-11-13
 
-- **`gandalf` runs only the services the range uses.** The same audit found
+- **`gandalf` runs only the services the range uses.** The `gandalf` audit
+  found
   `rpcbind` listening on `*:111` and `nfs-blkmap` running on a node with no
   NFS storage. It also found `spiceproxy`, `postfix` and `unattended-upgrades`
   running, and the repository named none of them. The firewall dropped
@@ -30,6 +71,42 @@ docstring gives: it is a record, not a claim about now.
   is how ADR-0017's "patched like any other host" happens for Debian's
   packages. §7 adds a power-on check for Proxmox's own packages, which that
   service does not cover. Not yet run on `gandalf`.
+
+- **An audit of `garuda` found SSH open to the lab domain, and owner GitHub
+  credentials on it.** A read-only audit against this repository found the role
+  intact: no Purple SOC daemons, GVM stopped, the fence files identical to
+  `stacks/analyst/gvm/`, not a domain member, Wazuh and Velociraptor connected.
+  It also found Kali's stock `sshd` taking passwords on every address, with
+  cloud-init's passwordless `sudo` for `analyst`, on the segment the domain's
+  six share. And it found a `gh` login with the `repo` and `admin:public_key`
+  scopes, beside an SSH key for GitHub with no passphrase. This change writes
+  the fix into the build:
+  - `stacks/analyst/ssh/10-garuda.conf`, installed by
+    `build-the-analyst-workstation.md` §4, which makes SSH key-only from Hicks
+    and `phoenix` with forwarding off;
+  - the same step removes the passwordless `sudo`;
+  - §7 reads the dotfiles release tags without a GitHub login, and `garuda`
+    holds no GitHub write credential. It also has the steps that revoke and
+    remove the two the audit found.
+
+  The box itself changes when §4 is run on it, which this entry does not
+  record. Three smaller items rode along:
+  - `docs/architecture.md` still described the cgroup fence ADR-0093 replaced;
+  - the Linux agent pin in `stacks/soc/linux-agents.yaml` moves from 4.14.8 to
+    the manager's 4.14.10, with the hash checked against Wazuh's signed index;
+  - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do:
+    the six stacks' Compose files, and both paths in `scripts/deploy-agent.sh`.
+    `garuda`'s attempts to report were failing at the resolver anyway.
+
+- **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
+  `sshd` taking root's password (`permitrootlogin yes`,
+  `passwordauthentication yes`), which is the Proxmox installer's default. Only
+  the host firewall kept that off VLAN 30, and on `gandalf` nothing watches the
+  firewall. `build-the-playground.md` §4 gains *SSH on `gandalf`: keys only*.
+  That step writes `/etc/ssh/sshd_config.d/10-keys-only.conf` and proves from
+  Hicks that a password is refused and a key still works. §7's per-session
+  read-back now checks it too. Root's password stays set, for `8006` and the
+  console. Not yet applied on `gandalf`.
 
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
