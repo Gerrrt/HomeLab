@@ -691,7 +691,10 @@ has not had forwarding turned off. The script:
   [ADR-0085](../adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)
   does for the lab domain (the check crosses VLAN 30, and a PASS from
   whatever answered for the lease would prove nothing);
-- writes `99-no-forward.conf` and runs §8's third check.
+- writes `99-no-forward.conf`;
+- writes `/etc/nftables.conf` with ADR-0014's outbound scope, loads it and
+  enables `nftables.service` (below);
+- runs §8's third check, which includes proving the scope.
 
 The range is rebuilt, not repaired: a change to `ragnarok` is a destroy and
 apply of 130, then the script.
@@ -731,10 +734,47 @@ and §8's check is what tells you.
 No NAT. There is nothing to configure to achieve that — the point is to confirm
 nothing has configured it, which §8 does.
 
-Scope the tooling on the VM itself, per ADR-0014: scans and sweeps are bounded
-to `10.0.30.0/24` and `172.30.30.0/24`. "That is where a mis-scoped scan is
-actually stopped — at the tool, not at a segment boundary that would let it
-through on 443 anyway."
+**Outbound scope, on the VM itself**, per ADR-0014: "its own outbound scope is
+limited on the VM itself, to `10.0.30.0/24` and the target subnet. That is
+where a mis-scoped scan is actually stopped — at the tool, not at a segment
+boundary that would let it through on 443 anyway." The script makes that a
+filter, not a habit. The nftables table `range_scope` drops every new outbound
+connection except to those two subnets, DHCP's broadcast, link-local multicast
+(`224.0.0.0/24`, for LLMNR and mDNS) and IPv6 link-local and multicast
+(neighbour discovery, DHCPv6, mitm6). Replies to connections made *to*
+`ragnarok`, such as SSH and the C2 console from Hicks, pass as established.
+The default route via `10.0.30.1` stays, so a send past the segment is refused
+by the filter (`Operation not permitted`) rather than left without a route,
+and that refusal is what the script checks.
+
+That table only sees what the IP stack sends. A packet socket, such as
+`nmap --send-eth`, masscan or anything injecting through libpcap, writes
+Ethernet frames straight to `eth0` and never crosses it. So a second table,
+`range_scope_l2`, sits on `eth0`'s netdev `egress` hook, which both paths
+cross. Frames that `range_scope` passed carry its mark and go out unchanged.
+That is how replies to Hicks keep conntrack's verdict, which the netdev hook
+cannot see. An unmarked frame is a packet socket's, and it leaves only as ARP
+or to the same destinations. Anything else is counted in `out_of_scope` and
+dropped. The script proves it by writing one raw ICMP echo to `1.1.1.1` and
+reading that counter.
+
+Until 2026-11-13 this paragraph said only to scope the tooling, and the box had
+no filter: an audit found `ragnarok`'s ruleset empty, with open egress.
+
+**Installing anything**, Sliver included, needs the internet the scope takes
+away. Lift both tables for the install and put them back in the same sitting.
+Deleting only the first leaves the second dropping everything the IP stack
+sends past the segment:
+
+```bash
+sudo nft delete table inet range_scope
+sudo nft delete table netdev range_scope_l2
+sudo apt install …
+sudo systemctl restart nftables     # or rerun finish-attack-vm.sh from phoenix
+```
+
+A reboot also restores it, and so does the next run of the script. Do not
+disable `nftables.service`: the script fails while it is not enabled.
 
 **What a Hicks workstation reaches on this machine** — write it down as you
 build it, because [#228](https://github.com/Gerrrt/HomeLab/issues/228) cannot
@@ -908,17 +948,28 @@ grep -cE 'bridge-vlan-aware|bridge-vids' /etc/network/interfaces
 
 Zero. Anything else and ADR-0014 has been reopened without an ADR saying so.
 
-**Three — the attack VM does not forward, and does not NAT.** On the VM:
+**Three — the attack VM does not forward, does not NAT, and reaches nothing
+past the segment.** On the VM:
 
 ```bash
 sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
+systemctl is-enabled nftables; sudo nft list chain inet range_scope output | grep 'policy drop'
+sudo nft list chain netdev range_scope_l2 egress | grep 'policy drop'
+ping -n -c1 -W2 1.1.1.1
 ```
 
 Both sysctls `= 0`, and no NAT from either table — Kali's `iptables` is
-nft-backed, so the two commands can disagree about a rule that exists. Run this
-after installing anything that touches the network stack, not just once.
+nft-backed, so the two commands can disagree about a rule that exists.
+`nftables` reads `enabled`, the `range_scope` chain is loaded with
+`policy drop`, and the ping fails with *Operation not permitted*: the filter
+refused it. A timeout is not a pass, because it is what the internet being down
+looks like too. The raw-Ethernet half, a frame to `1.1.1.1` through a packet
+socket that must raise `range_scope_l2`'s `out_of_scope` counter, needs a
+crafted frame, so it is left to `finish-attack-vm.sh`. Run this after
+installing anything that touches the network stack, and after any install that
+lifted the scope, not just once.
 
 **Four — a target has no route anywhere.** On a target:
 
