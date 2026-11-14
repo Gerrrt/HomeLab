@@ -181,9 +181,11 @@ Nothing unusual. During the installer:
 
 The installer's OpenSSH ships `PasswordAuthentication yes` and
 `X11Forwarding yes` in `/etc/ssh/sshd_config`. Guests cloned from the Packer
-template never get those, because `packer/ubuntu/user-data.pkrtpl` sets
-`allow-pw: false`, but this guest is installed by hand from the ISO and does.
-That matters more here than on most hosts. `sshd` answers on all of VLAN 30,
+template refuse passwords, because `packer/ubuntu/user-data.pkrtpl` sets
+`allow-pw: false`, but this guest is installed by hand from the ISO and
+accepts them. X11 forwarding is a separate setting that the template does not
+change either way, so this step turns it off here too. That matters more here
+than on most hosts. `sshd` answers on all of VLAN 30,
 which holds the deliberately weak domain and expects ARP spoofing, and this
 guest holds the lab's age key (§4).
 
@@ -203,14 +205,16 @@ EOF
 sudo sshd -t && sudo systemctl reload ssh
 ```
 
-Then, from Hicks, in a new terminal, prove both halves:
+Then, from Hicks, in a new terminal, prove both halves. `ControlPath=none`
+makes each probe open a fresh connection instead of riding on the session you
+kept open:
 
 ```bash
-ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password 10.0.30.40 true
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password garnet@10.0.30.40 true
 ```
 
 ```bash
-ssh 10.0.30.40 true
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no garnet@10.0.30.40 true
 ```
 
 The first must fail with `Permission denied (publickey)`, and the second must
