@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
+- **`shiva` re-read over Redfish, from `Saruman`.** This was a read-only audit:
+  GET requests only, plus a handshake and a port check. Nothing was installed and
+  nothing was set. The 2026-09-09 hardening holds. SSH (`22`) and IPMI-over-LAN
+  (`623/udp`) are off on the iLO and closed on the wire. Federation management
+  is off. SNMP answers only the `prometheus` v3 user, with SHA and AES and no
+  community. Firmware 2.82 is still HPE's last iLO 4 release (2023-03-02), as
+  ADR-0033 assumed. Health is clean: fans, both supplies, all eight DIMMs, the
+  four drives and the Smart Storage Battery, which reads `Ok` after the
+  August–September failures in the IML. What the hardening never recorded:
+  - a second local account with every privilege, older than the retained event
+    log;
+  - the unauthenticated XML reply (`/xmldata`), SSDP with Federation's
+    multicast discovery, and HTTP on `80`;
+  - a DHCP gateway, so the BMC has the lab's internet egress, which
+    `docs/security.md`'s "its one path out of the segment deleted" overstated;
+  - no NTP server, so the iLO's clock restarts at 1970 after each power
+    removal, and the event log logs only every third failed login.
+
+  All but HTTP were fixed the same day, by hand. On the iLO, the second
+  account was deleted; the XML reply, SSDP and Federation's multicast
+  discovery were turned off; SNTP was set to `10.0.30.1` with DHCP's time
+  settings off; and every failed login is now logged. On `morpheus`, a block
+  on `igc0.30` from `10.0.30.10` to anything off the segment sits above
+  *Allow internet*. A second Redfish read confirmed the iLO side, and the
+  event log holds each change; the `morpheus` rule was not tested from the
+  BMC's side. `docs/hardware.md`, `docs/network.md`, `docs/security.md` and
+  `SECURITY.md` describe the result.
+
 - **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
   `sshd` taking root's password (`permitrootlogin yes`,
   `passwordauthentication yes`), which is the Proxmox installer's default. Only
