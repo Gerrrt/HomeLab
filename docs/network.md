@@ -145,7 +145,8 @@ truth for what a box actually does.
   The MokerLink's UI was plain HTTP and could not be anything else, which is
   what ADR-0018 recorded and the swap closed.
 - **SNMP is v3 authPriv only**, user `prometheus` (SHA/AES), with the agent
-  restricted to `10.0.99.20`. No v2c community exists, `public` included.
+  restricted to `10.0.99.20`. No v2c community is enabled. RouterOS's
+  default `public` entry cannot be removed, so it is present and disabled.
 - **The RouterOS API is `api-ssl` only, for Home Assistant, in force since
   2026-11-11.**
   [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
@@ -157,6 +158,20 @@ truth for what a box actually does.
   accepted.
   [#1388](https://github.com/Gerrrt/HomeLab/issues/1388) ran
   [`connect-the-switch-to-home-assistant.md`](runbooks/connect-the-switch-to-home-assistant.md).
+- **What else is configured on the switch**, so a rebuild knows it was
+  deliberate:
+  - The switch LAN is internal VLAN 7 on the bridge: untagged on port 1 with
+    PVID 7, and tagged to the bridge's own interface, which admits tagged
+    frames only. The number is arbitrary. Any VID unused elsewhere works, but
+    port 1's PVID and the management interface must agree.
+  - The switch has its own small input filter that accepts management from a
+    named address list and drops the rest. The morpheus rules above are the
+    outer gate, and this is the inner one.
+  - Neighbour discovery (LLDP, CDP, MNDP) and MAC-WinBox are limited to the
+    switch-LAN interface; MAC-Telnet is off. MAC-WinBox is how you reach the
+    switch by MAC after a reset, as
+    [`swap-the-switch.md`](runbooks/swap-the-switch.md) does.
+  - NTP comes from `10.7.7.1`. The default `admin` user is disabled.
 - DHCP disabled.
 
 > [!CAUTION]
