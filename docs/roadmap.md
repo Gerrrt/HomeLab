@@ -102,6 +102,12 @@ Closes when it is empty.
   `smaug`.** Decided by
   [ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
   deploy it, measure what capabilities it needs, and create the `5800` pass.
+- **[#1496](https://github.com/Gerrrt/HomeLab/issues/1496) Close `phoenix`'s
+  way in.** Decided by
+  [ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
+  give every workstation that logs in a key, then run
+  [`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md) §6a on the host.
+  First of these, because `phoenix` owns the lab domain.
 
 The rest of the milestone has no order between its issues.
 

@@ -730,7 +730,11 @@ Where things get broken on purpose.
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
   WireGuard tunnel terminates, built 2026-09-22
   ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the peers reach the
-  lab through it and nothing else. Its Alloy pushes to
+  lab through it and nothing else. Inbound, it is default-deny
+  ([ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md),
+  applied by [#1496](https://github.com/Gerrrt/HomeLab/issues/1496)). `22`
+  admits Hicks and the peers, and nothing else on this segment. `8800` opens
+  to the segment only while a Debian or Kali template builds. Its Alloy pushes to
   `alexander` and
   not to Winterfell, and it gets no pass out of this segment: a rule from it
   into 99 would make it the bastion ADR-0002 and ADR-0012 declined. Everything

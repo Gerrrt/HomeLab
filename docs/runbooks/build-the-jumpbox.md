@@ -384,6 +384,79 @@ to check the pass to `10.0.30.40:9443`, the answer is that there is no
 pass to place — go back to §5, because that message was written for hosts on
 another VLAN and this one is not.
 
+## 6a. Close the way in
+
+[ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
+`sshd` takes keys only, and inbound is default-deny. Nothing converges this
+host, so this section is how it gets there, on a rebuild as on the first
+build.
+
+**First, every workstation that logs in has a key.** This is the step that
+locks you out if it is skipped. From each Hicks machine that uses `phoenix`,
+add its public key to `~/.ssh/authorized_keys` on `phoenix`, then prove it
+with passwords refused on the client side:
+
+```bash
+ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no <user>@10.0.30.70 true && echo key-ok
+```
+
+Every machine prints `key-ok` before you go on. Keep one session open on
+`phoenix` until the end of this section.
+
+**Then `sshd`.** On `phoenix`. The `10-` prefix sorts ahead of the installer's
+`50-cloud-init.conf`, and `sshd` keeps the first value it reads:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-phoenix.conf >/dev/null <<'EOF'
+# ADR-0117: phoenix owns the lab domain, so its own login is key-only.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four lines read `no`. A fresh login from a second terminal, with the
+first still open, is the check that the reload did not shut you out.
+
+**Then the firewall.** `ufw` does not touch `net.ipv4.ip_forward`, and its
+forward policy is `DROP`, so the tunnel needs the one `route` line. On a
+first build the tunnel does not exist yet: leave out the three lines marked
+`tunnel`, and [`open-the-remote-path.md`](open-the-remote-path.md) §3 adds
+them.
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw default deny routed
+sudo ufw allow from 10.0.50.0/24 to any port 22 proto tcp comment 'Hicks'
+sudo ufw allow in on wg0 from 172.31.0.0/24 to any port 22 proto tcp comment 'tunnel peers'   # tunnel
+sudo ufw allow <LISTEN_PORT>/udp comment 'WireGuard'                                          # tunnel
+sudo ufw route allow in on wg0 out on ens18 comment 'ADR-0042: morpheus filters'              # tunnel
+sudo ufw enable
+sudo ufw status verbose
+```
+
+`<LISTEN_PORT>` is the one `open-the-remote-path.md` §0 chose. It stays out
+of this repository. `ens18` is the NIC `ip -br addr` shows with
+`10.0.30.70`. Port `8800` is not here: a Debian or Kali template build opens
+it for its own length
+([`build-the-lab-templates.md`](build-the-lab-templates.md) §5).
+
+**Check each rule from the side it applies to.**
+
+- From Hicks: `ssh <user>@10.0.30.70 true` succeeds.
+- From a VLAN 30 host, `alexander` for example:
+  `nc -zv -w 3 10.0.30.70 22` times out.
+- From a peer, with the tunnel up: `ssh <user>@10.0.30.70 true` succeeds.
+  `ping -c 1 10.0.30.40` answers at `ttl=63`, which shows `phoenix` still
+  forwards. Then run [`open-the-remote-path.md`](open-the-remote-path.md) §8's
+  negative tests, which must still be blocked and logged on `morpheus`.
+- On `phoenix`: §4's `curl` still lists the guests, and §7's Alloy checks
+  still pass. Both are outbound, and `ufw` allows outbound.
+
 ## 7. Verify — including the thing that fails quietly
 
 ```bash
