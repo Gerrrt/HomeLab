@@ -51,6 +51,8 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
 | Domain | **Not joined** | The domain is the target and is reverted. A member would fall with it, notes and all (ADR-0091) |
 | SIEM and sensors | **Off** | Wazuh, Zeek and Suricata already run. Their binaries stay, for offline work on a pcap; their daemons do not |
 | Backup | **Yes**, `golem`'s nightly job | Its case notes are not in git |
+| SSH and `sudo` | **Keys only, from Hicks and `phoenix`; `sudo` asks** (§4) | The domain's six share the segment, and no firewall stands between them and `garuda` |
+| GitHub | **Read-only:** clones over https, no `gh` login, no GitHub key | The estate converges from `Gerrrt/HomeLab` ([ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Whoever takes `garuda` must not also be able to write to it |
 | Login user | `analyst` | Not `operator`: Debian ships a system group of that name, which broke cloud-init on the dotfiles VMs |
 
 ## 1. Build template 910, from `phoenix`
@@ -158,6 +160,42 @@ manager, not in this repository or in OpenTofu's state:
 ```bash
 ssh -t analyst@10.0.30.62 sudo passwd analyst
 ```
+
+**Then close SSH to keys, and make sudo ask.** Kali's stock `sshd` takes
+passwords on every address, and cloud-init gives `analyst` `sudo` with no
+password. On a segment shared with the domain's six, which exist to be
+compromised, those two together are a guessed password away from root on the
+box that holds the case notes. So once the console password exists, SSH stops
+accepting it, from anywhere but Hicks and `phoenix`, and `sudo` starts asking
+for it. [`stacks/analyst/ssh/10-garuda.conf`](../../stacks/analyst/ssh/10-garuda.conf)
+is the drop-in. From `phoenix`'s checkout:
+
+```bash
+scp stacks/analyst/ssh/10-garuda.conf analyst@10.0.30.62:
+ssh -t analyst@10.0.30.62 '
+  sudo install -m 0644 -o root -g root 10-garuda.conf /etc/ssh/sshd_config.d/ && rm 10-garuda.conf &&
+  sudo sshd -t && sudo systemctl reload ssh'
+```
+
+**Before going on, open a second session** and check it from there, so a
+mistake cannot lock out the one you are in:
+
+```bash
+ssh analyst@10.0.30.62 true && echo key-ok
+ssh -o PubkeyAuthentication=no analyst@10.0.30.62 true    # must say "Permission denied (publickey)"
+```
+
+Then take away the passwordless `sudo`. `analyst` keeps `sudo` through the
+`sudo` group, which asks for the password. Check that it does before removing
+the grant, so a wrong password is found while the grant still stands:
+
+```bash
+ssh -t analyst@10.0.30.62 'sudo -k && sudo -v && echo sudo-password-ok'
+ssh -t analyst@10.0.30.62 'sudo rm /etc/sudoers.d/90-cloud-init-users && sudo -k && sudo -n true 2>&1 | grep -q "password is required" && echo nopasswd-gone'
+```
+
+Every later step that uses `sudo` asks for the password, so an `ssh` that
+runs `sudo` takes `-t`.
 
 ## 5. Kali Purple, without its SOC
 
@@ -291,8 +329,9 @@ GitHub. Each bootstrap links from wherever it is cloned, so moving a clone
 means re-running its bootstrap:
 
 ```bash
-deb=$(gh api repos/dotgibson/dotfiles-Debian/releases/latest --jq .tag_name)
-def=$(gh api repos/dotgibson/dotfiles-Defense/releases/latest --jq .tag_name)
+latest() { curl -fsSL "https://api.github.com/repos/dotgibson/$1/releases/latest" | jq -r .tag_name; }
+deb=$(latest dotfiles-Debian)
+def=$(latest dotfiles-Defense)
 echo "Debian $deb, Defense $def"    # into §11
 
 mkdir -p ~/code/dotgibson
@@ -306,7 +345,10 @@ exec zsh
 core doctor; echo "doctor exit $?"
 ```
 
-Without `gh` on the guest, read the two tags from the releases pages.
+The release API needs no login, and `jq` is §5's. **No GitHub credential on
+`garuda`:** no `gh auth login`, and no key added to the account. Every clone is
+over https and read-only (§0). A change found here is made from Hicks or
+`phoenix`, which can push.
 
 A good run is:
 
@@ -366,6 +408,14 @@ Each line is a pass or a stop:
   - `docker ps --format '{{.Names}}'` prints exactly `analyst-alloy` and
     `analyst-docker-socket-proxy`;
   - `ss -lntup` shows no Suricata, Zeek or Elastic listener.
+- **Access** (§4, §7). On `garuda`:
+  - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers) '`
+    prints `passwordauthentication no`, `permitrootlogin no`, and `allowusers`
+    for `analyst@10.0.50.0/24` and `analyst@10.0.30.70`;
+  - `sudo -k; sudo -n true` says a password is required;
+  - `gh auth status` says it is not logged in, or `gh` is absent;
+  - no key in `~/.ssh` is on the GitHub account, and any private key there has
+    a passphrase: `ssh-keygen -y -P '' -f <key>` fails.
 - **dotfiles.** §7's two bootstrap exits and the `core doctor` exit.
 - **Desktop.** From `Hicks`, `garuda`'s console in Proxmox shows the Purple
   XFCE session. Wireshark opens a capture, and CyberChef opens.
@@ -623,9 +673,9 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
 
    ```bash
    d=$(mktemp -d) && cd "$d"
-   curl -fsSO http://10.0.30.60:8448/wazuh-agent_4.14.8_amd64.deb
+   curl -fsSO http://10.0.30.60:8448/wazuh-agent_4.14.10_amd64.deb
    curl -fsSO http://10.0.30.60:8448/velociraptor-client_0.77.3_amd64.deb
-   echo "6ed202e211fd8c544d1906c9b94dcd4b503d1829eef7d0a82ce4bcf4a1688967  wazuh-agent_4.14.8_amd64.deb" | sha256sum -c -
+   echo "873cfec3720a7d7a344afc2c646cf5895a04caa3e4dd7b5124987264f711db94  wazuh-agent_4.14.10_amd64.deb" | sha256sum -c -
    sha256sum velociraptor-client_0.77.3_amd64.deb   # must equal staging's hash
    ```
 
@@ -637,7 +687,7 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
 
    ```bash
    sudo WAZUH_MANAGER=10.0.30.60 WAZUH_AGENT_NAME=garuda WAZUH_AGENT_GROUP=default \
-     dpkg -i wazuh-agent_4.14.8_amd64.deb
+     dpkg -i wazuh-agent_4.14.10_amd64.deb
    sudo sh -c 'umask 027; cat > /var/ossec/etc/authd.pass && chgrp wazuh /var/ossec/etc/authd.pass'   # paste, Enter, Ctrl-D
    sudo systemctl enable --now wazuh-agent && sudo systemctl restart wazuh-agent
    ```
@@ -645,6 +695,11 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
    Once `odin` lists it as Active, remove the file:
    `sudo rm /var/ossec/etc/authd.pass`. The agent keeps its own key in
    `client.keys`. A re-enrolment writes the file again.
+
+   **To upgrade an enrolled agent** after the pin moves, stage again on
+   `odin`, fetch and check the new `.deb` as in step 2, and
+   `sudo dpkg -i` it with no variables. The package keeps `ossec.conf` and
+   `client.keys`, so the agent comes back as itself, with no password.
 
 4. **The Velociraptor client.** The package carries `odin`'s server URL, CA and
    nonce, and installs and starts its own service:

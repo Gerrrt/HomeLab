@@ -17,6 +17,32 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-13
+
+- **An audit of `garuda` found SSH open to the lab domain, and owner GitHub
+  credentials on it.** A read-only audit against this repository found the role
+  intact: no Purple SOC daemons, GVM stopped, the fence files identical to
+  `stacks/analyst/gvm/`, not a domain member, Wazuh and Velociraptor connected.
+  It also found Kali's stock `sshd` taking passwords on every address, with
+  cloud-init's passwordless `sudo` for `analyst`, on the segment the domain's
+  six share. And it found a `gh` login with the `repo` and `admin:public_key`
+  scopes, beside an SSH key for GitHub with no passphrase. This change writes
+  the fix into the build:
+  - `stacks/analyst/ssh/10-garuda.conf`, installed by
+    `build-the-analyst-workstation.md` §4, which makes SSH key-only from Hicks
+    and `phoenix` with forwarding off;
+  - the same step removes the passwordless `sudo`;
+  - §7 reads the dotfiles release tags without a GitHub login, and `garuda`
+    holds no GitHub write credential.
+
+  The box itself changes when §4 is run on it, which this entry does not
+  record. Three smaller items rode along:
+  - `docs/architecture.md` still described the cgroup fence ADR-0093 replaced;
+  - the Linux agent pin in `stacks/soc/linux-agents.yaml` moves from 4.14.8 to
+    the manager's 4.14.10, with the hash checked against Wazuh's signed index;
+  - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do.
+    `garuda`'s attempts to report were failing at the resolver anyway.
+
 ## 2026-11-12
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
