@@ -94,11 +94,20 @@ The copy needs two things once, both done on `prometheus` as `robo`. Accept
 ssh atropos@10.0.99.30 true
 ```
 
-Then authorise this host's key there — it prompts for `oracle`'s password one
-time:
+Then authorise this host's key there. `oracle` takes keys only
+([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)), so `ssh-copy-id`
+with a password is refused. Print the public key here:
 
 ```bash
-ssh-copy-id atropos@10.0.99.30
+cat ~/.ssh/id_ed25519.pub
+```
+
+On `oracle` as `atropos`, at its console or over a session that already logs
+in by key, add that line to `~/.ssh/authorized_keys`. Then check from here
+that the key alone gets in:
+
+```bash
+ssh -o BatchMode=yes atropos@10.0.99.30 true
 ```
 
 The next `make backup-firewall` seeds `oracle` with every retained export
