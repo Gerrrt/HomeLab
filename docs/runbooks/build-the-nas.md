@@ -1779,12 +1779,18 @@ it printed a SKIP naming this section. **After a TrueNAS upgrade** the next
 day's file carries the new version, and `check-versions` fails until
 `hardware.md` and `network.md` say it — which is the check doing its job.
 
-> **Steps 1–3 done, read on `smaug` 2026-11-13; step 4 not yet read.** The
-> cron job `homelab truenas-version (#616)` exists at 08:40 daily, and
-> `truenas-version.prom` carries `truenas_version_info` for `25.10.7`, with
-> `node_textfile_scrape_error` 0 on the exporter. The `check-versions`
-> reading from the monitoring host still goes here, and
-> [#616](https://github.com/Gerrrt/HomeLab/issues/616) closes on it.
+> **Done 2026-09-23.** The collector was installed as the root cron job above,
+> and Prometheus read `truenas_version_info{host="smaug", release="25.10",
+> version="25.10.7"} 1`. `make check-versions`, run that day, printed both
+> PASS lines for `smaug`, `docs/hardware.md` and `docs/network.md` each
+> ending `truenas_version_info agrees`, where it had printed a SKIP. That is
+> [#616's closing comment](https://github.com/Gerrrt/HomeLab/issues/616#issuecomment-5799057014),
+> and the issue closed on it.
+>
+> **Re-read on `smaug` 2026-11-13**, locally, by a read-only audit: the cron
+> job `homelab truenas-version (#616)` still exists at 08:40 daily,
+> `truenas-version.prom` carries `25.10.7`, and `node_textfile_scrape_error`
+> is 0 on the exporter. `check-versions` was not re-run then.
 
 ### §6.8 — Turn leaf-state collection on
 
