@@ -350,6 +350,22 @@ The release API needs no login, and `jq` is §5's. **No GitHub credential on
 over https and read-only (§0). A change found here is made from Hicks or
 `phoenix`, which can push.
 
+**On a guest built before this rule**, take the credentials off before §9's
+check. The audit of 2026-11-13 found a `gh` login and a GitHub SSH key on
+`garuda`. Revoke them first, from a trusted host: on github.com, *Settings →
+SSH and GPG keys* deletes the key, and *Settings → Applications → Authorized
+OAuth Apps → GitHub CLI → Revoke* ends the token (and `gh` on every other
+machine, which then logs in again). Then remove the local copies on `garuda`:
+
+```bash
+gh auth logout
+git credential-cache exit
+rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+```
+
+`git credential-cache exit` drops an https login git may be holding in memory;
+the clones keep pulling without one.
+
 A good run is:
 
 - both bootstraps exit 0;
@@ -409,9 +425,11 @@ Each line is a pass or a stop:
     `analyst-docker-socket-proxy`;
   - `ss -lntup` shows no Suricata, Zeek or Elastic listener.
 - **Access** (§4, §7). On `garuda`:
-  - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers) '`
-    prints `passwordauthentication no`, `permitrootlogin no`, and `allowusers`
-    for `analyst@10.0.50.0/24` and `analyst@10.0.30.70`;
+  - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers|disableforwarding) '`
+    prints `passwordauthentication no`, `permitrootlogin no`,
+    `disableforwarding yes`, and `allowusers` for `analyst@10.0.50.0/24` and
+    `analyst@10.0.30.70`. `sshd -T` still lists the separate forwarding
+    options as `yes`; `DisableForwarding` overrides them;
   - `sudo -k; sudo -n true` says a password is required;
   - `gh auth status` says it is not logged in, or `gh` is absent;
   - no key in `~/.ssh` is on the GitHub account, and any private key there has

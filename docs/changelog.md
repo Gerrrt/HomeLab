@@ -33,14 +33,16 @@ docstring gives: it is a record, not a claim about now.
     and `phoenix` with forwarding off;
   - the same step removes the passwordless `sudo`;
   - §7 reads the dotfiles release tags without a GitHub login, and `garuda`
-    holds no GitHub write credential.
+    holds no GitHub write credential. It also has the steps that revoke and
+    remove the two the audit found.
 
   The box itself changes when §4 is run on it, which this entry does not
   record. Three smaller items rode along:
   - `docs/architecture.md` still described the cgroup fence ADR-0093 replaced;
   - the Linux agent pin in `stacks/soc/linux-agents.yaml` moves from 4.14.8 to
     the manager's 4.14.10, with the hash checked against Wazuh's signed index;
-  - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do.
+  - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do:
+    the six stacks' Compose files, and both paths in `scripts/deploy-agent.sh`.
     `garuda`'s attempts to report were failing at the resolver anyway.
 
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
