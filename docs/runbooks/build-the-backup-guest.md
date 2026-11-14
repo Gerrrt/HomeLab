@@ -101,6 +101,25 @@ apt install -y qemu-guest-agent nfs-common rsyslog && systemctl start qemu-guest
 write. `qm guest exec 180 -- uptime` from `Saruman` is the check. Then
 `qm set 180 --ide2 none`, so the installer is not left attached.
 
+**Then close what the appliance leaves open.** `golem` can delete every
+backup the lab has, and the installer lets root log in over SSH with a
+password and starts `rpcbind` on every address, which NFSv4 does not need.
+Copy a key in from Hicks first (`ssh-copy-id root@10.0.30.80`), or the first
+line locks you out of SSH; `Saruman`'s console still works if it does:
+
+```bash
+printf 'PermitRootLogin prohibit-password\nPasswordAuthentication no\nX11Forwarding no\n' > /etc/ssh/sshd_config.d/10-golem.conf && sshd -t && systemctl reload ssh
+```
+
+```bash
+systemctl disable --now rpcbind.socket rpcbind.service nfs-blkmap.service
+```
+
+After §5's mount exists, reboot once and check that `findmnt
+/mnt/datastore/erebor` still shows the share. And give `root@pam` a second
+factor in the web UI, *Configuration → Access Control → Two Factor
+Authentication → Add → TOTP*: that login is root over the datastore.
+
 ## 3. The dataset, the share and the snapshots, on `smaug`
 
 In the TrueNAS UI.
@@ -441,6 +460,7 @@ nothing behind it. Two pieces:
 | `datastore create` refuses on `atime` | `atime` is off on `erebor/pbs` | Turn it on in the dataset's settings, then run §5's create again |
 | PBS writes to the OS disk and `/` fills | The share was not mounted | Cannot happen with §5's `chattr +i`. If `/mnt/datastore/erebor` is writable while unmounted, the attribute is missing |
 | Backups succeed, restore fails to decrypt | The key on `Saruman` is not the one the backups were made with | Restore `golem.enc` from `secrets/lab.sops.yaml` or the paper key, to `/etc/pve/priv/storage/golem.enc` |
+| The verify job fails with `manifest load error … index.json.blob … No such file` | A backup broke mid-run, and its cleanup failed with `Directory not empty` because NFS had renamed a still-open file to `.nfs*`. The snapshot directory was left without a manifest | Once no `.nfs*` file remains in it, remove that snapshot directory as root on `golem`. Then `proxmox-backup-manager verify-job run weekly`, so the job's last state, and `PbsJobFailed`, clear before Sunday |
 | Garbage collection deletes chunks a backup needs, and verify reports missing chunks | `atime` was off when garbage collection ran | Roll `erebor/pbs` back to the newest TrueNAS snapshot from before that run, then fix `atime` |
 
 ## 12. Write it down
