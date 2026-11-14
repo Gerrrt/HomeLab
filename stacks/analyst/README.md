@@ -38,6 +38,14 @@ lab domain's six at layer 2 ([ADR-0093]):
 [`scan-the-lab-with-openvas.md`](../../docs/runbooks/scan-the-lab-with-openvas.md)
 installs both, proves the fence and runs a scan.
 
+## SSH: `ssh/`
+
+`ssh/10-garuda.conf` is installed as `/etc/ssh/sshd_config.d/10-garuda.conf` by
+[`build-the-analyst-workstation.md`] §4. It makes SSH key-only, admits
+`analyst` from Hicks and `phoenix` alone, and turns forwarding off. The domain's
+six share VLAN 30 with `garuda`, and nothing between them filters. The same
+step takes away cloud-init's passwordless `sudo`.
+
 ## What is not here
 
 Kali Purple's SOC. Its SIEM and sensors stay off, because Wazuh on `odin`,
