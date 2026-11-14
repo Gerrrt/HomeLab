@@ -54,8 +54,9 @@ follow the steps.**
 > - **`Saruman` runs thirteen guests, not two**, four of them in ordered
 >   stages. Step 3.6 now caps those four at `down=90`. 3.7 keeps its monitor
 >   logged in until they are down and raises `HOSTSYNC` to 600, and 3.8
->   raises the card to 16 minutes before the window. **None of this is
->   applied yet** either.
+>   raises the card to 16 minutes before the window. **`Saruman`'s half is
+>   applied** (2026-11-13): 3.6's `down=90` and 3.7's `SHUTDOWNEXIT no` and
+>   drop-in. **`HOSTSYNC 600` on `morpheus` and 3.8 are not applied yet.**
 > - **The UPS's outlet groups were read for the first time** (PDU on
 >   group 1). Their turn-off and load-shedding settings were not, and a
 >   group-1 setting that sheds the PDU early would cut every host
