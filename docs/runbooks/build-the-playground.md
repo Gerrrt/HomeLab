@@ -595,9 +595,17 @@ that away. An audit on 2026-11-13 found both still on.
 Root's password stays set. The `root@pam` login on `8006` uses it, and so does
 the console on KVM port 4. Only SSH stops taking it.
 
-Before the change, from Hicks, confirm that a key opens a root shell
-(`ssh -o PasswordAuthentication=no root@10.0.30.30 true`), and keep that
-session open until the end. Then on `gandalf`, as root:
+Before the change, open a root shell on `gandalf` from Hicks with a key alone,
+and leave it open until the end:
+
+```bash
+ssh -o PasswordAuthentication=no root@10.0.30.30
+```
+
+It has no trailing command, so it stays an interactive shell. It is the way
+back if the reload locks new logins out, because `sshd` keeps sessions that
+are already open. Run the change below in that shell, and run the login checks
+after it from a second terminal on Hicks. As root on `gandalf`:
 
 ```bash
 printf '%s\n' \
@@ -623,8 +631,8 @@ ssh -o PasswordAuthentication=no root@10.0.30.30 true
 ```
 
 The first should fail with `Permission denied (publickey)`, offering no
-password prompt. The second should succeed. If it fails, the session you kept
-open is the way back: remove the drop-in and `systemctl reload ssh`.
+password prompt. The second should succeed. If it fails, go back to the shell
+you kept open, remove the drop-in, and run `systemctl reload ssh`.
 
 ---
 
