@@ -19,7 +19,6 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
-<<<<<<< HEAD
 - **`shiva` re-read over Redfish, from `Saruman`.** This was a read-only audit:
   GET requests only, plus a handshake and a port check. Nothing was installed and
   nothing was set. The 2026-09-09 hardening holds. SSH (`22`) and IPMI-over-LAN
@@ -41,8 +40,7 @@ docstring gives: it is a record, not a claim about now.
   `docs/hardware.md`, `docs/security.md` and `SECURITY.md` now say so. The
   fixes are on the iLO and on `morpheus`, by hand, and are not done in this
   entry.
-||||||| 4aca054
-=======
+
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
   itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
@@ -61,7 +59,6 @@ docstring gives: it is a record, not a claim about now.
   lift both for a package install, and §8 check three proves it. Not yet run
   against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
   again from `phoenix`.
->>>>>>> origin/main
 
 - **An audit of `golem`, read-only, found its last verify failed and a
   19-day gap in the lab's backups.** It was read on the box against this
