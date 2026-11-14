@@ -29,8 +29,12 @@ docstring gives: it is a record, not a claim about now.
   script now writes `/etc/nftables.conf` with a `range_scope` output policy
   (drop, except the two subnets, DHCP, link-local multicast and IPv6
   link-local), enables it at boot, and fails unless a ping to `1.1.1.1` is
-  refused by the filter while one to `10.0.30.1` is let out. §5 says how to
-  lift it for a package install, and §8 check three proves it. Not yet run
+  refused by the filter while one to `10.0.30.1` is let out. A second table,
+  `range_scope_l2`, on `eth0`'s netdev egress hook, holds the same scope for
+  raw Ethernet: packet sockets (`nmap --send-eth`, masscan) never cross the
+  inet hook, which review on the PR caught. The script proves that half by
+  writing a raw frame to `1.1.1.1` and reading the drop counter. §5 says how to
+  lift both for a package install, and §8 check three proves it. Not yet run
   against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
   again from `phoenix`.
 

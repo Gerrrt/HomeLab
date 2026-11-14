@@ -703,14 +703,28 @@ The default route via `10.0.30.1` stays, so a send past the segment is refused
 by the filter (`Operation not permitted`) rather than left without a route,
 and that refusal is what the script checks.
 
+That table only sees what the IP stack sends. A packet socket, such as
+`nmap --send-eth`, masscan or anything injecting through libpcap, writes
+Ethernet frames straight to `eth0` and never crosses it. So a second table,
+`range_scope_l2`, sits on `eth0`'s netdev `egress` hook, which both paths
+cross. Frames that `range_scope` passed carry its mark and go out unchanged.
+That is how replies to Hicks keep conntrack's verdict, which the netdev hook
+cannot see. An unmarked frame is a packet socket's, and it leaves only as ARP
+or to the same destinations. Anything else is counted in `out_of_scope` and
+dropped. The script proves it by writing one raw ICMP echo to `1.1.1.1` and
+reading that counter.
+
 Until 2026-11-13 this paragraph said only to scope the tooling, and the box had
 no filter: an audit found `ragnarok`'s ruleset empty, with open egress.
 
 **Installing anything**, Sliver included, needs the internet the scope takes
-away. Lift it for the install and put it back in the same sitting:
+away. Lift both tables for the install and put them back in the same sitting.
+Deleting only the first leaves the second dropping everything the IP stack
+sends past the segment:
 
 ```bash
 sudo nft delete table inet range_scope
+sudo nft delete table netdev range_scope_l2
 sudo apt install …
 sudo systemctl restart nftables     # or rerun finish-attack-vm.sh from phoenix
 ```
@@ -896,6 +910,7 @@ sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
 systemctl is-enabled nftables; sudo nft list chain inet range_scope output | grep 'policy drop'
+sudo nft list chain netdev range_scope_l2 egress | grep 'policy drop'
 ping -n -c1 -W2 1.1.1.1
 ```
 
@@ -904,8 +919,11 @@ nft-backed, so the two commands can disagree about a rule that exists.
 `nftables` reads `enabled`, the `range_scope` chain is loaded with
 `policy drop`, and the ping fails with *Operation not permitted*: the filter
 refused it. A timeout is not a pass, because it is what the internet being down
-looks like too. Run this after installing anything that touches the network
-stack, and after any install that lifted the scope, not just once.
+looks like too. The raw-Ethernet half, a frame to `1.1.1.1` through a packet
+socket that must raise `range_scope_l2`'s `out_of_scope` counter, needs a
+crafted frame, so it is left to `finish-attack-vm.sh`. Run this after
+installing anything that touches the network stack, and after any install that
+lifted the scope, not just once.
 
 **Four — a target has no route anywhere.** On a target:
 
