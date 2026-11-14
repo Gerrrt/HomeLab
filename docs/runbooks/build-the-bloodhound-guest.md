@@ -180,6 +180,17 @@ sudo install -d -m 0750 -o 0     -g 0     /srv/bloodhound-data/work
 df -h /srv/bloodhound-data
 ```
 
+These modes are what the directories have until the first `up`, not after
+it. Each is the root of a named volume, and when a volume is first mounted
+empty, Docker copies the image's directory, mode included, onto it. So after
+§6, `postgres` is `1777` (the `postgres` image's `/var/lib/postgresql`) and
+`work` is `0755`. That is expected. The data itself is in
+`postgres/18/docker`, which Postgres creates `0700`, and it is checked there:
+
+```bash
+sudo stat -c '%a %u %n' /srv/bloodhound-data/postgres/18/docker    # 700 999
+```
+
 `qm guest cmd 141 get-fsinfo` on `Saruman` should list `/` and
 `/srv/bloodhound-data`.
 
