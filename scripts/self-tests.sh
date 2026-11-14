@@ -55,6 +55,10 @@
 #                             tree. /dev/shm is a refusal FIXTURE here, not a
 #                             destination: a different filesystem that is still
 #                             this host's RAM, which is the #596 regression (#610)
+#   check_firewall_claims.py  what reaches the firewall's own addresses, which is
+#                             a pf evaluation of a ruleset CI may never hold
+#                             (ADR-0026); the shape that left every segment
+#                             reaching the WAN address is a fixture (ADR-0117)
 #   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
 #                             clone never shows the zero-commit scan that the
 #                             fixture for the worktree regression stages

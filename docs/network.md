@@ -216,9 +216,21 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   from `10.0.99.40` on the WAN graphs is that and not something to chase. It
   leaves by Winterfell's existing egress rule, and its fetcher refuses every
   private address, this segment's included ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
-- pfSense's admin UI is reachable on this interface from Hicks only, by a
-  named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
-  interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
+- **The firewall answers on its own addresses to two places, since
+  2026-11-14:** its admin UI to Hicks, at `10.0.99.1:443`, and `sshd` to Hicks
+  and `prometheus`, at `10.0.99.1:22`. Every interface blocks ssh, http and
+  https to *This Firewall (self)*, every address the firewall holds, the WAN's
+  included. The blocks sit above everything but three named passes: Hicks'
+  *Allow HTTPS to pfSense on its management address* and *Allow SSH to
+  Winterfell*, and Winterfell's *Allow SSH to pfSense from prometheus*,
+  `10.0.99.20 → 10.0.99.1:22`, for the collectors, the nightly export and
+  `make check-firewall`. Nothing else on Winterfell reaches either. Until then
+  each interface's blocks named only its own address, so every segment
+  reached both on the WAN address; the 2026-11-13 audit proved it from
+  `prometheus`. `sshd` takes keys only.
+  [ADR-0117](adr/0117-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
+  records the decision, and `docs/firewall-claims.yaml`'s `firewall` entries
+  are what `make check-firewall` holds the ruleset to.
 - **One pass into Skids, in force since 2026-09-28:**
   `10.0.99.40 → 10.0.20.20` on `80,443/tcp` — `trinity`'s Home Assistant to
   `bifrost`, the Hue bridge, and nothing else on 20 — **above** *Block access
@@ -335,6 +347,15 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana, `8443/tcp` speedtest-tracker's UI (since 2026-10-06, [#914](https://github.com/Gerrrt/HomeLab/issues/914)) |
   | `10.0.99.30` — `oracle` | `443/tcp` the wiki, served by its Caddy since [#847](https://github.com/Gerrrt/HomeLab/issues/847)'s cutover on 2026-10-07, and `80/tcp`, which only redirects to it ([`stacks/wiki/README.md`](../stacks/wiki/README.md#tls)). 443 had been dropped on 2026-09-30, when nothing listened on it ([#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
+
+  **The firewall itself answers Hicks at `10.0.99.1` and nowhere else.** The
+  three *Block … to pfSense* rows name *This Firewall (self)* and sit directly
+  under the `22` and admin-UI passes, above *Allow Hicks access to
+  ImaginationLAN*. That rule passes TCP to all of `10.0.30.0/24`, the lab's
+  gateway included, and until 2026-11-14 it was a second way to the UI and
+  `sshd` ([ADR-0117](adr/0117-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).
+  `sshd` takes keys only, so the `22` pass gets a corporate laptop a prompt it
+  cannot answer.
 
   **The source is the segment, not named hosts.** Every one of those passes is
   `vlan50 → …`, so any device on Hicks may use any of them. This note used to
