@@ -265,9 +265,27 @@ groups:
         # had no left side, and the deadline went unwatched from the day it was
         # deployed (#400). SecretsKeyRecipientsUnrecorded, below, is the rule
         # for that state, and the recipient-state timer is what ends it.
+        #
+        # The second branch is for a host that records proofs but declares no
+        # deadline of its own: trinity. Its SENSITIVE_JOBS table cannot carry a
+        # verify-key-backup row (install-timers.sh check 8 forbids a job name in
+        # both tables), so the on(instance) join had no right side there and
+        # trinity's recipients sat at 0 — never proven — with nothing firing.
+        # Such a host is held to the estate's declared deadline instead, taken
+        # with max() so the ninety days is still written in one place only.
         expr: |
-          (time() - homelab_key_recipient_last_proof_timestamp_seconds)
-            > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+          (
+            (time() - homelab_key_recipient_last_proof_timestamp_seconds)
+              > on(instance) group_left() homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+          )
+          or
+          (
+            (
+              (time() - homelab_key_recipient_last_proof_timestamp_seconds)
+                unless on(instance) homelab_job_max_age_seconds{homelab_job="verify-key-backup"}
+            )
+              > on() group_left() max(homelab_job_max_age_seconds{homelab_job="verify-key-backup"})
+          )
         for: 1h
         labels:
           component: backup
