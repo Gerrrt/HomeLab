@@ -13,12 +13,26 @@
 # WHAT THIS DOES, AFTER EVERY APPLY. It reads the config back, because the one
 # thing a mistake there would break is the isolation. It starts the guest if it
 # is stopped. Then, over SSH: /etc/sysctl.d/99-no-forward.conf,
-# `sysctl --system`, and §8 check three: both forwarding sysctls 0 and no NAT
-# in nft or legacy iptables. Writing the sysctl file stays here rather than in
-# cloud-init, because a cloud-init snippet would need tofu to upload it to
-# gandalf over SSH, a second credential path for one file (ADR-0116). The
+# `sysctl --system`, then /etc/nftables.conf with ADR-0014's outbound scope
+# (below), and §8 check three: both forwarding sysctls 0, no NAT in nft or
+# legacy iptables, and nothing reached past the segment. Writing both files
+# stays here rather than in cloud-init, because a cloud-init snippet would
+# need tofu to upload it to gandalf over SSH, a second credential path
+# (ADR-0116). The
 # range is still rebuilt, not repaired (ADR-0017): a change is a tofu
 # destroy and apply of 130, then this.
+#
+# OUTBOUND SCOPE (ADR-0014). "Its own outbound scope is limited on the VM
+# itself, to 10.0.30.0/24 and the target subnet." The table range_scope drops
+# every new outbound connection except to those two, plus what the segment's
+# own plumbing needs: DHCP's broadcast, link-local multicast (LLMNR and mDNS,
+# which the range's layer-2 tooling speaks) and IPv6 link-local and multicast
+# (neighbour discovery, DHCPv6, mitm6). Replies to inbound connections, such as
+# SSH or the C2 console from Hicks, are established and pass. The default route
+# via 10.0.30.1 stays: the filter is the boundary, not a missing route. To
+# install a package, lift it for the install and put it back:
+#   sudo nft delete table inet range_scope   # ... apt install ...
+#   sudo systemctl restart nftables          # or rerun this script
 #
 # HOST KEY. The SSH that reports §8 check three crosses VLAN 30, where ARP
 # spoofing is expected (docs/security.md), so the key ragnarok presents is
@@ -157,6 +171,31 @@ info "forwarding off, persistently (§5), then §8 check three"
 printf 'net.ipv4.ip_forward = 0\nnet.ipv6.conf.all.forwarding = 0\n' > /etc/sysctl.d/99-no-forward.conf
 sysctl --system >/dev/null
 GUEST
+info "outbound scope (ADR-0014): /etc/nftables.conf, loaded now and at boot"
+"${SSH[@]}" "kali@${addr}" 'sudo sh -eu -s' <<'GUEST' || die "writing the outbound scope failed"
+cat > /etc/nftables.conf <<'NFT'
+#!/usr/sbin/nft -f
+# Written by scripts/finish-attack-vm.sh: ragnarok's outbound scope, ADR-0014.
+# Lift it for a package install with `nft delete table inet range_scope`, and
+# restore it with `systemctl restart nftables`.
+table inet range_scope
+delete table inet range_scope
+table inet range_scope {
+  chain output {
+    type filter hook output priority filter; policy drop;
+    oifname "lo" accept
+    ct state established,related accept
+    ip daddr { 10.0.30.0/24, 172.30.30.0/24 } accept
+    ip daddr 255.255.255.255 udp dport 67 accept
+    ip daddr 224.0.0.0/24 accept
+    ip6 daddr { fe80::/10, ff02::/16 } accept
+  }
+}
+NFT
+nft -c -f /etc/nftables.conf
+nft -f /etc/nftables.conf
+systemctl enable nftables >/dev/null 2>&1
+GUEST
 # Each "no ... NAT" line is printed only after its read succeeded, so a failed
 # read cannot pass for an empty table. Kali's iptables is the nft one, so
 # legacy tables are read with iptables-legacy, and only if the kernel has a
@@ -173,6 +212,18 @@ for fam in ip ip6; do
   printf '%s\n' "$rules" | grep -Eq -- '-j (MASQUERADE|SNAT)' && legacy=1
 done
 if [ -n "$legacy" ]; then echo "legacy NAT present"; else echo "no legacy NAT"; fi
+# The scope, as loaded and as it will load at boot. Then the proof: the
+# default route still points out, so a refused send ("Operation not
+# permitted") can only be the filter, while a timeout would be the internet
+# being down and proves nothing. The gateway is the control: the filter must
+# let it out, whether or not it answers.
+echo "nftables $(systemctl is-enabled nftables 2>/dev/null || echo disabled)"
+chain="$(nft list chain inet range_scope output 2>/dev/null)" || chain=""
+if printf '%s\n' "$chain" | grep -q 'policy drop;'; then echo "scope policy drop"; else echo "scope missing"; fi
+p="$(ping -n -c1 -W2 1.1.1.1 2>&1)" || true
+if printf '%s\n' "$p" | grep -q 'Operation not permitted'; then echo "egress refused"; else echo "egress not refused"; fi
+p="$(ping -n -c1 -W2 10.0.30.1 2>&1)" || true
+if printf '%s\n' "$p" | grep -q 'Operation not permitted'; then echo "segment refused"; else echo "segment allowed"; fi
 ip -br addr
 ip route
 GUEST
@@ -186,5 +237,10 @@ grep -q "${RANGE_ADDR%/*}/24" <<<"${out}" || die "${RANGE_ADDR} is not on any in
 [[ "$(grep -c '^default' <<<"${out}")" == 1 ]] || die "expected exactly one default route"
 grep -q '^default via 10\.0\.30\.1 ' <<<"${out}" || die "the default route is not via 10.0.30.1"
 ok "no forwarding, no NAT, one default route via 10.0.30.1, ${RANGE_ADDR} on the range"
+grep -qx 'nftables enabled' <<<"${out}" || die "nftables.service is not enabled, so the scope would not survive a reboot"
+grep -qx 'scope policy drop' <<<"${out}" || die "the range_scope output chain is not loaded with policy drop"
+grep -qx 'egress refused' <<<"${out}" || die "a send to 1.1.1.1 was not refused by the filter: the outbound scope does not hold"
+grep -qx 'segment allowed' <<<"${out}" || die "the filter refused 10.0.30.1: the scope cuts off the segment it exists to allow"
+ok "outbound scope: 10.0.30.0/24 and 172.30.30.0/24 only, 1.1.1.1 refused, persistent (ADR-0014)"
 
 printf '\n\033[0;32m%s is up at %s and %s\033[0m\n' "${NAME}" "${addr}" "${RANGE_ADDR%/*}"

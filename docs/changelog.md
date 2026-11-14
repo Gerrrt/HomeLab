@@ -17,6 +17,23 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-13
+
+- **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
+  ADR-0014 says the attack VM's "own outbound scope is limited on the VM
+  itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
+  `gandalf` found nothing doing that: `ragnarok`'s nft ruleset was empty,
+  `nftables.service` was disabled, and its default route reached the internet.
+  `build-the-playground.md` §5 had narrowed the sentence to "scope the
+  tooling", and `finish-attack-vm.sh` checked forwarding and NAT only. The
+  script now writes `/etc/nftables.conf` with a `range_scope` output policy
+  (drop, except the two subnets, DHCP, link-local multicast and IPv6
+  link-local), enables it at boot, and fails unless a ping to `1.1.1.1` is
+  refused by the filter while one to `10.0.30.1` is let out. §5 says how to
+  lift it for a package install, and §8 check three proves it. Not yet run
+  against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
+  again from `phoenix`.
+
 ## 2026-11-12
 
 - **#1473 is deployed on `alexander` and verified.** This completes the #1430
