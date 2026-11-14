@@ -27,8 +27,16 @@ docstring gives: it is a record, not a claim about now.
   turned off password and keyboard-interactive logins, root login and X11
   forwarding. `sshd -t` passed. After the reload the server refuses
   everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
-  is now in `stacks/wiki/README.md`. Still open: the five `authorized_keys`
-  entries are not limited by `from=` or `command=`.
+  is now in `stacks/wiki/README.md`.
+- **`oracle`'s five authorized keys are now limited to where they log in
+  from.** In 120 days of the journal, each key had logged in from a single
+  host or from Hicks. At 06:44 UTC each line got a `from=` pin: `robo`'s to
+  `10.0.99.20`, `trinity`'s backup key to `10.0.99.40` with no pty, and the
+  three operator keys to `10.0.50.0/24`. Port, agent and X11 forwarding and
+  `~/.ssh/rc` were turned off as well. One operator key had not logged in
+  within those 120 days. The 2026-11-15 runs from `prometheus` and `trinity`
+  are the first real logins under the pins. `command=` is not set, because
+  the pull runs `docker exec` and the copies run shell commands.
 
 ## 2026-11-13
 

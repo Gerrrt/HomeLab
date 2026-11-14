@@ -103,8 +103,10 @@ cat ~/.ssh/id_ed25519.pub
 ```
 
 On `oracle` as `atropos`, at its console or over a session that already logs
-in by key, add that line to `~/.ssh/authorized_keys`. Then check from here
-that the key alone gets in:
+in by key, add that line to `~/.ssh/authorized_keys`. Put the `from=` options
+for `robo` from
+[`stacks/wiki/README.md`](../../stacks/wiki/README.md#the-hosts-ssh-once)
+in front of it. Then check from here that the key alone gets in:
 
 ```bash
 ssh -o BatchMode=yes atropos@10.0.99.30 true

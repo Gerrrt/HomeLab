@@ -141,6 +141,21 @@ All four lines should end in `no`. From another host,
 with `Permission denied (publickey)` alone. The backup pushes from
 `prometheus` and `trinity` log in by key and are not affected.
 
+Then limit each key in `~atropos/.ssh/authorized_keys` to the hosts it comes
+from. Put the options in front of the key's line:
+
+| Whose key | Options in front of it |
+| --- | --- |
+| `robo` on `prometheus` (the volume, firewall, NAS and library copies, and the wiki's nightly `pg_dump` pull) | `from="10.0.99.20",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc` |
+| `trinity`'s backup key (the sensitive tier's copies) | `from="10.0.99.40",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc,no-pty` |
+| An operator key on Hicks | `from="10.0.50.0/24",no-agent-forwarding,no-X11-forwarding,no-user-rc` |
+
+A key that logs in from anywhere else is now refused, and sshd's journal
+says why. The pull from `prometheus` runs `docker exec`, and the copies run
+shell commands, so `command=` cannot pin these keys yet. `from=` is the limit
+for now. The remote path's tunnel reaches the lab, not VLAN 99, so the Hicks
+pin locks no one out.
+
 ## TLS
 
 Caddy serves the wiki on 443 with a leaf from the estate's CA, and answers
