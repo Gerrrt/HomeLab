@@ -582,6 +582,58 @@ stop`, wait for `PveFirewallDisabled` to fire (about fifteen minutes, with the
 five-minute timer), then `pve-firewall start` and watch it resolve. A rule that
 has never fired is a rule nobody knows can.
 
+### SSH on `gandalf`: keys only
+
+The firewall above lets `22` in from Hicks alone. Behind it, Proxmox's
+installer leaves `sshd` taking root's password: `PermitRootLogin yes` in
+`/etc/ssh/sshd_config`, and Debian's `PasswordAuthentication` default of
+`yes`. On `gandalf` nothing watches whether the firewall is on (§7), so if it
+ever goes off, the root password is all that stands between VLAN 30, where the
+attack VM is, and a root shell on the range's isolation host. Keys only takes
+that away. An audit on 2026-11-13 found both still on.
+
+Root's password stays set. The `root@pam` login on `8006` uses it, and so does
+the console on KVM port 4. Only SSH stops taking it.
+
+Before the change, open a root shell on `gandalf` from Hicks with a key alone,
+and leave it open until the end:
+
+```bash
+ssh -o PasswordAuthentication=no root@10.0.30.30
+```
+
+It has no trailing command, so it stays an interactive shell. It is the way
+back if the reload locks new logins out, because `sshd` keeps sessions that
+are already open. Run the change below in that shell, and run the login checks
+after it from a second terminal on Hicks. As root on `gandalf`:
+
+```bash
+printf '%s\n' \
+  '# build-the-playground.md §4: keys only. Root logs in by key, never by password.' \
+  'PermitRootLogin prohibit-password' \
+  'PasswordAuthentication no' \
+  'KbdInteractiveAuthentication no' \
+  > /etc/ssh/sshd_config.d/10-keys-only.conf
+sshd -t && systemctl reload ssh
+sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication) '
+```
+
+**You should see** `permitrootlogin without-password` (`sshd -T`'s name for
+`prohibit-password`), `passwordauthentication no` and
+`kbdinteractiveauthentication no`. The drop-in wins over the main file's
+`PermitRootLogin yes` because `Include` comes first in `sshd_config` and
+`sshd` keeps the first value it reads. Then, from Hicks, a password login must
+be refused while a key login still works:
+
+```bash
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
+ssh -o PasswordAuthentication=no root@10.0.30.30 true
+```
+
+The first should fail with `Permission denied (publickey)`, offering no
+password prompt. The second should succeed. If it fails, go back to the shell
+you kept open, remove the drop-in, and run `systemctl reload ssh`.
+
 ---
 
 ## 5. The attack VM
@@ -847,8 +899,10 @@ that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
 it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
 once per session. `pve-firewall status` should read `enabled/running`, and §4's
 probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
-`control exit=0`. Any other answer means the session does not start until §4
-has been rerun.
+`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication) '`
+should read `without-password` and `no`, because an upgrade that replaces
+`sshd_config.d` would be as silent as one that rewrites the firewall. Any other
+answer means the session does not start until §4 has been rerun.
 
 ---
 

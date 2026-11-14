@@ -17,6 +17,46 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **`trinity`'s age-key deadline is declared, as
+  `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
+  A read-only audit of `trinity` on 2026-11-13 found both recipients in its
+  `key-recipients.prom` at `0`, never proved, since 2026-10-03. #1488 already
+  holds them to the estate's deadline through a fallback branch; this gives
+  `trinity` a declaration of its own. Declaring `verify-key-backup` there was
+  tried under promtool first and would have broken `ScheduledJobStale` and
+  `ScheduledJobStaleCritical` for the whole estate, because they join
+  `on(homelab_job)` and one name on two instances is many-to-many. So
+  `trinity`'s row has its own name, the two key-proof rules match either name
+  (the fallback stays for a host that declares neither), the stale rules
+  exclude it, `make secrets-verify-backup STACK=sensitive` records it, and
+  Glance's maintenance page reads it per recipient and shows a declaration
+  with no proofs as needing attention. `scripts/verify-key-backup.sh` held
+  every stack to the observability file's names (Grafana, Alertmanager,
+  SNMP), so a sensitive copy failed after it had decrypted and its proof was
+  never recorded; other stacks are now held to their compose guards, as
+  `render-config.sh` does. This records the change, not the deploy: the row
+  reaches `trinity` with `make install-timers PROFILE=sensitive` there.
+- **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
+  offering `publickey,password` on the host that holds every off-host copy
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
+  password login was 2026-09-02, and every login since had used a key. At
+  00:28 UTC a drop-in, `/etc/ssh/sshd_config.d/10-oracle-baseline.conf`,
+  turned off password and keyboard-interactive logins, root login and X11
+  forwarding. `sshd -t` passed. After the reload the server refuses
+  everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
+  is now in `stacks/wiki/README.md`.
+- **`oracle`'s five authorized keys are now limited to where they log in
+  from.** In 120 days of the journal, each key had logged in from a single
+  host or from Hicks. At 06:44 UTC each line got a `from=` pin: `robo`'s to
+  `10.0.99.20`, `trinity`'s backup key to `10.0.99.40` with no pty, and the
+  three operator keys to `10.0.50.0/24`. Port, agent and X11 forwarding and
+  `~/.ssh/rc` were turned off as well. One operator key had not logged in
+  within those 120 days. The 2026-11-15 runs from `prometheus` and `trinity`
+  are the first real logins under the pins. `command=` is not set, because
+  the pull runs `docker exec` and the copies run shell commands.
+
 ## 2026-11-13
 
 - **An audit of `garuda` found SSH open to the lab domain, and owner GitHub
@@ -44,6 +84,16 @@ docstring gives: it is a record, not a claim about now.
   - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do:
     the six stacks' Compose files, and both paths in `scripts/deploy-agent.sh`.
     `garuda`'s attempts to report were failing at the resolver anyway.
+
+- **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
+  `sshd` taking root's password (`permitrootlogin yes`,
+  `passwordauthentication yes`), which is the Proxmox installer's default. Only
+  the host firewall kept that off VLAN 30, and on `gandalf` nothing watches the
+  firewall. `build-the-playground.md` §4 gains *SSH on `gandalf`: keys only*.
+  That step writes `/etc/ssh/sshd_config.d/10-keys-only.conf` and proves from
+  Hicks that a password is refused and a key still works. §7's per-session
+  read-back now checks it too. Root's password stays set, for `8006` and the
+  console. Not yet applied on `gandalf`.
 
 - **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
   ADR-0014 says the attack VM's "own outbound scope is limited on the VM
@@ -115,6 +165,24 @@ docstring gives: it is a record, not a claim about now.
     raw value outside 0–100 now falls back to the normalised column, and the
     collector renders nothing when neither column is a percent.
   - `architecture.md`'s row for the host now names `ingest-proxy`.
+
+- **`eden` audited after its #1443 rebuild.** The stack matched
+  `stacks/bloodhound/compose.yaml`: five containers, each at its pinned tag
+  and digest. `8443` answered `403` to anything outside Hicks, and Postgres was
+  not published. No collection zip or graph export lay outside
+  `/srv/bloodhound-data`. Patching was current, the leaf runs to 2029, and
+  Alloy was shipping with nothing dropped. Five things came of it:
+  - Two plaintext copies of `secrets/bloodhound.sops.yaml` were in `/tmp`,
+    left by `sops edit` runs that did not exit cleanly. They were deleted.
+    After a `make secrets-edit`, look for them.
+  - `eden`'s open `sshd` and `garnet`'s `NOPASSWD` sudo are now an accepted
+    row in `security.md`.
+  - The Ubuntu template turns X11 forwarding off. `eden` keeps it on until
+    it is next cloned from a rebuilt 901.
+  - `build-the-bloodhound-guest.md` §2 now says Docker's first `up` resets
+    the data directories' modes.
+  - The admin login is still the first-start `BLOODHOUND_ADMIN_PASSWORD`,
+    never changed in the UI. Left as it is for now.
 
 ## 2026-11-12
 

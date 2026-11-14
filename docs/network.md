@@ -284,7 +284,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same
-  switch.
+  switch. Its sshd takes keys only, since 2026-11-14
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). Nothing deploys
+  that, so a rebuilt `oracle` needs the step in
+  [`stacks/wiki/README.md`](../stacks/wiki/README.md#the-hosts-ssh-once)
+  again.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
