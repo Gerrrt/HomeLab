@@ -24,8 +24,10 @@ docstring gives: it is a record, not a claim about now.
   audit missed. `unattended-upgrades` runs daily on `garuda` and applies
   nothing, because its allowed origins are Debian's and Kali's packages are
   not. Kali Rolling has no security pocket, so `patch-state`'s security count
-  is always 0 and `SecurityUpdatesPending` cannot fire for it. Left alone,
-  `garuda` would fall behind with no alert. `build-the-analyst-workstation.md`
+  is always 0. No rule would see it anyway: `garuda` reports only to the lab's
+  Prometheus, which has no apt or reboot rules and no Alertmanager, so neither
+  a missed upgrade nor a missed reboot alerts. Left alone, `garuda` would fall
+  behind silently. `build-the-analyst-workstation.md`
   gains §15, *Keep it patched*: a monthly `full-upgrade`, the reboot,
   OpenVAS's post-upgrade step before the next scan, and what the pins need.
   `schedule-maintenance.md` says what a 0 means on Kali. The same re-check

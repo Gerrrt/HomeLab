@@ -387,8 +387,10 @@ of `apt-get -s upgrade`, matching the security pocket **inside the parenthesised
 origin only** — a package named `security-misc` would otherwise count itself.
 
 **On Kali the security count is always 0, and that means "cannot tell".**
-Kali Rolling has no security pocket, so the fallback finds none, and
-`SecurityUpdatesPending` cannot fire for `garuda`. Kali's packages also do not
+Kali Rolling has no security pocket, so the fallback finds none. `garuda` is
+outside these rules in any case: it reports only to the lab's Prometheus on
+`alexander`, which has no apt or reboot rules and no Alertmanager (ADR-0020),
+so neither `SecurityUpdatesPending` nor `RebootRequired` sees it. Kali's packages also do not
 match the Debian origins `unattended-upgrades` allows, so nothing applies them
 on their own. [`build-the-analyst-workstation.md`](build-the-analyst-workstation.md)
 §15 makes the upgrade a monthly manual step.

@@ -813,7 +813,7 @@ the guest takes the new space with no reboot.
 
 ## 15. Keep it patched
 
-**Nothing patches `garuda` on its own, and no alert says it is behind.** Two
+**Nothing patches `garuda` on its own, and no alert says it is behind.** Three
 facts make that so:
 
 - `dotfiles-Debian` enables `unattended-upgrades` (§11), but its allowed
@@ -821,11 +821,13 @@ facts make that so:
   log says `No packages found that can be upgraded unattended` every day.
 - Kali Rolling has no security suite. `patch-state` (§8) counts a security
   update by its origin's security pocket, so
-  `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0, and
-  `SecurityUpdatesPending` cannot fire for it.
-  `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind. It
-  has no rule, for the reason
-  [`schedule-maintenance.md`](schedule-maintenance.md) gives.
+  `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0.
+  `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind.
+- Nothing alerts on either number, or on a pending reboot. `garuda`'s Alloy
+  writes only to the lab's Prometheus on `alexander`
+  (`stacks/analyst/compose.yaml`), which has no apt or reboot rules and no
+  Alertmanager (ADR-0020). `SecurityUpdatesPending` and `RebootRequired` live
+  in `stacks/observability` and never see `garuda`.
 
 So the upgrade is a person's job. **Monthly**, on `garuda`:
 
@@ -834,10 +836,9 @@ sudo apt-get update && sudo apt-get -y full-upgrade
 ls /run/reboot-required 2>/dev/null && echo reboot-needed
 ```
 
-If it prints `reboot-needed`, run `qm reboot 162` on `Saruman`, then §9's
-checks. `RebootRequired` fires three days after an upgrade that asked for a
-reboot and did not get one, so a missed reboot is caught. A missed upgrade is
-not.
+If it prints `reboot-needed`, run `qm reboot 162` on `Saruman` the same day,
+then §9's checks. Nothing alerts on a missed reboot or a missed upgrade, so
+running that check is part of the job.
 
 **Before the next scan after an upgrade,** run
 [`scan-the-lab-with-openvas.md`](scan-the-lab-with-openvas.md) §5: sync the
