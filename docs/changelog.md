@@ -39,6 +39,22 @@ docstring gives: it is a record, not a claim about now.
   because Alloy's own logs are small (320 lines in a day) and worth having.
   Each host picks this up at its next `make up` or `deploy-agent.sh`.
 
+- **`alexander` still takes passwords over SSH; the step that stops it now
+  installs `phoenix`'s key too.** A read-only audit of `eden` after its
+  rebuild ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)) queried
+  `alexander`'s Prometheus and Loki over SSH from `phoenix`, and found two
+  things. `sudo sshd -T` on `alexander` reports `passwordauthentication yes`
+  (`permitrootlogin prohibit-password`, `pubkeyauthentication yes`), so the
+  keys-only drop-in that #1491 added to `build-the-lab-guest.md` §2 on
+  2026-11-14 has not been applied there. And `ssh garnet@10.0.30.40` from
+  `phoenix` asked for a password, so `phoenix`'s key is not in `garnet`'s
+  `authorized_keys`. Applying the drop-in alone would have locked `phoenix`
+  out. §2 now puts both keys in place first, Hicks's and `phoenix`'s, as
+  `garuda` and `eden` have, and proves the key login from both. `docs/security.md`
+  gains an `alexander` row in the *authored, and live only once applied* form
+  `fenrir`'s uses. It is not applied yet: the change on `alexander` is the
+  operator's to make, by §2, and §7's `sshd -T` is the check. This follows the
+  same weakness closed on `golem` by the audit of 2026-11-13.
 - **`garuda` is patched by hand, monthly, because nothing else patches it.**
   After the audit of 2026-11-13 closed, a re-check of the box found a gap that
   audit missed. `unattended-upgrades` runs daily on `garuda` and applies
