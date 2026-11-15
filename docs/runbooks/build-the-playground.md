@@ -634,6 +634,36 @@ The first should fail with `Permission denied (publickey)`, offering no
 password prompt. The second should succeed. If it fails, go back to the shell
 you kept open, remove the drop-in, and run `systemctl reload ssh`.
 
+### Services on `gandalf`: only what the range uses
+
+A Proxmox install starts services the range never uses. The firewall drops
+every port but 8006 and 22 from outside, so this is not a hole. But a port with
+nothing behind it is one fewer thing for §4 to hold. What runs, and why:
+
+| Service | Listens on | Keep? |
+| --- | --- | --- |
+| `rpcbind` (socket and service), `nfs-blkmap`, `nfs-client.target` | `*:111` tcp and udp | **No.** These are NFS client plumbing, and `/etc/pve/storage.cfg` has no NFS storage: the range is the `range` ZFS pool. Disabled below |
+| `pveproxy`, `sshd` | `*:8006`, `*:22` | Yes. They are what §4's four rules admit |
+| `spiceproxy` | `*:3128` | Yes. It is part of `pve-manager` and serves the SPICE console. No rule admits 3128, so the firewall drops it from everywhere |
+| `pvedaemon` | loopback `:85` only | Yes. It is the privileged half of the API: `pveproxy` hands it the calls that need root. It is not reachable off the box |
+| `chronyd` | loopback `:323` only (udp) | Yes. It keeps the clock, which TLS on 8006 and the logs depend on. `323` is its local control socket, not NTP service to others |
+| `postfix` | loopback `:25` only | Yes. Proxmox sends its own mail through it. It is not reachable off the box |
+| `unattended-upgrades` | nothing | Yes. It is how ADR-0017's "patched like any other host" happens on Debian's side, daily while the box is on. Its origins are Debian and Debian-Security only, so Proxmox's own packages are not in it: §7 checks them at power-on |
+
+Disable the NFS plumbing. `--now` stops it as well, and masking `rpcbind`
+stops another package's dependency from starting it again:
+
+```bash
+systemctl disable --now rpcbind.socket rpcbind.service nfs-blkmap.service nfs-client.target
+systemctl mask rpcbind.socket rpcbind.service
+ss -Hltun | awk '{print $1, $5}' | sort -u
+```
+
+The `ss` output should list `22`, `8006` and `3128` on all addresses, and
+`25` and `85` on loopback only. `chronyd`'s `323` is also loopback only.
+Nothing on `111` should remain. If NFS storage is ever added, unmask and
+enable them first, or the mount will fail.
+
 ---
 
 ## 5. The attack VM
@@ -903,6 +933,15 @@ probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
 should read `without-password` and `no`, because an upgrade that replaces
 `sshd_config.d` would be as silent as one that rewrites the firewall. Any other
 answer means the session does not start until §4 has been rerun.
+
+**Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
+packages only (§4, *Services on `gandalf`*). `apt update && apt list
+--upgradable` at power-on shows what is waiting from the Proxmox repository,
+and `apt full-upgrade` applies it before the session starts, not during one.
+A new kernel does nothing until the box boots into it. So if the upgrade
+installed a `proxmox-kernel-*` package, or `/run/reboot-required` exists,
+reboot and start this section again from the top. The firewall read-back runs
+again too, since a reboot is a fresh power-on.
 
 ---
 
