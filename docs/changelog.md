@@ -19,6 +19,49 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-14
 
+- **`garuda`'s hardening is applied and checked, and the audit of 2026-11-13
+  is closed on the box.** This entry follows the 2026-11-13 entry on that
+  audit, which said the box would change only when §4 ran on it. On 2026-11-14
+  and 15:
+  - `build-the-analyst-workstation.md` §4's step ran. `10-garuda.conf` is in
+    `sshd_config.d`, and `sudo -n true` says a password is required, so
+    cloud-init's grant is gone.
+  - §7's credential removal ran. `gh auth status` says not logged in, `~/.ssh`
+    holds no private key, and the account's published keys no longer include
+    the one that was on `garuda`.
+  - §12's upgrade put `wazuh-agent` 4.14.10-1 on it, level with the manager.
+    It reconnected to `odin` on 1514, and Velociraptor on 8000.
+  - `qm reboot 162` booted the 7.2.15 kernel the audit found pending. Both
+    agents came back `active` and both containers `healthy`. The 7.1.5 and
+    6.19.14 kernels and the `rc` packages were purged.
+  - `analyst` left `lxd`, the five services below were disabled, `~/cases/`
+    was made, and the build leftovers in `/root` and `~` were deleted.
+  - GVM would not start: Kali had moved `gvmd` to 26.41.0, whose database
+    revision is 281, and the database was still at 273. gvmd retried every 90
+    s for hours. `scan-the-lab-with-openvas.md` §5's sync, check and
+    `gvmd --migrate` fixed it. The `admin` password was then changed in the
+    UI, and `/root/gvm-install.log`, which held the generated one, deleted.
+  - §3's first checks re-proved the fence after that upgrade: `ospd-openvas`
+    was in `gvmscan`, an `arping` to `.40` got no reply (the egress drop
+    surfaces to the sender as `No buffer space available`), and `.50`
+    answered. The scanner-path check (§3 step 2) was not re-run.
+
+  Checked from Hicks, since `garuda` cannot reach them:
+  `up{job="garuda-alloy"}` is 1 in `alexander`'s Prometheus, `golem`'s newest
+  backup of 162 is from 2026-11-13 21:47, and the GitHub CLI's authorisation is
+  revoked on the account.
+
+  The audit's smaller findings go into the build here:
+  - `build-the-analyst-workstation.md` §4 takes `analyst` out of `lxd`, §5
+    disables ModemManager, smartmontools, `cups.path`, `stunnel.target` and
+    `phpsessionclean.timer`, §7 makes `~/cases/`, and §9 checks all three;
+  - `scan-the-lab-with-openvas.md` §4's *Stop* now stops `gvm-scan-netns` as
+    §6 does, on its own line, because `gvm-stop` exiting non-zero skipped a
+    command joined to it by `&&`.
+
+  `security.md`'s row for `garuda` says closed again, and `architecture.md`
+  says what is now true.
+
 - **`trinity`'s age-key deadline is declared, as
   `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
   A read-only audit of `trinity` on 2026-11-13 found both recipients in its
