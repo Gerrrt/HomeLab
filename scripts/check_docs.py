@@ -17,7 +17,7 @@ check it. This does that for `docs/`, following the pattern
     The device list must live in exactly one place. It is currently spread
     across five ... and --check asserts the other copies still agree.
 
-Thirteen assertions, each comparing prose against something machine-readable:
+Fourteen assertions, each comparing prose against something machine-readable:
 
   1. Counted claims        rules, unit-test coverage, dashboards, panels,
                            Alloy agents, ADRs, runbooks, and the size of this
@@ -53,6 +53,11 @@ Thirteen assertions, each comparing prose against something machine-readable:
  13. Diagram render       docs/diagrams/current/network.png changes whenever
                            network.svg does, in the working tree and in the
                            last commit that touched either.
+ 14. Stack rule files     a stack README's "rules/<file>.rules.yaml  N rules"
+                           against the rules in that file. The totals above
+                           are global; this is the per-file count that stood
+                           at 9 and 12 in stacks/lab/README.md while the files
+                           held 19 and 13.
 
 Only present-tense documents are checked for their claims — the relative-link
 assertion (12) is the exception, and scans every tracked file including the
@@ -1559,6 +1564,34 @@ def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]
     return problems
 
 
+# A stack README's layout block names each rule file with its count beside it:
+# "rules/lab.rules.yaml     19 rules". check_counts cannot see these, because
+# they are per-file and its facts are totals across every file. Found by the
+# audit of alexander on 2026-11-13, which read "9 rules" and "12 rules" against
+# files holding 19 and 13 while every global count passed.
+STACK_RULE_FILE_CLAIM = re.compile(r"rules/([\w.-]+\.rules\.yaml)[ \t]+" + COUNT + WS + r"rules\b")
+
+
+def check_stack_rule_files() -> list[str]:
+    problems = []
+    for readme in sorted(REPO.glob("stacks/*/README.md")):
+        text = readme.read_text(encoding="utf-8")
+        rel = readme.relative_to(REPO)
+        for match in STACK_RULE_FILE_CLAIM.finditer(text):
+            name, claimed = match.group(1), number(match.group(2))
+            n = text.count("\n", 0, match.start()) + 1
+            files = sorted(readme.parent.glob(f"**/rules/{name}"))
+            if len(files) != 1:
+                problems.append(
+                    f"{rel}:{n} counts rules/{name}, which names {len(files)} files under {readme.parent.relative_to(REPO)}/; want exactly one"
+                )
+                continue
+            have = count_alerts(files) + count_recording_rules(files)
+            if claimed != have:
+                problems.append(f"{rel}:{n} claims {claimed} rules in {name}; the file has {have}")
+    return problems
+
+
 def check_diagram_render() -> list[str]:
     """The PNG is re-rendered whenever the SVG changes.
 
@@ -1641,6 +1674,7 @@ def main() -> int:
         ("critical alerts' runbook_url against docs/runbooks/", check_runbook_urls),
         ("relative Markdown links resolve to a file and an anchor", check_relative_links),
         ("network.png rendered with network.svg", check_diagram_render),
+        ("stack READMEs' per-file rule counts against the rule files", check_stack_rule_files),
     )
 
     # The registry is the source for README's "N assertions", so adding a
