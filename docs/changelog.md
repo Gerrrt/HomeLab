@@ -72,7 +72,8 @@ docstring gives: it is a record, not a claim about now.
   were found, and this change addresses each:
   - ISM's daily history indices each carried a replica a single node cannot
     place, and they accounted for ten of the eleven unassigned shards.
-    `opensearch.yml` now turns them off.
+    `opensearch.yml` now turns them off, and §9 zeroes the replicas of any
+    that already exist and then deletes them, since nothing else will.
   - `.opendistro-job-scheduler-lock` carried the eleventh. `build-the-soc-guest.md`
     §9 now zeroes its replica alongside `.opendistro-ism-config`'s.
   - `wazuh-monitoring-*` and `wazuh-statistics-*` had no retention. The new

@@ -447,21 +447,32 @@ the plugin gives it one replica — which a single node cannot place, so the
 cluster goes **yellow** and `WazuhIndexerClusterYellow` fires the moment agents
 give it something to watch. The job scheduler does the same with
 `.opendistro-job-scheduler-lock` the first time ISM runs, within minutes. Wait
-until `_cat/indices/.opendistro-job-scheduler-lock` lists it, then set both to
+until `_cat/indices/.opendistro-job-scheduler-lock` lists it, then set them to
 zero replicas, as this node has no second to hold them:
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
   curl -sk $AUTH -H 'Content-Type: application/json' \
-  -XPUT 'https://localhost:9200/.opendistro-ism-config,.opendistro-job-scheduler-lock/_settings' \
+  -XPUT 'https://localhost:9200/.opendistro-ism-config,.opendistro-job-scheduler-lock,.opendistro-ism-managed-index-history-*/_settings' \
   --data-binary '{"index":{"number_of_replicas":0}}'
 ```
 
 `_cluster/health` returns to `green` with no unassigned shards. (The
-`wazuh-alerts-*` template already sets `rep 0`; these are the two indices the
+`wazuh-alerts-*` template already sets `rep 0`; these are the indices the
 plugins make for themselves, behind the pattern that template matches. ISM's
-daily history indices would be a third, each with a replica, and
-`opensearch.yml` turns them off.)
+daily history indices are the third kind, each with a replica. `opensearch.yml`
+turns them off, so on a fresh build the wildcard matches nothing, which is not
+an error.)
+
+On a node that ran before `opensearch.yml` turned history off, the old history
+indices stay after this, one shard each against ADR-0030's budget. With history
+off, ISM no longer rolls them over or deletes them, and `_plugins/_ism/explain`
+does not read them. Delete them:
+
+```bash
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk $AUTH -XDELETE 'https://localhost:9200/.opendistro-ism-managed-index-history-*'
+```
 
 The settings template is a legacy template at `order: 1` so that it
 merges **over** Wazuh's own `wazuh` template, which is at order 0 and carries
