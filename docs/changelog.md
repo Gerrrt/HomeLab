@@ -19,6 +19,51 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-14
 
+- **An audit of `Saruman`, read-only, found its management plane open to a
+  password behind the firewall, an undeclared API token, and two snapshots
+  that could roll back the domain.** It was read on the box on 2026-11-13,
+  against this repository at `2276e75`.
+  [`harden-saruman.md`](runbooks/harden-saruman.md) is new and holds the
+  fixes, none of them applied yet.
+  - **What matched.** 21 guests with the VMIDs and names in `network.md`
+    and `tofu/`, and the `on-demand` tag on exactly the guests that should
+    carry it. Templates 901 and 903–912 are present, and 902 is on `gandalf`.
+    `golem-nightly` holds exactly the `backup`-tagged guests. Both firewall
+    levels are on with `policy_in: DROP`, `local_network` is `10.0.30.20`,
+    and `management` holds only that address. The Zeek mirror runs on 14 of
+    14 ports. There is no Docker. No updates were pending, and the newest
+    kernel was running. The array, the cache battery, ECC and the SSDs' SMART
+    all read OK, and all 12 collectors were fresh. The fans, PSUs and
+    temperatures were read through `shiva` the same day and are OK.
+  - **What did not.**
+    - [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
+      `Saruman` half was not applied. It was applied the same day, in its
+      own change.
+    - `sshd` took root's password and allowed X11 forwarding, and
+      `root@pam` had no second factor on `8006`.
+    - A second token, `phoenix@pve!builder2`, has no expiry and privilege
+      separation off. Nothing in this repository names it, and its access
+      logs show no request from 2026-10-12 on.
+    - The `pre449weaknesses` snapshot from 2026-10-07 is still on 150–153.
+      Rolling back a domain controller five weeks would roll back the
+      domain's update sequence numbers.
+    - The nightly backup's fs-freeze times out on `titan` (152) and `ramuh`
+      (153). The 2026-11-07 run failed for `garuda` with a write timeout to
+      `golem`.
+    - The 1Password, charm and Proxmox debug-symbol apt sources are
+      configured, and Debian is listed twice. An old self-made CA with its
+      key, and copies of `pveproxy`'s certificate, sit in `/root`.
+    - `rpcbind` listens on `111`. One spindle reads a reallocated sector of
+      1, which only the iLO watches.
+  - **Corrected here.** `security.md` said the firewall admits `8006` and
+    `22` from Hicks. It admits `8007` too, as ADR-0014 decided and
+    `network.md` says, and nothing listens there. The audit also listed the
+    Ceph source and `ceph-common` and `ceph-fuse` as unneeded.
+    `libpve-storage-perl` and `pve-qemu-kvm` depend on both, so they stay,
+    and the runbook says so.
+  - **Not decided here.** Deleting the snapshots and the freeze on the
+    two Windows servers are left to the operator. Neither is a host setting.
+
 - **`trinity`'s age-key deadline is declared, as
   `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
   A read-only audit of `trinity` on 2026-11-13 found both recipients in its
