@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-15
 
+- **Container logs stop shipping the socket proxy's own polls, and gain
+  `instance`.** An audit of `eden` (#1443) found three things in
+  `alloy/docker.alloy`, which every Docker host runs. First, each stack's
+  `docker-socket-proxy` logs one HAProxy line per Docker API call, and the
+  callers are the same agent's cAdvisor and discovery. On `eden`, 24 hours
+  of `bloodhound-docker-socket-proxy` held 84,309 lines, every one a 200
+  GET. The other four containers together had 1,086. `dockerlogs_filter`
+  now drops the proxy's 2xx GET and HEAD lines and keeps its 403 refusals,
+  its errors and anything else. `homelab.logs=off` was not used, because it
+  would also drop the refusals and exempt the proxy from `ContainerGone`.
+  Second, container streams had no `instance` label, unlike journal,
+  auth.log, /var/log and syslog, so `{instance="eden"}` matched no container
+  line. They had `host` all along, from `loki.write`, and every dashboard
+  and Loki rule keys on `host`. They now carry `instance` as well, with the
+  same value, so no streams are added. Third, a `stage.drop` on the line
+  text `container=(grafana|alloy)`, left over from before #88, matched
+  nothing in those 24 hours. It is removed rather than made a real drop,
+  because Alloy's own logs are small (320 lines in a day) and worth having.
+  Each host picks this up at its next `make up` or `deploy-agent.sh`.
+
 - **`garuda` is patched by hand, monthly, because nothing else patches it.**
   After the audit of 2026-11-13 closed, a re-check of the box found a gap that
   audit missed. `unattended-upgrades` runs daily on `garuda` and applies
