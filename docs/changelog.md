@@ -41,6 +41,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-15
 
+- **Follow-ups to the `oracle` audit of 2026-11-13.**
+  - **`pgdata` is gone.** This was
+    [#1398](https://github.com/Gerrrt/HomeLab/issues/1398)'s hand step. 2.x's
+    volume (73.6 MB, mounted by nothing) was removed with three orphaned
+    anonymous volumes from 2026-11-08. The wiki answered `/healthz` 200
+    afterwards. The last 2.x set is still kept in `backups/wiki-2x-final/` on
+    `prometheus`.
+  - **`bootstrap-guard` stops leaving volumes behind.** The postgres image
+    declares a VOLUME at its data directory. The guard mounted nothing there,
+    so Docker made a fresh anonymous volume on every run, against the
+    compose file's own header. A 1 MB tmpfs now covers that path.
+  - **The docs name every copy `oracle` holds.** `network.md` and
+    `architecture.md` listed the firewall, volume and NAS copies, but left
+    out `trinity`'s sensitive-tier sets and ADR-0064's Immich library copy.
+  - **Written down: UFW does not guard the wiki.** `oracle`'s UFW is enabled.
+    Docker publishes `80` and `443` past it, so ADR-0011 rests on
+    `morpheus`'s rules alone.
+  - **ADR-0015's size is out of date.** ADR-0015 sized a volume set at
+    867 MB. The audit found sets of 2.2 to 3.3 GB, up to 3.6 times that.
+    The ADR stands as written. This entry is the correction.
+
 - **Container logs stop shipping the socket proxy's own polls, and gain
   `instance`.** An audit of `eden` (#1443) found three things in
   `alloy/docker.alloy`, which every Docker host runs. First, each stack's
@@ -100,6 +121,7 @@ docstring gives: it is a record, not a claim about now.
   found the analyst stack's Alloy still running without
   `--disable-reporting`: the 2026-11-13 change reached `compose.yaml`, but a
   reboot does not apply it. `make up STACK=analyst` did, on 2026-11-15.
+||||||| parent of 39748fbf (fix(wiki): stop bootstrap-guard leaving anonymous volumes; oracle audit docs)
 
 ## 2026-11-14
 

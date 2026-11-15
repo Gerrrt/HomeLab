@@ -277,10 +277,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
   the off-host copies of the firewall export that `make backup-firewall` pushes
   to it, of the weekly volume sets that `make backup` pushes
-  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and of Jellyfin's
+  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), of Jellyfin's
   state that `make backup-nas` pulls off `smaug` and pushes on
-  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), as
-  ciphertext with no key. Its role is the estate's small off-host
+  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), and
+  of `trinity`'s nightly sensitive-tier volume sets and Immich's library
+  ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)),
+  as ciphertext with no key. Its role is the estate's small off-host
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same
@@ -288,7 +290,11 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). Nothing deploys
   that, so a rebuilt `oracle` needs the step in
   [`stacks/wiki/README.md`](../stacks/wiki/README.md#the-hosts-ssh-once)
-  again.
+  again. UFW is enabled on `oracle`, but it does not guard the wiki. Docker
+  publishes `80` and `443` through its own chains, ahead of UFW's. What keeps
+  the wiki internal
+  ([ADR-0011](adr/0011-keep-the-wiki-internal.md)) is this firewall's rules
+  alone.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
