@@ -209,11 +209,19 @@ V=3.9.4
 curl -fsSLO https://github.com/getsops/sops/releases/download/v$V/sops-v$V.linux.amd64
 curl -fsSL https://github.com/getsops/sops/releases/download/v$V/sops-v$V.checksums.txt \
   | grep " sops-v$V.linux.amd64$" | sha256sum -c -
-sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops
+sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops && rm sops-v$V.linux.amd64
 ```
 
-Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. Then, **on
-`eden`**:
+Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. **Do not run
+`make validate` in this checkout.** It pulls every stack's images, about 38 GB,
+and on 2026-11-13 that filled `eden`'s OS disk to 100%:
+rsyslog lost its writes until the images were pruned. The checkout is here
+for `secrets-init`, `secrets-edit` and `make up`; validate a change on
+`phoenix` or in CI. If it has been run, `docker image prune -a` takes the
+disk back, and leaves the stack's five images because their containers use
+them.
+
+Then, **on `eden`**:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
