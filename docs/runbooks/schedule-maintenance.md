@@ -386,6 +386,13 @@ rather than the tool. So the collector falls back to counting the `Inst` lines
 of `apt-get -s upgrade`, matching the security pocket **inside the parenthesised
 origin only** — a package named `security-misc` would otherwise count itself.
 
+**On Kali the security count is always 0, and that means "cannot tell".**
+Kali Rolling has no security pocket, so the fallback finds none, and
+`SecurityUpdatesPending` cannot fire for `garuda`. Kali's packages also do not
+match the Debian origins `unattended-upgrades` allows, so nothing applies them
+on their own. [`build-the-analyst-workstation.md`](build-the-analyst-workstation.md)
+§15 makes the upgrade a monthly manual step.
+
 `homelab_apt_check_method{host,method}` publishes which path produced the
 numbers, because the fallback is the weaker one: `apt-check` knows about phased
 updates and this does not, so on a host mid-rollout the two can disagree by a
