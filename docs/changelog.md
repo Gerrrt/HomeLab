@@ -148,6 +148,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-13
 
+- **[ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
+  `Saruman` half is applied.** It was found missing by a read-only audit of
+  `Saruman` the same day. Per
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §3.6, the four
+  ordered lab-domain guests (150–153) now read `order=1..4,up=120,down=90`.
+  Per §3.7, `upsmon.conf` has `SHUTDOWNEXIT no` (NUT 2.8.1), and a drop-in
+  orders `nut-monitor` `Before=pve-guests.service`. All of §3.7's checks
+  passed, and `upsc` still reads `OL`. Still not applied: `HOSTSYNC 600` on
+  `morpheus`, §3.8's 16-minute threshold on the card, and `trinity`'s
+  step 4b. Nothing is proved until step 5
+  ([#574](https://github.com/Gerrrt/HomeLab/issues/574)).
+
 - **`gandalf` runs only the services the range uses.** The `gandalf` audit
   found
   `rpcbind` listening on `*:111` and `nfs-blkmap` running on a node with no
