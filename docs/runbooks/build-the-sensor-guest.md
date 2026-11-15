@@ -265,7 +265,8 @@ repository logs in from (Hicks, for §4's `install-agent-collectors`).
 ## 4. Docker, the repository, and the stack
 
 Install Docker, `sops`, `age` and `make`, and clone the repository, as
-`alexander`'s §3 describes.
+`alexander`'s §3 describes, into `~/code/Gerrrt/HomeLab`. That is the path
+`fenrir` has, and the one the commands below use.
 
 The stack has one secret: `fenrir`'s token for the lab's ingest proxy
 ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Before it, the stack
@@ -273,7 +274,7 @@ had none and was brought up with plain `docker compose`. Create the key and
 the file **on `fenrir`**:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=sensor
 ```
 
@@ -305,6 +306,12 @@ docker compose -f stacks/sensor/compose.yaml ps
 Both containers should be running, and Zeek should be writing into
 `/srv/sensor-data/zeek`. With no mirror yet, it sees nothing: only
 `reporter.log` and `stats.log` appear.
+
+Once SSH crosses the lab's edge, `reporter.log` also carries
+`Failed to open GeoIP location database (lookup_location(SSH::lookup_ip))`.
+That is expected, and `local.zeek` says why: Zeek's stock site policy loads
+`protocols/ssh/geo-data`, and the image ships no GeoLite database.
+`ssh.log`'s `remote_location` stays empty, and nothing else is lost.
 
 **Prune the archive**, because nothing else will. The prune is a timer shipped
 from the repository,

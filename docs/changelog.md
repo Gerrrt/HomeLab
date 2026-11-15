@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **The sensor was blind for the same eighteen days.** The 2026-11-14
+  correction to the #919 entry records `Saruman` powered down for the rack
+  move from 2026-10-19 to 2026-11-06, from `odin`'s journal. A read-only audit
+  of `fenrir` on 2026-11-13 found the same span from the sensor's side. Its
+  boot before last ends at 2026-10-19 00:00:00 with
+  `qemu-ga: guest-shutdown called`, which is `Saruman` stopping its guests
+  on the way down. The next boot is 2026-11-06 22:24. Zeek captured nothing in
+  between, and its archive starts on 2026-11-06. The same audit led to two
+  small docs changes:
+  - `local.zeek` and `build-the-sensor-guest.md` §4 now say that the
+    `Failed to open GeoIP location database` line in `reporter.log` is
+    expected: Zeek's stock site policy loads `protocols/ssh/geo-data`, and the
+    image ships no GeoLite database;
+  - §4 names the checkout path `fenrir` uses, `~/code/Gerrrt/HomeLab`, in
+    place of `~/HomeLab`.
+
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
   polls*, which records the change merged, not deployed. `make up
