@@ -227,7 +227,8 @@ residual, [#84](https://github.com/Gerrrt/HomeLab/issues/84): the MokerLink
 that was `neo` until 2026-11-05 would not persist a deletion from its community
 table. The swap to the CRS326 ended it
 ([#444](https://github.com/Gerrrt/HomeLab/issues/444)) — the new switch has
-no v2c community at all, only an SNMPv3 user.
+no enabled v2c community, only an SNMPv3 user. RouterOS's default `public`
+entry cannot be removed, so it is there and disabled.
 
 ---
 

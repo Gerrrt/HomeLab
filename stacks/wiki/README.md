@@ -119,6 +119,43 @@ the first `up` from the checkout adopts the running containers and volumes
 rather than creating a second set. The old `/opt/wiki/compose.yaml` is then
 unused; remove it so nothing runs from it by habit.
 
+### The host's SSH, once
+
+`oracle` holds every off-host copy, and nothing in this repository manages
+its sshd. Ubuntu's install leaves password logins on. Turn them off, along
+with root login and X11 forwarding. The file sorts before
+`50-cloud-init.conf`, and sshd keeps the first value it reads. First check
+that your key works, or this locks you out of SSH. The laptop's own console
+still works if it does:
+
+```bash
+printf '%s\n' 'PasswordAuthentication no' 'KbdInteractiveAuthentication no' 'PermitRootLogin no' 'X11Forwarding no' | sudo tee /etc/ssh/sshd_config.d/10-oracle-baseline.conf >/dev/null
+```
+
+```bash
+sudo sshd -t && sudo systemctl reload ssh && sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four lines should end in `no`. From another host,
+`ssh -o PreferredAuthentications=none atropos@10.0.99.30` should be refused
+with `Permission denied (publickey)` alone. The backup pushes from
+`prometheus` and `trinity` log in by key and are not affected.
+
+Then limit each key in `~atropos/.ssh/authorized_keys` to the hosts it comes
+from. Put the options in front of the key's line:
+
+| Whose key | Options in front of it |
+| --- | --- |
+| `robo` on `prometheus` (the volume, firewall, NAS and library copies, and the wiki's nightly `pg_dump` pull) | `from="10.0.99.20",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc` |
+| `trinity`'s backup key (the sensitive tier's copies) | `from="10.0.99.40",no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-user-rc,no-pty` |
+| An operator key on Hicks | `from="10.0.50.0/24",no-agent-forwarding,no-X11-forwarding,no-user-rc` |
+
+A key that logs in from anywhere else is now refused, and sshd's journal
+says why. The pull from `prometheus` runs `docker exec`, and the copies run
+shell commands, so `command=` cannot pin these keys yet. `from=` is the limit
+for now. The remote path's tunnel reaches the lab, not VLAN 99, so the Hicks
+pin locks no one out.
+
 ## TLS
 
 Caddy serves the wiki on 443 with a leaf from the estate's CA, and answers

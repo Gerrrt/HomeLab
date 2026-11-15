@@ -253,9 +253,10 @@ module "guest" {
 # ragnarok is the one guest with a leg on both bridges. net0 on vmbr0 takes a
 # DHCP lease from the pool: nothing points at it, so morpheus holds no
 # reservation, but the MAC is pinned like every other guest's. net1 on vmbr1
-# is 172.30.30.10/24 with NO gateway. Forwarding off and no NAT are not this
-# tree's to make: scripts/finish-attack-vm.sh writes 99-no-forward.conf and
-# proves both after every apply, over SSH checked against a host key read
+# is 172.30.30.10/24 with NO gateway. Forwarding off, no NAT and the outbound
+# scope are not this tree's to make: scripts/finish-attack-vm.sh writes
+# 99-no-forward.conf and the nftables scope (ADR-0014) and proves all three
+# after every apply, over SSH checked against a host key read
 # through the guest agent (ADR-0085). No pool: phoenix's token on gandalf
 # holds no pool grant, and this keeps it so. Secure Boot off, as tpl-kali's
 # is. `kali`, the user the template and the script have always used.

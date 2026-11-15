@@ -214,8 +214,10 @@ migrates onto its replacement has survived the swap that was meant to retire it.
 Restrict the agent to the scraper at `10.0.99.20` — the switch has address-based
 access control and the MokerLink did not, so this is a control the estate gains
 rather than one it carries across. **Configure no v2c community at all**, not
-even a fresh one: ADR-0041 decision 4 turns v2c off, and the defaults `public`
-and `private` go with it. Prove it with `snmp-verify.sh` pointed at the bench address before
+even a fresh one: ADR-0041 decision 4 turns v2c off. RouterOS ships a default
+`public` row that cannot be removed, so disable it with
+`/snmp community disable [find name=public]` and check that
+`/snmp community print` shows it disabled. Prove it with `snmp-verify.sh` pointed at the bench address before
 the switch is ever racked; that proof is what closes #84, and doing it here
 means the window does not have to.
 

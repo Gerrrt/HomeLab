@@ -427,3 +427,135 @@ tests:
       - eval_time: 8m
         alertname: UpsSelfTestFailed
         exp_alerts: []
+
+  # --- UpsLowBatteryDurationShort: fires on the card as it is ---------------
+  # 8 minutes, read off the card on 2026-11-13: the production input, and the
+  # failure. Below the 16 ADR-0107 needs, so the rule has to fire on it.
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "38x60"
+      - series: 'upsConfigLowBattTime{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "8x60"
+      - series: 'upsSecondsOnBattery{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x60"
+      - series: 'upsEstimatedChargeRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "100x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsLowBatteryDurationShort
+        exp_alerts:
+          - exp_labels:
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#38-raise-the-cards-threshold-to-cover-the-bound-now"
+              summary: "UPS mjolnir raises low battery at 8 min, under the 16 needed"
+              description: >-
+                The card signals low battery with 8 minutes of runtime
+                left, and the shutdown order to morpheus down needs about 10½
+                (ADR-0107), so a cut that outlasts the pack can empty it partway
+                through the halt. Set the low battery duration on the card to 16
+                minutes or more, then confirm battery.runtime.low on morpheus reads
+                960 or more.
+      # Same input: 38 - 8 = 30 minutes of ride-through, so the other rule
+      # is quiet on the card as it is.
+      - eval_time: 45m
+        alertname: UpsRideThroughShort
+        exp_alerts: []
+
+  # --- UpsLowBatteryDurationShort: quiet at exactly 16 ----------------------
+  # The boundary §3.8 sets. A `<=` written by mistake would page on the fix.
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "38x60"
+      - series: 'upsConfigLowBattTime{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "16x60"
+      - series: 'upsSecondsOnBattery{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x60"
+      - series: 'upsEstimatedChargeRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "100x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsLowBatteryDurationShort
+        exp_alerts: []
+      # 38 - 16 = 22, still above 15.
+      - eval_time: 45m
+        alertname: UpsRideThroughShort
+        exp_alerts: []
+
+  # --- UpsRideThroughShort: fires on mains, charged, with little margin -----
+  # 26 - 16 = 10 minutes before the halt would start.
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "26x60"
+      - series: 'upsConfigLowBattTime{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "16x60"
+      - series: 'upsSecondsOnBattery{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x60"
+      - series: 'upsEstimatedChargeRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "100x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsRideThroughShort
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: UpsRideThroughShort
+        exp_alerts:
+          - exp_labels:
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#64-do-the-arithmetic"
+              summary: "UPS mjolnir would start the shutdown 10 minutes into a cut"
+              description: >-
+                On mains and fully charged, the card estimates only 10
+                minutes between a cut starting and its low-battery signal, so a
+                short cut would halt the rack. Either the load has grown, the pack
+                has aged, or the low battery duration was raised. Read
+                upsOutputPercentLoad and upsEstimatedMinutesRemaining on the UPS &
+                Power dashboard before changing anything.
+
+  # --- UpsRideThroughShort: quiet on battery --------------------------------
+  # The estimate falls during a cut by design; UpsOnBattery owns that.
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "20x60"
+      - series: 'upsConfigLowBattTime{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "16x60"
+      - series: 'upsSecondsOnBattery{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "300x60"
+      - series: 'upsEstimatedChargeRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "100x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: UpsRideThroughShort
+        exp_alerts: []
+
+  # --- UpsRideThroughShort: quiet while recharging --------------------------
+  # Back on mains with the pack at 60 %: a low estimate, and not a finding.
+  - interval: 1m
+    input_series:
+      - series: 'upsEstimatedMinutesRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "20x60"
+      - series: 'upsConfigLowBattTime{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "16x60"
+      - series: 'upsSecondsOnBattery{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x60"
+      - series: 'upsEstimatedChargeRemaining{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "60x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: UpsRideThroughShort
+        exp_alerts: []

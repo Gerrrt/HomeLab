@@ -582,6 +582,88 @@ stop`, wait for `PveFirewallDisabled` to fire (about fifteen minutes, with the
 five-minute timer), then `pve-firewall start` and watch it resolve. A rule that
 has never fired is a rule nobody knows can.
 
+### SSH on `gandalf`: keys only
+
+The firewall above lets `22` in from Hicks alone. Behind it, Proxmox's
+installer leaves `sshd` taking root's password: `PermitRootLogin yes` in
+`/etc/ssh/sshd_config`, and Debian's `PasswordAuthentication` default of
+`yes`. On `gandalf` nothing watches whether the firewall is on (§7), so if it
+ever goes off, the root password is all that stands between VLAN 30, where the
+attack VM is, and a root shell on the range's isolation host. Keys only takes
+that away. An audit on 2026-11-13 found both still on.
+
+Root's password stays set. The `root@pam` login on `8006` uses it, and so does
+the console on KVM port 4. Only SSH stops taking it.
+
+Before the change, open a root shell on `gandalf` from Hicks with a key alone,
+and leave it open until the end:
+
+```bash
+ssh -o PasswordAuthentication=no root@10.0.30.30
+```
+
+It has no trailing command, so it stays an interactive shell. It is the way
+back if the reload locks new logins out, because `sshd` keeps sessions that
+are already open. Run the change below in that shell, and run the login checks
+after it from a second terminal on Hicks. As root on `gandalf`:
+
+```bash
+printf '%s\n' \
+  '# build-the-playground.md §4: keys only. Root logs in by key, never by password.' \
+  'PermitRootLogin prohibit-password' \
+  'PasswordAuthentication no' \
+  'KbdInteractiveAuthentication no' \
+  > /etc/ssh/sshd_config.d/10-keys-only.conf
+sshd -t && systemctl reload ssh
+sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication) '
+```
+
+**You should see** `permitrootlogin without-password` (`sshd -T`'s name for
+`prohibit-password`), `passwordauthentication no` and
+`kbdinteractiveauthentication no`. The drop-in wins over the main file's
+`PermitRootLogin yes` because `Include` comes first in `sshd_config` and
+`sshd` keeps the first value it reads. Then, from Hicks, a password login must
+be refused while a key login still works:
+
+```bash
+ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
+ssh -o PasswordAuthentication=no root@10.0.30.30 true
+```
+
+The first should fail with `Permission denied (publickey)`, offering no
+password prompt. The second should succeed. If it fails, go back to the shell
+you kept open, remove the drop-in, and run `systemctl reload ssh`.
+
+### Services on `gandalf`: only what the range uses
+
+A Proxmox install starts services the range never uses. The firewall drops
+every port but 8006 and 22 from outside, so this is not a hole. But a port with
+nothing behind it is one fewer thing for §4 to hold. What runs, and why:
+
+| Service | Listens on | Keep? |
+| --- | --- | --- |
+| `rpcbind` (socket and service), `nfs-blkmap`, `nfs-client.target` | `*:111` tcp and udp | **No.** These are NFS client plumbing, and `/etc/pve/storage.cfg` has no NFS storage: the range is the `range` ZFS pool. Disabled below |
+| `pveproxy`, `sshd` | `*:8006`, `*:22` | Yes. They are what §4's four rules admit |
+| `spiceproxy` | `*:3128` | Yes. It is part of `pve-manager` and serves the SPICE console. No rule admits 3128, so the firewall drops it from everywhere |
+| `pvedaemon` | loopback `:85` only | Yes. It is the privileged half of the API: `pveproxy` hands it the calls that need root. It is not reachable off the box |
+| `chronyd` | loopback `:323` only (udp) | Yes. It keeps the clock, which TLS on 8006 and the logs depend on. `323` is its local control socket, not NTP service to others |
+| `postfix` | loopback `:25` only | Yes. Proxmox sends its own mail through it. It is not reachable off the box |
+| `unattended-upgrades` | nothing | Yes. It is how ADR-0017's "patched like any other host" happens on Debian's side, daily while the box is on. Its origins are Debian and Debian-Security only, so Proxmox's own packages are not in it: §7 checks them at power-on |
+
+Disable the NFS plumbing. `--now` stops it as well, and masking `rpcbind`
+stops another package's dependency from starting it again:
+
+```bash
+systemctl disable --now rpcbind.socket rpcbind.service nfs-blkmap.service nfs-client.target
+systemctl mask rpcbind.socket rpcbind.service
+ss -Hltun | awk '{print $1, $5}' | sort -u
+```
+
+The `ss` output should list `22`, `8006` and `3128` on all addresses, and
+`25` and `85` on loopback only. `chronyd`'s `323` is also loopback only.
+Nothing on `111` should remain. If NFS storage is ever added, unmask and
+enable them first, or the mount will fail.
+
 ---
 
 ## 5. The attack VM
@@ -647,7 +729,10 @@ has not had forwarding turned off. The script:
   [ADR-0085](../adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)
   does for the lab domain (the check crosses VLAN 30, and a PASS from
   whatever answered for the lease would prove nothing);
-- writes `99-no-forward.conf` and runs §8's third check.
+- writes `99-no-forward.conf`;
+- writes `/etc/nftables.conf` with ADR-0014's outbound scope, loads it and
+  enables `nftables.service` (below);
+- runs §8's third check, which includes proving the scope.
 
 The range is rebuilt, not repaired: a change to `ragnarok` is a destroy and
 apply of 130, then the script.
@@ -687,10 +772,47 @@ and §8's check is what tells you.
 No NAT. There is nothing to configure to achieve that — the point is to confirm
 nothing has configured it, which §8 does.
 
-Scope the tooling on the VM itself, per ADR-0014: scans and sweeps are bounded
-to `10.0.30.0/24` and `172.30.30.0/24`. "That is where a mis-scoped scan is
-actually stopped — at the tool, not at a segment boundary that would let it
-through on 443 anyway."
+**Outbound scope, on the VM itself**, per ADR-0014: "its own outbound scope is
+limited on the VM itself, to `10.0.30.0/24` and the target subnet. That is
+where a mis-scoped scan is actually stopped — at the tool, not at a segment
+boundary that would let it through on 443 anyway." The script makes that a
+filter, not a habit. The nftables table `range_scope` drops every new outbound
+connection except to those two subnets, DHCP's broadcast, link-local multicast
+(`224.0.0.0/24`, for LLMNR and mDNS) and IPv6 link-local and multicast
+(neighbour discovery, DHCPv6, mitm6). Replies to connections made *to*
+`ragnarok`, such as SSH and the C2 console from Hicks, pass as established.
+The default route via `10.0.30.1` stays, so a send past the segment is refused
+by the filter (`Operation not permitted`) rather than left without a route,
+and that refusal is what the script checks.
+
+That table only sees what the IP stack sends. A packet socket, such as
+`nmap --send-eth`, masscan or anything injecting through libpcap, writes
+Ethernet frames straight to `eth0` and never crosses it. So a second table,
+`range_scope_l2`, sits on `eth0`'s netdev `egress` hook, which both paths
+cross. Frames that `range_scope` passed carry its mark and go out unchanged.
+That is how replies to Hicks keep conntrack's verdict, which the netdev hook
+cannot see. An unmarked frame is a packet socket's, and it leaves only as ARP
+or to the same destinations. Anything else is counted in `out_of_scope` and
+dropped. The script proves it by writing one raw ICMP echo to `1.1.1.1` and
+reading that counter.
+
+Until 2026-11-13 this paragraph said only to scope the tooling, and the box had
+no filter: an audit found `ragnarok`'s ruleset empty, with open egress.
+
+**Installing anything**, Sliver included, needs the internet the scope takes
+away. Lift both tables for the install and put them back in the same sitting.
+Deleting only the first leaves the second dropping everything the IP stack
+sends past the segment:
+
+```bash
+sudo nft delete table inet range_scope
+sudo nft delete table netdev range_scope_l2
+sudo apt install …
+sudo systemctl restart nftables     # or rerun finish-attack-vm.sh from phoenix
+```
+
+A reboot also restores it, and so does the next run of the script. Do not
+disable `nftables.service`: the script fails while it is not enabled.
 
 **What a Hicks workstation reaches on this machine** — write it down as you
 build it, because [#228](https://github.com/Gerrrt/HomeLab/issues/228) cannot
@@ -807,8 +929,19 @@ that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
 it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
 once per session. `pve-firewall status` should read `enabled/running`, and §4's
 probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
-`control exit=0`. Any other answer means the session does not start until §4
-has been rerun.
+`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication) '`
+should read `without-password` and `no`, because an upgrade that replaces
+`sshd_config.d` would be as silent as one that rewrites the firewall. Any other
+answer means the session does not start until §4 has been rerun.
+
+**Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
+packages only (§4, *Services on `gandalf`*). `apt update && apt list
+--upgradable` at power-on shows what is waiting from the Proxmox repository,
+and `apt full-upgrade` applies it before the session starts, not during one.
+A new kernel does nothing until the box boots into it. So if the upgrade
+installed a `proxmox-kernel-*` package, or `/run/reboot-required` exists,
+reboot and start this section again from the top. The firewall read-back runs
+again too, since a reboot is a fresh power-on.
 
 ---
 
@@ -862,17 +995,28 @@ grep -cE 'bridge-vlan-aware|bridge-vids' /etc/network/interfaces
 
 Zero. Anything else and ADR-0014 has been reopened without an ADR saying so.
 
-**Three — the attack VM does not forward, and does not NAT.** On the VM:
+**Three — the attack VM does not forward, does not NAT, and reaches nothing
+past the segment.** On the VM:
 
 ```bash
 sysctl net.ipv4.ip_forward net.ipv6.conf.all.forwarding
 nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
+systemctl is-enabled nftables; sudo nft list chain inet range_scope output | grep 'policy drop'
+sudo nft list chain netdev range_scope_l2 egress | grep 'policy drop'
+ping -n -c1 -W2 1.1.1.1
 ```
 
 Both sysctls `= 0`, and no NAT from either table — Kali's `iptables` is
-nft-backed, so the two commands can disagree about a rule that exists. Run this
-after installing anything that touches the network stack, not just once.
+nft-backed, so the two commands can disagree about a rule that exists.
+`nftables` reads `enabled`, the `range_scope` chain is loaded with
+`policy drop`, and the ping fails with *Operation not permitted*: the filter
+refused it. A timeout is not a pass, because it is what the internet being down
+looks like too. The raw-Ethernet half, a frame to `1.1.1.1` through a packet
+socket that must raise `range_scope_l2`'s `out_of_scope` counter, needs a
+crafted frame, so it is left to `finish-attack-vm.sh`. Run this after
+installing anything that touches the network stack, and after any install that
+lifted the scope, not just once.
 
 **Four — a target has no route anywhere.** On a target:
 

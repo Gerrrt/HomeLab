@@ -17,6 +17,117 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-14
+
+- **`garuda`'s hardening is applied and checked, and the audit of 2026-11-13
+  is closed on the box.** This entry follows the 2026-11-13 entry on that
+  audit, which said the box would change only when §4 ran on it. On 2026-11-14
+  and 15:
+  - `build-the-analyst-workstation.md` §4's step ran. `10-garuda.conf` is in
+    `sshd_config.d`, and `sudo -n true` says a password is required, so
+    cloud-init's grant is gone.
+  - §7's credential removal ran. `gh auth status` says not logged in, `~/.ssh`
+    holds no private key, and the account's published keys no longer include
+    the one that was on `garuda`.
+  - §12's upgrade put `wazuh-agent` 4.14.10-1 on it, level with the manager.
+    It reconnected to `odin` on 1514, and Velociraptor on 8000.
+  - `qm reboot 162` booted the 7.2.15 kernel the audit found pending. Both
+    agents came back `active` and both containers `healthy`. The 7.1.5 and
+    6.19.14 kernels and the `rc` packages were purged.
+  - `analyst` left `lxd`, the five services below were disabled, `~/cases/`
+    was made, and the build leftovers in `/root` and `~` were deleted.
+  - GVM would not start: Kali had moved `gvmd` to 26.41.0, whose database
+    revision is 281, and the database was still at 273. gvmd retried every 90
+    s for hours. `scan-the-lab-with-openvas.md` §5's sync, check and
+    `gvmd --migrate` fixed it. The `admin` password was then changed in the
+    UI, and `/root/gvm-install.log`, which held the generated one, deleted.
+  - §3's first checks re-proved the fence after that upgrade: `ospd-openvas`
+    was in `gvmscan`, an `arping` to `.40` got no reply (the egress drop
+    surfaces to the sender as `No buffer space available`), and `.50`
+    answered. The scanner-path check (§3 step 2) was not re-run.
+
+  Checked from Hicks, since `garuda` cannot reach them:
+  `up{job="garuda-alloy"}` is 1 in `alexander`'s Prometheus, `golem`'s newest
+  backup of 162 is from 2026-11-13 21:47, and the GitHub CLI's authorisation is
+  revoked on the account.
+
+  The audit's smaller findings go into the build here:
+  - `build-the-analyst-workstation.md` §4 takes `analyst` out of `lxd`, §5
+    disables ModemManager, smartmontools, `cups.path`, `stunnel.target` and
+    `phpsessionclean.timer`, §7 makes `~/cases/`, and §9 checks all three;
+  - `scan-the-lab-with-openvas.md` §4's *Stop* now stops `gvm-scan-netns` as
+    §6 does, on its own line, because `gvm-stop` exiting non-zero skipped a
+    command joined to it by `&&`.
+
+  `security.md`'s row for `garuda` says closed again, and `architecture.md`
+  says what is now true.
+
+- **`trinity`'s age-key deadline is declared, as
+  `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
+  A read-only audit of `trinity` on 2026-11-13 found both recipients in its
+  `key-recipients.prom` at `0`, never proved, since 2026-10-03. #1488 already
+  holds them to the estate's deadline through a fallback branch; this gives
+  `trinity` a declaration of its own. Declaring `verify-key-backup` there was
+  tried under promtool first and would have broken `ScheduledJobStale` and
+  `ScheduledJobStaleCritical` for the whole estate, because they join
+  `on(homelab_job)` and one name on two instances is many-to-many. So
+  `trinity`'s row has its own name, the two key-proof rules match either name
+  (the fallback stays for a host that declares neither), the stale rules
+  exclude it, `make secrets-verify-backup STACK=sensitive` records it, and
+  Glance's maintenance page reads it per recipient and shows a declaration
+  with no proofs as needing attention. `scripts/verify-key-backup.sh` held
+  every stack to the observability file's names (Grafana, Alertmanager,
+  SNMP), so a sensitive copy failed after it had decrypted and its proof was
+  never recorded; other stacks are now held to their compose guards, as
+  `render-config.sh` does. This records the change, not the deploy: the row
+  reaches `trinity` with `make install-timers PROFILE=sensitive` there.
+- **`oracle`'s sshd now takes keys only.** The audit of 2026-11-13 found it
+  offering `publickey,password` on the host that holds every off-host copy
+  ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). The last
+  password login was 2026-09-02, and every login since had used a key. At
+  00:28 UTC a drop-in, `/etc/ssh/sshd_config.d/10-oracle-baseline.conf`,
+  turned off password and keyboard-interactive logins, root login and X11
+  forwarding. `sshd -t` passed. After the reload the server refuses
+  everything but `publickey`, on `localhost` and on `10.0.99.30`. The step
+  is now in `stacks/wiki/README.md`.
+- **`oracle`'s five authorized keys are now limited to where they log in
+  from.** In 120 days of the journal, each key had logged in from a single
+  host or from Hicks. At 06:44 UTC each line got a `from=` pin: `robo`'s to
+  `10.0.99.20`, `trinity`'s backup key to `10.0.99.40` with no pty, and the
+  three operator keys to `10.0.50.0/24`. Port, agent and X11 forwarding and
+  `~/.ssh/rc` were turned off as well. One operator key had not logged in
+  within those 120 days. The 2026-11-15 runs from `prometheus` and `trinity`
+  are the first real logins under the pins. `command=` is not set, because
+  the pull runs `docker exec` and the copies run shell commands.
+
+- **Correction to the 2026-11-06 entry for
+  [#919](https://github.com/Gerrrt/HomeLab/issues/919): `Saruman` was off for
+  eighteen days, not one window.** The operator powered it down for the move
+  into the 32U rack on 2026-10-19, and `odin`'s journal shows a clean shutdown
+  at 00:00:18 that day and its next boot at 2026-11-06 22:24. Every guest on
+  `Saruman` was down with it, `alexander` and `odin` included. Nothing paged
+  because the alerting was down too. The SOC has no record of the lab for
+  that span: no `wazuh-alerts-*` index exists for 2026-10-19 to 2026-11-05.
+  Found by an audit of `odin` on 2026-11-13.
+- **`odin`'s indexer is set up to return to green and to stop keeping its
+  weekly indices for ever.** The same audit found the cluster yellow with 59
+  active shards against `WazuhIndexerShardBudgetNearlySpent`'s 45. Three causes
+  were found, and this change addresses each:
+  - ISM's daily history indices each carried a replica a single node cannot
+    place, and they accounted for ten of the eleven unassigned shards.
+    `opensearch.yml` now turns them off, and §9 zeroes the replicas of any
+    that already exist and then deletes them, since nothing else will.
+  - `.opendistro-job-scheduler-lock` carried the eleventh. `build-the-soc-guest.md`
+    §9 now zeroes its replica alongside `.opendistro-ism-config`'s.
+  - `wazuh-monitoring-*` and `wazuh-statistics-*` had no retention. The new
+    `ism-wazuh-weekly.json` deletes them at thirty days.
+
+  The build's first alert index, `wazuh-alerts-4.x-2026.09.27`, predated the
+  policy and was never attached to it. §9 now attaches both policies to
+  indices that already exist. It was not deployed when this was written.
+  Even deployed, the arithmetic does not reach 45: the fourteen `wazuh-states-*` indices alone
+  take ADR-0030's allowance of roughly 15 for every family but the alerts.
+
 ## 2026-11-13
 
 - **[ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
@@ -30,6 +141,144 @@ docstring gives: it is a record, not a claim about now.
   `morpheus`, §3.8's 16-minute threshold on the card, and `trinity`'s
   step 4b. Nothing is proved until step 5
   ([#574](https://github.com/Gerrrt/HomeLab/issues/574)).
+
+- **`gandalf` runs only the services the range uses.** The `gandalf` audit
+  found
+  `rpcbind` listening on `*:111` and `nfs-blkmap` running on a node with no
+  NFS storage. It also found `spiceproxy`, `postfix` and `unattended-upgrades`
+  running, and the repository named none of them. The firewall dropped
+  everything but 8006 and 22, so nothing was exposed.
+  `build-the-playground.md` §4 now has a table of every service on `gandalf`
+  and the reason it stays. It disables and masks the NFS client plumbing, and
+  it gives the `ss` read-back to expect. It records that `unattended-upgrades`
+  is how ADR-0017's "patched like any other host" happens for Debian's
+  packages. §7 adds a power-on check for Proxmox's own packages, which that
+  service does not cover. Not yet run on `gandalf`.
+
+- **An audit of `garuda` found SSH open to the lab domain, and owner GitHub
+  credentials on it.** A read-only audit against this repository found the role
+  intact: no Purple SOC daemons, GVM stopped, the fence files identical to
+  `stacks/analyst/gvm/`, not a domain member, Wazuh and Velociraptor connected.
+  It also found Kali's stock `sshd` taking passwords on every address, with
+  cloud-init's passwordless `sudo` for `analyst`, on the segment the domain's
+  six share. And it found a `gh` login with the `repo` and `admin:public_key`
+  scopes, beside an SSH key for GitHub with no passphrase. This change writes
+  the fix into the build:
+  - `stacks/analyst/ssh/10-garuda.conf`, installed by
+    `build-the-analyst-workstation.md` §4, which makes SSH key-only from Hicks
+    and `phoenix` with forwarding off;
+  - the same step removes the passwordless `sudo`;
+  - §7 reads the dotfiles release tags without a GitHub login, and `garuda`
+    holds no GitHub write credential. It also has the steps that revoke and
+    remove the two the audit found.
+
+  The box itself changes when §4 is run on it, which this entry does not
+  record. Three smaller items rode along:
+  - `docs/architecture.md` still described the cgroup fence ADR-0093 replaced;
+  - the Linux agent pin in `stacks/soc/linux-agents.yaml` moves from 4.14.8 to
+    the manager's 4.14.10, with the hash checked against Wazuh's signed index;
+  - every Alloy runs with `--disable-reporting`, as Grafana and Loki already do:
+    the six stacks' Compose files, and both paths in `scripts/deploy-agent.sh`.
+    `garuda`'s attempts to report were failing at the resolver anyway.
+
+- **`gandalf`'s SSH takes keys only.** A read-only audit of `gandalf` found
+  `sshd` taking root's password (`permitrootlogin yes`,
+  `passwordauthentication yes`), which is the Proxmox installer's default. Only
+  the host firewall kept that off VLAN 30, and on `gandalf` nothing watches the
+  firewall. `build-the-playground.md` §4 gains *SSH on `gandalf`: keys only*.
+  That step writes `/etc/ssh/sshd_config.d/10-keys-only.conf` and proves from
+  Hicks that a password is refused and a key still works. §7's per-session
+  read-back now checks it too. Root's password stays set, for `8006` and the
+  console. Not yet applied on `gandalf`.
+
+- **`ragnarok`'s outbound scope is a filter on the VM, as ADR-0014 decided.**
+  ADR-0014 says the attack VM's "own outbound scope is limited on the VM
+  itself, to `10.0.30.0/24` and the target subnet". A read-only audit of
+  `gandalf` found nothing doing that: `ragnarok`'s nft ruleset was empty,
+  `nftables.service` was disabled, and its default route reached the internet.
+  `build-the-playground.md` §5 had narrowed the sentence to "scope the
+  tooling", and `finish-attack-vm.sh` checked forwarding and NAT only. The
+  script now writes `/etc/nftables.conf` with a `range_scope` output policy
+  (drop, except the two subnets, DHCP, link-local multicast and IPv6
+  link-local), enables it at boot, and fails unless a ping to `1.1.1.1` is
+  refused by the filter while one to `10.0.30.1` is let out. A second table,
+  `range_scope_l2`, on `eth0`'s netdev egress hook, holds the same scope for
+  raw Ethernet: packet sockets (`nmap --send-eth`, masscan) never cross the
+  inet hook, which review on the PR caught. The script proves that half by
+  writing a raw frame to `1.1.1.1` and reading the drop counter. §5 says how to
+  lift both for a package install, and §8 check three proves it. Not yet run
+  against `ragnarok`: the scope holds once `finish-attack-vm.sh` has run
+  again from `phoenix`.
+
+- **An audit of `golem`, read-only, found its last verify failed and a
+  19-day gap in the lab's backups.** It was read on the box against this
+  repository at `2276e75`.
+  - **The verify.** The weekly verify of 2026-11-08 ended *verification
+    failed*. `garuda`'s (162) backup that night broke with `connection
+    error`, and its cleanup failed with `Directory not empty`, NFS's
+    renamed open file. That left `vm/162/2026-11-08T05:52:03Z` without a
+    manifest, and the verify could not load it. The directory was gone by
+    the audit and no snapshot reads as failed. But the job's last state
+    stays failed until it next runs, so `PbsJobFailed` has been due since
+    2026-11-08. Whether it fired on `alexander` was not read: golem holds
+    no reader token. `build-the-backup-guest.md` §11 gains the row.
+  - **The gap.** `golem` was powered off 2026-10-18 17:00 PDT and booted
+    again 2026-11-06, with `Saruman`, for the 32U move
+    ([#919](https://github.com/Gerrrt/HomeLab/issues/919)). It made no
+    backup, prune, garbage collection or verify in between, so every guest's
+    snapshots jump from 2026-10-18 to 2026-11-07. Planned, and the 2026-11-06
+    entry records the move, but not that the lab went without backups for
+    nineteen nights.
+  - **What matched.** All eight guests in the job had a snapshot from that
+    night, every data archive encrypted. Prune 7/4/3 daily, garbage
+    collection Saturdays and verify Sundays are as written. The token's
+    effective permission is `Datastore.Backup` alone. The share is mounted
+    without `noatime`, and the mountpoint is still immutable. The datastore
+    is 3.8 % of 17.8 TB.
+  - **What did not.** sshd allowed root to log in with a password. `rpcbind`
+    listened on every address. `root@pam` had no second factor. §2 now
+    closes all three, and none is applied to `golem` yet. Nothing on the box
+    filters `8007` or `22`, which is left to a decision of its own. 36
+    updates were pending, 15 of them from `trixie-security`.
+  - **Corrected here.** `architecture.md`'s `golem` row said the nightly job
+    takes `odin` and the domain's six. It takes `garuda` too, as §8 and
+    `tofu/guests.tf` already said, and `eden` stays out.
+
+- **An audit of `prometheus` found two alerts that could not fire.** It was
+  read-only, against the repository, and ran on 2026-11-13.
+  - `SecretsKeyBackupUnproven` joined each recipient's proof to the deadline
+    row on the same `instance`. Only `prometheus` declares that row:
+    `install-timers.sh` check 8 keeps `verify-key-backup` out of trinity's
+    table. So trinity's two `sensitive` recipients have read 0, never proven,
+    with nothing firing. A host with no row of its own is now held to the
+    estate's ninety days. Evaluated against live data the same day, the new
+    expression returns exactly those two recipients, so the alert will fire
+    once this deploys, and proving both on trinity is what clears it.
+  - `collect-smart-state.sh` inverted the raw column of
+    `Percent_Lifetime_Remain` and `SSD_Life_Left`. On `prometheus`'s Apple SSD
+    SM256E that raw value is 178, which rendered -78 % used, so
+    `SmartDriveWearHigh` could not fire for the monitoring host's only disk. A
+    raw value outside 0–100 now falls back to the normalised column, and the
+    collector renders nothing when neither column is a percent.
+  - `architecture.md`'s row for the host now names `ingest-proxy`.
+
+- **`eden` audited after its #1443 rebuild.** The stack matched
+  `stacks/bloodhound/compose.yaml`: five containers, each at its pinned tag
+  and digest. `8443` answered `403` to anything outside Hicks, and Postgres was
+  not published. No collection zip or graph export lay outside
+  `/srv/bloodhound-data`. Patching was current, the leaf runs to 2029, and
+  Alloy was shipping with nothing dropped. Five things came of it:
+  - Two plaintext copies of `secrets/bloodhound.sops.yaml` were in `/tmp`,
+    left by `sops edit` runs that did not exit cleanly. They were deleted.
+    After a `make secrets-edit`, look for them.
+  - `eden`'s open `sshd` and `garnet`'s `NOPASSWD` sudo are now an accepted
+    row in `security.md`.
+  - The Ubuntu template turns X11 forwarding off. `eden` keeps it on until
+    it is next cloned from a rebuilt 901.
+  - `build-the-bloodhound-guest.md` §2 now says Docker's first `up` resets
+    the data directories' modes.
+  - The admin login is still the first-start `BLOODHOUND_ADMIN_PASSWORD`,
+    never changed in the UI. Left as it is for now.
 
 ## 2026-11-12
 
