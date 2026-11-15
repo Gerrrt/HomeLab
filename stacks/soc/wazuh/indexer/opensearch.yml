@@ -51,3 +51,10 @@ plugins.security.system_indices.indices:
   - ".replication-metadata-store"
 plugins.security.allow_default_init_securityindex: true
 cluster.routing.allocation.disk.threshold_enabled: false
+# Not upstream: ISM's history indices off. The plugin writes one
+# .opendistro-ism-managed-index-history-* index per day, keeps thirty, and
+# gives each a replica this single node can never place, so they held the
+# cluster yellow and ate ten shards of ADR-0030's ~50 by 2026-11-13.
+# _plugins/_ism/explain, which build-the-soc-guest.md §9 reads, does not use
+# them.
+plugins.index_state_management.history.enabled: false
