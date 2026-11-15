@@ -402,10 +402,12 @@ docker logs soc-wazuh-indexer 2>&1 | grep -i max_map_count
 Four settings are not defaults, and ADR-0030 argues each of them: one shard,
 no replicas, a thirty-second refresh, and a delete at thirty days on
 `wazuh-alerts-*`. **Wazuh ships no retention policy**; without the last one,
-retention is forever and the shard budget is spent inside a month. Both files
-are under `stacks/soc/wazuh/indexer/`, and both are applied through the
-indexer's own `curl`, signed in with the admin certificate, because 9200 is
-not published:
+retention is forever and the shard budget is spent inside a month. A third
+file gives the weekly `wazuh-monitoring-*` and `wazuh-statistics-*` indices the
+same thirty days, since Wazuh ships nothing for those either. All three are
+under `stacks/soc/wazuh/indexer/`, and all are applied through the indexer's
+own `curl`, signed in with the admin certificate, because 9200 is not
+published:
 
 ```bash
 cd ~/HomeLab
@@ -418,25 +420,48 @@ docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
   curl -sk $AUTH -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-alerts-30d \
   --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-alerts.json
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk $AUTH -H 'Content-Type: application/json' \
+  -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-weekly-30d \
+  --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-weekly.json
 ```
 
-Both answer with `"acknowledged":true` (the policy call also echoes the policy
-back). Creating the first ISM policy also creates `.opendistro-ism-config`, and
+The template answers `"acknowledged":true` and each policy call echoes its
+policy back. A policy's `ism_template` reaches only the indices created after
+it, and the manager wrote its first alert, monitoring and statistics indices
+when it started, before this step. Attach the policies to those by hand, or
+they are kept for ever (the build's first alert index was, until 2026-11-14):
+
+```bash
+for p in 'wazuh-alerts-*:wazuh-alerts-30d' 'wazuh-monitoring-*,wazuh-statistics-*:wazuh-weekly-30d'; do
+  docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+    curl -sk $AUTH -H 'Content-Type: application/json' \
+    -XPOST "https://localhost:9200/_plugins/_ism/add/${p%%:*}" \
+    --data-binary "{\"policy_id\":\"${p##*:}\"}"
+done
+```
+
+Each prints `updated_indices`; an index that already holds a policy is listed
+under `failed_indices` with that reason, which is harmless. Creating the first ISM policy also creates `.opendistro-ism-config`, and
 the plugin gives it one replica — which a single node cannot place, so the
 cluster goes **yellow** and `WazuhIndexerClusterYellow` fires the moment agents
-give it something to watch. Set that system index to zero replicas, as this
-node has no second to hold them:
+give it something to watch. The job scheduler does the same with
+`.opendistro-job-scheduler-lock` the first time ISM runs, within minutes. Wait
+until `_cat/indices/.opendistro-job-scheduler-lock` lists it, then set both to
+zero replicas, as this node has no second to hold them:
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
   curl -sk $AUTH -H 'Content-Type: application/json' \
-  -XPUT 'https://localhost:9200/.opendistro-ism-config/_settings' \
+  -XPUT 'https://localhost:9200/.opendistro-ism-config,.opendistro-job-scheduler-lock/_settings' \
   --data-binary '{"index":{"number_of_replicas":0}}'
 ```
 
 `_cluster/health` returns to `green` with no unassigned shards. (The
-`wazuh-alerts-*` template already sets `rep 0`; this is the one index the
-plugin makes for itself, behind the pattern that template matches.)
+`wazuh-alerts-*` template already sets `rep 0`; these are the two indices the
+plugins make for themselves, behind the pattern that template matches. ISM's
+daily history indices would be a third, each with a replica, and
+`opensearch.yml` turns them off.)
 
 The settings template is a legacy template at `order: 1` so that it
 merges **over** Wazuh's own `wazuh` template, which is at order 0 and carries
@@ -449,11 +474,11 @@ manager):
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
   curl -sk $AUTH 'https://localhost:9200/_cat/indices/wazuh-alerts-*?v&h=index,pri,rep,docs.count'
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*'
+  curl -sk $AUTH 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*,wazuh-monitoring-*,wazuh-statistics-*'
 ```
 
-`pri 1 rep 0` on every alert index, and every one of them holding the
-`wazuh-alerts-30d` policy. The explain output is also the retention
+`pri 1 rep 0` on every alert index, every one of them holding the
+`wazuh-alerts-30d` policy, and every weekly index holding `wazuh-weekly-30d`. The explain output is also the retention
 re-derivation ADR-0030 asks for after a fortnight: an index that never left
 the `hot` state means the delete has never fired.
 

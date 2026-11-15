@@ -57,6 +57,33 @@ docstring gives: it is a record, not a claim about now.
   are the first real logins under the pins. `command=` is not set, because
   the pull runs `docker exec` and the copies run shell commands.
 
+- **Correction to the 2026-11-06 entry for
+  [#919](https://github.com/Gerrrt/HomeLab/issues/919): `Saruman` was off for
+  eighteen days, not one window.** The operator powered it down for the move
+  into the 32U rack on 2026-10-19, and `odin`'s journal shows a clean shutdown
+  at 00:00:18 that day and its next boot at 2026-11-06 22:24. Every guest on
+  `Saruman` was down with it, `alexander` and `odin` included. Nothing paged
+  because the alerting was down too. The SOC has no record of the lab for
+  that span: no `wazuh-alerts-*` index exists for 2026-10-19 to 2026-11-05.
+  Found by an audit of `odin` on 2026-11-13.
+- **`odin`'s indexer is set up to return to green and to stop keeping its
+  weekly indices for ever.** The same audit found the cluster yellow with 59
+  active shards against `WazuhIndexerShardBudgetNearlySpent`'s 45. Three causes
+  were found, and this change addresses each:
+  - ISM's daily history indices each carried a replica a single node cannot
+    place, and they accounted for ten of the eleven unassigned shards.
+    `opensearch.yml` now turns them off.
+  - `.opendistro-job-scheduler-lock` carried the eleventh. `build-the-soc-guest.md`
+    §9 now zeroes its replica alongside `.opendistro-ism-config`'s.
+  - `wazuh-monitoring-*` and `wazuh-statistics-*` had no retention. The new
+    `ism-wazuh-weekly.json` deletes them at thirty days.
+
+  The build's first alert index, `wazuh-alerts-4.x-2026.09.27`, predated the
+  policy and was never attached to it. §9 now attaches both policies to
+  indices that already exist. It was not deployed when this was written.
+  Even deployed, the arithmetic does not reach 45: the fourteen `wazuh-states-*` indices alone
+  take ADR-0030's allowance of roughly 15 for every family but the alerts.
+
 ## 2026-11-13
 
 - **An audit of `garuda` found SSH open to the lab domain, and owner GitHub
