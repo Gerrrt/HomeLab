@@ -797,7 +797,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
     container_name: grafana
     # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 139
     # MiB median, and three excursions past 350 MiB RSS in fourteen days (540,
@@ -1336,7 +1336,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.10@sha256:a7970b826f6e477461e02bf5463d92634e9ad27d525e4e50296978a2e592d2d7
+    image: grafana/grafana-image-renderer:v5.12.11@sha256:cfa6c8f63e6d626f90208f2880f15bd5facc279daec1b9bb642af07aa850d95e
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
