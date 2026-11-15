@@ -400,10 +400,11 @@ SIEM ADR-0091 refuses.
 
 **Cases live in `~/cases/`,** outside every repository, by Defense's own
 rule. That directory is the reason this guest is backed up. Make it, readable
-by `analyst` alone:
+by `analyst` alone. `chmod` is its own step because `mkdir -p -m` sets the
+mode only on a directory it creates, and an earlier one may already exist:
 
 ```bash
-mkdir -p -m 700 ~/cases
+mkdir -p ~/cases && chmod 700 ~/cases
 ```
 
 ## 8. Collectors and backup
