@@ -17,6 +17,24 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-15
+
+- **`garuda` is patched by hand, monthly, because nothing else patches it.**
+  After the audit of 2026-11-13 closed, a re-check of the box found a gap that
+  audit missed. `unattended-upgrades` runs daily on `garuda` and applies
+  nothing, because its allowed origins are Debian's and Kali's packages are
+  not. Kali Rolling has no security pocket, so `patch-state`'s security count
+  is always 0. No rule would see it anyway: `garuda` reports only to the lab's
+  Prometheus, which has no apt or reboot rules and no Alertmanager, so neither
+  a missed upgrade nor a missed reboot alerts. Left alone, `garuda` would fall
+  behind silently. `build-the-analyst-workstation.md`
+  gains §15, *Keep it patched*: a monthly `full-upgrade`, the reboot,
+  OpenVAS's post-upgrade step before the next scan, and what the pins need.
+  `schedule-maintenance.md` says what a 0 means on Kali. The same re-check
+  found the analyst stack's Alloy still running without
+  `--disable-reporting`: the 2026-11-13 change reached `compose.yaml`, but a
+  reboot does not apply it. `make up STACK=analyst` did, on 2026-11-15.
+
 ## 2026-11-14
 
 - **`garuda`'s hardening is applied and checked, and the audit of 2026-11-13

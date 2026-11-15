@@ -810,3 +810,43 @@ the guest takes the new space with no reboot.
    ```
 
    Read the device from `lsblk` first if the layout has changed since §11.
+
+## 15. Keep it patched
+
+**Nothing patches `garuda` on its own, and no alert says it is behind.** Three
+facts make that so:
+
+- `dotfiles-Debian` enables `unattended-upgrades` (§11), but its allowed
+  origins are Debian's, and every package here comes from Kali's archive. Its
+  log says `No packages found that can be upgraded unattended` every day.
+- Kali Rolling has no security suite. `patch-state` (§8) counts a security
+  update by its origin's security pocket, so
+  `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0.
+  `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind.
+- Nothing alerts on either number, or on a pending reboot. `garuda`'s Alloy
+  writes only to the lab's Prometheus on `alexander`
+  (`stacks/analyst/compose.yaml`), which has no apt or reboot rules and no
+  Alertmanager (ADR-0020). `SecurityUpdatesPending` and `RebootRequired` live
+  in `stacks/observability` and never see `garuda`.
+
+So the upgrade is a person's job. **Monthly**, on `garuda`:
+
+```bash
+sudo apt-get update && sudo apt-get -y full-upgrade
+ls /run/reboot-required 2>/dev/null && echo reboot-needed
+```
+
+If it prints `reboot-needed`, run `qm reboot 162` on `Saruman` the same day,
+then §9's checks. Nothing alerts on a missed reboot or a missed upgrade, so
+running that check is part of the job.
+
+**Before the next scan after an upgrade,** run
+[`scan-the-lab-with-openvas.md`](scan-the-lab-with-openvas.md) §5: sync the
+feeds, run the setup check, migrate if it asks, and re-prove the fence. On
+2026-11-15 gvmd would not start until it was migrated, because an upgrade had
+moved its database revision.
+
+The rest arrives through the repository. When the Wazuh pin in
+`stacks/soc/linux-agents.yaml` moves, run §12's upgrade. When the Alloy pin
+moves, run `make up STACK=analyst` on `garuda`. A reboot restarts the old
+container; it does not apply a changed `compose.yaml`.
