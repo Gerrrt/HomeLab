@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All nineteen rules in lab.rules.yaml are covered here. That is a deliberate
+# All twenty-two rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -738,3 +738,115 @@ tests:
                 `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
                 (docs/runbooks/build-the-sensor-guest.md §4), and check that
                 /var/lib/node_exporter/textfile_collector exists on fenrir.
+
+  # --- SecurityUpdatesPending ----------------------------------------------
+  # 2m, not the collector's daily cadence: the textfile is re-served on every
+  # scrape, and a fixture an hour apart goes stale between samples and resets
+  # `for: 7d` (host.test.yaml has the longer account of that first draft).
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{instance="odin",job="odin-metrics",host="odin"}'
+        values: "3x5300"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              instance: odin
+              job: odin-metrics
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has had 3 security update(s) pending for a week"
+              description: >-
+                Unattended-upgrades should have applied these. A week of them
+                sitting there means they are held, phased, or waiting on a
+                reboot. Check with `apt list --upgradable` and `systemctl status
+                unattended-upgrades.service`. On garuda a 0 is not good news:
+                Kali has no security pocket (schedule-maintenance.md).
+  # Applied inside the week, the normal case.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{instance="odin",job="odin-metrics",host="odin"}'
+        values: "2x1500 0x3800"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts: []
+
+  # --- RebootRequired --------------------------------------------------------
+  # alexander's own state on 2026-11-13: libc6 asked, and nothing rebooted.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{instance="alexander",job="alexander-metrics",host="alexander"}'
+        values: "1x2400"
+    alert_rule_test:
+      - eval_time: 75h
+        alertname: RebootRequired
+        exp_alerts:
+          - exp_labels:
+              instance: alexander
+              job: alexander-metrics
+              host: alexander
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "alexander has needed a reboot for three days"
+              description: >-
+                /var/run/reboot-required.pkgs names which packages asked, and
+                homelab_reboot_required_packages counts them. Pick a window
+                outside an exercise: rebooting alexander blinds the lab for its
+                duration, and rebooting odin stops the SOC.
+  # Rebooted inside the three days.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{instance="alexander",job="alexander-metrics",host="alexander"}'
+        values: "1x1000 0x3000"
+    alert_rule_test:
+      - eval_time: 130h
+        alertname: RebootRequired
+        exp_alerts: []
+
+  # --- PatchStateStopped -----------------------------------------------------
+  # The collector stops after 20 hours while the host keeps pushing node
+  # metrics: a timer that died, on a guest that is up.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{instance="odin",job="odin-metrics",host="odin"}'
+        values: "3x240 _x120"
+      - series: 'node_boot_time_seconds{instance="odin",job="odin-metrics",host="odin"}'
+        values: "1000x360"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                It reported within the last day and has not in six hours, while
+                its node metrics still arrive, so SecurityUpdatesPending and
+                RebootRequired are both blind to this host until it comes back.
+                Check `systemctl status homelab-patch-state.timer` on the host
+                and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom
+                is being written and is world-readable.
+  # eden switched off after a session: patch state and node metrics stop
+  # together. That is the correct state for a per-session guest, so quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{instance="eden",job="eden-metrics",host="eden"}'
+        values: "3x240 _x120"
+      - series: 'node_boot_time_seconds{instance="eden",job="eden-metrics",host="eden"}'
+        values: "1000x240 _x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []

@@ -183,8 +183,11 @@ services:
   # ---------------------------------------------------------------------------
   # Log store. No healthcheck, for the reason written out against the `loki`
   # service in stacks/observability/compose.yaml: the image is distroless and
-  # holds no shell, wget or curl to probe with. Readiness is observed by the
-  # `loki` scrape job in prometheus.yaml instead.
+  # holds no shell, wget or curl to probe with. Nothing here observes /ready:
+  # the `loki` scrape job reads /metrics, which answers whatever /ready says,
+  # and the audit of alexander on 2026-11-13 found /ready returning 503 for
+  # four days while ingest ran normally. What is watched is the outcome —
+  # InstanceDown on the scrape, and LokiIngestionStalled on lines arriving.
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
