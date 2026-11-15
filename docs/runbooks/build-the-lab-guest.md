@@ -189,9 +189,26 @@ than on most hosts. `sshd` answers on all of VLAN 30,
 which holds the deliberately weak domain and expects ARP spoofing, and this
 guest holds the lab's age key (§4).
 
-First put your public key in `~/.ssh/authorized_keys` and log in with it from
-Hicks. Keep that session open while you do the rest, so a mistake cannot lock
-you out:
+First put two public keys in `garnet`'s `~/.ssh/authorized_keys`, one line
+each: Hicks's, and `phoenix`'s (`~/.ssh/id_ed25519.pub` there, made by
+[`build-the-jumpbox.md`](build-the-jumpbox.md)). Those are the two machines
+that administer the lab guests, as on `garuda` and `eden`; no other key
+belongs in the file. From Hicks, which can still use a password at this
+point:
+
+```bash
+ssh-copy-id garnet@10.0.30.40
+```
+
+Then append `phoenix`'s line on `alexander`, pasting it from `cat
+~/.ssh/id_ed25519.pub` on `phoenix`:
+
+```bash
+echo '<phoenix line>' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+```
+
+Log in with the key from Hicks and keep that session open while you do the
+rest, so a mistake cannot lock you out:
 
 ```bash
 sudo tee /etc/ssh/sshd_config.d/10-homelab.conf > /dev/null <<'EOF'
@@ -218,7 +235,8 @@ ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthent
 ```
 
 The first must fail with `Permission denied (publickey)`, and the second must
-succeed.
+succeed. Run the second from `phoenix` too: it must succeed there without a
+password prompt.
 
 ## 3. Docker, the agent, and the repository
 
