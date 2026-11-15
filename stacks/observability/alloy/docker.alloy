@@ -161,8 +161,13 @@ loki.process "dockerlogs_filter" {
 	// which exempts the container from ContainerGone and ContainerNotRunning
 	// (containers.rules.yaml). Not HAProxy's log level either: the frontend's
 	// denials and allows log at the same level.
+	//
+	// The selector names every proxy this repository starts: compose's
+	// `docker-socket-proxy` and `<stack>-docker-socket-proxy`, and
+	// deploy-agent.sh's `alloy-socket-proxy` on the hosts it deploys to. A
+	// proxy started under any other name is not matched and still ships.
 	stage.match {
-		selector = `{service_name=~"(.+-)?docker-socket-proxy"}`
+		selector = `{service_name=~"(.+-)?docker-socket-proxy|alloy-socket-proxy"}`
 
 		stage.drop {
 			expression = `^\S+ \[[^\]]+\] \S+ \S+ \S+ 2\d\d .*"(GET|HEAD) `
