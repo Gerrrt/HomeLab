@@ -161,8 +161,12 @@ is understood.
 
    ```bash
    sudo gvm-stop
-   sudo systemctl stop postgresql redis-server@openvas mosquitto
+   sudo systemctl stop gvm-scan-netns postgresql redis-server@openvas mosquitto
    ```
+
+   Two lines, not one joined by `&&`: `gvm-stop` prints each unit's status and
+   can exit non-zero when they are already stopped, which would skip the rest.
+   `ip netns list` then prints nothing.
 
 ## 5. After a Kali upgrade
 

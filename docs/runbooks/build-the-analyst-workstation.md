@@ -194,6 +194,13 @@ ssh -t analyst@10.0.30.62 'sudo -k && sudo -v && echo sudo-password-ok'
 ssh -t analyst@10.0.30.62 'sudo rm /etc/sudoers.d/90-cloud-init-users && sudo -k && sudo -n true 2>&1 | grep -q "password is required" && echo nopasswd-gone'
 ```
 
+cloud-init also puts `analyst` in `lxd`. LXD is not installed, but membership
+of `lxd` is root as soon as it is, so take it out now:
+
+```bash
+ssh -t analyst@10.0.30.62 'sudo gpasswd -d analyst lxd'
+```
+
 Every later step that uses `sudo` asks for the password, so an `ssh` that
 runs `sudo` takes `-t`.
 
@@ -256,6 +263,14 @@ systemctl list-unit-files | grep -Ei 'suricata|zeek|elastic|kibana|wazuh' || ech
 ```
 
 Every line printed must say `disabled`, or not exist. Record the output in §11.
+
+**Turn off what a guest has no use for.** Kali enables a modem manager, a
+SMART daemon for disks a VM does not have, CUPS's path trigger, `stunnel`'s
+target and PHP's session cleaner. Nothing here uses them:
+
+```bash
+sudo systemctl disable --now ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer
+```
 
 ## 6. Its token at the lab's ingest proxy, and its stack
 
@@ -384,7 +399,12 @@ exercise, and goes down after it with `siemdown`. Left up, it is the second
 SIEM ADR-0091 refuses.
 
 **Cases live in `~/cases/`,** outside every repository, by Defense's own
-rule. That directory is the reason this guest is backed up.
+rule. That directory is the reason this guest is backed up. Make it, readable
+by `analyst` alone:
+
+```bash
+mkdir -p -m 700 ~/cases
+```
 
 ## 8. Collectors and backup
 
@@ -423,7 +443,10 @@ Each line is a pass or a stop:
 - **No second SOC.** On `garuda`:
   - `docker ps --format '{{.Names}}'` prints exactly `analyst-alloy` and
     `analyst-docker-socket-proxy`;
-  - `ss -lntup` shows no Suricata, Zeek or Elastic listener.
+  - `ss -lntup` shows no Suricata, Zeek or Elastic listener;
+  - `systemctl is-enabled ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer`
+    prints `disabled` five times.
+- **Cases.** `stat -c '%a %U' ~/cases` prints `700 analyst`.
 - **Access** (§4, §7). On `garuda`:
   - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers|disableforwarding) '`
     prints `passwordauthentication no`, `permitrootlogin no`,
@@ -431,6 +454,7 @@ Each line is a pass or a stop:
     `analyst@10.0.30.70`. `sshd -T` still lists the separate forwarding
     options as `yes`; `DisableForwarding` overrides them;
   - `sudo -k; sudo -n true` says a password is required;
+  - `id -nG` does not list `lxd`;
   - `gh auth status` says it is not logged in, or `gh` is absent;
   - no key in `~/.ssh` is on the GitHub account, and any private key there has
     a passphrase: `ssh-keygen -y -P '' -f <key>` fails.
