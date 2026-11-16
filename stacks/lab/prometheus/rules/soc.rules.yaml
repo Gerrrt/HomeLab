@@ -89,8 +89,8 @@ groups:
             stacks/soc/wazuh/indexer/template-wazuh-alerts.json. Find it with
             _cat/indices?v&h=index,pri,rep and fix the template it came from.
 
-      # Heap is what runs out first (ADR-0030): 25 shards per GiB, 2 GiB
-      # configured. Sustained occupancy above 85% is the JVM failing to free
+      # Heap is what runs out first (ADR-0030): 25 shards per GiB, 3 GiB
+      # configured (ADR-0118). Sustained occupancy above 85% is the JVM failing to free
       # after collection, which precedes the circuit breaker tripping on the
       # bulk indexing path — at which point ingestion stops with the cluster
       # still green. The `area` label is the exporter's; the two series carry
@@ -111,25 +111,24 @@ groups:
             (_cat/shards) before raising the heap: the fix for too many small
             shards is rollover indices, not a bigger JVM.
 
-      # The shard budget is ~50 at 2 GiB of heap (ADR-0030). Thirty daily alert
-      # indices plus the monitoring, statistics, vulnerability and inventory
-      # families are meant to sit near 45; above it the ISM delete policy is
-      # not firing, or something is creating indices the arithmetic did not
-      # count. _plugins/_ism/explain/wazuh-alerts-* says which.
+      # The shard budget is ~75 at 3 GiB of heap (ADR-0118). Thirty daily alert
+      # indices plus the monitoring, statistics, states and system indices are
+      # meant to sit near 60; above 68, nine-tenths of the budget, the ISM
+      # delete policies are not firing, or something is creating indices the
+      # arithmetic did not count. _plugins/_ism/explain/wazuh-* says which.
       - alert: WazuhIndexerShardBudgetNearlySpent
-        expr: elasticsearch_cluster_health_active_shards{job="wazuh-indexer"} > 45
+        expr: elasticsearch_cluster_health_active_shards{job="wazuh-indexer"} > 68
         for: 1h
         labels:
           component: soc
           severity: warning
           category: capacity
         annotations:
-          summary: "The Wazuh indexer holds more than 45 shards"
+          summary: "The Wazuh indexer holds more than 68 shards"
           description: >-
-            The 2 GiB heap buys about 50. Check that the 30-day ISM policy in
-            stacks/soc/wazuh/indexer/ism-wazuh-alerts.json is attached and
-            deleting; if it is, the fix is rollover indices, not a larger
-            number in the policy.
+            The 3 GiB heap buys about 75. Check that the 30-day ISM policies in
+            stacks/soc/wazuh/indexer/ are attached and deleting; if they are,
+            the fix is rollover indices, not a larger number in the policy.
 
       # The indexer taking no writes from ANY writer. Wazuh indexes
       # continuously while the four servers run — agent status into

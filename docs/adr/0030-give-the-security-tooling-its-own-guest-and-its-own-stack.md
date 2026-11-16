@@ -3,6 +3,11 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **2026-11: the heap is 3 GiB.** [ADR-0118](0118-give-the-wazuh-indexer-three-gib-of-heap.md)
+> raises the indexer's heap from 2 GiB to 3 GiB, its `mem_limit` from 3.5 to
+> 4.5 GiB, and the shard alert's line from 45 to 68, because the non-alert
+> families take about 30 shards, not 15. Retention stays thirty days.
+>
 > The host this ADR calls `zion` is named **`smaug`** since 2026-09
 > ([ADR-0038](0038-name-the-nas-smaug-and-reserve-zion-for-the-box-that-does-not-exist.md)).
 > The address, the rules and the decision are unchanged — only the label. The

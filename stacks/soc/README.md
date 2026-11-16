@@ -23,7 +23,7 @@ make up STACK=soc        # from the repository root, on odin
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch — the store for the estate's security events. 2 GiB heap, 30-day retention, and both numbers are bounds ([ADR-0030]) |
+| `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch — the store for the estate's security events. 3 GiB heap, 30-day retention, and both numbers are bounds ([ADR-0030], [ADR-0118]) |
 | `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | The analysis engine the six domain agents, and `garuda`'s ([ADR-0092]), report to and enrol with; enrolment needs a password |
 | `wazuh.dashboard` | `wazuh/wazuh-dashboard` | *internal* (5601), on 443 through `caddy` | Agent enrolment, group management, the ruleset editor, the MITRE mapping — not a viewer, which is why Grafana does not replace it |
 | `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000, 8003; the GUI on 8889 through `caddy` | Ask the endpoint what actually happened. Frontend for the clients, GUI for a browser on Hicks, metrics for the lab's Prometheus |
@@ -153,17 +153,18 @@ the lab CA are a named follow-up rather than a prerequisite.
   first start. The lab's `WazuhIndexerClusterYellow` rule is what says they
   stopped applying: on a single node with no replicas, green is the only
   correct colour.
-- **The retention figure is a bound, not a measurement.** 2 GiB of heap buys
-  about 50 shards at OpenSearch's 25-per-GiB; the non-alert families take ~15;
-  thirty daily alert indices fit. Re-derive after a fortnight from
+- **The retention figure is a bound, not a measurement.** 3 GiB of heap buys
+  about 75 shards at OpenSearch's 25-per-GiB ([ADR-0118]); the states,
+  monitoring, statistics and system indices take ~30; thirty daily alert
+  indices fit, near 60 in all. Re-derive after a fortnight from
   `_cat/indices/wazuh-*`, `_cat/shards`, `_nodes/stats/jvm` and
   `_plugins/_ism/explain/wazuh-alerts-*` — the last says whether the delete
   has ever fired. If the budget is spent early, the fix is rollover indices,
-  not a larger number.
+  not a fourth GiB.
 - **The memory limits are vendor minimums, not measurements** — the one place
   this file departs from `stacks/lab`'s refusal to guess. Wazuh states 4 GiB
-  for the indexer and 2 GiB for the manager; the indexer gets 3.5 GiB here
-  because the guest has 16, sized for the vulnerability feed's import
+  for the indexer and 2 GiB for the manager; the indexer gets 4.5 GiB here,
+  a 3 GiB heap and its off-heap, because the guest has 16, sized for the vulnerability feed's import
   bursts (`build-the-soc-guest.md` §0), and four other services. Re-derive from
   `container_memory_rss` in the lab's Prometheus, the way #114 did.
 - **`vm.max_map_count` is a guest-OS prerequisite**, not a compose setting —
@@ -240,6 +241,7 @@ it matters:
 [ADR-0020]: ../../docs/adr/0020-run-the-lab-stack-in-a-guest-with-its-own-prometheus.md
 [ADR-0027]: ../../docs/adr/0027-defer-proxmox-backup-server-until-there-is-somewhere-to-send-it.md
 [ADR-0030]: ../../docs/adr/0030-give-the-security-tooling-its-own-guest-and-its-own-stack.md
+[ADR-0118]: ../../docs/adr/0118-give-the-wazuh-indexer-three-gib-of-heap.md
 [#414]: https://github.com/Gerrrt/HomeLab/issues/414
 [#834]: https://github.com/Gerrrt/HomeLab/issues/834
 [`build-the-soc-guest.md`]: ../../docs/runbooks/build-the-soc-guest.md

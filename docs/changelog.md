@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **ADR-0118: the Wazuh indexer gets 3 GiB of heap.** The audit of `odin`
+  re-derived ADR-0030's shard budget. The non-alert families take about 30
+  shards, not 15, so thirty days of alerts need about 60 against a budget of
+  about 50 and an alert line of 45. The heap goes from 2 to 3 GiB, which buys
+  about 75 shards. The indexer's `mem_limit` goes from 3.5 to 4.5 GiB, and
+  `WazuhIndexerShardBudgetNearlySpent` from above 45 to above 68. ADR-0030
+  gains a note, and `stacks/scratch` keeps 2 GiB. `promtool test rules` passed
+  in the lab's pinned Prometheus image. This records the change, not the
+  deploy: `odin`'s indexer still runs with 2 GiB.
+
 - **`stacks/soc` and its runbook agree with `odin` again.** Six things the
   2026-11-13 audit of `odin` found written down wrong are corrected:
   - the stack README said the guest has 8 GiB; it has 16, as
