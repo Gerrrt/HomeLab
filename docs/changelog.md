@@ -39,6 +39,14 @@ docstring gives: it is a record, not a claim about now.
   because Alloy's own logs are small (320 lines in a day) and worth having.
   Each host picks this up at its next `make up` or `deploy-agent.sh`.
 
+- **`alexander`'s `sshd` is key-only now, applied and checked.** This
+  corrects the entry below, *`alexander` still takes passwords over SSH*,
+  which said the step was not yet applied. The operator applied
+  `build-the-lab-guest.md` §2 on `alexander` the same day, with Hicks's key
+  and `phoenix`'s in `garnet`'s `authorized_keys`, and §7's `sshd -T` read
+  `no` for `passwordauthentication`, `kbdinteractiveauthentication`,
+  `permitrootlogin` and `x11forwarding`. `docs/security.md`'s `alexander` row
+  now reads *closed at `sshd`*.
 - **`alexander` still takes passwords over SSH; the step that stops it now
   installs `phoenix`'s key too.** A read-only audit of `eden` after its
   rebuild ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)) queried
