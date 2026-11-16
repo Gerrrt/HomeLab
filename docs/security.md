@@ -653,7 +653,10 @@ assumption consistent with what they are.
   genuinely encrypted, and that no state, plan or `.terraform/` is tracked.
 - **`phoenix` is a secret-bearing host, and holds no age key.** Its secrets
   are all mode 600 and owned by its operator:
-  - the Proxmox API token `phoenix@pve!builder`;
+  - the Proxmox API token `phoenix@pve!builder` on `Saruman`, and its
+    namesake on `gandalf`, the range hypervisor, which is in `phoenix.env` as
+    `TF_VAR_gandalf_api_token` and in `gandalf.env` for the curl scripts
+    ([ADR-0116](adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md));
   - the Windows build password, which is also a fresh clone's Administrator
     password until #448 rotates it;
   - `tofu/`'s state passphrase, all three in `~/.config/proxmox/phoenix.env`
@@ -667,6 +670,12 @@ assumption consistent with what they are.
     and `LAB_POPULATION_SEED`, from which every population password is derived
     ([ADR-0078](adr/0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)).
     The seed adds no reach: the first of the three already owns the domain.
+    Four more, also in `phoenix.env`, add none either
+    ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md)):
+    `LAB_TIER_ADMIN_PASSWORD` and `LAB_ENDPOINT_ADMIN_PASSWORD`, which a
+    rebuild creates accounts with, `LAB_WEAK_PASSWORD`, the deliberately
+    crackable one (ADR-0083), and `LAB_WAZUH_REGISTRATION_PASSWORD`, a copy
+    of the SOC manager's enrolment password.
 
   The state is the one that would have been quiet. A Terraform state holds
   every value a provider touched in cleartext, the cloud-init password of every
