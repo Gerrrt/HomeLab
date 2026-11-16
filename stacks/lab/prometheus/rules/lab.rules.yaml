@@ -1,7 +1,7 @@
 ---
 # The lab stack watching itself.
 #
-# Nineteen rules, and the number is still the point. The estate has 48; ADR-0007
+# Twenty-two rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
@@ -12,7 +12,9 @@
 # is the only thing on the segment that scrapes it. Seven cover golem's backups
 # (ADR-0053), because a verify nobody watches is a green check with nothing
 # behind it, and this is where the lab looks. Three cover fenrir's Zeek archive
-# prune (#850), the one run-scheduled.sh job whose outcome lands here.
+# prune (#850), the one run-scheduled.sh job whose outcome lands here. Three
+# cover the guests' patch state, which their own patch-state timers write and
+# which no estate rule can see, because these guests push here and not there.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -170,6 +172,78 @@ groups:
           category: capacity
         annotations:
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
+
+      # -----------------------------------------------------------------------
+      # The guests' patch state. homelab-patch-state writes
+      # apt-patch-state.prom daily on odin (and on any lab guest that installs
+      # it), and its Alloy ships the textfile directory here. The estate has
+      # these three rules in stacks/observability's host.rules.yaml, but they
+      # never see a lab guest: odin and alexander push to this Prometheus, not
+      # to that one. Until 2026-11-16 the series arrived and nothing read them,
+      # so odin carried a pending reboot from a libc6 upgrade with nothing
+      # saying so. The names, windows and reasoning are the estate's; read that
+      # file for the argument behind each `for`.
+      # -----------------------------------------------------------------------
+
+      # Unattended-upgrades applies security updates itself, so a week of
+      # them still pending means they did not apply: held, phased, or waiting
+      # on a reboot.
+      - alert: SecurityUpdatesPending
+        expr: homelab_apt_security_upgrades_pending > 0
+        for: 7d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has had {{ $value }} security update(s) pending for a week"
+          description: >-
+            Unattended-upgrades should have applied these. A week of them
+            sitting there means they are held, phased, or waiting on a reboot.
+            Check with `apt list --upgradable` and
+            `systemctl status unattended-upgrades.service`.
+
+      # A package asked for a reboot and nothing has done it. Nothing on these
+      # guests reboots by itself: unattended-upgrades installs, and
+      # Automatic-Reboot is left at its default of off. Three days, as the
+      # estate's, because a reboot of odin is a window without the SIEM.
+      - alert: RebootRequired
+        expr: homelab_reboot_required == 1
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has needed a reboot for three days"
+          description: >-
+            /var/run/reboot-required.pkgs names the packages that asked. Pick a
+            window: rebooting odin stops the SIEM for a few minutes, and the
+            agents queue meanwhile. Afterwards check the stack with
+            docs/runbooks/build-the-soc-guest.md §10.
+
+      # A guest that was reporting patch state and has stopped. Without it, a
+      # dead collector silences both rules above in the way that looks
+      # healthiest. Stopped, not missing, so a guest without the timer is not
+      # an alert.
+      - alert: PatchStateStopped
+        expr: >-
+          count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
+          unless
+          count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting patch state"
+          description: >-
+            It reported within the last day and has not in six hours, so
+            SecurityUpdatesPending and RebootRequired are blind to it. Check
+            `systemctl status homelab-patch-state.timer` on the guest, and that
+            /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+            being written and is world-readable.
 
       # -----------------------------------------------------------------------
       # The domain (ADR-0029). Scraped, never pushed — publishing a remote-write
