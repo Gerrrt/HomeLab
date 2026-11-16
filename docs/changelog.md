@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **Template 901 is rebuilt without `autoinstall` on its kernel line.** This
+  completes *Template 901 takes `autoinstall` off the kernel line* below,
+  which left it not built. The Ubuntu build ran from `phoenix` on main after
+  #1534, in 18 min 42 s. `prune.sh` purged the eight services again, and its
+  checks for them, for `crashkernel=` and for `autoinstall` in `grub.cfg` all
+  passed. Four upgrades were deferred by Ubuntu's phasing and are left to
+  each clone's unattended upgrades. `scripts/packer-smoke.sh 901` passed. A
+  clone of 901 now needs none of `eden`'s by-hand fixes. `eden` was rebooted
+  at 09:36 UTC the same day: `/proc/cmdline` ends in `ro`, with neither
+  `autoinstall` nor `crashkernel=`, no unit failed, and all five containers
+  came back, `app-db` and `ui-proxy` healthy.
+
 - **`eden` is in OpenTofu's state, and #1443 is done.** The first
   untargeted `tofu -chdir=tofu plan` on `phoenix` since the 2026-11-12
   rebuild refreshed every guest, `eden` (141) and `ragnarok` (130) among
