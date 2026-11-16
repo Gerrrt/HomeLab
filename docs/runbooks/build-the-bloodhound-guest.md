@@ -104,9 +104,9 @@ Three things have to be in place first:
 **If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), it is
 in the state: the hand-built guest was imported and replaced on 2026-11-12
 under [#1443](https://github.com/Gerrrt/HomeLab/issues/1443), and the first
-untargeted plan after it, on 2026-11-16, said *No changes*. Do not run the
-first-build commands below; they fail on the clone with 141 taken. Rebuild
-it with *Rebuild: replace it* below instead.
+untargeted plan after it, on 2026-11-16, said *No changes*. The commands
+below then only refresh it: the plan should say *No changes*, and anything
+else is a stop. To rebuild it on purpose, use *Rebuild: replace it* below.
 
 For a first build, on `phoenix`:
 
