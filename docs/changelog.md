@@ -17,6 +17,28 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-16
+
+- **#1518 is deployed on `eden` and measured there.** This completes the
+  2026-11-15 entry *Container logs stop shipping the socket proxy's own
+  polls*, which records the change merged, not deployed. `make up
+  STACK=bloodhound` ran at 00:17 UTC from a `main` at #1518, and its
+  mounted-config check passed for `docker.alloy`. Before, the proxy wrote
+  about 58 lines a minute and Alloy shipped all of them. In the first 4½
+  minutes after, it wrote 292, all 2xx, and Alloy's
+  `loki_process_dropped_lines_total` for `dockerlogs_filter` read 307. That
+  counter is shared by the filter's three drop stages, so it was attributed
+  from the containers' own logs. In that window no line from any other
+  container matched the other two stages (`GET /metrics`, `healthcheck`), so
+  all 307 were the proxy's: the 292, and 15 of the 46 2xx GETs it wrote in
+  the restart gap, which Alloy read back from its saved position. The 17
+  HAProxy stop and start notices in the gap were not 2xx GETs, and were kept.
+  The other containers' lines still shipped. Alloy logged errors only in the seconds it and the proxy
+  restarted together, and none from 00:18. Two things are not checked yet.
+  The `instance` label needs a query on `alexander`'s Loki, which `eden`
+  cannot reach. And every other Docker host runs the old filter until its
+  next `make up` or `deploy-agent.sh`.
+
 ## 2026-11-15
 
 - **Container logs stop shipping the socket proxy's own polls, and gain
