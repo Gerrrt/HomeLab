@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **The six domain guests run Wazuh 4.14.10 and Velociraptor 0.77.3,
+  matching `odin`'s servers.** This completes the entry below that pinned
+  them ([#1545](https://github.com/Gerrrt/HomeLab/pull/1545)), which
+  recorded the pins, not the deploy. `ansible-playbook lab-domain.yml --tags
+  soc` ran from `phoenix` on a `main` with #1545 merged.
+  - **Wazuh.** Afterwards `agent_control -i` on the manager reported
+    `Wazuh v4.14.10` for all seven agents: the six and `garuda`.
+  - **Velociraptor.** The server's client index then showed 0.77.3 for
+    five of the six. `bahamut` and `leviathan` still showed 0.77.2,
+    although each had the new product code installed, a 0.77.3
+    `Velociraptor.exe` and the service running. The index had not caught
+    up with the upgrade. Restarting their Velociraptor service brought both
+    to 0.77.3, and all seven clients now report it.
+  - **A lesson for the next bump.** Read the server's client index after an
+    upgrade. Where it lags, check the installed binary before reinstalling.
+
 - **A leftover Velociraptor administrator on `odin` is removed.** The user
   `claude-cleanup`, with the `administrator` role, had been created on
   2026-10-10. Nothing in this repository named it, and no server collection
