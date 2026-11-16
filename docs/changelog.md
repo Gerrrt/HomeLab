@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **A leftover Velociraptor administrator on `odin` is removed.** The user
+  `claude-cleanup`, with the `administrator` role, had been created on
+  2026-10-10. Nothing in this repository named it, and no server collection
+  had been run by it. It was deleted through the running server with
+  `user_delete()`, using a temporary API client that deleted itself in the
+  same query. Both ACL files were then removed. Velociraptor now has the
+  users `admin` and `gerrrt`, and the server's own identity.
+
 - **The six domain guests' SOC agents are pinned to the servers' versions,
   and `odin` serves the new MSIs ([#1439](https://github.com/Gerrrt/HomeLab/issues/1439)).**
   `roles/soc_agents` moves Wazuh from 4.14.7 to 4.14.10, the manager's
