@@ -149,7 +149,6 @@ docstring gives: it is a record, not a claim about now.
   found the analyst stack's Alloy still running without
   `--disable-reporting`: the 2026-11-13 change reached `compose.yaml`, but a
   reboot does not apply it. `make up STACK=analyst` did, on 2026-11-15.
-||||||| parent of 39748fbf (fix(wiki): stop bootstrap-guard leaving anonymous volumes; oracle audit docs)
 
 ## 2026-11-14
 
