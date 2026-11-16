@@ -47,6 +47,37 @@ docstring gives: it is a record, not a claim about now.
   - **A stale comment.** `stacks/soc/compose.yaml` said the Velociraptor
     image was 0.77.2. It now names no version.
 
+- **`odin`'s system journal has a gap from 2026-11-14 00:45 to 2026-11-16
+  20:58 UTC, and the audit caused it.** During the 2026-11-13 audit of
+  `odin`, a full `make validate` pulled every stack's images (about 23 GB) and
+  filled the 46 GB root disk to 100% at 00:45 on 2026-11-14. The images were
+  pruned within the hour, but journald stopped writing
+  `/var/log/journal` at the failed write and did not resume. What it held in
+  memory after that was lost at the reboot on 2026-11-16 20:58. rsyslog
+  recovered on its own, so `/var/log/syslog` and `/var/log/auth.log` cover the
+  window, and Alloy shipped them to Loki. Wazuh's alerts were unaffected: the
+  manager logged no write errors. CLAUDE.md has since said to check
+  `df -h /` before a full `make validate`, after the same thing happened on
+  `eden`. After a disk fills, check `journalctl --header` for an ONLINE
+  `system.journal`; `systemctl restart systemd-journald` brings back a journal
+  that stopped.
+- **The lab now alerts on its guests' patch state.** `odin`'s
+  `homelab-patch-state` timer writes `homelab_reboot_required` and
+  `homelab_apt_security_upgrades_pending`, and Alloy ships them to `alexander`.
+  But `RebootRequired`, `SecurityUpdatesPending` and `PatchStateStopped`
+  existed only in `stacks/observability`, whose Prometheus never sees a lab
+  guest. So `odin` carried a libc6 reboot from 2026-11-13 with nothing saying
+  so, and the audit found it by hand. `lab.rules.yaml` gains the three rules,
+  with the estate's names and windows (22 rules now), and
+  `lab.test.yaml` gains a firing and a quiet case for each. `PatchStateStopped`
+  also fires when `apt-patch-state.prom` has not been rewritten in two days,
+  because a dead collector leaves the file and Alloy keeps serving it, so
+  the series alone never goes absent (raised in review). The estate's copy
+  of the rule in `host.rules.yaml` has the same blind spot. They show in the
+  lab's Grafana, as everything there does; nothing pages (ADR-0020). Live on
+  `alexander` once it next runs `make up STACK=lab`.
+||||||| 61376e62
+
 - **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
   completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
   which records the change, not the deploy. `make up STACK=soc` ran at 19:16

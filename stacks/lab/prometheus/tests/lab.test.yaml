@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All nineteen rules in lab.rules.yaml are covered here. That is a deliberate
+# All twenty-two rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -738,3 +738,150 @@ tests:
                 `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
                 (docs/runbooks/build-the-sensor-guest.md §4), and check that
                 /var/lib/node_exporter/textfile_collector exists on fenrir.
+
+  # --- SecurityUpdatesPending: fires after a week ---------------------------
+  # Interval 2m, not daily: the textfile is re-served on every scrape, so the
+  # series is continuous, and a sparse fixture would go stale between samples
+  # and reset `for` (the estate's host.test.yaml found this the hard way).
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="odin"}'
+        values: "1x5300"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has had 1 security update(s) pending for a week"
+              description: >-
+                Unattended-upgrades should have applied these. A week of them
+                sitting there means they are held, phased, or waiting on a reboot.
+                Check with `apt list --upgradable` and
+                `systemctl status unattended-upgrades.service`.
+
+  # --- SecurityUpdatesPending: quiet when applied inside the week ------------
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="odin"}'
+        values: "1x1500 0x3800"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts: []
+
+  # --- RebootRequired: fires after three days -------------------------------
+  # odin's own case: libc6 asked on 2026-11-13 and nothing said so.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{host="odin"}'
+        values: "1x2300"
+    alert_rule_test:
+      - eval_time: 73h
+        alertname: RebootRequired
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has needed a reboot for three days"
+              description: >-
+                /var/run/reboot-required.pkgs names the packages that asked. Pick a
+                window: rebooting odin stops the SIEM for a few minutes, and the
+                agents queue meanwhile. Afterwards check the stack with
+                docs/runbooks/build-the-soc-guest.md §10.
+
+  # --- RebootRequired: quiet for a reboot inside three days ------------------
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{host="odin"}'
+        values: "1x1000 0x3000"
+    alert_rule_test:
+      - eval_time: 73h
+        alertname: RebootRequired
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires for a guest whose collector died -------------
+  # 20 hours of reporting, then a real gap (`_`), not a zero.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin"}'
+        values: "3x240 _x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: quiet for a guest that reports zero ----------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin"}'
+        values: "0x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires when the file stops being rewritten ----------
+  # The case review on #1544 named: the collector died, the file stayed, and
+  # Alloy keeps serving its last values, so the samples never stop. Only the
+  # file's mtime stands still (0, the fixture's epoch). At 50h it is more than
+  # two days old, and has been for over the 30m `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x600"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: quiet while the daily rewrite keeps happening ------
+  # The same steady samples, with an mtime that moves once a day (every 288
+  # five-minute steps), as the timer's real file does.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x287 86400x287 172800x30"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: PatchStateStopped
+        exp_alerts: []
