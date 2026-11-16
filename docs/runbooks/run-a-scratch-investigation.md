@@ -160,9 +160,9 @@ Apply the one-shard, zero-replica template from soc's directory, because the
 reason for it (a single node) is the same:
 
 ```bash
-AUTH='--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem'
+AUTH=(--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem)
 docker compose -f stacks/scratch/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_template/wazuh-alerts-homelab \
   --data-binary @- < stacks/soc/wazuh/indexer/template-wazuh-alerts.json
 ```
