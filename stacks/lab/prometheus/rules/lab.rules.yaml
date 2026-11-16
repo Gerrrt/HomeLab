@@ -1,13 +1,14 @@
 ---
 # The lab stack watching itself.
 #
-# Nineteen rules, and the number is still the point. The estate has 48; ADR-0007
+# Twenty-two rules, and the number is still the point. The estate has 48; ADR-0007
 # names giving up "Loki, the dashboards and 40 alert rules" as the price of
 # keeping lab telemetry out of the estate, and this file does not pretend to
 # replace them. Four cover this stack's own working — the things that would make
 # every other signal here silently wrong. Two cover the disks of the guests that
 # push here, in the detail only their own node_exporter has; the estate pages on
-# the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
+# the same disks, read another way (ADR-0070). Three cover the same guests'
+# patch state, which only reaches this Prometheus. Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
 # is the only thing on the segment that scrapes it. Seven cover golem's backups
 # (ADR-0053), because a verify nobody watches is a green check with nothing
@@ -170,6 +171,100 @@ groups:
           category: capacity
         annotations:
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
+
+      # The guests' patch state. homelab-patch-state writes it on every apt
+      # guest that pushes here (scripts/install-agent-collectors.sh), and until
+      # 2026-11-15 nothing in this file read it: the audit of alexander on
+      # 2026-11-13 found libc6 asking for a reboot that no rule could see, and
+      # the 2026-11-15 changelog found the same on garuda. The estate's three
+      # rules in host.rules.yaml cannot see these guests either, because none
+      # of them pushes to VLAN 99 (ADR-0007).
+      #
+      # Same names, expressions and windows as the estate's three, per the
+      # header; host.rules.yaml carries the reasoning for each window. One
+      # difference, in PatchStateStopped, is stated against it.
+      - alert: SecurityUpdatesPending
+        expr: homelab_apt_security_upgrades_pending > 0
+        for: 7d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has had {{ $value }} security update(s) pending for a week"
+          description: >-
+            Unattended-upgrades should have applied these. A week of them sitting
+            there means they are held, phased, or waiting on a reboot. Check with
+            `apt list --upgradable` and
+            `systemctl status unattended-upgrades.service`. On garuda a 0 is not
+            good news: Kali has no security pocket (schedule-maintenance.md).
+
+      - alert: RebootRequired
+        expr: homelab_reboot_required == 1
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has needed a reboot for three days"
+          description: >-
+            /var/run/reboot-required.pkgs names which packages asked, and
+            homelab_reboot_required_packages counts them. Pick a window outside
+            an exercise: rebooting alexander blinds the lab for its duration,
+            and rebooting odin stops the SOC.
+
+      # The estate's expression, plus two conditions.
+      #
+      # The host must still be pushing node metrics. eden is off between
+      # sessions (ADR-0029's per-session shape), and when it is off its patch
+      # state stops with everything else. Without the last line that is a
+      # permanently recurring alert for a correct state, which ADR-0017
+      # refuses. A guest that is off entirely is the estate's business
+      # (ADR-0028); this asks only about a guest that is up and has stopped
+      # collecting.
+      #
+      # And the file must still be rewritten. Presence alone misses the
+      # commonest way this breaks: when homelab-patch-state.timer stops,
+      # apt-patch-state.prom stays on disk and the textfile collector keeps
+      # re-serving its last gauges, so the series never goes absent. The
+      # wiki drift check in the estate's host.rules.yaml says the same of its
+      # own file. Twenty-six hours against a daily 08:00 timer with fifteen
+      # minutes of jitter allows one late run and not a missed one. eden
+      # coming back after days off has a stale file until Persistent=true
+      # runs the missed timer at boot, inside the fifteen-minute jitter, and
+      # `for: 30m` waits that out.
+      - alert: PatchStateStopped
+        expr: >-
+          (
+            (
+              count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
+              unless
+              count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+            )
+            or
+            (
+              time() - max by (host) (node_textfile_mtime_seconds{file=~".*/apt-patch-state[.]prom"})
+              > 26 * 3600
+            )
+          )
+          and on (host)
+          count by (host) (present_over_time(node_boot_time_seconds[6h]))
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting patch state"
+          description: >-
+            Its patch state has either stopped arriving or is being re-served
+            from an apt-patch-state.prom not rewritten in over 26 hours, while
+            its node metrics still arrive. SecurityUpdatesPending and
+            RebootRequired are both blind to this host until it is fixed.
+            Check `systemctl status homelab-patch-state.timer` on the host and
+            that /var/lib/node_exporter/textfile_collector/apt-patch-state.prom
+            is being rewritten daily and is world-readable.
 
       # -----------------------------------------------------------------------
       # The domain (ADR-0029). Scraped, never pushed — publishing a remote-write

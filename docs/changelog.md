@@ -281,6 +281,25 @@ docstring gives: it is a record, not a claim about now.
   `fenrir`'s uses. It is not applied yet: the change on `alexander` is the
   operator's to make, by §2, and §7's `sshd -T` is the check. This follows the
   same weakness closed on `golem` by the audit of 2026-11-13.
+- **The lab's Prometheus now reads its guests' patch and reboot state.**
+  `homelab-patch-state` has written it on `alexander`, `odin`, `garuda` and
+  `eden` all along, and no lab rule read it. The audit of `alexander` on
+  2026-11-13 found libc6 waiting for a reboot that nothing could see, and the
+  garuda entry below found the same gap. `lab.rules.yaml` gains the estate's
+  `SecurityUpdatesPending`, `RebootRequired` and `PatchStateStopped`, with
+  tests. `PatchStateStopped` also requires the host to still be pushing node
+  metrics, so `eden` being off between sessions stays quiet, and fires when
+  `apt-patch-state.prom` has not been rewritten in 26 hours, because a
+  stopped timer leaves the file's last gauges being served as current. None of them
+  pages (ADR-0020). The same audit found `compose.yaml` saying the `loki`
+  scrape job observes readiness. It does not, and the comment now says so.
+- **`stacks/lab/README.md`'s rule counts are checked now.** The audit of
+  `alexander` on 2026-11-13 found its layout block saying "9 rules" and
+  "12 rules" against files holding 19 and 13, and its ingest section naming
+  three clients and six tokens when there are six clients and seven tokens.
+  Every global count in `check_docs.py` passed throughout, because those are
+  totals across all rule files. A fourteenth assertion now reads each stack
+  README's per-file count against its rule file.
 - **`garuda` is patched by hand, monthly, because nothing else patches it.**
   After the audit of 2026-11-13 closed, a re-check of the box found a gap that
   audit missed. `unattended-upgrades` runs daily on `garuda` and applies
