@@ -100,7 +100,6 @@ docstring gives: it is a record, not a claim about now.
   of the rule in `host.rules.yaml` has the same blind spot. They show in the
   lab's Grafana, as everything there does; nothing pages (ADR-0020). Live on
   `alexander` once it next runs `make up STACK=lab`.
-||||||| 61376e62
 
 - **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
   completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
