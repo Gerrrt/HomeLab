@@ -26,10 +26,14 @@ docstring gives: it is a record, not a claim about now.
   mounted-config check passed for `docker.alloy`. Before, the proxy wrote
   about 58 lines a minute and Alloy shipped all of them. In the first 4½
   minutes after, it wrote 292, all 2xx, and Alloy's
-  `loki_process_dropped_lines_total` for `dockerlogs_filter` read 307: those
-  292 and the lines from the restart gap it read back. None reached
-  `loki.write`, which dropped nothing. The other containers' lines still
-  shipped. Alloy logged errors only in the seconds it and the proxy
+  `loki_process_dropped_lines_total` for `dockerlogs_filter` read 307. That
+  counter is shared by the filter's three drop stages, so it was attributed
+  from the containers' own logs. In that window no line from any other
+  container matched the other two stages (`GET /metrics`, `healthcheck`), so
+  all 307 were the proxy's: the 292, and 15 of the 46 2xx GETs it wrote in
+  the restart gap, which Alloy read back from its saved position. The 17
+  HAProxy stop and start notices in the gap were not 2xx GETs, and were kept.
+  The other containers' lines still shipped. Alloy logged errors only in the seconds it and the proxy
   restarted together, and none from 00:18. Two things are not checked yet.
   The `instance` label needs a query on `alexander`'s Loki, which `eden`
   cannot reach. And every other Docker host runs the old filter until its
