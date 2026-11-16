@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`odin`'s sshd is written down as keys only.** The 2026-11-13 audit of
+  `odin` found `sshd` offering passwords, and `sshd -T` with sudo on
+  2026-11-15 read `passwordauthentication yes` and `x11forwarding yes`.
+  Both are what the installer's OpenSSH ships, and nothing in this
+  repository said otherwise for `odin`. `build-the-soc-guest.md` §2 now
+  writes `10-homelab.conf`, as `alexander`'s §2 does, with password,
+  keyboard-interactive and root logins off and X11 forwarding off. §10 checks
+  it, and `security.md` has a row for it. Every SSH login to `odin` in its
+  journal since the build was by key. This records the change, not the
+  deploy: the step has not run on `odin`.
+
 - **`eden`'s first collection, and how it was really done.** The rebuilt
   guest held an empty graph (1 node, 0 edges) until a SharpHound run was
   ingested on 2026-11-16: 370 nodes and 3,914 edges — 48 users, 73 groups,

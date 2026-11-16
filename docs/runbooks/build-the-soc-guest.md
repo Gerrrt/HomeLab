@@ -131,6 +131,49 @@ the 96 GB disk untouched in the installer. It becomes the data disk next,
 outside LVM, so it can be read on any machine without reassembling a volume
 group.
 
+### SSH: keys only
+
+`alexander`'s §2 makes its `sshd` key-only, and this guest needs the same
+step for the same reasons. It is installed by hand from the ISO, so it does not
+inherit the template's `allow-pw: false`. Its `sshd` answers all of VLAN 30,
+where the weak domain lives and ARP spoofing is expected. And it holds the SOC
+certificate authority's key and its own age key (§5, §6). OpenSSH takes
+passwords unless told otherwise, and the installer also writes
+`/etc/ssh/sshd_config.d/50-cloud-init.conf`. The drop-in below sorts before
+that file, and `sshd` keeps the first value it reads, so the drop-in wins over
+whatever cloud-init wrote.
+
+Log in from Hicks with your key and keep that session open, so a mistake
+cannot lock you out. Then:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-homelab.conf > /dev/null <<'EOF'
+# Keys only (build-the-soc-guest.md §2). Read before sshd_config's own lines
+# and before cloud-init's 50-cloud-init.conf, and sshd keeps the first value
+# it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+```
+
+Then, from Hicks, in a new terminal, prove both halves. `ControlPath=none`
+makes each probe open a fresh connection instead of reusing the session you
+kept open:
+
+```bash
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password barnabas@10.0.30.60 true
+```
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no barnabas@10.0.30.60 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed.
+
 ### The data disk
 
 The indexer's data and Velociraptor's datastore live here
@@ -598,6 +641,15 @@ which is how many alerts the manager wrote. Alerts written and none indexed is
 Its verification mode is `full`, so a certificate issued for a name other than
 `wazuh.indexer` fails exactly here. The node-wide number above stays healthy
 through it.
+
+**And that `sshd` still refuses passwords** (§2). The drop-in outranks any
+later edit of `sshd_config` or cloud-init's file, but only while it exists:
+
+```bash
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four must read `no`.
 
 ## 11. Agents, by GPO — the second evening, and after #414
 
