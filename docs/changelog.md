@@ -46,6 +46,7 @@ docstring gives: it is a record, not a claim about now.
   - **The key pins held.** The first logins under the `from=` pins of
     2026-11-14, from `prometheus` and from `trinity`, were accepted, and no
     key has been refused since.
+
 - **`eden`'s admin password changed, and X11 forwarding turned off by
   hand.** This completes two items the 2026-11-13 entry *`eden` audited after
   its #1443 rebuild* left open. The `admin` login was still the first-start
