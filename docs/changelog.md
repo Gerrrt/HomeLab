@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **Template 901 is rebuilt with both of `eden`'s fixes.** The Ubuntu build
+  of `build-the-lab-templates.md` §4 ran from `phoenix` on main after #1525,
+  in 19 min 40 s. `prune.sh` purged all eight services, and the
+  `ubuntu-server` and `ubuntu-server-minimal` metapackages with them, and its
+  own checks passed. The `autoremove` after the upgrade then took only what
+  the eight had pulled in, among them `kexec-tools`, `makedumpfile`, `upower`
+  and `usbmuxd`, and the installer's 7.0.0-30 kernel. So the template ships
+  one kernel, 7.0.0-43. The X11 drop-in was written in the same build.
+  `scripts/packer-smoke.sh 901` passed: a full clone took cloud-init's user,
+  key and DHCP address, reported it through the agent and accepted
+  `phoenix`'s key, and was destroyed. The smoke test reads neither the
+  package list nor `sshd -T` on the clone: the purge rests on `prune.sh`'s
+  own check, and the X11 drop-in is written by the build but checked by
+  nothing yet. `eden` was not re-cloned and keeps its by-hand fixes. This completes
+  three entries below that left the rebuild to come: *Template 901 purges
+  the services `eden` had removed by hand*, *`eden`'s admin password
+  changed, and X11 forwarding turned off by hand*, and *`eden` no longer
+  runs the Ubuntu template's unused services*. A new clone of 901 needs
+  neither fix by hand.
+
 - **`deploy-agent.sh` says why it could not decrypt a host's token.**
   From a checkout with no `sops` on the path, or with no age key, it used to
   report `no agent token for <host>: add INGEST_TOKEN_<HOST> to
