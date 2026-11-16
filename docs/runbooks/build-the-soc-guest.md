@@ -79,7 +79,7 @@ qm create 160 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
   --onboot 1 \
-  --ide2 local:iso/ubuntu-24.04-live-server-amd64.iso,media=cdrom \
+  --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
   --boot order='scsi0;ide2'
 ```
 
@@ -228,7 +228,7 @@ persist. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/
 ## 3. Docker, sops, age, and the repository
 
 Identical to `alexander`'s §3 — the Docker repository, `git clone` into
-`~/HomeLab`, `age` from apt and `sops` from its release page at the version the
+`~/code/Gerrrt/HomeLab`, `age` from apt and `sops` from its release page at the version the
 monitoring host runs. Deploy from a checkout **on this host**: `make render`
 writes into the tree it runs from.
 
@@ -249,7 +249,7 @@ capability dropped (`compose.yaml`, DIFFERENCE 4), so — with no
 into a directory it owns, and the clone leaves this one owned by you:
 
 ```bash
-sudo chown root:root ~/HomeLab/stacks/soc/velociraptor/etc
+sudo chown root:root ~/code/Gerrrt/HomeLab/stacks/soc/velociraptor/etc
 ```
 
 The datastore (§2, `/srv/soc-data/velociraptor`) is already root's; this is the
@@ -283,7 +283,7 @@ which is why it is not `sysctl -w` alone.
 rule, and the same refusal means the same thing here.
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=soc
 ```
 
@@ -402,7 +402,7 @@ to know rather than discover.
 Back on `odin`:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 git pull
 make render STACK=soc
 make up STACK=soc
@@ -453,24 +453,26 @@ own `curl`, signed in with the admin certificate, because 9200 is not
 published:
 
 ```bash
-cd ~/HomeLab
-AUTH='--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem'
+cd ~/code/Gerrrt/HomeLab
+AUTH=(--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem)
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_template/wazuh-alerts-homelab \
   --data-binary @- < stacks/soc/wazuh/indexer/template-wazuh-alerts.json
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-alerts-30d \
   --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-alerts.json
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-weekly-30d \
   --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-weekly.json
 ```
 
-The template answers `"acknowledged":true` and each policy call echoes its
-policy back. A policy's `ism_template` reaches only the indices created after
+`AUTH` is an array so that these commands run the same in `bash` and `zsh`:
+`zsh` does not split an unquoted string into words, and a plain string reached
+`curl` as one argument there. The template answers `"acknowledged":true` and
+each policy call echoes its policy back. A policy's `ism_template` reaches only the indices created after
 it, and the manager wrote its first alert, monitoring and statistics indices
 when it started, before this step. Attach the policies to those by hand, or
 they are kept for ever (the build's first alert index was, until 2026-11-14):
@@ -478,7 +480,7 @@ they are kept for ever (the build's first alert index was, until 2026-11-14):
 ```bash
 for p in 'wazuh-alerts-*:wazuh-alerts-30d' 'wazuh-monitoring-*,wazuh-statistics-*:wazuh-weekly-30d'; do
   docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-    curl -sk $AUTH -H 'Content-Type: application/json' \
+    curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
     -XPOST "https://localhost:9200/_plugins/_ism/add/${p%%:*}" \
     --data-binary "{\"policy_id\":\"${p##*:}\"}"
 done
@@ -495,7 +497,7 @@ zero replicas, as this node has no second to hold them:
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT 'https://localhost:9200/.opendistro-ism-config,.opendistro-job-scheduler-lock,.opendistro-ism-managed-index-history-*/_settings' \
   --data-binary '{"index":{"number_of_replicas":0}}'
 ```
@@ -514,7 +516,7 @@ does not read them. Delete them:
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -XDELETE 'https://localhost:9200/.opendistro-ism-managed-index-history-*'
+  curl -sk "${AUTH[@]}" -XDELETE 'https://localhost:9200/.opendistro-ism-managed-index-history-*'
 ```
 
 The settings template is a legacy template at `order: 1` so that it
@@ -526,9 +528,9 @@ manager):
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH 'https://localhost:9200/_cat/indices/wazuh-alerts-*?v&h=index,pri,rep,docs.count'
+  curl -sk "${AUTH[@]}" 'https://localhost:9200/_cat/indices/wazuh-alerts-*?v&h=index,pri,rep,docs.count'
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*,wazuh-monitoring-*,wazuh-statistics-*'
+  curl -sk "${AUTH[@]}" 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*,wazuh-monitoring-*,wazuh-statistics-*'
 ```
 
 `pri 1 rep 0` on every alert index, every one of them holding the
@@ -821,7 +823,7 @@ exists dials nothing.
 ### 2. The server, on `odin`
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 docker compose -f stacks/soc/compose.yaml --env-file stacks/soc/.env rm -sf velociraptor
 docker volume rm soc_velociraptor-datastore
 ```

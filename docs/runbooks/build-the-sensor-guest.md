@@ -273,7 +273,7 @@ had none and was brought up with plain `docker compose`. Create the key and
 the file **on `fenrir`**:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=sensor
 ```
 

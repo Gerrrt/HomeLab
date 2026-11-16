@@ -294,7 +294,9 @@ services:
       # on 1515 needs authd.pass (above) and issues each agent its own key, and
       # 1514 carries only traffic encrypted to a key enrolment issued. Those
       # are what stand between the segment and the manager, as the token does
-      # for the lab's stores. BIND_ADDR narrows it to odin's own address.
+      # for the lab's stores. BIND_ADDR can narrow it to odin's own address;
+      # .env.example leaves 0.0.0.0, which on this single-homed guest is the
+      # same segment (the reason is there).
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
     # 55000 is the API: the dashboard reaches it on this network and nothing

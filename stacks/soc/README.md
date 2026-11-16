@@ -55,8 +55,8 @@ Seven services, and what is absent is as deliberate as what is here:
   container logs, the way it holds `alexander`'s. Tailing `alerts.json` into
   Loki would put every alert in two stores with two retentions.
 - **No Alertmanager, here or on `alexander`.** Nothing in the lab pages
-  ([ADR-0020]). The seven rules that read this stack's health are visible in the
-  lab's Prometheus and Grafana and nowhere else.
+  ([ADR-0020]). The twelve Wazuh rules in `soc.rules.yaml` that read this stack's health
+  are visible in the lab's Prometheus and Grafana and nowhere else.
 - **No syslog listener, no API port.** Upstream's single-node file publishes
   `514/udp` and `55000`; nothing off this host consumes either
   ([ADR-0012]), so neither is published.
@@ -163,7 +163,8 @@ the lab CA are a named follow-up rather than a prerequisite.
 - **The memory limits are vendor minimums, not measurements** — the one place
   this file departs from `stacks/lab`'s refusal to guess. Wazuh states 4 GiB
   for the indexer and 2 GiB for the manager; the indexer gets 3.5 GiB here
-  because the guest has 8 and four other services. Re-derive from
+  because the guest has 16, sized for the vulnerability feed's import
+  bursts (`build-the-soc-guest.md` §0), and four other services. Re-derive from
   `container_memory_rss` in the lab's Prometheus, the way #114 did.
 - **`vm.max_map_count` is a guest-OS prerequisite**, not a compose setting —
   it is not namespaced, so the container cannot set it. The runbook writes
@@ -223,8 +224,8 @@ where they live.
 What `make validate` still does **not** prove about this stack, in the order
 it matters:
 
-- **That it runs.** Nothing here has been deployed — the host is
-  [`build-the-soc-guest.md`]. Every check is static.
+- **That it runs.** Every check is static. The stack runs on `odin`, built by
+  [`build-the-soc-guest.md`], and its §10 is the check that it works.
 - **That the indexer accepts the rendered user database.** A malformed bcrypt
   hash in SOPS parses as YAML and fails inside the security plugin on first
   start; the runbook's verification step is the check.

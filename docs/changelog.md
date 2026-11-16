@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`stacks/soc` and its runbook agree with `odin` again.** Six things the
+  2026-11-13 audit of `odin` found written down wrong are corrected:
+  - the stack README said the guest has 8 GiB; it has 16, as
+    `build-the-soc-guest.md` §0 decides;
+  - the README said nothing here had been deployed;
+  - the README counted seven rules; `soc.rules.yaml` holds twelve for Wazuh;
+  - the runbook booted the 24.04 ISO; `odin` was installed from 26.04.1;
+  - the runbook cloned into `~/HomeLab`; `odin`, like `alexander`, uses
+    `~/code/Gerrrt/HomeLab`;
+  - `compose.yaml` said `BIND_ADDR` narrows the published ports to `odin`'s
+    address, but `.env.example` leaves it at `0.0.0.0`, which on a
+    single-homed guest is the same segment.
+
+  §9's indexer commands, and the scratch investigation's copy of one, now
+  pass the admin certificate as an array, so they also run in `zsh`. That
+  shell had refused them during the 2026-11-16 deploy. And the unused Docker
+  network `soc_default`, left over from the first `up` on 2026-09-27, was
+  removed from `odin`.
+
 - **#1539 is applied on `odin`: its `sshd` takes keys only.** This completes
   the entry below, *`odin`'s sshd is written down as keys only*, which
   records the change, not the deploy. At 17:57 UTC `build-the-soc-guest.md`
