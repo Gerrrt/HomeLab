@@ -193,7 +193,6 @@ docstring gives: it is a record, not a claim about now.
   that has not been made. The §9 commands run only under `bash`: in `zsh`,
   `$AUTH` reaches `curl` as one argument and is rejected before anything is
   sent.
-||||||| 96c10c4c
 
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
