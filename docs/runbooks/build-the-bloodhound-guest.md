@@ -383,39 +383,64 @@ containers to come back. They have `restart: unless-stopped`.
    it sits in `.env` and in the container's environment, which anyone in
    the `docker` group can read, and must not stay the live login.
 2. **A collection, ingested.** Download SharpHound from the UI, under
-   *Download Collectors*. That way its version is the one the server's schema
-   expects. Run it from a domain-joined host as an ordinary domain user, for
-   example from `carbuncle`:
+   *Download Collectors*, so its version is the one the server's schema
+   expects. The UI answers Hicks only (`403` from VLAN 30, §6), so download it
+   on a Hicks workstation and carry it to `carbuncle`: `scp` it through
+   `phoenix` to `Administrator@10.0.30.54` (phoenix's `~/.ssh/id_ed25519`
+   reaches every guest as the built-in Administrator; `carbuncle` is VMID 154).
+   Run it there as an ordinary domain user:
 
    ```powershell
    .\SharpHound.exe -c All --domain ad.matrix.elysium --zipfilename eden-first.zip
    ```
 
-   The user is any of the population (#449), say `AD\acooper`; its password is
-   printed on `phoenix` by `ansible-playbook population-credentials.yml -e
-   population_only=acooper`, never stored. Sign in at `carbuncle`'s console
-   (Proxmox, VMID 154), since a plain domain user is not in *Remote Desktop
-   Users*.
+   The user is any of the population (#449), say `AD\acooper`. Its password is
+   printed on `phoenix`, never stored — but `population-credentials.yml` reads
+   `ansible.cfg` and the `LAB_POPULATION_SEED` it derives the password from
+   from the checkout's `ansible/` directory, so run it from there with the
+   proxmox env exported, as `ansible/README.md` sets up:
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; set +a
+   cd ansible
+   ansible-playbook population-credentials.yml -e population_only=acooper
+   ```
+
+   The earlier repo-root shell will not find the playbook. Sign in at
+   `carbuncle`'s console (Proxmox, VMID 154): RDP is off on all six guests, so
+   a domain user has no remote session to use.
 
    Three things the first run (2026-11-16) hit, so a later one need not:
 
    - **Defender quarantines SharpHound through AMSI**, as it loads, not on
      disk — so a folder exclusion does not help; a process exclusion for
      `SharpHound.exe`, or turning real-time protection off for the run in the
-     Windows Security UI, does. Tamper Protection means this is a UI action,
-     not a `Set-MpPreference` one. **Leave the detection in place**: SharpHound
-     caught on a workstation, logged against the user, is the event the SOC
-     side of the lab exists to raise (#266), not something to clear. Re-enable
-     protection after.
+     Windows Security UI, does. `AD\acooper` is an ordinary user and cannot
+     change Defender: make the change elevated as the endpoint's local
+     administrator `labadmin` (its password is `LAB_ENDPOINT_ADMIN_PASSWORD`),
+     then run SharpHound back in `acooper`'s own session. Tamper Protection
+     means this is a UI action, not a `Set-MpPreference` one. **Leave the
+     detection in place**: SharpHound caught on a workstation, logged against
+     the user, is the event the SOC side of the lab exists to raise (#266),
+     not something to clear. Afterwards undo exactly what you changed —
+     re-enable real-time protection, and if you added the process exclusion,
+     remove it, because re-enabling protection does not clear an exclusion.
    - **The network collectors do not work here.** `bloodhound-ce-python` and
      `netexec` authenticate, but both DCs enforce LDAP signing and have no
      LDAPS certificate (the lab runs no AD CS), so neither can collect:
      signing refuses plain LDAP, and `636` has no cert. SharpHound on a
      domain host is the only path, because the Windows LDAP client signs and
      seals over `389` natively. Do not re-walk the Linux route.
-   - **The UI answers Hicks only** (`403` from VLAN 30, §6), so `carbuncle`'s
-     own browser cannot upload. Carry the zip to a Hicks workstation — over
-     RDP, or `scp` through `phoenix` — and upload it there.
+   - **Getting the zip to the UI.** `carbuncle`'s own browser cannot upload
+     (Hicks only, above), and RDP is off, so pull the zip off `carbuncle` from
+     `phoenix` with `scp` as the built-in Administrator — `acooper` has no SSH
+     key, phoenix's `~/.ssh/id_ed25519` does — then carry it to a Hicks
+     workstation and upload it there. From the checkout root on `phoenix`:
+
+     ```bash
+     scp -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=ansible/.known_hosts \
+       Administrator@10.0.30.54:'C:/Users/acooper/eden-first.zip' .
+     ```
 
    Upload the zip under *Administration → File Ingest*. The job must finish
    **Complete**, not *Partially Complete*. Then delete every copy of the zip:
