@@ -41,7 +41,11 @@ if [ -n "$installed" ]; then
 fi
 
 # kdump-tools reserved crash-kernel memory on the kernel line; without it the
-# reservation is dead weight on every clone.
+# reservation is dead weight on every clone. The installer also copies the
+# boot command's `autoinstall` (packer/ubuntu.pkr.hcl) into
+# GRUB_CMDLINE_LINUX_DEFAULT, so every clone booted with it. It does nothing
+# on an installed system, but it is not a choice anyone made.
+sed -i 's/^GRUB_CMDLINE_LINUX_DEFAULT="autoinstall"$/GRUB_CMDLINE_LINUX_DEFAULT=""/' /etc/default/grub
 update-grub
 
 # Fail the build rather than ship a template that still carries one.
@@ -53,5 +57,9 @@ for p in $PRUNE; do
 done
 if grep -q crashkernel /boot/grub/grub.cfg; then
   echo "prune.sh: crashkernel= is still on the kernel line" >&2
+  exit 1
+fi
+if grep -q autoinstall /boot/grub/grub.cfg; then
+  echo "prune.sh: autoinstall is still on the kernel line" >&2
   exit 1
 fi

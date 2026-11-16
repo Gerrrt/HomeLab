@@ -101,10 +101,12 @@ Three things have to be in place first:
      | grep ssh-ed25519
    ```
 
-**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), stop
-here and go to *Once: bring the hand-built `eden` into the pipeline* below.
-The commands next are for a first build only: an apply with 141 taken fails
-on the clone, after it has made the pool.
+**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), it is
+in the state: the hand-built guest was imported and replaced on 2026-11-12
+under [#1443](https://github.com/Gerrrt/HomeLab/issues/1443), and the first
+untargeted plan after it, on 2026-11-16, said *No changes*. The commands
+below then only refresh it: the plan should say *No changes*, and anything
+else is a stop. To rebuild it on purpose, use *Rebuild: replace it* below.
 
 For a first build, on `phoenix`:
 
@@ -119,34 +121,21 @@ The plan should add the guest and the `bloodhound` pool, and nothing else.
 Proxmox warns that the sum of thin volumes exceeds the pool. That is the
 allocation ADR-0081 accepts, and the warning is expected.
 
-### Once: bring the hand-built `eden` into the pipeline
+### Rebuild: replace it
 
-`eden` was first built by hand, with `qm clone 901 141` and `qm set`
-(2026-10-07), so the state does not know it. Import it once, as the domain's
-six were ([`build-the-lab-domain.md`](build-the-lab-domain.md#rebuild-from-the-pipeline)):
-
-```bash
-tofu -chdir=tofu import 'module.guest["eden"].proxmox_virtual_environment_vm.this' Saruman/141
-tofu -chdir=tofu plan -target='module.guest["eden"]'
-```
-
-The plan should **replace** `eden` and **create** the `bloodhound` pool, and
-nothing else. A guest built by hand has no `clone` to read back, so this is the
-one plan where a replace is expected. Anything else is a stop.
-
-The replace destroys both disks, the graph and the guest's age key with them.
+A replace destroys both disks, the graph and the guest's age key with them.
 ADR-0081 accepts that: the graph is one collection run from rebuilt, and the
-key is replaced by issuing new values. So take it out of the stack first, then
-let the pipeline make it again:
+key is replaced by issuing new values.
 
 ```bash
-tofu -chdir=tofu destroy -target='module.guest["eden"]'
-tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu plan -replace='module.guest["eden"].proxmox_virtual_environment_vm.this' \
+  -target='module.guest["eden"]' -out=eden.tfplan
 tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
 ```
 
-Then continue from §2. At §3, the guest is new and so is its key: follow §11
-for the `.sops.yaml` rule and the secrets file.
+The plan should replace `eden` and nothing else. Then continue from §2. At
+§3, the guest is new and so is its key: follow §11 for the `.sops.yaml` rule
+and the secrets file.
 
 ## 2. First boot, and the data disk
 

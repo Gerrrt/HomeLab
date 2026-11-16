@@ -199,11 +199,6 @@ Gated on the domain, on a household observation, or on something to publish.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
-- **[#1443](https://github.com/Gerrrt/HomeLab/issues/1443) Bring `eden` into
-  `tofu/`.** `ragnarok` is in, and `eden` is declared but still the hand-built
-  guest: importing it plans a replace, which rebuilds it and its key
-  ([`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
-  Until then every plan and apply keeps `-target`.
 - **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
   Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
   certificate generator, and it is the only path that closes the CVE issues

@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`eden` is in OpenTofu's state, and #1443 is done.** The first
+  untargeted `tofu -chdir=tofu plan` on `phoenix` since the 2026-11-12
+  rebuild refreshed every guest, `eden` (141) and `ragnarok` (130) among
+  them, and said *No changes*. So the replace that rebuilt `eden` went through
+  the pipeline, and plans no longer need `-target` to step around it.
+  `ragnarok`'s half was done on 2026-11-12 under #1464, and proved by
+  `finish-attack-vm.sh`. The roadmap entry and the one-time step in
+  `deploy-merged-changes.md` leave. `build-the-bloodhound-guest.md` §1 now
+  rebuilds `eden` with `-replace` instead of the import, which has been
+  done. A rebuild still loses the graph and the key, as ADR-0081 accepts.
+
+- **Correction: `eden`'s admin password was not changed until 08:43 UTC on
+  2026-11-16, and is now.** This corrects the entry below, *`eden`'s admin
+  password changed, and X11 forwarding turned off by hand*, which said it had
+  been changed in the UI. A live check found the `admin` row of
+  `auth_secrets` still as created at 03:28 on 2026-11-13, and BloodHound's
+  audit log showing no password change and no activity at all after
+  05:25 on 2026-11-15. The change was made again and checked in the database:
+  `UpdateAuthSecret` succeeded at 08:43:33, and the new secret expires on
+  2027-02-14. BloodHound expires a password after 90 days, so the next change
+  is due by then. Checking the database, not the UI, is what tells.
+
+- **Template 901 takes `autoinstall` off the kernel line.** Subiquity copies
+  what follows `---` in the boot command into `GRUB_CMDLINE_LINUX_DEFAULT`, so
+  every clone, `eden` included, booted with `autoinstall`. It does nothing on
+  an installed system. `packer/ubuntu/prune.sh` now clears it before
+  regenerating GRUB, and fails the build if it is still in `grub.cfg`. On
+  `eden` it was cleared by hand the same way; it takes effect at the next
+  boot, as does the crash-kernel reservation the purge below dropped, since
+  `eden` had not rebooted since 2026-11-12. Not built yet: the 901 rebuilt
+  earlier today still carries it.
+
 - **A wiki drift check that cannot run now alerts**
   ([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). On 2026-11-15
   the run on `oracle` failed at the wiki fetch, exit 128. The checker never
