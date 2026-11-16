@@ -1572,18 +1572,18 @@ def relative_link_problems(rel: str, text: str, root: pathlib.Path) -> list[str]
 STACK_RULE_FILE_CLAIM = re.compile(r"rules/([\w.-]+\.rules\.yaml)[ \t]+" + COUNT + WS + r"rules\b")
 
 
-def check_stack_rule_files() -> list[str]:
+def check_stack_rule_files(repo: pathlib.Path = REPO) -> list[str]:
     problems = []
-    for readme in sorted(REPO.glob("stacks/*/README.md")):
+    for readme in sorted(repo.glob("stacks/*/README.md")):
         text = readme.read_text(encoding="utf-8")
-        rel = readme.relative_to(REPO)
+        rel = readme.relative_to(repo)
         for match in STACK_RULE_FILE_CLAIM.finditer(text):
             name, claimed = match.group(1), number(match.group(2))
             n = text.count("\n", 0, match.start()) + 1
             files = sorted(readme.parent.glob(f"**/rules/{name}"))
             if len(files) != 1:
                 problems.append(
-                    f"{rel}:{n} counts rules/{name}, which names {len(files)} files under {readme.parent.relative_to(REPO)}/; want exactly one"
+                    f"{rel}:{n} counts rules/{name}, which names {len(files)} files under {readme.parent.relative_to(repo)}/; want exactly one"
                 )
                 continue
             have = count_alerts(files) + count_recording_rules(files)
@@ -1792,6 +1792,33 @@ def self_test() -> int:
                 not adrs("Accepted · amends [ADR-0001](0001-first.md), as [ADR-0003](0003-third.md) did", True),
             ),
         ]
+
+    # Stack READMEs' per-file rule counts. Built as a temp tree so the glob and
+    # the count are exercised, not only the regex.
+    with tempfile.TemporaryDirectory() as d:
+        repo = pathlib.Path(d)
+        stack = repo / "stacks" / "demo"
+        (stack / "prometheus" / "rules").mkdir(parents=True)
+        (stack / "prometheus" / "rules" / "a.rules.yaml").write_text(
+            "groups:\n  - rules:\n      - alert: One\n      - alert: Two\n      - record: three\n"
+        )
+
+        def stack_rules(claim: str) -> str:
+            (stack / "README.md").write_text(claim + "\n")
+            return " | ".join(check_stack_rule_files(repo))
+
+        cases += [
+            ("a matching per-file rule count passes", not stack_rules("rules/a.rules.yaml   3 rules")),
+            ("a count in words passes too", not stack_rules("rules/a.rules.yaml three rules")),
+            (
+                "a stale count is caught",
+                "claims 2 rules in a.rules.yaml; the file has 3" in stack_rules("rules/a.rules.yaml 2 rules"),
+            ),
+            ("a missing rule file is caught", "names 0 files" in stack_rules("rules/gone.rules.yaml 1 rules")),
+        ]
+        (stack / "other" / "rules").mkdir(parents=True)
+        (stack / "other" / "rules" / "a.rules.yaml").write_text("groups: []\n")
+        cases.append(("an ambiguous rule file is caught", "names 2 files" in stack_rules("rules/a.rules.yaml 3 rules")))
 
     failed = 0
     for name, ok in cases:
