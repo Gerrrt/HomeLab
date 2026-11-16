@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
+  completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
+  which records the change, not the deploy. `make up STACK=soc` ran at 19:16
+  UTC from a `main` at #1542 and recreated only the indexer; the mounted-config
+  and container-health checks passed for all seven services. Afterwards
+  `_nodes/stats/jvm` read a heap maximum of 3 GiB at 15% used, and the
+  container used 3.44 of its 4.5 GiB. The cluster was green at 40 shards with
+  none unassigned, today's alert index took 28 documents in a minute, and all
+  seven agents were active in Wazuh and connected to Velociraptor. The new
+  alert line of 68 is not live yet: `alexander` evaluates the rules from its
+  own checkout, and still fires above 45 until it next runs `make up
+  STACK=lab`.
+- **`odin`'s SSH keys and Velociraptor datastore tidied.** Finishing the
+  2026-11-13 audit, `barnabas`'s `authorized_keys` on `odin` went from 18 lines
+  to the 3 keys that had logged in since the build: one used from Hicks and
+  `laptop-02`, one from `desktop-02`, and the hypervisor's. Fourteen imported GitHub keys had never been used, and
+  one line was a duplicate. `odin`'s own key pair, which nothing used, was
+  deleted. In Velociraptor, eight client directories left over from enrolment
+  on 2026-09-27 and 2026-10-07, which were in no client index and invisible in
+  the GUI, were removed. Seven clients stayed connected.
+
 - **ADR-0118: the Wazuh indexer gets 3 GiB of heap.** The audit of `odin`
   re-derived ADR-0030's shard budget. The non-alert families take about 30
   shards, not 15, so thirty days of alerts need about 60 against a budget of
