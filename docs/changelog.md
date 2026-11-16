@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`eden`'s admin password changed, and X11 forwarding turned off by
+  hand.** This completes two items the 2026-11-13 entry *`eden` audited after
+  its #1443 rebuild* left open. The `admin` login was still the first-start
+  `BLOODHOUND_ADMIN_PASSWORD`; it was changed in the UI on 2026-11-16, and
+  `build-the-bloodhound-guest.md` §7 now makes that change part of the
+  build, since the SOPS value stays readable in `.env` and the container's
+  environment. That entry also said `eden` keeps X11 forwarding until it is
+  next cloned from a rebuilt 901. Instead, the template's
+  `/etc/ssh/sshd_config.d/10-no-x11.conf` was written on `eden` by hand and
+  `sshd` reloaded; `sshd -T` reads `x11forwarding no`. A clone from today's
+  901 still needs it until the template is rebuilt.
+
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
   polls*, which records the change merged, not deployed. `make up

@@ -376,7 +376,12 @@ containers to come back. They have `restart: unless-stopped`.
 1. **The UI, over TLS.** From the Mac, open `https://10.0.30.41:8443/`. The
    certificate must verify against the estate's CA, which Hicks already
    trusts for the two Grafanas. Log in as `admin` with
-   `BLOODHOUND_ADMIN_PASSWORD`.
+   `BLOODHOUND_ADMIN_PASSWORD`, then change the password in the UI at once
+   and keep the new one in your password manager, not in the repository.
+   `BLOODHOUND_ADMIN_PASSWORD` only creates `admin` on the first start
+   (`bhe_recreate_default_admin` is `false`), so it is a bootstrap value:
+   it sits in `.env` and in the container's environment, which anyone in
+   the `docker` group can read, and must not stay the live login.
 2. **A collection, ingested.** Download SharpHound from the UI, under
    *Download Collectors*. That way its version is the one the server's schema
    expects. Run it from a domain-joined host as an ordinary domain user, for
