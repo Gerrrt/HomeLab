@@ -831,13 +831,58 @@ tests:
             exp_annotations:
               summary: "odin has stopped reporting patch state"
               description: >-
-                It reported within the last day and has not in six hours, while
-                its node metrics still arrive, so SecurityUpdatesPending and
-                RebootRequired are both blind to this host until it comes back.
-                Check `systemctl status homelab-patch-state.timer` on the host
-                and that
-                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom
-                is being written and is world-readable.
+                Its patch state has either stopped arriving or is being
+                re-served from an apt-patch-state.prom not rewritten in over 26
+                hours, while its node metrics still arrive.
+                SecurityUpdatesPending and RebootRequired are both blind to
+                this host until it is fixed. Check
+                `systemctl status homelab-patch-state.timer` on the host and
+                that /var/lib/node_exporter/textfile_collector/apt-patch-state.prom
+                is being rewritten daily and is world-readable.
+  # The timer stops but the file stays: the gauges keep arriving, re-served
+  # from a file last written at t=0. Twenty-six hours on, it fires.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{instance="garuda",job="garuda-metrics",host="garuda"}'
+        values: "3x400"
+      - series: 'node_textfile_mtime_seconds{instance="garuda",job="garuda-metrics",host="garuda",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x400"
+      - series: 'node_boot_time_seconds{instance="garuda",job="garuda-metrics",host="garuda"}'
+        values: "1000x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: garuda
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "garuda has stopped reporting patch state"
+              description: >-
+                Its patch state has either stopped arriving or is being
+                re-served from an apt-patch-state.prom not rewritten in over 26
+                hours, while its node metrics still arrive.
+                SecurityUpdatesPending and RebootRequired are both blind to
+                this host until it is fixed. Check
+                `systemctl status homelab-patch-state.timer` on the host and
+                that /var/lib/node_exporter/textfile_collector/apt-patch-state.prom
+                is being rewritten daily and is world-readable.
+  # The same host with the timer working: the file is rewritten each day at
+  # 24h, so at 30h it is six hours old. Quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{instance="garuda",job="garuda-metrics",host="garuda"}'
+        values: "3x400"
+      - series: 'node_textfile_mtime_seconds{instance="garuda",job="garuda-metrics",host="garuda",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x287 86400x113"
+      - series: 'node_boot_time_seconds{instance="garuda",job="garuda-metrics",host="garuda"}'
+        values: "1000x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
   # eden switched off after a session: patch state and node metrics stop
   # together. That is the correct state for a per-session guest, so quiet.
   - interval: 5m

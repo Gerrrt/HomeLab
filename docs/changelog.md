@@ -289,7 +289,9 @@ docstring gives: it is a record, not a claim about now.
   garuda entry below found the same gap. `lab.rules.yaml` gains the estate's
   `SecurityUpdatesPending`, `RebootRequired` and `PatchStateStopped`, with
   tests. `PatchStateStopped` also requires the host to still be pushing node
-  metrics, so `eden` being off between sessions stays quiet. None of them
+  metrics, so `eden` being off between sessions stays quiet, and fires when
+  `apt-patch-state.prom` has not been rewritten in 26 hours, because a
+  stopped timer leaves the file's last gauges being served as current. None of them
   pages (ADR-0020). The same audit found `compose.yaml` saying the `loki`
   scrape job observes readiness. It does not, and the comment now says so.
 - **`stacks/lab/README.md`'s rule counts are checked now.** The audit of
