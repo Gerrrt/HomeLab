@@ -19,6 +19,29 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`eden`'s first collection, and how it was really done.** The rebuilt
+  guest held an empty graph (1 node, 0 edges) until a SharpHound run was
+  ingested on 2026-11-16: 370 nodes and 3,914 edges — 48 users, 73 groups,
+  the 6 domain computers, 14 OUs, 5 GPOs and the domain. `build-the-bloodhound-guest.md`
+  §7 now records the three things the run hit, none of which the old three-line
+  step mentioned:
+  - **Collected from `carbuncle` as `AD\acooper`**, a population user
+    (#449) whose password `population-credentials.yml` prints on `phoenix`,
+    signed in at the console because a plain user is not in *Remote Desktop
+    Users*.
+  - **Defender quarantines SharpHound through AMSI**, as the assembly loads,
+    so a folder exclusion does not help; a process exclusion or turning
+    real-time protection off for the run in the Windows Security UI does. The
+    detection was left in place: SharpHound caught on a workstation, logged
+    against the user, is the SOC event #266 is built to raise.
+  - **The network collectors cannot work here.** `bloodhound-ce-python` and
+    `netexec` both authenticate as `acooper`, but the DCs enforce LDAP signing
+    and have no LDAPS certificate (the lab runs no AD CS): signing refuses
+    plain LDAP and `636` has no cert, so neither collects. SharpHound on a
+    domain host is the only path, because the Windows LDAP client signs and
+    seals over `389`. The zip was carried to a Hicks workstation to upload,
+    since the UI answers Hicks alone.
+
 - **No clone of template 901 puts its user in `lxd`.** A second live
   re-check of `eden` found `garnet` in the `lxd` group, from the default
   user groups in Ubuntu's `/etc/cloud/cloud.cfg`. LXD is not installed on
