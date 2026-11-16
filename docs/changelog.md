@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **The six domain guests' SOC agents are pinned to the servers' versions,
+  and `odin` serves the new MSIs ([#1439](https://github.com/Gerrrt/HomeLab/issues/1439)).**
+  `roles/soc_agents` moves Wazuh from 4.14.7 to 4.14.10, the manager's
+  version. Velociraptor moves from 0.77.2 to 0.77.3, the server's. Each
+  version moved with its product code and sha256.
+  - **Wazuh.** The MSI from `packages.wazuh.com` matched the vendor's
+    published sha512 before its sha256 was pinned.
+  - **Velociraptor.** The 0.77.3 server repacked its client with
+    *Server.Utils.CreateMSI* (flow `F.DBTN9J4BJ6R3M`). The base MSI it
+    downloaded matched the sha256 digest GitHub publishes for the
+    `v0.77.3` release, and the repack's own hash is the pin.
+  - **ProductCodes.** Each was read with `msiinfo` (msitools). The same read
+    of the 0.77.2 MSI gave the code already pinned, which checks the method.
+  - **Running CreateMSI without the GUI.** It needed a temporary
+    `administrator,api` API client inside `soc-velociraptor`, called over its
+    loopback API. That client was then removed with `user_delete()`, and its
+    ACL file deleted.
+  - **Staging.** `stage-agent-msis.sh` ran as root in a throwaway container
+    holding the docker socket, because `barnabas` has no passwordless sudo.
+    It passed all four checks. Port 8448 now serves
+    `wazuh-agent-4.14.10.msi` and `velociraptor-client-0.77.3.msi` in place
+    of the old pair.
+  - **Not yet on the six.** They still run the old agents until
+    `--tags soc` runs from `phoenix`. The role reads each new product code
+    as not installed, and installs the new MSI over the old one.
+  - **A stale comment.** `stacks/soc/compose.yaml` said the Velociraptor
+    image was 0.77.2. It now names no version.
+
 - **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
   completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
   which records the change, not the deploy. `make up STACK=soc` ran at 19:16

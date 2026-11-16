@@ -96,10 +96,12 @@ Closes when it is empty.
   weeks of `WanLinkSaturated`. If it implies a purchase, the purchase enters
   through *Everything still to buy* in the same PR that decides it.
 - **[#1439](https://github.com/Gerrrt/HomeLab/issues/1439) Bring the SOC's
-  agents up to its servers.** The Wazuh agent pin in
-  `ansible/roles/soc_agents` trails the manager, and the Velociraptor client
-  trails the server. Bump each with its product code and checksum, then
-  re-run the role.
+  agents up to its servers.** `ansible/roles/soc_agents` now pins both
+  agents at the servers' versions, and `odin` serves the new MSIs. Left: run
+  `--tags soc` from `phoenix` against the six. Then check the versions:
+  `agent_control -l` on the manager lists the agent IDs but not their
+  versions, so run `agent_control -i <id>` for each, and look at the
+  Velociraptor client list.
 - **[#1454](https://github.com/Gerrrt/HomeLab/issues/1454) Deploy MakeMKV on
   `smaug`.** Decided by
   [ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
