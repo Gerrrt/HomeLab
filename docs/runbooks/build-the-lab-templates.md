@@ -366,8 +366,8 @@ What each one does, so a stall can be placed:
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
   `packer` with `phoenix`'s key. `packer/ubuntu/prune.sh` purges the
   server seed's services no clone uses (VMware tools, ModemManager, snapd,
-  thermald, multipath, iSCSI, kdump, udisks2) and fails the build if one
-  survives. Packer then upgrades, turns off X11 forwarding, and wipes
+  thermald, multipath, iSCSI, kdump, udisks2), takes the installer's
+  `autoinstall` off the kernel line, and fails the build if any of that is left. Packer then upgrades, turns off X11 forwarding, and wipes
   cloud-init's state, machine-id and host keys. It then deletes the `packer`
   user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is

@@ -181,19 +181,7 @@ Some merges come with a step that is run once and is then done. Each one is
 listed here while its issue is open, and leaves this page when the issue
 closes.
 
-- **`eden` and `ragnarok` into the pipeline ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)).**
-  Before the first plan on `phoenix`:
-  1. Add `TF_VAR_gandalf_endpoint` and `TF_VAR_gandalf_api_token` to
-     `phoenix.env` ([`build-the-playground.md`](build-the-playground.md), §5).
-  2. Add both guests' MACs to `tofu/identities.auto.tfvars`, and re-escrow it
-     ([`provision-lab-guests.md`](provision-lab-guests.md), §3).
-
-  Until both guests are rebuilt, the plan shows changes for `eden` and
-  `ragnarok`, and for nothing else. Then:
-  - `eden`: [`build-the-bloodhound-guest.md`](build-the-bloodhound-guest.md),
-    *Once: bring the hand-built `eden` into the pipeline*.
-  - `ragnarok`: [`build-the-playground.md`](build-the-playground.md), §5,
-    ending in `finish-attack-vm.sh`.
+None is open.
 
 ## If something goes wrong
 
