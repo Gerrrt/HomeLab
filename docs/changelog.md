@@ -31,6 +31,20 @@ docstring gives: it is a record, not a claim about now.
   `sshd` reloaded; `sshd -T` reads `x11forwarding no`. A clone from today's
   901 still needs it until the template is rebuilt.
 
+- **`eden` no longer runs the Ubuntu template's unused services.** The
+  2026-11-13 audit found eight packages on `eden` that nothing in this
+  repository uses, on a KVM guest with no modem, SAN, laptop or desktop:
+  `open-vm-tools`, `modemmanager`, `snapd` and its snaps, `thermald`,
+  `multipath-tools`, `open-iscsi`, `kdump-tools` and `udisks2`. They were
+  purged on 2026-11-16, with their now-unused dependencies. That also purged
+  the `ubuntu-server` metapackages, so the 43 packages they had pulled in
+  were first marked as manually installed: `apt autoremove` cannot take
+  `sudo`, `unattended-upgrades` or `apparmor` later. The kernel's
+  `crashkernel=` reservation, about 512 MB on this guest, goes at the next
+  boot. `ssh`, Docker, the guest agent, unattended upgrades and all five
+  containers were checked after. Template 901 still installs them; a clone
+  needs the same purge until the template is rebuilt.
+
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
   polls*, which records the change merged, not deployed. `make up
