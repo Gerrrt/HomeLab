@@ -364,8 +364,12 @@ What each one does, so a stall can be placed:
 
 - **Ubuntu** drops to GRUB's prompt and types the kernel line. Subiquity then
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
-  `packer` with `phoenix`'s key, upgrades, and wipes cloud-init's state,
-  machine-id and host keys. It then deletes the `packer` user.
+  `packer` with `phoenix`'s key. `packer/ubuntu/prune.sh` purges the
+  server seed's services no clone uses (VMware tools, ModemManager, snapd,
+  thermald, multipath, iSCSI, kdump, udisks2) and fails the build if one
+  survives. Packer then upgrades, turns off X11 forwarding, and wipes
+  cloud-init's state, machine-id and host keys. It then deletes the `packer`
+  user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
   the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
   installs Server unattended in text mode, and reboots. The rest is
