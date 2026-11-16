@@ -89,8 +89,8 @@ services:
         soft: 65536
         hard: 65536
     environment:
-      # The same 2 GiB as odin, and the same shard ceiling with it — 25 per GiB
-      # of heap (ADR-0030). DIFFERENCE 2: nothing deletes on a schedule here.
+      # 2 GiB, the heap odin had until ADR-0118, and the shard ceiling that
+      # goes with it — 25 per GiB of heap (ADR-0030). DIFFERENCE 2: nothing deletes on a schedule here.
       # soc's ism-wazuh-alerts.json is not applied; an investigation that runs
       # into the shard ceiling has outlived the "weekend" this guest is for,
       # which is the same thing DisposableGuestOutlived says from outside.
