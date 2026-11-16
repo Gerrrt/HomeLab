@@ -391,8 +391,36 @@ containers to come back. They have `restart: unless-stopped`.
    .\SharpHound.exe -c All --domain ad.matrix.elysium --zipfilename eden-first.zip
    ```
 
-   Then upload the zip under *Administration → File Ingest*. The job must
-   finish **Complete**, not *Partially Complete*.
+   The user is any of the population (#449), say `AD\acooper`; its password is
+   printed on `phoenix` by `ansible-playbook population-credentials.yml -e
+   population_only=acooper`, never stored. Sign in at `carbuncle`'s console
+   (Proxmox, VMID 154), since a plain domain user is not in *Remote Desktop
+   Users*.
+
+   Three things the first run (2026-11-16) hit, so a later one need not:
+
+   - **Defender quarantines SharpHound through AMSI**, as it loads, not on
+     disk — so a folder exclusion does not help; a process exclusion for
+     `SharpHound.exe`, or turning real-time protection off for the run in the
+     Windows Security UI, does. Tamper Protection means this is a UI action,
+     not a `Set-MpPreference` one. **Leave the detection in place**: SharpHound
+     caught on a workstation, logged against the user, is the event the SOC
+     side of the lab exists to raise (#266), not something to clear. Re-enable
+     protection after.
+   - **The network collectors do not work here.** `bloodhound-ce-python` and
+     `netexec` authenticate, but both DCs enforce LDAP signing and have no
+     LDAPS certificate (the lab runs no AD CS), so neither can collect:
+     signing refuses plain LDAP, and `636` has no cert. SharpHound on a
+     domain host is the only path, because the Windows LDAP client signs and
+     seals over `389` natively. Do not re-walk the Linux route.
+   - **The UI answers Hicks only** (`403` from VLAN 30, §6), so `carbuncle`'s
+     own browser cannot upload. Carry the zip to a Hicks workstation — over
+     RDP, or `scp` through `phoenix` — and upload it there.
+
+   Upload the zip under *Administration → File Ingest*. The job must finish
+   **Complete**, not *Partially Complete*. Then delete every copy of the zip:
+   it is a map of the domain's weaknesses, and the audit counts none outside
+   `/srv/bloodhound-data`.
 3. **A graph with edges in it.** In *Explore*, search
    `DOMAIN ADMINS@AD.MATRIX.ELYSIUM` and open *Members*. Then run the
    pre-built query *Shortest paths to Domain Admins*. Before #449's
