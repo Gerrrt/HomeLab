@@ -3,6 +3,13 @@
 # `local` on the command line loads Zeek's own site/local.zeek first — the
 # stock protocol analysers and their default logs — and this file after it.
 # What is here is only what differs.
+#
+# One stock load cannot be undone here: protocols/ssh/geo-data looks up the
+# remote end of each SSH connection that crosses Site::local_nets, and the
+# image ships no GeoLite database (MaxMind's licence needs an account). So
+# reporter.log carries "Failed to open GeoIP location database" and ssh.log's
+# remote_location stays empty. That is expected, not a fault. Shipping the
+# database is the fix if country data is ever wanted.
 
 # One JSON object per line, so Alloy ships them without a parser and Loki's
 # `| json` reads every field.
