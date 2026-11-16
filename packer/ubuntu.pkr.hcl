@@ -116,6 +116,13 @@ build {
   name    = "ubuntu"
   sources = ["source.proxmox-iso.ubuntu"]
 
+  # First, so the upgrade and autoremove below run without these and clear
+  # what they leave behind.
+  provisioner "shell" {
+    execute_command = "sudo -E sh -eu '{{ .Path }}'"
+    script          = "${abspath(path.root)}/ubuntu/prune.sh"
+  }
+
   provisioner "shell" {
     execute_command = "sudo -E sh -eu '{{ .Path }}'"
     inline = [

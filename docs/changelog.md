@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **Template 901 purges the services `eden` had removed by hand.**
+  `packer/ubuntu/prune.sh` runs first in the Ubuntu build and purges
+  `open-vm-tools`, `modemmanager`, `snapd`, `thermald`, `multipath-tools`,
+  `open-iscsi`, `kdump-tools` and `udisks2`, after marking the
+  `ubuntu-server` metapackages' other dependencies manual so a later
+  `apt autoremove` cannot take them. It regenerates GRUB without the
+  crash-kernel reservation and fails the build if any of the eight, or
+  `crashkernel=`, is left. This completes the entry below, *`eden` no longer
+  runs the Ubuntu template's unused services*, which left the template as it
+  was. Not built yet: 901 has both fixes once `build-the-lab-templates.md`
+  §4's Ubuntu build runs from `phoenix`. Tested on `eden`, where it found
+  nothing left to purge and passed its own checks.
+
 - **`oracle`'s untracked layer is cleared, and its root volume is grown.**
   These are the host-side follow-ups to the 2026-11-13 audit, run by hand.
   - **The disk.** The root LV went from 100 GB to 250 GB with
