@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **#1539 is applied on `odin`: its `sshd` takes keys only.** This completes
+  the entry below, *`odin`'s sshd is written down as keys only*, which
+  records the change, not the deploy. At 17:57 UTC `build-the-soc-guest.md`
+  §2 wrote `/etc/ssh/sshd_config.d/10-homelab.conf`, `sshd -t` passed and
+  `ssh` reloaded. `sshd -T` then read `no` for `passwordauthentication`,
+  `kbdinteractiveauthentication`, `permitrootlogin` and `x11forwarding`. A
+  probe offering no credentials, which before had been answered with
+  `publickey,password`, was answered with `publickey` alone. §2's two probes
+  were then run from Hicks: at 17:59 the password login was refused with
+  `Permission denied (publickey)`, and the key login was accepted.
+  `security.md`'s row now reads closed.
+
 - **`odin`'s sshd is written down as keys only.** The 2026-11-13 audit of
   `odin` found `sshd` offering passwords, and `sshd -T` with sudo on
   2026-11-15 read `passwordauthentication yes` and `x11forwarding yes`.
