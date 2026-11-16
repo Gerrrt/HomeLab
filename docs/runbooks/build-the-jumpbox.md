@@ -397,10 +397,15 @@ add its public key to `~/.ssh/authorized_keys` on `phoenix`, then prove it
 with passwords refused on the client side:
 
 ```bash
-ssh -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no <user>@10.0.30.70 true && echo key-ok
+ssh -o ControlMaster=no -o ControlPath=none \
+    -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+    <user>@10.0.30.70 true && echo key-ok
 ```
 
-Every machine prints `key-ok` before you go on. Keep one session open on
+`ControlMaster=no` and `ControlPath=none` force a new connection. Without
+them, a client that multiplexes reuses an open session that logged in by
+password, and prints `key-ok` without testing a key. Every machine prints
+`key-ok` before you go on. Keep one session open on
 `phoenix` until the end of this section.
 
 **Then `sshd`.** On `phoenix`. The `10-` prefix sorts ahead of the installer's
@@ -419,7 +424,8 @@ sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|pe
 ```
 
 All four lines read `no`. A fresh login from a second terminal, with the
-first still open, is the check that the reload did not shut you out.
+first still open, is the check that the reload did not shut you out: the
+same command as above, with its `ControlMaster=no` and `ControlPath=none`.
 
 **Then the firewall.** `ufw` does not touch `net.ipv4.ip_forward`, and its
 forward policy is `DROP`, so the tunnel needs the one `route` line. On a
@@ -447,10 +453,11 @@ it for its own length
 
 **Check each rule from the side it applies to.**
 
-- From Hicks: `ssh <user>@10.0.30.70 true` succeeds.
+- From Hicks: `ssh -o ControlMaster=no -o ControlPath=none <user>@10.0.30.70 true`
+  succeeds.
 - From a VLAN 30 host, `alexander` for example:
   `nc -zv -w 3 10.0.30.70 22` times out.
-- From a peer, with the tunnel up: `ssh <user>@10.0.30.70 true` succeeds.
+- From a peer, with the tunnel up: the same `ssh` succeeds.
   `ping -c 1 10.0.30.40` answers at `ttl=63`, which shows `phoenix` still
   forwards. Then run [`open-the-remote-path.md`](open-the-remote-path.md) §8's
   negative tests, which must still be blocked and logged on `morpheus`.
