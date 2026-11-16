@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`oracle`'s untracked layer is cleared, and its root volume is grown.**
+  These are the host-side follow-ups to the 2026-11-13 audit, run by hand.
+  - **The disk.** The root LV went from 100 GB to 250 GB with
+    `lvextend -r`, which gives 176 GB free. The audit had found 36 GB free,
+    about ten weeks before ADR-0064's 15 GiB guard would stop the library
+    copy.
+  - **Purged.** Suricata had been enabled since 2026-08-12 but listened on an
+    `eth0` the host does not have. Its logrotate postrotate script failed
+    every night. dma, with its stored mail credentials, and snapd's leftover
+    configuration were purged too. The stale `snap-*` units were removed, as
+    was the snap-confine AppArmor profile that failed `apparmor.service` at
+    boot. `systemctl --failed` is empty. The snapd purge also removed two
+    snaps that nothing recorded, `canonical-livepatch` and a `prometheus`
+    (revision 86). Neither had run since snapd was removed in 2025-11, and
+    nothing listened on `9090`.
+  - **UFW, read for the first time.** It is active, denies inbound by
+    default, and allowed `22/tcp`, `80/tcp` and `443` from anywhere. So the
+    finding stands: `morpheus`'s rules decide who reaches the wiki. At 01:20
+    UTC `22` was narrowed to `10.0.99.20`, `10.0.99.40` and `10.0.50.0/24`,
+    the same sources as the key pins. A Hicks login was accepted afterwards,
+    and UFW logged no block on `22`.
+  - **Hygiene.** ModemManager is disabled. The sleep, suspend and hibernate
+    targets are masked. `/opt/wiki/.env` is `0640`, and its stale
+    `.env.bak-20261007` is removed.
+  - **The key pins held.** The first logins under the `from=` pins of
+    2026-11-14, from `prometheus` and from `trinity`, were accepted, and no
+    key has been refused since.
+
 - **`eden`'s admin password changed, and X11 forwarding turned off by
   hand.** This completes two items the 2026-11-13 entry *`eden` audited after
   its #1443 rebuild* left open. The `admin` login was still the first-start
@@ -90,6 +118,27 @@ docstring gives: it is a record, not a claim about now.
   next `make up` or `deploy-agent.sh`.
 
 ## 2026-11-15
+
+- **Follow-ups to the `oracle` audit of 2026-11-13.**
+  - **`pgdata` is gone.** This was
+    [#1398](https://github.com/Gerrrt/HomeLab/issues/1398)'s hand step. 2.x's
+    volume (73.6 MB, mounted by nothing) was removed with three orphaned
+    anonymous volumes from 2026-11-08. The wiki answered `/healthz` 200
+    afterwards. The last 2.x set is still kept in `backups/wiki-2x-final/` on
+    `prometheus`.
+  - **`bootstrap-guard` stops leaving volumes behind.** The postgres image
+    declares a VOLUME at its data directory. The guard mounted nothing there,
+    so Docker made a fresh anonymous volume on every run, against the
+    compose file's own header. A 1 MB tmpfs now covers that path.
+  - **The docs name every copy `oracle` holds.** `network.md` and
+    `architecture.md` listed the firewall, volume and NAS copies, but left
+    out `trinity`'s sensitive-tier sets and ADR-0064's Immich library copy.
+  - **Written down: UFW does not guard the wiki.** `oracle`'s UFW is enabled.
+    Docker publishes `80` and `443` past it, so ADR-0011 rests on
+    `morpheus`'s rules alone.
+  - **ADR-0015's size is out of date.** ADR-0015 sized a volume set at
+    867 MB. The audit found sets of 2.2 to 3.3 GB, up to 3.6 times that.
+    The ADR stands as written. This entry is the correction.
 
 - **Container logs stop shipping the socket proxy's own polls, and gain
   `instance`.** An audit of `eden` (#1443) found three things in

@@ -310,6 +310,11 @@ It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
 older entry described a machine that does not exist, which is worth stating
 plainly because it was load-bearing in planning.
 
+Its disk is one LVM volume group on a 462.7 GB partition. The root volume was
+grown from 100 GB to 250 GB on 2026-11-15, because the off-host copies had
+left about ten weeks of space. The rest of the group is unallocated, kept for
+the next time the copies grow.
+
 The OS column names the release line and not the point release. Both laptops
 were recorded here as 24.04.3 while both were running 24.04.4, and
 `check_docs.py` could not see it — it compares this table against
