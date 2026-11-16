@@ -19,6 +19,263 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **The six domain guests run Wazuh 4.14.10 and Velociraptor 0.77.3,
+  matching `odin`'s servers.** This completes the entry below that pinned
+  them ([#1545](https://github.com/Gerrrt/HomeLab/pull/1545)), which
+  recorded the pins, not the deploy. `ansible-playbook lab-domain.yml --tags
+  soc` ran from `phoenix` on a `main` with #1545 merged.
+  - **Wazuh.** Afterwards `agent_control -i` on the manager reported
+    `Wazuh v4.14.10` for all seven agents: the six and `garuda`.
+  - **Velociraptor.** The server's client index then showed 0.77.3 for
+    four of the six, and for `garuda`. `bahamut` and `leviathan` still
+    showed 0.77.2, although each had the new product code installed, a
+    0.77.3 `Velociraptor.exe` and the service running. The index had not caught
+    up with the upgrade. Restarting their Velociraptor service brought both
+    to 0.77.3, and all seven clients now report it.
+  - **A lesson for the next bump.** Read the server's client index after an
+    upgrade. Where it lags, check the installed binary before reinstalling.
+
+- **A leftover Velociraptor administrator on `odin` is removed.** The user
+  `claude-cleanup`, with the `administrator` role, had been created on
+  2026-10-10. Nothing in this repository named it, and no server collection
+  had been run by it. It was deleted through the running server with
+  `user_delete()`, using a temporary API client that deleted itself in the
+  same query. Both ACL files were then removed. Velociraptor now has the
+  users `admin` and `gerrrt`, and the server's own identity.
+
+- **The six domain guests' SOC agents are pinned to the servers' versions,
+  and `odin` serves the new MSIs ([#1439](https://github.com/Gerrrt/HomeLab/issues/1439)).**
+  `roles/soc_agents` moves Wazuh from 4.14.7 to 4.14.10, the manager's
+  version. Velociraptor moves from 0.77.2 to 0.77.3, the server's. Each
+  version moved with its product code and sha256.
+  - **Wazuh.** The MSI from `packages.wazuh.com` matched the vendor's
+    published sha512 before its sha256 was pinned.
+  - **Velociraptor.** The 0.77.3 server repacked its client with
+    *Server.Utils.CreateMSI* (flow `F.DBTN9J4BJ6R3M`). The base MSI it
+    downloaded matched the sha256 digest GitHub publishes for the
+    `v0.77.3` release, and the repack's own hash is the pin.
+  - **ProductCodes.** Each was read with `msiinfo` (msitools). The same read
+    of the 0.77.2 MSI gave the code already pinned, which checks the method.
+  - **Running CreateMSI without the GUI.** It needed a temporary
+    `administrator,api` API client inside `soc-velociraptor`, called over its
+    loopback API. That client was then removed with `user_delete()`, and its
+    ACL file deleted.
+  - **Staging.** `stage-agent-msis.sh` ran as root in a throwaway container
+    holding the docker socket, because `barnabas` has no passwordless sudo.
+    It passed all four checks. Port 8448 now serves
+    `wazuh-agent-4.14.10.msi` and `velociraptor-client-0.77.3.msi` in place
+    of the old pair.
+  - **Not yet on the six.** They still run the old agents until
+    `--tags soc` runs from `phoenix`. The role reads each new product code
+    as not installed, and installs the new MSI over the old one.
+  - **A stale comment.** `stacks/soc/compose.yaml` said the Velociraptor
+    image was 0.77.2. It now names no version.
+
+- **`odin`'s system journal has a gap from 2026-11-14 00:45 to 2026-11-16
+  20:58 UTC, and the audit caused it.** During the 2026-11-13 audit of
+  `odin`, a full `make validate` pulled every stack's images (about 23 GB) and
+  filled the 46 GB root disk to 100% at 00:45 on 2026-11-14. The images were
+  pruned within the hour, but journald stopped writing
+  `/var/log/journal` at the failed write and did not resume. What it held in
+  memory after that was lost at the reboot on 2026-11-16 20:58. rsyslog
+  recovered on its own, so `/var/log/syslog` and `/var/log/auth.log` cover the
+  window, and Alloy shipped them to Loki. Wazuh's alerts were unaffected: the
+  manager logged no write errors. CLAUDE.md has since said to check
+  `df -h /` before a full `make validate`, after the same thing happened on
+  `eden`. After a disk fills, check `journalctl --header` for an ONLINE
+  `system.journal`; `systemctl restart systemd-journald` brings back a journal
+  that stopped.
+- **The lab now alerts on its guests' patch state.** `odin`'s
+  `homelab-patch-state` timer writes `homelab_reboot_required` and
+  `homelab_apt_security_upgrades_pending`, and Alloy ships them to `alexander`.
+  But `RebootRequired`, `SecurityUpdatesPending` and `PatchStateStopped`
+  existed only in `stacks/observability`, whose Prometheus never sees a lab
+  guest. So `odin` carried a libc6 reboot from 2026-11-13 with nothing saying
+  so, and the audit found it by hand. `lab.rules.yaml` gains the three rules,
+  with the estate's names and windows (22 rules now), and
+  `lab.test.yaml` gains a firing and a quiet case for each. `PatchStateStopped`
+  also fires when `apt-patch-state.prom` has not been rewritten in two days,
+  because a dead collector leaves the file and Alloy keeps serving it, so
+  the series alone never goes absent (raised in review). The estate's copy
+  of the rule in `host.rules.yaml` has the same blind spot. They show in the
+  lab's Grafana, as everything there does; nothing pages (ADR-0020). Live on
+  `alexander` once it next runs `make up STACK=lab`.
+||||||| 61376e62
+
+- **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
+  completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
+  which records the change, not the deploy. `make up STACK=soc` ran at 19:16
+  UTC from a `main` at #1542 and recreated only the indexer; the mounted-config
+  and container-health checks passed for all seven services. Afterwards
+  `_nodes/stats/jvm` read a heap maximum of 3 GiB at 15% used, and the
+  container used 3.44 of its 4.5 GiB. The cluster was green at 40 shards with
+  none unassigned, today's alert index took 28 documents in a minute, and all
+  seven agents were active in Wazuh and connected to Velociraptor. The new
+  alert line of 68 is not live yet: `alexander` evaluates the rules from its
+  own checkout, and still fires above 45 until it next runs `make up
+  STACK=lab`.
+- **`odin`'s SSH keys and Velociraptor datastore tidied.** Finishing the
+  2026-11-13 audit, `barnabas`'s `authorized_keys` on `odin` went from 18 lines
+  to the 3 keys that had logged in since the build: one used from Hicks and
+  `laptop-02`, one from `desktop-02`, and the hypervisor's. Fourteen imported GitHub keys had never been used, and
+  one line was a duplicate. `odin`'s own key pair, which nothing used, was
+  deleted. In Velociraptor, eight client directories left over from enrolment
+  on 2026-09-27 and 2026-10-07, which were in no client index and invisible in
+  the GUI, were removed. Seven clients stayed connected.
+
+- **ADR-0118: the Wazuh indexer gets 3 GiB of heap.** The audit of `odin`
+  re-derived ADR-0030's shard budget. The non-alert families take about 30
+  shards, not 15, so thirty days of alerts need about 60 against a budget of
+  about 50 and an alert line of 45. The heap goes from 2 to 3 GiB, which buys
+  about 75 shards. The indexer's `mem_limit` goes from 3.5 to 4.5 GiB, and
+  `WazuhIndexerShardBudgetNearlySpent` from above 45 to above 68. ADR-0030
+  gains a note, and `stacks/scratch` keeps 2 GiB. `promtool test rules` passed
+  in the lab's pinned Prometheus image. This records the change, not the
+  deploy: `odin`'s indexer still runs with 2 GiB.
+
+- **`stacks/soc` and its runbook agree with `odin` again.** Six things the
+  2026-11-13 audit of `odin` found written down wrong are corrected:
+  - the stack README said the guest has 8 GiB; it has 16, as
+    `build-the-soc-guest.md` §0 decides;
+  - the README said nothing here had been deployed;
+  - the README counted seven rules; `soc.rules.yaml` holds twelve for Wazuh;
+  - the runbook booted the 24.04 ISO; `odin` was installed from 26.04.1;
+  - the runbook cloned into `~/HomeLab`; `odin`, like `alexander`, uses
+    `~/code/Gerrrt/HomeLab`;
+  - `compose.yaml` said `BIND_ADDR` narrows the published ports to `odin`'s
+    address, but `.env.example` leaves it at `0.0.0.0`, which on a
+    single-homed guest is the same segment.
+
+  §9's indexer commands, and the scratch investigation's copy of one, now
+  pass the admin certificate as an array, so they also run in `zsh`. That
+  shell had refused them during the 2026-11-16 deploy. And the unused Docker
+  network `soc_default`, left over from the first `up` on 2026-09-27, was
+  removed from `odin`.
+
+- **#1539 is applied on `odin`: its `sshd` takes keys only.** This completes
+  the entry below, *`odin`'s sshd is written down as keys only*, which
+  records the change, not the deploy. At 17:57 UTC `build-the-soc-guest.md`
+  §2 wrote `/etc/ssh/sshd_config.d/10-homelab.conf`, `sshd -t` passed and
+  `ssh` reloaded. `sshd -T` then read `no` for `passwordauthentication`,
+  `kbdinteractiveauthentication`, `permitrootlogin` and `x11forwarding`. A
+  probe offering no credentials, which before had been answered with
+  `publickey,password`, was answered with `publickey` alone. §2's two probes
+  were then run from Hicks: at 17:59 the password login was refused with
+  `Permission denied (publickey)`, and the key login was accepted.
+  `security.md`'s row now reads closed.
+
+- **`odin`'s sshd is written down as keys only.** The 2026-11-13 audit of
+  `odin` found `sshd` offering passwords, and `sshd -T` with sudo on
+  2026-11-15 read `passwordauthentication yes` and `x11forwarding yes`.
+  Both are what the installer's OpenSSH ships, and nothing in this
+  repository said otherwise for `odin`. `build-the-soc-guest.md` §2 now
+  writes `10-homelab.conf`, as `alexander`'s §2 does, with password,
+  keyboard-interactive and root logins off and X11 forwarding off. §10 checks
+  it, and `security.md` has a row for it. Every SSH login to `odin` in its
+  journal since the build was by key. This records the change, not the
+  deploy: the step has not run on `odin`.
+
+- **`eden`'s first collection, and how it was really done.** The rebuilt
+  guest held an empty graph (1 node, 0 edges) until a SharpHound run was
+  ingested on 2026-11-16: 370 nodes and 3,914 edges — 48 users, 73 groups,
+  the 6 domain computers, 14 OUs, 5 GPOs and the domain. `build-the-bloodhound-guest.md`
+  §7 now records the three things the run hit, none of which the old three-line
+  step mentioned:
+  - **Collected from `carbuncle` as `AD\acooper`**, a population user
+    (#449) whose password `population-credentials.yml` prints on `phoenix`,
+    signed in at the console because a plain user is not in *Remote Desktop
+    Users*.
+  - **Defender quarantines SharpHound through AMSI**, as the assembly loads,
+    so a folder exclusion does not help; a process exclusion or turning
+    real-time protection off for the run in the Windows Security UI does. The
+    detection was left in place: SharpHound caught on a workstation, logged
+    against the user, is the SOC event #266 is built to raise.
+  - **The network collectors cannot work here.** `bloodhound-ce-python` and
+    `netexec` both authenticate as `acooper`, but the DCs enforce LDAP signing
+    and have no LDAPS certificate (the lab runs no AD CS): signing refuses
+    plain LDAP and `636` has no cert, so neither collects. SharpHound on a
+    domain host is the only path, because the Windows LDAP client signs and
+    seals over `389`. The zip was carried to a Hicks workstation to upload,
+    since the UI answers Hicks alone.
+
+- **No clone of template 901 puts its user in `lxd`.** A second live
+  re-check of `eden` found `garnet` in the `lxd` group, from the default
+  user groups in Ubuntu's `/etc/cloud/cloud.cfg`. LXD is not installed on
+  any clone, so it granted nothing, but it was not chosen. `garnet` was taken
+  out of the group on `eden`, and `eden`'s `cloud.cfg` edited to match. The
+  Ubuntu build now removes `lxd` from those groups after its upgrade and
+  fails if it is still there. `cloud.cfg` is a conffile, so unattended
+  upgrades keep the change; a hand-run `apt full-upgrade` asks before
+  replacing it. Not built yet: 901 has it from its next Ubuntu build. The
+  same check found 915 MB of linter images, pulled to `eden` by this day's
+  `lint.sh` runs through its Docker fallback, and two empty anonymous Postgres
+  volumes from the 2026-11-14 `make validate`. Both were removed. Every
+  audit finding held on the box after the 09:36 reboot.
+
+- **Template 901 is rebuilt without `autoinstall` on its kernel line.** This
+  completes *Template 901 takes `autoinstall` off the kernel line* below,
+  which left it not built. The Ubuntu build ran from `phoenix` on main after
+  #1534, in 18 min 42 s. `prune.sh` purged the eight services again, and its
+  checks for them, for `crashkernel=` and for `autoinstall` in `grub.cfg` all
+  passed. Four upgrades were deferred by Ubuntu's phasing and are left to
+  each clone's unattended upgrades. `scripts/packer-smoke.sh 901` passed. A
+  clone of 901 now needs none of `eden`'s by-hand fixes. `eden` was rebooted
+  at 09:36 UTC the same day: `/proc/cmdline` ends in `ro`, with neither
+  `autoinstall` nor `crashkernel=`, no unit failed, and all five containers
+  came back, `app-db` and `ui-proxy` healthy.
+
+- **`eden` is in OpenTofu's state, and #1443 is done.** The first
+  untargeted `tofu -chdir=tofu plan` on `phoenix` since the 2026-11-12
+  rebuild refreshed every guest, `eden` (141) and `ragnarok` (130) among
+  them, and said *No changes*. So the replace that rebuilt `eden` went through
+  the pipeline, and plans no longer need `-target` to step around it.
+  `ragnarok`'s half was done on 2026-11-12 under #1464, and proved by
+  `finish-attack-vm.sh`. The roadmap entry and the one-time step in
+  `deploy-merged-changes.md` leave. `build-the-bloodhound-guest.md` §1 now
+  rebuilds `eden` with `-replace` instead of the import, which has been
+  done. A rebuild still loses the graph and the key, as ADR-0081 accepts.
+
+- **Correction: `eden`'s admin password was not changed until 08:43 UTC on
+  2026-11-16, and is now.** This corrects the entry below, *`eden`'s admin
+  password changed, and X11 forwarding turned off by hand*, which said it had
+  been changed in the UI. A live check found the `admin` row of
+  `auth_secrets` still as created at 03:28 on 2026-11-13, and BloodHound's
+  audit log showing no password change and no activity at all after
+  05:25 on 2026-11-15. The change was made again and checked in the database:
+  `UpdateAuthSecret` succeeded at 08:43:33, and the new secret expires on
+  2027-02-14. BloodHound expires a password after 90 days, so the next change
+  is due by then. Checking the database, not the UI, is what tells.
+
+- **Template 901 takes `autoinstall` off the kernel line.** Subiquity copies
+  what follows `---` in the boot command into `GRUB_CMDLINE_LINUX_DEFAULT`, so
+  every clone, `eden` included, booted with `autoinstall`. It does nothing on
+  an installed system. `packer/ubuntu/prune.sh` now clears it before
+  regenerating GRUB, and fails the build if it is still in `grub.cfg`. On
+  `eden` it was cleared by hand the same way; it takes effect at the next
+  boot, as does the crash-kernel reservation the purge below dropped, since
+  `eden` had not rebooted since 2026-11-12. Not built yet: the 901 rebuilt
+  earlier today still carries it.
+
+- **A wiki drift check that cannot run now alerts**
+  ([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). On 2026-11-15
+  the run on `oracle` failed at the wiki fetch, exit 128. The checker never
+  started, and nothing alerted: `DriftCheckStopped` reads only the timestamp,
+  and the collector writes it whatever the run found. The next run, at 06:40
+  UTC on 2026-11-16, passed all 16 claims, and the cause is not known.
+  `DriftCheckFailing` fires on an exit of 2 or higher, an unreadable claim or
+  a checker that did not start. Exit 1 is left out: drift files its own wiki
+  issue. It is the 164th Prometheus rule, with three promtool tests.
+  - **Four stale current-state lines, from the same audit of `oracle`.**
+    `fit-the-ups-battery.md` and `security.md` still had `oracle`'s cell as
+    the original at 72 % with its runtime never measured. It was replaced and
+    measured on 2026-09-29. `schedule-maintenance.md` said `patch-state` would
+    need shipping to `oracle`, which the agent installer already does.
+    `deploy-merged-changes.md` §6 ran `oracle`'s agent deploy from the Mac,
+    which cannot decrypt its token. It now runs from `prometheus`.
+  - **`observability.md` said forty-one rules in `host.rules.yaml`.** There
+    were sixty and are now sixty-one. `check_docs.py` checks the totals, not
+    that number.
+
 - **Template 901 is rebuilt with both of `eden`'s fixes.** The Ubuntu build
   of `build-the-lab-templates.md` §4 ran from `phoenix` on main after #1525,
   in 19 min 40 s. `prune.sh` purged all eight services, and the
@@ -157,8 +414,6 @@ docstring gives: it is a record, not a claim about now.
     image ships no GeoLite database;
   - §4 names the checkout path `fenrir` uses, `~/code/Gerrrt/HomeLab`, in
     place of `~/HomeLab`.
-||||||| ccb34901
-||||||| 96c10c4c
 
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
@@ -247,6 +502,13 @@ docstring gives: it is a record, not a claim about now.
   `fenrir`'s uses. It is not applied yet: the change on `alexander` is the
   operator's to make, by §2, and §7's `sshd -T` is the check. This follows the
   same weakness closed on `golem` by the audit of 2026-11-13.
+- **`stacks/lab/README.md`'s rule counts are checked now.** The audit of
+  `alexander` on 2026-11-13 found its layout block saying "9 rules" and
+  "12 rules" against files holding 19 and 13, and its ingest section naming
+  three clients and six tokens when there are six clients and seven tokens.
+  Every global count in `check_docs.py` passed throughout, because those are
+  totals across all rule files. A fourteenth assertion now reads each stack
+  README's per-file count against its rule file.
 - **`garuda` is patched by hand, monthly, because nothing else patches it.**
   After the audit of 2026-11-13 closed, a re-check of the box found a gap that
   audit missed. `unattended-upgrades` runs daily on `garuda` and applies

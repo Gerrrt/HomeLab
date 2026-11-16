@@ -101,10 +101,12 @@ Three things have to be in place first:
      | grep ssh-ed25519
    ```
 
-**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), stop
-here and go to *Once: bring the hand-built `eden` into the pipeline* below.
-The commands next are for a first build only: an apply with 141 taken fails
-on the clone, after it has made the pool.
+**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), it is
+in the state: the hand-built guest was imported and replaced on 2026-11-12
+under [#1443](https://github.com/Gerrrt/HomeLab/issues/1443), and the first
+untargeted plan after it, on 2026-11-16, said *No changes*. The commands
+below then only refresh it: the plan should say *No changes*, and anything
+else is a stop. To rebuild it on purpose, use *Rebuild: replace it* below.
 
 For a first build, on `phoenix`:
 
@@ -119,34 +121,21 @@ The plan should add the guest and the `bloodhound` pool, and nothing else.
 Proxmox warns that the sum of thin volumes exceeds the pool. That is the
 allocation ADR-0081 accepts, and the warning is expected.
 
-### Once: bring the hand-built `eden` into the pipeline
+### Rebuild: replace it
 
-`eden` was first built by hand, with `qm clone 901 141` and `qm set`
-(2026-10-07), so the state does not know it. Import it once, as the domain's
-six were ([`build-the-lab-domain.md`](build-the-lab-domain.md#rebuild-from-the-pipeline)):
-
-```bash
-tofu -chdir=tofu import 'module.guest["eden"].proxmox_virtual_environment_vm.this' Saruman/141
-tofu -chdir=tofu plan -target='module.guest["eden"]'
-```
-
-The plan should **replace** `eden` and **create** the `bloodhound` pool, and
-nothing else. A guest built by hand has no `clone` to read back, so this is the
-one plan where a replace is expected. Anything else is a stop.
-
-The replace destroys both disks, the graph and the guest's age key with them.
+A replace destroys both disks, the graph and the guest's age key with them.
 ADR-0081 accepts that: the graph is one collection run from rebuilt, and the
-key is replaced by issuing new values. So take it out of the stack first, then
-let the pipeline make it again:
+key is replaced by issuing new values.
 
 ```bash
-tofu -chdir=tofu destroy -target='module.guest["eden"]'
-tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu plan -replace='module.guest["eden"].proxmox_virtual_environment_vm.this' \
+  -target='module.guest["eden"]' -out=eden.tfplan
 tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
 ```
 
-Then continue from §2. At §3, the guest is new and so is its key: follow §11
-for the `.sops.yaml` rule and the secrets file.
+The plan should replace `eden` and nothing else. Then continue from §2. At
+§3, the guest is new and so is its key: follow §11 for the `.sops.yaml` rule
+and the secrets file.
 
 ## 2. First boot, and the data disk
 
@@ -394,16 +383,69 @@ containers to come back. They have `restart: unless-stopped`.
    it sits in `.env` and in the container's environment, which anyone in
    the `docker` group can read, and must not stay the live login.
 2. **A collection, ingested.** Download SharpHound from the UI, under
-   *Download Collectors*. That way its version is the one the server's schema
-   expects. Run it from a domain-joined host as an ordinary domain user, for
-   example from `carbuncle`:
+   *Download Collectors*, so its version is the one the server's schema
+   expects. The UI answers Hicks only (`403` from VLAN 30, §6), so download it
+   on a Hicks workstation and carry it to `carbuncle`: `scp` it through
+   `phoenix` to `Administrator@10.0.30.54` (phoenix's `~/.ssh/id_ed25519`
+   reaches every guest as the built-in Administrator; `carbuncle` is VMID 154).
+   Run it there as an ordinary domain user:
 
    ```powershell
    .\SharpHound.exe -c All --domain ad.matrix.elysium --zipfilename eden-first.zip
    ```
 
-   Then upload the zip under *Administration → File Ingest*. The job must
-   finish **Complete**, not *Partially Complete*.
+   The user is any of the population (#449), say `AD\acooper`. Its password is
+   printed on `phoenix`, never stored — but `population-credentials.yml` reads
+   `ansible.cfg` and the `LAB_POPULATION_SEED` it derives the password from
+   from the checkout's `ansible/` directory, so run it from there with the
+   proxmox env exported, as `ansible/README.md` sets up:
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; set +a
+   cd ansible
+   ansible-playbook population-credentials.yml -e population_only=acooper
+   ```
+
+   The earlier repo-root shell will not find the playbook. Sign in at
+   `carbuncle`'s console (Proxmox, VMID 154): RDP is off on all six guests, so
+   a domain user has no remote session to use.
+
+   Three things the first run (2026-11-16) hit, so a later one need not:
+
+   - **Defender quarantines SharpHound through AMSI**, as it loads, not on
+     disk — so a folder exclusion does not help; a process exclusion for
+     `SharpHound.exe`, or turning real-time protection off for the run in the
+     Windows Security UI, does. `AD\acooper` is an ordinary user and cannot
+     change Defender: make the change elevated as the endpoint's local
+     administrator `labadmin` (its password is `LAB_ENDPOINT_ADMIN_PASSWORD`),
+     then run SharpHound back in `acooper`'s own session. Tamper Protection
+     means this is a UI action, not a `Set-MpPreference` one. **Leave the
+     detection in place**: SharpHound caught on a workstation, logged against
+     the user, is the event the SOC side of the lab exists to raise (#266),
+     not something to clear. Afterwards undo exactly what you changed —
+     re-enable real-time protection, and if you added the process exclusion,
+     remove it, because re-enabling protection does not clear an exclusion.
+   - **The network collectors do not work here.** `bloodhound-ce-python` and
+     `netexec` authenticate, but both DCs enforce LDAP signing and have no
+     LDAPS certificate (the lab runs no AD CS), so neither can collect:
+     signing refuses plain LDAP, and `636` has no cert. SharpHound on a
+     domain host is the only path, because the Windows LDAP client signs and
+     seals over `389` natively. Do not re-walk the Linux route.
+   - **Getting the zip to the UI.** `carbuncle`'s own browser cannot upload
+     (Hicks only, above), and RDP is off, so pull the zip off `carbuncle` from
+     `phoenix` with `scp` as the built-in Administrator — `acooper` has no SSH
+     key, phoenix's `~/.ssh/id_ed25519` does — then carry it to a Hicks
+     workstation and upload it there. From the checkout root on `phoenix`:
+
+     ```bash
+     scp -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=ansible/.known_hosts \
+       Administrator@10.0.30.54:'C:/Users/acooper/eden-first.zip' .
+     ```
+
+   Upload the zip under *Administration → File Ingest*. The job must finish
+   **Complete**, not *Partially Complete*. Then delete every copy of the zip:
+   it is a map of the domain's weaknesses, and the audit counts none outside
+   `/srv/bloodhound-data`.
 3. **A graph with edges in it.** In *Explore*, search
    `DOMAIN ADMINS@AD.MATRIX.ELYSIUM` and open *Members*. Then run the
    pre-built query *Shortest paths to Domain Admins*. Before #449's

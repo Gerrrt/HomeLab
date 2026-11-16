@@ -142,6 +142,12 @@ build {
       # display. sshd takes the first value it reads, and the drop-ins are
       # included before the main file's line, so this wins.
       "printf 'X11Forwarding no\\n' > /etc/ssh/sshd_config.d/10-no-x11.conf",
+      # cloud-init gives the clone's user Ubuntu's default groups, lxd among
+      # them, and LXD is not installed on any clone. After the upgrade, so
+      # the upgrade cannot put it back; cloud.cfg is a conffile, and
+      # unattended-upgrades keeps a changed one.
+      "sed -i '/^ *groups: \\[/s/, lxd//' /etc/cloud/cloud.cfg",
+      "if grep -qE '^ *groups: .*lxd' /etc/cloud/cloud.cfg; then echo 'lxd is still in cloud.cfg default groups' >&2; exit 1; fi",
       "cloud-init clean --logs --machine-id",
     ]
   }

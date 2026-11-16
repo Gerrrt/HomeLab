@@ -35,6 +35,12 @@ and amends the first consequence of
 > one host instead of the segment. Nothing here is amended, per ADR-0001;
 > [`build-the-playground.md`](../runbooks/build-the-playground.md) §4 carries
 > the procedure and the finding.
+>
+> [!NOTE]
+> Amended by [ADR-0117](0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
+> `phoenix`'s own `sshd` is key-only, and its inbound policy is default-deny
+> with `ufw`. It admits `22` from Hicks and the tunnel's peers only. The text
+> here is left as written, per ADR-0001 and ADR-0115.
 
 ## Context
 

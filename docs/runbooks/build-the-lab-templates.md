@@ -366,10 +366,11 @@ What each one does, so a stall can be placed:
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
   `packer` with `phoenix`'s key. `packer/ubuntu/prune.sh` purges the
   server seed's services no clone uses (VMware tools, ModemManager, snapd,
-  thermald, multipath, iSCSI, kdump, udisks2) and fails the build if one
-  survives. Packer then upgrades, turns off X11 forwarding, and wipes
-  cloud-init's state, machine-id and host keys. It then deletes the `packer`
-  user.
+  thermald, multipath, iSCSI, kdump, udisks2), takes the installer's
+  `autoinstall` off the kernel line, and fails the build if any of that is
+  left. Packer then upgrades, turns off X11 forwarding, takes `lxd` out of
+  cloud-init's default user groups, and wipes cloud-init's state, machine-id
+  and host keys. It then deletes the `packer` user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
   the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
   installs Server unattended in text mode, and reboots. The rest is
@@ -509,11 +510,15 @@ DHCP server dhcpcd adds a `169.254.x.x` address and a link-local default
 route ([`build-the-playground.md`](build-the-playground.md) §8). Rebuild 902
 and 910 with this section and §5b to clear it.
 
-1. Admit the guest to that port on `phoenix` for the length of the build. If
-   `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
-   and delete the rule afterwards. Debian's build (§4) needs this step and
-   no other here. On 2026-11-09 `ufw` was inactive on `phoenix`, so there
-   was nothing to open.
+1. Admit the guest to that port on `phoenix` for the length of the build:
+   `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`. Afterwards,
+   `sudo ufw delete allow from 10.0.30.0/24 to any port 8800 proto tcp`.
+   Debian's build (§4) needs this step and no other here. `ufw` is
+   default-deny on `phoenix`
+   ([ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)),
+   so without the rule the installer times out fetching its preseed. On
+   2026-11-09, before that ADR, `ufw` was inactive and there was nothing to
+   open.
 2. Give `phoenix` a user on `gandalf`, and trust `gandalf`'s CA on
    `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins `Saruman` in a
    cluster, it is its own API with its own users, so `phoenix@pve` there is a
