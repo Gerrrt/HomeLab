@@ -19,8 +19,9 @@ An audit of `odin` on 2026-11-13 re-derived the numbers, and they do not fit:
   `wazuh-states-*` indices (one per inventory type, plus vulnerabilities),
   about ten weekly `wazuh-monitoring-*` and `wazuh-statistics-*` indices under
   the 30-day policy #1507 gave them, and about six system indices.
-- That leaves about 20 shards for alert indices at a line of 45, which is
-  about two-thirds of the thirty days ADR-0030 set.
+- That leaves about 15 daily alert indices before the alert line of 45, half
+  of the thirty days ADR-0030 set, and about 20 within the full budget of 50,
+  two-thirds of them.
 - The steady state, with thirty days of alerts, is about 60 shards.
 
 When it was read, the cluster held 59–61 shards and both indexer alerts had
