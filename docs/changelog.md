@@ -30,7 +30,13 @@ docstring gives: it is a record, not a claim about now.
     every night. dma, with its stored mail credentials, and snapd's leftover
     configuration were purged too. The stale `snap-*` units were removed, as
     was the snap-confine AppArmor profile that failed `apparmor.service` at
-    boot. `systemctl --failed` is empty.
+    boot. `systemctl --failed` is empty. The snapd purge also removed two
+    snaps that nothing recorded, `canonical-livepatch` and a `prometheus`
+    (revision 86). Neither had run since snapd was removed in 2025-11, and
+    nothing listened on `9090`.
+  - **UFW, read for the first time.** It is active, denies inbound by
+    default, and allows `22/tcp`, `80/tcp` and `443` from anywhere. So the
+    finding stands: `morpheus`'s rules are what decide who reaches `oracle`.
   - **Hygiene.** ModemManager is disabled. The sleep, suspend and hibernate
     targets are masked. `/opt/wiki/.env` is `0640`, and its stale
     `.env.bak-20261007` is removed.
