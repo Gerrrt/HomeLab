@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **A wiki drift check that cannot run now alerts**
+  ([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). On 2026-11-15
+  the run on `oracle` failed at the wiki fetch, exit 128. The checker never
+  started, and nothing alerted: `DriftCheckStopped` reads only the timestamp,
+  and the collector writes it whatever the run found. The next run, at 06:40
+  UTC on 2026-11-16, passed all 16 claims, and the cause is not known.
+  `DriftCheckFailing` fires on an exit of 2 or higher, an unreadable claim or
+  a checker that did not start. Exit 1 is left out: drift files its own wiki
+  issue. It is the 164th Prometheus rule, with three promtool tests.
+  - **Four stale current-state lines, from the same audit of `oracle`.**
+    `fit-the-ups-battery.md` and `security.md` still had `oracle`'s cell as
+    the original at 72 % with its runtime never measured. It was replaced and
+    measured on 2026-09-29. `schedule-maintenance.md` said `patch-state` would
+    need shipping to `oracle`, which the agent installer already does.
+    `deploy-merged-changes.md` §6 ran `oracle`'s agent deploy from the Mac,
+    which cannot decrypt its token. It now runs from `prometheus`.
+  - **`observability.md` said forty-one rules in `host.rules.yaml`.** There
+    were sixty and are now sixty-one. `check_docs.py` checks the totals, not
+    that number.
+
 - **Template 901 is rebuilt with both of `eden`'s fixes.** The Ubuntu build
   of `build-the-lab-templates.md` §4 ran from `phoenix` on main after #1525,
   in 19 min 40 s. `prune.sh` purged all eight services, and the
