@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`oracle`'s untracked layer is cleared, and its root volume is grown.**
+  These are the host-side follow-ups to the 2026-11-13 audit, run by hand.
+  - **The disk.** The root LV went from 100 GB to 250 GB with
+    `lvextend -r`, which gives 176 GB free. The audit had found 36 GB free,
+    about ten weeks before ADR-0064's 15 GiB guard would stop the library
+    copy.
+  - **Purged.** Suricata had been enabled since 2026-08-12 but listened on an
+    `eth0` the host does not have. Its logrotate postrotate script failed
+    every night. dma, with its stored mail credentials, and snapd's leftover
+    configuration were purged too. The stale `snap-*` units were removed, as
+    was the snap-confine AppArmor profile that failed `apparmor.service` at
+    boot. `systemctl --failed` is empty.
+  - **Hygiene.** ModemManager is disabled. The sleep, suspend and hibernate
+    targets are masked. `/opt/wiki/.env` is `0640`, and its stale
+    `.env.bak-20261007` is removed.
+  - **The key pins held.** The first logins under the `from=` pins of
+    2026-11-14, from `prometheus` and from `trinity`, were accepted, and no
+    key has been refused since.
+
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
   polls*, which records the change merged, not deployed. `make up
