@@ -45,6 +45,30 @@ docstring gives: it is a record, not a claim about now.
   containers were checked after. Template 901 still installs them; a clone
   needs the same purge until the template is rebuilt.
 
+- **#1507 is deployed on `odin`, and its indexer is green.** This completes
+  the 2026-11-14 entry *`odin`'s indexer is set up to return to green*, which
+  records the change merged, not deployed. `odin`'s checkout was pulled to
+  `main` at 01:13 UTC and the indexer restarted at 01:14. The node then
+  reported ISM history off, and §9 of `build-the-soc-guest.md` was run:
+  - `wazuh-weekly-30d` was loaded and attached to all 16 `wazuh-monitoring-*`
+    and `wazuh-statistics-*` indices.
+  - The loop attached `wazuh-alerts-30d` to `wazuh-alerts-4.x-2026.09.27`,
+    the one alert index without it. The other twelve already held it.
+  - The replicas of `.opendistro-job-scheduler-lock` and of the ten ISM
+    history indices were set to zero, and the history indices were then
+    deleted.
+
+  Before, the cluster was yellow, with 61 active shards and 11 unassigned.
+  After, it was green, with 51 active and 0 unassigned. Every SOC container
+  stayed healthy, and today's alert index kept growing (1,140 to 1,147
+  documents in 45 seconds). `WazuhIndexerShardBudgetNearlySpent` still
+  fires, because 51 is above its 45. Fourteen of the 51 are the
+  `wazuh-states-*` indices, so getting under the line takes a decision
+  that has not been made. The §9 commands run only under `bash`: in `zsh`,
+  `$AUTH` reaches `curl` as one argument and is rejected before anything is
+  sent.
+||||||| 96c10c4c
+
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
   polls*, which records the change merged, not deployed. `make up
