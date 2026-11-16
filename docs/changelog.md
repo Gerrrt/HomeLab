@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`deploy-agent.sh` says why it could not decrypt a host's token.**
+  From a checkout with no `sops` on the path, or with no age key, it used to
+  report `no agent token for <host>: add INGEST_TOKEN_<HOST> to
+  secrets/observability.sops.yaml`, even when the token was already there.
+  That sent the 2026-11-16 redeploy of `oracle`'s agent from a workstation
+  looking for a missing token. It now says that `sops` is missing, or that
+  the file would not decrypt (below the decrypt error from `secrets-env.sh`),
+  and points to the monitoring host's checkout or to exported tokens. The
+  "add the token" message is kept for a file that decrypts and has no key
+  for that host. `oracle`'s agent was redeployed from `prometheus` the same
+  day and is on the version in `stacks/observability/compose.yaml`; Prometheus
+  and Loki both had its data after the deploy.
+
 - **Template 901 purges the services `eden` had removed by hand.**
   `packer/ubuntu/prune.sh` runs first in the Ubuntu build and purges
   `open-vm-tools`, `modemmanager`, `snapd`, `thermald`, `multipath-tools`,
