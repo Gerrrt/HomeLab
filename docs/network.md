@@ -291,8 +291,9 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   that, so a rebuilt `oracle` needs the step in
   [`stacks/wiki/README.md`](../stacks/wiki/README.md#the-hosts-ssh-once)
   again. UFW is enabled on `oracle`, but it does not guard the wiki. Docker
-  publishes `80` and `443` through its own chains, ahead of UFW's. What keeps
-  the wiki internal
+  publishes `80` and `443` through its own chains, ahead of UFW's. UFW does
+  limit `22` to `prometheus`, `trinity` and Hicks. What keeps the wiki
+  internal
   ([ADR-0011](adr/0011-keep-the-wiki-internal.md)) is this firewall's rules
   alone.
 

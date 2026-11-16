@@ -35,8 +35,11 @@ docstring gives: it is a record, not a claim about now.
     (revision 86). Neither had run since snapd was removed in 2025-11, and
     nothing listened on `9090`.
   - **UFW, read for the first time.** It is active, denies inbound by
-    default, and allows `22/tcp`, `80/tcp` and `443` from anywhere. So the
-    finding stands: `morpheus`'s rules are what decide who reaches `oracle`.
+    default, and allowed `22/tcp`, `80/tcp` and `443` from anywhere. So the
+    finding stands: `morpheus`'s rules decide who reaches the wiki. At 01:20
+    UTC `22` was narrowed to `10.0.99.20`, `10.0.99.40` and `10.0.50.0/24`,
+    the same sources as the key pins. A Hicks login was accepted afterwards,
+    and UFW logged no block on `22`.
   - **Hygiene.** ModemManager is disabled. The sleep, suspend and hibernate
     targets are masked. `/opt/wiki/.env` is `0640`, and its stale
     `.env.bak-20261007` is removed.
