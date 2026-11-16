@@ -27,9 +27,9 @@ docstring gives: it is a record, not a claim about now.
   - **Wazuh.** Afterwards `agent_control -i` on the manager reported
     `Wazuh v4.14.10` for all seven agents: the six and `garuda`.
   - **Velociraptor.** The server's client index then showed 0.77.3 for
-    five of the six. `bahamut` and `leviathan` still showed 0.77.2,
-    although each had the new product code installed, a 0.77.3
-    `Velociraptor.exe` and the service running. The index had not caught
+    four of the six, and for `garuda`. `bahamut` and `leviathan` still
+    showed 0.77.2, although each had the new product code installed, a
+    0.77.3 `Velociraptor.exe` and the service running. The index had not caught
     up with the upgrade. Restarting their Velociraptor service brought both
     to 0.77.3, and all seven clients now report it.
   - **A lesson for the next bump.** Read the server's client index after an
