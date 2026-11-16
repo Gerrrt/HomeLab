@@ -367,9 +367,10 @@ What each one does, so a stall can be placed:
   `packer` with `phoenix`'s key. `packer/ubuntu/prune.sh` purges the
   server seed's services no clone uses (VMware tools, ModemManager, snapd,
   thermald, multipath, iSCSI, kdump, udisks2), takes the installer's
-  `autoinstall` off the kernel line, and fails the build if any of that is left. Packer then upgrades, turns off X11 forwarding, and wipes
-  cloud-init's state, machine-id and host keys. It then deletes the `packer`
-  user.
+  `autoinstall` off the kernel line, and fails the build if any of that is
+  left. Packer then upgrades, turns off X11 forwarding, takes `lxd` out of
+  cloud-init's default user groups, and wipes cloud-init's state, machine-id
+  and host keys. It then deletes the `packer` user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
   the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
   installs Server unattended in text mode, and reboots. The rest is

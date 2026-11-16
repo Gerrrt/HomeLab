@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **No clone of template 901 puts its user in `lxd`.** A second live
+  re-check of `eden` found `garnet` in the `lxd` group, from the default
+  user groups in Ubuntu's `/etc/cloud/cloud.cfg`. LXD is not installed on
+  any clone, so it granted nothing, but it was not chosen. `garnet` was taken
+  out of the group on `eden`, and `eden`'s `cloud.cfg` edited to match. The
+  Ubuntu build now removes `lxd` from those groups after its upgrade and
+  fails if it is still there. `cloud.cfg` is a conffile, so unattended
+  upgrades keep the change; a hand-run `apt full-upgrade` asks before
+  replacing it. Not built yet: 901 has it from its next Ubuntu build. The
+  same check found 915 MB of linter images, pulled to `eden` by this day's
+  `lint.sh` runs through its Docker fallback, and two empty anonymous Postgres
+  volumes from the 2026-11-14 `make validate`. Both were removed. Every
+  audit finding held on the box after the 09:36 reboot.
+
 - **Template 901 is rebuilt without `autoinstall` on its kernel line.** This
   completes *Template 901 takes `autoinstall` off the kernel line* below,
   which left it not built. The Ubuntu build ran from `phoenix` on main after
