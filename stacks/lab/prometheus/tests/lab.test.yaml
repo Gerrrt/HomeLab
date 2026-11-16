@@ -825,8 +825,9 @@ tests:
             exp_annotations:
               summary: "odin has stopped reporting patch state"
               description: >-
-                It reported within the last day and has not in six hours, so
-                SecurityUpdatesPending and RebootRequired are blind to it. Check
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
                 `systemctl status homelab-patch-state.timer` on the guest, and that
                 /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
                 being written and is world-readable.
@@ -838,5 +839,49 @@ tests:
         values: "0x400"
     alert_rule_test:
       - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires when the file stops being rewritten ----------
+  # The case review on #1544 named: the collector died, the file stayed, and
+  # Alloy keeps serving its last values, so the samples never stop. Only the
+  # file's mtime stands still (0, the fixture's epoch). At 50h it is more than
+  # two days old, and has been for over the 30m `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x600"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: quiet while the daily rewrite keeps happening ------
+  # The same steady samples, with an mtime that moves once a day (every 288
+  # five-minute steps), as the timer's real file does.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x287 86400x287 172800x30"
+    alert_rule_test:
+      - eval_time: 50h
         alertname: PatchStateStopped
         exp_alerts: []

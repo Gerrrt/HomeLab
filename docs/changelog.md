@@ -41,7 +41,11 @@ docstring gives: it is a record, not a claim about now.
   guest. So `odin` carried a libc6 reboot from 2026-11-13 with nothing saying
   so, and the audit found it by hand. `lab.rules.yaml` gains the three rules,
   with the estate's names and windows (22 rules now), and
-  `lab.test.yaml` gains a firing and a quiet case for each. They show in the
+  `lab.test.yaml` gains a firing and a quiet case for each. `PatchStateStopped`
+  also fires when `apt-patch-state.prom` has not been rewritten in two days,
+  because a dead collector leaves the file and Alloy keeps serving it, so
+  the series alone never goes absent (raised in review). The estate's copy
+  of the rule in `host.rules.yaml` has the same blind spot. They show in the
   lab's Grafana, as everything there does; nothing pages (ADR-0020). Live on
   `alexander` once it next runs `make up STACK=lab`.
 
