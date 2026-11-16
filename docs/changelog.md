@@ -19,6 +19,32 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-16
 
+- **`eden`'s admin password changed, and X11 forwarding turned off by
+  hand.** This completes two items the 2026-11-13 entry *`eden` audited after
+  its #1443 rebuild* left open. The `admin` login was still the first-start
+  `BLOODHOUND_ADMIN_PASSWORD`; it was changed in the UI on 2026-11-16, and
+  `build-the-bloodhound-guest.md` §7 now makes that change part of the
+  build, since the SOPS value stays readable in `.env` and the container's
+  environment. That entry also said `eden` keeps X11 forwarding until it is
+  next cloned from a rebuilt 901. Instead, the template's
+  `/etc/ssh/sshd_config.d/10-no-x11.conf` was written on `eden` by hand and
+  `sshd` reloaded; `sshd -T` reads `x11forwarding no`. A clone from today's
+  901 still needs it until the template is rebuilt.
+
+- **`eden` no longer runs the Ubuntu template's unused services.** The
+  2026-11-13 audit found eight packages on `eden` that nothing in this
+  repository uses, on a KVM guest with no modem, SAN, laptop or desktop:
+  `open-vm-tools`, `modemmanager`, `snapd` and its snaps, `thermald`,
+  `multipath-tools`, `open-iscsi`, `kdump-tools` and `udisks2`. They were
+  purged on 2026-11-16, with their now-unused dependencies. That also purged
+  the `ubuntu-server` metapackages, so the 43 packages they had pulled in
+  were first marked as manually installed: `apt autoremove` cannot take
+  `sudo`, `unattended-upgrades` or `apparmor` later. The kernel's
+  `crashkernel=` reservation, about 512 MB on this guest, goes at the next
+  boot. `ssh`, Docker, the guest agent, unattended upgrades and all five
+  containers were checked after. Template 901 still installs them; a clone
+  needs the same purge until the template is rebuilt.
+
 - **The sensor was blind for the same eighteen days.** The 2026-11-14
   correction to the #919 entry records `Saruman` powered down for the rack
   move from 2026-10-19 to 2026-11-06, from `odin`'s journal. A read-only audit
@@ -34,6 +60,7 @@ docstring gives: it is a record, not a claim about now.
     image ships no GeoLite database;
   - §4 names the checkout path `fenrir` uses, `~/code/Gerrrt/HomeLab`, in
     place of `~/HomeLab`.
+||||||| 96c10c4c
 
 - **#1518 is deployed on `eden` and measured there.** This completes the
   2026-11-15 entry *Container logs stop shipping the socket proxy's own
