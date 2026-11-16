@@ -108,11 +108,12 @@ alloy/opensearch.alloy           the indexer-health exporter (see above)
 wazuh/
   certs.yml                      input to the certs generator — service names, dots included
   certs/                         its output; gitignored, private keys
-  indexer/opensearch.yml         upstream's single-node file, verbatim
+  indexer/opensearch.yml         upstream's single-node file, with ISM's history indices turned off
   indexer/internal_users.yml     TEMPLATE — two accounts, two ${HASH} placeholders;
                                  rendered to .rendered/ by scripts/render-config.sh
   indexer/template-wazuh-alerts.json   1 shard, 0 replicas, 30s refresh, on wazuh-alerts-*
   indexer/ism-wazuh-alerts.json        delete wazuh-alerts-* at 30 days — Wazuh ships no policy
+  indexer/ism-wazuh-weekly.json        delete wazuh-monitoring-* and wazuh-statistics-* at 30 days
   manager/ossec.conf             upstream's file with ONE change: enrolment needs a password
   manager/shared/default/agent.conf  the `default` group's shared agent config: the Sysmon channel (#1035)
   manager/rules/local_rules.xml  the lab's own rules: #449's weaknesses by name, PowerShell's probe file at level 0 (#1077)

@@ -184,7 +184,13 @@ JOBS=(
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
 # name from JOBS — check 8 below asserts that. And the nightly re-verification
 # of both kinds of set, here and on oracle (#856): verify-backups-sensitive,
-# two days for the same reason as the backups it re-reads.
+# two days for the same reason as the backups it re-reads. And
+# verify-key-backup-sensitive, the estate's verify-key-backup for this tier's
+# own recipients: the same ninety days and no unit, because it is the same
+# human proof against a copy on removable media, run on trinity as
+# `make secrets-verify-backup KEY=... STACK=sensitive`. SecretsKeyBackupUnproven
+# holds every recipient in trinity's key-recipients.prom to it. It cannot be
+# called verify-key-backup, for check 8's reason: that name is the estate's.
 #
 # The units under systemd/sensitive/ carry @DEPLOY_ROOT@, @RUN_USER@,
 # @RUN_GROUP@ and @RUN_HOME@ rather than a name, because the build runbook
@@ -198,6 +204,7 @@ SENSITIVE_JOBS=(
   "verify-backups-sensitive homelab-verify-backups-sensitive 172800 verify-backups"
   "household-copy    -                          7776000  household-copy"
   "household-proof   -                         31536000  household-proof"
+  "verify-key-backup-sensitive -                7776000  secrets-verify-backup"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -524,8 +531,9 @@ if [[ "${MODE}" == check ]]; then
     run_home="$(getent passwd "${run_user}" | cut -d: -f6)"
     for row in "${SENSITIVE_JOBS[@]}"; do
       unit="$(job_unit "${row}")"
-      # household-copy and household-proof are human jobs, "-" as on the
-      # estate's side: no timer to be enabled (ADR-0073).
+      # household-copy, household-proof and verify-key-backup-sensitive are
+      # human jobs, "-" as on the estate's side: no timer to be enabled
+      # (ADR-0073, ADR-0024).
       [[ "${unit}" == "-" ]] && continue
       state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
       case "${state}" in

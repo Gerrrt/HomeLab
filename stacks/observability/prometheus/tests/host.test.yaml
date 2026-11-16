@@ -763,6 +763,68 @@ tests:
         alertname: DriftCheckStopped
         exp_alerts: []
 
+  # --- DriftCheckFailing: fires when the checker could not start ------------
+  # 2026-11-15's shape: the wiki fetch failed, exit 128, and the timestamp kept
+  # moving, so DriftCheckStopped stayed quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "0x12 128x24"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: DriftCheckFailing
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle's wiki drift check ran and could not finish (exit 128)"
+              description: >-
+                Exit 2 means a claim could not be read, so part of the wiki is
+                unchecked. A higher exit means the checker never started. Its last
+                run is in Loki under unit="homelab-drift-check.service". At 2,
+                the usual cause is a missing or expired ~/.ingest-reader-token for
+                atropos. Above 2, it is the wiki fetch or the gh login in
+                /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+                the next run, at 06:30 UTC.
+
+  # --- DriftCheckFailing: fires on an unreadable claim ------------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "2x24"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: DriftCheckFailing
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle's wiki drift check ran and could not finish (exit 2)"
+              description: >-
+                Exit 2 means a claim could not be read, so part of the wiki is
+                unchecked. A higher exit means the checker never started. Its last
+                run is in Loki under unit="homelab-drift-check.service". At 2,
+                the usual cause is a missing or expired ~/.ingest-reader-token for
+                atropos. Above 2, it is the wiki fetch or the gh login in
+                /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+                the next run, at 06:30 UTC.
+
+  # --- DriftCheckFailing: quiet on drift, which files its own wiki issue -----
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "0x12 1x24"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: DriftCheckFailing
+        exp_alerts: []
+
   # --- PatchStateStopped: quiet for a host being onboarded -------------------
   # A host that has never reported must stay silent, or every apt host not yet
   # covered by #360 — `Saruman` today — alerts as a fault. The series starts at

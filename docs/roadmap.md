@@ -52,8 +52,10 @@ Closes when it is empty.
   Since the rack move,
   [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
   adds `trinity` as a third subscriber and caps `Saruman`'s ordered guests at
-  `down=90`, and neither is applied yet. The gate is a rack visit. It reads
-  the outlet groups, applies step 4b and steps 3.6 to 3.8, proves the order
+  `down=90`. `Saruman`'s half (steps 3.6 and 3.7 on `Saruman`) was applied
+  on 2026-11-13; `trinity`'s subscription, `HOSTSYNC 600` on `morpheus` and
+  step 3.8 are not. The gate is a rack visit. It reads the outlet groups,
+  applies step 4b, `HOSTSYNC` and step 3.8, proves the order
   with `upsmon -c fsd`, and pulls the mains once to replace the card's
   47-minute claim with a number.
   → [runbook](runbooks/shut-down-on-the-ups.md)
@@ -203,11 +205,6 @@ Gated on the domain, on a household observation, or on something to publish.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)
-- **[#1443](https://github.com/Gerrrt/HomeLab/issues/1443) Bring `eden` into
-  `tofu/`.** `ragnarok` is in, and `eden` is declared but still the hand-built
-  guest: importing it plans a replace, which rebuilds it and its key
-  ([`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
-  Until then every plan and apply keeps `-target`.
 - **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
   Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
   certificate generator, and it is the only path that closes the CVE issues

@@ -51,6 +51,8 @@ Enrolling `garuda` in Wazuh and Velociraptor is §12, phase 2. OpenVAS, phase
 | Domain | **Not joined** | The domain is the target and is reverted. A member would fall with it, notes and all (ADR-0091) |
 | SIEM and sensors | **Off** | Wazuh, Zeek and Suricata already run. Their binaries stay, for offline work on a pcap; their daemons do not |
 | Backup | **Yes**, `golem`'s nightly job | Its case notes are not in git |
+| SSH and `sudo` | **Keys only, from Hicks and `phoenix`; `sudo` asks** (§4) | The domain's six share the segment, and no firewall stands between them and `garuda` |
+| GitHub | **Read-only:** clones over https, no `gh` login, no GitHub key | The estate converges from `Gerrrt/HomeLab` ([ADR-0021](../adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Whoever takes `garuda` must not also be able to write to it |
 | Login user | `analyst` | Not `operator`: Debian ships a system group of that name, which broke cloud-init on the dotfiles VMs |
 
 ## 1. Build template 910, from `phoenix`
@@ -159,6 +161,49 @@ manager, not in this repository or in OpenTofu's state:
 ssh -t analyst@10.0.30.62 sudo passwd analyst
 ```
 
+**Then close SSH to keys, and make sudo ask.** Kali's stock `sshd` takes
+passwords on every address, and cloud-init gives `analyst` `sudo` with no
+password. On a segment shared with the domain's six, which exist to be
+compromised, those two together are a guessed password away from root on the
+box that holds the case notes. So once the console password exists, SSH stops
+accepting it, from anywhere but Hicks and `phoenix`, and `sudo` starts asking
+for it. [`stacks/analyst/ssh/10-garuda.conf`](../../stacks/analyst/ssh/10-garuda.conf)
+is the drop-in. From `phoenix`'s checkout:
+
+```bash
+scp stacks/analyst/ssh/10-garuda.conf analyst@10.0.30.62:
+ssh -t analyst@10.0.30.62 '
+  sudo install -m 0644 -o root -g root 10-garuda.conf /etc/ssh/sshd_config.d/ && rm 10-garuda.conf &&
+  sudo sshd -t && sudo systemctl reload ssh'
+```
+
+**Before going on, open a second session** and check it from there, so a
+mistake cannot lock out the one you are in:
+
+```bash
+ssh analyst@10.0.30.62 true && echo key-ok
+ssh -o PubkeyAuthentication=no analyst@10.0.30.62 true    # must say "Permission denied (publickey)"
+```
+
+Then take away the passwordless `sudo`. `analyst` keeps `sudo` through the
+`sudo` group, which asks for the password. Check that it does before removing
+the grant, so a wrong password is found while the grant still stands:
+
+```bash
+ssh -t analyst@10.0.30.62 'sudo -k && sudo -v && echo sudo-password-ok'
+ssh -t analyst@10.0.30.62 'sudo rm /etc/sudoers.d/90-cloud-init-users && sudo -k && sudo -n true 2>&1 | grep -q "password is required" && echo nopasswd-gone'
+```
+
+cloud-init also puts `analyst` in `lxd`. LXD is not installed, but membership
+of `lxd` is root as soon as it is, so take it out now:
+
+```bash
+ssh -t analyst@10.0.30.62 'sudo gpasswd -d analyst lxd'
+```
+
+Every later step that uses `sudo` asks for the password, so an `ssh` that
+runs `sudo` takes `-t`.
+
 ## 5. Kali Purple, without its SOC
 
 On `garuda`:
@@ -218,6 +263,14 @@ systemctl list-unit-files | grep -Ei 'suricata|zeek|elastic|kibana|wazuh' || ech
 ```
 
 Every line printed must say `disabled`, or not exist. Record the output in §11.
+
+**Turn off what a guest has no use for.** Kali enables a modem manager, a
+SMART daemon for disks a VM does not have, CUPS's path trigger, `stunnel`'s
+target and PHP's session cleaner. Nothing here uses them:
+
+```bash
+sudo systemctl disable --now ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer
+```
 
 ## 6. Its token at the lab's ingest proxy, and its stack
 
@@ -291,8 +344,9 @@ GitHub. Each bootstrap links from wherever it is cloned, so moving a clone
 means re-running its bootstrap:
 
 ```bash
-deb=$(gh api repos/dotgibson/dotfiles-Debian/releases/latest --jq .tag_name)
-def=$(gh api repos/dotgibson/dotfiles-Defense/releases/latest --jq .tag_name)
+latest() { curl -fsSL "https://api.github.com/repos/dotgibson/$1/releases/latest" | jq -r .tag_name; }
+deb=$(latest dotfiles-Debian)
+def=$(latest dotfiles-Defense)
 echo "Debian $deb, Defense $def"    # into §11
 
 mkdir -p ~/code/dotgibson
@@ -306,7 +360,26 @@ exec zsh
 core doctor; echo "doctor exit $?"
 ```
 
-Without `gh` on the guest, read the two tags from the releases pages.
+The release API needs no login, and `jq` is §5's. **No GitHub credential on
+`garuda`:** no `gh auth login`, and no key added to the account. Every clone is
+over https and read-only (§0). A change found here is made from Hicks or
+`phoenix`, which can push.
+
+**On a guest built before this rule**, take the credentials off before §9's
+check. The audit of 2026-11-13 found a `gh` login and a GitHub SSH key on
+`garuda`. Revoke them first, from a trusted host: on github.com, *Settings →
+SSH and GPG keys* deletes the key, and *Settings → Applications → Authorized
+OAuth Apps → GitHub CLI → Revoke* ends the token (and `gh` on every other
+machine, which then logs in again). Then remove the local copies on `garuda`:
+
+```bash
+gh auth logout
+git credential-cache exit
+rm -f ~/.ssh/id_ed25519 ~/.ssh/id_ed25519.pub
+```
+
+`git credential-cache exit` drops an https login git may be holding in memory;
+the clones keep pulling without one.
 
 A good run is:
 
@@ -326,7 +399,13 @@ exercise, and goes down after it with `siemdown`. Left up, it is the second
 SIEM ADR-0091 refuses.
 
 **Cases live in `~/cases/`,** outside every repository, by Defense's own
-rule. That directory is the reason this guest is backed up.
+rule. That directory is the reason this guest is backed up. Make it, readable
+by `analyst` alone. `chmod` is its own step because `mkdir -p -m` sets the
+mode only on a directory it creates, and an earlier one may already exist:
+
+```bash
+mkdir -p ~/cases && chmod 700 ~/cases
+```
 
 ## 8. Collectors and backup
 
@@ -365,7 +444,21 @@ Each line is a pass or a stop:
 - **No second SOC.** On `garuda`:
   - `docker ps --format '{{.Names}}'` prints exactly `analyst-alloy` and
     `analyst-docker-socket-proxy`;
-  - `ss -lntup` shows no Suricata, Zeek or Elastic listener.
+  - `ss -lntup` shows no Suricata, Zeek or Elastic listener;
+  - `systemctl is-enabled ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer`
+    prints `disabled` five times.
+- **Cases.** `stat -c '%a %U' ~/cases` prints `700 analyst`.
+- **Access** (§4, §7). On `garuda`:
+  - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers|disableforwarding) '`
+    prints `passwordauthentication no`, `permitrootlogin no`,
+    `disableforwarding yes`, and `allowusers` for `analyst@10.0.50.0/24` and
+    `analyst@10.0.30.70`. `sshd -T` still lists the separate forwarding
+    options as `yes`; `DisableForwarding` overrides them;
+  - `sudo -k; sudo -n true` says a password is required;
+  - `id -nG` does not list `lxd`;
+  - `gh auth status` says it is not logged in, or `gh` is absent;
+  - no key in `~/.ssh` is on the GitHub account, and any private key there has
+    a passphrase: `ssh-keygen -y -P '' -f <key>` fails.
 - **dotfiles.** §7's two bootstrap exits and the `core doctor` exit.
 - **Desktop.** From `Hicks`, `garuda`'s console in Proxmox shows the Purple
   XFCE session. Wireshark opens a capture, and CyberChef opens.
@@ -623,9 +716,9 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
 
    ```bash
    d=$(mktemp -d) && cd "$d"
-   curl -fsSO http://10.0.30.60:8448/wazuh-agent_4.14.8_amd64.deb
+   curl -fsSO http://10.0.30.60:8448/wazuh-agent_4.14.10_amd64.deb
    curl -fsSO http://10.0.30.60:8448/velociraptor-client_0.77.3_amd64.deb
-   echo "6ed202e211fd8c544d1906c9b94dcd4b503d1829eef7d0a82ce4bcf4a1688967  wazuh-agent_4.14.8_amd64.deb" | sha256sum -c -
+   echo "873cfec3720a7d7a344afc2c646cf5895a04caa3e4dd7b5124987264f711db94  wazuh-agent_4.14.10_amd64.deb" | sha256sum -c -
    sha256sum velociraptor-client_0.77.3_amd64.deb   # must equal staging's hash
    ```
 
@@ -637,7 +730,7 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
 
    ```bash
    sudo WAZUH_MANAGER=10.0.30.60 WAZUH_AGENT_NAME=garuda WAZUH_AGENT_GROUP=default \
-     dpkg -i wazuh-agent_4.14.8_amd64.deb
+     dpkg -i wazuh-agent_4.14.10_amd64.deb
    sudo sh -c 'umask 027; cat > /var/ossec/etc/authd.pass && chgrp wazuh /var/ossec/etc/authd.pass'   # paste, Enter, Ctrl-D
    sudo systemctl enable --now wazuh-agent && sudo systemctl restart wazuh-agent
    ```
@@ -645,6 +738,11 @@ the Wazuh agent and the Velociraptor client, as Debian packages staged on
    Once `odin` lists it as Active, remove the file:
    `sudo rm /var/ossec/etc/authd.pass`. The agent keeps its own key in
    `client.keys`. A re-enrolment writes the file again.
+
+   **To upgrade an enrolled agent** after the pin moves, stage again on
+   `odin`, fetch and check the new `.deb` as in step 2, and
+   `sudo dpkg -i` it with no variables. The package keeps `ossec.conf` and
+   `client.keys`, so the agent comes back as itself, with no password.
 
 4. **The Velociraptor client.** The package carries `odin`'s server URL, CA and
    nonce, and installs and starts its own service:
@@ -712,3 +810,43 @@ the guest takes the new space with no reboot.
    ```
 
    Read the device from `lsblk` first if the layout has changed since §11.
+
+## 15. Keep it patched
+
+**Nothing patches `garuda` on its own, and no alert says it is behind.** Three
+facts make that so:
+
+- `dotfiles-Debian` enables `unattended-upgrades` (§11), but its allowed
+  origins are Debian's, and every package here comes from Kali's archive. Its
+  log says `No packages found that can be upgraded unattended` every day.
+- Kali Rolling has no security suite. `patch-state` (§8) counts a security
+  update by its origin's security pocket, so
+  `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0.
+  `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind.
+- Nothing alerts on either number, or on a pending reboot. `garuda`'s Alloy
+  writes only to the lab's Prometheus on `alexander`
+  (`stacks/analyst/compose.yaml`), which has no apt or reboot rules and no
+  Alertmanager (ADR-0020). `SecurityUpdatesPending` and `RebootRequired` live
+  in `stacks/observability` and never see `garuda`.
+
+So the upgrade is a person's job. **Monthly**, on `garuda`:
+
+```bash
+sudo apt-get update && sudo apt-get -y full-upgrade
+ls /run/reboot-required 2>/dev/null && echo reboot-needed
+```
+
+If it prints `reboot-needed`, run `qm reboot 162` on `Saruman` the same day,
+then §9's checks. Nothing alerts on a missed reboot or a missed upgrade, so
+running that check is part of the job.
+
+**Before the next scan after an upgrade,** run
+[`scan-the-lab-with-openvas.md`](scan-the-lab-with-openvas.md) §5: sync the
+feeds, run the setup check, migrate if it asks, and re-prove the fence. On
+2026-11-15 gvmd would not start until it was migrated, because an upgrade had
+moved its database revision.
+
+The rest arrives through the repository. When the Wazuh pin in
+`stacks/soc/linux-agents.yaml` moves, run §12's upgrade. When the Alloy pin
+moves, run `make up STACK=analyst` on `garuda`. A reboot restarts the old
+container; it does not apply a changed `compose.yaml`.

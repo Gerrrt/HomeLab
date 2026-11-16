@@ -224,17 +224,32 @@ if [[ "${MON}" != "${ESTATE_MON}" ]]; then
   [[ -n "${INGEST_TOKEN:-}" ]] \
     || die "no agent token for ${HOST}: ${MON} is not the estate's stack, so nothing is decrypted here. Export INGEST_TOKEN from secrets/lab.sops.yaml on alexander (${TOKEN_KEY}), and INGEST_TOKEN_READER for the arrival check (#834)"
 elif [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
-  if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
+  # Why nothing was decrypted, if nothing was. Without it, a checkout with no
+  # sops or no age key got the "add the token" message for a token that was
+  # already in the file.
+  no_decrypt=""
+  if ! command -v sops >/dev/null 2>&1; then
+    no_decrypt="sops is not installed on this machine"
+  elif [[ ! -f "${REPO_ROOT}/${TOKEN_FILE}" ]]; then
+    no_decrypt="${TOKEN_FILE} is not in this checkout"
+  else
+    # The first line says whether load_secrets succeeded, so a failed decrypt
+    # is told apart from a file that decrypts but has no key for this host.
     decrypted="$(
       # shellcheck source=scripts/secrets-env.sh
-      source "${REPO_ROOT}/scripts/secrets-env.sh" || exit 0
-      load_secrets observability >/dev/null || exit 0
-      printf '%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
+      source "${REPO_ROOT}/scripts/secrets-env.sh" || { echo failed; exit 0; }
+      load_secrets observability >/dev/null || { echo failed; exit 0; }
+      printf 'ok\n%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
     )" || true
-    { read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    { read -r dec_status; read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    [[ "${dec_status:-}" == ok ]] \
+      || no_decrypt="this checkout could not decrypt ${TOKEN_FILE} (the error above says why)"
     INGEST_TOKEN="${INGEST_TOKEN:-${dec_agent:-}}"
     INGEST_TOKEN_READER="${INGEST_TOKEN_READER:-${dec_reader:-}}"
-    unset decrypted dec_agent dec_reader
+    unset decrypted dec_status dec_agent dec_reader
+  fi
+  if [[ -z "${INGEST_TOKEN:-}" && -n "${no_decrypt}" ]]; then
+    die "no agent token for ${HOST}: ${no_decrypt}. Run this from a checkout that holds the SOPS key (the monitoring host), or export INGEST_TOKEN (${TOKEN_KEY}) and INGEST_TOKEN_READER from the password manager (docs/runbooks/add-monitored-device.md)"
   fi
 fi
 [[ -n "${INGEST_TOKEN:-}" ]] \
@@ -458,6 +473,7 @@ docker)
     -p 127.0.0.1:12345:12345 \
     "$IMAGE" run \
       --server.http.listen-addr=0.0.0.0:12345 \
+      --disable-reporting \
       --storage.path=/var/lib/alloy/data \
       /etc/alloy >/dev/null
 
@@ -527,7 +543,7 @@ native)
 ## Written by scripts/deploy-agent.sh from the HomeLab repository. Edits here
 ## are overwritten on the next deploy; change the repository instead.
 CONFIG_FILE="/etc/alloy"
-CUSTOM_ARGS="--server.http.listen-addr=127.0.0.1:12345"
+CUSTOM_ARGS="--server.http.listen-addr=127.0.0.1:12345 --disable-reporting"
 RESTART_ON_UPGRADE=true
 ALLOY_HOSTNAME="${HOSTNAME_LABEL}"
 LOKI_URL="${LOKI_URL}"

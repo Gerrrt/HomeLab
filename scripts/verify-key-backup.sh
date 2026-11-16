@@ -238,6 +238,27 @@ fi
 # two, SNMP_AUTHPASS_<X> and SNMP_PRIVPASS_<X>. Keep the one-name-per-line
 # shape and the same order as render-config.sh, so the two read as the diff
 # they are.
+#
+# That list is the observability stack's alone. Any other stack — sensitive,
+# on trinity — has no Grafana, no Alertmanager and no SNMP devices, so holding
+# its file to those names failed every proof after the key had already
+# decrypted it, and the per-recipient proof below was never recorded. For
+# those stacks the names come the way render-config.sh's base list does: from
+# the stack's compose guards, less the three it skips because they are not
+# secrets. compose-guards.sh failing is fatal rather than an empty list, for
+# the reason render-config.sh gives: an empty REQUIRED would pass anything.
+REQUIRED=()
+if [[ "${STACK}" != observability ]]; then
+  if ! GUARDS="$("${REPO_ROOT}/scripts/compose-guards.sh" "${REPO_ROOT}/stacks/${STACK}/compose.yaml")"; then
+    die "could not read the guards from stacks/${STACK}/compose.yaml — see above"
+  fi
+  while read -r var; do
+    [[ -n "${var}" ]] || continue
+    case "${var}" in RENDER_UID | RENDER_GID | LOG_READ_GID) continue ;; esac
+    REQUIRED+=("${var}")
+  done <<< "${GUARDS}"
+  ((${#REQUIRED[@]})) || die "stacks/${STACK}/compose.yaml guards no secrets, so there is nothing to hold the decrypted file to"
+else
 REQUIRED=(
   GRAFANA_ADMIN_PASSWORD
   ALERTMANAGER_WEBHOOK_URL
@@ -252,6 +273,7 @@ REQUIRED=(
   SNMP_AUTHPASS_NEO
   SNMP_PRIVPASS_NEO
 )
+fi
 found=0
 missing=()
 for var in "${REQUIRED[@]}"; do

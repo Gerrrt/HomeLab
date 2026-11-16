@@ -129,7 +129,14 @@ Grafana is minutes old.
 From the Mac, after `git pull`:
 
 - **The Alloy agent.** `make deploy-agent ARGS="<user>@<host>"` for `oracle`
-  and `Saruman`, which push to `prometheus`. For `phoenix` and `golem`, which
+  and `Saruman`, which push to `prometheus`. For `oracle`, run it on
+  `prometheus` instead, which holds the SOPS key the Mac does not. That
+  ships `prometheus`'s checkout, not the Mac's, so finish §2 there first and
+  check with `git -C ~/code/Gerrrt/HomeLab log -1` that it holds the merge.
+  Then
+  `ssh prometheus 'cd ~/code/Gerrrt/HomeLab && scripts/deploy-agent.sh atropos@10.0.99.30'`.
+  `prometheus` does not resolve `oracle` by name
+  ([#1526](https://github.com/Gerrrt/HomeLab/issues/1526)). For `phoenix` and `golem`, which
   push to the lab, add `--monitoring-host 10.0.30.40`.
   - **Tokens.** For a lab host, nothing is decrypted on the Mac: export
     `INGEST_TOKEN` and `INGEST_TOKEN_READER` from `secrets/lab.sops.yaml` on
@@ -174,19 +181,7 @@ Some merges come with a step that is run once and is then done. Each one is
 listed here while its issue is open, and leaves this page when the issue
 closes.
 
-- **`eden` and `ragnarok` into the pipeline ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)).**
-  Before the first plan on `phoenix`:
-  1. Add `TF_VAR_gandalf_endpoint` and `TF_VAR_gandalf_api_token` to
-     `phoenix.env` ([`build-the-playground.md`](build-the-playground.md), §5).
-  2. Add both guests' MACs to `tofu/identities.auto.tfvars`, and re-escrow it
-     ([`provision-lab-guests.md`](provision-lab-guests.md), §3).
-
-  Until both guests are rebuilt, the plan shows changes for `eden` and
-  `ragnarok`, and for nothing else. Then:
-  - `eden`: [`build-the-bloodhound-guest.md`](build-the-bloodhound-guest.md),
-    *Once: bring the hand-built `eden` into the pipeline*.
-  - `ragnarok`: [`build-the-playground.md`](build-the-playground.md), §5,
-    ending in `finish-attack-vm.sh`.
+None is open.
 
 ## If something goes wrong
 

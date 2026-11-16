@@ -101,10 +101,12 @@ Three things have to be in place first:
      | grep ssh-ed25519
    ```
 
-**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), stop
-here and go to *Once: bring the hand-built `eden` into the pipeline* below.
-The commands next are for a first build only: an apply with 141 taken fails
-on the clone, after it has made the pool.
+**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), it is
+in the state: the hand-built guest was imported and replaced on 2026-11-12
+under [#1443](https://github.com/Gerrrt/HomeLab/issues/1443), and the first
+untargeted plan after it, on 2026-11-16, said *No changes*. The commands
+below then only refresh it: the plan should say *No changes*, and anything
+else is a stop. To rebuild it on purpose, use *Rebuild: replace it* below.
 
 For a first build, on `phoenix`:
 
@@ -119,34 +121,21 @@ The plan should add the guest and the `bloodhound` pool, and nothing else.
 Proxmox warns that the sum of thin volumes exceeds the pool. That is the
 allocation ADR-0081 accepts, and the warning is expected.
 
-### Once: bring the hand-built `eden` into the pipeline
+### Rebuild: replace it
 
-`eden` was first built by hand, with `qm clone 901 141` and `qm set`
-(2026-10-07), so the state does not know it. Import it once, as the domain's
-six were ([`build-the-lab-domain.md`](build-the-lab-domain.md#rebuild-from-the-pipeline)):
-
-```bash
-tofu -chdir=tofu import 'module.guest["eden"].proxmox_virtual_environment_vm.this' Saruman/141
-tofu -chdir=tofu plan -target='module.guest["eden"]'
-```
-
-The plan should **replace** `eden` and **create** the `bloodhound` pool, and
-nothing else. A guest built by hand has no `clone` to read back, so this is the
-one plan where a replace is expected. Anything else is a stop.
-
-The replace destroys both disks, the graph and the guest's age key with them.
+A replace destroys both disks, the graph and the guest's age key with them.
 ADR-0081 accepts that: the graph is one collection run from rebuilt, and the
-key is replaced by issuing new values. So take it out of the stack first, then
-let the pipeline make it again:
+key is replaced by issuing new values.
 
 ```bash
-tofu -chdir=tofu destroy -target='module.guest["eden"]'
-tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu plan -replace='module.guest["eden"].proxmox_virtual_environment_vm.this' \
+  -target='module.guest["eden"]' -out=eden.tfplan
 tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
 ```
 
-Then continue from §2. At §3, the guest is new and so is its key: follow §11
-for the `.sops.yaml` rule and the secrets file.
+The plan should replace `eden` and nothing else. Then continue from §2. At
+§3, the guest is new and so is its key: follow §11 for the `.sops.yaml` rule
+and the secrets file.
 
 ## 2. First boot, and the data disk
 
@@ -180,6 +169,17 @@ sudo install -d -m 0750 -o 0     -g 0     /srv/bloodhound-data/work
 df -h /srv/bloodhound-data
 ```
 
+These modes are what the directories have until the first `up`, not after
+it. Each is the root of a named volume, and when a volume is first mounted
+empty, Docker copies the image's directory, mode included, onto it. So after
+§6, `postgres` is `1777` (the `postgres` image's `/var/lib/postgresql`) and
+`work` is `0755`. That is expected. The data itself is in
+`postgres/18/docker`, which Postgres creates `0700`, and it is checked there:
+
+```bash
+sudo stat -c '%a %u %n' /srv/bloodhound-data/postgres/18/docker    # 700 999
+```
+
 `qm guest cmd 141 get-fsinfo` on `Saruman` should list `/` and
 `/srv/bloodhound-data`.
 
@@ -198,11 +198,22 @@ V=3.9.4
 curl -fsSLO https://github.com/getsops/sops/releases/download/v$V/sops-v$V.linux.amd64
 curl -fsSL https://github.com/getsops/sops/releases/download/v$V/sops-v$V.checksums.txt \
   | grep " sops-v$V.linux.amd64$" | sha256sum -c -
-sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops
+sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops && rm sops-v$V.linux.amd64
 ```
 
-Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. Then, **on
-`eden`**:
+Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. **Do not run
+`make validate` in this checkout.** It pulls every stack's images, about 38 GB,
+and on 2026-11-13 that filled `eden`'s OS disk to 100%:
+rsyslog lost its writes until the images were pruned. The checkout is here
+for `secrets-init`, `secrets-edit` and `make up`. CI runs the full suite.
+`make validate` on `phoenix` is partial: `phoenix` has no Docker by design,
+so the checks that run an image are skipped there and a green run does not
+prove them. If it has been run here, `docker image prune -a` takes the disk
+back, but it keeps only images a container still uses: after §6's `make up`,
+the stack's five; before it, or after a `make down`, none, and the next
+`make up` pulls them again.
+
+Then, **on `eden`**:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
@@ -365,7 +376,12 @@ containers to come back. They have `restart: unless-stopped`.
 1. **The UI, over TLS.** From the Mac, open `https://10.0.30.41:8443/`. The
    certificate must verify against the estate's CA, which Hicks already
    trusts for the two Grafanas. Log in as `admin` with
-   `BLOODHOUND_ADMIN_PASSWORD`.
+   `BLOODHOUND_ADMIN_PASSWORD`, then change the password in the UI at once
+   and keep the new one in your password manager, not in the repository.
+   `BLOODHOUND_ADMIN_PASSWORD` only creates `admin` on the first start
+   (`bhe_recreate_default_admin` is `false`), so it is a bootstrap value:
+   it sits in `.env` and in the container's environment, which anyone in
+   the `docker` group can read, and must not stay the live login.
 2. **A collection, ingested.** Download SharpHound from the UI, under
    *Download Collectors*. That way its version is the one the server's schema
    expects. Run it from a domain-joined host as an ordinary domain user, for

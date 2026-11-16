@@ -304,7 +304,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
     container_name: lab-grafana
     # The estate's block, as on prometheus above (#845), including the one
     # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
@@ -484,6 +484,8 @@ services:
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345
+      # No usage reports to Grafana Labs, as Grafana and Loki send none.
+      - --disable-reporting
       - --storage.path=/var/lib/alloy/data
       - /etc/alloy
     volumes:
