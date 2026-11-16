@@ -421,7 +421,7 @@ services:
   # A container and not the native binary, because this repository's whole
   # verification apparatus applies to images (ADR-0030). The ADR flagged the
   # one thing to check: whether the registry publishes a versioned tag. It does
-  # — 0.77.2 is pinned below by tag and digest like every other image here —
+  # — the image below is pinned by tag and digest like every other image here —
   # so the paragraph the ADR said to supersede if not stands.
   # ---------------------------------------------------------------------------
   velociraptor:
