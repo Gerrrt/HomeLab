@@ -257,6 +257,15 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   [#1228](https://github.com/Gerrrt/HomeLab/issues/1228), and `ping -c3` from
   `prometheus` got an answer from an eero on each of the three segments the
   same day, before the job's targets were enabled.
+- **A second row into Hicks, in force since 2026-11-17:** `10.0.99.20 →
+  10.0.50.15:9100/tcp`, above the *Block access to …* rows, so `prometheus`
+  scrapes `node_exporter` on `heimdall`, the office wall dashboard. It is
+  host- and port-scoped like the `eeros` row above, so Winterfell's catch-all
+  still reaches no segment.
+  [ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)
+  records the decision, and
+  [`build-heimdall.md`](runbooks/build-heimdall.md) §4 created it. `curl` from
+  `prometheus` read the exporter the same day.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -326,6 +335,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| heimdall | `10.0.50.15` | `88:a2:9e:xx:xx:xx` | Raspberry Pi 5 | Raspberry Pi OS 13 | Basement | Wall dashboard |
 
 ### Notes
 

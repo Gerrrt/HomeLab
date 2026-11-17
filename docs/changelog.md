@@ -19,6 +19,32 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **`heimdall`, the office wall dashboard, is on Hicks at `10.0.50.15`**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+  [`build-heimdall.md`](runbooks/build-heimdall.md)). A Raspberry Pi 5 drives
+  the 40" television mounted in the office on 2026-10-31. It holds no
+  credentials and shows pages served by `trinity`: Glance's Homelab page until
+  the wall page is built.
+  - **Read from the Pi first:** Raspberry Pi OS 13 with its own desktop,
+    47.7 °C at idle with no throttling, and −45 dBm on 5 GHz through the
+    basement eero.
+  - **SSH accepted passwords as shipped.** It is key-only now, with root
+    login off, and unattended-upgrades is installed.
+  - **A Kea reservation and a second Winterfell pass into Hicks,**
+    `10.0.99.20 → 10.0.50.15:9100/tcp`, after ADR-0112's echo pass to the
+    eeros. `curl` from `prometheus` read the exporter the same day, and
+    `targets/node.yaml` scrapes it as `role: display`.
+  - **`InstanceDown` does not page for it.** The rule now excludes
+    `role="display"`, with a unit test for the quiet case. A dead screen shows
+    itself to anyone in the room.
+  - **The name was free.** ADR-0102 gave `heimdall` to a Pi on Skids that
+    ADR-0109 dropped and that was never bought.
+  - **Not yet verified:** the HDMI output, the kiosk on the screen, and
+    whether the television obeys HDMI-CEC. The cable had not arrived.
+  - **Seen on the way:** the Pi took an IPv6 address on Hicks from a router
+    advertisement. That was the eeros acting as Thread border routers, as the
+    entry below records. The decision is
+    [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 - **Hicks hosts were being offered IPv6, by the eeros and not by pfSense.**
   `security.md` said that nothing inside the estate is offered IPv6. The
   measurement behind that ([#353](https://github.com/Gerrrt/HomeLab/issues/353),
