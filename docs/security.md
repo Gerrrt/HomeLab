@@ -246,16 +246,31 @@ SNMP from `10.0.99.20`. A second pass has been in force since 2026-11-11:
 ([ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md),
 [#1388](https://github.com/Gerrrt/HomeLab/issues/1388)).
 
-**IPv6 terminates at the WAN and is not carried inside the estate.** That was
-never written down and is now measured rather than assumed
+**pfSense terminates IPv6 at the WAN and routes none of it inside the
+estate.** That was never written down and is now measured rather than assumed
 ([#353](https://github.com/Gerrrt/HomeLab/issues/353), 2026-09-07): the WAN
 interface holds one global v6 address and a working v6 default route — the
 firewall itself reaches the v6 internet in about 11 ms — while **no VLAN
 interface has a global v6 address, and neither `radvd` nor `dhcpd6` is
-running**. So nothing inside is offered IPv6 and nothing inside can prefer a
-route that does not work, which is the failure a half-configured v6 stack
-usually causes. The estate is addressed in RFC1918 IPv4 by decision, and this
-paragraph is that decision.
+running**. So `morpheus` offers nothing inside an IPv6 address or route, and
+nothing inside can prefer a v6 default route that does not work, which is the
+failure a half-configured v6 stack usually causes. The estate is addressed in
+RFC1918 IPv4 by decision, and this paragraph is that decision.
+
+**The eeros on Hicks do offer IPv6, measured 2026-11-17.** pfSense is not the
+only thing that can send router advertisements. `rdisc6` on a Linux host on
+Hicks heard three advertisers, all three eero Pro 6Es on that segment (OUIs
+`9c:57:bc` and `fc:3f:a6`), acting as Thread border routers. Each advertises a
+ULA on-link prefix that hosts take a SLAAC address from, and a route to a
+second ULA prefix, the eeros' Thread mesh. Each sets router lifetime 0. Hicks
+hosts therefore hold a ULA address, and those that accept route-information
+options (macOS, iOS and Windows do; Linux does not by default) hold a working
+route into the Thread mesh through an eero. **No v6 default route is offered**,
+so the point above about preferring a broken route still holds. None of this
+reaches `morpheus`. It stays on Hicks' layer 2 and the eeros' Thread radios,
+so no firewall rule sees it. Whether the eeros may keep doing this, and
+whether their Thread network is the one the HomePods on Skids also serve, is
+[#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 
 **The `WAN_DHCP6` gateway's monitor answers, since 2026-09-30.** From
 2026-09-07 it reported 100% loss while the link was fine. `dpinger` was
@@ -281,10 +296,14 @@ LAN, so their IPv6 catch-all reaches it. Both are latent rather than live for
 the same reason — `igc0` has only a link-local address, which does not route —
 and both are divergences from the pattern rather than paths anything can use
 today. [#353](https://github.com/Gerrrt/HomeLab/issues/353) owns whether IPv6 is
-carried at all.
+carried at all. A third v6 path is not a firewall rule at all. It is the
+eeros' Thread mesh on Hicks, described above, which pfSense does not mediate.
+Whether it also reaches Skids is open on
+[#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 
-Every claim in the four paragraphs above is checked against the running firewall
-rather than reviewed. `docs/firewall-claims.yaml` states the posture in the form
+Every firewall claim in the paragraphs above is checked against the running
+firewall rather than reviewed. The eero advertisements are the exception: they
+are a layer-2 fact that `pfctl` cannot see, measured by hand with `rdisc6`. `docs/firewall-claims.yaml` states the posture in the form
 `pfctl` can answer and `make check-firewall` diffs it against the live ruleset;
 `make check-docs` asserts this section names the same segments the claims file
 does. Neither can run in CI's sandbox — the ruleset is not in this repository

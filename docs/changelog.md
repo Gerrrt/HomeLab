@@ -42,9 +42,23 @@ docstring gives: it is a record, not a claim about now.
   - **Not yet verified:** the HDMI output, the kiosk on the screen, and
     whether the television obeys HDMI-CEC. The cable had not arrived.
   - **Seen on the way:** the Pi took an IPv6 address on Hicks from a router
-    advertisement. The advertised prefix is ULA, with no default route.
-    `docs/security.md` says nothing inside is offered IPv6, so that is being
-    reconciled separately.
+    advertisement. That was the eeros acting as Thread border routers, as the
+    entry below records. The decision is
+    [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
+- **Hicks hosts were being offered IPv6, by the eeros and not by pfSense.**
+  `security.md` said that nothing inside the estate is offered IPv6. The
+  measurement behind that ([#353](https://github.com/Gerrrt/HomeLab/issues/353),
+  2026-09-07) was of `morpheus` only, and for `morpheus` it still holds. A
+  Raspberry Pi 5 on Hicks held a SLAAC address in a ULA /64. `rdisc6` traced it
+  to the three eero Pro 6Es on Hicks (OUIs `9c:57:bc`, `fc:3f:a6`), acting as
+  Thread border routers. Each advertises the on-link ULA prefix, a
+  route-information option for its Thread mesh's ULA prefix, and router
+  lifetime 0, so no v6 default route. The Pi ignored the route option (Linux
+  default); macOS, iOS and Windows hosts install it. Nothing crosses the
+  firewall. `security.md` and `network.md`'s Hicks notes now say so.
+  Whether the eeros keep doing it, and whether their Thread mesh is shared
+  with Skids, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 
 - **`fenrir` never reported its patch state, and its runbook now installs
   the collector.** `build-the-sensor-guest.md` §4 installed only the archive
