@@ -216,6 +216,64 @@ It hangs off `multi-user.target`, not the device. Ubuntu 26.04's dracut
 initramfs brings `ens19` up before the real system starts, so a unit wanted by
 the device never fires. Reboot once and check `ethtool` again.
 
+**Keep `ens19` silent while it boots, too.** The netplan file takes effect only
+once the real system is up. Before that, `ens19` speaks twice:
+
+- **In the initramfs.** Ubuntu 26.04's dracut carries systemd-networkd and a
+  catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface.
+  `ens19` sends a DHCPv4 Discover with its MAC and the hostname, and IPv6
+  duplicate-address detection and multicast listener reports. `ens18` takes a
+  lease from the lab pool before the static `.90` applies.
+- **Just after switch-root.** networkd brings `ens19` up, and the kernel gives
+  it an IPv6 link-local address. netplan's `link-local: []` then removes it,
+  but not before more multicast listener reports have gone out.
+
+A capture on `tap190i1` from `Saruman` found nine such frames at the reboot of
+2026-11-17. Nothing receives them, because `vmbr1` has no other port and no
+address, but a sensor that announces itself is not one that only listens.
+The root disk is local, so the initramfs needs no network at all. Leave it
+out, the way dracut's own `no-network` profile does, and turn IPv6 off on
+`ens19` before anything can bring it up. udev applies a sysctl for an
+interface as the interface appears, so this one lands before networkd starts:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# fenrir: no networking in the initramfs (build-the-sensor-guest.md §3).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs every interface, the capture NIC included, before netplan applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+sudo tee /etc/sysctl.d/60-capture-nic.conf >/dev/null <<'CONF'
+# fenrir: the capture NIC never speaks IPv6 (build-the-sensor-guest.md §3).
+# Applied by udev as ens19 appears, before networkd brings the link up.
+net.ipv6.conf.ens19.disable_ipv6 = 1
+CONF
+sudo update-initramfs -u
+sudo lsinitrd -m | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+On 26.04, `update-initramfs` is dracut's wrapper. `-u` alone rebuilds only the
+newest kernel's image, which leaves the previous kernel's as it was. If the new
+image does not boot, `qm terminal 190` or the console on `Saruman` is the way
+back: choose the previous kernel under *Advanced options* in GRUB, then remove
+the dracut file and run `update-initramfs -u` again. Later kernels are built
+with the file in place. To prove the result, reboot with a capture
+running on `Saruman` that sees only frames `ens19` sends:
+
+```bash
+tcpdump -ni tap190i1 -Q in ether src "$(qm config 190 | sed -n 's/^net1: virtio=\([^,]*\).*/\1/p')"
+```
+
+Then, back on `fenrir`:
+
+```bash
+cat /sys/class/net/ens19/statistics/tx_packets     # 0
+sysctl net.ipv6.conf.ens19.disable_ipv6            # 1
+```
+
+The capture must stay empty, and `tx_packets` must read 0.
+
 Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 190 -- uptime`
 from `Saruman` is the check. The agent is also what lets this guest's disks
 page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and

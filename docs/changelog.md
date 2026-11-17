@@ -19,6 +19,28 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **`fenrir`'s capture NIC speaks while it boots, and its runbook now
+  silences it.** This corrects "`fenrir`'s 8% capture loss was GRO
+  reordering", filed under 2026-10-01. That entry put the nine packets
+  `ens19` had sent down to an IPv6 link-local address in the initramfs. A
+  capture on `tap190i1` from `Saruman`, across a reboot, found more than that:
+  - **In the initramfs**, dracut's catch-all `zzzz-dracut-default.network`
+    sent a DHCPv4 Discover from `ens19`, carrying its MAC and the hostname
+    `fenrir`, plus IPv6 duplicate-address detection and multicast listener
+    reports. The same file took a lease for `ens18`, `10.0.30.116`, from the
+    lab pool, before the static `.90` applied.
+  - **Just after switch-root**, networkd brought `ens19` up and it gained an
+    IPv6 link-local address for a moment, sending three more listener
+    reports before netplan's `link-local: []` removed it.
+
+  Nine frames in all, the same count the NIC showed before this reboot. They
+  reach nothing, because `vmbr1` has no other port and no address.
+  `build-the-sensor-guest.md` §3 now leaves networking out of the initramfs
+  and sets `disable_ipv6` on `ens19` through `sysctl.d`, and proves it with
+  the same capture and `tx_packets` at 0. Not yet applied on `fenrir`. The
+  `ens18` lease probably happens on every 26.04 guest built from the ISO,
+  which has not been checked.
+
 - **`fenrir` never reported its patch state, and its runbook now installs
   the collector.** `build-the-sensor-guest.md` §4 installed only the archive
   prune, so `apt-patch-state.prom` was never written there. The lab's
