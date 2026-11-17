@@ -19,6 +19,12 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **`heimdall` joins Hicks at `10.0.50.15`.** A Raspberry Pi 5 running
+  Debian 13, on Wi-Fi through the basement eero, held by a Kea reservation
+  below the pool. It is the host the eero IPv6 advertisements were measured
+  from (the entry below). `network.md`'s Hicks table and the diagram carry it,
+  as a server.
+
 - **Hicks hosts were being offered IPv6, by the eeros and not by pfSense.**
   `security.md` said that nothing inside the estate is offered IPv6. The
   measurement behind that ([#353](https://github.com/Gerrrt/HomeLab/issues/353),

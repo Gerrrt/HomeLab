@@ -326,6 +326,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| heimdall | `10.0.50.15` | `88:a2:9e:xx:xx:xx` | Raspberry Pi 5[^RPi5] | Debian 13 | Basement | Server |
 
 ### Notes
 
@@ -341,6 +342,8 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   below it, since 2026-11-11.** It held `.114` by lease before that. The
   reservation is on the watch's private Wi-Fi address, so it holds only while
   the watch keeps that address *Fixed* rather than *Rotating* for this network.
+- **`heimdall` is a Kea reservation at `.15`, also below the pool, since
+  2026-11-17.** It is on Wi-Fi through the basement eero.
 - **What this segment reaches on Winterfell is a list of destinations, not the
   segment.** Twelve passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
@@ -408,6 +411,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 [^Watch10]: [Apple Watch Series 10](https://www.apple.com/apple-watch-series-10/)
 [^Pavillion]: [HP Pavilion Gaming](https://www.hp.com/us-en/shop/cat/laptops/gaming-laptops)
 [^Pixel]: [Google Pixel](https://store.google.com/category/phones)
+[^RPi5]: [Raspberry Pi 5](https://www.raspberrypi.com/products/raspberry-pi-5/)
 [^eero]: [eero Pro 6E](https://eero.com/shop/eero-pro-6e)
 
 ---
