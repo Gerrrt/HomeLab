@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **The office wall page is in the sensitive stack**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)).
+  `stacks/sensitive/wall/` holds static HTML, CSS and JS in the Tokyo Night
+  look of the operator's mockup, trimmed from about 18 cards to six panels
+  and sized for the office television at seven feet.
+  - **Behind it:** Caddy serves the page at `wall.matrix.elysium` and answers
+    eight fixed Prometheus questions with the reader token added
+    server-side. The page picks a name, never a query, and only GET and HEAD
+    pass. That was checked against the pinned Caddy and a stand-in upstream:
+    `?query=up` ignored, POST 405 before upstream, `/api/v1/query` 404.
+  - **When it does not know, it says so:** with Prometheus unreachable or
+    Watchdog silent it shows that in red instead of "All quiet", and each
+    source's age is in the status bar.
+  - **The household half** (calendar, weather, the house) comes through Home
+    Assistant in a later change.
+  - **Not live yet:** the name needs a host override on `morpheus`, and the
+    blackbox probe is committed commented out until it answers.
+
 - **`heimdall`, the office wall dashboard, is on Hicks at `10.0.50.15`**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
   [`build-heimdall.md`](runbooks/build-heimdall.md)). A Raspberry Pi 5 drives

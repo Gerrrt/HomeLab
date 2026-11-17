@@ -152,8 +152,10 @@ sudo raspi-config nonint do_blanking 1
 sudo reboot
 ```
 
-The page is Glance's Homelab page until the wall page exists. When it does,
-this line's URL is the only change. `--password-store=basic` stops Chromium
+The page is the wall page, `https://wall.matrix.elysium/`, once `morpheus`
+has its host override (`stacks/sensitive/README.md`, *The wall page*). Until
+then the line above shows Glance's Homelab page. Moving between them is this
+line's URL and a reboot, nothing else. `--password-store=basic` stops Chromium
 asking for a keyring at boot, which would otherwise sit on the screen.
 Blanking off keeps the desktop from turning the screen off. §8 turns the
 television off instead.

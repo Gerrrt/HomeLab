@@ -83,7 +83,8 @@ for stack in "${STACKS[@]}"; do
   # a Caddyfile that loads its leaf from files rather than over ACME — the
   # wiki's (#847) and the ingest proxy's (#764) — since `caddy validate` loads
   # them and fails on a missing one. It proves the paths and the syntax, not
-  # the leaf.
+  # the leaf. It is offered as /etc/caddy/tls/ingest-ca.pem too, the trust pool
+  # of the sensitive tier's one off-host upstream (the wall page, ADR-0119).
   openssl req -x509 -newkey rsa:2048 -nodes -days 1 \
     -subj '/CN=caddyfile-validation' \
     -keyout "${work}/key.pem" -out "${work}/ca.pem" >/dev/null 2>&1
@@ -111,6 +112,7 @@ for stack in "${STACKS[@]}"; do
     --env-file "${work}/env" \
     -v "${work}/Caddyfile:/etc/caddy/Caddyfile:ro" \
     -v "${work}/ca.pem:/etc/caddy/tls/ca.pem:ro" \
+    -v "${work}/ca.pem:/etc/caddy/tls/ingest-ca.pem:ro" \
     -v "${work}/ca.pem:/etc/caddy/tls/cert.pem:ro" \
     -v "${work}/key.pem:/etc/caddy/tls/key.pem:ro" \
     "${image}")

@@ -264,6 +264,132 @@ start.matrix.elysium {
 	}
 }
 
+# The office wall dashboard (ADR-0119): a static page and the Prometheus
+# answers it shows, served to `heimdall`'s kiosk and to anything else on a
+# segment that reaches 443 here. Two halves, one rule between them:
+#
+#   /           the page, from stacks/sensitive/wall/, mounted read-only.
+#   /api/q/NAME a FIXED question. Each handle below rewrites to one PromQL
+#               query written in this file, and the reader token is added
+#               here, server-side. The browser chooses which question, never
+#               the query: the client's own query string is replaced by the
+#               rewrite, so /api/q/cpu?query=anything still asks the CPU
+#               question. Nothing else under /api/ answers. The reader token
+#               can query and nothing more (ADR-0067); this narrows it again,
+#               to eight answers. The page holds no credential, and neither
+#               does the Pi.
+#
+# The token is the one Glance already holds, GLANCE_PROMETHEUS_TOKEN, given
+# to the caddy service in compose.yaml. It is the estate's READER, which
+# Glance and Home Assistant already share, so rotating it is still the three
+# edits secrets/sensitive.example.yaml lists. The upstream is the ingest proxy
+# on `prometheus`, whose leaf the estate CA issued, so that CA is trusted for
+# this one transport: the committed stacks/observability/alloy/ingest-ca.pem,
+# mounted read-only, the same file render-trust-bundles.sh feeds Glance.
+#
+# Read-only by method as well: anything but GET or HEAD is refused before a
+# handle runs. The CSP lets the page load only itself and fetch only itself,
+# so a change to the page that reached for a CDN or a third-party API would
+# fail in the browser rather than quietly leak a request.
+(wall_prometheus) {
+	reverse_proxy https://10.0.99.20:9090 {
+		header_up Authorization "Bearer {$GLANCE_PROMETHEUS_TOKEN}"
+		header_up -Cookie
+		header_down -Set-Cookie
+		transport http {
+			tls_trust_pool file /etc/caddy/tls/ingest-ca.pem
+		}
+	}
+}
+
+wall.matrix.elysium {
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# `route` keeps the order written: the method gate must run before any
+	# handle, and Caddy would otherwise sort `respond` after `handle`. It
+	# matters because Prometheus reads a POST body's `query=` ahead of the
+	# URL's, so a POST through a rewrite could still ask its own question.
+	route {
+		@unsafe not method GET HEAD
+		respond @unsafe 405
+
+		# Every firing alert, Watchdog included: its absence means rule evaluation has stopped.
+		#   ALERTS{alertstate="firing"}
+		handle /api/q/alerts {
+			rewrite * /api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D
+			import wall_prometheus
+		}
+
+		# CPU busy per node_exporter host; a host that stops reporting drops out.
+		#   100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+		handle /api/q/cpu {
+			rewrite * /api/v1/query?query=100%20%2A%20%281%20-%20avg%20by%20%28instance%29%20%28rate%28node_cpu_seconds_total%7Bmode%3D%22idle%22%7D%5B5m%5D%29%29%29
+			import wall_prometheus
+		}
+
+		# Whether each SNMP device answered its last poll: morpheus, mjolnir, neo, shiva.
+		#   max by (device) (up{job="snmp"})
+		handle /api/q/snmp {
+			rewrite * /api/v1/query?query=max%20by%20%28device%29%20%28up%7Bjob%3D%22snmp%22%7D%29
+			import wall_prometheus
+		}
+
+		# WAN traffic now, both directions (rules/internet.rules.yaml).
+		#   homelab_wan_bits_per_second
+		handle /api/q/wan {
+			rewrite * /api/v1/query?query=homelab_wan_bits_per_second
+			import wall_prometheus
+		}
+
+		# The last hour of download, for the sparkline: a range vector, so a matrix.
+		#   homelab_wan_bits_per_second{direction="receive"}[1h:2m]
+		handle /api/q/wan_hour {
+			rewrite * /api/v1/query?query=homelab_wan_bits_per_second%7Bdirection%3D%22receive%22%7D%5B1h%3A2m%5D
+			import wall_prometheus
+		}
+
+		# TCP connect time to 1.1.1.1:443, the internet anchor.
+		#   probe_duration_seconds{job="blackbox-latency",name="cloudflare"}
+		handle /api/q/rtt {
+			rewrite * /api/v1/query?query=probe_duration_seconds%7Bjob%3D%22blackbox-latency%22%2Cname%3D%22cloudflare%22%7D
+			import wall_prometheus
+		}
+
+		# Mjolnir: charge, runtime, time on battery, load.
+		#   {__name__=~"upsEstimatedChargeRemaining|upsEstimatedMinutesRemaining|upsSecondsOnBattery|upsOutputPercentLoad",instance="10.0.99.10"}
+		handle /api/q/ups {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22upsEstimatedChargeRemaining%7CupsEstimatedMinutesRemaining%7CupsSecondsOnBattery%7CupsOutputPercentLoad%22%2Cinstance%3D%2210.0.99.10%22%7D
+			import wall_prometheus
+		}
+
+		# Heimdall's own SoC temperature, for the status bar.
+		#   max(node_thermal_zone_temp{instance="heimdall"})
+		handle /api/q/pi_temp {
+			rewrite * /api/v1/query?query=max%28node_thermal_zone_temp%7Binstance%3D%22heimdall%22%7D%29
+			import wall_prometheus
+		}
+
+		handle /api/* {
+			respond "no such question" 404
+		}
+
+		handle {
+			root * /srv/wall
+			file_server
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {
