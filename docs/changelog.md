@@ -17,6 +17,19 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-17
+
+- **`fenrir` is an appliance.** The audit of 2026-11-13 found the sensor also
+  used as a workstation: dotfiles, a stored Claude Code login with npm MCP
+  servers holding internet connections, a `gh` token that no longer worked,
+  the 1Password CLI, Go, `build-essential` and about 30 hand-installed tools,
+  4.8 GB in `$HOME`. The repository named none of it. The decision is that it
+  goes: the guest sees every frame on `Saruman`'s lab bridge, and taking it
+  should yield that traffic and nothing more. `build-the-sensor-guest.md` §0
+  and `docs/security.md`'s threat model now say so. Removing the tooling from
+  `fenrir` has not happened yet; until it has, the threat model's row says the
+  running state is the old one.
+
 ## 2026-11-16
 
 - **The six domain guests run Wazuh 4.14.10 and Velociraptor 0.77.3,

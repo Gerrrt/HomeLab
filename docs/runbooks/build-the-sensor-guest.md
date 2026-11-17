@@ -41,6 +41,7 @@ drifts.
 | vCPU / RAM | 4 / 8 GiB | Zeek is one process per interface, and the lab's traffic is a trickle beside what one core handles. Most of the RAM is page cache for the logs. It is a bound, and gets re-derived after a fortnight |
 | Disk | **Two: 32 GB OS, 64 GB data**, both on `large_data` | The data disk at `/srv/sensor-data` holds the current logs and the hourly archive, kept for the retention `homelab-zeek-archive-prune` sets (§4). The lab's Loki keeps 360 h of what Alloy ships; the archive is the local copy for the days after that |
 | Mirror | `tc`, not Open vSwitch | ADR-0068 |
+| Role | **An appliance.** It holds the sensor stack, the agent collectors, the repository checkout `make up` deploys from, and the stack's age key, and nothing else | It sees every frame on `vmbr0`, on the segment built to be attacked, so taking it should give nothing beyond that traffic. No dotfiles, development packages, `gh` login, password manager or AI tooling: that work runs from Hicks, against `fenrir` over SSH. Decided 2026-11-17 |
 
 ## 1. The capture bridge, on `Saruman`
 
