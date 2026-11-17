@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **Hicks hosts were being offered IPv6, by the eeros and not by pfSense.**
+  `security.md` said that nothing inside the estate is offered IPv6. The
+  measurement behind that ([#353](https://github.com/Gerrrt/HomeLab/issues/353),
+  2026-09-07) was of `morpheus` only, and for `morpheus` it still holds. A
+  Raspberry Pi 5 on Hicks held a SLAAC address in a ULA /64. `rdisc6` traced it
+  to the three eero Pro 6Es on Hicks (OUIs `9c:57:bc`, `fc:3f:a6`), acting as
+  Thread border routers. Each advertises the on-link ULA prefix, a
+  route-information option for its Thread mesh's ULA prefix, and router
+  lifetime 0, so no v6 default route. The Pi ignored the route option (Linux
+  default); macOS, iOS and Windows hosts install it. Nothing crosses the
+  firewall. `security.md` and `network.md`'s Hicks notes now say so.
+  Whether the eeros keep doing it, and whether their Thread mesh is shared
+  with Skids, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
+
 - **`fenrir`'s capture NIC speaks while it boots, and its runbook now
   silences it.** This corrects "`fenrir`'s 8% capture loss was GRO
   reordering", filed under 2026-10-01. That entry put the nine packets
