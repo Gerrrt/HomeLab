@@ -292,6 +292,21 @@
     renewal: acme
     tier: household
 
+# The office wall page (ADR-0119), static files Caddy serves itself, so a
+# 200 on `/` proves the site, its certificate and Caddy. COMMENTED OUT until
+# morpheus has the `wall` host override (stacks/sensitive/README.md, "The
+# wall page", step 5): before that the name does not resolve, and SiteDown
+# would fire for a page nobody has been told about yet.
+# - targets: ["https://wall.matrix.elysium/"]
+#   labels:
+#     module: http_2xx_tier_ca
+#     name: wall
+#     role: wall-dashboard
+#     host: trinity
+#     via: dns
+#     renewal: acme
+#     tier: household
+
 # `/health` answers `{"status":"UP"}` without a session.
 - targets: ["https://actual.matrix.elysium/health"]
   labels:
