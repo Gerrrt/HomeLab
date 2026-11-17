@@ -1131,6 +1131,17 @@ from Home Assistant with *not enough permissions*.
   that difference is accepted. It holds two credentials: the reader token,
   which can only query, and a Fever key that can only mark items read for a
   Miniflux user that follows public feeds.
+- **The wall page answers eight fixed questions**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)):
+  `wall.matrix.elysium` on `trinity`'s Caddy. Each `/api/q/NAME` is one PromQL
+  query written in the Caddyfile, sent with the reader token, which Caddy
+  adds. The caller picks a name, never a query, and its own query string is
+  discarded. Only GET and HEAD are served, because Prometheus would take a
+  POST body's `query=` over the URL's. Like Glance it has no login, so
+  anything that reaches `trinity:443` can read those eight answers: the
+  firing alerts, per-host CPU, SNMP reachability, WAN traffic and latency,
+  the UPS and `heimdall`'s temperature. That is less than the Homelab page
+  already shows, and the page and the Pi hold no credential.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence
