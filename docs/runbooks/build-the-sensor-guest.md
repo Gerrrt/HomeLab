@@ -249,16 +249,27 @@ sudo tee /etc/sysctl.d/60-capture-nic.conf >/dev/null <<'CONF'
 # Applied by udev as ens19 appears, before networkd brings the link up.
 net.ipv6.conf.ens19.disable_ipv6 = 1
 CONF
-sudo update-initramfs -u
-sudo lsinitrd -m | grep -E 'net-lib|systemd-networkd'   # nothing
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
 ```
 
-On 26.04, `update-initramfs` is dracut's wrapper. `-u` alone rebuilds only the
-newest kernel's image, which leaves the previous kernel's as it was. If the new
-image does not boot, `qm terminal 190` or the console on `Saruman` is the way
-back: choose the previous kernel under *Advanced options* in GRUB, then remove
-the dracut file and run `update-initramfs -u` again. Later kernels are built
-with the file in place. To prove the result, reboot with a capture
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and checked is
+the one the next boot uses. On 26.04, `update-initramfs` is dracut's wrapper,
+and every later kernel is built with the file in place.
+
+The copy is the way back, and it does not depend on a second kernel being
+installed. If the new image does not boot, open VM 190's console in the
+Proxmox web UI (*Saruman → 190 → Console*; the VM has no serial port, so
+`qm terminal` cannot reach GRUB). Reset the VM and hold Esc to show GRUB's
+menu, which Ubuntu hides by default. Press `e` on the first entry, add
+`.pre-no-network` to the end of the file name on the `initrd` line, and boot
+with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again. Once the proof below has
+passed, delete the copy. To prove the result, reboot with a capture
 running on `Saruman` that sees only frames `ens19` sends:
 
 ```bash
@@ -305,8 +316,8 @@ sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|pe
 
 All five must read `no`, apart from `allowusers atreus`. **Keep the session
 you ran this from open**, and log in from a second terminal before you close
-it. If that login fails, `qm terminal 190` or the console on `Saruman` is the
-way back in.
+it. If that login fails, VM 190's console in the Proxmox web UI is the way
+back in. The VM has no serial port, so `qm terminal 190` is not.
 
 **Keep `authorized_keys` to the machines that administer this guest.** Do not
 fill it with `ssh-import-id gh:<user>`. That installs every key on the GitHub
