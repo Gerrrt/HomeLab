@@ -1216,12 +1216,16 @@ from Home Assistant with *not enough permissions*.
     It is upstream's template with that one rule replaced by the three
     `/containers` paths the clients send, read from three days of the proxy's
     own request log. That covers the six compose stacks and `deploy-agent.sh`'s
-    `alloy-socket-proxy`.
+    `alloy-socket-proxy`. It also holds a log follow open past upstream's
+    ten-minute idle timeouts, for that path only
+    ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); that widens no
+    path, and only lets an allowed stream stay up.
   - **`check_socket_proxy.sh` boots the pinned image on it in CI.** Alloy's
     paths must answer, and `archive`, `export`, `top`, `changes`, `stats`,
     `attach` and the `..` and encoded-slash spellings must be refused by the
-    proxy itself. It also fails when an image bump changes upstream's template
-    under the committed copy.
+    proxy itself. A follow on a quiet container must outlast the idle timeouts.
+    It also fails when an image bump changes upstream's template under the
+    committed copy.
   - **`check_compose_health.py` fails a proxy that does not mount the config or
     is not started on it,** because either one alone falls back to the image's
     template without any visible change.

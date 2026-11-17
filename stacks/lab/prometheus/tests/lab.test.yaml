@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All twenty-two rules in lab.rules.yaml are covered here. That is a deliberate
+# All twenty-three rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -151,6 +151,49 @@ tests:
     alert_rule_test:
       - eval_time: 70m
         alertname: LokiIngestionStalled
+        exp_alerts: []
+
+  # --- LogEntriesDropped: fenrir's shape (#1552) ---------------------------
+  # One re-sent line refused every ten minutes, for as long as the follow kept
+  # reconnecting. Steady loss, so it outlasts the hour and fires.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{instance="fenrir",job="fenrir-alloy",reason="ingester_error"}'
+        values: "0+0.1x180"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LogEntriesDropped
+        exp_alerts:
+          - exp_labels:
+              job: fenrir-alloy
+              reason: ingester_error
+              component: lab
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "fenrir-alloy has been losing log lines to ingester_error for an hour"
+              description: >-
+                The lab's Loki has been rejecting these entries for an hour, so
+                this is not the burst an agent restart produces. Ask Loki which
+                limit it is applying with `sum by (reason)
+                (loki_discarded_samples_total)`. An entry older than 168 hours
+                means an agent is re-sending old lines: a Docker log follow
+                that keeps reconnecting does that (#1552).
+
+  # --- LogEntriesDropped: quiet for an agent-restart burst -----------------
+  # A restart replay is one step in the counter and then flat, the shape the
+  # estate measured (#341). rate() over 15m carries it for fifteen minutes, so
+  # `for: 1h` is never met: quiet during the burst and after it.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{instance="odin",job="odin-alloy",reason="ingester_error"}'
+        values: "0x5 0+6646x5 33231x170"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LogEntriesDropped
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: LogEntriesDropped
         exp_alerts: []
 
   # --- InstanceDown, for a guest that is off on purpose ---------------------
