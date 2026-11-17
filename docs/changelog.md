@@ -43,8 +43,10 @@ docstring gives: it is a record, not a claim about now.
     internet, until it was ended by hand. After that the desktop app's saved
     SSH connection for `fenrir` redeployed its remote server three times in
     seven minutes, until the connection was deleted. The read that evening
-    found no user service beyond the distribution's, no connection out but
-    SSH from Hicks, and 180 MB in `$HOME`, down from 4.8 GB, nearly all of it
+    found no user service beyond the distribution's, no TCP connection on
+    the host's own sockets but inbound SSH from Hicks (the sensor's Alloy,
+    in its container's namespace, still pushes to `alexander` as designed),
+    and 180 MB in `$HOME`, down from 4.8 GB, nearly all of it
     the checkout, which is at `main`.
 
   `security.md`'s two rows for the sensor now read closed. Still open from
