@@ -330,6 +330,13 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
+- **The three eeros advertise IPv6 on this segment, and pfSense does not.**
+  Measured 2026-11-17: as Thread border routers, they send router
+  advertisements with a ULA on-link prefix (hosts SLAAC an address from it), a
+  route to their Thread mesh's ULA prefix, and router lifetime 0, so no v6
+  default route. None of it reaches `morpheus`
+  ([`security.md`](security.md#segmentation);
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554) holds the decision).
 - **The pool is `.100–.200`, and `wearable-01` is a Kea reservation at `.14`,
   below it, since 2026-11-11.** It held `.114` by lease before that. The
   reservation is on the watch's private Wi-Fi address, so it holds only while
