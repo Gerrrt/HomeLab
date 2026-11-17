@@ -187,7 +187,9 @@ in the changelog.
 ## 9. Undo
 
 - **The pass:** delete the Winterfell row from §4, and remove the `heimdall`
-  target from `node.yaml` in the same change, or `InstanceDown` fires.
+  target from `node.yaml` in the same change. Otherwise the scrape stays at
+  `up == 0` for good. Nothing alerts on that: `InstanceDown` excludes
+  `role="display"`, so a target left behind is silently dead, not loud.
 - **The reservation:** delete the static mapping. The Pi falls back to a pool
   lease.
 - **The kiosk:** remove the line from `~/.config/labwc/autostart`.
