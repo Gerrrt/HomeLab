@@ -123,7 +123,8 @@ tests:
   # All 14 were killed. If you change a rule here, re-run them:
   #
   #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m;
-  #                       job!= -> job=  (the speedtest-tracker case below)
+  #                       job!= -> job=  (the speedtest-tracker case below);
+  #                       role!= -> role=  (the display case below)
   #   HostDiskCritical    < 0.10 -> < 0.01;  drop fstype!~"tmpfs|overlay";
   #                       for: 15m -> 0m
   #   HostMemoryPressure  < 0.10 -> < 0.01;  for: 15m -> 0m
@@ -188,6 +189,21 @@ tests:
   - interval: 1m
     input_series:
       - series: 'up{instance="speedtest-tracker:80",job="speedtest-tracker"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- InstanceDown: quiet for the wall display, which does not page --------
+  # `heimdall` (ADR-0119) is scraped for its temperature and throttle state,
+  # not watched for liveness: a dead screen shows itself to anyone in the
+  # office. Down for twenty minutes, well past `for: 5m`, and still quiet.
+  # The smaug case below, with no `role`, is the pair that proves the
+  # exclusion is that narrow.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="heimdall",job="node",role="display",vlan="50"}'
         values: "0x20"
     alert_rule_test:
       - eval_time: 15m

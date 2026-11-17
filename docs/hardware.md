@@ -335,6 +335,22 @@ The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
 revisions of this repository treated `shiva` as the hypervisor itself.
 
+## Wall display
+
+The office's dashboard, outside the rack
+([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+[`build-heimdall.md`](runbooks/build-heimdall.md)).
+
+| Part | What | Notes |
+| --- | --- | --- |
+| Screen | Changhong 40" 1080p LED television (2014) | On a SANUS single-stud tilt mount on the office's front wall, above the desk's monitors, since 2026-10-31. About seven feet from the chair |
+| `heimdall` | Raspberry Pi 5, 2 GB, 64 GB microSD | Behind the screen, on Hicks over Wi-Fi. Raspberry Pi OS 13 with its own desktop, Chromium in kiosk mode. Arrived 2026-11-16 |
+| Power | Official 27 W USB-C supply for the Pi; the screen's own cord | Neither is on the UPS. Which outlet they reach is not yet settled: the office's right wall and alcove have none |
+
+The Pi is driven from its HDMI port nearest the USB-C power port and forced to
+1080p at boot (`build-heimdall.md` §5). It keeps no state and is rebuilt from
+the runbook rather than backed up.
+
 ## Accessories
 
 - 1U rackmount tray for the ProDesk Mini[^ProDeskRackmount]
