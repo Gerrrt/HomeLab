@@ -790,11 +790,11 @@ container of its own: Caddy serves `wall/` as static files.
   4. On `heimdall`, change the URL in `~/.config/labwc/autostart` to
      `https://wall.matrix.elysium/` and reboot (`build-heimdall.md` §7).
      **Done 2026-11-17.**
-  5. Uncomment the `wall` probe in
-     `stacks/observability/prometheus/targets/blackbox.yaml`, in its own
-     change, once step 3 answers. **Done 2026-11-17**; it is live once
-     `prometheus` pulls the merge, and `probe_success{name="wall"}` then
-     reads 1.
+  5. The `wall` probe in
+     `stacks/observability/prometheus/targets/blackbox.yaml`, committed
+     commented out with the page, was enabled once step 3 answered.
+     **Done 2026-11-17.** It is live once `prometheus` pulls the merge;
+     `probe_success{name="wall"}` then reads 1.
 
 ## ntfy
 
