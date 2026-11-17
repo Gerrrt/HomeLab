@@ -216,6 +216,75 @@ It hangs off `multi-user.target`, not the device. Ubuntu 26.04's dracut
 initramfs brings `ens19` up before the real system starts, so a unit wanted by
 the device never fires. Reboot once and check `ethtool` again.
 
+**Keep `ens19` silent while it boots, too.** The netplan file takes effect only
+once the real system is up. Before that, `ens19` speaks twice:
+
+- **In the initramfs.** Ubuntu 26.04's dracut carries systemd-networkd and a
+  catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface.
+  `ens19` sends a DHCPv4 Discover with its MAC and the hostname, and IPv6
+  duplicate-address detection and multicast listener reports. `ens18` takes a
+  lease from the lab pool before the static `.90` applies.
+- **Just after switch-root.** networkd brings `ens19` up, and the kernel gives
+  it an IPv6 link-local address. netplan's `link-local: []` then removes it,
+  but not before more multicast listener reports have gone out.
+
+A capture on `tap190i1` from `Saruman` found nine such frames at the reboot of
+2026-11-17. Nothing receives them, because `vmbr1` has no other port and no
+address, but a sensor that announces itself is not one that only listens.
+The root disk is local, so the initramfs needs no network at all. Leave it
+out, the way dracut's own `no-network` profile does, and turn IPv6 off on
+`ens19` before anything can bring it up. udev applies a sysctl for an
+interface as the interface appears, so this one lands before networkd starts:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# fenrir: no networking in the initramfs (build-the-sensor-guest.md §3).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs every interface, the capture NIC included, before netplan applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+sudo tee /etc/sysctl.d/60-capture-nic.conf >/dev/null <<'CONF'
+# fenrir: the capture NIC never speaks IPv6 (build-the-sensor-guest.md §3).
+# Applied by udev as ens19 appears, before networkd brings the link up.
+net.ipv6.conf.ens19.disable_ipv6 = 1
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and checked is
+the one the next boot uses. On 26.04, `update-initramfs` is dracut's wrapper,
+and every later kernel is built with the file in place.
+
+The copy is the way back, and it does not depend on a second kernel being
+installed. If the new image does not boot, open VM 190's console in the
+Proxmox web UI (*Saruman → 190 → Console*; the VM has no serial port, so
+`qm terminal` cannot reach GRUB). Reset the VM and hold Esc to show GRUB's
+menu, which Ubuntu hides by default. Press `e` on the first entry, add
+`.pre-no-network` to the end of the file name on the `initrd` line, and boot
+with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again. Once the proof below has
+passed, delete the copy. To prove the result, reboot with a capture
+running on `Saruman` that sees only frames `ens19` sends:
+
+```bash
+tcpdump -ni tap190i1 -Q in ether src "$(qm config 190 | sed -n 's/^net1: virtio=\([^,]*\).*/\1/p')"
+```
+
+Then, back on `fenrir`:
+
+```bash
+cat /sys/class/net/ens19/statistics/tx_packets     # 0
+sysctl net.ipv6.conf.ens19.disable_ipv6            # 1
+```
+
+The capture must stay empty, and `tx_packets` must read 0.
+
 Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 190 -- uptime`
 from `Saruman` is the check. The agent is also what lets this guest's disks
 page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and
@@ -247,8 +316,8 @@ sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|pe
 
 All five must read `no`, apart from `allowusers atreus`. **Keep the session
 you ran this from open**, and log in from a second terminal before you close
-it. If that login fails, `qm terminal 190` or the console on `Saruman` is the
-way back in.
+it. If that login fails, VM 190's console in the Proxmox web UI is the way
+back in. The VM has no serial port, so `qm terminal 190` is not.
 
 **Keep `authorized_keys` to the machines that administer this guest.** Do not
 fill it with `ssh-import-id gh:<user>`. That installs every key on the GitHub
