@@ -295,8 +295,11 @@ other way, CasaBonita, ImaginationLAN, Skids and Degens each carry paired
 LAN, so their IPv6 catch-all reaches it. Both are latent rather than live for
 the same reason — `igc0` has only a link-local address, which does not route —
 and both are divergences from the pattern rather than paths anything can use
-today. [#353](https://github.com/Gerrrt/HomeLab/issues/353) owns whether IPv6 is
-carried at all. A third v6 path is not a firewall rule at all. It is the
+today. Whether IPv6 is carried inside at all was settled when
+[#353](https://github.com/Gerrrt/HomeLab/issues/353) closed: pfSense does not
+carry it, as the paragraph headed *pfSense terminates IPv6 at the WAN*
+records, so neither half has anything to route. A third v6 path is not a
+firewall rule at all. It is the
 eeros' Thread mesh on Hicks, described above, which pfSense does not mediate.
 Whether it also reaches Skids is open on
 [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).

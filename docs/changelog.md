@@ -36,7 +36,12 @@ docstring gives: it is a record, not a claim about now.
     Assistant in a later change.
   - **Not live yet:** the name needs a host override on `morpheus`, and the
     blackbox probe is committed commented out until it answers.
-
+- **`security.md` and `firewall-claims.yaml` no longer say that #353 owns
+  whether IPv6 is carried.** #353 closed on 2026-09-07 with that question
+  settled: pfSense carries no IPv6 inside, as `security.md` already records.
+  Both now say it was settled. The open v6 question, the eeros' Thread
+  advertisements on Hicks, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 - **`heimdall`, the office wall dashboard, is on Hicks at `10.0.50.15`**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
   [`build-heimdall.md`](runbooks/build-heimdall.md)). A Raspberry Pi 5 drives
