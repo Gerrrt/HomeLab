@@ -779,18 +779,22 @@ container of its own: Caddy serves `wall/` as static files.
 - **Adding it to the running tier.** On `trinity`:
   1. Add `wall` to `trinity`'s *Additional Names for this Host* on `morpheus`
      ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
-     then check that `wall.matrix.elysium` answers `10.0.99.40`.
+     then check that `wall.matrix.elysium` answers `10.0.99.40`. **Done
+     2026-11-17.**
   2. `make up STACK=sensitive` (or wait for the converge timer). Caddy is
      recreated for its alias, its mounts and the site block, and step-ca
-     issues the name's leaf on the first request.
+     issues the name's leaf on the first request. **Done 2026-11-17.**
   3. `curl -s https://wall.matrix.elysium/api/q/alerts | head -c 200` from a
      Hicks host that trusts the tier's root: a JSON answer with
-     `"status":"success"`.
+     `"status":"success"`. **Done 2026-11-17.**
   4. On `heimdall`, change the URL in `~/.config/labwc/autostart` to
      `https://wall.matrix.elysium/` and reboot (`build-heimdall.md` §7).
+     **Done 2026-11-17.**
   5. Uncomment the `wall` probe in
      `stacks/observability/prometheus/targets/blackbox.yaml`, in its own
-     change, once step 3 answers.
+     change, once step 3 answers. **Done 2026-11-17**; it is live once
+     `prometheus` pulls the merge, and `probe_success{name="wall"}` then
+     reads 1.
 
 ## ntfy
 
