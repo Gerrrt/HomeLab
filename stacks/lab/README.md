@@ -59,7 +59,8 @@ prometheus/
   prometheus.yaml          six scrape jobs — this stack's four, the domain's
                            windows_exporter and odin's Velociraptor; no
                            alerting block, no file_sd
-  rules/lab.rules.yaml     22 rules — four for this stack watching itself,
+  rules/lab.rules.yaml     23 rules — four for this stack watching itself,
+                           one for its agents dropping log lines (#1552),
                            two for the guests' disks, three for the domain
                            ADR-0029 sized, seven for golem's backups
                            (ADR-0053), three for fenrir's Zeek archive

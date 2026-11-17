@@ -51,10 +51,42 @@ docstring gives: it is a record, not a claim about now.
 
   `security.md`'s two rows for the sensor now read closed. Still open from
   the audit: the source of its login from `10.0.30.110` on 2026-11-08, which
-  was not identified; Alloy re-sending a quiet container's last line every
-  ten minutes ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); and
+  was not identified; the socket proxy's fix for Alloy re-sending a quiet
+  container's last line, entered below, which is not yet deployed or
+  verified on `fenrir` ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); and
   whether the other 26.04 lab guests take a pool lease at boot, as `fenrir`
   did.
+
+- **The socket proxy closed quiet log follows every ten minutes, and the lab
+  now alerts when an agent drops log lines.** `loki.source.docker` follows
+  each container's `/logs?follow=1` through docker-socket-proxy, and the
+  repository's `haproxy.cfg` inherited upstream's `timeout client 10m` and
+  `timeout server 10m`. A container that wrote nothing for ten minutes had its
+  follow closed. Alloy reconnected from its saved position, got the last line
+  again and shipped it again. On `fenrir` that was `sensor-zeek`'s last line,
+  from 2026-11-09 06:26:34. From 2026-11-16 it was seven days old, and Loki
+  refused every copy: 1363 entries in
+  `loki_write_dropped_entries_total{reason="ingester_error"}`, with no alert,
+  because the lab's Prometheus had no rule on that counter
+  ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)).
+  - **The fix lifts both timeouts for the log path only.** The pinned image
+    runs HAProxy 3.4.2, which has `http-request set-timeout client`, but its
+    manual says the value "must be non-null". So the client side gets `24d`,
+    just under HAProxy's longest timer, not 0. `set-timeout server` needs a
+    section with backend capabilities, and the frontend has none, so the path
+    is routed to upstream's `docker-events` backend, whose only difference is
+    `timeout server 0`. The routing is a second `homelab` block, and
+    `check_socket_proxy.sh`'s drift check now expects two.
+  - **`check_socket_proxy.sh` proves it** on a copy of the config with the
+    idle timeouts cut to 5 seconds: a follow on a quiet container must still
+    be open after 20, and without the two lines the same follow must close.
+  - **`LogEntriesDropped` is in `lab.rules.yaml`**, with the estate's
+    expression and `for: 1h`, and a firing test of `fenrir`'s shape.
+
+  Not yet deployed or verified on `fenrir`: that needs `make up STACK=sensor`
+  and an hour with no recurring `could not transfer logs` for a quiet
+  container and a flat dropped counter. Recreating a container clears one
+  instance of this; it does not fix the cause.
 
 - **The office wall page is in the sensitive stack**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)).
@@ -73,7 +105,12 @@ docstring gives: it is a record, not a claim about now.
     Assistant in a later change.
   - **Not live yet:** the name needs a host override on `morpheus`, and the
     blackbox probe is committed commented out until it answers.
-
+- **`security.md` and `firewall-claims.yaml` no longer say that #353 owns
+  whether IPv6 is carried.** #353 closed on 2026-09-07 with that question
+  settled: pfSense carries no IPv6 inside, as `security.md` already records.
+  Both now say it was settled. The open v6 question, the eeros' Thread
+  advertisements on Hicks, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
 - **`heimdall`, the office wall dashboard, is on Hicks at `10.0.50.15`**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
   [`build-heimdall.md`](runbooks/build-heimdall.md)). A Raspberry Pi 5 drives

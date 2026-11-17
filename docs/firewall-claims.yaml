@@ -77,8 +77,8 @@ interfaces:
   # toward the six VLAN macros and neither toward LAN, so their IPv6 catch-all
   # still reaches the switch LAN. It is the mirror of igc0's residual above and
   # latent for the same reason — no routable IPv6 on that interface. The
-  # documents recorded igc0's half and never this one. Tracked with #353, which
-  # owns whether IPv6 is carried at all.
+  # documents recorded igc0's half and never this one. #353 settled that pfSense
+  # carries no IPv6 inside, which is what keeps both halves latent.
   igc0.40:
     segment: CasaBonita
     wholesale:

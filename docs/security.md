@@ -295,8 +295,11 @@ other way, CasaBonita, ImaginationLAN, Skids and Degens each carry paired
 LAN, so their IPv6 catch-all reaches it. Both are latent rather than live for
 the same reason — `igc0` has only a link-local address, which does not route —
 and both are divergences from the pattern rather than paths anything can use
-today. [#353](https://github.com/Gerrrt/HomeLab/issues/353) owns whether IPv6 is
-carried at all. A third v6 path is not a firewall rule at all. It is the
+today. Whether IPv6 is carried inside at all was settled when
+[#353](https://github.com/Gerrrt/HomeLab/issues/353) closed: pfSense does not
+carry it, as the paragraph headed *pfSense terminates IPv6 at the WAN*
+records, so neither half has anything to route. A third v6 path is not a
+firewall rule at all. It is the
 eeros' Thread mesh on Hicks, described above, which pfSense does not mediate.
 Whether it also reaches Skids is open on
 [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
@@ -1227,12 +1230,16 @@ from Home Assistant with *not enough permissions*.
     It is upstream's template with that one rule replaced by the three
     `/containers` paths the clients send, read from three days of the proxy's
     own request log. That covers the six compose stacks and `deploy-agent.sh`'s
-    `alloy-socket-proxy`.
+    `alloy-socket-proxy`. It also holds a log follow open past upstream's
+    ten-minute idle timeouts, for that path only
+    ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); that widens no
+    path, and only lets an allowed stream stay up.
   - **`check_socket_proxy.sh` boots the pinned image on it in CI.** Alloy's
     paths must answer, and `archive`, `export`, `top`, `changes`, `stats`,
     `attach` and the `..` and encoded-slash spellings must be refused by the
-    proxy itself. It also fails when an image bump changes upstream's template
-    under the committed copy.
+    proxy itself. A follow on a quiet container must outlast the idle timeouts.
+    It also fails when an image bump changes upstream's template under the
+    committed copy.
   - **`check_compose_health.py` fails a proxy that does not mount the config or
     is not started on it,** because either one alone falls back to the image's
     template without any visible change.

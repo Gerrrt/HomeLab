@@ -1,11 +1,12 @@
 ---
 # The lab stack watching itself.
 #
-# Twenty-two rules, and the number is still the point. The estate has 48; ADR-0007
-# names giving up "Loki, the dashboards and 40 alert rules" as the price of
-# keeping lab telemetry out of the estate, and this file does not pretend to
-# replace them. Four cover this stack's own working — the things that would make
-# every other signal here silently wrong. Two cover the disks of the guests that
+# Twenty-three rules, and the number is still the point. The estate has 48;
+# ADR-0007 names giving up "Loki, the dashboards and 40 alert rules" as the
+# price of keeping lab telemetry out of the estate, and this file does not
+# pretend to replace them. Five cover this stack's own working, its agents'
+# log shipping included — the things that would make every other signal here
+# silently wrong. Two cover the disks of the guests that
 # push here, in the detail only their own node_exporter has; the estate pages on
 # the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
@@ -128,6 +129,36 @@ groups:
             after an outage under 24 hours (its max_age); after a longer one,
             those journal lines are skipped. Loki refuses any line older than
             168 hours.
+
+      # The estate's rule of the same name, carried here (#1552). Every guest's
+      # Alloy pushes its own internals here as job="<host>-alloy" (config.alloy's
+      # selfmetrics), so the expression needs no change. Until this rule, a
+      # lab guest losing log lines said so only in its own Alloy's log: fenrir
+      # dropped a re-sent Zeek line every ten minutes from 2026-11-16, when the
+      # line turned seven days old, with nothing firing anywhere.
+      # LokiIngestionStalled cannot see that, because the other lines kept
+      # arriving.
+      #
+      # `for: 1h` for the estate's reason: an Alloy restart replays history and
+      # Loki refuses the old part of it in one burst, which rate() over 15m
+      # carries for fifteen minutes and no longer. stack.rules.yaml has the
+      # measurements (#341). Loss that keeps happening outlasts the hour.
+      - alert: LogEntriesDropped
+        expr: |
+          sum by (job, reason) (rate(loki_write_dropped_entries_total[15m])) > 0
+        for: 1h
+        labels:
+          component: lab
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.job }} has been losing log lines to {{ $labels.reason }} for an hour"
+          description: >-
+            The lab's Loki has been rejecting these entries for an hour, so this
+            is not the burst an agent restart produces. Ask Loki which limit it
+            is applying with `sum by (reason) (loki_discarded_samples_total)`.
+            An entry older than 168 hours means an agent is re-sending old
+            lines: a Docker log follow that keeps reconnecting does that (#1552).
 
       # The guests' own disks: `alexander`, and `odin`, whose Alloy pushes here
       # (stacks/soc). The estate's HostDisk* rules cannot see either, because
