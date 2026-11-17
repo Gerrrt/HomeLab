@@ -19,6 +19,44 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **`fenrir`'s audit of 2026-11-13 is closed on the box.** This completes
+  three entries of the same day, "`fenrir` is an appliance", "`fenrir`'s
+  capture NIC speaks while it boots" and "`fenrir` never reported its patch
+  state", each of which said the step was not yet applied there. All of them
+  were applied on 2026-11-17:
+  - **`sshd`.** `build-the-sensor-guest.md` §3's drop-in, `10-homelab.conf`,
+    is in place, and `sshd -T` read `no` for password, keyboard-interactive,
+    root login and X11 forwarding, with `allowusers atreus`.
+    `authorized_keys` went from 20 lines, 18 of them imported from GitHub, to
+    the two keys that had logged in.
+  - **The libc6 reboot**, pending since the audit. `reboot-required` is gone.
+  - **The silent capture NIC.** The reboot ran under `tcpdump -Q in` on
+    `tap190i1` from `Saruman`, which captured nothing. Afterwards `ens19`'s
+    `tx_packets` read 0 and its `disable_ipv6` 1.
+  - **The collectors** were re-run, and `apt-patch-state.prom` is written. A
+    `thin-pool-state` collector installed by mistake in the same run was
+    removed; it belongs on `Saruman`.
+  - **The workstation tooling** went: the dotfiles, the `gh` login, mise with
+    Go and node, atuin, zsh, the 1Password and charm apt sources, and Claude
+    Code. A Claude Code session started at the reboot outlived its deleted
+    files, still running its npm MCP servers with connections to the
+    internet, until it was ended by hand. After that the desktop app's saved
+    SSH connection for `fenrir` redeployed its remote server three times in
+    seven minutes, until the connection was deleted. The read that evening
+    found no user service beyond the distribution's, no TCP connection on
+    the host's own sockets but inbound SSH from Hicks (the sensor's Alloy,
+    in its container's namespace, still pushes to `alexander` as designed),
+    and 180 MB in `$HOME`, down from 4.8 GB, nearly all of it
+    the checkout, which is at `main`.
+
+  `security.md`'s two rows for the sensor now read closed. Still open from
+  the audit: the source of its login from `10.0.30.110` on 2026-11-08, which
+  was not identified; the socket proxy's fix for Alloy re-sending a quiet
+  container's last line, entered below, which is not yet deployed or
+  verified on `fenrir` ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); and
+  whether the other 26.04 lab guests take a pool lease at boot, as `fenrir`
+  did.
+
 - **The socket proxy closed quiet log follows every ten minutes, and the lab
   now alerts when an agent drops log lines.** `loki.source.docker` follows
   each container's `/logs?follow=1` through docker-socket-proxy, and the
