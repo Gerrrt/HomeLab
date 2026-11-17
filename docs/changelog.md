@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **`fenrir` never reported its patch state, and its runbook now installs
+  the collector.** `build-the-sensor-guest.md` §4 installed only the archive
+  prune, so `apt-patch-state.prom` was never written there. The lab's
+  `RebootRequired` and `SecurityUpdatesPending` therefore could not see the
+  sensor, and `PatchStateStopped` fires only for a guest that was reporting.
+  A libc6 upgrade has wanted a reboot since 2026-11-13, found by that day's
+  audit and by nothing else. §4 now runs `--only patch-state` after the
+  prune. The collector is not yet installed on `fenrir`.
+
 - **`fenrir` is an appliance.** The audit of 2026-11-13 found the sensor also
   used as a workstation: dotfiles, a stored Claude Code login with npm MCP
   servers holding internet connections, a `gh` token that no longer worked,

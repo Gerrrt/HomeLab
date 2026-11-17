@@ -343,6 +343,21 @@ make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-
 
 It must end with `zeek-archive-prune.prom written, mode 644`.
 
+**Report patch state**, so that a pending reboot or a held security update
+reaches someone. The lab's `RebootRequired`, `SecurityUpdatesPending` and
+`PatchStateStopped` read `apt-patch-state.prom`, and a guest without the timer
+is invisible to all three, `PatchStateStopped` included: it fires only for a
+guest that was reporting. Nothing reboots this guest by itself. Same checkout,
+same login:
+
+```bash
+make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only patch-state'
+```
+
+It must end with `apt-patch-state.prom written, mode 644`. Until 2026-11-17
+this step was missing, and a libc6 upgrade waited four days for a reboot with
+nothing saying so.
+
 **On a `fenrir` built before #850**, remove the cron line the timer replaces,
 so the two do not both prune:
 
