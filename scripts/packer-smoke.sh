@@ -199,6 +199,27 @@ ssh_hostname() {
   return 1
 }
 
+# One command on the clone, once the login above has worked; prints its output.
+# Under `set -e` a bare `x="$(ssh …)"` that fails ends the script with nothing
+# said, so a failure here prints ssh's own stderr and the exit status first.
+# Called as x="$(ssh_run …)", die leaves only the subshell, and the failed
+# assignment then stops the script with the message already on screen. Every
+# command sent through here exits 0 on the guest whatever it finds.
+ssh_run() {
+  local user="$1" cmd="$2" out err rc=0
+  err="$(mktemp)"
+  out="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR \
+      -o ConnectTimeout="${SSH_CONNECT_TIMEOUT}" \
+      "${user}@${addr}" "${cmd}" 2>"${err}")" || rc=$?
+  if ((rc != 0)); then
+    cat "${err}" >&2; rm -f "${err}"
+    die "ssh ${user}@${addr} exited ${rc} running a check"
+  fi
+  rm -f "${err}"
+  printf '%s' "${out}" | tr -d '\r'
+}
+
 host="$(api GET "/nodes/${NODE}/qemu/${CLONE}/agent/get-host-name" | jq -r '.data.result."host-name"')"
 if [[ "${ostype}" == l26 ]]; then
   [[ "${host}" == "${NAME}" ]] || die "hostname is ${host}, expected ${NAME}"
@@ -212,9 +233,7 @@ if [[ "${ostype}" == l26 ]]; then
   # 901's rebuild of 2026-11-18 printed "user packer is currently used by
   # process", a warning -f goes past. getent exits 2 for no such user; a
   # template whose build user has another name passes trivially.
-  leftover="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
-      -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "smoke@${addr}" \
-      'getent passwd packer >/dev/null; echo $?' 2>/dev/null | tr -d '\r')"
+  leftover="$(ssh_run smoke 'getent passwd packer >/dev/null; echo $?')"
   case "${leftover}" in
     2) ok "no packer build user left behind" ;;
     0) die "the build user packer is still in the clone: the template's userdel failed" ;;
@@ -225,13 +244,12 @@ if [[ "${ostype}" == l26 ]]; then
   # leased from the lab pool at each boot (packer/ubuntu/no-initramfs-network.sh).
   # Only where the boot went through a systemd initramfs, whose journal marks
   # the switch; a template without one has nothing here to check.
-  early="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
-      -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "smoke@${addr}" \
+  # shellcheck disable=SC2016 # the guest's shell expands these, not this one
+  early="$(ssh_run smoke \
       'command -v journalctl >/dev/null || { echo none; exit 0; }
        j="$(sudo -n journalctl -b -o cat 2>/dev/null)" || { echo unreadable; exit 0; }
        printf "%s\n" "$j" | grep -q "Switching root" || { echo none; exit 0; }
-       printf "%s\n" "$j" | awk "/Switching root/{exit} {print}" | grep -cE "DHCPv4 address|zzzz-dracut-default" || true' \
-      2>/dev/null | tr -d '\r')"
+       printf "%s\n" "$j" | awk "/Switching root/{exit} {print}" | grep -cE "DHCPv4 address|zzzz-dracut-default" || true')"
   case "${early}" in
     0) ok "no DHCP before switch-root" ;;
     none) ok "no systemd initramfs on this family, so no early DHCP to check" ;;
@@ -253,7 +271,7 @@ else
   # refuses to start the agent if either survives, so reaching here already means
   # they are gone; assert it over SSH anyway, so a scrub regression cannot ship a
   # usable template silently.
-  leak="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no "Administrator@${addr}" 'powershell -NoProfile -Command "if ((Test-Path C:\Windows\Panther\unattend.xml) -or (Test-Path C:\Windows\Panther\unattend-original.xml)) { Write-Output LEAK }"' 2>/dev/null | tr -d '\r')"
+  leak="$(ssh_run Administrator 'powershell -NoProfile -Command "if ((Test-Path C:\Windows\Panther\unattend.xml) -or (Test-Path C:\Windows\Panther\unattend-original.xml)) { Write-Output LEAK }"')"
   [[ -z "${leak}" ]] || die "Panther answer files still present on ${addr} (#1099): the plaintext build password is readable by Users"
   ok "Panther answer files scrubbed (#1099)"
 fi
