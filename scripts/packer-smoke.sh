@@ -14,8 +14,9 @@
 #   Linux    the clone takes its name, user and key from the Proxmox cloud-init
 #            drive: the agent reports an address, get-host-name returns the name
 #            given here, and phoenix's key opens an SSH session that prints it.
-#            Where the clone booted through a systemd initramfs, its journal
-#            shows no DHCP before switch-root.
+#            No `packer` build user is left in it. Where the clone booted
+#            through a systemd initramfs, its journal shows no DHCP before
+#            switch-root.
 #   Windows  the generalised image finishes OOBE unattended and the guest agent
 #            comes up with an address. The agent is disabled in the template
 #            and started by SetupComplete.cmd as its last act, so an address
@@ -205,6 +206,20 @@ if [[ "${ostype}" == l26 ]]; then
   got="$(ssh_hostname smoke)" || die "smoke@${addr} admitted no SSH login in three minutes"
   [[ "${got}" == "${NAME}" ]] || die "ssh smoke@${addr} printed ${got}, expected ${NAME}"
   ok "phoenix's key opens smoke@${addr}"
+  # The templates that build as `packer` delete that user last, with
+  # `userdel -f -r packer || true`. The `|| true` keeps a failed delete from
+  # failing the build, so a template that still has the user is caught here.
+  # 901's rebuild of 2026-11-18 printed "user packer is currently used by
+  # process", a warning -f goes past. getent exits 2 for no such user; a
+  # template whose build user has another name passes trivially.
+  leftover="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "smoke@${addr}" \
+      'getent passwd packer >/dev/null; echo $?' 2>/dev/null | tr -d '\r')"
+  case "${leftover}" in
+    2) ok "no packer build user left behind" ;;
+    0) die "the build user packer is still in the clone: the template's userdel failed" ;;
+    *) die "could not check for the packer build user (${leftover:-no answer})" ;;
+  esac
   # A clone must not ask for an address before switch-root. Ubuntu's dracut
   # initramfs did, on every clone of 901, until no-initramfs-network.sh: eden
   # leased from the lab pool at each boot (packer/ubuntu/no-initramfs-network.sh).

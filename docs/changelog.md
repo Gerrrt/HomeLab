@@ -64,6 +64,23 @@ docstring gives: it is a record, not a claim about now.
     A smart plug or an infrared LED would be a purchase and an ADR of its
     own (`build-heimdall.md` §8).
 
+- **Template `901` is rebuilt without networking in its initramfs, and its
+  clones take no lease while they boot.** This completes "`eden` no longer
+  asks for an address while it boots", below, which said `901` had not been
+  rebuilt. `packer build -force -only='ubuntu.*'` on `phoenix` took 24 min
+  31 s. The upgrade's autoremove took out the installer's `7.0.0-30` kernel
+  first, so `no-initramfs-network.sh` rebuilt one image, `7.0.0-43`, and its
+  `lsinitrd` check passed; the `dracut[E]` line for `dyn-netconf` came as
+  expected. `scripts/packer-smoke.sh 901` then passed every check, `no DHCP
+  before switch-root` among them. The clone's `.103` came from its own
+  cloud-init DHCP after the switch, which the smoke test asks for.
+  - **The build user:** the last provisioner's `userdel -f -r packer` printed
+    "user packer is currently used by process 1392". With `-f` that is a
+    warning, and the mail-spool line after it shows the delete went on, but
+    `|| true` would have hidden a failure and nothing checked. The smoke test
+    now fails a Linux clone that still has a `packer` user.
+  - **Not changed:** guests cloned from the old `901` keep their old image.
+    `eden`, the clone today's lease check found, already has its §2 step.
 - **`eden` no longer asks for an address while it boots, and template `901`
   stops making guests that do.** `eden` was off when "Every 26.04 lab guest
   asked the lab's DHCP server for an address while it booted", below, was
