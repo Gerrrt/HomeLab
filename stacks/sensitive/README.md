@@ -781,7 +781,15 @@ container of its own: Caddy serves `wall/` as static files.
   garden and patio door contacts, the two window contacts and `light.office`.
   The page shows them as the header's weather and a one-line Home row: the
   alarm's mode, any open door or window in amber, and the office lights.
-  There is no calendar, because the house has none in HA. Two entities were
+  The calendar is `sensor.wall_today` at `/api/ha/today`: the package
+  `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
+  every five minutes for today and tomorrow, from the calendars labelled
+  `wall_calendar` in HA's UI, or from every calendar when none is labelled.
+  It keeps each event's title, start, end, location and a calendar number for
+  its colour, and shows them in the Today panel under the alerts. Booted on
+  Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
+  sensor held both events, and with no calendar it read unavailable, which
+  the page shows as `calendar · unavailable`. Two entities were
   renamed in HA so that no ID here names a person or the city: the office's
   Hue room is now `light.office`, and the Ring Alarm is
   `alarm_control_panel.house`. HA has no read-only role, so the narrowing in

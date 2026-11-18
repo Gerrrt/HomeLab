@@ -439,6 +439,14 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
+		# Today's and tomorrow's events, gathered from the calendars by
+		# home-assistant/packages/wall_calendar.yaml. A calendar's own API needs
+		# a moving start and end, which a fixed handle cannot give.
+		handle /api/ha/today {
+			rewrite * /api/states/sensor.wall_today?
+			import wall_ha
+		}
+
 		handle /api/* {
 			respond "no such question" 404
 		}

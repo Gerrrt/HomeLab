@@ -39,7 +39,10 @@
     ["garden_door", "Garden"], ["patio_door", "Patio"],
   ];
   const WINDOWS = [["window_left", "Left"], ["window_right", "Right"]];
-  const HA = ["weather", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
+  const HOUSE = ["weather", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
+  // "today" is sensor.wall_today: the calendars' events for today and
+  // tomorrow, gathered by home-assistant/packages/wall_calendar.yaml.
+  const HA = [...HOUSE, "today"];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
   const lastOk = {};    // name -> Date.now() of the last good answer
@@ -278,12 +281,19 @@
       ["hosts", ["cpu", "snmp"]],
       ["internet", ["wan", "wan_hour", "rtt"]],
       ["power", ["ups"]],
-      ["house", HA.map((n) => `ha:${n}`)],
+      ["house", HOUSE.map((n) => `ha:${n}`)],
+      ["calendar", ["ha:today"]],
     ];
     for (const [label, names] of groups) {
       const oldest = Math.min(...names.map((n) => lastOk[n] ?? 0));
       const span = el("span", "src");
-      if (!oldest) {
+      // HA answers for a calendar it cannot read, with the state
+      // "unavailable" (an expired Google sign-in, most often). That answer is
+      // fresh and still says nothing, so it shows as dead.
+      if (label === "calendar" && oldest && states.today && states.today.state === "unavailable") {
+        span.classList.add("dead");
+        span.textContent = "calendar · unavailable";
+      } else if (!oldest) {
         span.classList.add("dead");
         span.textContent = `${label} · never`;
       } else {
@@ -372,10 +382,78 @@
     }
   }
 
+  // ---------- today: the calendar ----------
+  // Events come as HA wrote them: an all-day event's start is a date
+  // ("2026-11-18"), which Date would read as UTC midnight, so it is split by
+  // hand into local midnight. Anything else is an ISO time with its offset.
+  const localDay = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const evStart = (e) => (e.all_day ? localDay(e.start) : new Date(e.start));
+  const evEnd = (e) => (e.all_day ? localDay(e.end) : new Date(e.end));
+  const hm = (d) => {
+    const h = d.getHours();
+    return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
+  };
+  function eventRow(e, now) {
+    const start = evStart(e);
+    const going = start <= now;
+    const row = el("div", `ev c${Number(e.cal) % 6}${going && !e.all_day ? " now" : ""}`);
+    const t = e.all_day ? "All day" : going ? "Now" : hm(start);
+    row.append(el("span", "bar"), el("span", "t", t), el("span", "what", String(e.title || "Busy")));
+    if (e.location) row.append(el("span", "where", String(e.location)));
+    return row;
+  }
+  function renderToday() {
+    const box = $("today");
+    box.replaceChildren();
+    if (!haFresh("today")) {
+      box.append(el("div", "none", "—"));
+      return;
+    }
+    const now = new Date();
+    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+    // The sensor is up to five minutes old, so drop what has ended since.
+    const evs = ((states.today.attributes || {}).events || [])
+      .filter((e) => evEnd(e) > now)
+      .sort((a, b) => evStart(a) - evStart(b));
+    const todays = evs.filter((e) => evStart(e) < tomorrow);
+    const later = evs.filter((e) => evStart(e) >= tomorrow);
+
+    if (todays.length) for (const e of todays) box.append(eventRow(e, now));
+    else box.append(el("div", "none", "Nothing else today"));
+    if (later.length) {
+      box.append(el("div", "day", "Tomorrow"));
+      for (const e of later) box.append(eventRow(e, now));
+    }
+
+    // Keep what fits, and say how many did not. A "Tomorrow" heading with
+    // nothing under it goes too.
+    let hidden = 0;
+    while (box.scrollHeight > box.clientHeight && box.children.length > 1) {
+      if (box.lastElementChild.classList.contains("ev")) hidden += 1;
+      box.lastElementChild.remove();
+    }
+    if (box.lastElementChild && box.lastElementChild.classList.contains("day")) box.lastElementChild.remove();
+    if (hidden) {
+      const more = el("div", "more", `+${hidden} more`);
+      box.append(more);
+      while (box.scrollHeight > box.clientHeight && box.children.length > 1) {
+        more.remove();
+        const last = box.lastElementChild;
+        if (last.classList.contains("ev")) hidden += 1;
+        last.remove();
+        more.textContent = `+${hidden} more`;
+        box.append(more);
+      }
+    }
+  }
+
   function render() {
     renderWeather();
     renderHome();
     renderAlerts();
+    // After the alerts: they take the height they need, and the calendar
+    // fits itself into what is left.
+    renderToday();
     renderNodes();
     renderWan();
     renderPower();

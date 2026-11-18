@@ -1145,18 +1145,21 @@ from Home Assistant with *not enough permissions*.
   firing alerts, per-host CPU, SNMP reachability, WAN traffic and latency,
   the UPS and `heimdall`'s temperature. That is less than the Homelab page
   already shows, and the page and the Pi hold no credential.
-  **Its household half reads nine Home Assistant entities the same way.**
+  **Its household half reads ten Home Assistant entities the same way.**
   Each `/api/ha/NAME` is one `GET /api/states/<entity>` written in the
   Caddyfile: the weather, the alarm's mode, four door contacts, two window
-  contacts and the office lights. Caddy adds the token of HA's non-admin
+  contacts, the office lights, and `sensor.wall_today`, which holds today's
+  and tomorrow's calendar events. Caddy adds the token of HA's non-admin
   `wall` user. Home Assistant has no read-only role, so that token could call
   services, the alarm's included. It is read-only only because it lives in
   Caddy's environment alone and Caddy forwards nothing but those GETs. The
   residual is that whoever can read that container's environment holds a
   token that can operate the house. They would already be root on the host
   that runs Home Assistant. Anything that reaches `trinity:443` can read
-  whether the doors are open and whether the alarm is set, which is the
+  whether the doors are open, whether the alarm is set, and the family's
+  schedule for two days: each event's title, time and location. That is the
   same as the Home Assistant app shows to the household, without its login.
+  The calendars' names, descriptions and attendees are not passed on.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence

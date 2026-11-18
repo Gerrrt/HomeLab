@@ -56,9 +56,9 @@ html, body {
   grid-template-columns: 620px 1fr 1fr;
   grid-template-rows: 140px 1fr 300px 84px 40px;
   grid-template-areas:
-    "top    top   top"
-    "alerts nodes nodes"
-    "alerts wan   power"
+    "top  top   top"
+    "left nodes nodes"
+    "left wan   power"
     "house  house house"
     "status status status";
   gap: 22px;
@@ -116,7 +116,12 @@ html, body {
   text-transform: uppercase;
   color: var(--mute);
 }
-.alerts { grid-area: alerts; }
+/* The left column: alerts on top, sized to what is firing, and the day's
+   events in what is left. Alerts come first; a busy alert list squeezes the
+   calendar, never the other way round. */
+.left { grid-area: left; display: flex; flex-direction: column; gap: 22px; min-height: 0; }
+.alerts { flex: 0 1 auto; max-height: 70%; }
+.today { flex: 1 1 0; min-height: 200px; }
 .nodes { grid-area: nodes; }
 .wan { grid-area: wan; }
 .power { grid-area: power; }
@@ -194,6 +199,22 @@ html, body {
 .home .item.warn b { color: var(--yellow); }
 .home .item.alert b { color: var(--red); }
 .home .item.unknown b { color: var(--mute); }
+
+/* ---------- today: the calendar ---------- */
+.agenda { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden; }
+.ev { display: grid; grid-template-columns: 8px 150px 1fr; column-gap: 16px; align-items: start; }
+.ev .bar { grid-row: 1 / 3; align-self: stretch; border-radius: 4px; background: var(--blue); }
+.ev .t { font: 500 28px/1.2 var(--mono); color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev .what { font: 600 28px/1.2 var(--sans); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .where { grid-column: 3; font: 400 22px/1.3 var(--sans); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev.now .t { color: var(--cyan); }
+.ev.c1 .bar { background: var(--purple); }
+.ev.c2 .bar { background: var(--green); }
+.ev.c3 .bar { background: var(--cyan); }
+.ev.c4 .bar { background: var(--fg-dim); }
+.ev.c5 .bar { background: var(--mute); }
+.day { font: 500 20px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); margin-top: 6px; }
+.agenda .none { font: 400 28px/1.3 var(--sans); color: var(--fg-dim); }
 
 /* ---------- weather, in the header ---------- */
 .wx { display: flex; align-items: center; gap: 22px; margin-left: auto; margin-right: 40px; }
