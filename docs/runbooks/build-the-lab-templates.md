@@ -672,8 +672,9 @@ scripts/packer-smoke.sh 910
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
 `smoke`, `phoenix`'s key and DHCP through cloud-init, boots it, and waits for
-the agent to report an address. It then checks the hostname and SSHes in.
-Where the clone booted through a systemd initramfs, it checks the journal
+the agent to report an address. It then checks the hostname, SSHes in, and
+checks that the build's `packer` user is gone: the build deletes it with
+`|| true`, so a failed delete does not fail the build. Where the clone booted through a systemd initramfs, it checks the journal
 shows no DHCP before switch-root; a clone of a `901` built before
 `no-initramfs-network.sh` fails there. Finally it destroys the clone.
 
