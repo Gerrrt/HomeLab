@@ -19,6 +19,12 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-17
 
+- **The wall page is live on `heimdall`.** `morpheus` has the `wall` host
+  override and `trinity` serves `wall.matrix.elysium`. `/api/q/alerts`
+  answered from Hicks, and the kiosk now opens the wall page instead of
+  Glance's Homelab page. The `wall` blackbox probe, committed commented out
+  with the page, is enabled.
+
 - **`fenrir`'s audit of 2026-11-13 is closed on the box.** This completes
   three entries of the same day, "`fenrir` is an appliance", "`fenrir`'s
   capture NIC speaks while it boots" and "`fenrir` never reported its patch
