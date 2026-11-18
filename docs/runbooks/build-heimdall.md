@@ -118,6 +118,32 @@ not boot, put the card in `oracle` and restore the `.bak`. After the reboot:
 cat /sys/class/drm/card1-HDMI-A-1/status    # connected
 ```
 
+**The desktop's mode comes from `kanshi`, not from that line.** `video=`
+sets the boot console and forces the output on. labwc takes whatever mode
+the television's EDID calls *preferred*. This Changhong's EDID is a generic
+one ("DMTF", model `CHHWJT*`, serial 1, and a 710 × 400 mm size that is not
+a 40" panel's), and it prefers **1280 × 720**, while 1920 × 1080 at 60 Hz is
+also in its list. Raspberry Pi OS runs `kanshi` to set modes, and an empty
+`~/.config/kanshi/config` leaves the preferred one. Give it a profile:
+
+```bash
+cp ~/.config/kanshi/config ~/.config/kanshi/config.bak
+cat > ~/.config/kanshi/config <<'KANSHI'
+profile wall {
+    output HDMI-A-1 mode 1920x1080@60.000 position 0,0
+}
+KANSHI
+sudo reboot
+# after the reboot:
+WAYLAND_DISPLAY=wayland-0 XDG_RUNTIME_DIR=/run/user/1000 wlr-randr | grep current
+# 1920x1080 px, 60.000000 Hz (current)
+```
+
+Measured on 2026-11-18: sharp at 1080p, no edge cut off (the set's aspect
+setting is *Full*, under Picture), and the mode survived a reboot. The page
+scales its 1920 × 1080 stage to whatever mode it gets, so a wrong mode only
+softens the text. It never crops the page.
+
 ## 6. Trust the tier's root, in Chromium's store
 
 Chromium on Linux reads its own NSS database, not the system's store, so
@@ -158,34 +184,39 @@ URL above. It is the page the kiosk has shown since 2026-11-17
 put the Glance URL back by hand: nothing fails over on its own. Switching
 either way is this line's URL and a reboot, nothing else. `--password-store=basic` stops Chromium
 asking for a keyring at boot, which would otherwise sit on the screen.
-Blanking off keeps the desktop from turning the screen off. §8 turns the
-television off instead.
+Blanking off keeps the desktop from turning the screen off. The screen stays
+on day and night (§8).
 
 **Verify at the wall:** after a reboot, the page fills the screen with no
 address bar, no padlock warning and no keyring prompt.
 
 ## 8. The television, on and off
 
-Ask whether the television takes orders over HDMI-CEC:
+**This set has no HDMI-CEC.** Its manual (FCC ID 2ABNO40YD1100UA) never
+mentions it, and on 2026-11-18 the Pi's probe found nothing. `cec-ctl -d
+/dev/cec0 --playback -S` gave the Pi's own adapter the physical address
+`1.0.0.0`, taken from the television's EDID: it says which HDMI input the Pi
+is on, not that the set answered. The television, which would be `0.0.0.0`,
+never replied. No logical address was allocated, and the topology was empty.
+So nothing on the Pi can turn the set off or wake it.
 
-```bash
-cec-ctl -d /dev/cec0 --playback -S                  # the TV appears as device 0
-cec-ctl -d /dev/cec0 --to 0 --standby               # it goes off
-cec-ctl -d /dev/cec0 --to 0 --image-view-on         # it comes back
-```
+What the manual does say, and what follows from it:
 
-If it obeys, schedule those two commands for the hours the office is empty.
-If it does not, switch the Pi's output off instead. The television then shows
-"no signal" and, on most sets, sleeps:
+- **Without a signal it switches itself off,** after 5 minutes ("TV mode")
+  or 60 seconds ("PC mode"). So switching the Pi's output off at night
+  (`wlr-randr --output HDMI-A-1 --off`) would put it in standby with nothing
+  to wake it in the morning but the remote.
+- **Time menu → Auto Sleep must be Off,** and so must Sleep. Auto Sleep puts
+  the set in standby after a set time with "no operation", meaning no
+  remote press, so it would blank the wall part-way through every day while
+  the picture is fine.
 
-```bash
-wlr-randr --output HDMI-A-1 --off
-wlr-randr --output HDMI-A-1 --on
-```
-
-`wlr-randr` talks to the running compositor, so run it as the desktop's user
-with `WAYLAND_DISPLAY` set (`wayland-0` under labwc). Record which one worked
-in the changelog.
+**The screen therefore stays on, day and night.** The page is dark and still
+when nothing is wrong, and an LED panel does not burn in. Turning it off on a
+schedule would take a smart plug (only if the set comes back on by itself
+when power returns, which is untested) or an infrared LED on the Pi
+replaying the remote's power code. Either is a purchase, so it goes through
+the roadmap's *Everything still to buy* and an ADR of its own.
 
 ## 9. Undo
 
@@ -198,3 +229,5 @@ in the changelog.
 - **The kiosk:** remove the line from `~/.config/labwc/autostart`.
 - **The root:** `certutil -d sql:$HOME/.pki/nssdb -D -n "matrix.elysium tier CA"`.
 - **The boot line:** restore `/boot/firmware/cmdline.txt.bak`.
+- **The mode:** restore `~/.config/kanshi/config.bak`. The desktop falls back
+  to the television's preferred 1280 × 720.

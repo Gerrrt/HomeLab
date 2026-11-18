@@ -1,0 +1,98 @@
+---
+# Today's and tomorrow's events, as one sensor the office wall can read
+# (ADR-0119).
+#
+# The wall reads Home Assistant through fixed `GET /api/states/<entity>`
+# handles in the Caddyfile. A calendar's own state is only its next event, and
+# HA's calendar API needs a moving start and end that a fixed handle cannot
+# give. So this asks `calendar.get_events` every five minutes and keeps the
+# answer in `sensor.wall_today`, which the wall reads at `/api/ha/today`.
+#
+# Which calendars: the ones labelled `wall_calendar` in the UI, or every
+# calendar when no calendar carries that label. No calendar is named here.
+# Google's calendar ids name the people who own them, and docs/security.md
+# keeps owner-linked names out of the repository. The label is read at every
+# run, so adding or removing it takes effect within five minutes, with no
+# restart.
+#
+# What reaches the wall: each event's title, its start and end, whether it is
+# all day, its location, and a calendar number (its place in the sorted list,
+# used only to pick a colour). Not the description, not attendees, and not the
+# calendar's name. docs/security.md says who can read it: anything that can
+# reach wall.matrix.elysium, which is the trusted segments.
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /5
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    actions:
+      - variables:
+          wall_calendars: >-
+            {% set labelled = label_entities('wall_calendar')
+                 | select('match', 'calendar\.') | sort | list %}
+            {{ labelled if labelled
+               else states.calendar | map(attribute='entity_id') | sort | list }}
+      # A calendar that cannot be read (an expired Google token, the
+      # integration reloading) fails the whole call. continue_on_error lets
+      # the run go on, and the sensor below then reads unavailable rather
+      # than an empty, and wrong, "nothing today".
+      - action: calendar.get_events
+        target:
+          entity_id: "{{ wall_calendars }}"
+        data:
+          start_date_time: "{{ today_at() }}"
+          end_date_time: "{{ today_at() + timedelta(days=2) }}"
+        response_variable: agenda
+        continue_on_error: true
+      - variables:
+          wall_ok: "{{ agenda is defined and agenda is mapping }}"
+          wall_events: >-
+            {% set ns = namespace(items=[]) %}
+            {% set today = now().date().isoformat() %}
+            {% if agenda is defined and agenda is mapping %}
+              {% for cal in wall_calendars %}
+                {% for e in agenda.get(cal, {}).get('events', []) %}
+                  {% set all_day = 'T' not in e.start %}
+                  {% if all_day %}
+                    {% set start = e.start %}
+                    {% set end = e.end %}
+                    {% set over = end <= today %}
+                    {% set key = start ~ 'T00:00' %}
+                  {% else %}
+                    {% set start = as_local(as_datetime(e.start)).isoformat() %}
+                    {% set end = as_local(as_datetime(e.end)).isoformat() %}
+                    {% set over = as_datetime(e.end) <= now() %}
+                    {% set key = start[:16] %}
+                  {% endif %}
+                  {% if not over %}
+                    {% set ns.items = ns.items + [{
+                         'key': key,
+                         'cal': wall_calendars.index(cal),
+                         'title': (e.get('summary') or 'Busy')[:80],
+                         'location': (e.get('location') or '')[:60],
+                         'all_day': all_day,
+                         'start': start,
+                         'end': end,
+                       }] %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            {% endif %}
+            {{ (ns.items | sort(attribute='key'))[:16] }}
+    sensor:
+      - name: Wall today
+        unique_id: wall_today
+        icon: mdi:calendar-today
+        availability: "{{ wall_ok }}"
+        # The state is how many events are left today, so the history graph
+        # means something. The wall reads the attributes.
+        state: >-
+          {{ wall_events | map(attribute='start') | map('regex_replace', 'T.*', '')
+             | select('le', now().date().isoformat()) | list | count }}
+        attributes:
+          calendars: "{{ wall_calendars | count }}"
+          events: "{{ wall_events }}"

@@ -773,9 +773,34 @@ container of its own: Caddy serves `wall/` as static files.
   Watchdog that is not firing, is shown in red as exactly that, never as
   "All quiet". A host that stops reporting reads *no data*. The status bar
   gives each source's age and turns amber at two and a half minutes.
-- **The household half is not here yet.** The calendar, the weather and the
-  house come through Home Assistant in a later change, the same way: fixed
-  entities, a token added by Caddy.
+- **The household half comes from Home Assistant, the same way.** Each
+  `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
+  in `?`, so the client's query string is dropped. Caddy adds
+  `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
+  `weather.forecast_home`, the front, garage, garden and patio door contacts,
+  the two window contacts, and two template entities from
+  `home-assistant/packages/wall_house.yaml`: `sensor.wall_alarm` (the
+  house's one alarm panel) and `binary_sensor.wall_office_lights` (on when
+  any light whose id contains `office` is on).
+  The page shows them as the header's weather and a one-line Home row: the
+  alarm's mode, any open door or window in amber, and the office lights.
+  The calendar is `sensor.wall_today` at `/api/ha/today`: the package
+  `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
+  every five minutes for today and tomorrow, from the calendars labelled
+  `wall_calendar` in HA's UI, or from every calendar when none is labelled.
+  It keeps each event's title, start, end, location and a calendar number for
+  its colour, and shows them in the Today panel under the alerts. Booted on
+  Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
+  sensor held both events, and with no calendar it read unavailable, which
+  the page shows as `calendar · unavailable`. The real ids of the alarm and the
+  office lights name the city and a person, so the package finds them and
+  only its own ids are written here. Booted on Home Assistant 2026.11.1 with
+  a stand-in alarm and office light, both followed the real ones from
+  disarmed and off to armed and on. HA has no read-only role, so the narrowing in
+  Caddy is the read-only part (`docs/security.md`). Measured against the
+  pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
+  its entity with the token, `?x=1` was dropped, POST was refused with 405,
+  and `/api/states/…` directly was 404.
 - **Adding it to the running tier.** On `trinity`:
   1. Add `wall` to `trinity`'s *Additional Names for this Host* on `morpheus`
      ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),

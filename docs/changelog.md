@@ -19,6 +19,51 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall page reads the house and the family calendar from Home
+  Assistant.** Its header now shows the weather; a Today panel under the
+  alerts lists today's and tomorrow's events; and its bottom row reads the
+  Ring Alarm's mode, the four door contacts, the two window contacts and the
+  office lights.
+  - **How it reads them:** ten fixed `/api/ha/NAME` handles in the
+    Caddyfile, each one `GET /api/states/<entity>`, with the token of HA's
+    new non-admin `wall` user (`WALL_HA_TOKEN`, added by #1563).
+  - **The calendar** is Google Calendar, added to HA through its own
+    integration. A new package, `wall_calendar.yaml`, gathers today's and
+    tomorrow's events into `sensor.wall_today` every five minutes. It reads
+    the calendars labelled `wall_calendar`, or all of them when none is, so no
+    calendar is named in the repository. Booted on Home Assistant 2026.11.1
+    with its demo calendars: the sensor held both events, and with no
+    calendar it read unavailable.
+  - **Read-only by narrowing.** HA has no read-only role, so the narrowing
+    in Caddy is the read-only part. `security.md` names the residual, which
+    now includes the two-day schedule.
+  - **No renames.** The alarm's and the office lights' own ids name the city
+    and a person, so a second package, `wall_house.yaml`, finds them (the
+    one alarm panel; any light whose id contains `office`) and the Caddyfile
+    names only its two template entities.
+
+- **`heimdall` drives the office television at 1080p, and the television
+  stays on.** This completes the 2026-11-17 `heimdall` entry, which said
+  the HDMI output, the kiosk and CEC were not yet verified.
+  - **First light:** HDMI-A-1 `connected`, the wall page full-screen, the
+    Pi at 49.9 °C with `throttled=0x0`.
+  - **The mode came up at 1280 × 720.** The Changhong's EDID is a generic
+    one ("DMTF", `CHHWJT*`, serial 1) that prefers 720p and also lists
+    1080p. The `video=` boot line sets only the console; labwc takes its
+    mode from `kanshi`, whose config was empty. A one-output profile now
+    sets 1920 × 1080 at 60 Hz. It is sharp, nothing is cut off, and it
+    survived a reboot (`build-heimdall.md` §5).
+  - **The set has no HDMI-CEC.** Its manual never mentions it, and the
+    Pi's probe allocated no logical address and found no topology. So
+    neither path in ADR-0119 decision 5 works on this television:
+    - CEC cannot reach it.
+    - Turning the Pi's output off would leave it in standby, because the
+      set switches itself off without a signal and nothing could wake it.
+
+    It stays on day and night, which needs its Auto Sleep and Sleep timers Off.
+    A smart plug or an infrared LED would be a purchase and an ADR of its
+    own (`build-heimdall.md` §8).
+
 - **`eden` no longer asks for an address while it boots, and template `901`
   stops making guests that do.** `eden` was off when "Every 26.04 lab guest
   asked the lab's DHCP server for an address while it booted", below, was

@@ -343,7 +343,7 @@ The office's dashboard, outside the rack
 
 | Part | What | Notes |
 | --- | --- | --- |
-| Screen | Changhong 40" 1080p LED television (2014) | On a SANUS single-stud tilt mount on the office's front wall, above the desk's monitors, since 2026-10-31. About seven feet from the chair |
+| Screen | Changhong 40" 1080p LED television (2014) | On a SANUS single-stud tilt mount on the office's front wall, above the desk's monitors, since 2026-10-31. About seven feet from the chair. Driven at 1920 × 1080 by a `kanshi` profile, because its generic EDID prefers 1280 × 720. **No HDMI-CEC**, so it stays on, and its Auto Sleep and Sleep timers must be Off (`build-heimdall.md` §5, §8) |
 | `heimdall` | Raspberry Pi 5, 2 GB, 64 GB microSD | Behind the screen, on Hicks over Wi-Fi. Raspberry Pi OS 13 with its own desktop, Chromium in kiosk mode. Arrived 2026-11-16 |
 | Power | Official 27 W USB-C supply for the Pi; the screen's own cord | Neither is on the UPS. Which outlet they reach is not yet settled: the office's right wall and alcove have none |
 
