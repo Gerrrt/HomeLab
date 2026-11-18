@@ -28,8 +28,8 @@ docstring gives: it is a record, not a claim about now.
   `scripts/render-config.sh`. CI passed, because it validates against the
   seed's stand-ins and never runs render, and `make up STACK=sensitive` on
   `trinity` then stopped on "required variable WALL_HA_TOKEN is missing a
-  value". [#1570](https://github.com/Gerrrt/HomeLab/issues/1570) adds the
-  line.
+  value". [#1570](https://github.com/Gerrrt/HomeLab/issues/1570) added the
+  line; its entry follows.
   - **The check:** `scripts/check_compose_vars.py` reads the guards from every
     `stacks/*/compose.yaml`, the top-level key names from every
     `secrets/*.sops.yaml` (plaintext in the encrypted file, so nothing is
@@ -41,6 +41,18 @@ docstring gives: it is a record, not a claim about now.
   - **Proved on both sides of the fix:** on `main` at #1566 it fails and
     names `WALL_HA_TOKEN`; on #1570's head it passes, with 51 guarded SOPS
     values all rendered and seeded.
+
+- **`make up STACK=sensitive` failed on `trinity` after the wall's house and
+  calendar change: `required variable WALL_HA_TOKEN is missing a value`.**
+  This corrects "The wall page reads the house and the family calendar from
+  Home Assistant", below, which shipped without it. The token was in
+  `secrets/sensitive.sops.yaml` (#1563), but `scripts/render-config.sh`
+  writes to `.env` only the names in its `COMPOSE_VARS` list, and
+  `WALL_HA_TOKEN` was not added there. CI did not catch it, because it
+  validates against `seed-validation-env.sh`'s stand-in values rather than a
+  render. It is now in the list. Every other `${VAR:?}` guard in a
+  `compose.yaml` that names a SOPS key was checked against the list, and none
+  is missing.
 
 - **The wall page reads the house and the family calendar from Home
   Assistant.** Its header now shows the weather; a Today panel under the
