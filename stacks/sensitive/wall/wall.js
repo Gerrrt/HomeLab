@@ -64,27 +64,34 @@
     let hidden = already;
     // Two pixels of slack: a glyph's descender can overhang its line box by a
     // pixel or so, and counting that as overflow drops a row that fits.
-    const over = () => box.scrollHeight > box.clientHeight + 2 && box.children.length > 1;
+    const over = () => box.scrollHeight > box.clientHeight + 2;
+    const isRow = (e) => e.classList.contains(rowClass);
+    // A row is dropped even when it is the only thing left: one alert whose
+    // name wraps past the box is counted as "+1 more", not clipped. What is
+    // never dropped is a lone line that is not a row ("Nothing else today",
+    // or the "+N more" itself), since an empty panel says less than it does.
+    const canDrop = () => box.lastElementChild && (box.children.length > 1 || isRow(box.lastElementChild));
     const dropLast = () => {
-      if (box.lastElementChild.classList.contains(rowClass)) hidden += 1;
+      if (isRow(box.lastElementChild)) hidden += 1;
       box.lastElementChild.remove();
     };
     const dropHeading = () => {
       while (box.lastElementChild && box.lastElementChild.classList.contains("day")) box.lastElementChild.remove();
     };
-    while (over()) dropLast();
+    while (over() && canDrop()) dropLast();
     dropHeading();
     if (!hidden) return;
     const more = el("div", "more", "");
     for (;;) {
       more.textContent = `+${hidden} more`;
       box.append(more);
-      if (!over()) return;
+      if (!over() || box.children.length === 1) return;
       more.remove();
       dropLast();
       dropHeading();
     }
   }
+
 
   // ---------- layout: scale the 1920x1080 stage to the window ----------
   const stage = $("stage");
