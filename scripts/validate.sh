@@ -822,6 +822,19 @@ else
   skip "python3 not installed"
 fi
 
+# A guarded SOPS value missing from render-config.sh's COMPOSE_VARS passes every
+# compose validation here, which uses seed-validation-env.sh's stand-ins, and
+# fails only at `make up` on the host (#1566, #1570).
+if have python3; then
+  if python3 scripts/check_compose_vars.py; then
+    pass "every guarded SOPS value is in COMPOSE_VARS and seeded"
+  else
+    fail "a guarded SOPS value is missing from COMPOSE_VARS or the seed — see above"
+  fi
+else
+  skip "python3 not installed"
+fi
+
 # Both scans, matching CI exactly. Running only the working-tree scan locally
 # would let `make validate` pass while CI fails on history, or vice versa.
 # The docker fallback is the same shape promtool, amtool and alloy have above,
