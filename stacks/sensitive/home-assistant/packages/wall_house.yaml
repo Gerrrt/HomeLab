@@ -1,0 +1,41 @@
+---
+# The alarm's mode and the office lights, as two entities the office wall can
+# read by a fixed id (ADR-0119).
+#
+# The wall reads Home Assistant through fixed `GET /api/states/<entity>`
+# handles in the Caddyfile. The Ring Alarm's own entity id names the city, and
+# the office lights' ids name a person, and docs/security.md keeps both out of
+# the repository. So the Caddyfile names these two template entities instead,
+# and they find the real ones without naming them:
+#
+# - the alarm: the house's one `alarm_control_panel`. A second panel would be
+#   ignored, and the first, sorted by id, kept.
+# - the office lights: every light whose id contains `office`, on when any of
+#   them is on. The Hue room and its bulbs both match, which gives the same
+#   answer.
+#
+# Both read unavailable, not "disarmed" or "off", when nothing matches or what
+# matches is unavailable, so the wall shows "—" rather than a wrong all-clear.
+
+template:
+  - sensor:
+      - name: Wall alarm
+        unique_id: wall_alarm
+        icon: mdi:shield-home
+        state: >-
+          {% set panel = states.alarm_control_panel | map(attribute='entity_id') | sort | first %}
+          {{ states(panel) if panel else 'unavailable' }}
+        availability: >-
+          {% set panel = states.alarm_control_panel | map(attribute='entity_id') | sort | first %}
+          {{ panel is not none and has_value(panel) }}
+
+  - binary_sensor:
+      - name: Wall office lights
+        unique_id: wall_office_lights
+        device_class: light
+        state: >-
+          {{ states.light | selectattr('entity_id', 'search', 'office')
+             | selectattr('state', 'eq', 'on') | list | count > 0 }}
+        availability: >-
+          {{ states.light | selectattr('entity_id', 'search', 'office')
+             | rejectattr('state', 'in', ['unavailable', 'unknown']) | list | count > 0 }}

@@ -777,8 +777,11 @@ container of its own: Caddy serves `wall/` as static files.
   `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
   in `?`, so the client's query string is dropped. Caddy adds
   `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
-  `weather.forecast_home`, `alarm_control_panel.house`, the front, garage,
-  garden and patio door contacts, the two window contacts and `light.office`.
+  `weather.forecast_home`, the front, garage, garden and patio door contacts,
+  the two window contacts, and two template entities from
+  `home-assistant/packages/wall_house.yaml`: `sensor.wall_alarm` (the
+  house's one alarm panel) and `binary_sensor.wall_office_lights` (on when
+  any light whose id contains `office` is on).
   The page shows them as the header's weather and a one-line Home row: the
   alarm's mode, any open door or window in amber, and the office lights.
   The calendar is `sensor.wall_today` at `/api/ha/today`: the package
@@ -789,10 +792,11 @@ container of its own: Caddy serves `wall/` as static files.
   its colour, and shows them in the Today panel under the alerts. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
   sensor held both events, and with no calendar it read unavailable, which
-  the page shows as `calendar · unavailable`. Two entities were
-  renamed in HA so that no ID here names a person or the city: the office's
-  Hue room is now `light.office`, and the Ring Alarm is
-  `alarm_control_panel.house`. HA has no read-only role, so the narrowing in
+  the page shows as `calendar · unavailable`. The real ids of the alarm and the
+  office lights name the city and a person, so the package finds them and
+  only its own ids are written here. Booted on Home Assistant 2026.11.1 with
+  a stand-in alarm and office light, both followed the real ones from
+  disarmed and off to armed and on. HA has no read-only role, so the narrowing in
   Caddy is the read-only part (`docs/security.md`). Measured against the
   pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
   its entity with the token, `?x=1` was dropped, POST was refused with 405,

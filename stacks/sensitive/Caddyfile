@@ -396,9 +396,10 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
-		# The Ring Alarm's mode (renamed in HA from its default, which named the city).
+		# The Ring Alarm's mode, through a template entity in
+		# home-assistant/packages/wall_house.yaml: the alarm's own id names the city.
 		handle /api/ha/alarm {
-			rewrite * /api/states/alarm_control_panel.house?
+			rewrite * /api/states/sensor.wall_alarm?
 			import wall_ha
 		}
 
@@ -433,9 +434,10 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
-		# The office's Hue room (renamed in HA from its default, which named a person).
+		# The office lights, on when any is on, through a template entity in
+		# home-assistant/packages/wall_house.yaml: their own ids name a person.
 		handle /api/ha/office_light {
-			rewrite * /api/states/light.office?
+			rewrite * /api/states/binary_sensor.wall_office_lights?
 			import wall_ha
 		}
 

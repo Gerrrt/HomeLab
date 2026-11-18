@@ -37,8 +37,10 @@ docstring gives: it is a record, not a claim about now.
   - **Read-only by narrowing.** HA has no read-only role, so the narrowing
     in Caddy is the read-only part. `security.md` names the residual, which
     now includes the two-day schedule.
-  - **Two entities renamed in HA** so that no committed ID names a person or
-    the city: `light.office` and `alarm_control_panel.house`.
+  - **No renames.** The alarm's and the office lights' own ids name the city
+    and a person, so a second package, `wall_house.yaml`, finds them (the
+    one alarm panel; any light whose id contains `office`) and the Caddyfile
+    names only its two template entities.
 
 - **`heimdall` drives the office television at 1080p, and the television
   stays on.** This completes the 2026-11-17 `heimdall` entry, which said
