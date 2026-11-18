@@ -117,11 +117,12 @@ html, body {
   color: var(--mute);
 }
 /* The left column: alerts on top, sized to what is firing, and the day's
-   events in what is left. Alerts come first; a busy alert list squeezes the
-   calendar, never the other way round. */
+   events in what is left. Alerts come first, but only up to half the column:
+   at most four rows and a "+N more", so the calendar always keeps room for
+   about four events. */
 .left { grid-area: left; display: flex; flex-direction: column; gap: 22px; min-height: 0; }
-.alerts { flex: 0 1 auto; max-height: 70%; }
-.today { flex: 1 1 0; min-height: 200px; }
+.alerts { flex: 0 0 auto; max-height: 50%; box-sizing: border-box; }
+.today { flex: 1 1 0; min-height: 300px; }
 .nodes { grid-area: nodes; }
 .wan { grid-area: wan; }
 .power { grid-area: power; }
@@ -129,7 +130,7 @@ html, body {
 .household h2 { margin: 0; }
 
 /* ---------- alerts ---------- */
-.alerts-body { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+.alerts-body { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden; }
 .quiet { font: 600 56px/1.15 var(--sans); color: var(--fg-dim); margin-top: 20px; }
 .quiet small { display: block; font: 400 28px/1.4 var(--sans); color: var(--mute); margin-top: 12px; }
 .al { display: flex; gap: 16px; align-items: stretch; }
@@ -139,7 +140,7 @@ html, body {
 .al .m { font: 600 30px/1.2 var(--sans); min-width: 0; overflow-wrap: anywhere; }
 .al .m small { display: block; font: 400 22px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
 .al.critical .m { color: var(--red); }
-.more { font: 400 24px/1 var(--mono); color: var(--mute); }
+.more { font: 400 24px/1.3 var(--mono); color: var(--mute); }
 .broken { font: 600 40px/1.2 var(--sans); color: var(--red); }
 .broken small { display: block; font: 400 26px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; }
 

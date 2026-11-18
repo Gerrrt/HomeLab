@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`make up` now restarts Home Assistant, and the wall's alerts can no longer
+  crowd out its calendar.**
+  - **Home Assistant:** after the wall's house-and-calendar change deployed,
+    `sensor.wall_today`, `sensor.wall_alarm` and
+    `binary_sensor.wall_office_lights` did not exist until Home Assistant was
+    restarted by hand. Its `packages/` directory is mounted whole, so a changed
+    file is inside the container at once, and Home Assistant reads it only at
+    start. `scripts/reload-config.sh` now restarts it on every `make up` of a
+    stack that declares it, on the terms it already restarts Alloy.
+  - **The wall's left column:** with 12 alerts firing, the Alerts panel took
+    most of the column, its last row was cut in half, and Today showed two
+    events. Alerts now take at most half the column and four rows, worst
+    first, with "+N more". Both panels keep only the rows that fit. A
+    `.more` line height of 1 overhung its box by 3 px, which read as overflow
+    and emptied a panel; that is fixed too. Rendered against the pinned Caddy
+    with 12, 2 and 0 alerts, Today held at least four events each time.
+
 - **CI now checks that a guarded SOPS value is one render writes.**
   [#1566](https://github.com/Gerrrt/HomeLab/issues/1566) added the
   `${WALL_HA_TOKEN:?}` guard to `stacks/sensitive/compose.yaml` and a

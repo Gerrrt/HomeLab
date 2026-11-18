@@ -31,6 +31,13 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 | `wall_calendar.yaml` | `sensor.wall_today`: today's and tomorrow's events, asked of `calendar.get_events` every five minutes, for the office wall's Today panel (ADR-0119). The calendars are those labelled `wall_calendar` in the UI, or all of them when none is labelled, so no calendar is named here. Unavailable, not empty, when a calendar cannot be read |
 | `wall_house.yaml` | `sensor.wall_alarm` and `binary_sensor.wall_office_lights` for the office wall (ADR-0119): the house's one alarm panel's mode, and whether any light whose id contains `office` is on. Their own ids name the city and a person, so the wall reads these instead. Unavailable when nothing matches |
 
+Home Assistant reads these files only when it starts, and the directory is
+mounted as a whole, so a changed package is visible inside the container at
+once and loaded by nothing. `make up` therefore restarts Home Assistant on every
+deploy of this stack (`scripts/reload-config.sh`, `restart_home_assistant`). A
+package change takes effect on the next converge or `make up`, with no restart
+by hand, at the cost of about a minute without automations on each deploy.
+
 There is no `automations.yaml`. The UI automation editor writes that file into
 `/config` and needs `automation: !include automations.yaml` to load it, and
 that include fails hard on a file that does not exist yet — which on a fresh

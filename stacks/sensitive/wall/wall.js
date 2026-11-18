@@ -56,6 +56,43 @@
   };
   const num = (r) => Number(r && r.value && r.value[1]);
 
+  // Keep the rows of a list that fit in its box, and say how many did not, so
+  // no panel ever ends on half a row. `rowClass` marks what counts as a row;
+  // `already` is how many were left out before rendering. A day heading
+  // ("Tomorrow") with nothing under it goes too.
+  function fitList(box, rowClass, already = 0) {
+    let hidden = already;
+    // Two pixels of slack: a glyph's descender can overhang its line box by a
+    // pixel or so, and counting that as overflow drops a row that fits.
+    const over = () => box.scrollHeight > box.clientHeight + 2;
+    const isRow = (e) => e.classList.contains(rowClass);
+    // A row is dropped even when it is the only thing left: one alert whose
+    // name wraps past the box is counted as "+1 more", not clipped. What is
+    // never dropped is a lone line that is not a row ("Nothing else today",
+    // or the "+N more" itself), since an empty panel says less than it does.
+    const canDrop = () => box.lastElementChild && (box.children.length > 1 || isRow(box.lastElementChild));
+    const dropLast = () => {
+      if (isRow(box.lastElementChild)) hidden += 1;
+      box.lastElementChild.remove();
+    };
+    const dropHeading = () => {
+      while (box.lastElementChild && box.lastElementChild.classList.contains("day")) box.lastElementChild.remove();
+    };
+    while (over() && canDrop()) dropLast();
+    dropHeading();
+    if (!hidden) return;
+    const more = el("div", "more", "");
+    for (;;) {
+      more.textContent = `+${hidden} more`;
+      box.append(more);
+      if (!over() || box.children.length === 1) return;
+      more.remove();
+      dropLast();
+      dropHeading();
+    }
+  }
+
+
   // ---------- layout: scale the 1920x1080 stage to the window ----------
   const stage = $("stage");
   function fit() {
@@ -161,7 +198,9 @@
     verdict.dataset.state = worst;
     text.textContent = `${faults.length} alert${faults.length === 1 ? "" : "s"} firing`;
 
-    const SHOWN = 7;
+    // At most four, worst first, so a bad day cannot push the calendar off
+    // the wall. The rest are counted, and so is any row the box cannot fit.
+    const SHOWN = 4;
     for (const a of faults.slice(0, SHOWN)) {
       const m = a.metric;
       const row = el("div", `al ${m.severity || ""}`);
@@ -172,7 +211,7 @@
       row.append(msg);
       body.append(row);
     }
-    if (faults.length > SHOWN) body.append(el("div", "more", `+${faults.length - SHOWN} more`));
+    fitList(body, "al", Math.max(0, faults.length - SHOWN));
   }
 
   // ---------- nodes ----------
@@ -425,26 +464,7 @@
       for (const e of later) box.append(eventRow(e, now));
     }
 
-    // Keep what fits, and say how many did not. A "Tomorrow" heading with
-    // nothing under it goes too.
-    let hidden = 0;
-    while (box.scrollHeight > box.clientHeight && box.children.length > 1) {
-      if (box.lastElementChild.classList.contains("ev")) hidden += 1;
-      box.lastElementChild.remove();
-    }
-    if (box.lastElementChild && box.lastElementChild.classList.contains("day")) box.lastElementChild.remove();
-    if (hidden) {
-      const more = el("div", "more", `+${hidden} more`);
-      box.append(more);
-      while (box.scrollHeight > box.clientHeight && box.children.length > 1) {
-        more.remove();
-        const last = box.lastElementChild;
-        if (last.classList.contains("ev")) hidden += 1;
-        last.remove();
-        more.textContent = `+${hidden} more`;
-        box.append(more);
-      }
-    }
+    fitList(box, "ev");
   }
 
   function render() {
