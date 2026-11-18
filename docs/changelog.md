@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The socket proxy's log-follow fix holds on `fenrir`, and #1552 is
+  closed.** This completes "The socket proxy closed quiet log follows every
+  ten minutes", filed under 2026-11-17, which said the fix was not yet
+  deployed or verified on `fenrir`. `make up STACK=sensor` ran from `main` at
+  00:05 UTC, and the running proxy carried both #1560 lines. In the hour
+  before, Alloy logged `could not transfer logs` 10 times. From 00:07 to
+  00:31 it logged it 0 times, while `sensor-zeek`, silent since 2026-11-17
+  22:33, held its follow open past the old ten-minute limit more than twice.
+  Every `loki_write_dropped_entries_total` series read 0. The proxy logs
+  `missing timeouts for backend 'docker-events'`, which is upstream's own
+  `timeout server 0` on that backend, already in the config before #1560. The
+  watch was 24 minutes, not the hour #1552 proposed, and no estate host was
+  checked.
+
 - **Every 26.04 lab guest asked the lab's DHCP server for an address while it
   booted, and their runbooks now stop it.** This answers the question left
   open by "`fenrir`'s capture NIC speaks while it boots", filed under
