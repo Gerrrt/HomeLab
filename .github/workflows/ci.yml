@@ -527,6 +527,15 @@ jobs:
       - name: Verify every .sops.yaml rule matches the file it was written for
         run: python3 scripts/check_sops_rules.py
 
+      # A SOPS value a compose.yaml guards with ${NAME:?} has to be in
+      # render-config.sh's COMPOSE_VARS too, or render never writes it and
+      # `make up` dies on the unset variable. The jobs above validate against
+      # seed-validation-env.sh's stand-ins and never run render, so #1566 passed
+      # here with WALL_HA_TOKEN missing from the list and failed on trinity
+      # (#1570). Names only: no secret is decrypted.
+      - name: Verify every guarded SOPS value is rendered into .env
+        run: python3 scripts/check_compose_vars.py
+
       - name: Verify the SNMP inventory agrees with itself
         run: ./scripts/snmp-targets.sh --check
 

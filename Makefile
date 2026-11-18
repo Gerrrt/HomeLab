@@ -596,6 +596,10 @@ check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards 
 check-image-pins: ## Verify every docker image comes from compose.yaml
 	$(PYTHON) scripts/check_image_pins.py
 
+.PHONY: check-compose-vars
+check-compose-vars: ## Verify every guarded SOPS value is rendered into .env
+	$(PYTHON) scripts/check_compose_vars.py
+
 .PHONY: check-timers
 check-timers: ## Verify the schedule and its staleness thresholds agree
 	@# Under Validation rather than Maintenance, unlike `install-timers` below:
