@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall page reads the house and the family calendar from Home
+  Assistant.** Its header now shows the weather; a Today panel under the
+  alerts lists today's and tomorrow's events; and its bottom row reads the
+  Ring Alarm's mode, the four door contacts, the two window contacts and the
+  office lights.
+  - **How it reads them:** ten fixed `/api/ha/NAME` handles in the
+    Caddyfile, each one `GET /api/states/<entity>`, with the token of HA's
+    new non-admin `wall` user (`WALL_HA_TOKEN`, added by #1563).
+  - **The calendar** is Google Calendar, added to HA through its own
+    integration. A new package, `wall_calendar.yaml`, gathers today's and
+    tomorrow's events into `sensor.wall_today` every five minutes. It reads
+    the calendars labelled `wall_calendar`, or all of them when none is, so no
+    calendar is named in the repository. Booted on Home Assistant 2026.11.1
+    with its demo calendars: the sensor held both events, and with no
+    calendar it read unavailable.
+  - **Read-only by narrowing.** HA has no read-only role, so the narrowing
+    in Caddy is the read-only part. `security.md` names the residual, which
+    now includes the two-day schedule.
+  - **Two entities renamed in HA** so that no committed ID names a person or
+    the city: `light.office` and `alarm_control_panel.house`.
+
 - **`heimdall` drives the office television at 1080p, and the television
   stays on.** This completes the 2026-11-17 `heimdall` entry, which said
   the HDMI output, the kiosk and CEC were not yet verified.

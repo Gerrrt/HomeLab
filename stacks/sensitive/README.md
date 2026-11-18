@@ -773,9 +773,30 @@ container of its own: Caddy serves `wall/` as static files.
   Watchdog that is not firing, is shown in red as exactly that, never as
   "All quiet". A host that stops reporting reads *no data*. The status bar
   gives each source's age and turns amber at two and a half minutes.
-- **The household half is not here yet.** The calendar, the weather and the
-  house come through Home Assistant in a later change, the same way: fixed
-  entities, a token added by Caddy.
+- **The household half comes from Home Assistant, the same way.** Each
+  `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
+  in `?`, so the client's query string is dropped. Caddy adds
+  `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
+  `weather.forecast_home`, `alarm_control_panel.house`, the front, garage,
+  garden and patio door contacts, the two window contacts and `light.office`.
+  The page shows them as the header's weather and a one-line Home row: the
+  alarm's mode, any open door or window in amber, and the office lights.
+  The calendar is `sensor.wall_today` at `/api/ha/today`: the package
+  `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
+  every five minutes for today and tomorrow, from the calendars labelled
+  `wall_calendar` in HA's UI, or from every calendar when none is labelled.
+  It keeps each event's title, start, end, location and a calendar number for
+  its colour, and shows them in the Today panel under the alerts. Booted on
+  Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
+  sensor held both events, and with no calendar it read unavailable, which
+  the page shows as `calendar · unavailable`. Two entities were
+  renamed in HA so that no ID here names a person or the city: the office's
+  Hue room is now `light.office`, and the Ring Alarm is
+  `alarm_control_panel.house`. HA has no read-only role, so the narrowing in
+  Caddy is the read-only part (`docs/security.md`). Measured against the
+  pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
+  its entity with the token, `?x=1` was dropped, POST was refused with 405,
+  and `/api/states/…` directly was 404.
 - **Adding it to the running tier.** On `trinity`:
   1. Add `wall` to `trinity`'s *Additional Names for this Host* on `morpheus`
      ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),

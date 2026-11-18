@@ -28,6 +28,7 @@ and nothing else. This README is not YAML and Home Assistant ignores it.
 | `roomba.yaml` | *Roomba: start / stop / dock* scripts that ask the living-room Echo, through `alexa_devices.send_text_command`, to drive the Roomba 105 linked in Alexa. The core `roomba` integration does not support x05 models. One-way, cloud, with phrases editable in the UI |
 | `thermostat.yaml` | Thermostat alerts, no control: the hallway too cold or hot, humidity out of range, emergency heat switched on, the thermostat gone from Honeywell's cloud, or its gateway gone from the network (from its DHCP renewals in Loki). Each condition is a template binary sensor, so a restart does not lose it. Alerts go to phones labelled `household_phones` and to Home Assistant's notifications. The thermostat keeps its own schedule |
 | `tv_room_evening.yaml` | At 19:00 the TV comes on with Prime Video open and the TV room at its Mood scene; at 21:00 a bedtime nudge on the living-room Echo and the TV. A pause switch skips both |
+| `wall_calendar.yaml` | `sensor.wall_today`: today's and tomorrow's events, asked of `calendar.get_events` every five minutes, for the office wall's Today panel (ADR-0119). The calendars are those labelled `wall_calendar` in the UI, or all of them when none is labelled, so no calendar is named here. Unavailable, not empty, when a calendar cannot be read |
 
 There is no `automations.yaml`. The UI automation editor writes that file into
 `/config` and needs `automation: !include automations.yaml` to load it, and

@@ -150,6 +150,10 @@ services:
     # secrets/sensitive.example.yaml lists.
     environment:
       GLANCE_PROMETHEUS_TOKEN: ${GLANCE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      # And Home Assistant's `wall` user, for the page's fixed household
+      # entities, added to GET /api/states/<entity> only. HA has no read-only
+      # role, so this narrowing is the read-only part.
+      WALL_HA_TOKEN: ${WALL_HA_TOKEN:?set in secrets/sensitive.sops.yaml}
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
