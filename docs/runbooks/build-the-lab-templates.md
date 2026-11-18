@@ -370,7 +370,11 @@ What each one does, so a stall can be placed:
   `autoinstall` off the kernel line, and fails the build if any of that is
   left. Packer then upgrades, turns off X11 forwarding, takes `lxd` out of
   cloud-init's default user groups, and wipes cloud-init's state, machine-id
-  and host keys. It then deletes the `packer` user.
+  and host keys. `packer/ubuntu/no-initramfs-network.sh` then rebuilds every
+  initramfs without networking, so a clone does not ask the lab's DHCP server
+  for an address while it boots, and fails the build if one still has it. It
+  prints a `dracut[E]` line for `dyn-netconf`, which is the omit working.
+  It then deletes the `packer` user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
   the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
   installs Server unattended in text mode, and reboots. The rest is
@@ -669,7 +673,9 @@ scripts/packer-smoke.sh 910
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
 `smoke`, `phoenix`'s key and DHCP through cloud-init, boots it, and waits for
 the agent to report an address. It then checks the hostname and SSHes in.
-Finally it destroys the clone.
+Where the clone booted through a systemd initramfs, it checks the journal
+shows no DHCP before switch-root; a clone of a `901` built before
+`no-initramfs-network.sh` fails there. Finally it destroys the clone.
 
 A Windows clone runs specialize and OOBE first. Its guest agent is disabled in
 the template, and `SetupComplete.cmd` starts it as its last step, so the

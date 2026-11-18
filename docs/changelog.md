@@ -19,6 +19,25 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`eden` no longer asks for an address while it boots, and template `901`
+  stops making guests that do.** `eden` was off when "Every 26.04 lab guest
+  asked the lab's DHCP server for an address while it booted", below, was
+  written. Read when it next started, its initramfs had leased `.106` from
+  the pool on both boots of 2026-11-16 and `.101` at 05:10 UTC today. `eden`
+  is not an ISO install but a clone of Packer template `901`, so the cause is
+  in the template, and every later clone would have done the same.
+  - **The template:** `packer/ubuntu/no-initramfs-network.sh` now runs after
+    the upgrade. It writes the drop-in the hand-installed guests carry,
+    rebuilds every initramfs, and fails the build if one still has
+    networking. `901` has not been rebuilt with it yet.
+  - **The smoke test:** `scripts/packer-smoke.sh` now fails a Linux clone whose
+    journal shows DHCP before switch-root. Run against `eden` before the fix,
+    its check read 2.
+  - **`eden` itself:** `build-the-bloodhound-guest.md` §2 carries the step for
+    a clone of an older `901`. Applied at 05:15 UTC, the reboot at 05:16
+    showed no DHCP or networkd before switch-root, and `eth0` held only `.41`.
+    `/srv/bloodhound-data` was mounted, all five BloodHound containers came
+    back, and the rollback copy is deleted.
 - **`alexander`, `odin` and `phoenix` no longer ask for an address while
   they boot.** This completes "Every 26.04 lab guest asked the lab's DHCP
   server for an address while it booted", below, which said the runbooks'
