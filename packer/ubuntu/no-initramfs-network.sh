@@ -38,9 +38,16 @@ if [ "$built" -eq 0 ]; then
 fi
 
 # Fail the build rather than ship a template whose clones still DHCP at boot.
+# The module list is read first, on its own: in `lsinitrd | grep` inside an
+# `if`, the status is grep's and `set -e` does not apply, so an lsinitrd that
+# failed would read as an image with no networking.
 for img in /boot/initrd.img-*; do
   [ -e "$img" ] || continue
-  if lsinitrd -m "$img" | grep -qE 'net-lib|systemd-networkd'; then
+  if ! mods="$(lsinitrd -m "$img")" || [ -z "$mods" ]; then
+    echo "no-initramfs-network.sh: lsinitrd could not list the modules in $img" >&2
+    exit 1
+  fi
+  if printf '%s\n' "$mods" | grep -qE 'net-lib|systemd-networkd'; then
     echo "no-initramfs-network.sh: $img still carries networking" >&2
     exit 1
   fi
