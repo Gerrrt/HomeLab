@@ -56,6 +56,30 @@ docstring gives: it is a record, not a claim about now.
   proof is a boot whose journal shows no DHCP before switch-root; the check
   reads 2 on `alexander` today. Not yet applied on any of the three.
 
+## 2026-11-18
+
+- **`heimdall` drives the office television at 1080p, and the television
+  stays on.** This completes the 2026-11-17 `heimdall` entry, which said
+  the HDMI output, the kiosk and CEC were not yet verified.
+  - **First light:** HDMI-A-1 `connected`, the wall page full-screen, the
+    Pi at 49.9 °C with `throttled=0x0`.
+  - **The mode came up at 1280 × 720.** The Changhong's EDID is a generic
+    one ("DMTF", `CHHWJT*`, serial 1) that prefers 720p and also lists
+    1080p. The `video=` boot line sets only the console; labwc takes its
+    mode from `kanshi`, whose config was empty. A one-output profile now
+    sets 1920 × 1080 at 60 Hz. It is sharp, nothing is cut off, and it
+    survived a reboot (`build-heimdall.md` §5).
+  - **The set has no HDMI-CEC.** Its manual never mentions it, and the
+    Pi's probe allocated no logical address and found no topology. So
+    neither path in ADR-0119 decision 5 works on this television:
+    - CEC cannot reach it.
+    - Turning the Pi's output off would leave it in standby, because the
+      set switches itself off without a signal and nothing could wake it.
+
+    It stays on day and night, which needs its Auto Sleep and Sleep timers Off.
+    A smart plug or an infrared LED would be a purchase and an ADR of its
+    own (`build-heimdall.md` §8).
+
 ## 2026-11-17
 
 - **The wall page is live on `heimdall`.** `morpheus` has the `wall` host
