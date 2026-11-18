@@ -38,10 +38,10 @@ docstring gives: it is a record, not a claim about now.
   from `cloud-initramfs-dyn-netconf`, which all four 26.04 guests have from
   the ISO, `fenrir` included. It only configures the initramfs
   network, so the error is the omit working; the four runbooks now say so.
-  `phoenix`'s rollback copy is deleted. `alexander`'s and `odin`'s are still
-  in `/boot`, waiting on a sudo password. `phoenix`'s older 7.0.0-42 kernel
-  keeps an initramfs with networking, which boots only if chosen from GRUB's
-  advanced menu.
+  All three rollback copies are deleted. Each guest keeps one older kernel,
+  7.0.0-38 on `alexander` and `odin` and 7.0.0-42 on `phoenix`, whose
+  initramfs still has networking. It boots only if chosen from GRUB's
+  advanced menu, and it goes when that kernel is removed.
 
 - **`fenrir`'s login from `10.0.30.110` was `Saruman`, on the evening it
   moved.** This answers what "`fenrir`'s audit of 2026-11-13 is closed on the
