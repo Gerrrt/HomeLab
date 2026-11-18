@@ -36,6 +36,29 @@ docstring gives: it is a record, not a claim about now.
     and emptied a panel; that is fixed too. Rendered against the pinned Caddy
     with 12, 2 and 0 alerts, Today held at least four events each time.
 
+- **CI now checks that a guarded SOPS value is one render writes.**
+  [#1566](https://github.com/Gerrrt/HomeLab/issues/1566) added the
+  `${WALL_HA_TOKEN:?}` guard to `stacks/sensitive/compose.yaml` and a
+  stand-in to `scripts/seed-validation-env.sh`, and
+  [#1563](https://github.com/Gerrrt/HomeLab/issues/1563) added the key to
+  `secrets/sensitive.sops.yaml`, but nothing added it to `COMPOSE_VARS` in
+  `scripts/render-config.sh`. CI passed, because it validates against the
+  seed's stand-ins and never runs render, and `make up STACK=sensitive` on
+  `trinity` then stopped on "required variable WALL_HA_TOKEN is missing a
+  value". [#1570](https://github.com/Gerrrt/HomeLab/issues/1570) added the
+  line; its entry follows.
+  - **The check:** `scripts/check_compose_vars.py` reads the guards from every
+    `stacks/*/compose.yaml`, the top-level key names from every
+    `secrets/*.sops.yaml` (plaintext in the encrypted file, so nothing is
+    decrypted), `COMPOSE_VARS` and the seed's stand-ins. It fails on a guarded
+    or seeded SOPS key missing from `COMPOSE_VARS`, a guarded SOPS key with no
+    stand-in, and a `COMPOSE_VARS` entry that is no SOPS key. It runs in CI,
+    `make validate` and `make check-compose-vars`, and its fixtures run in
+    `scripts/self-tests.sh`.
+  - **Proved on both sides of the fix:** on `main` at #1566 it fails and
+    names `WALL_HA_TOKEN`; on #1570's head it passes, with 51 guarded SOPS
+    values all rendered and seeded.
+
 - **`make up STACK=sensitive` failed on `trinity` after the wall's house and
   calendar change: `required variable WALL_HA_TOKEN is missing a value`.**
   This corrects "The wall page reads the house and the family calendar from
