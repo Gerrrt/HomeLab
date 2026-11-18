@@ -193,9 +193,11 @@ address bar, no padlock warning and no keyring prompt.
 ## 8. The television, on and off
 
 **This set has no HDMI-CEC.** Its manual (FCC ID 2ABNO40YD1100UA) never
-mentions it, and on 2026-11-18 the Pi's probe found nothing. The Pi saw the
-television at physical address `1.0.0.0`, but `cec-ctl -d /dev/cec0
---playback -S` allocated no logical address and listed an empty topology.
+mentions it, and on 2026-11-18 the Pi's probe found nothing. `cec-ctl -d
+/dev/cec0 --playback -S` gave the Pi's own adapter the physical address
+`1.0.0.0`, taken from the television's EDID: it says which HDMI input the Pi
+is on, not that the set answered. The television, which would be `0.0.0.0`,
+never replied. No logical address was allocated, and the topology was empty.
 So nothing on the Pi can turn the set off or wake it.
 
 What the manual does say, and what follows from it:
