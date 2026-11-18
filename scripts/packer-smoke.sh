@@ -14,6 +14,8 @@
 #   Linux    the clone takes its name, user and key from the Proxmox cloud-init
 #            drive: the agent reports an address, get-host-name returns the name
 #            given here, and phoenix's key opens an SSH session that prints it.
+#            Where the clone booted through a systemd initramfs, its journal
+#            shows no DHCP before switch-root.
 #   Windows  the generalised image finishes OOBE unattended and the guest agent
 #            comes up with an address. The agent is disabled in the template
 #            and started by SetupComplete.cmd as its last act, so an address
@@ -203,6 +205,26 @@ if [[ "${ostype}" == l26 ]]; then
   got="$(ssh_hostname smoke)" || die "smoke@${addr} admitted no SSH login in three minutes"
   [[ "${got}" == "${NAME}" ]] || die "ssh smoke@${addr} printed ${got}, expected ${NAME}"
   ok "phoenix's key opens smoke@${addr}"
+  # A clone must not ask for an address before switch-root. Ubuntu's dracut
+  # initramfs did, on every clone of 901, until no-initramfs-network.sh: eden
+  # leased from the lab pool at each boot (packer/ubuntu/no-initramfs-network.sh).
+  # Only where the boot went through a systemd initramfs, whose journal marks
+  # the switch; a template without one has nothing here to check.
+  early="$(ssh -i "${SSH_KEY}" -o BatchMode=yes -o StrictHostKeyChecking=no \
+      -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR "smoke@${addr}" \
+      'command -v journalctl >/dev/null || { echo none; exit 0; }
+       j="$(sudo -n journalctl -b -o cat 2>/dev/null)" || { echo unreadable; exit 0; }
+       printf "%s\n" "$j" | grep -q "Switching root" || { echo none; exit 0; }
+       printf "%s\n" "$j" | awk "/Switching root/{exit} {print}" | grep -cE "DHCPv4 address|zzzz-dracut-default" || true' \
+      2>/dev/null | tr -d '\r')"
+  case "${early}" in
+    0) ok "no DHCP before switch-root" ;;
+    none) ok "no systemd initramfs on this family, so no early DHCP to check" ;;
+    # Skipped, not passed: a family whose cloud-init user has no passwordless
+    # sudo cannot be read here. 901's can (eden, a clone, has it).
+    unreadable) printf '\033[0;33m  SKIP\033[0m %s\n' "smoke@${addr} cannot read the journal with sudo -n: early DHCP not checked" ;;
+    *) die "the clone asked for an address before switch-root (${early:-no answer}): the initramfs still carries networking" ;;
+  esac
 else
   ok "hostname ${host} (sysprep's random name; the real one is ansible/'s)"
   # The way ansible/ reaches every guest (ADR-0077): sshd, started by

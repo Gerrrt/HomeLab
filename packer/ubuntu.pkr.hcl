@@ -152,6 +152,13 @@ build {
     ]
   }
 
+  # After the upgrade, so every kernel a clone can boot has its image rebuilt
+  # without networking. The script fails the build if one still carries it.
+  provisioner "shell" {
+    execute_command = "sudo -E sh -eu '{{ .Path }}'"
+    script          = "${abspath(path.root)}/ubuntu/no-initramfs-network.sh"
+  }
+
   # Last: remove the build user. -f because this session is that user's, and
   # skip_clean because the script cannot delete itself from a home directory
   # that no longer exists. The builder then shuts the guest down through the

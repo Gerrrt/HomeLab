@@ -183,6 +183,50 @@ sudo stat -c '%a %u %n' /srv/bloodhound-data/postgres/18/docker    # 700 999
 `qm guest cmd 141 get-fsinfo` on `Saruman` should list `/` and
 `/srv/bloodhound-data`.
 
+### No network in the initramfs
+
+Ubuntu 26.04's initramfs is dracut's. It carries systemd-networkd and a
+catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface,
+so the NIC asks the lab's DHCP server for an address before the static `.41`
+applies. `eden` leased `.106` from the pool on both of its boots on
+2026-11-16, and `.101` on 2026-11-18. Template `901` leaves networking out of
+the initramfs since `packer/ubuntu/no-initramfs-network.sh`, so a clone of a
+template built after that needs only the check below. A clone of an older
+`901`, `eden` as built, needs the drop-in the hand-installed guests carry
+([`build-the-lab-guest.md`](build-the-lab-guest.md) §2):
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# eden: no networking in the initramfs (build-the-bloodhound-guest.md §2).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs the NIC before the static address applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, reboot, then run the last four lines. The
+`dracut[E]` line for `dyn-netconf` is the omit working, as `alexander`'s §2
+says. If the new image does not boot, open VM 141's console in the Proxmox web
+UI, hold Esc for GRUB's menu, press `e`, add `.pre-no-network` to the end of
+the `initrd` line's file name, and boot with Ctrl-X.
+
+Either way, reboot and check that nothing before switch-root asked for an
+address. The initramfs calls the NIC `ens18`; the running system calls it
+`eth0`:
+
+```bash
+sudo journalctl -b -o short-iso | awk '/Switching root/{exit} {print}' | grep -cE 'DHCPv4|zzzz-dracut-default'   # 0
+ip -4 -o addr show eth0 | awk '{print $4}'   # 10.0.30.41/24
+```
+
+Then delete the copy, if you made one.
+
 ## 3. Docker, the repository, and its own key
 
 Install Docker, `age`, `git` and `make` as `alexander`'s §3 describes, and add
