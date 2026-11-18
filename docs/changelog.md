@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`fenrir`'s re-check with sudo finds nothing the audit could not see.**
+  The audit of 2026-11-13 left a list "not checked without sudo, so these are
+  skipped, not passed", and "`fenrir`'s audit of 2026-11-13 is closed on the
+  box", filed under 2026-11-17, re-read only `sshd -T` from it. Read today:
+  - **sudoers** is the distribution's own file, and `/etc/sudoers.d` holds
+    only its `README`: no `NOPASSWD` rule, so sudo asks for `atreus`'s
+    password.
+  - **root's `authorized_keys`** is empty, 0 bytes. With `sshd` refusing root,
+    root has no key path in.
+  - **`/etc/shadow`**: `atreus` is the only account with a usable password,
+    and none has an empty one.
+  - **The firewall** is as the audit found it: `INPUT` accepts on IPv4 and
+    IPv6, and the nft ruleset is Docker's own chains. `security.md`'s row for
+    logging in to the sensor already says the source address stays open.
+  - **Docker's disk** holds ten images, three in use. The other seven are the
+    lint and validate tool images (markdownlint-cli2, OpenTofu, zizmor,
+    Packer, editorconfig-checker, actionlint and ShellCheck), about 928 MB.
+    They outlived the weekly prune of 2026-11-16 04:01 UTC, so the validation
+    suite most likely ran on `fenrir` after it: workstation use the cleanup of
+    2026-11-17 did not reach. The next weekly prune, on 2026-11-23, removes
+    them.
+  - **Without sudo**, the two other checks the audit skipped: `fenrir`'s three
+    scrape jobs read `up` in the lab's Prometheus, and
+    `scripts/vendor-ja4.sh --check` found the vendored tree byte for byte at
+    its upstream commit.
+
+  Still open from the audit: its finding 10's leftovers, `atreus` in `lxd`
+  with no LXD installed, an idle `docker0` and the `hwctl` snap, which it
+  called optional; and two of its next steps, a drift check or converge for
+  `fenrir`, which today has neither, and re-deriving the sensor stack's memory
+  bounds, which `stacks/sensor/compose.yaml` still marks as bounds rather than
+  measurements.
 - **`make up` now restarts Home Assistant, and the wall's alerts can no longer
   crowd out its calendar.**
   - **Home Assistant:** after the wall's house-and-calendar change deployed,
