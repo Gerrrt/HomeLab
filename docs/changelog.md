@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`make up STACK=sensitive` failed on `trinity` after the wall's house and
+  calendar change: `required variable WALL_HA_TOKEN is missing a value`.**
+  This corrects "The wall page reads the house and the family calendar from
+  Home Assistant", below, which shipped without it. The token was in
+  `secrets/sensitive.sops.yaml` (#1563), but `scripts/render-config.sh`
+  writes to `.env` only the names in its `COMPOSE_VARS` list, and
+  `WALL_HA_TOKEN` was not added there. CI did not catch it, because it
+  validates against `seed-validation-env.sh`'s stand-in values rather than a
+  render. It is now in the list. Every other `${VAR:?}` guard in a
+  `compose.yaml` that names a SOPS key was checked against the list, and none
+  is missing.
+
 - **The wall page reads the house and the family calendar from Home
   Assistant.** Its header now shows the weather; a Today panel under the
   alerts lists today's and tomorrow's events; and its bottom row reads the
