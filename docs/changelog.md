@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The sensor stack's memory limits are measured, and Zeek's halves to
+  2048m.** The audit of 2026-11-13 asked for the bounds its compose comments
+  said to re-derive after a fortnight. The lab's Prometheus keeps only the
+  root cgroup for `fenrir`, so Zeek was read on the box.
+  - **Alloy:** `process_resident_memory_bytes{job="fenrir-alloy"}` peaked at
+    297 MiB over the 12 days of history, median 286. Its 1024m stays, now as
+    a measurement.
+  - **Zeek:** `VmHWM` was 286 MiB over the 25 h since the reboot of
+    2026-11-17, 103 MiB of it anonymous. The days before are hidden in the
+    guest's whole-host RSS, which the workstation tooling then on it held at
+    about 1 GiB with spikes to 1.4. 2048m is about 7x rather than the estate's
+    3.5x, because a day is thin, it held no attack exercise, and an OOM-kill
+    only restarts Zeek with nothing alerting on it. The compose comment says
+    to tighten it once a fortnight that includes an exercise has been read.
+
+  Of the audit's next steps, this leaves a drift check for `fenrir`, and its
+  finding 10's leftovers.
 - **`fenrir`'s re-check with sudo finds nothing the audit could not see.**
   The audit of 2026-11-13 left a list "not checked without sudo, so these are
   skipped, not passed", and "`fenrir`'s audit of 2026-11-13 is closed on the
