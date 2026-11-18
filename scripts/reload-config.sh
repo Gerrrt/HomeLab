@@ -38,6 +38,10 @@
 # of this file, for reasons written out there. Its absence from this script is
 # what made `make up` a silent no-op for every config.alloy change.
 #
+# Home Assistant is restarted at the bottom too, in a stack that declares it, for
+# the same reason: it reads its packages only at start (see
+# restart_home_assistant).
+#
 # The snmp-exporter reload works only because render-config.sh writes the
 # rendered file with `>`, truncating in place and keeping the inode. The
 # container bind-mounts the file, not the directory, so switching to
@@ -328,6 +332,41 @@ restart_alloy() {
   ok "alloy (restarted)"
 }
 
+# Home Assistant is restarted on the same terms as Alloy. Its packages/ and
+# custom_components/ are mounted as directories, so a changed file reaches the
+# container's view at once (check_mounted_config.py has nothing to re-pin) and
+# its process never: Home Assistant reads YAML only at start. Before this, the
+# wall's packages from #1566 were on disk and in the container for a whole
+# deploy, and sensor.wall_today, sensor.wall_alarm and
+# binary_sensor.wall_office_lights did not exist until someone restarted it by
+# hand. Its own reload services cover some integrations and not packages as a
+# whole, and they need an admin token this script does not hold.
+#
+# Every `make up` of the stack, not only the ones that changed its YAML, for
+# the reason restart_alloy gives against comparing mtimes. It costs about a
+# minute without automations, and only on a deploy: converge's hourly no-op runs
+# no `make up` at all. Waiting only for `running` here is enough, because
+# check_container_health.py runs next and waits for the healthcheck.
+restart_home_assistant() {
+  local stable=0 deadline
+
+  is_running home-assistant || die \
+    "home-assistant is not running, so there is nothing to reload. Check 'make ps', then 'make up'."
+
+  "${COMPOSE[@]}" restart home-assistant >/dev/null 2>&1 || die "could not restart home-assistant"
+
+  deadline=$((SECONDS + TIMEOUT))
+  while ((stable < 3)); do
+    if is_running home-assistant; then stable=$((stable + 1)); else stable=0; fi
+    if ((SECONDS >= deadline)); then
+      die "home-assistant did not stay up within ${TIMEOUT}s. Check 'make logs SERVICE=home-assistant'."
+    fi
+    sleep 1
+  done
+
+  ok "home-assistant (restarted: it reads its packages only at start)"
+}
+
 # The socket proxy is restarted too, for the same reason as Alloy and one more.
 # HAProxy reads stacks/observability/docker-socket-proxy/haproxy.cfg only at
 # start, and that file is mounted as a directory, so a config-only change
@@ -404,6 +443,12 @@ if [[ -z "${declared}" ]] || grep -qx docker-socket-proxy <<<"${declared}"; then
 fi
 if [[ -z "${declared}" ]] || grep -qx alloy <<<"${declared}"; then
   restart_alloy
+fi
+# Only when the stack declares it, with no fall-back to "restart it anyway":
+# one stack runs Home Assistant, and a compose that cannot list its services is
+# not a reason to restart a service it may not have.
+if grep -qx home-assistant <<<"${declared}"; then
+  restart_home_assistant
 fi
 
 printf '\033[0;32mreloaded\033[0m — every service re-read its config from disk\n'
