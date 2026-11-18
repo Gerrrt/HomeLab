@@ -257,6 +257,12 @@ uses. Reboot, then run the last four lines, so that the image rebuilt and
 checked is the one the next boot uses. On 26.04, `update-initramfs` is
 dracut's wrapper, and every later kernel is built with the file in place.
 
+`update-initramfs` prints `dracut[E]: Module 'dyn-netconf' depends on module
+'systemd-networkd', which can't be installed`, here and at every later
+kernel. That is the omit working, not a failure. `dyn-netconf` comes with
+`cloud-initramfs-dyn-netconf`, which the ISO installs, and all it does is
+configure the network in the initramfs. The `lsinitrd` line is the check.
+
 The copy is the way back. If the new image does not boot, open VM 160's
 console in the Proxmox web UI (*Saruman → 160 → Console*). Reset the VM and
 hold Esc to show GRUB's menu, which Ubuntu hides by default. Press `e` on the

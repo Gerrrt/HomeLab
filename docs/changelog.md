@@ -64,6 +64,30 @@ docstring gives: it is a record, not a claim about now.
     A smart plug or an infrared LED would be a purchase and an ADR of its
     own (`build-heimdall.md` §8).
 
+- **`alexander`, `odin` and `phoenix` no longer ask for an address while
+  they boot.** This completes "Every 26.04 lab guest asked the lab's DHCP
+  server for an address while it booted", below, which said the runbooks'
+  step was not yet applied on any of the three. Each got §2's drop-in and a
+  rebuilt initramfs, then one reboot. That also cleared a pending `libc6`
+  reboot on `alexander`, waiting since 2026-11-13, and on `phoenix`:
+
+  | Guest | Booted | Before switch-root | `ens18` | After |
+  | --- | --- | --- | --- | --- |
+  | `alexander` | 04:45 UTC | no DHCP, no networkd | `.40` only | the lab stack back, Loki ingesting, no target down |
+  | `odin` | 04:51 UTC | no DHCP, no networkd | `.60` only | `/srv/soc-data` mounted, all seven SOC containers healthy |
+  | `phoenix` | 04:58 UTC | no DHCP, no networkd | `.70` only | Alloy active, no failed units |
+
+  The initramfs shrank from 63 MB to 36 MB on `alexander` and `odin` and to
+  39 MB on `phoenix`. On `phoenix`, the one whose run was read here,
+  `update-initramfs` printed a `dracut[E]` line for `dyn-netconf`, a module
+  from `cloud-initramfs-dyn-netconf`, which all four 26.04 guests have from
+  the ISO, `fenrir` included. It only configures the initramfs
+  network, so the error is the omit working; the four runbooks now say so.
+  All three rollback copies are deleted. Each guest keeps one older kernel,
+  7.0.0-38 on `alexander` and `odin` and 7.0.0-42 on `phoenix`, whose
+  initramfs still has networking. It boots only if chosen from GRUB's
+  advanced menu, and it goes when that kernel is removed.
+
 - **`fenrir`'s login from `10.0.30.110` was `Saruman`, on the evening it
   moved.** This answers what "`fenrir`'s audit of 2026-11-13 is closed on the
   box", filed under 2026-11-17, left open. `fenrir`'s journal records
