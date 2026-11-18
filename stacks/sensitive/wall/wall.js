@@ -1,6 +1,8 @@
 // The Elysian Wall (ADR-0119). Every number here is the answer to a fixed
-// question at /api/q/NAME, written out in the sensitive tier's Caddyfile. The
-// page chooses WHICH question, never the PromQL, and holds no token.
+// question: /api/q/NAME for Prometheus, /api/ha/NAME for one Home Assistant
+// entity's state, each written out in the sensitive tier's Caddyfile. The
+// page chooses WHICH question, never the query or the entity, and holds no
+// token.
 //
 // Every value is written with textContent, never innerHTML: label values come
 // from Prometheus, and anything that can push a series could otherwise put
@@ -31,6 +33,14 @@
   ];
 
   const QUESTIONS = ["alerts", "cpu", "snmp", "wan", "wan_hour", "rtt", "ups", "pi_temp"];
+  // Home Assistant entities, by the names the Caddyfile gives them.
+  const DOORS = [
+    ["front_door", "Front"], ["garage_door", "Garage"],
+    ["garden_door", "Garden"], ["patio_door", "Patio"],
+  ];
+  const WINDOWS = [["window_left", "Left"], ["window_right", "Right"]];
+  const HA = ["weather", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
+  const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
   const lastOk = {};    // name -> Date.now() of the last good answer
 
@@ -82,7 +92,24 @@
     }
   }
 
+  // One entity's state from Home Assistant. Kept under its own key in lastOk
+  // ("ha:NAME") so the status bar can age the house apart from the lab.
+  async function askHa(name) {
+    try {
+      const res = await fetch(`/api/ha/${name}`, { cache: "no-store" });
+      if (!res.ok) return;
+      const body = await res.json();
+      if (typeof body.state !== "string") return;
+      states[name] = body;
+      lastOk[`ha:${name}`] = Date.now();
+    } catch (_) {
+      // Keep the last state; the status bar shows its age.
+    }
+  }
+
   const fresh = (name) => lastOk[name] !== undefined && Date.now() - lastOk[name] < STALE_MS;
+  const haFresh = (name) => fresh(`ha:${name}`) && states[name]
+    && states[name].state !== "unavailable" && states[name].state !== "unknown";
 
   // ---------- alerts and the verdict ----------
   const SEVERITY_RANK = { critical: 0, warning: 1, info: 2 };
@@ -251,6 +278,7 @@
       ["hosts", ["cpu", "snmp"]],
       ["internet", ["wan", "wan_hour", "rtt"]],
       ["power", ["ups"]],
+      ["house", HA.map((n) => `ha:${n}`)],
     ];
     for (const [label, names] of groups) {
       const oldest = Math.min(...names.map((n) => lastOk[n] ?? 0));
@@ -270,7 +298,83 @@
     bar.append(el("span", "push", `heimdall · ${fresh("pi_temp") && t ? `${num(t).toFixed(0)}°C` : "—"}`));
   }
 
+  // ---------- weather (header) ----------
+  const CONDITIONS = {
+    "clear-night": "Clear", cloudy: "Cloudy", exceptional: "Severe weather", fog: "Fog",
+    hail: "Hail", lightning: "Lightning", "lightning-rainy": "Thunderstorms",
+    partlycloudy: "Partly cloudy", pouring: "Heavy rain", rainy: "Rain",
+    snowy: "Snow", "snowy-rainy": "Sleet", sunny: "Sunny", windy: "Windy",
+    "windy-variant": "Windy",
+  };
+  function renderWeather() {
+    const w = states.weather;
+    if (!haFresh("weather")) {
+      $("wx-temp").textContent = "—";
+      $("wx-cond").textContent = "—";
+      $("wx-sub").textContent = "";
+      return;
+    }
+    const a = w.attributes || {};
+    const unit = a.temperature_unit || "°";
+    $("wx-temp").textContent = a.temperature !== undefined ? `${Math.round(a.temperature)}${unit.startsWith("°") ? "°" : unit}` : "—";
+    $("wx-cond").textContent = CONDITIONS[w.state] || w.state;
+    const bits = [];
+    if (a.humidity !== undefined) bits.push(`${Math.round(a.humidity)}% humidity`);
+    if (a.wind_speed !== undefined) bits.push(`wind ${Math.round(a.wind_speed)} ${a.wind_speed_unit || ""}`.trim());
+    $("wx-sub").textContent = bits.join(" · ");
+  }
+
+  // ---------- home row ----------
+  // Quiet when all is shut: each item says so in neutral text. An open door
+  // or window turns its item amber; a triggered alarm turns it red.
+  const ALARM = {
+    disarmed: ["Disarmed", ""], armed_home: ["Home", ""], armed_away: ["Away", ""],
+    armed_night: ["Night", ""], arming: ["Arming", "warn"], pending: ["Entry delay", "alert"],
+    triggered: ["TRIGGERED", "alert"],
+  };
+  function homeItem(label, value, cls) {
+    const span = el("span", `item ${cls || ""}`, label);
+    span.append(el("b", null, value));
+    return span;
+  }
+  function openOf(list) {
+    let unknown = false;
+    const open = [];
+    for (const [name, label] of list) {
+      if (!haFresh(name)) { unknown = true; continue; }
+      if (states[name].state === "on") open.push(label);
+    }
+    return { open, unknown };
+  }
+  function renderHome() {
+    const row = $("home");
+    row.replaceChildren();
+
+    if (haFresh("alarm")) {
+      const [text, cls] = ALARM[states.alarm.state] || [states.alarm.state, "warn"];
+      row.append(homeItem("Alarm", text, cls));
+    } else {
+      row.append(homeItem("Alarm", "—", "unknown"));
+    }
+
+    const doors = openOf(DOORS);
+    if (doors.open.length) row.append(homeItem("Open", doors.open.join(", "), "warn"));
+    else row.append(homeItem("Doors", doors.unknown ? "—" : "all closed", doors.unknown ? "unknown" : ""));
+
+    const wins = openOf(WINDOWS);
+    if (wins.open.length) row.append(homeItem("Window open", wins.open.join(", "), "warn"));
+    else row.append(homeItem("Windows", wins.unknown ? "—" : "closed", wins.unknown ? "unknown" : ""));
+
+    if (haFresh("office_light")) {
+      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off"));
+    } else {
+      row.append(homeItem("Office lights", "—", "unknown"));
+    }
+  }
+
   function render() {
+    renderWeather();
+    renderHome();
     renderAlerts();
     renderNodes();
     renderWan();
@@ -279,7 +383,7 @@
   }
 
   async function poll() {
-    await Promise.all(QUESTIONS.map(ask));
+    await Promise.all([...QUESTIONS.map(ask), ...HA.map(askHa)]);
     render();
   }
 

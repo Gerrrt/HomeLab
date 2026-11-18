@@ -278,6 +278,10 @@ start.matrix.elysium {
 #               can query and nothing more (ADR-0067); this narrows it again,
 #               to eight answers. The page holds no credential, and neither
 #               does the Pi.
+#   /api/ha/NAME one Home Assistant entity's state, the same way: each handle
+#               rewrites to /api/states/<one entity> and ends in `?`, which
+#               drops the client's query string, and the `wall` user's token
+#               is added here (the wall_ha snippet).
 #
 # The token is the one Glance already holds, GLANCE_PROMETHEUS_TOKEN, given
 # to the caddy service in compose.yaml. It is the estate's READER, which
@@ -299,6 +303,18 @@ start.matrix.elysium {
 		transport http {
 			tls_trust_pool file /etc/caddy/tls/ingest-ca.pem
 		}
+	}
+}
+
+# The household half of the wall page: Home Assistant, on this network, with
+# the token of its non-admin `wall` user added here. HA has no read-only
+# role, so the narrowing below is what makes this read-only: one GET of one
+# entity's state per handle, and nothing else under /api/ha/.
+(wall_ha) {
+	reverse_proxy home-assistant:8123 {
+		header_up Authorization "Bearer {$WALL_HA_TOKEN}"
+		header_up -Cookie
+		header_down -Set-Cookie
 	}
 }
 
@@ -372,6 +388,55 @@ wall.matrix.elysium {
 		handle /api/q/pi_temp {
 			rewrite * /api/v1/query?query=max%28node_thermal_zone_temp%7Binstance%3D%22heimdall%22%7D%29
 			import wall_prometheus
+		}
+
+		# The header's weather: condition, temperature, humidity, wind.
+		handle /api/ha/weather {
+			rewrite * /api/states/weather.forecast_home?
+			import wall_ha
+		}
+
+		# The Ring Alarm's mode (renamed in HA from its default, which named the city).
+		handle /api/ha/alarm {
+			rewrite * /api/states/alarm_control_panel.house?
+			import wall_ha
+		}
+
+		# Ring contact sensors: on is open.
+		handle /api/ha/front_door {
+			rewrite * /api/states/binary_sensor.front_door?
+			import wall_ha
+		}
+
+		handle /api/ha/garage_door {
+			rewrite * /api/states/binary_sensor.garage_door?
+			import wall_ha
+		}
+
+		handle /api/ha/garden_door {
+			rewrite * /api/states/binary_sensor.garden_door?
+			import wall_ha
+		}
+
+		handle /api/ha/patio_door {
+			rewrite * /api/states/binary_sensor.patio_door?
+			import wall_ha
+		}
+
+		handle /api/ha/window_left {
+			rewrite * /api/states/binary_sensor.window_left?
+			import wall_ha
+		}
+
+		handle /api/ha/window_right {
+			rewrite * /api/states/binary_sensor.window_right?
+			import wall_ha
+		}
+
+		# The office's Hue room (renamed in HA from its default, which named a person).
+		handle /api/ha/office_light {
+			rewrite * /api/states/light.office?
+			import wall_ha
 		}
 
 		handle /api/* {

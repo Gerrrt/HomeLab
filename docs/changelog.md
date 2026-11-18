@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall page reads the house from Home Assistant.** Its header now
+  shows the weather, and its bottom row reads the Ring Alarm's mode, the four
+  door contacts, the two window contacts and the office lights.
+  - **How it reads them:** nine fixed `/api/ha/NAME` handles in the
+    Caddyfile, each one `GET /api/states/<entity>`, with the token of HA's
+    new non-admin `wall` user (`WALL_HA_TOKEN`, added by #1563).
+  - **Read-only by narrowing.** HA has no read-only role, so the narrowing
+    in Caddy is the read-only part. `security.md` names the residual.
+  - **No calendar,** because the house has none in HA.
+  - **Two entities renamed in HA** so that no committed ID names a person or
+    the city: `light.office` and `alarm_control_panel.house`.
+
 - **`fenrir`'s login from `10.0.30.110` was `Saruman`, on the evening it
   moved.** This answers what "`fenrir`'s audit of 2026-11-13 is closed on the
   box", filed under 2026-11-17, left open. `fenrir`'s journal records

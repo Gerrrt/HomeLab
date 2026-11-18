@@ -5,9 +5,9 @@
 
   Static on purpose: no build step, no framework, nothing fetched from
   anywhere but this site. Every number comes from /api/q/NAME, a fixed
-  Prometheus question the Caddyfile writes out and adds the token to, so this
-  page holds no credential. The household half (calendar, weather, the house)
-  is a later change, through Home Assistant, the same way.
+  Prometheus question, or /api/ha/NAME, one Home Assistant entity's state.
+  The Caddyfile writes each one out and adds its token, so this page holds no
+  credential.
 
   It is laid out on a fixed 1920x1080 stage, the television's native size,
   and scaled to whatever window it is in, so a laptop shows what the wall
@@ -31,6 +31,10 @@
       <div class="when">
         <div class="clock"><span id="hm">--:--</span><span class="ampm" id="ampm"></span></div>
         <div class="date" id="date"></div>
+      </div>
+      <div class="wx" id="wx">
+        <div class="wx-temp" id="wx-temp">—</div>
+        <div class="wx-desc"><div id="wx-cond">—</div><div class="wx-sub" id="wx-sub"></div></div>
       </div>
       <div class="verdict" id="verdict" data-state="unknown">
         <span class="dot"></span><span id="verdict-text">Waiting for Prometheus</span>
@@ -68,8 +72,8 @@
     </section>
 
     <section class="card household" aria-labelledby="h-house">
-      <h2 id="h-house">Household</h2>
-      <p class="placeholder">Today, weather and the house arrive with Home Assistant.</p>
+      <h2 id="h-house">Home</h2>
+      <div class="home" id="home"></div>
     </section>
 
     <footer class="status" id="status"></footer>
