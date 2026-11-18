@@ -53,7 +53,11 @@ import sys
 import tempfile
 from pathlib import Path
 
-import yaml
+# PyYAML from the one pinned bootstrap, scripts/_deps.py (#848).
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from _deps import require_yaml
+
+yaml = require_yaml()
 
 REPO = Path(__file__).resolve().parent.parent
 
@@ -257,7 +261,7 @@ def self_test() -> int:
                 "keys": ["TOKEN", "WALL_HA_TOKEN"],
                 "listed": ["TOKEN", "WALL_HA_TOKEN"],
                 "seeded": ["TOKEN"],
-                "compose_extra": "    # ${NOT_A_GUARD:?} would be read by a grep\n",
+                "compose_extra": "    # ${WALL_HA_TOKEN:?} would be read by a grep\n",
             },
             0,
         ),
