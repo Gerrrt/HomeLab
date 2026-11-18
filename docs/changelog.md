@@ -17,6 +17,31 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-18
+
+- **Every 26.04 lab guest asked the lab's DHCP server for an address while it
+  booted, and their runbooks now stop it.** This answers the question left
+  open by "`fenrir`'s capture NIC speaks while it boots", filed under
+  2026-11-17: whether the `ens18` lease `fenrir`'s initramfs took happens on
+  every 26.04 guest built from the ISO. It does. Each guest's own journal, read
+  for its last four boots:
+  - **`alexander`** leased `.100` three times and then `.101` from the
+    `.100–.200` pool.
+  - **`odin`** leased `.101`, `.101`, `.102` and `.115` from the pool.
+  - **`phoenix`** was answered with `.70` every time. That is its own address,
+    from the reservation `build-the-jumpbox.md` §3 maps to its MAC, so it took
+    no pool address, but it still asked.
+  - **`eden`** was off and was not read.
+
+  All three run dracut 110 with no `dracut.conf.d` file, so dracut's
+  catch-all `zzzz-dracut-default.network` ran DHCP on `ens18` in the
+  initramfs. Each lease lasted until switch-root, about seven seconds; now
+  each guest holds only its static address. `build-the-lab-guest.md`,
+  `build-the-soc-guest.md` and `build-the-jumpbox.md` §2 each now leave
+  networking out of the initramfs, with the drop-in `fenrir` already has. The
+  proof is a boot whose journal shows no DHCP before switch-root; the check
+  reads 2 on `alexander` today. Not yet applied on any of the three.
+
 ## 2026-11-17
 
 - **The wall page is live on `heimdall`.** `morpheus` has the `wall` host
