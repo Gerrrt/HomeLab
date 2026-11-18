@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`fenrir`'s login from `10.0.30.110` was `Saruman`, on the evening it
+  moved.** This answers what "`fenrir`'s audit of 2026-11-13 is closed on the
+  box", filed under 2026-11-17, left open. `fenrir`'s journal records
+  `Accepted publickey for atreus from 10.0.30.110` at 2026-11-08 03:06:31 UTC,
+  with key `SHA256:7ai4…`. That is the ED25519 key in `Saruman`'s
+  `/root/.ssh`. 03:06 UTC is the evening of 2026-11-07 in local time, the day
+  "`Saruman` moved from `10.0.30.110` to `10.0.30.20`" is filed under. Every
+  guest rebooted between 03:23 and 03:36 UTC, so `Saruman` still held `.110`
+  at the time. The key is not among the two now in `fenrir`'s
+  `authorized_keys`, so `Saruman`'s root no longer logs in there.
+
+- **The socket proxy's fix holds on `prometheus` too.** Converge deployed
+  #1560 there at 03:30 UTC, at `3da97bd`, and the running proxy carried both
+  lines. Before it, Alloy logged `could not transfer logs` a steady 10 times
+  an hour; from 03:31 to 04:08 it logged it 0 times. `alertmanager`,
+  `prometheus` and `snmp-exporter` wrote nothing after 03:30, so their
+  follows outlasted the old ten-minute limit three times over. The 20 errors
+  at 03:30 were the restart cutting the old streams. Every
+  `loki_write_dropped_entries_total` series read 0. This was the estate host
+  the entry below said was not checked.
+
 - **The socket proxy's log-follow fix holds on `fenrir`, and #1552 is
   closed.** This completes "The socket proxy closed quiet log follows every
   ten minutes", filed under 2026-11-17, which said the fix was not yet
