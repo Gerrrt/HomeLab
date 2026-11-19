@@ -43,7 +43,10 @@
   const WINDOWS = [["window_left", "Left"], ["window_right", "Right"]];
   // "forecast" is sensor.wall_weather: today's high and low, the next rain and
   // the next sunrise or sunset (home-assistant/packages/wall_weather.yaml).
-  const HOUSE = ["weather", "forecast", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
+  // "thermostat" is climate.thermostat itself; "litter" is sensor.wall_litter
+  // (home-assistant/packages/wall_house.yaml).
+  const HOUSE = ["weather", "forecast", "alarm", "office_light", "thermostat", "litter",
+    ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
   // "today" is sensor.wall_today: the calendars' events for the next seven
   // days, gathered by home-assistant/packages/wall_calendar.yaml.
   const HA = [...HOUSE, "today"];
@@ -404,10 +407,21 @@
     armed_night: ["Night", ""], arming: ["Arming", "warn"], pending: ["Entry delay", "alert"],
     triggered: ["TRIGGERED", "alert"],
   };
-  function homeItem(label, value, cls) {
+  // `drop` marks an item the row may leave out when it runs out of width:
+  // the higher, the sooner it goes. Unmarked items always stay.
+  function homeItem(label, value, cls, drop) {
     const span = el("span", `item ${cls || ""}`, label);
     span.append(el("b", null, value));
+    if (drop) span.dataset.drop = String(drop);
     return span;
+  }
+  // A crowded row loses its quiet items first, whole, never half a word.
+  function fitRow(row) {
+    while (row.scrollWidth > row.clientWidth + 2) {
+      const items = [...row.querySelectorAll("[data-drop]")];
+      if (!items.length) return;
+      items.sort((a, b) => Number(b.dataset.drop) - Number(a.dataset.drop))[0].remove();
+    }
   }
   function openOf(list) {
     let unknown = false;
@@ -429,19 +443,41 @@
       row.append(homeItem("Alarm", "—", "unknown"));
     }
 
+    // Doors and windows share one item: all shut is one fact, and the row
+    // needs the room. What is open is named, a window as "Left window".
     const doors = openOf(DOORS);
-    if (doors.open.length) row.append(homeItem("Open", doors.open.join(", "), "warn"));
-    else row.append(homeItem("Doors", doors.unknown ? "—" : "all closed", doors.unknown ? "unknown" : ""));
-
     const wins = openOf(WINDOWS);
-    if (wins.open.length) row.append(homeItem("Window open", wins.open.join(", "), "warn"));
-    else row.append(homeItem("Windows", wins.unknown ? "—" : "closed", wins.unknown ? "unknown" : ""));
+    const open = [...doors.open, ...wins.open.map((w) => `${w} window`)];
+    if (open.length) row.append(homeItem("Open", open.join(", "), "warn"));
+    else if (doors.unknown || wins.unknown) row.append(homeItem("Doors & windows", "—", "unknown"));
+    else row.append(homeItem("Doors & windows", "closed"));
+
+    // The hallway thermostat. Its own alerts are thermostat.yaml's; this is
+    // the reading, with what it is doing when it is doing something.
+    if (haFresh("thermostat")) {
+      const t = states.thermostat.attributes || {};
+      const bits = [];
+      if (t.current_temperature != null) bits.push(`${Math.round(t.current_temperature)}°`);
+      if (t.current_humidity != null) bits.push(`${Math.round(t.current_humidity)}%`);
+      if (t.hvac_action === "heating" || t.hvac_action === "cooling") bits.push(t.hvac_action);
+      row.append(homeItem("Inside", bits.length ? bits.join(" · ") : "—", bits.length ? "" : "unknown", 1));
+    } else {
+      row.append(homeItem("Inside", "—", "unknown", 1));
+    }
 
     if (haFresh("office_light")) {
-      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off"));
+      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off", "", 2));
     } else {
-      row.append(homeItem("Office lights", "—", "unknown"));
+      row.append(homeItem("Office lights", "—", "unknown", 2));
     }
+
+    // The Litter-Robot only when it wants something, in amber. An unreadable
+    // one says nothing here; the status bar's house age covers it.
+    if (haFresh("litter") && states.litter.state === "attention") {
+      const needs = (states.litter.attributes || {}).needs || [];
+      row.append(homeItem("Litter-Robot", needs.length ? needs.join(", ") : "needs a look", "warn"));
+    }
+    fitRow(row);
   }
 
   // ---------- today: the calendar ----------

@@ -441,6 +441,21 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
+		# The hallway thermostat: temperature, humidity and whether it is
+		# heating or cooling (home-assistant/packages/thermostat.yaml says
+		# what it is). Its id names no room of anyone's.
+		handle /api/ha/thermostat {
+			rewrite * /api/states/climate.thermostat?
+			import wall_ha
+		}
+
+		# The Litter-Robot: ok, or attention and what, through a template
+		# entity in home-assistant/packages/wall_house.yaml.
+		handle /api/ha/litter {
+			rewrite * /api/states/sensor.wall_litter?
+			import wall_ha
+		}
+
 		# Today's high and low, the next rain and the next sunrise or sunset,
 		# asked of weather.get_forecasts by
 		# home-assistant/packages/wall_weather.yaml: since HA 2024.4 a forecast

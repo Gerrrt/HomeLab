@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall's Home row reads the thermostat and the Litter-Robot.** The
+  second of the wall's five steps. The row gains the hallway thermostat's
+  temperature and humidity, and "heating" or "cooling" while it is, read
+  from `climate.thermostat` at `/api/ha/thermostat`. The Litter-Robot
+  appears in amber only when it wants something: a new `sensor.wall_litter`
+  in `wall_house.yaml` says which, by `litter_robot.yaml`'s own thresholds.
+  Doors and windows share one item when all are shut, and a row too long for
+  the screen drops the office lights, then the thermostat, never an amber
+  item. The mockup's front-door lock is left out: the house has no smart
+  lock for it to read. Previewed at 1920x1080 against stubbed answers,
+  quiet and with two openings and the Litter-Robot at once. Not yet run
+  against the real Home Assistant.
 - **The wall gets a week, a countdown and a context card.** The first of
   five steps that take the useful ideas from a denser mockup of the office
   wall without shrinking its text below what reads from the chair.
