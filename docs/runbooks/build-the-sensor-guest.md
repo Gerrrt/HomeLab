@@ -302,7 +302,12 @@ who reaches that port. The installer leaves
 `/etc/ssh/sshd_config.d/50-cloud-init.conf` behind, and that file can set
 `PasswordAuthentication yes`. `sshd` keeps the **first** value it reads
 for each setting, and drop-ins are read in name order, so this file is `10-`
-to come before cloud-init's:
+to come before cloud-init's. Then remove cloud-init's file as well. The `10-`
+drop-in already outranks it, but a 27-byte file that reads
+`PasswordAuthentication yes` is what the audit of 2026-11-13 had to guess
+from without sudo, and it is the first thing the next one would flag.
+cloud-init writes it once per instance, not at each boot: on `fenrir` it kept
+its install date across four reboots, so it stays gone.
 
 ```bash
 sudo tee /etc/ssh/sshd_config.d/10-homelab.conf >/dev/null <<'SSHD'
@@ -316,11 +321,13 @@ X11Forwarding no
 AllowUsers atreus
 SSHD
 sudo chmod 644 /etc/ssh/sshd_config.d/10-homelab.conf
+sudo rm -f /etc/ssh/sshd_config.d/50-cloud-init.conf
 sudo sshd -t && sudo systemctl reload ssh
 sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding|allowusers) '
 ```
 
-All five must read `no`, apart from `allowusers atreus`. **Keep the session
+All five must read `no`, apart from `allowusers atreus`, and
+`ls /etc/ssh/sshd_config.d/` must list only `10-homelab.conf`. **Keep the session
 you ran this from open**, and log in from a second terminal before you close
 it. If that login fails, VM 190's console in the Proxmox web UI is the way
 back in. The VM has no serial port, so `qm terminal 190` is not.

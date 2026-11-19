@@ -260,7 +260,11 @@ groups:
       # healthiest. Two ways to stop, so two branches:
       #
       # - The series vanished: Alloy or the textfile directory went. Stopped,
-      #   not missing, so a guest without the timer is not an alert.
+      #   not missing, so a guest without the timer is not an alert. Fourteen
+      #   days of memory, not one, inside this Prometheus's 15d retention: with
+      #   [1d] the alert cleared itself about 30h after the last sample, with
+      #   nothing recovered (review of ApplianceStateStopped, #1580). A guest
+      #   retired on purpose fires for two weeks; silence it when it goes.
       # - The file stopped being rewritten. A collector that dies leaves
       #   apt-patch-state.prom in place and Alloy re-serves its last values on
       #   every scrape, so the series never goes absent and the first branch
@@ -271,7 +275,7 @@ groups:
       - alert: PatchStateStopped
         expr: >-
           (
-            count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
             unless
             count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
           )
