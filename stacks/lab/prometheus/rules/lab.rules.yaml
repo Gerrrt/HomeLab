@@ -275,12 +275,34 @@ groups:
       #   daily timer, covers one missed run and its jitter. The mtime series
       #   carries `instance`, not `host`, so label_replace copies one into the
       #   other. Raised in review on #1544.
+      #
+      # ON-DEMAND GUESTS ARE LEFT OUT WHILE THEY ARE OFF, which is ADR-0079's
+      # decision for HypervisorGuestStopped brought to this rule. `eden` is off
+      # between sessions, and an off guest pushes nothing, so without this the
+      # first branch fires six hours after every session ends. The lab cannot
+      # read Saruman's `on-demand` tag, so the guests are named here, as
+      # `role="endpoint"` names the domain's in prometheus.yaml: add a Linux
+      # guest here when it gets the tag and the collector. "Off" is "none of
+      # its node metrics have arrived in an hour", read from
+      # node_boot_time_seconds, which every guest's Alloy pushes; a window, not
+      # an instant, so a late push does not count as a shutdown, and an hour
+      # is well inside the six hours the branch waits anyway. While the guest is up it is treated like any
+      # other, so a dead collector on a running `eden` still fires. Only the
+      # first branch needs this: an off guest's mtime series goes with it, and
+      # at boot Persistent=true collects within the timer's 15 minutes of jitter,
+      # inside `for: 30m`.
       - alert: PatchStateStopped
         expr: >-
           (
             count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
             unless
             count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+            unless on (host)
+            (
+              count by (host) (present_over_time(homelab_apt_upgrades_pending{host=~"eden"}[14d] offset 6h))
+              unless
+              count by (host) (present_over_time(node_boot_time_seconds{host=~"eden"}[1h]))
+            )
           )
           or
           count by (host) (
