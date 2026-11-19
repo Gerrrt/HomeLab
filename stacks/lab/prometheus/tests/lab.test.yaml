@@ -929,9 +929,11 @@ tests:
         alertname: PatchStateStopped
         exp_alerts: []
 
-  # --- ApplianceCheckFailed: fires for a check that stays failed -------------
-  # The keys check passing, then a key added at 2h and still there at 4h. The
-  # sshd check beside it keeps passing, so the alert names only the one.
+  # --- ApplianceCheckFailed: fires on two failed runs, not before 75m ------
+  # The keys check passing to 2h, then a key added: 0 from 2h05m, through the
+  # next run and beyond. The sshd check beside it keeps passing, so the alert
+  # names only the one. At 3h15m the 0 has held 70m, inside the 75m `for`;
+  # at 3h25m it has held 80m and fires. Review on #1580 asked for the boundary.
   - interval: 5m
     input_series:
       - series: 'homelab_appliance_check{host="fenrir",check="keys"}'
@@ -939,7 +941,10 @@ tests:
       - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
         values: "1x54"
     alert_rule_test:
-      - eval_time: 4h
+      - eval_time: 3h15m
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
+      - eval_time: 3h25m
         alertname: ApplianceCheckFailed
         exp_alerts:
           - exp_labels:
@@ -951,32 +956,53 @@ tests:
             exp_annotations:
               summary: "fenrir is no longer the appliance its runbook leaves: keys"
               description: >-
-                The `keys` check has failed for an hour. Read
+                The `keys` check has failed on two hourly runs. Read
                 `journalctl -u homelab-appliance-state -n 20` on the guest, then
                 put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
                 leave it. If the change was meant, change the runbook and
                 scripts/collect-appliance-state.sh in one PR.
 
-  # --- ApplianceCheckFailed: quiet for one bad run put right -----------------
-  # A single hourly run that read 0 (twelve five-minute steps), then 1 again:
-  # shorter than the hour's `for`.
+  # --- ApplianceCheckFailed: quiet for one bad run at its longest ------------
+  # One failed run exported for 65m, the hour plus the next run's jitter, then
+  # put right. Quiet at its last 0 (3h10m) and after.
   - interval: 5m
     input_series:
       - series: 'homelab_appliance_check{host="fenrir",check="listeners"}'
-        values: "1x24 0x10 1x20"
+        values: "1x24 0x13 1x20"
     alert_rule_test:
+      - eval_time: 3h10m
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
       - eval_time: 4h
         alertname: ApplianceCheckFailed
         exp_alerts: []
 
-  # --- ApplianceStateStopped: fires for a guest whose collector died ---------
-  # A day of checks, then a real gap.
+  # --- ApplianceStateStopped: fires for a collector that died, and stays ----
+  # A day of checks, then a real gap. It fires at 30h, and still fires at 52h,
+  # past the ~27h after which a "was it reporting a day ago" form goes quiet
+  # with nothing recovered (review on #1580).
   - interval: 5m
     input_series:
       - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
-        values: "1x288 _x96"
+        values: "1x288 _x400"
     alert_rule_test:
       - eval_time: 30h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+      - eval_time: 52h
         alertname: ApplianceStateStopped
         exp_alerts:
           - exp_labels:

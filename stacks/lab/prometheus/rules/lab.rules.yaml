@@ -599,13 +599,16 @@ groups:
       # drift by accident, not a guest someone has taken.
       # -----------------------------------------------------------------------
 
-      # A check has read 0 for an hour: at least two hourly runs agree. The
-      # label names the check, and `journalctl -u homelab-appliance-state` on
-      # fenrir names what failed; the value of what was found never leaves the
-      # guest.
+      # A check has read 0 across two hourly runs. One bad run stays exported
+      # until the next replaces it: an hour, up to 5m more from each run's
+      # RandomizedDelaySec, and a scrape, so about 67m at most. Two bad runs
+      # read 0 for at least 110m. 75m sits between, so a run that failed once
+      # and was put right does not fire (review on #1580: 1h did). The label
+      # names the check, and `journalctl -u homelab-appliance-state` on fenrir
+      # names what failed; the value of what was found never leaves the guest.
       - alert: ApplianceCheckFailed
         expr: homelab_appliance_check == 0
-        for: 1h
+        for: 75m
         labels:
           component: sensor
           severity: warning
@@ -613,24 +616,27 @@ groups:
         annotations:
           summary: "{{ $labels.host }} is no longer the appliance its runbook leaves: {{ $labels.check }}"
           description: >-
-            The `{{ $labels.check }}` check has failed for an hour. Read
+            The `{{ $labels.check }}` check has failed on two hourly runs. Read
             `journalctl -u homelab-appliance-state -n 20` on the guest, then
             put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
             leave it. If the change was meant, change the runbook and
             scripts/collect-appliance-state.sh in one PR.
 
       # The checks have stopped reporting, which reads exactly like a guest
-      # that passes them all. Two branches, as PatchStateStopped's: the series
-      # vanished, or the file stopped being rewritten while Alloy keeps
-      # serving its last values. Three hours is two missed hourly runs and
-      # their jitter.
+      # that passes them all. Two branches: the series is gone, or the file
+      # stopped being rewritten while Alloy keeps serving its last values.
+      # Three hours is two missed hourly runs and their jitter.
+      #
+      # The first branch names fenrir rather than asking "was it reporting a
+      # day ago", as PatchStateStopped does. That form clears itself about 27h
+      # after the series goes, once the last sample leaves its window, and if
+      # Alloy stopped too the mtime branch has nothing to read either (review
+      # on #1580). This collector belongs on fenrir and nowhere else, so its
+      # absence there is the condition, for as long as it lasts. A rebuilt
+      # fenrir that never had the installer run fires it too, which is right.
       - alert: ApplianceStateStopped
         expr: >-
-          (
-            count by (host) (present_over_time(homelab_appliance_check[1d] offset 3h))
-            unless
-            count by (host) (present_over_time(homelab_appliance_check[3h]))
-          )
+          absent_over_time(homelab_appliance_check{host="fenrir"}[3h])
           or
           count by (host) (
             label_replace(

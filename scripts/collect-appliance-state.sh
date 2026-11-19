@@ -63,8 +63,28 @@ ALLOWED_GROUPS="atreus adm cdrom sudo dip plugdev users docker"
 # The two that snapd needs to exist at all. `hwctl` came with 26.04 and was
 # removed (#1576); any other snap is one somebody installed.
 ALLOWED_SNAPS="core24 snapd"
-# Ubuntu's own deb822 file, curtin's copy of it, and Docker's (§4).
+# Ubuntu's own deb822 file, curtin's copy of it, and Docker's (§4). apt reads
+# only *.list and *.sources, so curtin's .orig is a file and not a source.
 ALLOWED_APT_SOURCES="docker.list ubuntu.sources ubuntu.sources.curtin.orig"
+# What those files may point at, trailing slash dropped. A filename says
+# nothing about its contents: a third-party repository added inside
+# ubuntu.sources would pass a filename check (review on #1580).
+ALLOWED_APT_URIS="http://us.archive.ubuntu.com/ubuntu http://archive.ubuntu.com/ubuntu"
+ALLOWED_APT_URIS+=" http://security.ubuntu.com/ubuntu https://download.docker.com/linux/ubuntu"
+# /etc/systemd/user as 26.04 ships it, measured on fenrir 2026-11-19: the
+# distribution's enabled user units, which start in any login session. A unit
+# put here, or in ~/.config or ~/.local/share/systemd/user, runs in every
+# session without linger (review on #1580).
+ALLOWED_ETC_USER_UNITS="graphical-session-pre.target.wants
+graphical-session-pre.target.wants/xdg-user-dirs.service sockets.target.wants
+sockets.target.wants/dirmngr.socket sockets.target.wants/gpg-agent-browser.socket
+sockets.target.wants/gpg-agent-extra.socket sockets.target.wants/gpg-agent.socket
+sockets.target.wants/gpg-agent-ssh.socket sockets.target.wants/keyboxd.socket
+sockets.target.wants/pk-debconf-helper.socket sockets.target.wants/snapd.session-agent.socket
+sockets.target.wants/ssh-agent.socket timers.target.wants
+timers.target.wants/launchpadlib-cache-clean.timer"
+# subset_ok splits on spaces; awk -v refuses a newline (listeners_ok says so).
+ALLOWED_ETC_USER_UNITS="${ALLOWED_ETC_USER_UNITS//$'\n'/ }"
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -105,6 +125,43 @@ subset_ok() {
     BEGIN { n = split(allowed, a, " "); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
     { for (i = 1; i <= NF; i++) if (!($i in ok)) bad = 1 }
     END { exit bad ? 1 : 0 }
+  '
+}
+
+# Whether file $1 has no line matching $2. Absent is a pass. A path that is
+# there but is not a readable regular file is a fail, and so is any grep status
+# but 1 (no match): grep's 2 is a read error, and a read error proves nothing
+# (review on #1580, which found `! grep ... 2>/dev/null` passing on one).
+no_line_ok() {
+  local file="$1" pattern="$2" rc=0
+  [[ -e "${file}" || -L "${file}" ]] || return 0
+  [[ -f "${file}" && -r "${file}" ]] || return 1
+  grep -qE "${pattern}" "${file}" || rc=$?
+  ((rc == 1))
+}
+
+# A key line in authorized_keys: anything but a comment or a blank, indented
+# or not. sshd skips leading whitespace, so an indented key is a key.
+KEY_LINE='^[[:space:]]*[^#[:space:]]'
+# An active source line in a one-line-style file, indented or not.
+DEB_LINE='^[[:space:]]*deb(-src)?[[:space:]]'
+
+# Active apt source lines on stdin, from .list files and deb822 .sources alike:
+# every URI must be one ALLOWED_APT_URIS names. A `deb [opts] URI suite` line
+# carries it after the bracketed options; a deb822 stanza in `URIs:`, which may
+# list several. No URI at all fails: this guest installs from at least two.
+apt_uris_ok() {
+  awk -v allowed="${ALLOWED_APT_URIS}" '
+    BEGIN { n = split(allowed, a, " "); for (i = 1; i <= n; i++) ok[a[i]] = 1 }
+    function check(u) { sub(/\/+$/, "", u); seen++; if (!(u in ok)) bad = 1 }
+    /^[[:space:]]*#/ { next }
+    $1 == "deb" || $1 == "deb-src" {
+      i = 2
+      if ($i ~ /^\[/) { while ($i !~ /\]$/ && i < NF) i++; i++ }
+      check($i)
+    }
+    tolower($1) == "uris:" { for (i = 2; i <= NF; i++) check($i) }
+    END { exit (seen && !bad) ? 0 : 1 }
   '
 }
 
@@ -208,6 +265,47 @@ ubuntu.sources.curtin.orig" subset_ok "${ALLOWED_APT_SOURCES}"
 docker.list
 ubuntu.sources" subset_ok "${ALLOWED_APT_SOURCES}"
 
+  # root's keys, through no_line_ok (review on #1580).
+  printf '# no keys here\n\n' > "${tmp}/root_comments"
+  printf '  ssh-ed25519 AAAA indented\n' > "${tmp}/root_indented"
+  mkdir "${tmp}/root_dir"
+  expect "root keys: no file passes" 0 no_line_ok "${tmp}/root_absent" "${KEY_LINE}"
+  expect "root keys: comments and blanks pass" 0 no_line_ok "${tmp}/root_comments" "${KEY_LINE}"
+  expect "root keys: an indented key fails" 1 no_line_ok "${tmp}/root_indented" "${KEY_LINE}"
+  # A directory where the file should be: grep exits 2 on it, and a read error
+  # is not "no key".
+  expect "root keys: a path that is not a regular file fails" 1 no_line_ok "${tmp}/root_dir" "${KEY_LINE}"
+
+  # What fenrir's two source files held on 2026-11-19, concatenated as c_apt does.
+  APT_GOOD="deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu resolute stable
+Types: deb
+URIs: http://us.archive.ubuntu.com/ubuntu/
+Suites: resolute resolute-updates resolute-backports
+Components: main restricted universe multiverse
+
+Types: deb
+URIs: http://security.ubuntu.com/ubuntu/
+Suites: resolute-security"
+  expect "apt: the measured origins pass" 0 feed "${APT_GOOD}" apt_uris_ok
+  expect "apt: a third-party origin inside ubuntu.sources fails" 1 feed "${APT_GOOD}
+
+Types: deb
+URIs: https://downloads.1password.com/linux/debian/amd64
+Suites: stable" apt_uris_ok
+  expect "apt: a second URI on an allowed URIs: line fails" 1 feed "${APT_GOOD/URIs: http:\/\/security.ubuntu.com\/ubuntu\//URIs: http://security.ubuntu.com/ubuntu/ https://repo.charm.sh/apt/}" apt_uris_ok
+  expect "apt: a .list line without options fails for its origin" 1 feed "${APT_GOOD}
+deb https://cli.github.com/packages stable main" apt_uris_ok
+  expect "apt: a commented-out origin passes" 0 feed "${APT_GOOD}
+# deb https://cli.github.com/packages stable main" apt_uris_ok
+  expect "apt: no source at all fails" 1 feed "" apt_uris_ok
+
+  ETC_USER_GOOD="$(printf '%s\n' "${ALLOWED_ETC_USER_UNITS}" | tr ' ' '\n')"
+  expect "user units: /etc/systemd/user as 26.04 ships it passes" 0 feed "${ETC_USER_GOOD}" subset_ok "${ALLOWED_ETC_USER_UNITS}"
+  expect "user units: a unit enabled in /etc/systemd/user fails" 1 feed "${ETC_USER_GOOD}
+default.target.wants/mcp-server.service" subset_ok "${ALLOWED_ETC_USER_UNITS}"
+  expect "user units: a unit dropped in /etc/systemd/user fails" 1 feed "${ETC_USER_GOOD}
+mcp-server.service" subset_ok "${ALLOWED_ETC_USER_UNITS}"
+
   PASSWD_GOOD="root:x:0:0:root:/root:/bin/bash
 nobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin
 atreus:x:1000:1000:atreus:/home/atreus:/bin/bash"
@@ -266,8 +364,8 @@ home="$(getent passwd "${USER_NAME}" | cut -d: -f6)"
 c_sshd()     { sshd -T 2>/dev/null | sshd_ok; }
 c_keys()     { [[ -r "${home}/.ssh/authorized_keys" ]] \
                  && ssh-keygen -lf "${home}/.ssh/authorized_keys" 2>/dev/null | keys_ok "${KEYS_FILE}"; }
-# root has no key at all: no file, or a file with no key line in it.
-c_root_keys() { ! grep -qE '^[^#[:space:]]' /root/.ssh/authorized_keys 2>/dev/null; }
+# root has no key at all: no file, or a readable file with no key line in it.
+c_root_keys() { no_line_ok /root/.ssh/authorized_keys "${KEY_LINE}"; }
 # The distribution's sudoers.d holds a README and nothing else (#1574).
 c_sudoers()  { [[ "$(find /etc/sudoers.d -mindepth 1 -printf '%f\n' 2>/dev/null)" == README ]]; }
 c_users()    { getent passwd | users_ok; }
@@ -275,15 +373,32 @@ c_users()    { getent passwd | users_ok; }
 # reports the groups a process started with, and a session that began before a
 # `gpasswd -d` still lists the group it left.
 c_groups()   { id -nG "${USER_NAME}" 2>/dev/null | subset_ok "${ALLOWED_GROUPS}"; }
-# No user units, and no lingering, so nothing of the user's runs logged out.
-c_user_units() { [[ -z "$(find "${home}/.config/systemd/user" -mindepth 1 -print -quit 2>/dev/null)" ]] \
-                   && [[ ! -e "/var/lib/systemd/linger/${USER_NAME}" ]]; }
+# No user units beyond the distribution's, in any of the three places systemd
+# loads them from, and no lingering, so nothing of the user's runs logged out.
+# The two in $HOME must be empty or absent; /etc/systemd/user must hold only
+# what 26.04 ships.
+empty_or_absent() { [[ ! -e "$1" ]] || { [[ -d "$1" && -r "$1" ]] \
+                      && [[ -z "$(find "$1" -mindepth 1 -print -quit 2>/dev/null)" ]]; }; }
+c_user_units() { empty_or_absent "${home}/.config/systemd/user" \
+                   && empty_or_absent "${home}/.local/share/systemd/user" \
+                   && [[ ! -e "/var/lib/systemd/linger/${USER_NAME}" ]] \
+                   && { [[ ! -e /etc/systemd/user ]] \
+                        || { local etc; etc="$(find /etc/systemd/user -mindepth 1 -printf '%P\n')" \
+                             && printf '%s\n' "${etc}" | subset_ok "${ALLOWED_ETC_USER_UNITS}"; }; }; }
 c_snaps()    { local s; s="$(snap list 2>/dev/null | awk 'NR > 1 { print $1 }')" && [[ -n "${s}" ]] \
                  && printf '%s\n' "${s}" | subset_ok "${ALLOWED_SNAPS}"; }
-# sources.list itself carries no active line on 26.04; deb822 files hold them.
-c_apt()      { ! grep -qE '^[[:space:]]*deb' /etc/apt/sources.list 2>/dev/null \
+# Two halves. The files in sources.list.d are the ones the runbook leaves, and
+# every URI apt would read, from sources.list and each *.list and *.sources, is
+# an allowed one. sources.list itself carries no active line on 26.04.
+c_apt()      { no_line_ok /etc/apt/sources.list "${DEB_LINE}" \
                  && find /etc/apt/sources.list.d -mindepth 1 -printf '%f\n' 2>/dev/null \
-                    | subset_ok "${ALLOWED_APT_SOURCES}"; }
+                    | subset_ok "${ALLOWED_APT_SOURCES}" \
+                 && { local f files=(); for f in /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+                        [[ -e "${f}" ]] || continue
+                        [[ -f "${f}" && -r "${f}" ]] || return 1
+                        files+=("${f}")
+                      done
+                      ((${#files[@]})) && cat "${files[@]}" | apt_uris_ok; }; }
 c_listeners() { ss -H -lntu 2>/dev/null | listeners_ok; }
 c_home()     { local mb; mb="$(du -sm "${home}" 2>/dev/null | cut -f1)" \
                  && [[ "${mb}" =~ ^[0-9]+$ ]] && ((mb <= HOME_MAX_MB)); }

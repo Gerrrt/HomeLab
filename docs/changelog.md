@@ -25,7 +25,8 @@ docstring gives: it is a record, not a claim about now.
   `homelab-appliance-state` reads, as root, what `build-the-sensor-guest.md`
   leaves, and writes one 0-or-1 per check, eleven in all, to the lab's
   Prometheus. The lab's `ApplianceCheckFailed` names a check that has failed
-  for an hour, and `ApplianceStateStopped` covers a collector that stops.
+  on two hourly runs, and `ApplianceStateStopped` covers a collector that
+  stops, for as long as it stays stopped.
   - **Measured first.** The allowlists are what `fenrir` held on the day:
     `sshd` and resolved and chrony on loopback, the sensor's Alloy on
     `127.0.0.1:12345`, `core24` and `snapd`, and Docker's and Ubuntu's apt
@@ -78,7 +79,6 @@ docstring gives: it is a record, not a claim about now.
   battery. Previewed at 1920x1080 in a browser against stubbed answers,
   including on battery with an alert firing. Not yet run against the real
   Home Assistant.
-||||||| parent of 45d91cb2 (docs(changelog): record fenrir's appliance check and its proof)
 - **`fenrir` sheds the last of its audit's leftovers.** The audit of
   2026-11-13 listed, as its finding 10, `atreus` in `lxd` with no LXD
   installed, an idle `docker0` and the `hwctl` snap, and called them
