@@ -923,6 +923,52 @@ tests:
         alertname: PatchStateStopped
         exp_alerts: []
 
+  # --- PatchStateStopped: quiet for an on-demand guest that is off ----------
+  # ADR-0079 for this rule. `eden` reports for 20 hours, then is shut down:
+  # its patch state and its node metrics stop together. Quiet at 3d and 10d.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="eden"}'
+        values: "0x20 _x250"
+      - series: 'node_boot_time_seconds{host="eden"}'
+        values: "1x20 _x250"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts: []
+      - eval_time: 10d
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires for an on-demand guest that is up ------------
+  # The same `eden`, booted again on day 2 with its collector gone: node
+  # metrics arrive and patch state does not. That is a dead collector on a
+  # running guest, and it must fire like any other guest's.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="eden"}'
+        values: "0x20 _x250"
+      - series: 'node_boot_time_seconds{host="eden"}'
+        values: "1x20 _x28 2x220"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: eden
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "eden has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
   # --- PatchStateStopped: quiet for a guest that reports zero ----------------
   - interval: 5m
     input_series:

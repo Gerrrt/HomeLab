@@ -44,6 +44,19 @@ docstring gives: it is a record, not a claim about now.
     suspect. `WanReceiveErrors`' description now sends you to another XB7
     port first.
 
+- **`eden` reports its patch state again, and the lab's `PatchStateStopped`
+  leaves it out while it is off.** Redeploying the lab after #1585 put the
+  alert in pending for `eden`: it reported from 2026-11-08 until 23:04 UTC on
+  2026-11-12 and not since its rebuild the next morning. The old guest's timer
+  had been installed by hand, `build-the-bloodhound-guest.md` had no such
+  step, and the `[1d]` window had cleared the alert by 2026-11-14. §6 now
+  installs it, and it was installed on `eden`. `eden` is `on-demand` and off
+  between sessions, so the rule's vanished-series branch leaves it out while
+  none of its node metrics have arrived in an hour: ADR-0079's decision for
+  `HypervisorGuestStopped`, brought to the lab, which cannot read `Saruman`'s
+  tags and names the guest instead. Two promtool cases: an `eden` that is
+  shut down is quiet at 3 d and 10 d, and an `eden` that is running without
+  its collector fires.
 - **`PatchStateStopped` and `GuestStateStopped` now also fire for a
   collector that stops and leaves its file.** The entry below left this open:
   a stopped timer leaves its `.prom` file in the textfile directory,
