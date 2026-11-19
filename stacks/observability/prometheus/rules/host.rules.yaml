@@ -314,15 +314,33 @@ groups:
         # it when it goes. The cost is a 14d range per host each evaluation,
         # one series per host, which this estate's handful of hosts can carry.
         #
-        # WHAT THIS DOES NOT SEE: a timer that stops but leaves its file. The
-        # file stays in the textfile directory and is re-served on every
-        # scrape, so the series never goes absent. The lab's copy of this rule
-        # has a second branch on node_textfile_mtime_seconds for that; this
-        # one does not yet.
+        # TWO WAYS TO STOP, SO TWO BRANCHES. Everything above is the first:
+        # the series vanished, because Alloy or the textfile directory went.
+        # The second is a timer that stops and leaves its file. The file stays
+        # in the textfile directory and node_exporter re-serves its last
+        # values on every scrape, so the series never goes absent and the
+        # first branch cannot see it; only the file's mtime stops moving. Two
+        # days against the daily 08:00 timer, the window the lab's copy of
+        # this rule settled on (#1544), covers one missed run and its fifteen
+        # minutes of jitter and not two. The mtime series carries `instance`,
+        # which Alloy sets to the same hostname the collector writes into
+        # `host`, so label_replace copies one into the other and both branches
+        # alert under one label set. A host that is down loses its mtime
+        # series with everything else, so this branch stays quiet and
+        # InstanceDown speaks.
         expr: >-
-          count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
-          unless
-          count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+          (
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
+            unless
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*apt-patch-state\\.prom"} > 2 * 86400,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
         for: 30m
         labels:
           component: host
@@ -331,9 +349,11 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting patch state"
           description: >-
-            It reported within the last two weeks and has not in six hours, so
-            SecurityUpdatesPending and RebootRequired are both blind to this host
-            until it comes back. Check homelab-patch-state.timer on the host —
+            Either its patch state reported within the last two weeks and has
+            not in six hours, or apt-patch-state.prom has not been rewritten in
+            two days, so SecurityUpdatesPending and RebootRequired are reading
+            no data or stale data for this host until the collector runs again.
+            Check homelab-patch-state.timer on the host —
             `systemctl status homelab-patch-state.timer` — and that
             /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
             being written and is world-readable. A 0600 file is invisible to the
@@ -1019,13 +1039,28 @@ groups:
         # Stopped, not missing: a hypervisor that never had the collector
         # installed must stay quiet, or every host without it alerts forever.
         # Fourteen days of memory, for PatchStateStopped's reason: with [1d]
-        # the alert cleared itself about 30h after the series went. Like
-        # PatchStateStopped it sees the series vanish, not a timer that stops
-        # and leaves guest-state.prom in place.
+        # the alert cleared itself about 30h after the series went.
+        #
+        # And PatchStateStopped's second branch, for a timer that stops and
+        # leaves guest-state.prom in place to be re-served. An hour, not two
+        # days: this timer runs every ten minutes, so an hour is six missed
+        # runs, which a reboot does not reach — ThinPoolStateStale's and
+        # GuestDiskStateStale's window for their ten-minute timers. It is also
+        # HypervisorGuestStopped's own hour, so a frozen file is caught no
+        # later than the guest it hides would have been.
         expr: >-
-          count by (host) (present_over_time(homelab_guests_total[14d] offset 6h))
-          unless
-          count by (host) (present_over_time(homelab_guests_total[6h]))
+          (
+            count by (host) (present_over_time(homelab_guests_total[14d] offset 6h))
+            unless
+            count by (host) (present_over_time(homelab_guests_total[6h]))
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*guest-state\\.prom"} > 3600,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
         for: 30m
         labels:
           component: host
@@ -1034,9 +1069,12 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting its guests"
           description: >-
-            It reported within the last two weeks and has not in six hours, so
-            HypervisorGuestStopped is blind to this hypervisor until it comes
-            back. Check homelab-guest-state.timer on the host and that
+            Either its guests reported within the last two weeks and have not
+            in six hours, or guest-state.prom has not been rewritten in an
+            hour, so HypervisorGuestStopped is reading no data or stale data
+            for this hypervisor until the collector runs again. Check
+            homelab-guest-state.timer on the host, its last run in the journal
+            (`journalctl -u homelab-guest-state`), and that
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
 
