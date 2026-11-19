@@ -52,7 +52,7 @@ template:
                 {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
               {% endif %}
             {% endfor %}
-            {{ ns.items[:4] }}
+            {{ ns.items }}
           wall_ready_names: >-
             {% set ns = namespace(items=[]) %}
             {% for p in wall_packages %}
@@ -60,7 +60,7 @@ template:
                 {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
               {% endif %}
             {% endfor %}
-            {{ ns.items[:4] }}
+            {{ ns.items }}
           wall_undelivered: >-
             {% set ns = namespace(items=[]) %}
             {% for p in wall_packages %}
@@ -68,7 +68,7 @@ template:
                 {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
               {% endif %}
             {% endfor %}
-            {{ ns.items[:4] }}
+            {{ ns.items }}
           wall_in_transit: >-
             {% set ns = namespace(n=0) %}
             {% for p in wall_packages %}
@@ -82,8 +82,12 @@ template:
         availability: "{{ wall_ok }}"
         # How many packages want someone to go and get them.
         state: "{{ wall_delivered | count + wall_ready_names | count + wall_undelivered | count }}"
+        # The labels, at most four of each; the counts, all of them.
         attributes:
-          delivered_today: "{{ wall_delivered }}"
-          ready_for_pickup: "{{ wall_ready_names }}"
-          undelivered: "{{ wall_undelivered }}"
+          delivered_today: "{{ wall_delivered[:4] }}"
+          delivered_today_count: "{{ wall_delivered | count }}"
+          ready_for_pickup: "{{ wall_ready_names[:4] }}"
+          ready_for_pickup_count: "{{ wall_ready_names | count }}"
+          undelivered: "{{ wall_undelivered[:4] }}"
+          undelivered_count: "{{ wall_undelivered | count }}"
           in_transit: "{{ wall_in_transit }}"

@@ -26,8 +26,9 @@ docstring gives: it is a record, not a claim about now.
     three hours whose location looks like a place, through
     `waze_travel_time.get_travel_times`. It shows from an hour before it is
     time to leave, with five minutes to get out of the door. There is no fixed
-    commute, so the calendar is the destination. This is the first time the
-    wall sends anything out of the house: that one location, to Waze.
+    commute, so the calendar is the destination: only calendars labelled
+    `wall_commute`, and none until one is. This is the first time the wall
+    sends anything out of the house: that one location, to Waze.
   - `wall_shabbat.yaml`: candles, havdalah, parsha and Hebrew date from the
     Jewish Calendar integration, from six hours before candle lighting.
   - `wall_trash.yaml`: the next pickup from three helpers, from 16:00 the

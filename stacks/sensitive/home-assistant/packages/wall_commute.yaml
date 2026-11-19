@@ -5,18 +5,24 @@
 # starts.
 #
 # The household has no fixed commute, so the destination is the calendar's:
-# the next timed event in sensor.wall_today (wall_calendar.yaml) that starts
-# within three hours and whose location looks like a place, with a digit or a
-# comma in it. "Teams", "Zoom" or a meeting link are not driven to, and are
-# skipped. Waze is asked only while there is such an event, every five
-# minutes, through `waze_travel_time.get_travel_times` with live traffic.
-# That action is loaded by the core `waze_travel_time` integration, which has
-# to be added once in the UI (its own sensor's polling can be switched off;
-# this does not read it).
+# the next timed event that starts within three hours and whose location looks
+# like a place, with a digit or a comma in it. "Teams", "Zoom" or a meeting
+# link are not driven to, and are skipped. Waze is asked only while there is
+# such an event, every five minutes, through
+# `waze_travel_time.get_travel_times` with live traffic. That action is loaded
+# by the core `waze_travel_time` integration, which has to be added once in the
+# UI (its own sensor's polling can be switched off; this does not read it).
 #
-# What leaves the house: the event's location, sent to Waze to be routed from
-# the home zone. The wall already shows it; this sends it out. A calendar that
-# should not be routed is left out of the `wall_calendar` label.
+# Which calendars: only those labelled `wall_commute` in the UI, and none when
+# none is. This is its own label, not the wall's `wall_calendar`, because the
+# wall falls back to every calendar when none is labelled, and sending a
+# calendar's locations out of the house needs a choice, not a default. The
+# events are asked of `calendar.get_events` here, not read from
+# sensor.wall_today, so Waze gets the whole location rather than the wall's
+# shortened one.
+#
+# What leaves the house: that event's location, sent to Waze to be routed from
+# the home zone. Nothing from a calendar without the label.
 #
 # The state is the minutes of the quickest route, or `none` when there is
 # nothing to drive to or Waze did not answer, which hides the card.
@@ -31,19 +37,40 @@ template:
         event_type: event_template_reloaded
     actions:
       - variables:
+          wall_calendars: >-
+            {{ label_entities('wall_commute') | select('match', 'calendar\.') | sort | list }}
+      - if: "{{ wall_calendars | count > 0 }}"
+        then:
+          - action: calendar.get_events
+            target:
+              entity_id: "{{ wall_calendars }}"
+            data:
+              start_date_time: "{{ now() }}"
+              end_date_time: "{{ now() + timedelta(hours=3) }}"
+            response_variable: agenda
+            continue_on_error: true
+      - variables:
           wall_next: >-
             {% set ns = namespace(e=none) %}
-            {% for e in state_attr('sensor.wall_today', 'events') or [] %}
-              {% if ns.e is none and not e.all_day and e.location %}
-                {% set start = as_datetime(e.start) %}
-                {% set place = e.location | lower %}
-                {% if start > now() and start - now() <= timedelta(hours=3)
-                      and (place is search('[0-9]') or ',' in place)
-                      and not (place is search('https?:|teams|zoom|meet\.google|webex')) %}
-                  {% set ns.e = e %}
-                {% endif %}
-              {% endif %}
-            {% endfor %}
+            {% if agenda is defined and agenda is mapping %}
+              {% for cal in wall_calendars %}
+                {% for e in agenda.get(cal, {}).get('events', []) %}
+                  {% set place = (e.get('location') or '') | lower %}
+                  {% if 'T' in e.start and place
+                        and (place is search('[0-9]') or ',' in place)
+                        and not (place is search('https?:|teams|zoom|meet\.google|webex')) %}
+                    {% set start = as_datetime(e.start) %}
+                    {% if start > now() and (ns.e is none or start < as_datetime(ns.e.start)) %}
+                      {% set ns.e = {
+                           'title': (e.get('summary') or 'Busy')[:80],
+                           'start': as_local(start).isoformat(),
+                           'location': e.location,
+                         } %}
+                    {% endif %}
+                  {% endif %}
+                {% endfor %}
+              {% endfor %}
+            {% endif %}
             {{ ns.e if ns.e is not none else {} }}
       - if: "{{ wall_next.location is defined }}"
         then:

@@ -815,10 +815,11 @@ container of its own: Caddy serves `wall/` as static files.
   others that also apply are named on the card's last line. Each source is a
   `wall_*.yaml` package and stays unavailable, its card hidden, until what
   it reads is set up in HA's UI: the Waze Travel Time integration (origin
-  `Home`, region US, any destination, its polling off), the Jewish Calendar
+  `Home`, region US, any destination, its polling off) and the label
+  `wall_commute` on each calendar to route from, the Jewish Calendar
   integration, a to-do list labelled `wall_todo`, the trash helpers'
   pickup day, and the 17TRACK integration with the household's account. The
-  commute card sends the next event's location to Waze. The UPS's mains or battery,
+  commute card sends the next labelled event's location to Waze. The UPS's mains or battery,
   charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
   sensor held both events, and with no calendar it read unavailable, which

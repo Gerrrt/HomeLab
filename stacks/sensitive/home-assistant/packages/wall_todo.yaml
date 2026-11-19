@@ -47,13 +47,17 @@ template:
                 {% endfor %}
               {% endfor %}
             {% endif %}
-            {{ ns.items[:12] }}
+            {{ ns.items }}
     sensor:
       - name: Wall to-do
         unique_id: wall_todo
+        # The name alone would make sensor.wall_to_do; the wall's Caddy handle
+        # reads sensor.wall_todo.
+        default_entity_id: sensor.wall_todo
         icon: mdi:checkbox-marked-outline
         availability: "{{ wall_ok }}"
-        # How many items are open, so the history graph means something.
+        # How many items are open, all of them, so the history graph means
+        # something and the wall's "+N more" counts the ones not sent.
         state: "{{ wall_items | count }}"
         attributes:
-          items: "{{ wall_items }}"
+          items: "{{ wall_items[:12] }}"

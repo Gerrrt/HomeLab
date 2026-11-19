@@ -1167,8 +1167,9 @@ from Home Assistant with *not enough permissions*.
   nor are tracking numbers. One thing leaves the house for the wall: the
   location of the next event with an address, which
   `home-assistant/packages/wall_commute.yaml` sends to Waze to be routed from
-  the home zone. A calendar that should not be routed is left out of the
-  `wall_calendar` label.
+  the home zone. It reads only the calendars labelled `wall_commute`, and none
+  when no calendar carries that label, so a calendar is routed only once
+  someone chooses it.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence

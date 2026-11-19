@@ -675,11 +675,18 @@
   function renderDeliveries(box) {
     const a = attrs("deliveries");
     const lines = [
-      ["Delivered", a.delivered_today], ["Ready for pickup", a.ready_for_pickup], ["Not delivered", a.undelivered],
-    ].filter(([, l]) => Array.isArray(l) && l.length);
-    const [first, list] = lines[0];
-    hero(box, `${list.length} ${first.toLowerCase()}`, first === "Not delivered" ? "warn" : "");
-    for (const [label, l] of lines) sub(box, `${label} · ${l.map(String).join(", ")}`);
+      ["Delivered", "delivered_today"], ["Ready for pickup", "ready_for_pickup"], ["Not delivered", "undelivered"],
+    ].map(([label, key]) => {
+      const names = Array.isArray(a[key]) ? a[key].map(String) : [];
+      return [label, names, Math.max(Number(a[`${key}_count`]) || 0, names.length)];
+    }).filter(([, , n]) => n > 0);
+    if (!lines.length) return;
+    const [first, , count] = lines[0];
+    hero(box, `${count} ${first.toLowerCase()}`, first === "Not delivered" ? "warn" : "");
+    for (const [label, names, n] of lines) {
+      const rest = n - names.length;
+      sub(box, `${label} · ${names.join(", ")}${rest > 0 ? ` +${rest} more` : ""}`);
+    }
     if (Number(a.in_transit) > 0) sub(box, `${a.in_transit} on the way`);
   }
 
@@ -694,7 +701,8 @@
       list.append(row);
     }
     box.append(list);
-    fitList(list, "todo-item");
+    // The sensor sends at most twelve; its state counts all of them.
+    fitList(list, "todo-item", Math.max(0, (Number(states.todo.state) || 0) - items.length));
   }
 
   const CONTEXT = [
