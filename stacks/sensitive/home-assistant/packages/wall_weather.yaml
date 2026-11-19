@@ -1,0 +1,86 @@
+---
+# Today's high and low, the next rain, and the next sunrise or sunset, as one
+# sensor the office wall can read (ADR-0119).
+#
+# The weather entity's own state is the present only: since HA 2024.4 its
+# forecast is not an attribute but the answer to `weather.get_forecasts`, which
+# a fixed `GET /api/states/<entity>` handle cannot ask. So this asks every
+# fifteen minutes and keeps the answer in `sensor.wall_weather`, which the wall
+# reads at `/api/ha/forecast`. The header's temperature and condition still
+# come from the weather entity itself, at `/api/ha/weather`.
+#
+# Which weather entity: `weather.forecast_home`, the home zone's forecast
+# (the Met.no default), the same one the Caddyfile already reads. It names no
+# place. Sunrise and sunset come from `sun.sun`, also at the home zone.
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /15
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    actions:
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.forecast_home
+        data:
+          type: daily
+        response_variable: daily
+        continue_on_error: true
+      - action: weather.get_forecasts
+        target:
+          entity_id: weather.forecast_home
+        data:
+          type: hourly
+        response_variable: hourly
+        continue_on_error: true
+      - variables:
+          wall_days: >-
+            {{ daily['weather.forecast_home'].forecast
+               if daily is defined and daily is mapping
+                  and 'weather.forecast_home' in daily else [] }}
+          wall_hours: >-
+            {{ hourly['weather.forecast_home'].forecast
+               if hourly is defined and hourly is mapping
+                  and 'weather.forecast_home' in hourly else [] }}
+          # Today's entry, by local date. Late in the evening Met.no's first
+          # daily entry can already be tomorrow, and that is not today's high.
+          wall_day: >-
+            {% set today = now().date() %}
+            {% set ns = namespace(day=none) %}
+            {% for d in wall_days %}
+              {% if ns.day is none and as_local(as_datetime(d.datetime)).date() == today %}
+                {% set ns.day = d %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.day if ns.day is not none else {} }}
+          # The first of the next six hours with rain or snow in it.
+          wall_rain: >-
+            {% set wet = ['rainy', 'pouring', 'snowy', 'snowy-rainy', 'lightning-rainy', 'hail'] %}
+            {% set ns = namespace(at='') %}
+            {% for h in wall_hours[:6] %}
+              {% if not ns.at and (h.condition in wet or (h.precipitation or 0) >= 0.2) %}
+                {% set ns.at = as_local(as_datetime(h.datetime)).isoformat() %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.at }}
+    sensor:
+      - name: Wall weather
+        unique_id: wall_weather
+        icon: mdi:weather-partly-cloudy
+        # Available while either forecast answered, so a missing daily entry
+        # for today (late in the evening) costs only the high and low, not the
+        # rain and the sun. The state is today's high, or `none` when there is
+        # none: a word rather than HA's `unknown`, which the wall reads as no
+        # answer at all. So no unit, since the state is not always a number.
+        availability: "{{ wall_days | count > 0 or wall_hours | count > 0 }}"
+        state: "{{ wall_day.temperature if wall_day.temperature is defined else 'none' }}"
+        attributes:
+          high: "{{ wall_day.temperature | default(none) }}"
+          low: "{{ wall_day.templow | default(none) }}"
+          # An ISO time when rain or snow is expected within six hours, or ''.
+          rain_at: "{{ wall_rain }}"
+          next_rising: "{{ state_attr('sun.sun', 'next_rising') }}"
+          next_setting: "{{ state_attr('sun.sun', 'next_setting') }}"

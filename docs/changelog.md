@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall gets a week, a countdown and a context card.** The first of
+  five steps that take the useful ideas from a denser mockup of the office
+  wall without shrinking its text below what reads from the chair.
+  `wall_calendar.yaml` now asks for seven days: today and tomorrow stay in
+  full, the rest of the week shows below them in grey while the box has
+  room, and the header counts down to the next timed event on a ring that
+  turns amber inside fifteen minutes. A new `wall_weather.yaml` gives the
+  header today's high and low, the next rain within six hours and the next
+  sunrise or sunset, at `/api/ha/forecast`. The Power card's cell becomes a
+  context card that shows one thing at a time by precedence, a Hebrew word
+  of the day until its other sources arrive; the UPS's mains or battery,
+  charge and runtime moved into `mjolnir`'s tile, which turns red on
+  battery. Previewed at 1920x1080 in a browser against stubbed answers,
+  including on battery with an alert firing. Not yet run against the real
+  Home Assistant.
 - **`fenrir` sheds the last of its audit's leftovers.** The audit of
   2026-11-13 listed, as its finding 10, `atreus` in `lxd` with no LXD
   installed, an idle `docker0` and the `hwctl` snap, and called them
