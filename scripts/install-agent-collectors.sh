@@ -56,7 +56,8 @@
 # failed on the one host it was meant for),
 # pve-firewall-state (#576),
 # iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
-# drift-check (#470), plus
+# drift-check (#470), appliance-state (#1577, fenrir only, for the same
+# reason as zeek-archive-prune below: its requirement is /srv/sensor-data), plus
 # two rows that collect nothing (below) and zeek-archive-prune (#850), a
 # scheduled job rather than a collector (above). Its requirement is the archive
 # directory, so like iso-store-state's it exists on exactly one host: fenrir.
@@ -133,6 +134,7 @@ COLLECTORS=(
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
   "prune-images scripts/prune-images.sh         -                      /usr/bin/docker"
   "zeek-archive-prune scripts/run-scheduled.sh zeek-archive-prune.prom /srv/sensor-data/zeek/archive"
+  "appliance-state scripts/collect-appliance-state.sh appliance-state.prom /srv/sensor-data"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'

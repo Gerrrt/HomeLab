@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`fenrir` checks hourly that it is still an appliance, the last of its
+  audit's next steps.** "`fenrir` sheds the last of its audit's leftovers",
+  below, left a drift check as the one step open. Now
+  `homelab-appliance-state` reads, as root, what `build-the-sensor-guest.md`
+  leaves, and writes one 0-or-1 per check, eleven in all, to the lab's
+  Prometheus. The lab's `ApplianceCheckFailed` names a check that has failed
+  on two hourly runs, and `ApplianceStateStopped` covers a collector that
+  stops, for as long as it stays stopped.
+  - **Measured first.** The allowlists are what `fenrir` held on the day:
+    `sshd` and resolved and chrony on loopback, the sensor's Alloy on
+    `127.0.0.1:12345`, `core24` and `snapd`, and Docker's and Ubuntu's apt
+    sources. Listeners are exact pairs, loopback included, because the tools
+    the audit found would most likely have listened on localhost only. The
+    allowed keys' fingerprints stay on the guest, in
+    `/etc/homelab/appliance-key-fingerprints`.
+  - **A trap found while measuring.** An SSH session to `fenrir` still listed
+    `atreus` in `lxd`, though `/etc/group` did not, because a process keeps
+    the groups it started with. The groups check reads `id -nG atreus`,
+    which asks the database.
+  - **Proven.** Installed with `install-agent-collectors --only
+    appliance-state`, the first run read 1 for all eleven. A throwaway key
+    appended to `authorized_keys` was read at the next hourly run as
+    `FAILED: keys`, and `keys` read 0 in the lab's Prometheus; the key was
+    then removed. The two rules load on `alexander` at the next
+    `make up STACK=lab`.
+  - **What it does not do.** Whoever has root on `fenrir` can make every
+    check read 1, and the lab's Prometheus pages no one (ADR-0020). It
+    catches drift by accident, the kind the audit found. Letting one bit of
+    it cross to the estate, as ADR-0088 lets a service's health cross, was
+    not decided here.
+
+  With this, every next step of `fenrir`'s audit of 2026-11-13 is done.
 - **The wall's Home row reads the thermostat and the Litter-Robot.** The
   second of the wall's five steps. The row gains the hallway thermostat's
   temperature and humidity, and "heating" or "cooling" while it is, read

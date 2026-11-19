@@ -449,6 +449,41 @@ It must end with `apt-patch-state.prom written, mode 644`. Until 2026-11-17
 this step was missing, and a libc6 upgrade waited four days for a reboot with
 nothing saying so.
 
+**Check that the guest stays an appliance** (#1577). `homelab-appliance-state`
+reads, hourly, what §0 and §3 leave: `sshd`'s settings, the authorized keys,
+root's keys, `sudoers.d`, the login accounts, `atreus`'s groups, user units and
+lingering, the snaps, the apt sources, what listens in the host's network
+namespace, and the size of `$HOME`. The lab's `ApplianceCheckFailed` names a
+check that fails. It catches drift by accident; whoever has root here can make
+it read clean, and the collector's header says so.
+
+The keys check needs to know which keys are allowed, and that list stays on the
+guest. After §3 has trimmed `authorized_keys` to the machines that administer
+the guest, record their fingerprints, on `fenrir`:
+
+```bash
+sudo install -d -m 0755 /etc/homelab
+ssh-keygen -lf ~/.ssh/authorized_keys | awk '{print $2}' \
+  | sudo tee /etc/homelab/appliance-key-fingerprints >/dev/null
+sudo chmod 0644 /etc/homelab/appliance-key-fingerprints
+```
+
+Then, from the checkout on Hicks:
+
+```bash
+make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only appliance-state'
+```
+
+It must end with `appliance-state.prom written, mode 644`, and every check must
+read 1:
+
+```bash
+cat /var/lib/node_exporter/textfile_collector/appliance-state.prom
+```
+
+A key added later is a change to that file in the same sitting, or the check
+fails within the hour, which is the point.
+
 **On a `fenrir` built before #850**, remove the cron line the timer replaces,
 so the two do not both prune:
 

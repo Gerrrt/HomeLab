@@ -1,0 +1,48 @@
+# Whether fenrir is still the appliance build-the-sensor-guest.md leaves (#1577).
+#
+# fenrir only: the installer's requirement for this row is /srv/sensor-data,
+# which no other host has. Like patch-state's unit, it calls the collector
+# directly, so there are no homelab_job_* metrics for it; the lab's
+# ApplianceStateStopped reads the file's age and the series' absence instead.
+#
+# RUNS AS ROOT, and needs it, unlike patch-state. `sshd -T` reads the host keys,
+# and the root_keys check reads /root/.ssh. Everything it does is a read; the one
+# write is the textfile directory.
+#
+# Two directives are looser than patch-state's, each for one check:
+# - ProtectHome=read-only, not true: the keys, user_units and home_size checks
+#   read atreus's home and the root_keys check reads root's.
+# - AF_NETLINK in RestrictAddressFamilies: `ss` asks the kernel for sockets over
+#   sock_diag netlink. Without it the listeners check reads nothing and fails,
+#   which is the safe direction but not the right answer. AF_UNIX is `snap
+#   list` talking to snapd.
+# No PrivateNetwork: the listeners check must see the host's namespace.
+#
+# The collector is installed at /usr/local/bin/homelab-collect-appliance-state
+# by scripts/install-agent-collectors.sh, which is also what installs this file.
+[Unit]
+Description=HomeLab: check fenrir against its appliance runbook
+Documentation=file:///home/atreus/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/homelab-collect-appliance-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-appliance-state

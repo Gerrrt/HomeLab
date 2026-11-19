@@ -112,6 +112,7 @@ for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
 | `homelab-zeek-archive-prune` | daily 03:17 | `fenrir` | Deletes Zeek archive files past their retention; `homelab_job_*` to the lab |
+| `homelab-appliance-state` | 5 min after boot, then hourly | `fenrir` | Whether the guest is still the appliance its runbook leaves: one 0-or-1 per check, to the lab ([#1577](https://github.com/Gerrrt/HomeLab/issues/1577)) |
 | `homelab-pbs-task-state` | hourly at :17 | `golem` | What PBS last did: each verify, prune and garbage-collection job's outcome, and the snapshots by verify state ([#485](https://github.com/Gerrrt/HomeLab/issues/485)) |
 
 ## Adding a timer
