@@ -405,6 +405,25 @@ Check each one now:
   there means the leaf lacks the `bloodhound` SAN. §7's `up{job="bloodhound"}`
   is the same answer from `alexander`.
 
+**Report patch state**, so a held security update or a pending reboot reaches
+someone while the guest runs. The lab's `SecurityUpdatesPending`,
+`RebootRequired` and `PatchStateStopped` read `apt-patch-state.prom`, and a
+guest without the timer is invisible to all three. Until 2026-11-19 this step
+was missing: the guest reported until its rebuild on 2026-11-13, from a timer
+put there by hand, and not after. `make up` has created the textfile
+directory. From the checkout on Hicks, logged in as `garnet`; the installer
+asks for its sudo password once:
+
+```bash
+make install-agent-collectors AGENT=garnet@10.0.30.41 ARGS='--only patch-state'
+```
+
+It must end with `apt-patch-state.prom written, mode 644`. The timer is
+`Persistent=true`, so a run missed while the guest was off happens at its next
+boot. `PatchStateStopped` names `eden` as on-demand and leaves it out while
+none of its node metrics arrive (ADR-0079's reasoning), so shutting it down is
+not an alert; a dead collector on a running `eden` still is.
+
 Then shut it down cleanly. That is what "off between sessions" means, and the
 first session should start from it:
 
