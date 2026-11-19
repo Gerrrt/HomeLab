@@ -264,7 +264,10 @@ groups:
       #   days of memory, not one, inside this Prometheus's 15d retention: with
       #   [1d] the alert cleared itself about 30h after the last sample, with
       #   nothing recovered (review of ApplianceStateStopped, #1580). A guest
-      #   retired on purpose fires for two weeks; silence it when it goes.
+      #   retired on purpose fires for two weeks. This stack has no
+      #   Alertmanager (ADR-0020), so there is nothing to silence: it shows in
+      #   this Prometheus's /alerts and in Grafana until it ages out, and is
+      #   expected there.
       # - The file stopped being rewritten. A collector that dies leaves
       #   apt-patch-state.prom in place and Alloy re-serves its last values on
       #   every scrape, so the series never goes absent and the first branch

@@ -313,6 +313,12 @@ groups:
         # again. A host retired on purpose fires for those two weeks; silence
         # it when it goes. The cost is a 14d range per host each evaluation,
         # one series per host, which this estate's handful of hosts can carry.
+        #
+        # WHAT THIS DOES NOT SEE: a timer that stops but leaves its file. The
+        # file stays in the textfile directory and is re-served on every
+        # scrape, so the series never goes absent. The lab's copy of this rule
+        # has a second branch on node_textfile_mtime_seconds for that; this
+        # one does not yet.
         expr: >-
           count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
           unless
@@ -1013,7 +1019,9 @@ groups:
         # Stopped, not missing: a hypervisor that never had the collector
         # installed must stay quiet, or every host without it alerts forever.
         # Fourteen days of memory, for PatchStateStopped's reason: with [1d]
-        # the alert cleared itself about 30h after the collector stopped.
+        # the alert cleared itself about 30h after the series went. Like
+        # PatchStateStopped it sees the series vanish, not a timer that stops
+        # and leaves guest-state.prom in place.
         expr: >-
           count by (host) (present_over_time(homelab_guests_total[14d] offset 6h))
           unless

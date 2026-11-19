@@ -1848,9 +1848,10 @@ tests:
                 /var/lib/node_exporter/textfile_collector/guest-state.prom is
                 being written and is world-readable.
 
-  # --- GuestStateStopped: still firing days later -------------------------
+  # --- GuestStateStopped: still firing days later, and gone after two weeks -
   # PatchStateStopped's long-gap case: with [1d] this cleared itself about
-  # 30h after the collector stopped. Still firing at 10d.
+  # 30h after the series went. Still firing at 10d; quiet at 16d, so the
+  # lookback is bounded and a retired hypervisor stops alerting.
   - interval: 1h
     input_series:
       - series: 'homelab_guests_total{host="Saruman"}'
@@ -1872,6 +1873,9 @@ tests:
                 comes back. Check homelab-guest-state.timer on the host and that
                 /var/lib/node_exporter/textfile_collector/guest-state.prom is
                 being written and is world-readable.
+      - eval_time: 16d
+        alertname: GuestStateStopped
+        exp_alerts: []
 
   # --- GuestStateStopped: quiet for a hypervisor reporting zero guests ------
   # The case that makes this rule necessary AND the case it must not fire on.

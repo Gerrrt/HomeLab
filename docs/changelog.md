@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-19
 
 - **`PatchStateStopped` and `GuestStateStopped` no longer clear themselves a
-  day after a collector stops.** Both asked "did this host report in the day
+  day after a host's series disappears.** Both asked "did this host report in the day
   before the last six hours", so about 30 h after the last sample the left
   side emptied and the alert resolved with nothing recovered. Review of the
   lab's `ApplianceStateStopped` (#1580) found it in that rule, which had
@@ -29,7 +29,11 @@ docstring gives: it is a record, not a claim about now.
   for two weeks or until the host reports again, and a host that never had
   the collector still stays quiet. A host retired on purpose now fires for
   those two weeks. New promtool cases fire at 3 d and 10 d and are quiet at
-  16 d; with `[1d]` put back, the 3 d and 10 d cases fail.
+  16 d; with `[1d]` put back, the 3 d and 10 d cases fail. This covers a
+  series that vanishes, not a timer that stops: a stopped timer leaves its
+  `.prom` file, which is re-served on every scrape, so the series stays. The
+  lab's `PatchStateStopped` has a second branch on the file's age for that;
+  the two estate rules do not yet.
 - **`SecurityUpdatesPending` went pending for `alexander`, and it is Ubuntu's
   phasing.** Three security updates appeared at the 08:01 UTC collection:
   `cloud-init`, `cloud-init-base` and `libgstreamer1.0-0`. `apt` lists all
