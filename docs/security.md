@@ -1145,11 +1145,13 @@ from Home Assistant with *not enough permissions*.
   firing alerts, per-host CPU, SNMP reachability, WAN traffic and latency,
   the UPS and `heimdall`'s temperature. That is less than the Homelab page
   already shows, and the page and the Pi hold no credential.
-  **Its household half reads thirteen Home Assistant entities the same way.**
+  **Its household half reads eighteen Home Assistant entities the same way.**
   Each `/api/ha/NAME` is one `GET /api/states/<entity>` written in the
   Caddyfile: the weather, today's forecast, the alarm's mode, four door
   contacts, two window contacts, the office lights, the thermostat, the
-  Litter-Robot's summary, and `sensor.wall_today`,
+  Litter-Robot's summary, the next drive, the Shabbat times, the open to-do
+  items, the next trash pickup, the packages to collect by their own labels,
+  and `sensor.wall_today`,
   which holds the next seven days' calendar events. Caddy adds the token of HA's non-admin
   `wall` user. Home Assistant has no read-only role, so that token could call
   services, the alarm's included. It is read-only only because it lives in
@@ -1157,10 +1159,16 @@ from Home Assistant with *not enough permissions*.
   residual is that whoever can read that container's environment holds a
   token that can operate the house. They would already be root on the host
   that runs Home Assistant. Anything that reaches `trinity:443` can read
-  whether the doors are open, whether the alarm is set, and the family's
-  schedule for two days: each event's title, time and location. That is the
-  same as the Home Assistant app shows to the household, without its login.
-  The calendars' names, descriptions and attendees are not passed on.
+  whether the doors are open, whether the alarm is set, the family's
+  schedule for the coming week (each event's title, time and location), the
+  open to-do items, and the labels of packages waiting to be collected. That
+  is the same as the Home Assistant app shows to the household, without its
+  login. The calendars' names, descriptions and attendees are not passed on,
+  nor are tracking numbers. One thing leaves the house for the wall: the
+  location of the next event with an address, which
+  `home-assistant/packages/wall_commute.yaml` sends to Waze to be routed from
+  the home zone. A calendar that should not be routed is left out of the
+  `wall_calendar` label.
 - `snmp-exporter` is never published to a host interface — it is reachable only
   on the compose network.
 - Alertmanager binds to `127.0.0.1` only. It is unauthenticated, and a silence

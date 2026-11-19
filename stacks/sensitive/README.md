@@ -805,8 +805,20 @@ container of its own: Caddy serves `wall/` as static files.
   alerts, the rest of the week below them while there is room, and a
   countdown to the next timed event in the header. The cell beside Internet
   is a context card that shows one thing at a time, whichever matters now
-  (`CONTEXT` in `wall.js`); until other sources arrive that is a Hebrew word
-  of the day from a static list in the page. The UPS's mains or battery,
+  (`CONTEXT` in `wall.js`), in this order of precedence: the drive to the
+  next event with an address, from an hour before it is time to leave
+  (`/api/ha/commute`); Shabbat or Yom Tov, from six hours before candle
+  lighting to havdalah (`/api/ha/shabbat`); the bins, from 16:00 the evening
+  before pickup to noon on the day (`/api/ha/trash`); packages to go and
+  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); and
+  otherwise a Hebrew word of the day from a static list in the page. The
+  others that also apply are named on the card's last line. Each source is a
+  `wall_*.yaml` package and stays unavailable, its card hidden, until what
+  it reads is set up in HA's UI: the Waze Travel Time integration (origin
+  `Home`, region US, any destination, its polling off), the Jewish Calendar
+  integration, a to-do list labelled `wall_todo`, the trash helpers'
+  pickup day, and the 17TRACK integration with the household's account. The
+  commute card sends the next event's location to Waze. The UPS's mains or battery,
   charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
   sensor held both events, and with no calendar it read unavailable, which

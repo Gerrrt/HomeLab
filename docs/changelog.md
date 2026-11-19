@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **The wall's context card gets its sources.** The third of the wall's
+  five steps. Five new packages, each a `sensor.wall_*` behind its own
+  `/api/ha/` handle, fill the card by precedence:
+  - `wall_commute.yaml`: the live drive from home to the next event within
+    three hours whose location looks like a place, through
+    `waze_travel_time.get_travel_times`. It shows from an hour before it is
+    time to leave, with five minutes to get out of the door. There is no fixed
+    commute, so the calendar is the destination. This is the first time the
+    wall sends anything out of the house: that one location, to Waze.
+  - `wall_shabbat.yaml`: candles, havdalah, parsha and Hebrew date from the
+    Jewish Calendar integration, from six hours before candle lighting.
+  - `wall_trash.yaml`: the next pickup from three helpers, from 16:00 the
+    evening before. It needs no integration.
+  - `wall_deliveries.yaml`: 17TRACK packages delivered today, ready for
+    pickup or undelivered, by their labels, never their numbers.
+  - `wall_todo.yaml`: the open items of the lists labelled `wall_todo`, the
+    card's default before the Hebrew word.
+
+  Each stays unavailable, and its card hidden, until its integration or
+  helper is set up in the UI; none of them is yet. `docs/security.md` had
+  said the wall shows two days of the schedule. It has shown seven since the
+  first step, and now says so. I previewed each card at 1920x1080 against
+  stubbed answers, alone and all at once. None of them has been run against
+  the real Home Assistant.
 - **`fenrir`'s leftover tool images are gone, and its runbook installs the
   weekly image prune.** "`fenrir`'s re-check with sudo finds nothing the audit
   could not see", below, left seven lint and validate images, about 928 MB,

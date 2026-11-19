@@ -49,7 +49,10 @@
     ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
   // "today" is sensor.wall_today: the calendars' events for the next seven
   // days, gathered by home-assistant/packages/wall_calendar.yaml.
-  const HA = [...HOUSE, "today"];
+  // The context card's sources (wall_commute, wall_shabbat, wall_todo,
+  // wall_trash, wall_deliveries), each unavailable until it is set up.
+  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries"];
+  const HA = [...HOUSE, "today", ...CARDS];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
   const lastOk = {};    // name -> Date.now() of the last good answer
@@ -322,6 +325,7 @@
       ["power", ["ups"]],
       ["house", HOUSE.map((n) => `ha:${n}`)],
       ["calendar", ["ha:today"]],
+      ["cards", CARDS.map((n) => `ha:${n}`)],
     ];
     for (const [label, names] of groups) {
       const oldest = Math.min(...names.map((n) => lastOk[n] ?? 0));
@@ -597,7 +601,109 @@
   // matters is hidden without a word. The last entry always applies, so the
   // card is never empty. Later cards (commute, Shabbat, trash, deliveries,
   // now playing) slot in above it as their sources arrive.
+  const MIN = 60_000;
+  const attrs = (name) => (haFresh(name) && states[name].attributes) || {};
+  const until = (t) => {
+    const m = Math.round((t - Date.now()) / MIN);
+    return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`;
+  };
+  const dayAt = (t) => {
+    const d = dayOf({ all_day: false, start: t.toISOString() }, new Date());
+    return d === 0 ? hm(t) : d === 1 ? `tomorrow ${hm(t)}` : `${shortDays[t.getDay()]} ${hm(t)}`;
+  };
+  function hero(box, text, cls) { box.append(el("div", `ctx-hero ${cls || ""}`, text)); }
+  function sub(box, text) { if (text) box.append(el("div", "ctx-sub", text)); }
+
+  // Commute: from an hour before it is time to leave until the event starts.
+  function commuteLive() {
+    if (!haFresh("commute") || states.commute.state === "none") return false;
+    const a = attrs("commute");
+    if (!a.leave_by || !a.start) return false;
+    const now = Date.now();
+    return now >= new Date(a.leave_by) - 60 * MIN && now < new Date(a.start);
+  }
+  function renderCommute(box) {
+    const a = attrs("commute");
+    const leave = new Date(a.leave_by);
+    const late = leave <= Date.now();
+    hero(box, late ? "Leave now" : `Leave in ${until(leave)}`,
+      late ? "alert" : leave - Date.now() <= 10 * MIN ? "warn" : "");
+    sub(box, `${String(a.title || "Next event")} · ${hm(new Date(a.start))}`);
+    sub(box, [`${states.commute.state} min drive`, a.route ? `via ${a.route}` : ""].filter(Boolean).join(" · "));
+  }
+
+  // Shabbat or Yom Tov: from six hours before candle lighting to havdalah.
+  function shabbatLive() {
+    if (!haFresh("shabbat")) return false;
+    const candles = new Date(states.shabbat.state);
+    const havdalah = new Date(attrs("shabbat").havdalah);
+    const now = Date.now();
+    return !isNaN(candles) && !isNaN(havdalah) && now < havdalah && candles - now <= 6 * 60 * MIN;
+  }
+  function renderShabbat(box) {
+    const a = attrs("shabbat");
+    const candles = new Date(states.shabbat.state);
+    const havdalah = new Date(a.havdalah);
+    if (candles > Date.now()) {
+      hero(box, `Candles ${hm(candles)}`, candles - Date.now() <= 60 * MIN ? "warn" : "");
+      sub(box, `Havdalah ${dayAt(havdalah)}`);
+    } else {
+      hero(box, a.holiday ? "Chag sameach" : "Shabbat shalom");
+      sub(box, `Havdalah ${dayAt(havdalah)}`);
+    }
+    sub(box, [a.parsha, a.hebrew_date].filter(Boolean).map(String).join(" · "));
+  }
+
+  // Trash: from 16:00 the evening before pickup until noon on the day.
+  function trashLive() {
+    if (!haFresh("trash")) return false;
+    const day = localDay(states.trash.state);
+    const now = new Date();
+    const d = Math.round((day - midnight(now)) / 86_400_000);
+    return (d === 1 && now.getHours() >= 16) || (d === 0 && now.getHours() < 12);
+  }
+  function renderTrash(box) {
+    const today = Math.round((localDay(states.trash.state) - midnight(new Date())) / 86_400_000) === 0;
+    hero(box, today ? "Pickup today" : "Bins out tonight");
+    sub(box, attrs("trash").recycling ? "Trash and recycling" : "Trash only, no recycling");
+  }
+
+  // Deliveries: while a package wants someone to go and get it.
+  function deliveriesLive() {
+    return haFresh("deliveries") && Number(states.deliveries.state) > 0;
+  }
+  function renderDeliveries(box) {
+    const a = attrs("deliveries");
+    const lines = [
+      ["Delivered", a.delivered_today], ["Ready for pickup", a.ready_for_pickup], ["Not delivered", a.undelivered],
+    ].filter(([, l]) => Array.isArray(l) && l.length);
+    const [first, list] = lines[0];
+    hero(box, `${list.length} ${first.toLowerCase()}`, first === "Not delivered" ? "warn" : "");
+    for (const [label, l] of lines) sub(box, `${label} · ${l.map(String).join(", ")}`);
+    if (Number(a.in_transit) > 0) sub(box, `${a.in_transit} on the way`);
+  }
+
+  // The to-do list, the default when it has anything on it.
+  function todoLive() { return haFresh("todo") && Number(states.todo.state) > 0; }
+  function renderTodo(box) {
+    const items = attrs("todo").items || [];
+    const list = el("div", "todo-list");
+    for (const i of items) {
+      const row = el("div", "todo-item");
+      row.append(el("i"), el("span", null, String(i.title || "")));
+      list.append(row);
+    }
+    box.append(list);
+    fitList(list, "todo-item");
+  }
+
   const CONTEXT = [
+    { title: "Commute", short: "commute", when: commuteLive, render: renderCommute },
+    { title: () => (attrs("shabbat").holiday ? String(attrs("shabbat").holiday) : "Shabbat"),
+      short: "shabbat", when: shabbatLive, render: renderShabbat },
+    { title: "Trash", short: "trash", when: trashLive, render: renderTrash },
+    { title: "Packages", short: "packages", when: deliveriesLive, render: renderDeliveries },
+    { title: "To-do", short: "to-do", when: todoLive, render: renderTodo },
     { title: "Word of the day", short: "word", when: () => true, render: renderWord },
   ];
 
@@ -651,7 +757,7 @@
     box.replaceChildren();
     const live = CONTEXT.filter((c) => c.when());
     const top = live[0];
-    $("h-context").textContent = top.title;
+    $("h-context").textContent = typeof top.title === "function" ? top.title() : top.title;
     top.render(box);
     const rest = live.slice(1, -1).map((c) => c.short);
     $("context-also").textContent = rest.length ? `also: ${rest.join(" · ")}` : "";

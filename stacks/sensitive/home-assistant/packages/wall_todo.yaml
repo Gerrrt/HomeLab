@@ -1,0 +1,59 @@
+---
+# The open items of the to-do lists labelled `wall_todo`, as one sensor the
+# office wall can read (ADR-0119). The wall shows them in its context card
+# when nothing more pressing is.
+#
+# Like the calendar, a list's items are an action's answer
+# (`todo.get_items`), not an attribute a fixed handle can read, so this asks
+# every minute. Which lists: those labelled `wall_todo` in the UI, a Local
+# To-do or a Google Tasks list alike; none is named here. The label is read at
+# every run. Unavailable while no list carries it, which hides the card.
+#
+# What reaches the wall: each open item's title and due date, at most twelve.
+# Not its description.
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /1
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    actions:
+      - variables:
+          wall_lists: >-
+            {{ label_entities('wall_todo') | select('match', 'todo\.') | sort | list }}
+      - if: "{{ wall_lists | count > 0 }}"
+        then:
+          - action: todo.get_items
+            target:
+              entity_id: "{{ wall_lists }}"
+            data:
+              status: needs_action
+            response_variable: wall_answer
+            continue_on_error: true
+      - variables:
+          wall_ok: "{{ wall_lists | count > 0 and wall_answer is defined and wall_answer is mapping }}"
+          wall_items: >-
+            {% set ns = namespace(items=[]) %}
+            {% if wall_lists | count > 0 and wall_answer is defined and wall_answer is mapping %}
+              {% for l in wall_lists %}
+                {% for i in wall_answer.get(l, {}).get('items', []) %}
+                  {% set ns.items = ns.items + [{
+                       'title': (i.get('summary') or '')[:60],
+                       'due': i.get('due') or '',
+                     }] %}
+                {% endfor %}
+              {% endfor %}
+            {% endif %}
+            {{ ns.items[:12] }}
+    sensor:
+      - name: Wall to-do
+        unique_id: wall_todo
+        icon: mdi:checkbox-marked-outline
+        availability: "{{ wall_ok }}"
+        # How many items are open, so the history graph means something.
+        state: "{{ wall_items | count }}"
+        attributes:
+          items: "{{ wall_items }}"

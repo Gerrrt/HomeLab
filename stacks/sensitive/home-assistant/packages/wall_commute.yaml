@@ -1,0 +1,85 @@
+---
+# The drive to the next event that has an address, for the office wall
+# (ADR-0119): how long it takes now and when to leave. The wall shows it in
+# its context card from an hour before it is time to leave until the event
+# starts.
+#
+# The household has no fixed commute, so the destination is the calendar's:
+# the next timed event in sensor.wall_today (wall_calendar.yaml) that starts
+# within three hours and whose location looks like a place, with a digit or a
+# comma in it. "Teams", "Zoom" or a meeting link are not driven to, and are
+# skipped. Waze is asked only while there is such an event, every five
+# minutes, through `waze_travel_time.get_travel_times` with live traffic.
+# That action is loaded by the core `waze_travel_time` integration, which has
+# to be added once in the UI (its own sensor's polling can be switched off;
+# this does not read it).
+#
+# What leaves the house: the event's location, sent to Waze to be routed from
+# the home zone. The wall already shows it; this sends it out. A calendar that
+# should not be routed is left out of the `wall_calendar` label.
+#
+# The state is the minutes of the quickest route, or `none` when there is
+# nothing to drive to or Waze did not answer, which hides the card.
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /5
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    actions:
+      - variables:
+          wall_next: >-
+            {% set ns = namespace(e=none) %}
+            {% for e in state_attr('sensor.wall_today', 'events') or [] %}
+              {% if ns.e is none and not e.all_day and e.location %}
+                {% set start = as_datetime(e.start) %}
+                {% set place = e.location | lower %}
+                {% if start > now() and start - now() <= timedelta(hours=3)
+                      and (place is search('[0-9]') or ',' in place)
+                      and not (place is search('https?:|teams|zoom|meet\.google|webex')) %}
+                  {% set ns.e = e %}
+                {% endif %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.e if ns.e is not none else {} }}
+      - if: "{{ wall_next.location is defined }}"
+        then:
+          - action: waze_travel_time.get_travel_times
+            data:
+              origin: zone.home
+              destination: "{{ wall_next.location }}"
+              region: us
+              units: imperial
+              realtime: true
+            response_variable: wall_answer
+            continue_on_error: true
+      - variables:
+          wall_route: >-
+            {% if wall_next.location is defined and wall_answer is defined and wall_answer is mapping
+                  and (wall_answer.routes | default([]) | count) > 0 %}
+              {{ wall_answer.routes | sort(attribute='duration') | first }}
+            {% else %}
+              {{ {} }}
+            {% endif %}
+      # A second block, so this can read wall_route above.
+      - variables:
+          # Five minutes to get out of the door.
+          wall_leave_by: >-
+            {% if wall_route.duration is defined %}
+              {{ (as_datetime(wall_next.start) - timedelta(minutes=(wall_route.duration | float(0)) + 5)).isoformat() }}
+            {% else %}
+              {{ '' }}
+            {% endif %}
+    sensor:
+      - name: Wall commute
+        unique_id: wall_commute
+        icon: mdi:car-clock
+        state: "{{ wall_route.duration | float(0) | round(0) | int if wall_route.duration is defined else 'none' }}"
+        attributes:
+          title: "{{ wall_next.title | default('') if wall_route.duration is defined else '' }}"
+          start: "{{ wall_next.start | default('') if wall_route.duration is defined else '' }}"
+          route: "{{ wall_route.name | default('') }}"
+          leave_by: "{{ wall_leave_by }}"
