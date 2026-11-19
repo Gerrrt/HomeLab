@@ -70,10 +70,13 @@ template:
       - name: Wall weather
         unique_id: wall_weather
         icon: mdi:weather-partly-cloudy
-        unit_of_measurement: "°"
-        availability: "{{ wall_day.temperature is defined }}"
-        # The state is today's high, so the history graph means something.
-        state: "{{ wall_day.temperature | default(none) }}"
+        # Available while either forecast answered, so a missing daily entry
+        # for today (late in the evening) costs only the high and low, not the
+        # rain and the sun. The state is today's high, or `none` when there is
+        # none: a word rather than HA's `unknown`, which the wall reads as no
+        # answer at all. So no unit, since the state is not always a number.
+        availability: "{{ wall_days | count > 0 or wall_hours | count > 0 }}"
+        state: "{{ wall_day.temperature if wall_day.temperature is defined else 'none' }}"
         attributes:
           high: "{{ wall_day.temperature | default(none) }}"
           low: "{{ wall_day.templow | default(none) }}"

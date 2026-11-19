@@ -248,15 +248,21 @@
       } else {
         if (!fresh("snmp")) state = "unknown";
         else if (snmp.get(h.name) !== 1) state = "down";
-        if (state === "ok" && h.name === "mjolnir" && ups.has("upsEstimatedChargeRemaining")) {
-          // On battery outranks everything else the tile could say.
+        if (state === "ok" && h.name === "mjolnir" && ups.size) {
+          // On battery outranks everything else the tile could say, and does
+          // not wait on the charge: a missing charge is only a "—".
           const onBattery = (ups.get("upsSecondsOnBattery") || 0) > 0;
           const runtime = ups.has("upsEstimatedMinutesRemaining")
             ? `${Math.round(ups.get("upsEstimatedMinutesRemaining"))} min` : "";
           if (onBattery) state = "battery";
-          role.textContent = [onBattery ? "ON BATTERY" : "UPS · on mains", runtime].filter(Boolean).join(" · ");
-          val.textContent = `${Math.round(ups.get("upsEstimatedChargeRemaining"))}%`;
-          val.append(el("small", null, "charge"));
+          // Short enough to stay on one line in the tile.
+          role.textContent = [onBattery ? "BATTERY" : "mains", runtime].filter(Boolean).join(" · ");
+          if (ups.has("upsEstimatedChargeRemaining")) {
+            val.textContent = `${Math.round(ups.get("upsEstimatedChargeRemaining"))}%`;
+            val.append(el("small", null, "charge"));
+          } else {
+            val.textContent = "—";
+          }
         } else {
           val.textContent = state === "ok" ? "up" : state === "down" ? "down" : "—";
         }
@@ -374,10 +380,16 @@
       line1.push(at <= new Date() ? "rain now" : `rain by ${hm(at)}`);
     }
     if (f) {
-      const rise = f.next_rising ? new Date(f.next_rising) : null;
-      const set = f.next_setting ? new Date(f.next_setting) : null;
-      // Whichever comes first, so the line always says what is next.
-      if (rise && set) line2.push(set < rise ? `sunset ${hm(set)}` : `sunrise ${hm(rise)}`);
+      // Whichever comes first, so the line always says what is next. The
+      // sensor is up to fifteen minutes old, so a time already past is
+      // dropped rather than shown as next.
+      const now = new Date();
+      const sun = [["sunrise", f.next_rising], ["sunset", f.next_setting]]
+        .filter(([, t]) => t)
+        .map(([k, t]) => [k, new Date(t)])
+        .filter(([, t]) => t > now)
+        .sort((x, y) => x[1] - y[1]);
+      if (sun.length) line2.push(`${sun[0][0]} ${hm(sun[0][1])}`);
     }
     if (a.wind_speed !== undefined) line2.push(`wind ${Math.round(a.wind_speed)} ${a.wind_speed_unit || ""}`.trim());
     $("wx-sub").textContent = line1.join(" · ");
