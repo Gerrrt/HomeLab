@@ -55,7 +55,7 @@
   // The context card's sources (wall_commute, wall_shabbat, wall_todo,
   // wall_trash, wall_deliveries, wall_media), each unavailable until it is
   // set up.
-  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries", "media"];
+  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries", "dogs", "media"];
   const HA = [...HOUSE, "today", ...CARDS];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
@@ -688,7 +688,7 @@
   // others that are also true are named on its last line, so nothing that
   // matters is hidden without a word. The last entry always applies, so the
   // card is never empty. Later cards (commute, Shabbat, trash, deliveries,
-  // now playing) slot in above it as their sources arrive.
+  // dogs, now playing) slot in above it as their sources arrive.
   const MIN = 60_000;
   const attrs = (name) => (haFresh(name) && states[name].attributes) || {};
   const until = (t) => {
@@ -778,6 +778,26 @@
     if (Number(a.in_transit) > 0) sub(box, `${a.in_transit} on the way`);
   }
 
+  // Dogs: while a walk or a feeding is overdue. A threshold of 0 is not
+  // tracked; one never recorded counts as overdue, so a new setup shows.
+  function dogsDue() {
+    const a = attrs("dogs");
+    return [["Walked", "walk", a.walked, Number(a.walk_hours) || 0], ["Fed", "feed", a.fed, Number(a.feed_hours) || 0]]
+      .filter(([, , , hours]) => hours > 0)
+      .map(([label, verb, at, hours]) => {
+        const t = at ? new Date(at) : null;
+        const age = t && !isNaN(t) ? (Date.now() - t) / 1000 : null;
+        return { label, verb, age, due: age === null || age > hours * 3600 };
+      });
+  }
+  function dogsLive() { return haFresh("dogs") && dogsDue().some((d) => d.due); }
+  function renderDogs(box) {
+    const all = dogsDue();
+    const due = all.filter((d) => d.due).map((d) => d.verb);
+    hero(box, `${due.join(" and ")} the dogs`.replace(/^./, (c) => c.toUpperCase()), "warn");
+    for (const d of all) sub(box, d.age === null ? `${d.label}: not recorded yet` : `${d.label} ${ago(d.age)} ago`);
+  }
+
   // The to-do list, the default when it has anything on it.
   function todoLive() { return haFresh("todo") && Number(states.todo.state) > 0; }
   function renderTodo(box) {
@@ -808,6 +828,7 @@
       short: "shabbat", when: shabbatLive, render: renderShabbat },
     { title: "Trash", short: "trash", when: trashLive, render: renderTrash },
     { title: "Packages", short: "packages", when: deliveriesLive, render: renderDeliveries },
+    { title: "Dogs", short: "dogs", when: dogsLive, render: renderDogs },
     { title: "To-do", short: "to-do", when: todoLive, render: renderTodo },
     { title: "Now playing", short: "playing", when: mediaLive, render: renderMedia },
     { title: "Word of the day", short: "word", when: () => true, render: renderWord },

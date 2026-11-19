@@ -481,6 +481,7 @@ wall.matrix.elysium {
 		#   trash       the next pickup, from three helpers
 		#   deliveries  packages to go and get (17TRACK)
 		#   media       what the players labelled wall_media are playing
+		#   dogs        when the dogs were last walked and fed
 		handle /api/ha/commute {
 			rewrite * /api/states/sensor.wall_commute?
 			import wall_ha
@@ -508,6 +509,11 @@ wall.matrix.elysium {
 
 		handle /api/ha/media {
 			rewrite * /api/states/sensor.wall_media?
+			import wall_ha
+		}
+
+		handle /api/ha/dogs {
+			rewrite * /api/states/sensor.wall_dogs?
 			import wall_ha
 		}
 
