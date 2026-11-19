@@ -183,10 +183,12 @@ groups:
             minutes; a healthy wired link counts none. ifInErrors is the
             generic counter, so name the cause before acting on it:
             `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
-            'crc|align|symbol|jabber|fragment'`. If crc_errs is what is
-            climbing, it is the physical link: reseat the plug in the XB7
-            (#914), then re-terminate or replace that cable, then try another
-            XB7 port, then suspect the I219's port.
+            'crc|align|symbol|jabber|fragment'`. If crc_errs climbs with
+            symbol_errors at 0, the signal decodes cleanly and the frames
+            arrive bad: move the factory cable to another of the XB7's
+            gigabit ports, which cleared it on 2026-11-07 and 2026-11-19
+            when an XB7 reboot did not. If symbol_errors climb too, suspect
+            the plug's seating or the I219's port.
 
       - alert: SpeedtestStale
         # No completed test for over 90 minutes, in either of two shapes:
