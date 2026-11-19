@@ -1,0 +1,93 @@
+---
+# Packages that want someone to go and get them, for the office wall
+# (ADR-0119): delivered today, ready to be picked up, or undelivered, and how
+# many are in transit. The wall shows them in its context card while any of
+# the first three is non-zero.
+#
+# The source is the core `seventeentrack` integration, added in the UI with
+# the household's 17TRACK account, whose sign-in stays in /config/.storage.
+# Its packages are an action's answer (`seventeentrack.get_packages`), so this
+# asks every fifteen minutes, which is about how often the integration
+# refreshes. 17TRACK gives no expected delivery date, so "today" is a
+# delivery scanned today.
+#
+# What reaches the wall: each package's own label in 17TRACK (or "a package"),
+# never its tracking number, origin or location. Unavailable until the
+# integration is added, and the card stays hidden.
+
+template:
+  - triggers:
+      - trigger: time_pattern
+        minutes: /15
+      - trigger: homeassistant
+        event: start
+      - trigger: event
+        event_type: event_template_reloaded
+    actions:
+      - variables:
+          wall_entry: >-
+            {% set e = integration_entities('seventeentrack') | first | default('') %}
+            {{ config_entry_id(e) if e else '' }}
+      - if: "{{ wall_entry not in ['', none, 'None'] }}"
+        then:
+          - action: seventeentrack.get_packages
+            data:
+              config_entry_id: "{{ wall_entry }}"
+            response_variable: wall_answer
+            continue_on_error: true
+      - variables:
+          wall_ok: "{{ wall_answer is defined and wall_answer is mapping and 'packages' in wall_answer }}"
+          wall_packages: >-
+            {{ wall_answer.packages
+               if wall_answer is defined and wall_answer is mapping and 'packages' in wall_answer
+               else [] }}
+      # A second block, so these can read wall_packages above.
+      - variables:
+          # Each list is labels only, at most four, 40 characters each.
+          wall_delivered: >-
+            {% set ns = namespace(items=[]) %}
+            {% for p in wall_packages %}
+              {% if (p.status | slugify) == 'delivered' and p.timestamp is defined
+                    and as_local(as_datetime(p.timestamp)).date() == now().date() %}
+                {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.items }}
+          wall_ready_names: >-
+            {% set ns = namespace(items=[]) %}
+            {% for p in wall_packages %}
+              {% if (p.status | slugify) == 'ready_to_be_picked_up' %}
+                {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.items }}
+          wall_undelivered: >-
+            {% set ns = namespace(items=[]) %}
+            {% for p in wall_packages %}
+              {% if (p.status | slugify) == 'undelivered' %}
+                {% set ns.items = ns.items + [(p.friendly_name or 'a package')[:40]] %}
+              {% endif %}
+            {% endfor %}
+            {{ ns.items }}
+          wall_in_transit: >-
+            {% set ns = namespace(n=0) %}
+            {% for p in wall_packages %}
+              {% if (p.status | slugify) == 'in_transit' %}{% set ns.n = ns.n + 1 %}{% endif %}
+            {% endfor %}
+            {{ ns.n }}
+    sensor:
+      - name: Wall deliveries
+        unique_id: wall_deliveries
+        icon: mdi:package-variant-closed
+        availability: "{{ wall_ok }}"
+        # How many packages want someone to go and get them.
+        state: "{{ wall_delivered | count + wall_ready_names | count + wall_undelivered | count }}"
+        # The labels, at most four of each; the counts, all of them.
+        attributes:
+          delivered_today: "{{ wall_delivered[:4] }}"
+          delivered_today_count: "{{ wall_delivered | count }}"
+          ready_for_pickup: "{{ wall_ready_names[:4] }}"
+          ready_for_pickup_count: "{{ wall_ready_names | count }}"
+          undelivered: "{{ wall_undelivered[:4] }}"
+          undelivered_count: "{{ wall_undelivered | count }}"
+          in_transit: "{{ wall_in_transit }}"

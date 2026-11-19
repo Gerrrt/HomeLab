@@ -1,0 +1,77 @@
+---
+# The next trash pickup, and whether recycling goes out with it, for the
+# office wall (ADR-0119). The wall shows it in its context card from 16:00 the
+# evening before until noon on the day.
+#
+# No integration and no third-party schedule: three helpers, set once in the
+# UI. A holiday that moves a pickup is not known here.
+#
+#   input_select.trash_pickup_day           the weekday, or "not set"
+#   input_select.recycling_schedule         every week, every other week, or
+#                                           not tracked
+#   input_datetime.recycling_reference_date any one past or future recycling
+#                                           day, for every other week
+#
+# None of them has an `initial`, so what is set survives a restart.
+
+input_select:
+  trash_pickup_day:
+    name: Trash pickup day
+    icon: mdi:trash-can-outline
+    options:
+      - not set
+      - Monday
+      - Tuesday
+      - Wednesday
+      - Thursday
+      - Friday
+      - Saturday
+  recycling_schedule:
+    name: Recycling schedule
+    icon: mdi:recycle
+    options:
+      - not tracked
+      - every week
+      - every other week
+
+input_datetime:
+  recycling_reference_date:
+    name: A recycling pickup date (for every other week)
+    has_date: true
+    has_time: false
+
+template:
+  - sensor:
+      - name: Wall trash
+        unique_id: wall_trash
+        icon: mdi:trash-can-outline
+        device_class: date
+        # The next pickup, today included. now() makes this re-evaluate each
+        # minute, so it rolls over at midnight on its own.
+        state: >-
+          {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+          {% set day = states('input_select.trash_pickup_day') %}
+          {% if day in days %}
+            {{ (now().date() + timedelta(days=(days.index(day) - now().weekday()) % 7)).isoformat() }}
+          {% else %}
+            {{ none }}
+          {% endif %}
+        availability: >-
+          {{ states('input_select.trash_pickup_day')
+             in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'] }}
+        attributes:
+          recycling: >-
+            {% set days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] %}
+            {% set day = states('input_select.trash_pickup_day') %}
+            {% set sched = states('input_select.recycling_schedule') %}
+            {% if day not in days %}
+              {{ false }}
+            {% elif sched == 'every week' %}
+              {{ true }}
+            {% elif sched == 'every other week' and has_value('input_datetime.recycling_reference_date') %}
+              {% set next = now().date() + timedelta(days=(days.index(day) - now().weekday()) % 7) %}
+              {% set ref = (states('input_datetime.recycling_reference_date') | as_datetime).date() %}
+              {{ ((next - ref).days // 7) % 2 == 0 }}
+            {% else %}
+              {{ false }}
+            {% endif %}

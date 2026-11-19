@@ -244,6 +244,14 @@ html, body {
 .word { font: 600 72px/1.15 var(--sans); color: var(--purple); align-self: flex-start; }
 .word-sub { font: 400 28px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; }
 .word-sub b { font-weight: 600; color: var(--fg); }
+.ctx-hero { font: 600 56px/1.15 var(--sans); color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx-hero.warn { color: var(--yellow); }
+.ctx-hero.alert { color: var(--red); }
+.ctx-sub { font: 400 28px/1.35 var(--sans); color: var(--fg-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todo-list { display: flex; flex-direction: column; gap: 10px; min-height: 0; max-height: 100%; overflow: hidden; align-self: stretch; }
+.todo-item { display: flex; align-items: center; gap: 16px; font: 400 30px/1.25 var(--sans); color: var(--fg); }
+.todo-item i { width: 20px; height: 20px; border: 2px solid var(--mute); border-radius: 5px; flex: none; }
+.todo-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ---------- weather, in the header ---------- */
 .wx { display: flex; align-items: center; gap: 22px; margin-left: auto; margin-right: 36px; }

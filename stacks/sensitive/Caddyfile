@@ -456,6 +456,39 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
+		# The context card's sources, each a template entity in its own
+		# home-assistant/packages/wall_*.yaml, each unavailable until its
+		# integration or helper is set up, which hides its card:
+		#   commute     the drive to the next event with an address (Waze)
+		#   shabbat     candles, havdalah, parsha (Jewish Calendar)
+		#   todo        the open items of the lists labelled wall_todo
+		#   trash       the next pickup, from three helpers
+		#   deliveries  packages to go and get (17TRACK)
+		handle /api/ha/commute {
+			rewrite * /api/states/sensor.wall_commute?
+			import wall_ha
+		}
+
+		handle /api/ha/shabbat {
+			rewrite * /api/states/sensor.wall_shabbat?
+			import wall_ha
+		}
+
+		handle /api/ha/todo {
+			rewrite * /api/states/sensor.wall_todo?
+			import wall_ha
+		}
+
+		handle /api/ha/trash {
+			rewrite * /api/states/sensor.wall_trash?
+			import wall_ha
+		}
+
+		handle /api/ha/deliveries {
+			rewrite * /api/states/sensor.wall_deliveries?
+			import wall_ha
+		}
+
 		# Today's high and low, the next rain and the next sunrise or sunset,
 		# asked of weather.get_forecasts by
 		# home-assistant/packages/wall_weather.yaml: since HA 2024.4 a forecast
