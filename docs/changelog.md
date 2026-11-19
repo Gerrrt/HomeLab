@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`fenrir` sheds the last of its audit's leftovers.** The audit of
+  2026-11-13 listed, as its finding 10, `atreus` in `lxd` with no LXD
+  installed, an idle `docker0` and the `hwctl` snap, and called them
+  optional. "The sensor stack's memory limits are measured", below, left
+  them open. Today `atreus` left `lxd`, and `hwctl` was removed with
+  `--purge`; its socket, `snap.hwctl.hwctl-daemon.hwctl-socket`, had been
+  listening as root. `snap list` now shows only `core24` and `snapd`.
+  `docker0` stays, because the Docker daemon recreates it at every start.
+  `build-the-sensor-guest.md` §3 now takes both out, so a rebuilt sensor does
+  not carry them. Of the audit's next steps, a drift check for `fenrir` is the
+  one left.
 - **The sensor stack's memory limits are measured, and Zeek's halves to
   2048m.** The audit of 2026-11-13 asked for the bounds its compose comments
   said to re-derive after a fortnight. The lab's Prometheus keeps only the
