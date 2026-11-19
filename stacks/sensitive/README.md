@@ -783,7 +783,15 @@ container of its own: Caddy serves `wall/` as static files.
   house's one alarm panel) and `binary_sensor.wall_office_lights` (on when
   any light whose id contains `office` is on).
   The page shows them as the header's weather and a one-line Home row: the
-  alarm's mode, any open door or window in amber, and the office lights.
+  alarm's mode, any open door or window in amber, the hallway thermostat's
+  temperature, humidity and whether it is heating or cooling (read from
+  `climate.thermostat` at `/api/ha/thermostat`), the office lights, and the
+  Litter-Robot in amber only when it wants something (`sensor.wall_litter`
+  at `/api/ha/litter`, from `wall_house.yaml`), and as `—` when it cannot be
+  read. A row too long for the screen drops the office lights first, then
+  the thermostat, then an unreadable Litter-Robot's `—`, never an amber
+  item; if the warnings alone are still too wide, each says how many
+  instead of which ("6 doors & windows").
   The header's high and low, the next rain and the next sunrise or sunset
   are `sensor.wall_weather` at `/api/ha/forecast`, from
   `home-assistant/packages/wall_weather.yaml`, which asks
