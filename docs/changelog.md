@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **`PatchStateStopped` and `GuestStateStopped` now also fire for a
+  collector that stops and leaves its file.** The entry below left this open:
+  a stopped timer leaves its `.prom` file in the textfile directory,
+  node_exporter re-serves its last values on every scrape, and the series
+  never goes absent, so the rules saw nothing. Raised by Copilot in review of
+  #1585. Each rule now has a second branch, `or`'d to the first, on
+  `node_textfile_mtime_seconds` for its own file, as the lab's
+  `PatchStateStopped` has had since #1544: `apt-patch-state.prom` older than
+  two days against its daily timer, `guest-state.prom` older than an hour
+  against its ten-minute one. The mtime series carries `instance`, which
+  Alloy sets to the same hostname the collectors write into `host`, so
+  `label_replace` copies one into the other and both branches alert under
+  one label set. New promtool cases fire with the series present and the
+  file frozen, and stay quiet with the file rewritten and an old file of
+  another collector beside it. With the second branch removed the firing
+  cases fail; with the regex loosened to `.*state\.prom` the quiet ones do.
 - **`PatchStateStopped` and `GuestStateStopped` no longer clear themselves a
   day after a host's series disappears.** Both asked "did this host report in the day
   before the last six hours", so about 30 h after the last sample the left
