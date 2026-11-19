@@ -434,6 +434,20 @@ make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-
 
 It must end with `zeek-archive-prune.prom written, mode 644`.
 
+**Prune unused images**, weekly, so an image a bump replaced does not stay on
+the 30 GB root. The audit of 2026-11-13 found `homelab-prune-images` on this
+guest only because a full installer run had once put it there; nothing in this
+runbook did, so a rebuilt `fenrir` would not have had it. It runs `docker
+image prune -a` on Mondays at 04:00 and writes no `.prom`, so the installer
+checks the service's last result instead. Same checkout, same login:
+
+```bash
+make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only prune-images'
+```
+
+It removes only images no container uses. If `make validate` has been run
+here, its tool images are among them; §0 keeps that work on Hicks.
+
 **Report patch state**, so that a pending reboot or a held security update
 reaches someone. The lab's `RebootRequired`, `SecurityUpdatesPending` and
 `PatchStateStopped` read `apt-patch-state.prom`, and a guest without the timer

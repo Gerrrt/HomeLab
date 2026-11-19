@@ -218,11 +218,11 @@ runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does,
 from `systemd/agent/homelab-prune-images.timer`. Nothing removed superseded
 images on an agent host before it, and on 2026-10-01 `odin`'s 30 GB root was at
 98%, 7.8 GB of it images no container used. It requires `/usr/bin/docker`, so
-it installs on `oracle`, `trinity`, `alexander` and `odin`, and `Saruman`
-reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
+it installs on `oracle`, `trinity`, `alexander`, `odin` and `fenrir`, and
+`Saruman` reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
 agent host has no `homelab_job_*` metrics, so a failed run shows only in
 `journalctl -u homelab-prune-images`. What would show it is the disk: on the
-two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
+lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
 which page (below).
 
 **`zeek-archive-prune` is the one agent row with `homelab_job_*` metrics.** It

@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-18
 
+- **`fenrir`'s leftover tool images are gone, and its runbook installs the
+  weekly image prune.** "`fenrir`'s re-check with sudo finds nothing the audit
+  could not see", below, left seven lint and validate images, about 928 MB,
+  for the prune of 2026-11-23. They were removed today by image ID, after
+  checking that no container used them; Docker now holds only the three
+  images the sensor runs, with nothing reclaimable. A re-check of the
+  runbook against the box found that `homelab-prune-images` was on `fenrir`
+  only because a full installer run had once put it there: §4 installed the
+  archive prune and patch state by name, and not it. §4 now installs it too,
+  and `schedule-maintenance.md` names `fenrir` among the hosts it runs on.
 - **`fenrir` checks hourly that it is still an appliance, the last of its
   audit's next steps.** "`fenrir` sheds the last of its audit's leftovers",
   below, left a drift check as the one step open. Now
