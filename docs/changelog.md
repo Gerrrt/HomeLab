@@ -19,6 +19,46 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **`phoenix`, `alexander` and `odin` no longer run the Ubuntu template's
+  unused services.** All three were cloned from template 901 before
+  `prune.sh` existed, and still carried all eight services that it purges:
+  `open-vm-tools`, `modemmanager`, `snapd`, `thermald`, `multipath-tools`,
+  `open-iscsi`, `kdump-tools` and `udisks2`. Each kernel held 512 MiB for a
+  crash kernel that nothing in this repository collects. This completes two
+  entries filed under 2026-11-16. *`eden` no longer runs the Ubuntu
+  template's unused services* said a clone needs the same purge until the
+  template is rebuilt. *Template 901 purges the services `eden` had removed
+  by hand* left the clones made before it as they were.
+  - **What was run, in #1582's order, on `phoenix`, `alexander`, then
+    `odin`.** `packer/ubuntu/prune.sh` was copied to each guest and run as
+    root, and exited 0. `apt-get autoremove --purge` was previewed before it
+    ran. It took 51 packages on `phoenix` and `odin`, and 52 on `alexander`,
+    all of them pulled in by the eight: `kexec-tools`, `makedumpfile` and
+    `crash` for kdump, `libblockdev` and `upower` for udisks2, `libmbim` and
+    `libqmi` for ModemManager, and the multipath and iSCSI libraries.
+    `alexander`'s extra one was `libgpgme45`, needed only by udisks2's
+    `libvolume-key1`. `sudo`, `apparmor` and `unattended-upgrades` stayed
+    installed on all three.
+  - **Checked after each reboot.** `/sys/kernel/kexec_crash_size` reads 0,
+    `/proc/cmdline` has no `crashkernel=`, none of the eight is installed,
+    and no unit has failed. `ssh`, the guest agent and unattended upgrades
+    are active, and `qm agent` pings for VMIDs 140, 160 and 170 answered on
+    `Saruman`. Usable memory is now 3,910 MiB on `phoenix`, 7,935 on
+    `alexander` and 15,987 on `odin`.
+    - On `alexander`, all six lab containers came back. The five with a
+      healthcheck are healthy; `lab-loki` has none. Every target of the
+      lab's Prometheus reads `up`.
+    - On `odin`, all seven SOC containers are healthy, and the indexer is
+      green. All seven Wazuh agents active before the reboot were active
+      again after it. `WazuhIndexerUnreachable` went pending during the
+      reboot and cleared without firing.
+  - **Also recorded here: the 2026-11-18 removal of the `hwctl` snap, and of
+    the first user from `lxd`, on all three by hand.** No PR had recorded
+    it. On each guest, the `lxd` group is now empty and `snap` is gone with
+    `snapd`. `lxd-installer` stays: its socket is `root:lxd 0660`, and no one
+    is in that group.
+  - Refs [#1582](https://github.com/Gerrrt/HomeLab/issues/1582).
+
 - **The WAN's receive errors came back a third time, and the XB7's third
   gigabit port cleared them.** `em0` counted no input errors for days, then
   started at about 01:05 PST on 2026-11-18 with nobody at the rack, and
