@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **The wall says when the dogs are due.** The last of the wall's five
+  steps.
+  - `wall_dogs.yaml` makes `sensor.wall_dogs`: when the dogs were last
+    walked and fed, and how many hours each may go. No device knows this, so
+    it is recorded by hand: two dashboard buttons, `Dogs walked` and
+    `Dogs fed`, or an NFC tag labelled `wall_dog_walk` or `wall_dog_feed`
+    and tapped with a phone. The newest of the two counts.
+  - The context card *Dogs* shows while either is overdue, after packages
+    and before the to-do list, in amber with how long ago each happened.
+  - Both intervals start at 0, which means not tracked, so the card stays
+    hidden until they are set in the UI. An Alexa routine was in the plan;
+    this house does not expose Home Assistant to Alexa, so it is left out.
+
+  Previewed at 1920x1080 against stubbed answers; it has not run against
+  the real Home Assistant.
+
 - **The wall shows what is playing, and how the backups stand.** The fourth
   of the wall's five steps.
   - `wall_media.yaml` makes `sensor.wall_media`: the title, artist and app of

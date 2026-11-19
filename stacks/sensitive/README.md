@@ -815,7 +815,8 @@ container of its own: Caddy serves `wall/` as static files.
   (`/api/ha/commute`); Shabbat or Yom Tov, from six hours before candle
   lighting to havdalah (`/api/ha/shabbat`); the bins, from 16:00 the evening
   before pickup to noon on the day (`/api/ha/trash`); packages to go and
-  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); what is
+  get (`/api/ha/deliveries`); the dogs, while a walk or a feeding is overdue
+  (`/api/ha/dogs`); the open to-do items (`/api/ha/todo`); what is
   playing on the players labelled `wall_media` (`/api/ha/media`); and
   otherwise a Hebrew word of the day from a static list in the page. The
   others that also apply are named on the card's last line. Each source is a
@@ -824,8 +825,9 @@ container of its own: Caddy serves `wall/` as static files.
   `Home`, region US, any destination, its polling off) and the label
   `wall_commute` on each calendar to route from, the Jewish Calendar
   integration, a to-do list labelled `wall_todo`, the trash helpers'
-  pickup day, the 17TRACK integration with the household's account, and the
-  label `wall_media` on each player to show. The
+  pickup day, the 17TRACK integration with the household's account, a
+  walking or feeding interval above 0 for the dogs, and the label
+  `wall_media` on each player to show. The
   commute card sends the next labelled event's location to Waze. The UPS's mains or battery,
   charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
