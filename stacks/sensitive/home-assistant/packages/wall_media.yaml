@@ -1,0 +1,36 @@
+---
+# What is playing in the house, for the office wall's context card (ADR-0119):
+# the first media player labelled `wall_media` in the UI that is playing, its
+# title, its artist or show, and the app. The label picks the players, a
+# HomePod, the Apple TV or Spotify alike, so none is named here.
+#
+# What reaches the wall: the title, the artist or series and the app. Not the
+# player's name or room, which can name a person, and no album art, which
+# would be a fetch from outside the page. Unavailable while no player carries
+# the label, which hides the card; `idle` while none of them is playing.
+
+template:
+  - sensor:
+      - name: Wall media
+        unique_id: wall_media
+        default_entity_id: sensor.wall_media
+        icon: mdi:music
+        availability: >-
+          {{ label_entities('wall_media') | select('match', 'media_player\.') | list | count > 0 }}
+        state: >-
+          {% set p = label_entities('wall_media') | select('match', 'media_player\.')
+               | sort | select('is_state', 'playing') | first | default('') %}
+          {{ 'playing' if p else 'idle' }}
+        attributes:
+          title: >-
+            {% set p = label_entities('wall_media') | select('match', 'media_player\.')
+                 | sort | select('is_state', 'playing') | first | default('') %}
+            {{ ((state_attr(p, 'media_title') or '') if p else '')[:80] }}
+          artist: >-
+            {% set p = label_entities('wall_media') | select('match', 'media_player\.')
+                 | sort | select('is_state', 'playing') | first | default('') %}
+            {{ ((state_attr(p, 'media_artist') or state_attr(p, 'media_series_title') or '') if p else '')[:60] }}
+          app: >-
+            {% set p = label_entities('wall_media') | select('match', 'media_player\.')
+                 | sort | select('is_state', 'playing') | first | default('') %}
+            {{ ((state_attr(p, 'app_name') or '') if p else '')[:30] }}

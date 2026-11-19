@@ -390,6 +390,22 @@ wall.matrix.elysium {
 			import wall_prometheus
 		}
 
+		# The backups' proofs for the quiet Alerts card: when each backup, restore
+		# test and off-site copy last succeeded, its allowance and its last exit
+		# (scripts/run-scheduled.sh, scripts/install-timers.sh).
+		#   {__name__=~"homelab_job_last_success_timestamp_seconds|homelab_job_max_age_seconds|homelab_job_last_exit_code",homelab_job=~"backup-.*|verify-backups.*|offsite-copy"}
+		handle /api/q/backups {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22homelab_job_last_success_timestamp_seconds%7Chomelab_job_max_age_seconds%7Chomelab_job_last_exit_code%22%2Chomelab_job%3D~%22backup-.%2A%7Cverify-backups.%2A%7Coffsite-copy%22%7D
+			import wall_prometheus
+		}
+
+		# Security updates waiting and reboots needed, per host (rules/host.rules.yaml).
+		#   {__name__=~"homelab_apt_security_upgrades_pending|homelab_reboot_required"}
+		handle /api/q/patches {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22homelab_apt_security_upgrades_pending%7Chomelab_reboot_required%22%7D
+			import wall_prometheus
+		}
+
 		# The header's weather: condition, temperature, humidity, wind.
 		handle /api/ha/weather {
 			rewrite * /api/states/weather.forecast_home?
@@ -464,6 +480,7 @@ wall.matrix.elysium {
 		#   todo        the open items of the lists labelled wall_todo
 		#   trash       the next pickup, from three helpers
 		#   deliveries  packages to go and get (17TRACK)
+		#   media       what the players labelled wall_media are playing
 		handle /api/ha/commute {
 			rewrite * /api/states/sensor.wall_commute?
 			import wall_ha
@@ -486,6 +503,11 @@ wall.matrix.elysium {
 
 		handle /api/ha/deliveries {
 			rewrite * /api/states/sensor.wall_deliveries?
+			import wall_ha
+		}
+
+		handle /api/ha/media {
+			rewrite * /api/states/sensor.wall_media?
 			import wall_ha
 		}
 

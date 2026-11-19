@@ -34,7 +34,10 @@
     { name: "mjolnir", src: "snmp", role: "UPS" },
   ];
 
-  const QUESTIONS = ["alerts", "cpu", "snmp", "wan", "wan_hour", "rtt", "ups", "pi_temp"];
+  // "backups" and "patches" are the quiet Alerts card's two lines: the
+  // backups' proofs, and security updates and reboots waiting (renderLab).
+  const QUESTIONS = ["alerts", "cpu", "snmp", "wan", "wan_hour", "rtt", "ups", "pi_temp",
+    "backups", "patches"];
   // Home Assistant entities, by the names the Caddyfile gives them.
   const DOORS = [
     ["front_door", "Front"], ["garage_door", "Garage"],
@@ -50,8 +53,9 @@
   // "today" is sensor.wall_today: the calendars' events for the next seven
   // days, gathered by home-assistant/packages/wall_calendar.yaml.
   // The context card's sources (wall_commute, wall_shabbat, wall_todo,
-  // wall_trash, wall_deliveries), each unavailable until it is set up.
-  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries"];
+  // wall_trash, wall_deliveries, wall_media), each unavailable until it is
+  // set up.
+  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries", "media"];
   const HA = [...HOUSE, "today", ...CARDS];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
@@ -199,7 +203,11 @@
       verdict.dataset.state = "ok";
       text.textContent = "All quiet";
       const q = el("div", "quiet", "All quiet");
-      q.append(el("small", null, "Nothing is firing."));
+      // With nothing firing, the space under it says how the backups and
+      // patches stand. Without an answer for them, it says what it always did.
+      const lab = labLines();
+      if (lab.length) for (const line of lab) q.append(line);
+      else q.append(el("small", null, "Nothing is firing."));
       body.append(q);
       return;
     }
@@ -222,6 +230,69 @@
       body.append(row);
     }
     fitList(body, "al", Math.max(0, faults.length - SHOWN));
+  }
+
+  // ---------- lab depth: backups and patches, under "All quiet" ----------
+  // An age in words, short: "40 min", "5 h", "12 d".
+  const ago = (s) => (s < 5400 ? `${Math.max(1, Math.round(s / 60))} min`
+    : s < 172800 ? `${Math.round(s / 3600)} h` : `${Math.round(s / 86400)} d`);
+  function labLines() {
+    const lines = [];
+    const part = (line, text, warn) => {
+      if (line.childElementCount) line.append(el("span", "sep", " · "));
+      line.append(el("span", warn ? "warn" : null, text));
+    };
+    if (fresh("backups")) {
+      // One entry per job: its last success, allowance and last exit.
+      const jobs = new Map();
+      for (const r of answers.backups || []) {
+        const j = jobs.get(r.metric.homelab_job) || {};
+        j[r.metric.__name__] = Number(r.value[1]);
+        j.now = Number(r.value[0]);
+        jobs.set(r.metric.homelab_job, j);
+      }
+      // The worst of a kind, by how much of its allowance it has used: a
+      // fortnightly backup at six days is fresher than a nightly one at two.
+      const worst = (test) => {
+        let w = null;
+        for (const [name, j] of jobs) {
+          if (!test(name) || !j.homelab_job_last_success_timestamp_seconds) continue;
+          const age = j.now - j.homelab_job_last_success_timestamp_seconds;
+          const share = j.homelab_job_max_age_seconds ? age / j.homelab_job_max_age_seconds : 0;
+          const failed = (j.homelab_job_last_exit_code || 0) !== 0;
+          if (!w || failed > w.failed || (failed === w.failed && share > w.share)) w = { age, share, failed };
+        }
+        return w;
+      };
+      const line = el("small", "lab");
+      for (const [label, test] of [
+        ["Backups", (n) => n.startsWith("backup-")],
+        ["tested", (n) => n.startsWith("verify-backups")],
+        ["off-site", (n) => n === "offsite-copy"],
+      ]) {
+        const w = worst(test);
+        if (!w) continue;
+        part(line, w.failed ? `${label} failed` : `${label} ${ago(w.age)}`, w.failed || w.share > 1);
+      }
+      if (line.childElementCount) lines.push(line);
+    }
+    if (fresh("patches")) {
+      let updates = 0;
+      const updating = new Set();
+      const reboot = [];
+      for (const r of answers.patches || []) {
+        const v = num(r);
+        if (!(v > 0)) continue;
+        if (r.metric.__name__ === "homelab_reboot_required") reboot.push(r.metric.instance);
+        else { updates += v; updating.add(r.metric.instance); }
+      }
+      const line = el("small", "lab");
+      part(line, updates ? `${updates} security update${updates === 1 ? "" : "s"} on ${updating.size} host${updating.size === 1 ? "" : "s"}`
+        : "No security updates", updates > 0);
+      part(line, reboot.length ? `reboot ${reboot.sort().join(", ")}` : "no reboots", reboot.length > 0);
+      lines.push(line);
+    }
+    return lines;
   }
 
   // ---------- nodes ----------
@@ -326,6 +397,7 @@
       ["house", HOUSE.map((n) => `ha:${n}`)],
       ["calendar", ["ha:today"]],
       ["cards", CARDS.map((n) => `ha:${n}`)],
+      ["lab", ["backups", "patches"]],
     ];
     for (const [label, names] of groups) {
       const oldest = Math.min(...names.map((n) => lastOk[n] ?? 0));
@@ -705,6 +777,15 @@
     fitList(list, "todo-item", Math.max(0, (Number(states.todo.state) || 0) - items.length));
   }
 
+  // Now playing: while any player labelled wall_media is.
+  function mediaLive() { return haFresh("media") && states.media.state === "playing" && attrs("media").title; }
+  function renderMedia(box) {
+    const a = attrs("media");
+    box.append(el("div", "ctx-hero media", String(a.title)));
+    sub(box, a.artist ? String(a.artist) : "");
+    sub(box, a.app ? String(a.app) : "");
+  }
+
   const CONTEXT = [
     { title: "Commute", short: "commute", when: commuteLive, render: renderCommute },
     { title: () => (attrs("shabbat").holiday ? String(attrs("shabbat").holiday) : "Shabbat"),
@@ -712,6 +793,7 @@
     { title: "Trash", short: "trash", when: trashLive, render: renderTrash },
     { title: "Packages", short: "packages", when: deliveriesLive, render: renderDeliveries },
     { title: "To-do", short: "to-do", when: todoLive, render: renderTodo },
+    { title: "Now playing", short: "playing", when: mediaLive, render: renderMedia },
     { title: "Word of the day", short: "word", when: () => true, render: renderWord },
   ];
 

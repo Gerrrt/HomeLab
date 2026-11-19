@@ -771,7 +771,11 @@ container of its own: Caddy serves `wall/` as static files.
   Pi's DejaVu.
 - **It says when it does not know.** No answer from Prometheus, or a
   Watchdog that is not firing, is shown in red as exactly that, never as
-  "All quiet". A host that stops reporting reads *no data*. The status bar
+  "All quiet". Under a real "All quiet", two lines say how the lab stands:
+  the backups, the restore test and the off-site copy, each by its most
+  overdue job against its own allowance (`/api/q/backups`), and the security
+  updates and reboots waiting (`/api/q/patches`). Overdue, failed or waiting
+  is amber; with no answer, the line goes and "Nothing is firing." stays. A host that stops reporting reads *no data*. The status bar
   gives each source's age and turns amber at two and a half minutes.
 - **The household half comes from Home Assistant, the same way.** Each
   `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
@@ -810,7 +814,8 @@ container of its own: Caddy serves `wall/` as static files.
   (`/api/ha/commute`); Shabbat or Yom Tov, from six hours before candle
   lighting to havdalah (`/api/ha/shabbat`); the bins, from 16:00 the evening
   before pickup to noon on the day (`/api/ha/trash`); packages to go and
-  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); and
+  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); what is
+  playing on the players labelled `wall_media` (`/api/ha/media`); and
   otherwise a Hebrew word of the day from a static list in the page. The
   others that also apply are named on the card's last line. Each source is a
   `wall_*.yaml` package and stays unavailable, its card hidden, until what
@@ -818,7 +823,8 @@ container of its own: Caddy serves `wall/` as static files.
   `Home`, region US, any destination, its polling off) and the label
   `wall_commute` on each calendar to route from, the Jewish Calendar
   integration, a to-do list labelled `wall_todo`, the trash helpers'
-  pickup day, and the 17TRACK integration with the household's account. The
+  pickup day, the 17TRACK integration with the household's account, and the
+  label `wall_media` on each player to show. The
   commute card sends the next labelled event's location to Waze. The UPS's mains or battery,
   charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
