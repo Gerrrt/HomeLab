@@ -774,8 +774,9 @@ container of its own: Caddy serves `wall/` as static files.
   "All quiet". Under a real "All quiet", two lines say how the lab stands:
   the backups, the restore test and the off-site copy, each by its most
   overdue job against its own allowance (`/api/q/backups`), and the security
-  updates and reboots waiting (`/api/q/patches`). Overdue, failed or waiting
-  is amber; with no answer, the line goes and "Nothing is firing." stays. A host that stops reporting reads *no data*. The status bar
+  updates and reboots waiting (`/api/q/patches`). Overdue, failed, never
+  succeeded or waiting is amber. What no host reports is left out rather
+  than shown as none, and with neither line, "Nothing is firing." stays. A host that stops reporting reads *no data*. The status bar
   gives each source's age and turns amber at two and a half minutes.
 - **The household half comes from Home Assistant, the same way.** Each
   `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends

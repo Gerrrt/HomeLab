@@ -251,16 +251,22 @@
         j.now = Number(r.value[0]);
         jobs.set(r.metric.homelab_job, j);
       }
-      // The worst of a kind, by how much of its allowance it has used: a
-      // fortnightly backup at six days is fresher than a nightly one at two.
+      // The worst of a kind. A job that has never succeeded comes first:
+      // run-scheduled.sh writes a success time of 0 after a first run that
+      // failed, and install-timers.sh declares an allowance before any run.
+      // Then a failed last run, then how much of its allowance each has used:
+      // a fortnightly backup at six days is fresher than a nightly one at two.
       const worst = (test) => {
         let w = null;
         for (const [name, j] of jobs) {
-          if (!test(name) || !j.homelab_job_last_success_timestamp_seconds) continue;
-          const age = j.now - j.homelab_job_last_success_timestamp_seconds;
-          const share = j.homelab_job_max_age_seconds ? age / j.homelab_job_max_age_seconds : 0;
+          if (!test(name)) continue;
+          const last = j.homelab_job_last_success_timestamp_seconds || 0;
+          const never = last <= 0;
+          const age = never ? Infinity : j.now - last;
+          const share = never ? Infinity : j.homelab_job_max_age_seconds ? age / j.homelab_job_max_age_seconds : 0;
           const failed = (j.homelab_job_last_exit_code || 0) !== 0;
-          if (!w || failed > w.failed || (failed === w.failed && share > w.share)) w = { age, share, failed };
+          const rank = never ? 2 : failed ? 1 : 0;
+          if (!w || rank > w.rank || (rank === w.rank && share > w.share)) w = { age, share, failed, never, rank };
         }
         return w;
       };
@@ -272,25 +278,35 @@
       ]) {
         const w = worst(test);
         if (!w) continue;
-        part(line, w.failed ? `${label} failed` : `${label} ${ago(w.age)}`, w.failed || w.share > 1);
+        const text = w.never ? `${label}: none yet` : w.failed ? `${label} failed` : `${label} ${ago(w.age)}`;
+        part(line, text, w.never || w.failed || w.share > 1);
       }
       if (line.childElementCount) lines.push(line);
     }
     if (fresh("patches")) {
+      // A fresh answer can still be empty, or carry one family and not the
+      // other. "None" is said only of a family some host reports; one no host
+      // reports is left out, and with neither the line goes.
       let updates = 0;
       const updating = new Set();
       const reboot = [];
+      const seen = new Set();
       for (const r of answers.patches || []) {
+        seen.add(r.metric.__name__);
         const v = num(r);
         if (!(v > 0)) continue;
         if (r.metric.__name__ === "homelab_reboot_required") reboot.push(r.metric.instance);
         else { updates += v; updating.add(r.metric.instance); }
       }
       const line = el("small", "lab");
-      part(line, updates ? `${updates} security update${updates === 1 ? "" : "s"} on ${updating.size} host${updating.size === 1 ? "" : "s"}`
-        : "No security updates", updates > 0);
-      part(line, reboot.length ? `reboot ${reboot.sort().join(", ")}` : "no reboots", reboot.length > 0);
-      lines.push(line);
+      if (seen.has("homelab_apt_security_upgrades_pending")) {
+        part(line, updates ? `${updates} security update${updates === 1 ? "" : "s"} on ${updating.size} host${updating.size === 1 ? "" : "s"}`
+          : "No security updates", updates > 0);
+      }
+      if (seen.has("homelab_reboot_required")) {
+        part(line, reboot.length ? `reboot ${reboot.sort().join(", ")}` : "no reboots", reboot.length > 0);
+      }
+      if (line.childElementCount) lines.push(line);
     }
     return lines;
   }
