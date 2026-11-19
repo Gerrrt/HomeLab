@@ -17,6 +17,28 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-19
+
+- **The wall shows what is playing, and how the backups stand.** The fourth
+  of the wall's five steps.
+  - `wall_media.yaml` makes `sensor.wall_media`: the title, artist and app of
+    the first playing media player labelled `wall_media`. It is a context
+    card, *Now playing*, after the to-do list and before the Hebrew word. No
+    player is labelled yet, so it stays hidden.
+  - Under "All quiet", the Alerts card now gives two lines from Prometheus
+    in place of "Nothing is firing.". The first is the backups, the restore
+    test and the off-site copy, each by its most overdue job against the
+    allowance `install-timers.sh` gives it (`/api/q/backups`). The second
+    is the security updates and reboots waiting (`/api/q/patches`). Both
+    read series that already exist.
+  - SSH failures and the IDS's findings are left out. They are Loki rules
+    whose alerts go to Alertmanager, not to Prometheus's `ALERTS`, so the
+    wall has no query that can read them. The same is true of every Loki
+    alert: the wall's Alerts card shows Prometheus's alerts only.
+
+  I previewed both at 1920x1080 against stubbed answers; neither has run
+  against the real Prometheus or Home Assistant.
+
 ## 2026-11-18
 
 - **The wall's context card gets its sources.** The third of the wall's

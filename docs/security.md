@@ -1134,24 +1134,27 @@ from Home Assistant with *not enough permissions*.
   that difference is accepted. It holds two credentials: the reader token,
   which can only query, and a Fever key that can only mark items read for a
   Miniflux user that follows public feeds.
-- **The wall page answers eight fixed questions**
+- **The wall page answers ten fixed questions**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)):
   `wall.matrix.elysium` on `trinity`'s Caddy. Each `/api/q/NAME` is one PromQL
   query written in the Caddyfile, sent with the reader token, which Caddy
   adds. The caller picks a name, never a query, and its own query string is
   discarded. Only GET and HEAD are served, because Prometheus would take a
   POST body's `query=` over the URL's. Like Glance it has no login, so
-  anything that reaches `trinity:443` can read those eight answers: the
+  anything that reaches `trinity:443` can read those ten answers: the
   firing alerts, per-host CPU, SNMP reachability, WAN traffic and latency,
-  the UPS and `heimdall`'s temperature. That is less than the Homelab page
-  already shows, and the page and the Pi hold no credential.
-  **Its household half reads eighteen Home Assistant entities the same way.**
+  the UPS, `heimdall`'s temperature, when each backup, restore test and
+  off-site copy last succeeded, and how many security updates and reboots
+  each host is waiting for. That is less than Glance's Homelab and
+  Maintenance pages already show, and the page and the Pi hold no credential.
+  **Its household half reads nineteen Home Assistant entities the same way.**
   Each `/api/ha/NAME` is one `GET /api/states/<entity>` written in the
   Caddyfile: the weather, today's forecast, the alarm's mode, four door
   contacts, two window contacts, the office lights, the thermostat, the
   Litter-Robot's summary, the next drive, the Shabbat times, the open to-do
   items, the next trash pickup, the packages to collect by their own labels,
-  and `sensor.wall_today`,
+  what the labelled players are playing (title, artist and app, never the
+  player's name or room), and `sensor.wall_today`,
   which holds the next seven days' calendar events. Caddy adds the token of HA's non-admin
   `wall` user. Home Assistant has no read-only role, so that token could call
   services, the alarm's included. It is read-only only because it lives in
