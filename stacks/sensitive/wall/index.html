@@ -1,0 +1,90 @@
+<!doctype html>
+<!--
+  The office wall dashboard (ADR-0119), served by trinity's Caddy at
+  wall.matrix.elysium and shown full-screen on heimdall.
+
+  Static on purpose: no build step, no framework, nothing fetched from
+  anywhere but this site. Every number comes from /api/q/NAME, a fixed
+  Prometheus question, or /api/ha/NAME, one Home Assistant entity's state.
+  The Caddyfile writes each one out and adds its token, so this page holds no
+  credential.
+
+  It is laid out on a fixed 1920x1080 stage, the television's native size,
+  and scaled to whatever window it is in, so a laptop shows what the wall
+  shows.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="robots" content="noindex">
+  <title>Elysian Wall</title>
+  <link rel="stylesheet" href="wall.css">
+  <script src="wall.js" defer></script>
+</head>
+<body>
+<div id="viewport">
+  <main id="stage" aria-live="polite">
+
+    <header class="top">
+      <div class="when">
+        <div class="clock"><span id="hm">--:--</span><span class="ampm" id="ampm"></span></div>
+        <div class="date" id="date"></div>
+      </div>
+      <div class="wx" id="wx">
+        <div class="wx-temp" id="wx-temp">—</div>
+        <div class="wx-desc"><div id="wx-cond">—</div><div class="wx-sub" id="wx-sub"></div></div>
+      </div>
+      <div class="verdict" id="verdict" data-state="unknown">
+        <span class="dot"></span><span id="verdict-text">Waiting for Prometheus</span>
+      </div>
+    </header>
+
+    <div class="left">
+      <section class="card alerts" aria-labelledby="h-alerts">
+        <h2 id="h-alerts">Alerts</h2>
+        <div id="alerts-body" class="alerts-body"></div>
+      </section>
+
+      <section class="card today" aria-labelledby="h-today">
+        <h2 id="h-today">Today</h2>
+        <div id="today" class="agenda"></div>
+      </section>
+    </div>
+
+    <section class="card nodes" aria-labelledby="h-nodes">
+      <h2 id="h-nodes">Elysian</h2>
+      <div id="nodes" class="node-grid"></div>
+    </section>
+
+    <section class="card wan" aria-labelledby="h-wan">
+      <h2 id="h-wan">Internet</h2>
+      <div class="pair">
+        <div><div class="hero" id="wan-down">—</div><div class="unit">Mb/s down</div></div>
+        <div><div class="hero dim" id="wan-up">—</div><div class="unit">Mb/s up</div></div>
+        <div><div class="hero dim" id="wan-rtt">—</div><div class="unit">ms to 1.1.1.1</div></div>
+      </div>
+      <svg id="wan-spark" class="spark" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden="true"></svg>
+    </section>
+
+    <section class="card power" aria-labelledby="h-power">
+      <h2 id="h-power">Power</h2>
+      <div class="hero" id="ups-state">—</div>
+      <div class="kv">
+        <div>Charge<b id="ups-charge">—</b></div>
+        <div>Runtime<b id="ups-runtime">—</b></div>
+        <div>Load<b id="ups-load">—</b></div>
+      </div>
+    </section>
+
+    <section class="card household" aria-labelledby="h-house">
+      <h2 id="h-house">Home</h2>
+      <div class="home" id="home"></div>
+    </section>
+
+    <footer class="status" id="status"></footer>
+  </main>
+</div>
+</body>
+</html>

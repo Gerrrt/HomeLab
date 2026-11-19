@@ -27,9 +27,18 @@
 #            The proxy's own log must show each one denied with no backend
 #            (`<NOSRV>`). A 403 or a 404 from the daemon would mean the request
 #            got through.
+#   idle     a log follow on a quiet container stays open past the proxy's
+#            idle timeouts (#1552). Ten minutes is too long to wait in CI, so
+#            this boots a second proxy on a copy of the file with the defaults'
+#            `timeout client` and `timeout server` cut to 5s, and holds the
+#            follow for 20s. A third proxy, on the same copy without the two
+#            #1552 lines, must close the same follow before then, so the test
+#            is shown able to fail. `/events` is followed too and its lifetime
+#            printed, for the record and not as a pass or fail: no client here
+#            uses it, and its behaviour is upstream's.
 #
 # And it checks drift: it rebuilds upstream's template from this file by
-# undoing the two marked differences, and requires the result to equal the
+# undoing the marked differences, and requires the result to equal the
 # template in the pinned image byte for byte. A Dependabot bump that changes
 # upstream's rules therefore fails here, rather than being silently replaced by
 # a copy of the old ones.
@@ -77,10 +86,13 @@ fi
 
 IMAGE="$("${REPO_ROOT}/scripts/image-for.sh" docker-socket-proxy)"
 TAG="sockproxycheck-$$"
+IDLE_TAG="${TAG}-idle"
+CONTROL_TAG="${TAG}-control"
+QUIET_TAG="${TAG}-quiet"
 WORK="$(mktemp -d)"
 # shellcheck disable=SC2317,SC2329  # reached through the EXIT trap
 cleanup() {
-  docker rm -f "${TAG}" >/dev/null 2>&1 || true
+  docker rm -f "${TAG}" "${IDLE_TAG}" "${CONTROL_TAG}" "${QUIET_TAG}" >/dev/null 2>&1 || true
   rm -rf "${WORK}" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -108,8 +120,11 @@ out, inside, blocks = [], False, 0
 for line in lines:
     if line.strip().startswith("# BEGIN homelab"):
         inside, blocks = True, blocks + 1
-        # 2. The block stands where upstream's one prefix rule stood.
-        out.append("    http-request allow if { path,url_dec -m reg -i ^(/v[\\d\\.]+)?/containers } { env(CONTAINERS) -m bool }\n")
+        # 2. The first block stands where upstream's one prefix rule stood.
+        #    The second, the log follow's backend (#1552), adds a line upstream
+        #    does not have, so it rebuilds to nothing.
+        if blocks == 1:
+            out.append("    http-request allow if { path,url_dec -m reg -i ^(/v[\\d\\.]+)?/containers } { env(CONTAINERS) -m bool }\n")
         continue
     if line.strip() == "# END homelab":
         inside = False
@@ -118,8 +133,8 @@ for line in lines:
         continue
     # 3. The resolved bind line, back to the placeholder the entrypoint fills.
     out.append("    bind ${BIND_CONFIG}\n" if line == "    bind [::]:2375 v4v6\n" else line)
-if blocks != 1 or inside:
-    sys.exit(f"expected exactly one closed `# BEGIN homelab` block, found {blocks}")
+if blocks != 2 or inside:
+    sys.exit(f"expected exactly two closed `# BEGIN homelab` blocks, found {blocks}")
 open(dst, "w", encoding="utf-8").writelines(out)
 REBUILD
 if [[ -f "${WORK}/rebuilt.template" ]] && cmp -s "${WORK}/upstream.template" "${WORK}/rebuilt.template"; then
@@ -260,9 +275,106 @@ else
   fail "POST /containers/create -> $(grep -oE '[0-9]{3}' <<<"${out}" | head -1 || echo none), expected 403"
 fi
 
+# ---------------------------------------------------------------------------
+info "idle: a log follow outlives the proxy's idle timeouts (#1552)"
+# ---------------------------------------------------------------------------
+# The two copies. Both cut the defaults' ten minutes to IDLE; the control also
+# drops the set-timeout line and the second homelab block.
+IDLE=5
+HOLD=20
+python3 - "${CFG}" "${WORK}" "${IDLE}" <<'COPIES' || die "could not derive the idle-test configs from ${CFG##*/}"
+import pathlib, sys
+src, work, idle = sys.argv[1], pathlib.Path(sys.argv[2]), sys.argv[3]
+text = open(src, encoding="utf-8").read()
+for name in ("client", "server"):
+    old = f"    timeout {name} 10m\n"
+    if text.count(old) != 1:
+        sys.exit(f"`timeout {name} 10m` is not in defaults exactly once")
+    text = text.replace(old, f"    timeout {name} {idle}s\n")
+fixed = text
+lines, out, block = text.splitlines(keepends=True), [], 0
+inside = False
+for line in lines:
+    if line.strip().startswith("# BEGIN homelab"):
+        block += 1
+        inside = block == 2
+    live = not line.lstrip().startswith("#")
+    if (live and "set-timeout client" in line) or inside:
+        if line.strip() == "# END homelab":
+            inside = False
+        continue
+    out.append(line)
+control = "".join(out)
+rules = "".join(l for l in out if not l.lstrip().startswith("#"))
+if rules.count("set-timeout") or rules.count("logs$") != 1:
+    sys.exit("the control still lifts the timeout, or lost the /logs allow rule")
+for name, body in (("idle", fixed), ("control", control)):
+    d = work / name
+    d.mkdir()
+    (d / "haproxy.cfg").write_text(body, encoding="utf-8")
+COPIES
+chmod -R a+rX "${WORK}/idle" "${WORK}/control"
+printf 'EVENTS=1\n' >> "${WORK}/env"
+
+# A container that writes nothing: the follow has nothing to send.
+docker run --network none -d --name "${QUIET_TAG}" --label homelab.logs=off \
+  --cap-drop ALL --security-opt no-new-privileges:true \
+  --entrypoint sleep "${IMAGE}" 600 >/dev/null
+QUIET="$(docker inspect -f '{{.Id}}' "${QUIET_TAG}")"
+
+boot() { # name dir
+  docker run --network none -d --name "$1" --label homelab.logs=off \
+    --cap-drop ALL --security-opt no-new-privileges:true \
+    --env-file "${WORK}/env" \
+    -v /var/run/docker.sock:/var/run/docker.sock:ro \
+    -v "$2:/usr/local/etc/socket-proxy:ro" \
+    "${IMAGE}" haproxy -f /usr/local/etc/socket-proxy/haproxy.cfg >/dev/null
+  local i
+  for ((i = 0; i < 30; i++)); do
+    docker exec "$1" wget -q -O /dev/null -T 2 http://127.0.0.1:2375/version 2>/dev/null && return 0
+    sleep 1
+  done
+  docker logs --tail 20 "$1" 2>&1 | sed 's/^/        /'
+  die "the scratch proxy $1 never answered /version"
+}
+
+# Holds a follow open for up to HOLD seconds and prints how long it lasted.
+# busybox `timeout` kills wget at HOLD, so HOLD means the stream was still up;
+# anything less means the proxy (or the daemon) closed it.
+held() { # container path
+  local start end
+  start="$(date +%s)"
+  docker exec "$1" timeout "${HOLD}" wget -q -O /dev/null -T 60 "http://127.0.0.1:2375$2" >/dev/null 2>&1 || true
+  end="$(date +%s)"
+  echo $((end - start))
+}
+
+boot "${IDLE_TAG}" "${WORK}/idle"
+boot "${CONTROL_TAG}" "${WORK}/control"
+FOLLOW="/containers/${QUIET}/logs?follow=1&stdout=1&stderr=1"
+
+lasted="$(held "${IDLE_TAG}" "${FOLLOW}")"
+if ((lasted >= HOLD)); then
+  pass "a follow on a quiet container is still open after ${lasted}s, ${IDLE}s idle timeouts"
+else
+  fail "a follow on a quiet container closed after ${lasted}s, with ${IDLE}s idle timeouts; expected ${HOLD}s"
+fi
+lasted="$(held "${CONTROL_TAG}" "${FOLLOW}")"
+# At least IDLE - 1, so a refusal or a broken request, which ends at once,
+# cannot pass for the timeout.
+if ((lasted >= IDLE - 1 && lasted < HOLD)); then
+  pass "without the #1552 lines the same follow closes after ${lasted}s, so the test can fail"
+elif ((lasted < IDLE - 1)); then
+  fail "without the #1552 lines the follow ended after ${lasted}s, before the ${IDLE}s timeout: it never streamed"
+else
+  fail "without the #1552 lines the follow still lasted ${lasted}s: the test above proves nothing"
+fi
+lasted="$(held "${IDLE_TAG}" "/events")"
+info "for the record: /events, upstream's timeout server 0 and nothing else, lasted ${lasted}s of ${HOLD}s"
+
 if ((FAILED)); then
   printf '\033[0;31mFAIL\033[0m the socket proxy config does not hold\n'
   exit 1
 fi
-printf '\033[0;32mOK\033[0m %d allowed, %d refused by the proxy, and upstream'"'"'s template unchanged\n' \
+printf '\033[0;32mOK\033[0m %d allowed, %d refused by the proxy, a quiet log follow held, and upstream'"'"'s template unchanged\n' \
   "${#ALLOWED[@]}" "$((${#REFUSED[@]} + 1))"

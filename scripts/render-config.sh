@@ -555,6 +555,8 @@ fi
 # that names a SOPS value has to be added here, or render passes and `make up`
 # then dies on the unset variable — the guard and this list are two copies of
 # one fact, and scripts/seed-validation-env.sh is the third.
+# scripts/check_compose_vars.py holds the three together in CI: #1566 added
+# WALL_HA_TOKEN's guard and stand-in but not this line, and only trinity saw it.
 COMPOSE_VARS=(
   GRAFANA_ADMIN_USER
   GRAFANA_ADMIN_PASSWORD
@@ -572,6 +574,7 @@ COMPOSE_VARS=(
   INGEST_TOKEN_GARUDA
   INGEST_TOKEN
   GLANCE_PROMETHEUS_TOKEN
+  WALL_HA_TOKEN
   HA_PROMETHEUS_AUTHORIZATION
   HA_MEDIATV_MAC
   MQTT_HA_PASSWORD

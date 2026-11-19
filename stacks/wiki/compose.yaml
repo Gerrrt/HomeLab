@@ -331,6 +331,12 @@ services:
       ADMIN_PASS: ${WIKI_ADMIN_BOOTSTRAP_PASSWORD:-}
     volumes:
       - wiki-pgsocket:/var/run/postgresql
+    # The postgres image declares a VOLUME at its data directory. Without a
+    # mount there, Docker makes a fresh anonymous volume on every run, and
+    # each one is left behind. The guard writes nothing, so a tiny tmpfs
+    # satisfies the declaration.
+    tmpfs:
+      - /var/lib/postgresql/data:size=1m,uid=999,gid=999,mode=0700
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

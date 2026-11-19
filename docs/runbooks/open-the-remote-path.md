@@ -269,6 +269,15 @@ sudo sysctl -w net.ipv4.ip_forward=0 \
 # expect 1, then 0, then 1
 ```
 
+Then the jumpbox's own firewall. `ufw` is default-deny on `phoenix`
+([ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)),
+so add the three lines
+[`build-the-jumpbox.md`](build-the-jumpbox.md) §6a marks `tunnel`: the listen
+port, `22` from the peers on `wg0`, and the `route` rule from `wg0` to the
+lab. Without the `route` rule the handshake succeeds and nothing forwards,
+the same symptom as the CAUTION above. `sudo ufw status verbose` lists all
+three.
+
 ## 4. The client configuration
 
 On the **client device**, generate its own keypair and build this. Send the

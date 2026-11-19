@@ -142,6 +142,8 @@ adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists includ
 glance/                    Glance's configuration: glance.yml and pages/, each
                            mounted read-only, and assets/icons; validated in CI
                            by its own binary
+wall/                      the office wall dashboard (ADR-0119): static HTML,
+                           CSS and JS, served by Caddy at wall.matrix.elysium
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 ntfy/templates/            message templates, mounted read-only
 stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
@@ -737,6 +739,87 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
      after the pinned exporter image with the `http_2xx_tier_ca` module and
      the tier CA probed it from `trinity` (`probe_success 1`). It is live once
      `prometheus` pulls the merge; `probe_success{name="glance"}` then reads 1.
+
+## The wall page
+
+The office wall dashboard, at `https://wall.matrix.elysium`, shown full-screen
+by `heimdall`'s kiosk
+([ADR-0119](../../docs/adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+[`build-heimdall.md`](../../docs/runbooks/build-heimdall.md)). It shows about
+eight things at a size read from across the room: the time, the firing
+alerts, eight hosts, the internet, the UPS, and how old each answer is. No
+container of its own: Caddy serves `wall/` as static files.
+
+- **The page chooses the question, never the query.** Each `/api/q/NAME` is a
+  `handle` in the Caddyfile that rewrites to one PromQL query written there,
+  and Caddy adds the reader token on the way to the ingest proxy on
+  `prometheus`. A client's own query string is replaced, so
+  `/api/q/cpu?query=…` still asks the CPU question. Anything else under
+  `/api/` is 404. Only GET and HEAD reach a handle: Prometheus reads a POST
+  body's `query=` ahead of the URL's, so the method gate runs first, inside a
+  `route` that keeps it there. Measured against the pinned Caddy with a
+  stand-in upstream on 2026-11-17: the question rewritten, `?query=up`
+  ignored, POST and DELETE 405 without reaching upstream, `/api/v1/query`
+  404, the client's cookie stripped and the token added.
+- **No credential in the page or on the Pi.** The token is
+  `GLANCE_PROMETHEUS_TOKEN`, the estate's reader that Glance and Home
+  Assistant already share, given to the caddy service. Its upstream's leaf
+  is the estate CA's, so Caddy trusts the committed
+  `stacks/observability/alloy/ingest-ca.pem` for that one transport.
+- **It loads nothing from anywhere else.** The site's Content-Security-Policy
+  allows only itself. There are no web fonts; the stacks fall back to the
+  Pi's DejaVu.
+- **It says when it does not know.** No answer from Prometheus, or a
+  Watchdog that is not firing, is shown in red as exactly that, never as
+  "All quiet". A host that stops reporting reads *no data*. The status bar
+  gives each source's age and turns amber at two and a half minutes.
+- **The household half comes from Home Assistant, the same way.** Each
+  `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
+  in `?`, so the client's query string is dropped. Caddy adds
+  `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
+  `weather.forecast_home`, the front, garage, garden and patio door contacts,
+  the two window contacts, and two template entities from
+  `home-assistant/packages/wall_house.yaml`: `sensor.wall_alarm` (the
+  house's one alarm panel) and `binary_sensor.wall_office_lights` (on when
+  any light whose id contains `office` is on).
+  The page shows them as the header's weather and a one-line Home row: the
+  alarm's mode, any open door or window in amber, and the office lights.
+  The calendar is `sensor.wall_today` at `/api/ha/today`: the package
+  `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
+  every five minutes for today and tomorrow, from the calendars labelled
+  `wall_calendar` in HA's UI, or from every calendar when none is labelled.
+  It keeps each event's title, start, end, location and a calendar number for
+  its colour, and shows them in the Today panel under the alerts. Booted on
+  Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
+  sensor held both events, and with no calendar it read unavailable, which
+  the page shows as `calendar · unavailable`. The real ids of the alarm and the
+  office lights name the city and a person, so the package finds them and
+  only its own ids are written here. Booted on Home Assistant 2026.11.1 with
+  a stand-in alarm and office light, both followed the real ones from
+  disarmed and off to armed and on. HA has no read-only role, so the narrowing in
+  Caddy is the read-only part (`docs/security.md`). Measured against the
+  pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
+  its entity with the token, `?x=1` was dropped, POST was refused with 405,
+  and `/api/states/…` directly was 404.
+- **Adding it to the running tier.** On `trinity`:
+  1. Add `wall` to `trinity`'s *Additional Names for this Host* on `morpheus`
+     ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
+     then check that `wall.matrix.elysium` answers `10.0.99.40`. **Done
+     2026-11-17.**
+  2. `make up STACK=sensitive` (or wait for the converge timer). Caddy is
+     recreated for its alias, its mounts and the site block, and step-ca
+     issues the name's leaf on the first request. **Done 2026-11-17.**
+  3. `curl -s https://wall.matrix.elysium/api/q/alerts | head -c 200` from a
+     Hicks host that trusts the tier's root: a JSON answer with
+     `"status":"success"`. **Done 2026-11-17.**
+  4. On `heimdall`, change the URL in `~/.config/labwc/autostart` to
+     `https://wall.matrix.elysium/` and reboot (`build-heimdall.md` §7).
+     **Done 2026-11-17.**
+  5. The `wall` probe in
+     `stacks/observability/prometheus/targets/blackbox.yaml`, committed
+     commented out with the page, was enabled once step 3 answered.
+     **Done 2026-11-17.** It is live once `prometheus` pulls the merge;
+     `probe_success{name="wall"}` then reads 1.
 
 ## ntfy
 

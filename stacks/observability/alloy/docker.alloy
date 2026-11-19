@@ -119,9 +119,18 @@ discovery.relabel "dockerlogs" {
 }
 
 loki.source.docker "default" {
-	host          = coalesce(sys.env("DOCKER_API"), "unix:///var/run/docker.sock")
-	targets       = discovery.relabel.dockerlogs_targets.output
-	labels        = {"platform" = "docker", "log_type" = "docker"}
+	host    = coalesce(sys.env("DOCKER_API"), "unix:///var/run/docker.sock")
+	targets = discovery.relabel.dockerlogs_targets.output
+	// `instance` is the same value loki.write stamps as `host` on every stream,
+	// so it adds no streams. It is here because journal, auth.log, /var/log and
+	// syslog all carry it, and `{instance="<host>"}` silently missed every
+	// container line on every host until 2026-11-15. Dashboards and rules key
+	// on `host`, which container logs have always had.
+	labels = {
+		"platform" = "docker",
+		"log_type" = "docker",
+		"instance" = coalesce(sys.env("ALLOY_HOSTNAME"), constants.hostname),
+	}
 	relabel_rules = discovery.relabel.dockerlogs.rules
 	forward_to    = [loki.process.dockerlogs_filter.receiver]
 }
@@ -135,9 +144,42 @@ loki.process "dockerlogs_filter" {
 		expression = "healthcheck"
 	}
 
-	stage.drop {
-		expression = "container=(grafana|alloy)"
+	// The read-only socket proxy (#193, #836) logs one HAProxy line per Docker
+	// API call, and the callers are this agent's own cAdvisor and discovery —
+	// so without this the agent ships a line back for every poll it makes.
+	// Measured on `eden` over 24h to 2026-11-15: 84,309 lines from
+	// bloodhound-docker-socket-proxy, every one a 200 GET (81,181 of them
+	// /containers/<id>/json), against 1,086 from the other four containers
+	// together. Every host with a proxy runs the same pair of pollers.
+	//
+	// Only successful reads go. A 403 is the proxy refusing a request its
+	// allow-list does not cover, which is the one thing it exists to log; a
+	// 5xx is the socket misbehaving; and a 2xx on anything but GET or HEAD
+	// would mean a write had been enabled. All of those still ship.
+	//
+	// Not `homelab.logs=off` on the proxy, which would also drop the 403s, and
+	// which exempts the container from ContainerGone and ContainerNotRunning
+	// (containers.rules.yaml). Not HAProxy's log level either: the frontend's
+	// denials and allows log at the same level.
+	//
+	// The selector names every proxy this repository starts: compose's
+	// `docker-socket-proxy` and `<stack>-docker-socket-proxy`, and
+	// deploy-agent.sh's `alloy-socket-proxy` on the hosts it deploys to. A
+	// proxy started under any other name is not matched and still ships.
+	stage.match {
+		selector = `{service_name=~"(.+-)?docker-socket-proxy|alloy-socket-proxy"}`
+
+		stage.drop {
+			expression = `^\S+ \[[^\]]+\] \S+ \S+ \S+ 2\d\d .*"(GET|HEAD) `
+		}
 	}
+
+	// Alloy's and Grafana's own logs DO ship. A `stage.drop` on the line
+	// content `container=(grafana|alloy)` sat here from the pre-#88 config. It
+	// was meant as a drop by container, but it matched line text, and on `eden`
+	// over 24h it matched no line at all. The agent's own warnings and errors
+	// are worth having, and they are few: bloodhound-alloy shipped 320 lines in
+	// those 24h. Removed 2026-11-15 rather than turned into a real drop.
 
 	// Container stdout goes through log_processor rather than straight to the
 	// writer, so it arrives carrying a `level` like every other source. It did

@@ -257,6 +257,15 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   [#1228](https://github.com/Gerrrt/HomeLab/issues/1228), and `ping -c3` from
   `prometheus` got an answer from an eero on each of the three segments the
   same day, before the job's targets were enabled.
+- **A second row into Hicks, in force since 2026-11-17:** `10.0.99.20 →
+  10.0.50.15:9100/tcp`, above the *Block access to …* rows, so `prometheus`
+  scrapes `node_exporter` on `heimdall`, the office wall dashboard. It is
+  host- and port-scoped like the `eeros` row above, so Winterfell's catch-all
+  still reaches no segment.
+  [ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)
+  records the decision, and
+  [`build-heimdall.md`](runbooks/build-heimdall.md) §4 created it. `curl` from
+  `prometheus` read the exporter the same day.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -277,10 +286,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
   the off-host copies of the firewall export that `make backup-firewall` pushes
   to it, of the weekly volume sets that `make backup` pushes
-  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and of Jellyfin's
+  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), of Jellyfin's
   state that `make backup-nas` pulls off `smaug` and pushes on
-  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), as
-  ciphertext with no key. Its role is the estate's small off-host
+  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), and
+  of `trinity`'s nightly sensitive-tier volume sets and Immich's library
+  ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)),
+  as ciphertext with no key. Its role is the estate's small off-host
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same
@@ -288,7 +299,12 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). Nothing deploys
   that, so a rebuilt `oracle` needs the step in
   [`stacks/wiki/README.md`](../stacks/wiki/README.md#the-hosts-ssh-once)
-  again.
+  again. UFW is enabled on `oracle`, but it does not guard the wiki. Docker
+  publishes `80` and `443` through its own chains, ahead of UFW's. UFW does
+  limit `22` to `prometheus`, `trinity` and Hicks. What keeps the wiki
+  internal
+  ([ADR-0011](adr/0011-keep-the-wiki-internal.md)) is this firewall's rules
+  alone.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
@@ -319,10 +335,18 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
 | mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| heimdall | `10.0.50.15` | `88:a2:9e:xx:xx:xx` | Raspberry Pi 5 | Raspberry Pi OS 13 | Basement | Wall dashboard |
 
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
+- **The three eeros advertise IPv6 on this segment, and pfSense does not.**
+  Measured 2026-11-17: as Thread border routers, they send router
+  advertisements with a ULA on-link prefix (hosts SLAAC an address from it), a
+  route to their Thread mesh's ULA prefix, and router lifetime 0, so no v6
+  default route. None of it reaches `morpheus`
+  ([`security.md`](security.md#segmentation);
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554) holds the decision).
 - **The pool is `.100–.200`, and `wearable-01` is a Kea reservation at `.14`,
   below it, since 2026-11-11.** It held `.114` by lease before that. The
   reservation is on the watch's private Wi-Fi address, so it holds only while
@@ -740,7 +764,13 @@ Where things get broken on purpose.
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
   WireGuard tunnel terminates, built 2026-09-22
   ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the peers reach the
-  lab through it and nothing else. Its Alloy pushes to
+  lab through it and nothing else. Its inbound policy is decided and not yet
+  applied: [ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)
+  makes it default-deny, with `22` admitting Hicks and the peers and nothing
+  else on this segment, and `8800` open to the segment only while a Debian or
+  Kali template builds. Until [#1496](https://github.com/Gerrrt/HomeLab/issues/1496)
+  applies it, `phoenix` has no host firewall and `22` answers the whole
+  segment. Its Alloy pushes to
   `alexander` and
   not to Winterfell, and it gets no pass out of this segment: a rule from it
   into 99 would make it the bastion ADR-0002 and ADR-0012 declined. Everything

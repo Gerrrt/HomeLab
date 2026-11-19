@@ -143,6 +143,17 @@ services:
           - actual.matrix.elysium
           - pdf.matrix.elysium
           - start.matrix.elysium
+          - wall.matrix.elysium
+    # The reader token, for the wall page's fixed Prometheus questions only
+    # (the Caddyfile's wall.matrix.elysium block, ADR-0119). It is Glance's
+    # variable on purpose: one reader, so rotating it stays the three edits
+    # secrets/sensitive.example.yaml lists.
+    environment:
+      GLANCE_PROMETHEUS_TOKEN: ${GLANCE_PROMETHEUS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      # And Home Assistant's `wall` user, for the page's fixed household
+      # entities, added to GET /api/states/<entity> only. HA has no read-only
+      # role, so this narrowing is the read-only part.
+      WALL_HA_TOKEN: ${WALL_HA_TOKEN:?set in secrets/sensitive.sops.yaml}
     mem_limit: 128m
     memswap_limit: 128m
     cap_drop: [ALL]
@@ -178,6 +189,13 @@ services:
       # its message says so rather than naming `make certs`, which on this host
       # would mint a third CA nobody asked for.
       - ../../certificates/tier-ca.pem:/etc/caddy/tls/ca.pem:ro
+      # The estate CA, for the one upstream outside this host: the ingest
+      # proxy on `prometheus`, which the wall page's questions go to. The
+      # committed copy, the file render-trust-bundles.sh gives Glance, so it
+      # exists in every checkout and needs no render step.
+      - ../observability/alloy/ingest-ca.pem:/etc/caddy/tls/ingest-ca.pem:ro
+      # The wall page itself, static files served as they are (ADR-0119).
+      - ./wall:/srv/wall:ro
     ports:
       - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
     depends_on:
@@ -1972,7 +1990,7 @@ services:
   # rather than to size. No depends_on, for Vaultwarden's reason.
   mealie:
     <<: *service-defaults
-    image: ghcr.io/mealie-recipes/mealie:v3.30.0@sha256:90f83da6f3ab0a421efc827118a556168573930105f13fa3321768f42163d784
+    image: ghcr.io/mealie-recipes/mealie:v3.31.0@sha256:97e21ac96e9a8d1ee15aaf558ba3f14998936b9d6f334e40ebb4c6c2127dc12f
     container_name: sensitive-mealie
     mem_limit: 1024m
     memswap_limit: 1024m

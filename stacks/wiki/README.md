@@ -156,6 +156,14 @@ shell commands, so `command=` cannot pin these keys yet. `from=` is the limit
 for now. The remote path's tunnel reaches the lab, not VLAN 99, so the Hicks
 pin locks no one out.
 
+UFW limits `22` to the same sources, so a wider rule on `morpheus` still
+reaches only those hosts. It cannot do the same for `80` and `443`, because
+Docker publishes them past UFW:
+
+```bash
+sudo ufw allow from 10.0.99.20 to any port 22 proto tcp && sudo ufw allow from 10.0.99.40 to any port 22 proto tcp && sudo ufw allow from 10.0.50.0/24 to any port 22 proto tcp && sudo ufw delete allow 22/tcp && sudo ufw status numbered
+```
+
 ## TLS
 
 Caddy serves the wiki on 443 with a leaf from the estate's CA, and answers

@@ -41,6 +41,7 @@ drifts.
 | vCPU / RAM | 4 / 8 GiB | Zeek is one process per interface, and the lab's traffic is a trickle beside what one core handles. Most of the RAM is page cache for the logs. It is a bound, and gets re-derived after a fortnight |
 | Disk | **Two: 32 GB OS, 64 GB data**, both on `large_data` | The data disk at `/srv/sensor-data` holds the current logs and the hourly archive, kept for the retention `homelab-zeek-archive-prune` sets (§4). The lab's Loki keeps 360 h of what Alloy ships; the archive is the local copy for the days after that |
 | Mirror | `tc`, not Open vSwitch | ADR-0068 |
+| Role | **An appliance.** It holds the sensor stack, the agent collectors, the repository checkout `make up` deploys from, and the stack's age key, and nothing else | It sees every frame on `vmbr0`, on the segment built to be attacked, so taking it should give nothing beyond that traffic. No dotfiles, development packages, `gh` login, password manager or AI tooling: that work runs from Hicks, against `fenrir` over SSH. Decided 2026-11-17 |
 
 ## 1. The capture bridge, on `Saruman`
 
@@ -215,6 +216,81 @@ It hangs off `multi-user.target`, not the device. Ubuntu 26.04's dracut
 initramfs brings `ens19` up before the real system starts, so a unit wanted by
 the device never fires. Reboot once and check `ethtool` again.
 
+**Keep `ens19` silent while it boots, too.** The netplan file takes effect only
+once the real system is up. Before that, `ens19` speaks twice:
+
+- **In the initramfs.** Ubuntu 26.04's dracut carries systemd-networkd and a
+  catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface.
+  `ens19` sends a DHCPv4 Discover with its MAC and the hostname, and IPv6
+  duplicate-address detection and multicast listener reports. `ens18` takes a
+  lease from the lab pool before the static `.90` applies.
+- **Just after switch-root.** networkd brings `ens19` up, and the kernel gives
+  it an IPv6 link-local address. netplan's `link-local: []` then removes it,
+  but not before more multicast listener reports have gone out.
+
+A capture on `tap190i1` from `Saruman` found nine such frames at the reboot of
+2026-11-17. Nothing receives them, because `vmbr1` has no other port and no
+address, but a sensor that announces itself is not one that only listens.
+The root disk is local, so the initramfs needs no network at all. Leave it
+out, the way dracut's own `no-network` profile does, and turn IPv6 off on
+`ens19` before anything can bring it up. udev applies a sysctl for an
+interface as the interface appears, so this one lands before networkd starts:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# fenrir: no networking in the initramfs (build-the-sensor-guest.md §3).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs every interface, the capture NIC included, before netplan applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+sudo tee /etc/sysctl.d/60-capture-nic.conf >/dev/null <<'CONF'
+# fenrir: the capture NIC never speaks IPv6 (build-the-sensor-guest.md §3).
+# Applied by udev as ens19 appears, before networkd brings the link up.
+net.ipv6.conf.ens19.disable_ipv6 = 1
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and checked is
+the one the next boot uses. On 26.04, `update-initramfs` is dracut's wrapper,
+and every later kernel is built with the file in place.
+
+`update-initramfs` prints `dracut[E]: Module 'dyn-netconf' depends on module
+'systemd-networkd', which can't be installed`, here and at every later
+kernel. That is the omit working, not a failure. `dyn-netconf` comes with
+`cloud-initramfs-dyn-netconf`, which the ISO installs, and all it does is
+configure the network in the initramfs. The `lsinitrd` line is the check.
+
+The copy is the way back, and it does not depend on a second kernel being
+installed. If the new image does not boot, open VM 190's console in the
+Proxmox web UI (*Saruman → 190 → Console*; the VM has no serial port, so
+`qm terminal` cannot reach GRUB). Reset the VM and hold Esc to show GRUB's
+menu, which Ubuntu hides by default. Press `e` on the first entry, add
+`.pre-no-network` to the end of the file name on the `initrd` line, and boot
+with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again. Once the proof below has
+passed, delete the copy. To prove the result, reboot with a capture
+running on `Saruman` that sees only frames `ens19` sends:
+
+```bash
+tcpdump -ni tap190i1 -Q in ether src "$(qm config 190 | sed -n 's/^net1: virtio=\([^,]*\).*/\1/p')"
+```
+
+Then, back on `fenrir`:
+
+```bash
+cat /sys/class/net/ens19/statistics/tx_packets     # 0
+sysctl net.ipv6.conf.ens19.disable_ipv6            # 1
+```
+
+The capture must stay empty, and `tx_packets` must read 0.
+
 Install `qemu-guest-agent` as `odin`'s §1 says. `qm guest exec 190 -- uptime`
 from `Saruman` is the check. The agent is also what lets this guest's disks
 page (ADR-0070): `qm guest cmd 190 get-fsinfo` should list `/` and
@@ -246,8 +322,8 @@ sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|pe
 
 All five must read `no`, apart from `allowusers atreus`. **Keep the session
 you ran this from open**, and log in from a second terminal before you close
-it. If that login fails, `qm terminal 190` or the console on `Saruman` is the
-way back in.
+it. If that login fails, VM 190's console in the Proxmox web UI is the way
+back in. The VM has no serial port, so `qm terminal 190` is not.
 
 **Keep `authorized_keys` to the machines that administer this guest.** Do not
 fill it with `ssh-import-id gh:<user>`. That installs every key on the GitHub
@@ -262,10 +338,27 @@ sudo journalctl -u ssh --since -30d | grep -o 'Accepted publickey .* SHA256:[^ ]
 Remove every key that is not the operator's workstation, or a host this
 repository logs in from (Hicks, for §4's `install-agent-collectors`).
 
+**Take out what the install adds that an appliance does not use.** cloud-init
+puts the first user in `lxd`. LXD is not installed, but membership of `lxd` is
+root as soon as it is. And 26.04 installs the `hwctl` snap, whose daemon
+listens on a socket as root. Neither is anything the sensor runs:
+
+```bash
+sudo gpasswd -d atreus lxd
+sudo snap remove --purge hwctl
+id -nG atreus
+snap list
+```
+
+`id` must not list `lxd`, and `snap list` must show only `core24` and
+`snapd`. Leave those two, and Docker's idle `docker0`, which the daemon
+recreates at every start.
+
 ## 4. Docker, the repository, and the stack
 
 Install Docker, `sops`, `age` and `make`, and clone the repository, as
-`alexander`'s §3 describes.
+`alexander`'s §3 describes, into `~/code/Gerrrt/HomeLab`. That is the path
+`fenrir` has, and the one the commands below use.
 
 The stack has one secret: `fenrir`'s token for the lab's ingest proxy
 ([#834](https://github.com/Gerrrt/HomeLab/issues/834)). Before it, the stack
@@ -273,7 +366,7 @@ had none and was brought up with plain `docker compose`. Create the key and
 the file **on `fenrir`**:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=sensor
 ```
 
@@ -306,6 +399,12 @@ Both containers should be running, and Zeek should be writing into
 `/srv/sensor-data/zeek`. With no mirror yet, it sees nothing: only
 `reporter.log` and `stats.log` appear.
 
+Once SSH crosses the lab's edge, `reporter.log` also carries
+`Failed to open GeoIP location database (lookup_location(SSH::lookup_ip))`.
+That is expected, and `local.zeek` says why: Zeek's stock site policy loads
+`protocols/ssh/geo-data`, and the image ships no GeoLite database.
+`ssh.log`'s `remote_location` stays empty, and nothing else is lost.
+
 **Prune the archive**, because nothing else will. The prune is a timer shipped
 from the repository,
 [`homelab-zeek-archive-prune`](../../systemd/agent/homelab-zeek-archive-prune.service),
@@ -334,6 +433,21 @@ make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-
 ```
 
 It must end with `zeek-archive-prune.prom written, mode 644`.
+
+**Report patch state**, so that a pending reboot or a held security update
+reaches someone. The lab's `RebootRequired`, `SecurityUpdatesPending` and
+`PatchStateStopped` read `apt-patch-state.prom`, and a guest without the timer
+is invisible to all three, `PatchStateStopped` included: it fires only for a
+guest that was reporting. Nothing reboots this guest by itself. Same checkout,
+same login:
+
+```bash
+make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only patch-state'
+```
+
+It must end with `apt-patch-state.prom written, mode 644`. Until 2026-11-17
+this step was missing, and a libc6 upgrade waited four days for a reboot with
+nothing saying so.
 
 **On a `fenrir` built before #850**, remove the cron line the timer replaces,
 so the two do not both prune:

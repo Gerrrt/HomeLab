@@ -412,17 +412,23 @@
 <text x="760" y="1242" class="ip" text-anchor="end" fill="#db6d28">.14</text>
 <text x="464" y="1260" class="sub">Apple Watch</text>
 </g>
-<g class="host" data-host="eero mesh · trusted">
-<rect x="450" y="1282" width="322" height="76" rx="8" class="card"/>
-<rect x="450" y="1288" width="4" height="64" rx="2" fill="#db6d28"/>
-<text x="464" y="1304" class="hn">eero mesh · trusted</text>
-<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
-<text x="464" y="1322" class="sub">3 × eero Pro 6E, bridged</text>
-<text x="464" y="1338" class="role">one wired backhaul, two meshed</text>
+<g class="host" data-host="heimdall">
+<rect x="450" y="1276" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1282" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1298" class="hn">heimdall</text>
+<text x="760" y="1298" class="ip" text-anchor="end" fill="#db6d28">.15</text>
+<text x="464" y="1316" class="sub">Raspberry Pi 5 · wall dashboard · Wi-Fi</text>
 </g>
-<rect x="450" y="1370" width="322" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
-<text x="464" y="1392" class="sub">Corporate laptops get the same rules</text>
-<text x="464" y="1410" class="sub">as everything else on this segment.</text>
+<g class="host" data-host="eero mesh · trusted">
+<rect x="450" y="1332" width="322" height="76" rx="8" class="card"/>
+<rect x="450" y="1338" width="4" height="64" rx="2" fill="#db6d28"/>
+<text x="464" y="1354" class="hn">eero mesh · trusted</text>
+<text x="760" y="1354" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
+<text x="464" y="1372" class="sub">3 × eero Pro 6E, bridged</text>
+<text x="464" y="1388" class="role">one wired backhaul, two meshed</text>
+</g>
+<rect x="450" y="1414" width="322" height="34" rx="8" fill="#0d1117" stroke="#30363d"/>
+<text x="464" y="1436" class="sub">Corporate laptops get the same rules.</text>
 </g>
 <g id="vlan-40">
 <rect x="802" y="680" width="370" height="820" rx="14" fill="#e3b341" fill-opacity="0.07" stroke="#e3b341" stroke-width="2.5" stroke-dasharray="10 6"/>

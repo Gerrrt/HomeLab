@@ -6,8 +6,10 @@ groups:
       - alert: InstanceDown
         # speedtest-tracker is excluded: a measurement tool being unreachable
         # is not worth a page. SpeedtestTrackerDown in internet.rules.yaml is
-        # the same condition at warning (#914).
-        expr: up{job!="speedtest-tracker"} == 0
+        # the same condition at warning (#914). So is role="display",
+        # `heimdall`, the office wall dashboard (ADR-0119): a dead screen
+        # shows itself to anyone in the room, and nothing depends on it.
+        expr: up{job!="speedtest-tracker", role!="display"} == 0
         for: 5m
         labels:
           component: host
@@ -353,6 +355,41 @@ groups:
             maintainer's user, so a missing checkout at
             /home/atropos/code/Gerrrt/Lemmiwinks or an expired gh login is the
             usual cause.
+      - alert: DriftCheckFailing
+        # The wiki's drift check on oracle runs but cannot do its job (#1531).
+        #
+        # DriftCheckStopped above reads only the timestamp, and the collector
+        # writes that whatever the run found, so a check that runs every day and
+        # fails every day stays quiet under it. On 2026-11-15 the wiki fetch
+        # failed with exit 128, the checker never started, and the journal was
+        # the only record.
+        #
+        # TWO AND UP, NOT ONE. Exit 1 is drift or a missing anchor, and the
+        # checker already reports that itself, as an issue on the wiki. Exit 2
+        # is a claim it could not read (#312's shape: two weeks of UNREADABLE
+        # rows after the ingest proxy took a token). Anything above 2 means the
+        # checker did not run: a fetch, a login or the checkout failed under it.
+        # Neither of those files an issue.
+        #
+        # The gauge holds its value until the next daily run, so `for: 30m`
+        # waits out nothing but the scrape. A failure clears on the next run
+        # that exits 0 or 1.
+        expr: homelab_drift_check_last_exit_code >= 2
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s wiki drift check ran and could not finish (exit {{ $value }})"
+          description: >-
+            Exit 2 means a claim could not be read, so part of the wiki is
+            unchecked. A higher exit means the checker never started. Its last
+            run is in Loki under unit="homelab-drift-check.service". At 2,
+            the usual cause is a missing or expired ~/.ingest-reader-token for
+            atropos. Above 2, it is the wiki fetch or the gh login in
+            /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+            the next run, at 06:30 UTC.
       # --- SMART, for the disks the iLO cannot see (#351) -------------------
       #
       # #151 already covers Saruman's array: cpqDaPhyDrvSmartStatus arrives over

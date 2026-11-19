@@ -83,13 +83,13 @@ services:
     # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
     # create at least 4096 threads, and 512 would fail that check on start.
     pids_limit: 4096
-    # 2 GiB of heap (below) plus the off-heap the JVM and the security plugin
-    # take. 3.5 GiB is under Wazuh's stated 4 GiB minimum by the margin the
-    # guest's 8 GiB has to give the other four services; if the container is
+    # 3 GiB of heap (below) plus the off-heap the JVM and the security plugin
+    # take: 2.74 GiB in use with a 2 GiB heap on 2026-11-16, so about 0.75
+    # off-heap, and 4.5 GiB keeps that margin (ADR-0118). If the container is
     # OOM-killed, this is the number to raise and the guest is the thing to
     # grow with it.
-    mem_limit: 3584m
-    memswap_limit: 3584m
+    mem_limit: 4608m
+    memswap_limit: 4608m
     # DIFFERENCE 5: every capability dropped and no-new-privileges, which
     # upstream's compose sets on none of the three (#845). Measured on odin
     # on 2026-10-07: this image runs as wazuh-indexer (uid 1000), and every
@@ -114,14 +114,13 @@ services:
         soft: 65536
         hard: 65536
     environment:
-      # DIFFERENCE from upstream: 2 GiB, not the shipped 1 GiB. ADR-0030's
-      # arithmetic — 25 shards per GiB of heap, one primary shard per daily
-      # index, ~15 shards taken by the monitoring/statistics/states families —
-      # makes 1 GiB a budget spent inside a month. -Xms equal to -Xmx by Wazuh's
-      # own tuning guidance. Half of system RAM (4 GiB) was considered and
-      # declined: it buys shard budget a six-agent estate does not need and
-      # takes page cache from a spinning pair that does.
-      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+      # DIFFERENCE from upstream: 3 GiB, not the shipped 1 GiB. The budget is
+      # 25 shards per GiB of heap, one primary shard per daily index (ADR-0030),
+      # and the states, monitoring, statistics and system indices take about
+      # 30 of it, so thirty days of alerts need about 60 shards. 2 GiB bought
+      # 50; 3 GiB buys about 75 (ADR-0118). -Xms equal to -Xmx by Wazuh's own
+      # tuning guidance.
+      OPENSEARCH_JAVA_OPTS: "-Xms3g -Xmx3g"
     volumes:
       - indexer-data:/var/lib/wazuh-indexer
       # Issued on odin by the `certs` profile at the foot of this file; the
@@ -294,7 +293,9 @@ services:
       # on 1515 needs authd.pass (above) and issues each agent its own key, and
       # 1514 carries only traffic encrypted to a key enrolment issued. Those
       # are what stand between the segment and the manager, as the token does
-      # for the lab's stores. BIND_ADDR narrows it to odin's own address.
+      # for the lab's stores. BIND_ADDR can narrow it to odin's own address;
+      # .env.example leaves 0.0.0.0, which on this single-homed guest is the
+      # same segment (the reason is there).
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
     # 55000 is the API: the dashboard reaches it on this network and nothing
@@ -420,7 +421,7 @@ services:
   # A container and not the native binary, because this repository's whole
   # verification apparatus applies to images (ADR-0030). The ADR flagged the
   # one thing to check: whether the registry publishes a versioned tag. It does
-  # — 0.77.2 is pinned below by tag and digest like every other image here —
+  # — the image below is pinned by tag and digest like every other image here —
   # so the paragraph the ADR said to supersede if not stands.
   # ---------------------------------------------------------------------------
   velociraptor:

@@ -35,7 +35,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt`, and a check for merge-conflict markers in tracked files — the one list all three callers share |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
@@ -49,6 +49,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_detection_config.sh` | — | Wazuh's rules, `ossec.conf` and `agent.conf` parse, and the rule ids are unique and in range; the indexer JSON parses; and in their pinned images, `wazuh-analysisd -t` and `zeek --parse-only` accept the configs odin and fenrir run |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_shared_blocks.py` | — | Every copy of a `# shared-block:` (code copied because a collector installs as one file) matches the others, so a fix cannot land in one copy only |
+| `check_compose_vars.py` | `check-compose-vars` | Every SOPS value a `compose.yaml` guards with `${VAR:?}` is in `render-config.sh`'s `COMPOSE_VARS` and has a stand-in in `seed-validation-env.sh`, and every `COMPOSE_VARS` entry is a SOPS key (#1570) |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext, now and (`--history`) in every past revision |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `gitleaks-history.sh` | — | The full-history secret scan CI and `validate.sh` both run, which fails a scan of zero commits because gitleaks exits 0 when git cannot read the repository; its fixtures run in `self-tests.sh` |

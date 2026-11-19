@@ -86,7 +86,8 @@ is measured rather than assumed
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). No collector was
 needed: Alloy's node collector already exports `node_power_supply_*` from both
 hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
-`charge_full` falls below 80 % of `charge_full_design` (`oracle` reads 72 %;
+`charge_full` falls below 80 % of `charge_full_design` (`oracle` read 72 % until
+its cell was replaced on 2026-09-29, and now reads 100 %, its design figure;
 `prometheus` read 94 % after 108 cycles until its cell was replaced on
 2026-09-18, and now reads 101 % at one cycle), `HostOnBattery` when the mains
 adapter loses
@@ -110,8 +111,9 @@ above design, `cyclecount` 1. **The second half was proved on 2026-09-19**: the
 brick pulled on a full pack, `HostOnBattery` firing for `prometheus` alone
 inside three minutes with `UpsOnBattery` quiet, the host up throughout, and a
 measured draw of 2.72 Ah/h — about 2.5 hours from full at the stack's load, one
-measurement on one day. That closed #454. `oracle`'s half is untested and its
-cell is [#531](https://github.com/Gerrrt/HomeLab/issues/531).
+measurement on one day. That closed #454. `oracle`'s cell was replaced on
+2026-09-29 and measured the same day at 0.54 Ah/h, about 5.2 hours from full
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
 
 ## Before you start
 

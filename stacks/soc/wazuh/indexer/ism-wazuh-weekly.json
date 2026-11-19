@@ -1,0 +1,35 @@
+{
+  "policy": {
+    "description": "Delete wazuh-monitoring-* and wazuh-statistics-* thirty days after creation, the same window as the alerts they give context to. Wazuh writes one of each a week and ships no retention for them, so without this they add two shards a week to ADR-0030's budget for ever.",
+    "default_state": "hot",
+    "states": [
+      {
+        "name": "hot",
+        "actions": [],
+        "transitions": [
+          {
+            "state_name": "delete",
+            "conditions": {
+              "min_index_age": "30d"
+            }
+          }
+        ]
+      },
+      {
+        "name": "delete",
+        "actions": [
+          {
+            "delete": {}
+          }
+        ],
+        "transitions": []
+      }
+    ],
+    "ism_template": [
+      {
+        "index_patterns": ["wazuh-monitoring-*", "wazuh-statistics-*"],
+        "priority": 100
+      }
+    ]
+  }
+}

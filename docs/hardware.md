@@ -310,6 +310,11 @@ It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
 older entry described a machine that does not exist, which is worth stating
 plainly because it was load-bearing in planning.
 
+Its disk is one LVM volume group on a 462.7 GB partition. The root volume was
+grown from 100 GB to 250 GB on 2026-11-15, because the off-host copies had
+left about ten weeks of space. The rest of the group is unallocated, kept for
+the next time the copies grow.
+
 The OS column names the release line and not the point release. Both laptops
 were recorded here as 24.04.3 while both were running 24.04.4, and
 `check_docs.py` could not see it — it compares this table against
@@ -329,6 +334,22 @@ version component in either table.
 The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
 revisions of this repository treated `shiva` as the hypervisor itself.
+
+## Wall display
+
+The office's dashboard, outside the rack
+([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+[`build-heimdall.md`](runbooks/build-heimdall.md)).
+
+| Part | What | Notes |
+| --- | --- | --- |
+| Screen | Changhong 40" 1080p LED television (2014) | On a SANUS single-stud tilt mount on the office's front wall, above the desk's monitors, since 2026-10-31. About seven feet from the chair. Driven at 1920 × 1080 by a `kanshi` profile, because its generic EDID prefers 1280 × 720. **No HDMI-CEC**, so it stays on, and its Auto Sleep and Sleep timers must be Off (`build-heimdall.md` §5, §8) |
+| `heimdall` | Raspberry Pi 5, 2 GB, 64 GB microSD | Behind the screen, on Hicks over Wi-Fi. Raspberry Pi OS 13 with its own desktop, Chromium in kiosk mode. Arrived 2026-11-16 |
+| Power | Official 27 W USB-C supply for the Pi; the screen's own cord | Neither is on the UPS. Which outlet they reach is not yet settled: the office's right wall and alcove have none |
+
+The Pi is driven from its HDMI port nearest the USB-C power port and forced to
+1080p at boot (`build-heimdall.md` §5). It keeps no state and is rebuilt from
+the runbook rather than backed up.
 
 ## Accessories
 

@@ -11,6 +11,10 @@ this is what a session gets wrong without being told.
   tool as a skip. A skipped check has not passed, so say which were skipped.
   When the change is docs only, run `python3 scripts/check_docs.py` and
   `./scripts/lint.sh` at least.
+- `make validate` pulls the tool and service images of every stack, about
+  38 GB on 2026-11-13. On `eden` that filled the 47 GB root disk. Check
+  `df -h /` first; on a guest without that much free, run the docs-only
+  checks there and leave the full suite to CI or a host that has the room.
 - Start from a fresh `main`. Docs here move daily, and a branch cut from a
   stale checkout fixes lines that are already fixed.
 - Fill in `.github/pull_request_template.md`'s four sections in every PR body.

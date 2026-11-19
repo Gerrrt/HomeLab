@@ -364,8 +364,17 @@ What each one does, so a stall can be placed:
 
 - **Ubuntu** drops to GRUB's prompt and types the kernel line. Subiquity then
   finds `cidata`, installs unattended, and reboots. Packer waits for SSH as
-  `packer` with `phoenix`'s key, upgrades, and wipes cloud-init's state,
-  machine-id and host keys. It then deletes the `packer` user.
+  `packer` with `phoenix`'s key. `packer/ubuntu/prune.sh` purges the
+  server seed's services no clone uses (VMware tools, ModemManager, snapd,
+  thermald, multipath, iSCSI, kdump, udisks2), takes the installer's
+  `autoinstall` off the kernel line, and fails the build if any of that is
+  left. Packer then upgrades, turns off X11 forwarding, takes `lxd` out of
+  cloud-init's default user groups, and wipes cloud-init's state, machine-id
+  and host keys. `packer/ubuntu/no-initramfs-network.sh` then rebuilds every
+  initramfs without networking, so a clone does not ask the lab's DHCP server
+  for an address while it boots, and fails the build if one still has it. It
+  prints a `dracut[E]` line for `dyn-netconf`, which is the omit working.
+  It then deletes the `packer` user.
 - **Fedora** picks "Install Fedora" from the GRUB menu, whose default is
   the media check. Anaconda finds `ks.cfg` on the `OEMDRV` disc by itself,
   installs Server unattended in text mode, and reboots. The rest is
@@ -505,11 +514,15 @@ DHCP server dhcpcd adds a `169.254.x.x` address and a link-local default
 route ([`build-the-playground.md`](build-the-playground.md) §8). Rebuild 902
 and 910 with this section and §5b to clear it.
 
-1. Admit the guest to that port on `phoenix` for the length of the build. If
-   `ufw` is active, run `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`,
-   and delete the rule afterwards. Debian's build (§4) needs this step and
-   no other here. On 2026-11-09 `ufw` was inactive on `phoenix`, so there
-   was nothing to open.
+1. Admit the guest to that port on `phoenix` for the length of the build:
+   `sudo ufw allow from 10.0.30.0/24 to any port 8800 proto tcp`. Afterwards,
+   `sudo ufw delete allow from 10.0.30.0/24 to any port 8800 proto tcp`.
+   Debian's build (§4) needs this step and no other here. `ufw` is
+   default-deny on `phoenix`
+   ([ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)),
+   so without the rule the installer times out fetching its preseed. On
+   2026-11-09, before that ADR, `ufw` was inactive and there was nothing to
+   open.
 2. Give `phoenix` a user on `gandalf`, and trust `gandalf`'s CA on
    `phoenix`, as §2 did for `Saruman`. Unless `gandalf` joins `Saruman` in a
    cluster, it is its own API with its own users, so `phoenix@pve` there is a
@@ -659,8 +672,11 @@ scripts/packer-smoke.sh 910
 
 Each run makes a full clone at VMID 999. For Linux, it gives the clone user
 `smoke`, `phoenix`'s key and DHCP through cloud-init, boots it, and waits for
-the agent to report an address. It then checks the hostname and SSHes in.
-Finally it destroys the clone.
+the agent to report an address. It then checks the hostname, SSHes in, and
+checks that the build's `packer` user is gone: the build deletes it with
+`|| true`, so a failed delete does not fail the build. Where the clone booted through a systemd initramfs, it checks the journal
+shows no DHCP before switch-root; a clone of a `901` built before
+`no-initramfs-network.sh` fails there. Finally it destroys the clone.
 
 A Windows clone runs specialize and OOBE first. Its guest agent is disabled in
 the template, and `SetupComplete.cmd` starts it as its last step, so the

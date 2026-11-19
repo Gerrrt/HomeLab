@@ -185,8 +185,9 @@ it has no log store ([#327](https://github.com/Gerrrt/HomeLab/issues/327)).
 happened OR that nothing diverged — it collects a fact the estate did not
 previously have, which is how far behind this host's packages are
 ([#152](https://github.com/Gerrrt/HomeLab/issues/152)). It needs no root, and it
-covers **this host only**: `oracle` and `Saruman` would need it shipped to them
-and `morpheus` is FreeBSD with no apt at all.
+covers **this host** from this table. An agent host with apt, `oracle` among
+them, gets it from the installer below, and `morpheus` is FreeBSD with no apt
+at all.
 
 **Agent hosts run these collectors too, and not through this table.** A host that
 runs Alloy but has no checkout of this repository — `oracle` — gets the
@@ -274,7 +275,10 @@ login, via `runuser -l` from a root unit that exists only to write the textfile
 directory — reads the checker off the wiki's `origin/main`, and records
 `homelab_drift_check_last_run_timestamp_seconds`, the exit code and the four
 claim counts. `DriftCheckStopped` fires when the timestamp is more than a day
-old ([#470](https://github.com/Gerrrt/HomeLab/issues/470)). Its requirement is
+old ([#470](https://github.com/Gerrrt/HomeLab/issues/470)), and `DriftCheckFailing`
+when the last run exited 2 or higher: a claim it could not read, or a checker
+that never started. Exit 1, drift, files its own wiki issue
+([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). Its requirement is
 the wiki checkout's guard script, so every other host correctly reports that it
 cannot run this one. It replaced a crontab entry that nothing watched.
 
@@ -385,6 +389,15 @@ entirely and `apt-config-auto-update` replaces it with an apt.conf snippet
 rather than the tool. So the collector falls back to counting the `Inst` lines
 of `apt-get -s upgrade`, matching the security pocket **inside the parenthesised
 origin only** — a package named `security-misc` would otherwise count itself.
+
+**On Kali the security count is always 0, and that means "cannot tell".**
+Kali Rolling has no security pocket, so the fallback finds none. `garuda` is
+outside these rules in any case: it reports only to the lab's Prometheus on
+`alexander`, which has no apt or reboot rules and no Alertmanager (ADR-0020),
+so neither `SecurityUpdatesPending` nor `RebootRequired` sees it. Kali's packages also do not
+match the Debian origins `unattended-upgrades` allows, so nothing applies them
+on their own. [`build-the-analyst-workstation.md`](build-the-analyst-workstation.md)
+§15 makes the upgrade a monthly manual step.
 
 `homelab_apt_check_method{host,method}` publishes which path produced the
 numbers, because the fallback is the weaker one: `apt-check` knows about phased
