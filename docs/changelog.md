@@ -19,6 +19,31 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **The WAN's receive errors came back a third time, and the XB7's third
+  gigabit port cleared them.** `em0` counted no input errors for days, then
+  started at about 01:05 PST on 2026-11-18 with nobody at the rack, and
+  logged no link change. `WanReceiveErrors` fired at 01:06 PST and
+  `InternetDownloadSlow` at 02:04. Scheduled tests fell from about 940
+  Mbit/s down to 2–40, with two outliers at 818 and 914, while upload held
+  at about 298. Pings to `1.1.1.1` and `8.8.8.8` from a Hicks desktop stayed
+  at about 11 ms with no loss, idle and under load, and WAN use was about
+  5 Mbit/s. `dev.em.0.mac_stats` read 1,003,641 CRC and 1,346,161 length
+  errors with zero symbol and alignment errors, the 2026-11-07 shape.
+  `dev.em.0.eee_control` was already 1, so Energy-Efficient Ethernet is off
+  and was not the cause.
+  - **Fixed:** the factory cable moved from the XB7's second gigabit port to
+    its third at about 12:31 PST. The `ifInErrors` counter for `em0` held at
+    2,009,194 over the three samples after it, through about 200 MB of test
+    download, and distant servers ran at 211 and 271 Mbit/s from the Hicks
+    desktop. That is minutes of evidence, not a day of it.
+  - **This corrects "The WAN's receive errors came back on the XB7's gigabit
+    port", filed under 2026-11-08,** which named the patch cable as the next
+    thing to replace if this recurred. The link is a factory cable, the same
+    one that ran clean on the second port from 2026-11-07 to 2026-11-18, and
+    each of three faults was cleared by a different XB7 port. The XB7 is the
+    suspect. `WanReceiveErrors`' description now sends you to another XB7
+    port first.
+
 - **`eden` reports its patch state again, and the lab's `PatchStateStopped`
   leaves it out while it is off.** Redeploying the lab after #1585 put the
   alert in pending for `eden`: it reported from 2026-11-08 until 23:04 UTC on

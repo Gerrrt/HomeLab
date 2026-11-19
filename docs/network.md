@@ -82,11 +82,14 @@ truth for what a box actually does.
 ### Notes
 
 - Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk]
-  (`em0`): a factory patch since 2026-11-01
-  ([#923](https://github.com/Gerrrt/HomeLab/issues/923)), in one of the
-  gateway's **gigabit** ports since 2026-11-07. The striped 2.5G port
-  corrupted about one inbound frame in ten on the 1 Gbit `em0`. That shows up
-  as `errs` in `netstat -I em0 -w 5`, and as `WanReceiveErrors`.
+  (`em0`): a factory cable since 2026-11-01
+  ([#923](https://github.com/Gerrrt/HomeLab/issues/923)), in the
+  gateway's third **gigabit** port since 2026-11-19. Three of the XB7's ports
+  have now gone bad under it: the striped 2.5G one (2026-11-01), and each of
+  the first two gigabit ports (2026-11-07, 2026-11-18). Each one sent `em0`
+  CRC and length errors with zero symbol errors, and moving ports cleared it
+  each time. That shows up as `errs` in `netstat -I em0 -w 5`, and as
+  `WanReceiveErrors`. The XB7 is the suspect, not the cable.
 - The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
   unused. All wireless is handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
