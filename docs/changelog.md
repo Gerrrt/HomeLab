@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **`PatchStateStopped` and `GuestStateStopped` no longer clear themselves a
+  day after a host's series disappears.** Both asked "did this host report in the day
+  before the last six hours", so about 30 h after the last sample the left
+  side emptied and the alert resolved with nothing recovered. Review of the
+  lab's `ApplianceStateStopped` (#1580) found it in that rule, which had
+  copied the form. Both now look back fourteen days, inside both
+  Prometheuses' retention (30 d on the estate, 15 d in the lab), so they hold
+  for two weeks or until the host reports again, and a host that never had
+  the collector still stays quiet. A host retired on purpose now fires for
+  those two weeks. New promtool cases fire at 3 d and 10 d and are quiet at
+  16 d; with `[1d]` put back, the 3 d and 10 d cases fail. This covers a
+  series that vanishes, not a timer that stops: a stopped timer leaves its
+  `.prom` file, which is re-served on every scrape, so the series stays. The
+  lab's `PatchStateStopped` has a second branch on the file's age for that;
+  the two estate rules do not yet.
+- **`SecurityUpdatesPending` went pending for `alexander`, and it is Ubuntu's
+  phasing.** Three security updates appeared at the 08:01 UTC collection:
+  `cloud-init`, `cloud-init-base` and `libgstreamer1.0-0`. `apt` lists all
+  three, with Docker's and others, as "deferred due to phasing":
+  `alexander` is outside the share of machines the rollout has reached, so
+  unattended-upgrades leaves them, as it should. Nothing was forced. The rule
+  fires only if they are still pending a week later.
+- **`fenrir`'s cloud-init `sshd` drop-in is removed.**
+  `50-cloud-init.conf`, 27 bytes reading `PasswordAuthentication yes`, had
+  been overridden since 2026-11-17 by the `10-homelab.conf` drop-in, which
+  `sshd` reads first. It was still what an audit without sudo would see, so
+  `build-the-sensor-guest.md` §3 now removes it and checks that only the
+  `10-` drop-in is left. cloud-init writes it once per instance; on `fenrir`
+  it had kept its install date across four reboots.
 - **The wall says when the dogs are due.** The last of the wall's five
   steps.
   - `wall_dogs.yaml` makes `sensor.wall_dogs`: when the dogs were last

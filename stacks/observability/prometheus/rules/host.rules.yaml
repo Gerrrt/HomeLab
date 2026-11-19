@@ -302,8 +302,25 @@ groups:
         # continuously and not once a day. Six hours survives a Prometheus
         # restart and a host rebooting, which is the same window
         # deploy.rules.yaml and backup.rules.yaml settled on.
+        #
+        # FOURTEEN DAYS OF MEMORY, NOT ONE. With [1d] the left side empties
+        # about 30h after the last sample, and the alert cleared itself with
+        # nothing recovered: a host down for a long weekend came back to no
+        # record that it had gone quiet. Found in review of the lab's
+        # ApplianceStateStopped (#1580), which had copied this form. Fourteen
+        # days sits inside both Prometheuses' retention (30d here, 15d in the
+        # lab), so the alert holds for two weeks or until the host reports
+        # again. A host retired on purpose fires for those two weeks; silence
+        # it when it goes. The cost is a 14d range per host each evaluation,
+        # one series per host, which this estate's handful of hosts can carry.
+        #
+        # WHAT THIS DOES NOT SEE: a timer that stops but leaves its file. The
+        # file stays in the textfile directory and is re-served on every
+        # scrape, so the series never goes absent. The lab's copy of this rule
+        # has a second branch on node_textfile_mtime_seconds for that; this
+        # one does not yet.
         expr: >-
-          count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
+          count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
           unless
           count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
         for: 30m
@@ -314,7 +331,7 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting patch state"
           description: >-
-            It reported within the last day and has not in six hours, so
+            It reported within the last two weeks and has not in six hours, so
             SecurityUpdatesPending and RebootRequired are both blind to this host
             until it comes back. Check homelab-patch-state.timer on the host —
             `systemctl status homelab-patch-state.timer` — and that
@@ -1001,8 +1018,12 @@ groups:
         #
         # Stopped, not missing: a hypervisor that never had the collector
         # installed must stay quiet, or every host without it alerts forever.
+        # Fourteen days of memory, for PatchStateStopped's reason: with [1d]
+        # the alert cleared itself about 30h after the series went. Like
+        # PatchStateStopped it sees the series vanish, not a timer that stops
+        # and leaves guest-state.prom in place.
         expr: >-
-          count by (host) (present_over_time(homelab_guests_total[1d] offset 6h))
+          count by (host) (present_over_time(homelab_guests_total[14d] offset 6h))
           unless
           count by (host) (present_over_time(homelab_guests_total[6h]))
         for: 30m
@@ -1013,7 +1034,7 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting its guests"
           description: >-
-            It reported within the last day and has not in six hours, so
+            It reported within the last two weeks and has not in six hours, so
             HypervisorGuestStopped is blind to this hypervisor until it comes
             back. Check homelab-guest-state.timer on the host and that
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being

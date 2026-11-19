@@ -716,13 +716,64 @@ tests:
             exp_annotations:
               summary: "oracle has stopped reporting patch state"
               description: >-
-                It reported within the last day and has not in six hours, so
+                It reported within the last two weeks and has not in six hours, so
                 SecurityUpdatesPending and RebootRequired are both blind to this
                 host until it comes back. Check homelab-patch-state.timer on the
                 host — `systemctl status homelab-patch-state.timer` — and that
                 /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
                 being written and is world-readable. A 0600 file is invisible to
                 the collector and produces exactly this silence.
+
+  # --- PatchStateStopped: still firing days later, and gone after two weeks -
+  # The case review of #1580 found: with [1d] the alert cleared itself about
+  # 30h after the collector stopped, with nothing recovered. Twenty hours of
+  # reporting, then 15.5 days of gap (the [14d] window plus its 6h offset and
+  # a day to spare). Still firing at 3d and 10d; quiet at 16d, once the last
+  # sample has aged out of the window, which is the documented end.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "3x20 _x380"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                It reported within the last two weeks and has not in six hours, so
+                SecurityUpdatesPending and RebootRequired are both blind to this
+                host until it comes back. Check homelab-patch-state.timer on the
+                host — `systemctl status homelab-patch-state.timer` — and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+      - eval_time: 10d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                It reported within the last two weeks and has not in six hours, so
+                SecurityUpdatesPending and RebootRequired are both blind to this
+                host until it comes back. Check homelab-patch-state.timer on the
+                host — `systemctl status homelab-patch-state.timer` — and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+      - eval_time: 16d
+        alertname: PatchStateStopped
+        exp_alerts: []
 
   # --- PatchStateStopped: quiet for a host that reports zero -----------------
   # The whole point of the rule. A host with nothing to report and a host whose
@@ -1791,11 +1842,40 @@ tests:
             exp_annotations:
               summary: "Saruman has stopped reporting its guests"
               description: >-
-                It reported within the last day and has not in six hours, so
+                It reported within the last two weeks and has not in six hours, so
                 HypervisorGuestStopped is blind to this hypervisor until it
                 comes back. Check homelab-guest-state.timer on the host and that
                 /var/lib/node_exporter/textfile_collector/guest-state.prom is
                 being written and is world-readable.
+
+  # --- GuestStateStopped: still firing days later, and gone after two weeks -
+  # PatchStateStopped's long-gap case: with [1d] this cleared itself about
+  # 30h after the series went. Still firing at 10d; quiet at 16d, so the
+  # lookback is bounded and a retired hypervisor stops alerting.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "1x20 _x380"
+    alert_rule_test:
+      - eval_time: 10d
+        alertname: GuestStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its guests"
+              description: >-
+                It reported within the last two weeks and has not in six hours, so
+                HypervisorGuestStopped is blind to this hypervisor until it
+                comes back. Check homelab-guest-state.timer on the host and that
+                /var/lib/node_exporter/textfile_collector/guest-state.prom is
+                being written and is world-readable.
+      - eval_time: 16d
+        alertname: GuestStateStopped
+        exp_alerts: []
 
   # --- GuestStateStopped: quiet for a hypervisor reporting zero guests ------
   # The case that makes this rule necessary AND the case it must not fire on.
