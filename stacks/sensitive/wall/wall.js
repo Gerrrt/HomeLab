@@ -408,19 +408,28 @@
     triggered: ["TRIGGERED", "alert"],
   };
   // `drop` marks an item the row may leave out when it runs out of width:
-  // the higher, the sooner it goes. Unmarked items always stay.
-  function homeItem(label, value, cls, drop) {
+  // the higher, the sooner it goes. Unmarked items always stay. `compact` is
+  // a shorter value an item that always stays may fall back to.
+  function homeItem(label, value, cls, drop, compact) {
     const span = el("span", `item ${cls || ""}`, label);
     span.append(el("b", null, value));
     if (drop) span.dataset.drop = String(drop);
+    if (compact) span.dataset.compact = compact;
     return span;
   }
   // A crowded row loses its quiet items first, whole, never half a word.
+  // If the warnings alone are still too wide, each says how many instead of
+  // which ("6 open"), which always fits, so no warning is ever clipped.
   function fitRow(row) {
-    while (row.scrollWidth > row.clientWidth + 2) {
+    const over = () => row.scrollWidth > row.clientWidth + 2;
+    while (over()) {
       const items = [...row.querySelectorAll("[data-drop]")];
-      if (!items.length) return;
+      if (!items.length) break;
       items.sort((a, b) => Number(b.dataset.drop) - Number(a.dataset.drop))[0].remove();
+    }
+    for (const item of row.querySelectorAll("[data-compact]")) {
+      if (!over()) return;
+      item.querySelector("b").textContent = item.dataset.compact;
     }
   }
   function openOf(list) {
@@ -448,7 +457,7 @@
     const doors = openOf(DOORS);
     const wins = openOf(WINDOWS);
     const open = [...doors.open, ...wins.open.map((w) => `${w} window`)];
-    if (open.length) row.append(homeItem("Open", open.join(", "), "warn"));
+    if (open.length) row.append(homeItem("Open", open.join(", "), "warn", 0, `${open.length} doors & windows`));
     else if (doors.unknown || wins.unknown) row.append(homeItem("Doors & windows", "—", "unknown"));
     else row.append(homeItem("Doors & windows", "closed"));
 
@@ -460,22 +469,26 @@
       if (t.current_temperature != null) bits.push(`${Math.round(t.current_temperature)}°`);
       if (t.current_humidity != null) bits.push(`${Math.round(t.current_humidity)}%`);
       if (t.hvac_action === "heating" || t.hvac_action === "cooling") bits.push(t.hvac_action);
-      row.append(homeItem("Inside", bits.length ? bits.join(" · ") : "—", bits.length ? "" : "unknown", 1));
+      row.append(homeItem("Inside", bits.length ? bits.join(" · ") : "—", bits.length ? "" : "unknown", 2));
     } else {
-      row.append(homeItem("Inside", "—", "unknown", 1));
+      row.append(homeItem("Inside", "—", "unknown", 2));
     }
 
     if (haFresh("office_light")) {
-      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off", "", 2));
+      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off", "", 3));
     } else {
-      row.append(homeItem("Office lights", "—", "unknown", 2));
+      row.append(homeItem("Office lights", "—", "unknown", 3));
     }
 
-    // The Litter-Robot only when it wants something, in amber. An unreadable
-    // one says nothing here; the status bar's house age covers it.
-    if (haFresh("litter") && states.litter.state === "attention") {
+    // The Litter-Robot when it wants something, in amber, and as "—" when it
+    // cannot be read, so an outage never looks like all is well. Quiet when
+    // it is fine. The "—" is the last quiet item a crowded row drops.
+    if (!haFresh("litter")) {
+      row.append(homeItem("Litter-Robot", "—", "unknown", 1));
+    } else if (states.litter.state === "attention") {
       const needs = (states.litter.attributes || {}).needs || [];
-      row.append(homeItem("Litter-Robot", needs.length ? needs.join(", ") : "needs a look", "warn"));
+      row.append(homeItem("Litter-Robot", needs.length ? needs.join(", ") : "needs a look", "warn", 0,
+        needs.length > 1 ? `${needs.length} things` : undefined));
     }
     fitRow(row);
   }

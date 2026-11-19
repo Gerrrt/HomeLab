@@ -25,9 +25,10 @@ docstring gives: it is a record, not a claim about now.
   from `climate.thermostat` at `/api/ha/thermostat`. The Litter-Robot
   appears in amber only when it wants something: a new `sensor.wall_litter`
   in `wall_house.yaml` says which, by `litter_robot.yaml`'s own thresholds.
-  Doors and windows share one item when all are shut, and a row too long for
-  the screen drops the office lights, then the thermostat, never an amber
-  item. The mockup's front-door lock is left out: the house has no smart
+  An unreadable Litter-Robot shows as `—`, not as nothing. Doors and windows
+  share one item when all are shut, and a row too long for the screen drops
+  the office lights, then the thermostat, never an amber item; warnings
+  still too wide say how many instead of which. The mockup's front-door lock is left out: the house has no smart
   lock for it to read. Previewed at 1920x1080 against stubbed answers,
   quiet and with two openings and the Litter-Robot at once. Not yet run
   against the real Home Assistant.
