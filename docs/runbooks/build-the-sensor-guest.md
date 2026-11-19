@@ -338,6 +338,22 @@ sudo journalctl -u ssh --since -30d | grep -o 'Accepted publickey .* SHA256:[^ ]
 Remove every key that is not the operator's workstation, or a host this
 repository logs in from (Hicks, for §4's `install-agent-collectors`).
 
+**Take out what the install adds that an appliance does not use.** cloud-init
+puts the first user in `lxd`. LXD is not installed, but membership of `lxd` is
+root as soon as it is. And 26.04 installs the `hwctl` snap, whose daemon
+listens on a socket as root. Neither is anything the sensor runs:
+
+```bash
+sudo gpasswd -d atreus lxd
+sudo snap remove --purge hwctl
+id -nG atreus
+snap list
+```
+
+`id` must not list `lxd`, and `snap list` must show only `core24` and
+`snapd`. Leave those two, and Docker's idle `docker0`, which the daemon
+recreates at every start.
+
 ## 4. Docker, the repository, and the stack
 
 Install Docker, `sops`, `age` and `make`, and clone the repository, as
