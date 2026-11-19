@@ -441,7 +441,16 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
-		# Today's and tomorrow's events, gathered from the calendars by
+		# Today's high and low, the next rain and the next sunrise or sunset,
+		# asked of weather.get_forecasts by
+		# home-assistant/packages/wall_weather.yaml: since HA 2024.4 a forecast
+		# is an action's answer, not an attribute a fixed handle can read.
+		handle /api/ha/forecast {
+			rewrite * /api/states/sensor.wall_weather?
+			import wall_ha
+		}
+
+		# The next seven days' events, gathered from the calendars by
 		# home-assistant/packages/wall_calendar.yaml. A calendar's own API needs
 		# a moving start and end, which a fixed handle cannot give.
 		handle /api/ha/today {

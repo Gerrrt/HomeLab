@@ -29,6 +29,8 @@
     { name: "oracle", src: "cpu", role: "wiki, off-host jobs" },
     { name: "smaug", src: "cpu", role: "NAS" },
     { name: "neo", src: "snmp", role: "core switch" },
+    // The UPS's tile carries what the Power card used to: mains or battery,
+    // charge and runtime (renderNodes).
     { name: "mjolnir", src: "snmp", role: "UPS" },
   ];
 
@@ -39,9 +41,11 @@
     ["garden_door", "Garden"], ["patio_door", "Patio"],
   ];
   const WINDOWS = [["window_left", "Left"], ["window_right", "Right"]];
-  const HOUSE = ["weather", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
-  // "today" is sensor.wall_today: the calendars' events for today and
-  // tomorrow, gathered by home-assistant/packages/wall_calendar.yaml.
+  // "forecast" is sensor.wall_weather: today's high and low, the next rain and
+  // the next sunrise or sunset (home-assistant/packages/wall_weather.yaml).
+  const HOUSE = ["weather", "forecast", "alarm", "office_light", ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
+  // "today" is sensor.wall_today: the calendars' events for the next seven
+  // days, gathered by home-assistant/packages/wall_calendar.yaml.
   const HA = [...HOUSE, "today"];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
@@ -220,7 +224,7 @@
     grid.replaceChildren();
     const cpu = new Map((answers.cpu || []).map((r) => [r.metric.instance, num(r)]));
     const snmp = new Map((answers.snmp || []).map((r) => [r.metric.device, num(r)]));
-    const charge = (answers.ups || []).find((r) => r.metric.__name__ === "upsEstimatedChargeRemaining");
+    const ups = new Map(fresh("ups") ? (answers.ups || []).map((r) => [r.metric.__name__, num(r)]) : []);
 
     for (const h of HOSTS) {
       const tile = el("div", "node");
@@ -244,8 +248,14 @@
       } else {
         if (!fresh("snmp")) state = "unknown";
         else if (snmp.get(h.name) !== 1) state = "down";
-        if (state === "ok" && h.name === "mjolnir" && charge) {
-          val.textContent = `${Math.round(num(charge))}%`;
+        if (state === "ok" && h.name === "mjolnir" && ups.has("upsEstimatedChargeRemaining")) {
+          // On battery outranks everything else the tile could say.
+          const onBattery = (ups.get("upsSecondsOnBattery") || 0) > 0;
+          const runtime = ups.has("upsEstimatedMinutesRemaining")
+            ? `${Math.round(ups.get("upsEstimatedMinutesRemaining"))} min` : "";
+          if (onBattery) state = "battery";
+          role.textContent = [onBattery ? "ON BATTERY" : "UPS · on mains", runtime].filter(Boolean).join(" · ");
+          val.textContent = `${Math.round(ups.get("upsEstimatedChargeRemaining"))}%`;
           val.append(el("small", null, "charge"));
         } else {
           val.textContent = state === "ok" ? "up" : state === "down" ? "down" : "—";
@@ -286,25 +296,6 @@
     line.setAttribute("class", "line");
     line.setAttribute("d", `M${pts.join(" L")}`);
     svg.append(fill, line);
-  }
-
-  // ---------- power ----------
-  function renderPower() {
-    const ups = new Map((answers.ups || []).map((r) => [r.metric.__name__, num(r)]));
-    const card = document.querySelector(".power");
-    if (!fresh("ups") || ups.size === 0) {
-      card.dataset.state = "unknown";
-      $("ups-state").textContent = "—";
-      for (const id of ["ups-charge", "ups-runtime", "ups-load"]) $(id).textContent = "—";
-      return;
-    }
-    const onBattery = (ups.get("upsSecondsOnBattery") || 0) > 0;
-    card.dataset.state = onBattery ? "battery" : "mains";
-    $("ups-state").textContent = onBattery ? "On battery" : "On mains";
-    const v = (k, unit) => (ups.has(k) ? `${Math.round(ups.get(k))}${unit}` : "—");
-    $("ups-charge").textContent = v("upsEstimatedChargeRemaining", "%");
-    $("ups-runtime").textContent = v("upsEstimatedMinutesRemaining", " min");
-    $("ups-load").textContent = v("upsOutputPercentLoad", "%");
   }
 
   // ---------- status bar: how old each answer is ----------
@@ -361,16 +352,36 @@
       $("wx-temp").textContent = "—";
       $("wx-cond").textContent = "—";
       $("wx-sub").textContent = "";
+      $("wx-sub2").textContent = "";
       return;
     }
     const a = w.attributes || {};
     const unit = a.temperature_unit || "°";
     $("wx-temp").textContent = a.temperature !== undefined ? `${Math.round(a.temperature)}${unit.startsWith("°") ? "°" : unit}` : "—";
     $("wx-cond").textContent = CONDITIONS[w.state] || w.state;
-    const bits = [];
-    if (a.humidity !== undefined) bits.push(`${Math.round(a.humidity)}% humidity`);
-    if (a.wind_speed !== undefined) bits.push(`wind ${Math.round(a.wind_speed)} ${a.wind_speed_unit || ""}`.trim());
-    $("wx-sub").textContent = bits.join(" · ");
+
+    // Line one: the day ahead, from sensor.wall_weather when it answers, the
+    // present's humidity when it does not. Line two: the next sun event and
+    // the wind.
+    const f = haFresh("forecast") ? states.forecast.attributes || {} : null;
+    const line1 = [];
+    const line2 = [];
+    const deg = (v) => `${Math.round(Number(v))}°`;
+    if (f && f.high != null && f.low != null) line1.push(`H ${deg(f.high)} · L ${deg(f.low)}`);
+    else if (a.humidity !== undefined) line1.push(`${Math.round(a.humidity)}% humidity`);
+    if (f && f.rain_at) {
+      const at = new Date(f.rain_at);
+      line1.push(at <= new Date() ? "rain now" : `rain by ${hm(at)}`);
+    }
+    if (f) {
+      const rise = f.next_rising ? new Date(f.next_rising) : null;
+      const set = f.next_setting ? new Date(f.next_setting) : null;
+      // Whichever comes first, so the line always says what is next.
+      if (rise && set) line2.push(set < rise ? `sunset ${hm(set)}` : `sunrise ${hm(rise)}`);
+    }
+    if (a.wind_speed !== undefined) line2.push(`wind ${Math.round(a.wind_speed)} ${a.wind_speed_unit || ""}`.trim());
+    $("wx-sub").textContent = line1.join(" · ");
+    $("wx-sub2").textContent = line2.join(" · ");
   }
 
   // ---------- home row ----------
@@ -432,39 +443,157 @@
     const h = d.getHours();
     return `${h % 12 || 12}:${String(d.getMinutes()).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
   };
-  function eventRow(e, now) {
+  const shortDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  const midnight = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  // Whole days from today's midnight to the event's start: 0 today (or
+  // earlier, for something still going), 1 tomorrow, and so on.
+  const dayOf = (e, now) => Math.max(0, Math.round((midnight(evStart(e)) - midnight(now)) / 86_400_000));
+
+  function eventRow(e, now, later) {
     const start = evStart(e);
     const going = start <= now;
-    const row = el("div", `ev c${Number(e.cal) % 6}${going && !e.all_day ? " now" : ""}`);
+    const cls = `ev c${Number(e.cal) % 6}${going && !e.all_day ? " now" : ""}${later ? " later" : ""}`;
+    const row = el("div", cls);
     const t = e.all_day ? "All day" : going ? "Now" : hm(start);
     row.append(el("span", "bar"), el("span", "t", t), el("span", "what", String(e.title || "Busy")));
     if (e.location) row.append(el("span", "where", String(e.location)));
     return row;
   }
+
+  // The sensor is up to five minutes old, so drop what has ended since.
+  function upcoming(now) {
+    if (!haFresh("today")) return null;
+    return ((states.today.attributes || {}).events || [])
+      .filter((e) => evEnd(e) > now)
+      .sort((a, b) => evStart(a) - evStart(b));
+  }
+
+  // Today and tomorrow in full; then the rest of the week, one dim line per
+  // event under its day, for as long as the box has room. fitList takes the
+  // overflow from the far end, so the week shortens before today does.
   function renderToday() {
     const box = $("today");
     box.replaceChildren();
-    if (!haFresh("today")) {
+    const now = new Date();
+    const evs = upcoming(now);
+    if (!evs) {
       box.append(el("div", "none", "—"));
       return;
     }
-    const now = new Date();
-    const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-    // The sensor is up to five minutes old, so drop what has ended since.
-    const evs = ((states.today.attributes || {}).events || [])
-      .filter((e) => evEnd(e) > now)
-      .sort((a, b) => evStart(a) - evStart(b));
-    const todays = evs.filter((e) => evStart(e) < tomorrow);
-    const later = evs.filter((e) => evStart(e) >= tomorrow);
+    const byDay = new Map();
+    for (const e of evs) {
+      const d = dayOf(e, now);
+      if (!byDay.has(d)) byDay.set(d, []);
+      byDay.get(d).push(e);
+    }
 
-    if (todays.length) for (const e of todays) box.append(eventRow(e, now));
+    const todays = byDay.get(0) || [];
+    if (todays.length) for (const e of todays) box.append(eventRow(e, now, false));
     else box.append(el("div", "none", "Nothing else today"));
-    if (later.length) {
-      box.append(el("div", "day", "Tomorrow"));
-      for (const e of later) box.append(eventRow(e, now));
+    for (const d of [...byDay.keys()].filter((k) => k > 0).sort((a, b) => a - b)) {
+      const date = new Date(now.getFullYear(), now.getMonth(), now.getDate() + d);
+      box.append(el("div", "day", d === 1 ? "Tomorrow" : `${shortDays[date.getDay()]} ${date.getDate()}`));
+      for (const e of byDay.get(d)) box.append(eventRow(e, now, d > 1));
     }
 
     fitList(box, "ev");
+  }
+
+  // ---------- up next: the header's countdown ----------
+  // The next timed event that has not started. The ring is the last hour:
+  // full an hour out, empty at the start, amber inside fifteen minutes.
+  const RING = 188.5; // 2πr, r = 30, as in index.html
+  function renderNext() {
+    const card = $("next");
+    const arc = $("next-arc");
+    const now = new Date();
+    const evs = upcoming(now);
+    const next = evs && evs.find((e) => !e.all_day && evStart(e) > now);
+    if (!next) {
+      card.dataset.state = "none";
+      $("next-what").textContent = evs ? "Nothing this week" : "—";
+      $("next-when").textContent = "";
+      arc.setAttribute("stroke-dashoffset", String(RING));
+      return;
+    }
+    const start = evStart(next);
+    const mins = Math.max(0, Math.round((start - now) / 60_000));
+    const d = dayOf(next, now);
+    let when;
+    if (d === 0 && mins < 60) when = `in ${mins} min · ${hm(start)}`;
+    else if (d === 0) when = `in ${Math.floor(mins / 60)} h ${mins % 60} min · ${hm(start)}`;
+    else if (d === 1) when = `tomorrow · ${hm(start)}`;
+    else when = `${shortDays[start.getDay()]} · ${hm(start)}`;
+    card.dataset.state = mins <= 15 ? "soon" : "later";
+    $("next-what").textContent = String(next.title || "Busy");
+    $("next-when").textContent = when;
+    arc.setAttribute("stroke-dashoffset", String(RING * (1 - Math.min(mins, 60) / 60)));
+  }
+
+  // ---------- context: one card, whichever matters now ----------
+  // In order of precedence. The first whose `when` is true gets the card; the
+  // others that are also true are named on its last line, so nothing that
+  // matters is hidden without a word. The last entry always applies, so the
+  // card is never empty. Later cards (commute, Shabbat, trash, deliveries,
+  // now playing) slot in above it as their sources arrive.
+  const CONTEXT = [
+    { title: "Word of the day", short: "word", when: () => true, render: renderWord },
+  ];
+
+  // A static list, so nothing is fetched: one word a day, by day of the year.
+  // Hebrew without niqqud, the transliteration, the meaning.
+  const WORDS = [
+    ["סבלנות", "savlanut", "patience"], ["שלום", "shalom", "peace; hello"],
+    ["תודה", "todah", "thank you"], ["בוקר", "boker", "morning"],
+    ["ערב", "erev", "evening"], ["לילה", "laylah", "night"],
+    ["משפחה", "mishpachah", "family"], ["חבר", "chaver", "friend"],
+    ["בית", "bayit", "home, house"], ["אהבה", "ahavah", "love"],
+    ["שמחה", "simchah", "joy"], ["תקווה", "tikvah", "hope"],
+    ["אמונה", "emunah", "faith"], ["חכמה", "chochmah", "wisdom"],
+    ["אומץ", "ometz", "courage"], ["כבוד", "kavod", "respect, honour"],
+    ["צדקה", "tzedakah", "charity, justice"], ["חסד", "chesed", "kindness"],
+    ["אמת", "emet", "truth"], ["ברכה", "brachah", "blessing"],
+    ["שבת", "Shabbat", "Sabbath, rest"], ["מנוחה", "menuchah", "rest"],
+    ["עבודה", "avodah", "work"], ["מחשב", "machshev", "computer"],
+    ["רשת", "reshet", "network"], ["שרת", "sharat", "server"],
+    ["סיסמה", "sisma", "password"], ["מפתח", "mafteach", "key"],
+    ["ענן", "anan", "cloud"], ["גשם", "geshem", "rain"],
+    ["שמש", "shemesh", "sun"], ["ירח", "yareach", "moon"],
+    ["כוכב", "kochav", "star"], ["ים", "yam", "sea"],
+    ["הר", "har", "mountain"], ["עץ", "etz", "tree"],
+    ["כלב", "kelev", "dog"], ["חתול", "chatul", "cat"],
+    ["ספר", "sefer", "book"], ["מים", "mayim", "water"],
+    ["לחם", "lechem", "bread"], ["קפה", "kafeh", "coffee"],
+    ["זמן", "zman", "time"], ["שעה", "sha'ah", "hour"],
+    ["יום", "yom", "day"], ["שבוע", "shavua", "week"],
+    ["חודש", "chodesh", "month"], ["שנה", "shanah", "year"],
+    ["לאט", "le'at", "slowly"], ["בסדר", "beseder", "okay, in order"],
+    ["סבבה", "sababa", "great, cool"], ["תיקון", "tikkun", "repair"],
+    ["דרך", "derech", "way, path"], ["שאלה", "she'elah", "question"],
+    ["תשובה", "teshuvah", "answer; return"], ["התחלה", "hatchalah", "beginning"],
+    ["כוח", "koach", "strength"], ["ביחד", "beyachad", "together"],
+  ];
+  function renderWord(box) {
+    const now = new Date();
+    const dayOfYear = Math.round((midnight(now) - new Date(now.getFullYear(), 0, 1)) / 86_400_000);
+    const [he, tr, en] = WORDS[dayOfYear % WORDS.length];
+    const w = el("div", "word", he);
+    w.lang = "he";
+    w.dir = "rtl";
+    const sub = el("div", "word-sub");
+    sub.append(el("b", null, tr), document.createTextNode(` · ${en}`));
+    box.append(w, sub);
+  }
+
+  function renderContext() {
+    const box = $("context");
+    box.replaceChildren();
+    const live = CONTEXT.filter((c) => c.when());
+    const top = live[0];
+    $("h-context").textContent = top.title;
+    top.render(box);
+    const rest = live.slice(1, -1).map((c) => c.short);
+    $("context-also").textContent = rest.length ? `also: ${rest.join(" · ")}` : "";
   }
 
   function render() {
@@ -474,9 +603,10 @@
     // After the alerts: they take the height they need, and the calendar
     // fits itself into what is left.
     renderToday();
+    renderNext();
     renderNodes();
     renderWan();
-    renderPower();
+    renderContext();
     renderStatus();
   }
 

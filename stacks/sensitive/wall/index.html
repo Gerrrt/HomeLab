@@ -32,9 +32,20 @@
         <div class="clock"><span id="hm">--:--</span><span class="ampm" id="ampm"></span></div>
         <div class="date" id="date"></div>
       </div>
+      <div class="next" id="next" data-state="none">
+        <svg class="ring" viewBox="0 0 72 72" aria-hidden="true">
+          <circle class="track" cx="36" cy="36" r="30"></circle>
+          <circle class="arc" id="next-arc" cx="36" cy="36" r="30" stroke-dashoffset="188.5" transform="rotate(-90 36 36)"></circle>
+        </svg>
+        <div class="next-text">
+          <div class="lbl">Up next</div>
+          <div class="next-what" id="next-what">—</div>
+          <div class="next-when" id="next-when"></div>
+        </div>
+      </div>
       <div class="wx" id="wx">
         <div class="wx-temp" id="wx-temp">—</div>
-        <div class="wx-desc"><div id="wx-cond">—</div><div class="wx-sub" id="wx-sub"></div></div>
+        <div class="wx-desc"><div id="wx-cond">—</div><div class="wx-sub" id="wx-sub"></div><div class="wx-sub" id="wx-sub2"></div></div>
       </div>
       <div class="verdict" id="verdict" data-state="unknown">
         <span class="dot"></span><span id="verdict-text">Waiting for Prometheus</span>
@@ -68,14 +79,12 @@
       <svg id="wan-spark" class="spark" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden="true"></svg>
     </section>
 
-    <section class="card power" aria-labelledby="h-power">
-      <h2 id="h-power">Power</h2>
-      <div class="hero" id="ups-state">—</div>
-      <div class="kv">
-        <div>Charge<b id="ups-charge">—</b></div>
-        <div>Runtime<b id="ups-runtime">—</b></div>
-        <div>Load<b id="ups-load">—</b></div>
-      </div>
+    <!-- One card at a time, whichever matters now (wall.js, CONTEXT). The UPS
+         that used to have this cell lives in its node tile, mjolnir. -->
+    <section class="card context" aria-labelledby="h-context">
+      <h2 id="h-context">—</h2>
+      <div id="context" class="context-body"></div>
+      <div id="context-also" class="context-also"></div>
     </section>
 
     <section class="card household" aria-labelledby="h-house">

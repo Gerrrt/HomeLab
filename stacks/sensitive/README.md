@@ -784,12 +784,22 @@ container of its own: Caddy serves `wall/` as static files.
   any light whose id contains `office` is on).
   The page shows them as the header's weather and a one-line Home row: the
   alarm's mode, any open door or window in amber, and the office lights.
+  The header's high and low, the next rain and the next sunrise or sunset
+  are `sensor.wall_weather` at `/api/ha/forecast`, from
+  `home-assistant/packages/wall_weather.yaml`, which asks
+  `weather.get_forecasts` every fifteen minutes.
   The calendar is `sensor.wall_today` at `/api/ha/today`: the package
   `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
-  every five minutes for today and tomorrow, from the calendars labelled
+  every five minutes for the next seven days, from the calendars labelled
   `wall_calendar` in HA's UI, or from every calendar when none is labelled.
   It keeps each event's title, start, end, location and a calendar number for
-  its colour, and shows them in the Today panel under the alerts. Booted on
+  its colour. The page shows today and tomorrow in the Today panel under the
+  alerts, the rest of the week below them while there is room, and a
+  countdown to the next timed event in the header. The cell beside Internet
+  is a context card that shows one thing at a time, whichever matters now
+  (`CONTEXT` in `wall.js`); until other sources arrive that is a Hebrew word
+  of the day from a static list in the page. The UPS's mains or battery,
+  charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
   sensor held both events, and with no calendar it read unavailable, which
   the page shows as `calendar · unavailable`. The real ids of the alarm and the

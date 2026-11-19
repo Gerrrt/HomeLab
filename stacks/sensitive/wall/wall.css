@@ -58,7 +58,7 @@ html, body {
   grid-template-areas:
     "top  top   top"
     "left nodes nodes"
-    "left wan   power"
+    "left wan   context"
     "house  house house"
     "status status status";
   gap: 22px;
@@ -90,6 +90,7 @@ html, body {
   background: var(--panel);
   border: 1px solid var(--line);
 }
+.verdict { white-space: nowrap; flex: none; }
 .verdict .dot { width: 22px; height: 22px; border-radius: 50%; background: var(--mute); flex: none; }
 .verdict[data-state="ok"] .dot { background: var(--green); }
 .verdict[data-state="warning"] { color: var(--yellow); }
@@ -125,7 +126,7 @@ html, body {
 .today { flex: 1 1 0; min-height: 300px; }
 .nodes { grid-area: nodes; }
 .wan { grid-area: wan; }
-.power { grid-area: power; }
+.context { grid-area: context; }
 .household { grid-area: house; flex-direction: row; align-items: center; gap: 30px; }
 .household h2 { margin: 0; }
 
@@ -187,8 +188,10 @@ html, body {
 .spark path.line { fill: none; stroke: var(--green); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .spark path.fill { fill: var(--green); fill-opacity: 0.12; stroke: none; }
 
-.power .hero { font-size: 64px; color: var(--fg-dim); }
-.power[data-state="battery"] .hero { color: var(--red); }
+/* The UPS, in its node tile: red and pulsing on battery. */
+.node.battery .dot { background: var(--red); color: var(--red); }
+.node.battery .role, .node.battery .val { color: var(--red); }
+
 .kv { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
 .kv div { display: flex; font: 400 28px/1.2 var(--sans); color: var(--fg-dim); }
 .kv b { margin-left: auto; font: 500 30px/1 var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
@@ -216,9 +219,34 @@ html, body {
 .ev.c5 .bar { background: var(--mute); }
 .day { font: 500 20px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); margin-top: 6px; }
 .agenda .none { font: 400 28px/1.3 var(--sans); color: var(--fg-dim); }
+/* Past tomorrow, the week is one line per event and dimmer: it is there to
+   be glanced at, not read. */
+.ev.later .t, .ev.later .what { color: var(--mute); font-weight: 400; }
+.ev.later .where { display: none; }
+
+/* ---------- up next, in the header ---------- */
+.next { display: flex; align-items: center; gap: 20px; max-width: 470px; min-width: 0; margin-left: 40px; }
+.next .ring { width: 76px; height: 76px; flex: none; }
+.next .ring circle { fill: none; stroke-width: 7; }
+.next .ring .track { stroke: var(--line); }
+.next .ring .arc { stroke: var(--blue); stroke-linecap: round; stroke-dasharray: 188.5; }
+.next[data-state="soon"] .ring .arc { stroke: var(--yellow); }
+.next[data-state="soon"] .next-when { color: var(--yellow); }
+.next-text { min-width: 0; }
+.lbl { font: 500 20px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.next-what { font: 600 32px/1.2 var(--sans); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-when { font: 400 24px/1.3 var(--mono); color: var(--fg-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.next[data-state="none"] .next-what { color: var(--mute); font-weight: 400; }
+
+/* ---------- context: one card, whichever matters now ---------- */
+.context-body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden; }
+.context-also { font: 400 22px/1.3 var(--mono); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.word { font: 600 72px/1.15 var(--sans); color: var(--purple); align-self: flex-start; }
+.word-sub { font: 400 28px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; }
+.word-sub b { font-weight: 600; color: var(--fg); }
 
 /* ---------- weather, in the header ---------- */
-.wx { display: flex; align-items: center; gap: 22px; margin-left: auto; margin-right: 40px; }
+.wx { display: flex; align-items: center; gap: 22px; margin-left: auto; margin-right: 36px; }
 .wx-temp { font: 500 84px/1 var(--mono); color: var(--cyan); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
 .wx-desc { font: 600 32px/1.2 var(--sans); }
 .wx-sub { font: 400 22px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
@@ -251,7 +279,7 @@ html, body {
 
 /* The only motion: a pulse on what needs looking at. */
 @media (prefers-reduced-motion: no-preference) {
-  .node.warning .dot, .node.down .dot, .verdict[data-state="critical"] .dot,
+  .node.warning .dot, .node.down .dot, .node.battery .dot, .verdict[data-state="critical"] .dot,
   .verdict[data-state="broken"] .dot { animation: pulse 1.6s ease-out infinite; }
 }
 @keyframes pulse {

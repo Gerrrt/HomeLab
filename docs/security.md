@@ -1145,11 +1145,11 @@ from Home Assistant with *not enough permissions*.
   firing alerts, per-host CPU, SNMP reachability, WAN traffic and latency,
   the UPS and `heimdall`'s temperature. That is less than the Homelab page
   already shows, and the page and the Pi hold no credential.
-  **Its household half reads ten Home Assistant entities the same way.**
+  **Its household half reads eleven Home Assistant entities the same way.**
   Each `/api/ha/NAME` is one `GET /api/states/<entity>` written in the
-  Caddyfile: the weather, the alarm's mode, four door contacts, two window
-  contacts, the office lights, and `sensor.wall_today`, which holds today's
-  and tomorrow's calendar events. Caddy adds the token of HA's non-admin
+  Caddyfile: the weather, today's forecast, the alarm's mode, four door
+  contacts, two window contacts, the office lights, and `sensor.wall_today`,
+  which holds the next seven days' calendar events. Caddy adds the token of HA's non-admin
   `wall` user. Home Assistant has no read-only role, so that token could call
   services, the alarm's included. It is read-only only because it lives in
   Caddy's environment alone and Caddy forwards nothing but those GETs. The

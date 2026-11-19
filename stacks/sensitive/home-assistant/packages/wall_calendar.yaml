@@ -1,12 +1,14 @@
 ---
-# Today's and tomorrow's events, as one sensor the office wall can read
-# (ADR-0119).
+# The next seven days' events, today's first, as one sensor the office wall
+# can read (ADR-0119). The wall shows today and tomorrow in full, the rest of
+# the week below them when there is room, and counts down to the next one.
 #
 # The wall reads Home Assistant through fixed `GET /api/states/<entity>`
 # handles in the Caddyfile. A calendar's own state is only its next event, and
 # HA's calendar API needs a moving start and end that a fixed handle cannot
 # give. So this asks `calendar.get_events` every five minutes and keeps the
-# answer in `sensor.wall_today`, which the wall reads at `/api/ha/today`.
+# answer in `sensor.wall_today`, which the wall reads at `/api/ha/today`. The
+# id predates the week; it keeps its name so its history does not split.
 #
 # Which calendars: the ones labelled `wall_calendar` in the UI, or every
 # calendar when no calendar carries that label. No calendar is named here.
@@ -45,7 +47,7 @@ template:
           entity_id: "{{ wall_calendars }}"
         data:
           start_date_time: "{{ today_at() }}"
-          end_date_time: "{{ today_at() + timedelta(days=2) }}"
+          end_date_time: "{{ today_at() + timedelta(days=7) }}"
         response_variable: agenda
         continue_on_error: true
       - variables:
@@ -82,7 +84,9 @@ template:
                 {% endfor %}
               {% endfor %}
             {% endif %}
-            {{ (ns.items | sort(attribute='key'))[:16] }}
+            {# 40 events of at most ~250 bytes stay under the recorder's 16 KB
+               attribute limit, so the sensor's history keeps its attributes. #}
+            {{ (ns.items | sort(attribute='key'))[:40] }}
     sensor:
       - name: Wall today
         unique_id: wall_today
