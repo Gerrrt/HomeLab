@@ -1,7 +1,7 @@
 ---
 # The lab stack watching itself.
 #
-# Twenty-three rules, and the number is still the point. The estate has 48;
+# Twenty-five rules, and the number is still the point. The estate has 48;
 # ADR-0007 names giving up "Loki, the dashboards and 40 alert rules" as the
 # price of keeping lab telemetry out of the estate, and this file does not
 # pretend to replace them. Five cover this stack's own working, its agents'
@@ -16,6 +16,8 @@
 # prune (#850), the one run-scheduled.sh job whose outcome lands here. Three
 # cover the guests' patch state, which their own patch-state timers write and
 # which no estate rule can see, because these guests push here and not there.
+# Two cover whether fenrir is still the appliance its runbook leaves (#1577),
+# which nothing else checks at all.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -584,3 +586,68 @@ groups:
             `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
             (docs/runbooks/build-the-sensor-guest.md §4), and check that
             /var/lib/node_exporter/textfile_collector exists on fenrir.
+
+      # -----------------------------------------------------------------------
+      # Whether fenrir is still the appliance build-the-sensor-guest.md §0
+      # decides it is (#1577). homelab-appliance-state writes one 0-or-1 per
+      # check to appliance-state.prom hourly. The audit of 2026-11-13 found the
+      # guest had been a workstation for weeks with nothing saying so; these
+      # two are what says so now, to whoever looks here.
+      #
+      # What they do not cover, and the collector's header says it at length:
+      # whoever has root on fenrir can make every check read 1. These catch
+      # drift by accident, not a guest someone has taken.
+      # -----------------------------------------------------------------------
+
+      # A check has read 0 for an hour: at least two hourly runs agree. The
+      # label names the check, and `journalctl -u homelab-appliance-state` on
+      # fenrir names what failed; the value of what was found never leaves the
+      # guest.
+      - alert: ApplianceCheckFailed
+        expr: homelab_appliance_check == 0
+        for: 1h
+        labels:
+          component: sensor
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} is no longer the appliance its runbook leaves: {{ $labels.check }}"
+          description: >-
+            The `{{ $labels.check }}` check has failed for an hour. Read
+            `journalctl -u homelab-appliance-state -n 20` on the guest, then
+            put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
+            leave it. If the change was meant, change the runbook and
+            scripts/collect-appliance-state.sh in one PR.
+
+      # The checks have stopped reporting, which reads exactly like a guest
+      # that passes them all. Two branches, as PatchStateStopped's: the series
+      # vanished, or the file stopped being rewritten while Alloy keeps
+      # serving its last values. Three hours is two missed hourly runs and
+      # their jitter.
+      - alert: ApplianceStateStopped
+        expr: >-
+          (
+            count by (host) (present_over_time(homelab_appliance_check[1d] offset 3h))
+            unless
+            count by (host) (present_over_time(homelab_appliance_check[3h]))
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*appliance-state\\.prom"} > 3 * 3600,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
+        for: 30m
+        labels:
+          component: sensor
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its appliance checks"
+          description: >-
+            Its appliance checks have gone absent, or appliance-state.prom has
+            not been rewritten in three hours, so ApplianceCheckFailed is
+            reading stale or no data for it. Check
+            `systemctl status homelab-appliance-state.timer` on the guest. A
+            stopped timer on a guest that was passing is itself worth a look.

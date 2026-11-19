@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All twenty-three rules in lab.rules.yaml are covered here. That is a deliberate
+# All twenty-five rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -927,4 +927,108 @@ tests:
     alert_rule_test:
       - eval_time: 50h
         alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- ApplianceCheckFailed: fires for a check that stays failed -------------
+  # The keys check passing, then a key added at 2h and still there at 4h. The
+  # sshd check beside it keeps passing, so the alert names only the one.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="keys"}'
+        values: "1x24 0x30"
+      - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
+        values: "1x54"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ApplianceCheckFailed
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              check: keys
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir is no longer the appliance its runbook leaves: keys"
+              description: >-
+                The `keys` check has failed for an hour. Read
+                `journalctl -u homelab-appliance-state -n 20` on the guest, then
+                put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
+                leave it. If the change was meant, change the runbook and
+                scripts/collect-appliance-state.sh in one PR.
+
+  # --- ApplianceCheckFailed: quiet for one bad run put right -----------------
+  # A single hourly run that read 0 (twelve five-minute steps), then 1 again:
+  # shorter than the hour's `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="listeners"}'
+        values: "1x24 0x10 1x20"
+    alert_rule_test:
+      - eval_time: 4h
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
+
+  # --- ApplianceStateStopped: fires for a guest whose collector died ---------
+  # A day of checks, then a real gap.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
+        values: "1x288 _x96"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+
+  # --- ApplianceStateStopped: fires when the file stops being rewritten ------
+  # Alloy keeps serving the last 1s, so only the mtime stands still. At 5h it
+  # is more than three hours old, and has been for over the 30m `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",instance="fenrir",check="sshd"}'
+        values: "1x60"
+      - series: 'node_textfile_mtime_seconds{instance="fenrir",file="/rootfs/var/lib/node_exporter/textfile_collector/appliance-state.prom"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+
+  # --- ApplianceStateStopped: quiet while the hourly rewrite happens ---------
+  # The mtime moves every hour (twelve five-minute steps), as the timer's does.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",instance="fenrir",check="sshd"}'
+        values: "1x60"
+      - series: 'node_textfile_mtime_seconds{instance="fenrir",file="/rootfs/var/lib/node_exporter/textfile_collector/appliance-state.prom"}'
+        values: "0x11 3600x11 7200x11 10800x11 14400x11 18000x5"
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: ApplianceStateStopped
         exp_alerts: []

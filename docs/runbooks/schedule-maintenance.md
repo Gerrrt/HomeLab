@@ -194,7 +194,7 @@ runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`, `cert-expiry`,
-`guest-state`, `thin-pool-state`, `guest-disk-state`, `guest-service-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `guest-service-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state`, `drift-check` and `appliance-state`, plus the two
 rows that collect nothing, `zeek-mirror` and `prune-images`, and one scheduled job, `zeek-archive-prune` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows

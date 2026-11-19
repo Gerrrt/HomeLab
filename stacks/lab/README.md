@@ -59,13 +59,14 @@ prometheus/
   prometheus.yaml          six scrape jobs — this stack's four, the domain's
                            windows_exporter and odin's Velociraptor; no
                            alerting block, no file_sd
-  rules/lab.rules.yaml     23 rules — four for this stack watching itself,
+  rules/lab.rules.yaml     25 rules — four for this stack watching itself,
                            one for its agents dropping log lines (#1552),
                            two for the guests' disks, three for the domain
                            ADR-0029 sized, seven for golem's backups
                            (ADR-0053), three for fenrir's Zeek archive
-                           prune (#850) and three for the guests' patch
-                           state
+                           prune (#850), three for the guests' patch
+                           state and two for whether fenrir is still an
+                           appliance (#1577)
   rules/soc.rules.yaml     13 rules — the SOC's indexer on odin, whose health is
                            pushed here by stacks/soc's Alloy (ADR-0030); the
                            manager's agents, queues and drops, from odin's
