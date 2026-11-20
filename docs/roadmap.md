@@ -265,7 +265,6 @@ move and stay until they are bought or dropped.
 | Levelling feet for the frame | Only if the floor is uneven: the frame wobbled until its screws were torqued | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Tenkeyless keyboard and a mouse | The 10.8" drawer: a full-size keyboard with a trackpad does not fit under its lip, per its reviewers | The operator, 2026-10-16 | Any time; the #919 move is done |
 | 8 × 16 GB DDR4 RDIMM, dual-rank, matched to a fitted stick's label (2Rx4 or 2Rx8, PC4-2400) | `Saruman`, 128 GB to 256 GB, one more per channel on both CPUs | The operator, 2026-10-13: headroom | The next time the DL360 is out of the rack: not fitted in the #919 move |
-| Hitron CODA56 DOCSIS 3.1 cable modem, from Xfinity's compatible-device list for the house's plan | Replaces the rented XB7 between the coax and `morpheus`'s `em0`. Three of the XB7's ports have sent `em0` corrupted frames in three weeks; see the [changelog](changelog.md), 2026-11-19. The XB7 goes back once the modem is activated and `em0` counts no errors | The operator, 2026-11-20 | Now |
 
 **The last one, bought 2026-10-05:** `gandalf`, the range host — a quiet
 SFF box with flash storage, two socketed DIMM slots with 32 GB fitted, one NIC

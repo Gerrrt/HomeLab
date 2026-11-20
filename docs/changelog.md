@@ -17,6 +17,20 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-20
+
+- **A Hitron CODA56 is bought to replace the rented XB7**
+  ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). Three of the
+  XB7's Ethernet ports have sent `em0` corrupted frames in three weeks; see
+  the 2026-11-19 entry below. The operator chose it from Xfinity's
+  compatible-device list for the house's plan. Every non-voice model there
+  lists more upload than the plan's ~300 Mbit/s, and the house has no
+  Xfinity phone service, so it needs no voice port. The CODA56 cost about
+  half as much as the others. It was decided and bought the same day, so
+  it never entered *Everything still to buy*, and README's count stays at
+  11. It is in transit, and #1594 tracks it. The XB7 goes back only after
+  the CODA56 is in and `em0` counts no errors.
+
 ## 2026-11-19
 
 - **`phoenix`'s own way in is closed: `sshd` takes keys only, and `ufw` is
