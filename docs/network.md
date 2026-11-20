@@ -308,6 +308,18 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   internal
   ([ADR-0011](adr/0011-keep-the-wiki-internal.md)) is this firewall's rules
   alone.
+- **One pair lets `trinity` reach its own gateway for NUT, and nothing else
+  on the segment does, in force since 2026-11-20.** `Allow NUT from trinity`,
+  `10.0.99.40 → 10.0.99.1:3493`, sits above `Block NUT to pfSense`,
+  Winterfell net → `10.0.99.1:3493`, and both sit with *Block HTTPS to
+  pfSense*, above Winterfell's egress rule. They were created by
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §4b.1,
+  before §4b.2 added the `10.0.99.1` listener, so that `trinity` can
+  subscribe to the firewall's NUT server
+  ([ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
+  The destination is the firewall's address on this segment, so the
+  *Reaches* column is unchanged. The block is what keeps `prometheus`,
+  `oracle` and the UPS card off the listener.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
