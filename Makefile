@@ -503,9 +503,9 @@ recipient-state: ## Record which age recipients can open the secrets, and when e
 	@# Reads the recipient list out of the encrypted file's own metadata and
 	@# writes one series per recipient into the textfile dir, carrying every
 	@# existing proof timestamp forward and setting none. Needs no key: the
-	@# `sops:` block is plaintext. This is what SecretsKeyBackupUnproven reads;
-	@# without it a host that proved its key before ADR-0024 has no series and
-	@# the ninety-day nag is silent. secrets-verify-backup is what sets a proof.
+	@# `sops:` block is plaintext. No alert reads it since ADR-0120; it is the
+	@# recipient list remove-recipient.sh checks against. secrets-verify-backup
+	@# is what sets a proof.
 	./scripts/key-recipients.sh --record --stack $(STACK)
 
 .PHONY: ca-key-state
@@ -741,15 +741,11 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 		printf 'See docs/runbooks/back-up-the-age-key.md\n' >&2; \
 		exit 2; \
 	}
-	@# Wrapped, even though a human runs it, and that is the whole point of #77.
-	@# This is the one job that cannot be put on a timer — verify-key-backup.sh
-	@# refuses the live key by device:inode precisely so that what gets tested is
-	@# a copy on removable media, and no timer can mount that. So the schedule is
-	@# enforced from the other end: a successful run records its timestamp, and
-	@# SecretsKeyBackupUnproven fires when that proof passes ninety days old.
-	@# Nagging is not as good as running it, but it beats remembering.
-	@# STACK=sensitive records verify-key-backup-sensitive, trinity's row in
-	@# install-timers.sh: a job name may be declared on one host only.
+	@# Optional since ADR-0120: run it when you want to know a copy of the key
+	@# still opens the secrets. Nothing waits for it and no alert fires if it
+	@# is never run. verify-key-backup.sh refuses the live key by device:inode,
+	@# so what gets tested is a copy. Wrapped so the run is still recorded;
+	@# STACK=sensitive records it as verify-key-backup-sensitive.
 	./scripts/run-scheduled.sh --job verify-key-backup$(if $(filter sensitive,$(STACK)),-sensitive) --lock keys \
 		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
 

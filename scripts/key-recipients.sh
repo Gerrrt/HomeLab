@@ -27,15 +27,15 @@
 #
 # A recipient that has never been verified is recorded as 0 rather than omitted.
 # time() - 0 is about 1.8 billion seconds, which exceeds every threshold, so
-# "never proved" and "not proved lately" are one alert — the same choice
-# run-scheduled.sh makes and for the same reason.
+# "never proved" and "not proved lately" read the same — the same choice
+# run-scheduled.sh makes and for the same reason. (No alert reads this file
+# since ADR-0120; the record stays.)
 #
 # WHO RUNS --record. verify-key-backup.sh after a proof (with --proved),
 # add-recipient.sh after a re-key, and — since #400 — the recipient-state timer
 # every day with neither. That last caller is what guarantees the file exists:
 # the first two only run when a human does something, and a host that proved
-# its key before this script existed had nothing that would ever write it, so
-# the alert that reads it was silent from the day it was deployed.
+# its key before this script existed had nothing that would ever write it.
 #
 # THE FIRST WRITE CARRIES THE OLD PROOF OVER. Before ADR-0024 the only record of
 # a proof was homelab_job_last_success_timestamp_seconds{homelab_job=

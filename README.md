@@ -101,7 +101,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  185 alert rules — 164 metric-based in Prometheus, 21 log-based in Loki — sharing
+  183 alert rules — 162 metric-based in Prometheus, 21 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -136,7 +136,7 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 119 ADRs covering what was chosen
+- **Documented decisions and runbooks.** 120 ADRs covering what was chosen
   and what was rejected — including the costs accepted knowingly; 55
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
@@ -207,7 +207,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 164 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 162 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 21 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
@@ -236,7 +236,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 119 ADRs — architecture decision records
+│   ├── adr/                  # 120 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
 │   └── runbooks/             # 55 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
@@ -320,9 +320,11 @@ $ make help
 The timers are what stop `backup`, `backup-firewall`, `snmp-verify` and now
 deployment itself being things someone has to remember, and the alert rules that come with them fire on a
 job having *stopped being run* rather than only on one that failed
-([#77](https://github.com/Gerrrt/HomeLab/issues/77)). One job deliberately has no
-timer: `secrets-verify-backup` needs a human to mount removable media, so it gets
-a ninety-day deadline and an alert instead. See
+([#77](https://github.com/Gerrrt/HomeLab/issues/77)). The human proofs that need
+removable media, such as `certs-verify-backup`, have no timer and get a
+ninety-day deadline and an alert instead. `secrets-verify-backup` is optional
+and has no deadline
+([ADR-0120](docs/adr/0120-drop-the-age-key-proof-deadline.md)). See
 [`docs/runbooks/schedule-maintenance.md`](docs/runbooks/schedule-maintenance.md).
 
 ## Dashboards

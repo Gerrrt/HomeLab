@@ -9,7 +9,7 @@ how a checkbox stops being true, and for a month this file was the second
 place — [#577](https://github.com/Gerrrt/HomeLab/issues/577) moved the history
 out.
 
-The order is the five open
+The order is the four open
 [milestones](https://github.com/Gerrrt/HomeLab/milestones), each of which
 states what closes it. This file adds what a milestone cannot say: the order
 between them, and inside each the order and the gate where an issue cannot
@@ -33,11 +33,9 @@ What an entry here may contain:
    — first because nothing gates them; most wait on an upstream release.
 2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the host
    is built and serving; what is left is its gates, and the off-estate copy.
-3. [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — one proof left, the lab's second key.
-4. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
+3. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline is built; what is left is using it, one exercise per weakness.
-5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
+4. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
    domain, on a household observation, or on something to publish.
 
 ## Nothing blocks these
@@ -148,19 +146,6 @@ Closes when #404 and #132 close, and #455 has its holder.
   Paperless export; `memos-data`, which holds real notes since 2026-10-22,
   has only the nightly volume set on `oracle`. Adding it to the copy is
   part of this, and Memos' *Durable* row is not met before it is.
-
-## Saruman: the domain, then the SOC
-
-Closes when it is empty. Both things its name names are done. The domain was
-built by hand on 2026-09-24 and 25, and
-[#414](https://github.com/Gerrrt/HomeLab/issues/414) closed on 2026-10-02 with
-its authentication generator running and §10 read from Hicks. The SOC followed:
-Wazuh and Velociraptor reported the six agents in on 2026-09-27.
-
-- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) Prove the lab's
-  second key.** `secrets/lab.sops.yaml` is encrypted to the offline technical
-  second as well as `alexander`'s key since 2026-10-07. What remains is
-  `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
 
 ## exercises
 

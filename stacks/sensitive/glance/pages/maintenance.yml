@@ -20,16 +20,15 @@
         #   that reads "never succeeded", not an age of decades.
         # - A job is overdue when its last success is older than its declared limit
         #   (ScheduledJobStale), and flagged when its last run failed.
-        # - verify-key-backup (verify-key-backup-sensitive on trinity) and
-        #   verify-ca-key-backup are not read from the generic success time. One
-        #   proof refreshes that for every key, so it can be green while one key
-        #   rots. They are judged per age recipient
-        #   (homelab_key_recipient_last_proof_timestamp_seconds) and per current CA
-        #   key (homelab_ca_key_backup_last_proof_timestamp_seconds) against the same
-        #   limit, as SecretsKeyBackupUnproven and CaKeyBackupUnproven do. A proof
-        #   recorded as 0 reads "never proved", and a declaration with no proof
-        #   series at all on its host reads "no proofs recorded" and counts as
-        #   needing attention, as SecretsKeyRecipientsUnrecorded does.
+        # - verify-ca-key-backup is not read from the generic success time. One
+        #   proof refreshes that for every key, so it can be green while the
+        #   current key rots. It is judged per current CA key
+        #   (homelab_ca_key_backup_last_proof_timestamp_seconds) against the same
+        #   limit, as CaKeyBackupUnproven does. A proof recorded as 0 reads "never
+        #   proved", and a declaration with no proof series at all on its host
+        #   reads "no proofs recorded" and counts as needing attention.
+        # - The age-key proof has no deadline since ADR-0120. A verify-key-backup
+        #   row left in a host's declarations from before then is not listed.
         #
         # Everything is joined on `instance`, the machine label the rules join on.
         # Needing attention comes first; the rest follow.
@@ -38,7 +37,7 @@
           cache: 5m
           <<: *prometheus
           parameters:
-            query: homelab_job_max_age_seconds
+            query: homelab_job_max_age_seconds{homelab_job!~"verify-key-backup|verify-key-backup-sensitive"}
           subrequests:
             success:
               <<: *prometheus
@@ -48,10 +47,6 @@
               <<: *prometheus
               parameters:
                 query: homelab_job_last_exit_code != 0
-            keys:
-              <<: *prometheus
-              parameters:
-                query: time() - homelab_key_recipient_last_proof_timestamp_seconds
             ca:
               <<: *prometheus
               parameters:
@@ -60,7 +55,6 @@
             {{ $decl := sortByString "metric.homelab_job" "asc" (.JSON.Array "data.result") }}
             {{ $success := (.Subrequest "success").JSON.Array "data.result" }}
             {{ $failed := (.Subrequest "failed").JSON.Array "data.result" }}
-            {{ $keys := (.Subrequest "keys").JSON.Array "data.result" }}
             {{ $ca := (.Subrequest "ca").JSON.Array "data.result" }}
             {{ if or (ne .Response.StatusCode 200) (eq (len $decl) 0) }}
               <p class="color-negative">No data: Prometheus returned no job declarations.</p>
@@ -80,10 +74,8 @@
                 {{ range $decl }}
                   {{ $j := .String "metric.homelab_job" }}{{ $i := .String "metric.instance" }}
                   {{ $limit := .Float "value.1" }}
-                  {{ if or (eq $j "verify-key-backup") (eq $j "verify-key-backup-sensitive")
-                          (eq $j "verify-ca-key-backup") }}
-                    {{ $proofs := $keys }}{{ $label := "recipient" }}
-                    {{ if eq $j "verify-ca-key-backup" }}{{ $proofs = $ca }}{{ $label = "ca" }}{{ end }}
+                  {{ if eq $j "verify-ca-key-backup" }}
+                    {{ $proofs := $ca }}{{ $label := "ca" }}
                     {{ $n := 0 }}
                     {{ range $proofs }}
                       {{ if eq (.String "metric.instance") $i }}
@@ -111,7 +103,7 @@
                       {{ end }}
                     {{ end }}
                     {{/* Declared and nothing recorded for this host: the rule that
-                         would nag has no left side (SecretsKeyRecipientsUnrecorded). */}}
+                         would nag has no left side. */}}
                     {{ if eq $n 0 }}
                       {{ if eq $pass 0 }}{{ $all = add $all 1 }}{{ $bad = add $bad 1 }}
                       {{ else if eq $pass 1 }}

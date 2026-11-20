@@ -99,42 +99,30 @@ DEPLOY_ROOT="/home/robo/code/Gerrrt/HomeLab"
 # tolerates one missed run and not two. That is the smallest window that
 # distinguishes unlucky from broken.
 #
-# verify-key-backup has no unit, and that is not an oversight. It needs a human
-# to mount removable media — verify-key-backup.sh refuses the live key by
-# device:inode precisely so that a copy is what gets tested — so a timer for it
-# would be a lie. Its row exists so the threshold is still declared and
-# SecretsKeyBackupUnproven can still nag. The one thing that proves the secrets
-# are recoverable now has a deadline even though it has no schedule.
+# A row whose unit is "-" is a deadline declared for a human, with no timer:
+# a timer for a job that needs someone to mount removable media would be a lie.
 #
-# verify-ca-key-backup is the same shape for the estate CA's private key (#496):
-# a human proof against a copy on the same offline medium, no unit, the same
-# ninety days, and CaKeyBackupUnproven reading it. ca-key-state is its
-# recipient-state — the daily writer that makes the series exist at all.
+# verify-ca-key-backup is one (#496): a human proof of the estate CA's private
+# key against an offline copy, ninety days, and CaKeyBackupUnproven reading it.
+# ca-key-state is the daily writer that makes its series exist at all.
 #
-# offsite-copy is the third of that shape, and the first that is not a key
-# (ADR-0048): the newest set of each kind is carried onto the medium that holds
-# the second age recipient, on the same visit that proves it, so one ninety-day
-# deadline covers three alerts. backup-offsite.sh refuses a destination on this
+# The age-key proof is not one any more. verify-key-backup and
+# verify-key-backup-sensitive were rows here until ADR-0120 dropped the
+# deadline; `make secrets-verify-backup` still works when someone wants to
+# check a copy, but nothing waits for it and nothing nags.
+#
+# offsite-copy is the other of that shape, and it is not a key (ADR-0048): the
+# newest set of each kind is carried onto the medium that holds the second age
+# recipient, ninety days. backup-offsite.sh refuses a destination on this
 # host's own filesystem, on RAM, or under /tmp and its neighbours — for the
-# reason the key proofs refuse the live key — and
+# reason the CA proof refuses the live key — and
 # OffsiteCopyStale reads its job series directly — one copy of record, so one
 # series is the honest count.
 #
-# The threshold is still declared once here, but since ADR-0024 it is applied
-# once PER RECIPIENT rather than once per job: scripts/key-recipients.sh emits a
-# series for each key the secrets are encrypted to, and the alert joins against
-# this row for all of them. Adding a recipient therefore adds a deadline without
-# touching this table, which is the same property every other rule in
-# backup.rules.yaml has and the reason none of them name a job.
-#
-# recipient-state is what makes that series exist (#400). key-recipients.sh
-# used to be run only by a human proof and by add-recipient.sh, so a host that
-# had proved its key before ADR-0024 landed never wrote the per-recipient file
-# at all — and SecretsKeyBackupUnproven, which reads only that file, went quiet
-# the day it was deployed. This row writes the file daily, carrying every
-# existing proof forward and setting none; the priming loop below writes it at
-# install time. SecretsKeyRecipientsUnrecorded is the rule that notices when
-# the file is missing anyway.
+# recipient-state writes key-recipients.prom daily (#400): which age recipients
+# can open the secrets, and when each was last proved, carrying every existing
+# proof forward and setting none. No alert reads it since ADR-0120; it stays
+# because remove-recipient.sh and the runbooks read the recipient list from it.
 #
 # converge is the only hourly row, and the only one whose threshold is three
 # times its period rather than two. It shares the `backups` lock with the
@@ -165,7 +153,6 @@ JOBS=(
   "silence-state     homelab-silence-state         5400  silence-state"
   "port-state        homelab-port-state            5400  port-state"
   "prune-images      homelab-prune-images       1209600  prune-images"
-  "verify-key-backup -                          7776000  secrets-verify-backup"
   "verify-ca-key-backup -                       7776000  certs-verify-backup"
   "offsite-copy      -                          7776000  backup-offsite"
 )
@@ -184,13 +171,8 @@ JOBS=(
 # what keeps the alert joins one-to-one across hosts, so it must not reuse a
 # name from JOBS — check 8 below asserts that. And the nightly re-verification
 # of both kinds of set, here and on oracle (#856): verify-backups-sensitive,
-# two days for the same reason as the backups it re-reads. And
-# verify-key-backup-sensitive, the estate's verify-key-backup for this tier's
-# own recipients: the same ninety days and no unit, because it is the same
-# human proof against a copy on removable media, run on trinity as
-# `make secrets-verify-backup KEY=... STACK=sensitive`. SecretsKeyBackupUnproven
-# holds every recipient in trinity's key-recipients.prom to it. It cannot be
-# called verify-key-backup, for check 8's reason: that name is the estate's.
+# two days for the same reason as the backups it re-reads. There is no
+# age-key proof row here either (ADR-0120).
 #
 # The units under systemd/sensitive/ carry @DEPLOY_ROOT@, @RUN_USER@,
 # @RUN_GROUP@ and @RUN_HOME@ rather than a name, because the build runbook
@@ -204,7 +186,6 @@ SENSITIVE_JOBS=(
   "verify-backups-sensitive homelab-verify-backups-sensitive 172800 verify-backups"
   "household-copy    -                          7776000  household-copy"
   "household-proof   -                         31536000  household-proof"
-  "verify-key-backup-sensitive -                7776000  secrets-verify-backup"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -483,8 +464,8 @@ if [[ "${MODE}" == check ]]; then
     stale=()
     for row in "${JOBS[@]}"; do
       unit="$(job_unit "${row}")"
-      # verify-key-backup has no unit: it is a deadline declared for a human,
-      # and the table says so with a "-". Nothing to install, nothing to check.
+      # A "-" unit is a deadline declared for a human (verify-ca-key-backup,
+      # offsite-copy). Nothing to install, nothing to check.
       [[ "${unit}" == "-" ]] && continue
       state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
       case "${state}" in
@@ -531,9 +512,8 @@ if [[ "${MODE}" == check ]]; then
     run_home="$(getent passwd "${run_user}" | cut -d: -f6)"
     for row in "${SENSITIVE_JOBS[@]}"; do
       unit="$(job_unit "${row}")"
-      # household-copy, household-proof and verify-key-backup-sensitive are
-      # human jobs, "-" as on the estate's side: no timer to be enabled
-      # (ADR-0073, ADR-0024).
+      # household-copy and household-proof are human jobs, "-" as on the
+      # estate's side: no timer to be enabled (ADR-0073).
       [[ "${unit}" == "-" ]] && continue
       state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
       case "${state}" in
@@ -720,8 +700,7 @@ if [[ "${PROFILE}" == sensitive ]]; then
 fi
 info "backup-volumes was NOT primed: it stops the stack. Run it when you can watch:"
 info "  sudo systemctl start homelab-backup-volumes.service"
-info "verify-key-backup has no timer and never will — docs/runbooks/back-up-the-age-key.md"
-info "recipient-state was primed, so SecretsKeyBackupUnproven has a series per recipient to read (#400)"
-info "verify-ca-key-backup has no timer either — docs/runbooks/back-up-the-ca-key.md"
+info "recipient-state was primed: key-recipients.prom lists who can open the secrets (#400)"
+info "verify-ca-key-backup has no timer — docs/runbooks/back-up-the-ca-key.md"
 info "offsite-copy has no timer either — docs/runbooks/copy-the-backups-offsite.md"
 info "ca-key-state was primed, so CaKeyBackupUnproven has the CA key's fingerprint to read (#496)"
