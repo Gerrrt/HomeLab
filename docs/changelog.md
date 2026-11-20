@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-20
 
+- **`trinity`'s `sshd` gets a keys-only step, and "no host firewall" is
+  written down as a decision.** The trinity audit of 2026-11-13 found `sshd`
+  taking passwords, with X11 forwarding on and 17 GitHub-imported keys
+  authorized; the build runbook never hardened it.
+  [`build-the-sensitive-tier-host.md`](runbooks/build-the-sensitive-tier-host.md)
+  §3 now writes `10-trinity.conf`, the same four lines as `alexander`'s and
+  `phoenix`'s, keeps `authorized_keys` to `prometheus` and Hicks, and proves
+  both halves. A new `security.md` row records why `trinity` does not follow
+  `phoenix`'s `ufw` policy (ADR-0117): Docker's rules run ahead of `ufw`'s for
+  `443` and `53`, so a policy would cover `22` alone, and the spare firewall is
+  better without one. The step is not yet applied on the host. The same audit
+  found two prose slips, fixed here: `hardware.md` read ADR-0107's UPS
+  subscription as present tense, and `converge-the-host.md` counted ten deploy
+  gauges where `converge.sh` writes eleven.
+
 - **A Hitron CODA56 is bought to replace the rented XB7**
   ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). Three of the
   XB7's Ethernet ports have sent `em0` corrupted frames in three weeks; see

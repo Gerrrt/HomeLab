@@ -146,6 +146,48 @@ Expect:
 Anything else stops the build here. A disabled Secure Boot makes §4's seal
 meaningless, and a missing TPM makes it impossible.
 
+**SSH: keys only.** The installer's OpenSSH takes passwords, and cloud-init's
+`50-cloud-init.conf` drop-in can keep it that way. The audit of 2026-11-13
+found `trinity` answering `publickey,password`, with X11 forwarding on and 17
+keys imported from GitHub in `authorized_keys`. Your account here is in
+`sudo`, `docker` and `lxd`, so a guessed password is root on the host that
+holds the household's data. `trinity` has no host firewall by decision
+([`security.md`](../security.md)), so this drop-in is the control on `22`.
+
+Keep `~/.ssh/authorized_keys` to the machines you administer it from:
+`prometheus`'s key, put there by `ssh-copy-id` above, and Hicks's. Delete
+every other line, including any `gh:` import. Then log in with a key and
+keep that session open while you do the rest, so a mistake cannot lock you
+out:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-trinity.conf > /dev/null <<'EOF'
+# Keys only (build-the-sensitive-tier-host.md §3). Sorts ahead of
+# 50-cloud-init.conf, and sshd keeps the first value it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four read `no`. Then, from `prometheus`, in a new terminal, prove both
+halves. `ControlPath=none` makes each probe open a fresh connection instead
+of riding on the session you kept open:
+
+```bash
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password <you>@10.0.99.40 true
+```
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed. Run the second from Hicks too.
+
 **Tell networkd to leave the other two interfaces alone.** 26.04's dracut
 leaves a catch-all, `zzzz-dracut-default.network`, that runs DHCP on every
 interface netplan does not name. That is the I226 (`enp1s0`) and the Wi-Fi
