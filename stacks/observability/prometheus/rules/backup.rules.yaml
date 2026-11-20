@@ -22,12 +22,19 @@
 # JOBS table that also decides the cadence, so a threshold and a schedule cannot
 # drift apart. It also means NO RULE HERE NAMES A JOB: adding a timer is a row in
 # that table, not an edit to this file. That is deliberate — a rule file listing
-# job names is a list that silently stops growing. The four rules at the bottom
-# are the one exception, and they name the three jobs that are not timers: the
-# human proofs — verify-key-backup, whose deadline is applied per age
-# recipient, verify-ca-key-backup, whose deadline is applied to the CA key's
-# current fingerprint (#496), and offsite-copy, the newest set of each kind
-# carried onto the second recipient's medium on the same visit (ADR-0048).
+# job names is a list that silently stops growing. The rules at the bottom are
+# the one exception, and they name the jobs that are not timers: the human
+# proofs — verify-ca-key-backup, whose deadline is applied to the CA key's
+# current fingerprint (#496), offsite-copy, the newest set of each kind carried
+# onto the second recipient's medium (ADR-0048), and the household's pair
+# (ADR-0073).
+#
+# The age-key proof is no longer one of them. ADR-0120 dropped its deadline:
+# verify-key-backup and verify-key-backup-sensitive are not declared any more,
+# and SecretsKeyBackupUnproven and SecretsKeyRecipientsUnrecorded are gone.
+# Both names stay in the exclusions below, and ScheduledJobNeverRan and
+# ScheduledJobFailed skip them too, so a host whose homelab-jobs.prom was written before that change stays
+# quiet until `make install-timers` rewrites it.
 #
 # That claim has since been tested rather than merely asserted. #99 added
 # `converge`, an hourly job on a different cadence to everything above, and
@@ -43,9 +50,7 @@
 # exactly the list this file is avoiding — and it reacts to a single missed
 # scrape. `unless on(homelab_job)` against the declaration series says the same
 # thing generically. absent_over_time appears once, in ScheduledJobMetricsAbsent,
-# for the one question that genuinely has no series to join against. Even the
-# per-recipient file being missing (#400) is asked as an `unless` against the
-# verify-key-backup declaration row rather than as an absent().
+# for the one question that genuinely has no series to join against.
 groups:
   - name: backup
     interval: 60s
@@ -73,13 +78,14 @@ groups:
         # A second monitored host would then be indistinguishable from the
         # first, and the two would collide into one alert.
         #
-        # verify-key-backup is excluded because SecretsKeyBackupUnproven says
-        # something different about it and earns its own description,
-        # verify-ca-key-backup for the same reason — CaKeyBackupUnproven —
-        # and offsite-copy for OffsiteCopyStale. All three are human runs
-        # against a mounted medium: "check the journal" would be wrong advice
-        # for any of them. household-copy and household-proof are the same
-        # shape, and HouseholdCopyStale reads them (ADR-0073).
+        # verify-ca-key-backup is excluded because CaKeyBackupUnproven says
+        # something different about it and earns its own description, and
+        # offsite-copy for OffsiteCopyStale. Both are human runs against a
+        # mounted medium: "check the journal" would be wrong advice for
+        # either. household-copy and household-proof are the same shape, and
+        # HouseholdCopyStale reads them (ADR-0073). verify-key-backup and
+        # verify-key-backup-sensitive have no deadline since ADR-0120 and are
+        # excluded only for a host whose declarations predate it (header).
         expr: |
           (time() - homelab_job_last_success_timestamp_seconds{
               homelab_job!~"verify-key-backup|verify-key-backup-sensitive|verify-ca-key-backup|offsite-copy|household-copy|household-proof"})
@@ -153,7 +159,11 @@ groups:
         #
         # 75 is EX_TEMPFAIL, which run-scheduled.sh uses for "could not acquire
         # the lock in time" — the job never started rather than ran and failed.
-        expr: homelab_job_last_exit_code != 0
+        #
+        # The age-key check is skipped. Since ADR-0120 it is optional and run
+        # by hand, so a failure is already on the screen of the person who ran
+        # it, and an alert that waits for a re-run would nag about it.
+        expr: homelab_job_last_exit_code{homelab_job!~"verify-key-backup|verify-key-backup-sensitive"} != 0
         for: 10m
         labels:
           component: backup
@@ -170,12 +180,11 @@ groups:
         # Declared in the JOBS table, with no success series to go with it: the
         # job has never run, or its .prom file was deleted.
         #
-        # This is also the state verify-key-backup starts in and stays in until
-        # someone actually verifies the key backup for the first time, which is
-        # the honest reading — before that first run, nothing has proven the
-        # secrets are recoverable from anywhere but this host.
+        # The age-key proof jobs are skipped: ADR-0120 removed their deadline,
+        # and a row left in a homelab-jobs.prom written before that is not a
+        # job anyone is expected to run (header).
         expr: |
-          homelab_job_max_age_seconds
+          homelab_job_max_age_seconds{homelab_job!~"verify-key-backup|verify-key-backup-sensitive"}
             unless on(homelab_job) homelab_job_last_success_timestamp_seconds
         for: 1h
         labels:
@@ -228,135 +237,9 @@ groups:
             to parse; this alert means the whole directory stopped arriving.
             docs/runbooks/schedule-maintenance.md.
 
-      - alert: SecretsKeyBackupUnproven
-        # The one job with no timer, and the sharpest edge in #77.
-        #
-        # verify-key-backup.sh refuses the live key by device:inode and refuses
-        # a copy sitting inside a git tree, precisely so that what gets tested is
-        # a real off-host copy. That means a human has to mount removable media,
-        # and no timer can do it. What a timer CAN do is notice that nobody has.
-        #
-        # ONE SERIES PER RECIPIENT, and this is the only rule in the file that
-        # is not keyed on homelab_job. ADR-0024 added a second age recipient, and
-        # the moment there were two, homelab_job_last_success_timestamp_seconds
-        # {homelab_job="verify-key-backup"} became a wrong answer: it is a single
-        # series that run-scheduled.sh writes whichever key was mounted, so
-        # proving one copy reset the ninety-day deadline for every copy and the
-        # other could rot behind a green alert. scripts/key-recipients.sh emits
-        # homelab_key_recipient_last_proof_timestamp_seconds per recipient, read
-        # out of the encrypted file's own metadata, and this fires per recipient.
-        #
-        # The threshold still comes from the same declaration series as
-        # everything else, so the ninety days lives in scripts/install-timers.sh
-        # and nowhere else. It is joined on(instance) rather than on(homelab_job)
-        # because the left side has no homelab_job label to join on — both series
-        # are written into the same textfile directory on the same host.
-        # group_left() for the reason ScheduledJobStale gives above: without it
-        # the result carries only the labels named in on(), and `recipient` — the
-        # entire point of this rule — would be silently dropped.
-        #
-        # A recipient that has never been verified is recorded as 0, not omitted,
-        # so it fires here with an absurd duration rather than being invisible.
-        #
-        # That only holds once key-recipients.sh has written its file. This rule
-        # used to claim ScheduledJobNeverRan covered the time before that, and it
-        # does not: NeverRan looks for the JOB series, and a host that proved its
-        # key before ADR-0024 has one — so the fallback was satisfied, this rule
-        # had no left side, and the deadline went unwatched from the day it was
-        # deployed (#400). SecretsKeyRecipientsUnrecorded, below, is the rule
-        # for that state, and the recipient-state timer is what ends it.
-        #
-        # Two declaration names, one per host. trinity proves the sensitive
-        # tier's recipients and declares the same ninety days as
-        # verify-key-backup-sensitive, because a name may be in only one of
-        # install-timers.sh's tables: ScheduledJobStale and the rules beside it
-        # join on(homelab_job) alone, and one name declared on two instances
-        # makes those joins many-to-many, so they error rather than fire. Here
-        # the join is on(instance), and each host declares exactly one of the
-        # two, so the regex still finds one row per host.
-        #
-        # The second branch is for a host that records proofs but declares
-        # neither name, as trinity did before its timers were reinstalled with
-        # that row: the on(instance) join has no right side there, and its
-        # recipients would sit at 0 — never proven — with nothing firing. Such
-        # a host is held to the estate's declared deadline instead, taken with
-        # max() so the ninety days is still written in one place only.
-        expr: |
-          (
-            (time() - homelab_key_recipient_last_proof_timestamp_seconds)
-              > on(instance) group_left()
-                homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
-          )
-          or
-          (
-            (
-              (time() - homelab_key_recipient_last_proof_timestamp_seconds)
-                unless on(instance)
-                  homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
-            )
-              > on() group_left() max(homelab_job_max_age_seconds{homelab_job="verify-key-backup"})
-          )
-        for: 1h
-        labels:
-          component: backup
-          severity: warning
-          category: correctness
-        annotations:
-          summary: "No proven backup of age recipient {{ $labels.recipient }} in {{ $value | humanizeDuration }}"
-          description: >-
-            Nothing else here proves the {{ $labels.stack }} secrets are
-            recoverable from anywhere but this host — every other job runs on the
-            same machine, with the same key, against the same disk. Proving a
-            DIFFERENT recipient does not clear this one. Get that copy out and
-            run `make secrets-verify-backup KEY=<path> STACK={{ $labels.stack }}`:
-            docs/runbooks/back-up-the-age-key.md.
-
-      - alert: SecretsKeyRecipientsUnrecorded
-        # The deadline is declared and nothing can be held to it. install-timers
-        # writes the verify-key-backup threshold row; key-recipients.sh writes
-        # the per-recipient series SecretsKeyBackupUnproven compares against it.
-        # If the first exists and the second does not, the ninety-day nag has
-        # no left side and is silent — which is exactly what #400 found: the
-        # host had proved its key under the old single series, ADR-0024 moved
-        # the rule onto a file nothing had yet written, and the fallback that
-        # rule named was satisfied by the old proof.
-        #
-        # An `unless` against the declaration row and not absent(), for the
-        # reason the header gives: absent() would have to invent the labels,
-        # and this way the alert carries homelab_job and instance like every
-        # other rule here. It is keyed on one job by name, which the header
-        # also explains — verify-key-backup is the one job that is not a timer.
-        #
-        # Since #400 the recipient-state timer writes the file daily and the
-        # installer primes it, so in steady state this cannot fire. It fires
-        # for a host installed before that timer existed, for a file removed
-        # from the textfile directory, and for a recipient-state job that has
-        # never run — the last of which ScheduledJobNeverRan also names.
-        expr: |
-          homelab_job_max_age_seconds{homelab_job=~"verify-key-backup|verify-key-backup-sensitive"}
-            unless on(instance) homelab_key_recipient_last_proof_timestamp_seconds
-        for: 1h
-        labels:
-          component: backup
-          severity: warning
-          category: correctness
-        annotations:
-          summary: "The age-key deadline is declared but no recipient has a proof series to hold to it"
-          description: >-
-            scripts/install-timers.sh declared the ninety-day deadline for
-            {{ $labels.homelab_job }} on {{ $labels.instance }} and nothing has
-            written homelab_key_recipient_last_proof_timestamp_seconds there, so
-            SecretsKeyBackupUnproven has nothing to read and cannot fire however
-            stale the proof is. On the monitoring host
-            `systemctl start homelab-recipient-state.service` writes it; if that
-            unit does not exist, the timers predate #400 and
-            `make install-timers` adds it. On trinity, which has no such timer,
-            `make recipient-state STACK=sensitive` writes it.
-            docs/runbooks/back-up-the-age-key.md.
-
       - alert: CaKeyBackupUnproven
-        # The estate CA's private key, held to the same ninety days as the age
-        # key (#496, ADR-0043 decision 4). verify-ca-key-backup.sh refuses the
+        # The estate CA's private key, held to ninety days (#496, ADR-0043
+        # decision 4; the age key's own deadline went with ADR-0120). verify-ca-key-backup.sh refuses the
         # live key by device:inode and a copy inside a git tree, so what gets
         # proved is a real offline copy, a human has to mount it, and no timer
         # can. What a timer CAN do is notice that nobody has.
@@ -370,12 +253,11 @@ groups:
         # a re-minted CA fires here the next morning with an absurd duration
         # rather than inheriting ninety days of green.
         #
-        # Same join as SecretsKeyBackupUnproven, and for the same reasons:
-        # on(instance) because the left side has no homelab_job label, and
-        # group_left() so that `ca` and `spki_sha256` survive the join. The
+        # Joined on(instance) because the left side has no homelab_job label,
+        # with group_left() so that `ca` and `spki_sha256` survive the join. The
         # threshold is the verify-ca-key-backup row in install-timers.sh.
         #
-        # No `…Unrecorded` sibling. The age key needed one because its series
+        # No `…Unrecorded` sibling. The age key had one because its series
         # was invented after its proof (#400); the ca-key-state timer is born
         # with this series, gen-certs.sh writes it at the mint, and a host where
         # it has never been written is ScheduledJobNeverRan{homelab_job=

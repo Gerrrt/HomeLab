@@ -17,6 +17,29 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-20
+
+- **The age-key proof has no deadline and no alert.**
+  [ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md) amends ADR-0024 part
+  3. `SecretsKeyBackupUnproven` and `SecretsKeyRecipientsUnrecorded` are
+  removed with their tests, which takes the Prometheus rules from 164 to 162.
+  `verify-key-backup` and `verify-key-backup-sensitive` leave `install-timers.sh`'s
+  tables, and the Glance maintenance page stops listing them.
+  - **Optional.** `make secrets-verify-backup` still checks a copy and records
+    which recipient it checked.
+  - **Kept.** `recipient-state` still writes `key-recipients.prom` daily, for
+    `remove-recipient.sh`.
+  - **Old declarations stay quiet.** The stale-job rules,
+    `ScheduledJobNeverRan` and `ScheduledJobFailed` skip both names. A host whose `homelab-jobs.prom`
+    predates this change is therefore quiet until `make install-timers`
+    rewrites the file.
+  - **Unchanged.** The CA key, off-site and household deadlines.
+  - **#671 closes.** Its remaining step was proving the lab key's second
+    recipient. Its section, *Saruman: the domain, then the SOC*, leaves the
+    roadmap empty.
+  - **This reverses part of the 2026-11-14 entry.** That entry added
+    `verify-key-backup-sensitive` (#1501). The row is gone again.
+
 ## 2026-11-19
 
 - **`phoenix`'s own way in is closed: `sshd` takes keys only, and `ufw` is

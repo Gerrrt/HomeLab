@@ -3,6 +3,11 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **No proof deadline, 2026-11-20.**
+> [ADR-0120](0120-drop-the-age-key-proof-deadline.md) removes part 3's
+> ninety-day deadline and `SecretsKeyBackupUnproven`. Proving a copy is
+> optional and still recorded per recipient. Parts 1 and 2 are unchanged.
+>
 > **The second recipient also opens the household's copy, 2026-10-01.**
 > [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
 > adds it to `stacks/sensitive/household.recipients` as the fallback behind

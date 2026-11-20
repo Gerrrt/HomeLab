@@ -19,21 +19,14 @@ that is on that machine, against the disk that is in it.
 spin up next month, and it cannot prove anything at all about a fire or a
 theft. A green dashboard here is a narrower claim than it looks.
 
-The one job that genuinely proves off-host recoverability is
-`make secrets-verify-backup`, and it is exactly the job that **cannot** be put on
-a timer: [`verify-key-backup.sh`](../../scripts/verify-key-backup.sh) refuses the
-live key by device and inode, precisely so that what gets tested is a copy on
-removable media. No timer can mount that. So it is enforced from the other end —
-a successful run records its timestamp against the recipient it proved, and
-`SecretsKeyBackupUnproven` fires when that proof passes ninety days old. The
-`recipient-state` timer is what makes that series exist at all: it writes one
-row per recipient every day, carrying proofs forward and setting none, because
-a host that had proved its key before the per-recipient series existed had
-nothing else that would ever write it, and the nag was silent for as long as
-that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
-`SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
+`make secrets-verify-backup` checks that an offline copy of an age key still
+opens the secrets. It is optional and has no deadline
+([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md)): run it when you
+want to know, and nothing alerts if you never do. A run records its timestamp
+against the recipient it checked, and the `recipient-state` timer keeps that
+per-recipient list (`key-recipients.prom`) current every day.
 
-The estate CA's private key has the same arrangement since
+The estate CA's private key does have a deadline, since
 [#496](https://github.com/Gerrrt/HomeLab/issues/496): `make certs-verify-backup`
 is the human proof — a comparison of public keys against a copy on the same
 offline medium, no timer, ninety days — `CaKeyBackupUnproven` is the nag, and
@@ -123,7 +116,6 @@ the host.
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `silence-state` | `make silence-state` | every 15 minutes | 90 minutes |
 | `prune-images` | `make prune-images` | Mondays 04:00 | 14 days |
-| `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 | `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
 | `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-06** | **nothing alerts** |
@@ -752,7 +744,6 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
-| `verify-key-backup-sensitive` | **you**, `make secrets-verify-backup KEY=… STACK=sensitive` | no timer | 90 days |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
@@ -789,14 +780,10 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-seven. `household-copy` and `household-proof` are the household's copy
+six. `household-copy` and `household-proof` are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
-timer, and `HouseholdCopyStale` reads them. `verify-key-backup-sensitive` is
-the estate's `verify-key-backup` for the tier's own age recipients: no timer,
-the same ninety days, and `SecretsKeyBackupUnproven` holds every recipient in
-`trinity`'s `key-recipients.prom` to it
-([`back-up-the-age-key.md`](back-up-the-age-key.md#on-trinity)). The alert rules join on the job name alone, so a name may appear in only
+timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
 one table, and `--check` enforces that. The installer primes `backup-library`,
 `converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
@@ -922,11 +909,10 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key (on `trinity`, `verify-key-backup-sensitive`), for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-ca-key-backup` until you first verify the CA key, for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
 | `ScheduledJobStaleCritical` | A job has gone three of its own periods without a success — one and a half of the allowance in the `JOBS` table, which is twice the period; a weekly backup three weeks stale, a nightly one three nights, and never under a day for the hourly collectors — and the `ScheduledJobStale` warning for it has been repeating on the in-house channel unanswered | The same first look as the warning: `systemctl list-timers 'homelab-*'`, then `journalctl -u homelab-<job>.service`. The rows below name the usual cause per job. The page holds the warning back while it is up, so a job that recovers clears both at once |
 | `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
-| `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |
 | One job's series missing, `node_textfile_scrape_error` is 1 | That job's `.prom` failed to parse — a truncated write, or something wrote it without the temp-then-rename | The other files are unaffected. Re-run the job; if it recurs, something is writing the file directly instead of through `run-scheduled.sh` |
 | Every `homelab_job_*` series missing, no scrape error | The `textfile` block in `config.alloy` is not reading the right path | It must carry the `ALLOY_ROOTFS` prefix (`/rootfs` in the container). `rootfs_path` does **not** apply to that argument, and a wrong path reports an empty directory rather than an error |

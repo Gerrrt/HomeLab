@@ -60,8 +60,8 @@ What this asserts
 6. **A stack whose key guards data has two recipients** (#835, ADR-0024).
    `secrets/sensitive.sops.yaml` was born with one on 2026-09-28, after #294
    had closed, and its volume backups were encrypted to the same one key for
-   days while the tier held the household's vault. Nothing noticed, because
-   SecretsKeyBackupUnproven checks the recipients that exist, not how many.
+   days while the tier held the household's vault. Nothing noticed: no alert
+   counts a file's recipients.
    Which stacks need two is a list, below, with the reason for each.
 
 The paths are derived, not listed: the stacks come from scripts/stacks.sh, the
