@@ -242,7 +242,7 @@ What differs from the monitoring host, and why:
 
 ## What it records
 
-Ten gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
+Eleven gauges in `/var/lib/node_exporter/textfile_collector/homelab-deploy.prom`,
 written on every exit path including the refusals, so a run that declined to
 move still reports what the host is on.
 

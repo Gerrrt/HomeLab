@@ -5,7 +5,7 @@
 # what got deployed, so `make up` on an uncommitted tree and `make up` on `main`
 # were indistinguishable; and nothing compared the host to the repository, so a
 # config edited in place stayed edited until a deploy silently overwrote it.
-# scripts/converge.sh now runs hourly and writes ten gauges into the same
+# scripts/converge.sh now runs hourly and writes eleven gauges into the same
 # textfile directory the maintenance jobs use.
 #
 # TWO HOSTS PULL. prometheus converges the observability stack as robo, from
