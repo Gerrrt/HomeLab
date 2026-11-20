@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-185 rules in total: 164 metric-based in `prometheus/rules/`, and 21 log-based in
+183 rules in total: 162 metric-based in `prometheus/rules/`, and 21 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -513,7 +513,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-164 rules across twelve files in `prometheus/rules/`:
+162 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -525,7 +525,7 @@ argument and for what to do when it exits 1.
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
 | `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana and the wiki verified against the lab CA ([#847](https://github.com/Gerrrt/HomeLab/issues/847)), the APC card's self-signed one read but not trusted, Prometheus, Loki and Alertmanager over plain http (the switch UI's probes were removed on 2026-09-06, `targets/blackbox.yaml`), each of the household sites behind `trinity`'s Caddy, verified against the tier's root, paging as `SiteDown` after ten minutes so a `make up` restart does not ([#855](https://github.com/Gerrrt/HomeLab/issues/855)), and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). `EeroUnreachable` is a warning for an eero unit that has not answered ping for five minutes, from the `blackbox-eero` job, through one Winterfell pass in force since 2026-11-11 ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228), [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)). Their certificates' expiry is watched without that pass, from `host.rules.yaml` ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
-| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and the page: `ScheduledJobStaleCritical` at three of a job's own periods and never under a day, because the warning reaches only the in-house channel and a backup that stopped in week one was otherwise a notification repeating on the same network for as long as nobody acted (2026-10-14) — whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
+| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and the page: `ScheduledJobStaleCritical` at three of a job's own periods and never under a day, because the warning reaches only the in-house channel and a backup that stopped in week one was otherwise a notification repeating on the same network for as long as nobody acted (2026-10-14) — whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
 | `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Also whether convergence had to start a stack service that something stopped — `DeployServiceRevived` — and whether one has been left stopped for two hours, held or under a backup — `DeployServicesStopped` ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)) |
 | `internet.rules.yaml` | Why the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)): three scheduled speed tests in a row under 400 Mbit/s down or 100 up, the WAN held above 85% of what it can carry, frames arriving corrupted on the WAN port — `WanReceiveErrors`, the fault found the day these were written, when a cable between the XB7 and `morpheus` cut downloads to ~2 Mbit/s — and `speedtest-tracker` itself going quiet or unreachable. Also records `homelab_wan_bits_per_second` from pf's own em0 counters. Download thresholds are against the ~940 Mbit/s the 1000baseT WAN port can carry, not the plan's 2000. `speedtest-tracker` is left out of `InstanceDown`, so its outage is a warning and not a page |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
@@ -549,7 +549,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 164 rules of 164 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
+against the broken rule too. Coverage is 162 rules of 162 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
@@ -962,8 +962,8 @@ The threshold each job is held to is a *fifth* series,
 `homelab_job_max_age_seconds`, written by `scripts/install-timers.sh` from the
 same table that decides the cadence. That is what lets the rules in
 `prometheus/rules/backup.rules.yaml` cover every job without naming any of them
-— the three that do name one concern the two human proofs, `verify-key-backup`
-and `verify-ca-key-backup`, below — and what makes `make check-timers` able to assert that a threshold is
+— the ones that do name one concern the human proofs, such as
+`verify-ca-key-backup`, below — and what makes `make check-timers` able to assert that a threshold is
 at least twice its timer's real period.
 
 Two things are deliberate and easy to undo by accident:
@@ -983,22 +983,15 @@ checking, with the key that is on that machine, against the disk that is in it.
 `verify-backups` proves an archive still decrypts; it says nothing about a dead
 disk or a fire. The jobs that prove anything beyond this shelf are the ones
 that cannot be automated, because each needs a human to mount removable media:
-`secrets-verify-backup` for the key, and since
+`secrets-verify-backup` for the key, optional and with no deadline since
+[ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md), and since
 [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) `backup-offsite`
 for the sets themselves, which carries the newest of each kind onto the
-second recipient's medium and hashes it there. `SecretsKeyBackupUnproven` and
-`OffsiteCopyStale` nag at ninety days instead. On `trinity`, `household-copy`
+second recipient's medium and hashes it there. `OffsiteCopyStale` nags at
+ninety days instead. On `trinity`, `household-copy`
 and `household-proof` are the household's equivalents
 ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)),
-and `HouseholdCopyStale` nags at ninety days and at a year. `SecretsKeyBackupUnproven` is the one rule in `backup.rules.yaml` not keyed
-on `homelab_job`:
-[ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
-allows the secrets to be encrypted to more than one age recipient, so it fires
-per recipient off `homelab_key_recipient_last_proof_timestamp_seconds` rather
-than off the job. One timestamp for every copy would mean proving either one
-vouched for the other, which is backwards when the whole point of the second
-copy is that it fails independently. With a single recipient it behaves exactly
-as it always has. Three outputs leave: `backup-firewall` copies each export
+and `HouseholdCopyStale` nags at ninety days and at a year. Three outputs leave: `backup-firewall` copies each export
 to `oracle` and fails if it cannot, so its failure alert doubles as "the config
 has stopped leaving this host"; since
 [#535](https://github.com/Gerrrt/HomeLab/issues/535) `backup-volumes` does the
@@ -1008,17 +1001,6 @@ job that first *fetches* from another host, the media tier's state off `smaug` �
 copies its set the same way. `verify-backups` hashes the far side of both
 set directories every morning. No rule names any of the three; the generic
 pair carries them all.
-
-That series has to exist for the nag to mean anything, and for four days it did
-not ([#400](https://github.com/Gerrrt/HomeLab/issues/400)): it was written only
-by a proof run or by adding a recipient, and this host had proved its key before
-the series was invented, so the rule went quiet the day it was deployed while
-the fallback it named — `ScheduledJobNeverRan` — was satisfied by the old proof.
-The `recipient-state` timer now writes the recipient list daily, carrying proofs
-forward and setting none, and `SecretsKeyRecipientsUnrecorded` fires when the
-deadline row exists and the recipient series does not — an `unless` against the
-declaration row, not an `absent()`, so it carries labels like every other rule
-in the file.
 
 Installing, tuning and troubleshooting all of it:
 [`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md).

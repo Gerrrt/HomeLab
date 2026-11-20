@@ -61,7 +61,8 @@ would provide.
 
 ## 2. Verify it actually decrypts
 
-Not optional, and not the same as looking at it. From a checkout of this repo:
+Worth doing once, when you make the copy; looking at it is not the same. From
+a checkout of this repo:
 
 ```bash
 make secrets-verify-backup KEY=/path/to/the/copy
@@ -75,9 +76,7 @@ Expect:
 -- decrypting observability.sops.yaml with the backup key only
 ok — keys.txt decrypts secrets/observability.sops.yaml (9/9 keys)
    Proven: this key, on its own, recovers every secret in the repo.
-   Not proven: the other 1 recipient(s) of this file. Each needs its own
-   run against its own copy — SecretsKeyBackupUnproven names any that go
-   ninety days without one.
+   Not checked by this run: the other 1 recipient(s) of this file.
    Not proven: that where you keep it will still exist after a fire,
    a theft, or a forgotten password. That part is your judgement.
 ```
@@ -205,66 +204,27 @@ the damage is recoverable — but the error it produces afterwards
 (`sops metadata not found`, or a failed decrypt) sends you looking in the wrong
 place. Restore is a file copy, nothing more.
 
-## The ninety-day deadline
+## No deadline
 
-Verifying the backup is the only thing in this repository that proves the secrets
-are recoverable from anywhere but the monitoring host — every other scheduled
-job runs on that machine, with the key that is on it, against its disk. It is
-also the only one that cannot be put on a timer, because the check above refuses
-the live key by device and inode on purpose: what gets tested has to be a copy on
-removable media, and no timer can mount that.
-
-So it is enforced from the other end. `make secrets-verify-backup` records the
-timestamp of a successful run **against the recipient it just proved**, and
-`SecretsKeyBackupUnproven` fires when any recipient's proof passes ninety days
-old — routed to the normal alert channel like any other warning. A recipient
-that has never been proved is recorded as `0`, so it fires with an absurd age
-rather than being invisible, which is the honest reading of a key backup nobody
-has ever tested.
-
-That record has to exist for any of it to work, and until
-[#400](https://github.com/Gerrrt/HomeLab/issues/400) nothing guaranteed it did:
-the per-recipient series was written only by a proof run or by adding a
-recipient, so a host that had proved its key *before* the series was invented
-never wrote it, and the nag was silent from the day it was deployed. The
-`recipient-state` timer now writes the recipient list every day — carrying every
-existing proof forward and setting none, since it never touches a key — and
-`SecretsKeyRecipientsUnrecorded` fires if the deadline is declared and the file
-is missing anyway. On a host with exactly one recipient, the first write
-inherits the pre-ADR-0024 proof from the old `verify-key-backup` series rather
-than starting from never; with more than one, the old series cannot say which
-key it was, and every recipient starts at `0`.
-
-The per-recipient part is [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
-and it only starts to matter once there is more than one. With one recipient
-this is the same alert it always was. With two, one timestamp for both would
-mean that proving either copy vouched for the other — which is exactly backwards,
-because the point of the second copy is that it fails independently.
+There is no schedule for re-checking a copy and no alert if it is never
+checked ([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md)). Run
+`make secrets-verify-backup` whenever you want to know a copy still opens the
+secrets. Each successful run is recorded against the recipient it checked, in
+`key-recipients.prom`, which the `recipient-state` timer keeps current.
 
 ### On trinity
 
 `trinity` holds its own key, which opens only
-[`secrets/sensitive.sops.yaml`](../../secrets/sensitive.sops.yaml), and the
-same deadline applies to every recipient of that file. Its row is
-`verify-key-backup-sensitive` in `SENSITIVE_JOBS`, not `verify-key-backup`,
-because the alert rules join on the job name alone and a name declared on two
-hosts breaks them. Prove each copy from the checkout on `trinity`, so the proof
-lands in `trinity`'s own `key-recipients.prom`:
+[`secrets/sensitive.sops.yaml`](../../secrets/sensitive.sops.yaml). To check a
+copy of it, run this from the checkout on `trinity`:
 
 ```bash
 make secrets-verify-backup KEY=/path/to/copy/keys.txt STACK=sensitive
 ```
 
-`STACK=sensitive` is what records the run under `trinity`'s job name; without
-it the make target checks the estate's file instead. `trinity` has no
-`recipient-state` timer, so `make recipient-state STACK=sensitive` is what
-rewrites its recipient list after a change that did not go through
-`add-recipient.sh`.
-
-Nagging is not as good as running it. It is a great deal better than remembering.
-The threshold lives in the `JOBS` table in
-[`install-timers.sh`](../../scripts/install-timers.sh); the mechanism is in
-[`schedule-maintenance.md`](schedule-maintenance.md).
+Without `STACK=sensitive` the make target checks the estate's file instead.
+`make recipient-state STACK=sensitive` rewrites `trinity`'s recipient list
+after a change that did not go through `add-recipient.sh`.
 
 ## Adding a second recipient
 
@@ -306,12 +266,9 @@ disagree. Both files change and belong in one commit:
 git add .sops.yaml secrets/observability.sops.yaml
 ```
 
-The new recipient starts unproven, and says so: `SecretsKeyBackupUnproven` fires
-against it immediately and names it. Clear it the same way as the first —
-`make secrets-verify-backup KEY=/path/to/the/new/copy` — and note that this is
-the point of the whole exercise. **Proving one recipient does not clear another.**
-Each copy has to be mounted and tested on its own, which is four trips a year
-rather than two.
+The new recipient is recorded as never checked. To check it, run
+`make secrets-verify-backup KEY=/path/to/the/new/copy`. A run checks only the
+recipient whose copy you mounted.
 
 The table in [Copy the key](#1-copy-the-key) and the disqualifiers in
 [Confirm the copy is not republishing itself](#3-confirm-the-copy-is-not-republishing-itself)
@@ -336,11 +293,8 @@ move. The location stays out of this repository, as the first key's does.
 Whether their key can open the secrets yet is read from the ciphertext
 (`./scripts/key-recipients.sh --list`), not from this paragraph. Adding it is
 the procedure above — `make secrets-add-recipient` with their public half — and
-then `make secrets-verify-backup` with *each* key, because a re-key that drops
-a recipient is the failure mode here. What this still does not solve: their
-copy cannot be proved from here on their behalf. `SecretsKeyBackupUnproven`
-names the recipient that is overdue, and clearing it for theirs is a visit with
-the removable medium, not a timer.
+then, if you want to check, `make secrets-verify-backup` with each key, because
+a re-key that drops a recipient is the failure mode here.
 
 **Replacing a recipient is add, then remove, then prove.** A key that was
 never kept, or a holder who changes, is handled in that order so the secrets

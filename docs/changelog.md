@@ -30,6 +30,26 @@ docstring gives: it is a record, not a claim about now.
   it never entered *Everything still to buy*, and README's count stays at
   11. It is in transit, and #1594 tracks it. The XB7 goes back only after
   the CODA56 is in and `em0` counts no errors.
+- **The age-key proof has no deadline and no alert.**
+  [ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md) amends ADR-0024 part
+  3. `SecretsKeyBackupUnproven` and `SecretsKeyRecipientsUnrecorded` are
+  removed with their tests, which takes the Prometheus rules from 164 to 162.
+  `verify-key-backup` and `verify-key-backup-sensitive` leave `install-timers.sh`'s
+  tables, and the Glance maintenance page stops listing them.
+  - **Optional.** `make secrets-verify-backup` still checks a copy and records
+    which recipient it checked.
+  - **Kept.** `recipient-state` still writes `key-recipients.prom` daily, for
+    `remove-recipient.sh`.
+  - **Old declarations stay quiet.** The stale-job rules,
+    `ScheduledJobNeverRan` and `ScheduledJobFailed` skip both names. A host whose `homelab-jobs.prom`
+    predates this change is therefore quiet until `make install-timers`
+    rewrites the file.
+  - **Unchanged.** The CA key, off-site and household deadlines.
+  - **#671 closes.** Its remaining step was proving the lab key's second
+    recipient. Its section, *Saruman: the domain, then the SOC*, leaves the
+    roadmap empty.
+  - **This reverses part of the 2026-11-14 entry.** That entry added
+    `verify-key-backup-sensitive` (#1501). The row is gone again.
 
 ## 2026-11-19
 

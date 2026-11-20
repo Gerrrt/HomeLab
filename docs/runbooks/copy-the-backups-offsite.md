@@ -107,25 +107,23 @@ start of the *next* visit is for; and that anyone but the holder knows where
 it is. Those parts are judgement, not a check, and the medium's location is
 not written down in this repository, for the same reason the key's is not.
 
-Then, while the medium is mounted, do the other thing it is here for:
+While the medium is mounted you can also check the key copy on it. This is
+optional and has no deadline
+([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md)):
 
 ```bash
 make secrets-verify-backup KEY=/path/to/the/medium/keys.txt
 ```
 
-That clears `SecretsKeyBackupUnproven` for the second recipient; this runbook
-clears `OffsiteCopyStale`. Neither clears the other.
-
 ## 3. The ninety-day deadline
 
-Like the two key proofs, this cannot be put on a timer — it needs a human to
+Like the CA key proof, this cannot be put on a timer — it needs a human to
 mount a medium — so it is enforced from the other end. A successful run of the
 copy records `offsite-copy` through `run-scheduled.sh`, and `OffsiteCopyStale`
 fires when that success passes ninety days old, routed to the normal alert
 channel like any other warning. The threshold is the `offsite-copy` row in
 the `JOBS` table in [`install-timers.sh`](../../scripts/install-timers.sh),
-beside `verify-key-backup` and `verify-ca-key-backup`, so one number governs
-the whole visit.
+beside `verify-ca-key-backup`, so one number governs the whole visit.
 
 `ARGS=--list`, `ARGS=--verify-only` and `ARGS=--prune` run outside the wrapper
 on purpose: looking at the medium, or tidying it, is not refreshing it and
