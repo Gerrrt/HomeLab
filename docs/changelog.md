@@ -19,6 +19,55 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-19
 
+- **`phoenix`'s own way in is closed: `sshd` takes keys only, and `ufw` is
+  default-deny inbound.** This applies
+  [ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)
+  with [`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md) §6a. Before it,
+  `sshd -T` read `passwordauthentication yes`, `x11forwarding yes` and
+  `permitrootlogin prohibit-password`, with only cloud-init's drop-in, and
+  `ufw` was inactive, so `22` answered all of VLAN 30.
+  - **Who would have been shut out.** Thirty days of `sshd`'s journal showed
+    logins from Hicks only: the MacBook, wired and on Wi-Fi, by key, and
+    `desktop-02` by password, 22 times. `desktop-02` got a key and logged in
+    with it before passwords were turned off. `authorized_keys` now holds two
+    keys.
+  - **`sshd`.** `10-phoenix.conf` is in place. `sshd -T` reads `no` for
+    password, keyboard-interactive and root login and for X11 forwarding. A
+    fresh key login succeeds, and a client offering only a password gets
+    `Permission denied (publickey)`.
+  - **`ufw`.** The runbook's rules: `22` from `10.0.50.0/24`, `22` in on
+    `wg0` from the tunnel's subnet, the tunnel's port, and the one `route`
+    rule from `wg0` to `ens18`. The listen port was read from `wg` on the
+    host and is not written down here. Nothing else listened, and Alloy only
+    connects outward, so default-deny took nothing away.
+  - **Checked.** A fresh key login from Hicks succeeds.
+    `nc -zv -w 3 10.0.30.70 22` from `alexander` times out, and its three
+    SYNs are logged as `UFW BLOCK`. §4's `curl` lists 34 guests.
+    `phoenix-metrics` and `phoenix-alloy` stay `up`, with samples under a
+    minute old, and the logs keep arriving. One stray ACK on Alloy's
+    connection to `alexander` was blocked at the moment `ufw` came up. The
+    connection carried on.
+  - **Checked from the tunnel,** with the MacBook on a phone's hotspot and
+    the route table showing `10.0.30.70` through the tunnel. A key login to
+    `phoenix` succeeds and arrives from `172.31.0.2`. `ping 10.0.30.40`
+    answers at `ttl=62`, not the 63 the runbooks expected: a capture on
+    `phoenix` shows the request forwarded straight to `alexander` and the
+    reply coming back from `morpheus`, because `alexander` answers the tunnel
+    subnet through its default gateway, as ADR-0042's routed design has it.
+    Both runbooks now expect 62. With the client's `AllowedIPs` widened for
+    [`open-the-remote-path.md`](runbooks/open-the-remote-path.md) §8,
+    ten pings each to Winterfell, Hicks and CasaBonita all failed, while
+    `alexander` still answered. `morpheus`'s filterlog shows ten blocks from
+    `172.31.0.2` to each and no passes outside the lab. `AllowedIPs` went
+    back to the lab alone afterwards.
+  - **The tunnel's one peer is the MacBook, not the HP laptop.** This
+    corrects the 2026-09-22 entry "#442 The estate has a remote path, and it
+    reaches the lab and nothing else", which named the peer `laptop-01`.
+    That is the name of the WireGuard app's tunnel profile on the MacBook
+    (`laptop-02` in [`network.md`](network.md)), and it collides with the HP
+    Pavilion that `network.md` calls `laptop-01`. The MacBook's key is
+    already on `phoenix`, so no key was added for the tunnel.
+
 - **`phoenix`, `alexander` and `odin` no longer run the Ubuntu template's
   unused services.** All three were cloned from template 901 before
   `prune.sh` existed, and still carried all eight services that it purges:
