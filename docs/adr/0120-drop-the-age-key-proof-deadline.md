@@ -30,7 +30,8 @@ the operator to ignore the channel the real alerts arrive on.
 - The Glance maintenance page stops listing the age-key proof.
 - `ScheduledJobStale`, `ScheduledJobStaleCritical` and `ScheduledJobNeverRan`
   skip both names. A host whose `homelab-jobs.prom` predates this change then
-  stays quiet until `make install-timers` rewrites it.
+  stays quiet until `make install-timers` rewrites it. `ScheduledJobFailed`
+  skips them too: a failed optional check is on the screen of whoever ran it.
 
 **`make secrets-verify-backup` stays, as an optional check.** It still proves
 that a copy opens the secrets, and it still records which recipient was

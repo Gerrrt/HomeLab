@@ -29,8 +29,8 @@ docstring gives: it is a record, not a claim about now.
     which recipient it checked.
   - **Kept.** `recipient-state` still writes `key-recipients.prom` daily, for
     `remove-recipient.sh`.
-  - **Old declarations stay quiet.** The stale-job rules and
-    `ScheduledJobNeverRan` skip both names. A host whose `homelab-jobs.prom`
+  - **Old declarations stay quiet.** The stale-job rules,
+    `ScheduledJobNeverRan` and `ScheduledJobFailed` skip both names. A host whose `homelab-jobs.prom`
     predates this change is therefore quiet until `make install-timers`
     rewrites the file.
   - **Unchanged.** The CA key, off-site and household deadlines.

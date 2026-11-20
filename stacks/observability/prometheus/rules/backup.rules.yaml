@@ -32,8 +32,8 @@
 # The age-key proof is no longer one of them. ADR-0120 dropped its deadline:
 # verify-key-backup and verify-key-backup-sensitive are not declared any more,
 # and SecretsKeyBackupUnproven and SecretsKeyRecipientsUnrecorded are gone.
-# Both names stay in the exclusions below, and ScheduledJobNeverRan skips them
-# too, so a host whose homelab-jobs.prom was written before that change stays
+# Both names stay in the exclusions below, and ScheduledJobNeverRan and
+# ScheduledJobFailed skip them too, so a host whose homelab-jobs.prom was written before that change stays
 # quiet until `make install-timers` rewrites it.
 #
 # That claim has since been tested rather than merely asserted. #99 added
@@ -159,7 +159,11 @@ groups:
         #
         # 75 is EX_TEMPFAIL, which run-scheduled.sh uses for "could not acquire
         # the lock in time" — the job never started rather than ran and failed.
-        expr: homelab_job_last_exit_code != 0
+        #
+        # The age-key check is skipped. Since ADR-0120 it is optional and run
+        # by hand, so a failure is already on the screen of the person who ran
+        # it, and an alert that waits for a re-run would nag about it.
+        expr: homelab_job_last_exit_code{homelab_job!~"verify-key-backup|verify-key-backup-sensitive"} != 0
         for: 10m
         labels:
           component: backup
