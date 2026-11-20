@@ -155,10 +155,24 @@ holds the household's data. `trinity` has no host firewall by decision
 ([`security.md`](../security.md)), so this drop-in is the control on `22`.
 
 Keep `~/.ssh/authorized_keys` to the machines you administer it from:
-`prometheus`'s key, put there by `ssh-copy-id` above, and Hicks's. Delete
-every other line, including any `gh:` import. Then log in with a key and
-keep that session open while you do the rest, so a mistake cannot lock you
-out:
+`prometheus`'s key, put there by `ssh-copy-id` above, and Hicks's. Install
+Hicks's now, from Hicks, while a password still works:
+
+```bash
+ssh-copy-id <you>@10.0.99.40
+```
+
+Delete every other line in the file, including any `gh:` import. Before
+going further, prove a fresh key login from each machine; run this on
+`prometheus` and on Hicks, and both must succeed with no password prompt:
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
+```
+
+If either fails, fix that machine's key first: the next step takes away the
+password it would otherwise fall back on. Then log in with a key and keep that
+session open while you do the rest, so a mistake cannot lock you out:
 
 ```bash
 sudo tee /etc/ssh/sshd_config.d/10-trinity.conf > /dev/null <<'EOF'
