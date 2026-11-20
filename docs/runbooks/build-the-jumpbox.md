@@ -512,8 +512,9 @@ it for its own length
 - From a VLAN 30 host, `alexander` for example:
   `nc -zv -w 3 10.0.30.70 22` times out.
 - From a peer, with the tunnel up: the same `ssh` succeeds.
-  `ping -c 1 10.0.30.40` answers at `ttl=63`, which shows `phoenix` still
-  forwards. Then run [`open-the-remote-path.md`](open-the-remote-path.md) §8's
+  `ping -c 1 10.0.30.40` answers at `ttl=62`, which shows `phoenix` still
+  forwards. The reply comes back through `morpheus`'s route for the tunnel
+  subnet, so two routers decrement it. Then run [`open-the-remote-path.md`](open-the-remote-path.md) §8's
   negative tests, which must still be blocked and logged on `morpheus`.
 - On `phoenix`: §4's `curl` still lists the guests, and §7's Alloy checks
   still pass. Both are outbound, and `ufw` allows outbound.
