@@ -52,8 +52,8 @@ Closes when it is empty.
   adds `trinity` as a third subscriber and caps `Saruman`'s ordered guests at
   `down=90`. `Saruman`'s half (steps 3.6 and 3.7 on `Saruman`) was applied
   on 2026-11-13; `trinity`'s subscription, `HOSTSYNC 600` on `morpheus` and
-  step 3.8 are not. The gate is a rack visit. It reads the outlet groups,
-  applies step 4b, `HOSTSYNC` and step 3.8, proves the order
+  step 3.8 on 2026-11-20. The gate is a rack visit. It reads the outlet
+  groups, proves the order
   with `upsmon -c fsd`, and pulls the mains once to replace the card's
   47-minute claim with a number.
   → [runbook](runbooks/shut-down-on-the-ups.md)

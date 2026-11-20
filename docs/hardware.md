@@ -61,10 +61,11 @@ move, `trinity`, `gandalf` and the console are on the PDU too, and `smaug` is on
 it directly rather than by the long cord to the media room it had until
 2026-11-06.
 [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
-decides that `trinity` becomes a third host that halts on the signal. That
-subscription is the runbook's step 4b, and it is not built yet, so today
-`trinity` stops uncleanly when the pack empties. `gandalf`, the console and
-the KVM are left to the pack by decision.
+makes `trinity` a third host that halts on the signal: the runbook's step
+4b, applied on 2026-11-20. The card's low-battery duration was raised to 16
+minutes the same day, to cover `Saruman`'s bounded guest stop. Nobody has
+watched the sequence run yet. `gandalf`, the console and the KVM are left to
+the pack by decision.
 
 Off-rack: only the eero Pro 6E units, distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a

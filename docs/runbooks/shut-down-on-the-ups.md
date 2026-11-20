@@ -50,13 +50,13 @@ follow the steps.**
 >   the console and the KVM.
 >   [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
 >   makes `trinity` a third secondary. That is the new
->   [step 4b](#step-4b--subscribe-trinity), and **it is not built yet**.
+>   [step 4b](#step-4b--subscribe-trinity), **applied on 2026-11-20**.
 > - **`Saruman` runs thirteen guests, not two**, four of them in ordered
 >   stages. Step 3.6 now caps those four at `down=90`. 3.7 keeps its monitor
 >   logged in until they are down and raises `HOSTSYNC` to 600, and 3.8
 >   raises the card to 16 minutes before the window. **`Saruman`'s half is
 >   applied** (2026-11-13): 3.6's `down=90` and 3.7's `SHUTDOWNEXIT no` and
->   drop-in. **`HOSTSYNC 600` on `morpheus` and 3.8 are not applied yet.**
+>   drop-in. `HOSTSYNC 600` on `morpheus` and 3.8 followed on 2026-11-20.
 > - **The UPS's outlet groups were read for the first time** (PDU on
 >   group 1). Their turn-off and load-shedding settings were not, and a
 >   group-1 setting that sheds the PDU early would cut every host
@@ -784,8 +784,8 @@ interface that day.
 
 Added 2026-11-08 by
 [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md),
-after the rack move put `trinity` on the PDU. **Not built yet.** Do it
-before step 5, so step 5 proves three secondaries and not two.
+after the rack move put `trinity` on the PDU. **Applied on 2026-11-20.** It
+comes before step 5, so step 5 proves three secondaries and not two.
 
 `trinity` and the listener are both on Winterfell, so nothing here crosses a
 segment. The rules keep the rest of Winterfell — `prometheus`, `oracle` and
