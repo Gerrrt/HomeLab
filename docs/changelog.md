@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-20
 
+- **A Hitron CODA56 is bought to replace the rented XB7**
+  ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). Three of the
+  XB7's Ethernet ports have sent `em0` corrupted frames in three weeks; see
+  the 2026-11-19 entry below. The operator chose it from Xfinity's
+  compatible-device list for the house's plan. Every non-voice model there
+  lists more upload than the plan's ~300 Mbit/s, and the house has no
+  Xfinity phone service, so it needs no voice port. The CODA56 cost about
+  half as much as the others. It was decided and bought the same day, so
+  it never entered *Everything still to buy*, and README's count stays at
+  11. It is in transit, and #1594 tracks it. The XB7 goes back only after
+  the CODA56 is in and `em0` counts no errors.
 - **The age-key proof has no deadline and no alert.**
   [ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md) amends ADR-0024 part
   3. `SecretsKeyBackupUnproven` and `SecretsKeyRecipientsUnrecorded` are
