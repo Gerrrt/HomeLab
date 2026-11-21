@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **The wall's big type is smaller, so its panels have room.** With the
+  context card, the week and the Home row added, the wall had begun to look
+  crowded. Nothing was taken off it. The largest type shrank by about a
+  third: the clock from 120 to 76 px, the temperature from 84 to 52, the
+  internet numbers and the context card's heading from 72 and 56 to 44 and 38,
+  and the host tiles' numbers from 40 to 28. The header row went from 140 to
+  112 px and the Home row from 84 to 64, and the panels below took the space.
+  Body text stays at 28 px, readable from the chair. Checked against the live
+  wall's own data before the change shipped, with the date still clear of the
+  header's divider.
+
 - **The UPS shutdown sequence is accepted without a live test, and the DNS
   failure test is recorded as done.**
   [ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md): the
