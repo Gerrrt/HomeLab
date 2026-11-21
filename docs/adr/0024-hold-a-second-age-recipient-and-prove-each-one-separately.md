@@ -3,6 +3,12 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **No household role, 2026-11-21.**
+> [ADR-0122](0122-drop-the-household-copy.md) removes
+> `stacks/sensitive/household.recipients`, so the second recipient is no
+> longer the household copy's fallback. Its place on the `sensitive` rule is
+> unchanged.
+>
 > **No proof deadline, 2026-11-20.**
 > [ADR-0120](0120-drop-the-age-key-proof-deadline.md) removes part 3's
 > ninety-day deadline and `SecretsKeyBackupUnproven`. Proving a copy is

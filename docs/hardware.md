@@ -477,10 +477,11 @@ the runbook rather than backed up.
   with `-d sat`, `-d sat,12` and `-T permissive` all fail to read its
   identity (2026-11-21). So no rule can warn of its failure in advance, and a
   dying disk shows first as I/O errors and failed backup jobs.
-  One consumer spinning disk with no mirror, so the off-estate copy
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  requires is what protects it — the same as would have been true of a bought
-  drive, which this replaces.
+  One consumer spinning disk with no mirror, so the nightly encrypted copy
+  of the library on `oracle`
+  ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md))
+  is what protects it. There is no copy outside the house
+  ([ADR-0122](adr/0122-drop-the-household-copy.md)).
 - Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
   with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
   2026-09-09, **in hand since 2026-09-15**. The NAS `smaug` of
@@ -1166,43 +1167,20 @@ the runbook rather than backed up.
   `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
   this listing naming `PC4-17000P-E` for the same thing.
 - WD Elements Portable 5 TB, `WDBU6Y0050BBK-WESN`[^Elements] — 2.5" USB 3.2
-  Gen 1, bus-powered, no power brick — **bought 2026-09-22**, under
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455). The drive
+  Gen 1, bus-powered, no power brick, shingled — **bought 2026-09-22**,
+  arrived 2026-09-29, **$236.70**. Bought for the household copy of the
+  photographs and documents that
   [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  was waiting on: the off-estate copy of the household's photographs and
-  documents, kept at another address. **Not the estate's backup sets** —
-  those ride with the second age recipient
-  ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
-  [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)) and
-  this drive is not that medium. 5 TB against a 2 TB source — Immich's
-  originals on `trinity`'s USB disk, plus Paperless's documents — so the
-  capacity question does not come back. **$236.70**, against the ~$150 #455
-  estimated when it was filed.
-  **Delayed in transit, then arrived 2026-09-29.** Amazon moved the delivery
-  estimate on 2026-09-22 and refunded the delivery fee. On 2026-09-26 the
-  delay went to Amazon customer service. It landed on 2026-09-29.
-  **It has no vendor encryption and that is why it qualifies**: ADR-0023
-  requires a key that is not the one only the operator holds, and a drive
-  password is a single-holder secret behind a vendor utility, which is the
-  failure that ADR exists to prevent moved one shelf further away. The
-  encryption is the estate's own. Whose key it is and which filesystem were
-  settled on 2026-10-01 by
-  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md):
-  age archives on **exFAT**, which any holder's computer reads, encrypted to
-  the household holder with the technical second as a fallback. The proof
-  from the other person's device is still
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s. Three things the fit
-  checks rather than assumes: it ships formatted for Windows (NTFS,
-  `Elements`); its cable is USB 3.0 Micro-B at the drive end, so **the cable
-  travels with the drive** or the drive is a brick at the other address; and
-  a 5 TB 2.5" drive of this class is shingled, which is fine for an archive
-  written in one pass and not fine as a live target.
-  **Formatted and rehearsed on 2026-10-01**, on `trinity`. It reads as
-  `WDC WD50NDZW-11BCSS0`, serial `WD-WXD2D3684F6U`, 4.5 TiB. It now holds one
-  GPT partition, exFAT, labelled `HOUSEHOLD`. It does not report as removable
-  media, so the carry's warning about that is expected on every visit. The
-  first rehearsal wrote 1.7 GB. It holds a rehearsal, not the household's
-  copy, until there is a holder.
+  required and
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+  built. It reads as `WDC WD50NDZW-11BCSS0`, 4.5 TiB, one GPT partition,
+  exFAT, labelled `HOUSEHOLD`, and held only a rehearsal. **No longer used
+  for this, and spare.**
+  [ADR-0122](adr/0122-drop-the-household-copy.md) dropped the household copy
+  on 2026-11-21. It is not the estate's offsite medium either: that is the
+  second age recipient's
+  ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)).
+  Its cable is USB 3.0 Micro-B at the drive end, and stays with it.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]

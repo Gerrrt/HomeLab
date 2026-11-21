@@ -161,20 +161,17 @@ JOBS=(
 # sensitive tier's volumes, which also copies each set to oracle (#535), and
 # the nightly copy of Immich's library, which no volume set can hold
 # (ADR-0064). Two days each, twice the daily period, for the same reason as
-# every row above. And two deadlines with no timer, for the household's copy
-# (ADR-0073): household-copy, ninety days like offsite-copy, because a drive at
-# the holder's address is visited, not scheduled; and household-proof, a year,
-# because the holder's own proof rides ADR-0011's annual drill. Both are read
-# by HouseholdCopyStale, not ScheduledJobStale. And the hourly convergence of
-# the tier onto main (#533), three hours for the reason the estate's converge
-# row gives. converge-sensitive, not converge: the job name is
-# what keeps the alert joins one-to-one across hosts, so it must not reuse a
-# name from JOBS — check 8 below asserts that. And the nightly re-verification
+# every row above. And the hourly convergence of the tier onto main (#533),
+# three hours for the reason the estate's converge row gives.
+# converge-sensitive, not converge: the job name is what keeps the alert joins
+# one-to-one across hosts, so it must not reuse a name from JOBS — check 8
+# below asserts that. And the nightly re-verification
 # of both kinds of set, here and on oracle (#856): verify-backups-sensitive,
 # two days for the same reason as the backups it re-reads. And the daily SMART
 # read of trinity's own disks, smart-state-sensitive, two days like the
 # estate's smart-state; its unit says why it is not `make smart-state`. There
-# is no age-key proof row here either (ADR-0120).
+# is no age-key proof row here either (ADR-0120), and no household-copy or
+# household-proof row since ADR-0122 dropped the household copy.
 #
 # The units under systemd/sensitive/ carry @DEPLOY_ROOT@, @RUN_USER@,
 # @RUN_GROUP@ and @RUN_HOME@ rather than a name, because the build runbook
@@ -187,8 +184,6 @@ SENSITIVE_JOBS=(
   "converge-sensitive homelab-converge-sensitive 10800  converge"
   "verify-backups-sensitive homelab-verify-backups-sensitive 172800 verify-backups"
   "smart-state-sensitive homelab-smart-state-sensitive 172800 smart-state-sensitive"
-  "household-copy    -                          7776000  household-copy"
-  "household-proof   -                         31536000  household-proof"
 )
 
 die()  { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
@@ -515,8 +510,8 @@ if [[ "${MODE}" == check ]]; then
     run_home="$(getent passwd "${run_user}" | cut -d: -f6)"
     for row in "${SENSITIVE_JOBS[@]}"; do
       unit="$(job_unit "${row}")"
-      # household-copy and household-proof are human jobs, "-" as on the
-      # estate's side: no timer to be enabled (ADR-0073).
+      # A "-" unit is a deadline declared for a human, as on the estate's
+      # side: no timer to be enabled. trinity has none since ADR-0122.
       [[ "${unit}" == "-" ]] && continue
       state="$(systemctl is-enabled "${unit}.timer" 2>/dev/null || true)"
       case "${state}" in

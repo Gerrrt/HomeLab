@@ -3,6 +3,13 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **No copy outside the estate, 2026-11-21.**
+> [ADR-0122](0122-drop-the-household-copy.md) amends this record. The
+> **Durable** class no longer requires a copy outside the estate, and the
+> household copy that [#455](https://github.com/Gerrrt/HomeLab/issues/455) and
+> ADR-0073 built is removed. Immich, Paperless-ngx and Actual have no copy
+> outside the house. The other classes are unchanged. The table is not edited.
+>
 > **Actual is Durable, 2026-09-29.** The household's budget joins the tier
 > in the class of Immich and Paperless-ngx, and holds no real data before the
 > off-estate copy exists, for the same reason. Every client keeps a copy of
