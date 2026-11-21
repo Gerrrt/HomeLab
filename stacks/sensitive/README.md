@@ -521,6 +521,12 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+  All three are met. The restore was verified on the host on 2026-09-28 and
+  09-29, ADR-0022's record is
+  [ADR-0075](../../docs/adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md),
+  and the *Independent* test passed by 2026-11-21, which
+  closed [#404].
+
 ## Memos
 
 The household's notes, and the second *Tier extras* service —

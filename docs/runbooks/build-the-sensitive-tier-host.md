@@ -720,7 +720,7 @@ gets a row of its own while it is attached.
 These four are the gate on the data, not on the containers, and each is
 written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
-README's warning records it. Items 1, 2 and 3 are done. There was a fifth, the
+README's warning records it. All four are done, the last by 2026-11-21. There was a fifth, the
 off-estate copy, and
 [ADR-0122](../adr/0122-drop-the-household-copy.md) dropped it: ADR-0064's
 copy to `oracle` is the library's only copy off the host. ADR-0022's
@@ -742,7 +742,9 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
    deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
    [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
 4. **ADR-0023's *Independent* test.** The household's own credentials open
-   from the other person's device, without the operator present.
+   from the other person's device, without the operator present. Done by
+   2026-11-21: the other person logged in to Vaultwarden on their own device
+   without the operator, and #404 closed.
 
 ## 14. Write it down
 

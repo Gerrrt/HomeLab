@@ -31,11 +31,9 @@ What an entry here may contain:
 
 1. [**Nothing blocks these**](https://github.com/Gerrrt/HomeLab/milestone/1)
    — first because nothing gates them; most wait on an upstream release.
-2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the host
-   is built and serving; what is left is its gates.
-3. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
+2. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline is built; what is left is using it, one exercise per weakness.
-4. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
+3. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
    domain, on a household observation, or on something to publish.
 
 ## Nothing blocks these
@@ -84,24 +82,6 @@ Closes when it is empty.
   deploy it, measure what capabilities it needs, and create the `5800` pass.
 
 The milestone has no order between its issues.
-
-## trinity
-
-Closes when #404 closes.
-
-- **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
-  host.** **Built and deployed 2026-09-28**
-  ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
-  → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - §13's last item, ADR-0023's *Independent* test: the household's own
-    credentials open Vaultwarden from the other person's device, without the
-    operator present. The second age recipient (2026-10-03) and ADR-0022's
-    record ([ADR-0075](adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md))
-    are done. There is no off-estate copy to wait for:
-    [ADR-0122](adr/0122-drop-the-household-copy.md) dropped it, and the
-    originals' only copy beyond the USB disk is the nightly one to `oracle`,
-    in the same room
-    ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 
 ## exercises
 

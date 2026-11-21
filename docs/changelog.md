@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **#404 closed: `trinity`'s last gate, ADR-0023's *Independent* test,
+  passed.** The other person in the household logged in to Vaultwarden on
+  their own device without the operator present. It was the one item left in
+  the build runbook's §13 and on the roadmap. The second recipient
+  (2026-10-03), ADR-0022's record (ADR-0075) and the restore rehearsal
+  (2026-09-28 and 09-29) were already done, and ADR-0122 had dropped the
+  off-estate copy. The roadmap's *trinity* section and its place in *The
+  order* go with it; the milestone has no other issue.
+
 - **A tripped breaker set off the WAN's receive errors a fourth time, and
   another of the XB7's ports cleared them.** A breaker tripped and the XB7 lost
   power; `morpheus` stayed up, since `em0`'s error counter carried on from
