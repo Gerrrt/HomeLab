@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **#404 closed: `trinity`'s last gate, ADR-0023's *Independent* test,
+  passed.** The household's credentials live in hosted Bitwarden, ADR-0023's
+  recommended route, and this Vaultwarden keeps the operator's. The other
+  person in the household opened them from their own device, signed in to
+  their own account, without the operator present. It was the one item left in
+  the build runbook's §13 and on the roadmap. The second recipient
+  (2026-10-03), ADR-0022's record (ADR-0075) and the Immich restore
+  rehearsal on the host (2026-09-28 and 09-29) were already done, and
+  ADR-0122 had dropped the off-estate copy. The roadmap's *trinity* section and its place in *The
+  order* go with it; the milestone has no other issue.
+
 - **`trinity`'s memory limits re-derived from a month of RSS; Home
   Assistant's goes to 1536m.** The stack README asked for it once the host had
   run a month. Peak and median `container_memory_rss` over 2026-10-22 to 11-21,

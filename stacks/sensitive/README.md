@@ -526,6 +526,16 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+  All three are met. Immich's restore was rehearsed on the host on
+  2026-09-28 and 09-29; Vaultwarden's was rehearsed with a seeded account on
+  the monitoring host on 2026-09-09, not on `trinity` (the restore runbook's
+  *What is proven, and what is not*). ADR-0022's record is
+  [ADR-0075](../../docs/adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md),
+  and the *Independent* test passed by 2026-11-21 on the recommended route:
+  the household's credentials are in hosted Bitwarden, and the other person
+  opened them from their own device and account without the operator. That
+  closed [#404].
+
 ## Memos
 
 The household's notes, and the second *Tier extras* service —
