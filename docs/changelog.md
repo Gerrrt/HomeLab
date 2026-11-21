@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-20
 
+- **`trinity` subscribes to the UPS, and the shutdown window is widened to
+  fit `Saruman`'s guests.** ADR-0107's remaining half was applied: the
+  runbook's step 4b (two Winterfell rules, the `10.0.99.1` listener, and
+  `nut-client` on `trinity` as a third secondary), `HOSTSYNC 600` on
+  `morpheus` (§3.7), and the card's low-battery duration from 8 to 16
+  minutes (§3.8). `trinity` reads `ups.status` `OL` from `10.0.99.1`, and
+  `battery.runtime.low` reads `960`. The sequence is armed and still not
+  watched; step 5 ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) is
+  the proof. This closes finding 1 of the trinity audit of 2026-11-13.
+
 - **`trinity`'s `sshd` gets a keys-only step, and "no host firewall" is
   written down as a decision.** The trinity audit of 2026-11-13 found `sshd`
   taking passwords, with X11 forwarding on and 17 GitHub-imported keys
