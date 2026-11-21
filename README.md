@@ -101,7 +101,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  183 alert rules — 162 metric-based in Prometheus, 21 log-based in Loki — sharing
+  182 alert rules — 161 metric-based in Prometheus, 21 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -136,8 +136,8 @@ documents for different readers.
   at all. Every pinned digest is also scanned weekly for fixable HIGH and
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
-- **Documented decisions and runbooks.** 121 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 55
+- **Documented decisions and runbooks.** 122 ADRs covering what was chosen
+  and what was rejected — including the costs accepted knowingly; 53
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -207,7 +207,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 162 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 161 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
 │   │   ├── loki/             #   single-binary config + 21 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
@@ -236,9 +236,9 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── architecture.md  network.md  hardware.md
 │   ├── observability.md  security.md  roadmap.md  changelog.md
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
-│   ├── adr/                  # 121 ADRs — architecture decision records
+│   ├── adr/                  # 122 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
-│   └── runbooks/             # 55 runbooks; successor-handover.md is the front door
+│   └── runbooks/             # 53 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 

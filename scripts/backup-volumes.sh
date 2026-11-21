@@ -559,17 +559,6 @@ human() { numfmt --to=iec --suffix=B "$1" 2>/dev/null || printf '%sB' "$1"; }
 # written beside it by every pg_dump since 8.x. Read off a dump of the running
 # 17.6 on 2026-09-30. No volume archive here carries a top-level toc.dat.
 #
-# paperless-documents (#455) is the fourth: Paperless-ngx's own
-# document_exporter output, which scripts/carry-household-copy.sh archives for
-# the household's drive (ADR-0073). The volume sets carry paperless-media too,
-# but beside the vault, and only Paperless at the same version can read them.
-# The export is the original files plus manifest.json, the exporter's record
-# of every document, written at the export's root on every run, even an empty
-# one; metadata.json beside it carries the version. Read off an export of the
-# running 3.2.1 on trinity on 2026-10-01, into the container's /tmp and
-# removed after: those two files and nothing else, because no document had
-# been imported yet. No volume here has a top-level manifest.json.
-#
 # speedtest-data (#914) is speedtest-tracker's /config: the SQLite database
 # with every result and the app's settings, including the Prometheus switch
 # the scrape depends on. Read off a first boot of the pinned 1.15.0 on
@@ -604,7 +593,6 @@ declare -A SENTINEL=(
   [actual-data]="./server-files/account.sqlite"
   [immich-library]="./library/.immich"
   [wiki-db]="toc.dat"
-  [paperless-documents]="./manifest.json"
   [speedtest-data]="./database.sqlite"
 )
 
@@ -652,7 +640,6 @@ declare -A COMPANIONS=(
   [actual-data]="./user-files ./.migrate"
   [immich-library]="./upload/.immich ./profile/.immich ./backups/.immich ./thumbs/.immich ./encoded-video/.immich"
   [wiki-db]="restore.sql"
-  [paperless-documents]="./metadata.json"
   [speedtest-data]="./.migrations ./nginx ./php"
 )
 

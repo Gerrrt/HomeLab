@@ -19,6 +19,28 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **The household copy is dropped, and so is the requirement for it.**
+  [ADR-0122](adr/0122-drop-the-household-copy.md) supersedes ADR-0073 and
+  amends ADR-0023, ADR-0024 and ADR-0064. The operator said: "I don't want
+  it and I want the requirement removed." No household holder was ever
+  chosen, so the copy never had a copy of record: the WD Elements drive
+  bought for it on 2026-09-22 held one rehearsal, written on 2026-10-01, and
+  `household-copy` and `household-proof` sat in `ScheduledJobNeverRan` from
+  the day they were declared. Removed: `carry-household-copy.sh`,
+  `household-recipients.sh`, `household.recipients`, `household-age.sha256`,
+  the two make targets, `carry-the-household-copy.md`,
+  `open-the-household-copy.md`, both `SENSITIVE_JOBS` rows,
+  `HouseholdCopyStale` and its tests, and `check_sops_rules.py`'s household
+  check. The stale-job rules, `ScheduledJobNeverRan` and `ScheduledJobFailed`
+  skip both job names, so a `trinity` whose `homelab-jobs.prom` predates this
+  stays quiet until `make install-timers PROFILE=sensitive` rewrites it.
+  Library sets are now encrypted to the sensitive rule's recipients only, and
+  `paperless-documents` leaves `backup-volumes.sh`'s sentinel tables. ADR-0064's
+  nightly copy to `oracle` stays and is no longer interim. The photographs,
+  documents and budget have no copy outside the house, and a loss of the house
+  loses them. The drive is spare. #455's roadmap entry leaves, and #404's
+  step 10 gate no longer waits on an off-estate copy.
+
 - **The UPS shutdown sequence is accepted without a live test, and the DNS
   failure test is recorded as done.**
   [ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md): the
@@ -4417,7 +4439,7 @@ docstring gives: it is a record, not a claim about now.
   verification, on purpose** ([#942](https://github.com/Gerrrt/HomeLab/issues/942)).
   #856 left `backups/paperless-documents/` as the one kind of set on `trinity`
   that is never re-read. It stays that way, and
-  [`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md) §4
+  [`carry-the-household-copy.md`](https://github.com/Gerrrt/HomeLab/blob/19f6d4c89a70d7b9ed64f35173fc0265b34e7f14/docs/runbooks/carry-the-household-copy.md) §4
   says why. Each household visit exports Paperless again and prunes the old
   set. A restore reads the drive, not `trinity`. The documents themselves are
   in the volume sets that `verify-backups-sensitive` re-reads nightly.
@@ -5975,7 +5997,7 @@ docstring gives: it is a record, not a claim about now.
     and `metadata.json`, written as the operator into `export/`.
   - **Not yet done.** The WD Elements has not been formatted or rehearsed on.
     That needs `sudo` and the drive at `trinity`
-    ([`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md)
+    ([`carry-the-household-copy.md`](https://github.com/Gerrrt/HomeLab/blob/19f6d4c89a70d7b9ed64f35173fc0265b34e7f14/docs/runbooks/carry-the-household-copy.md)
     §1–2). A holder, and their proof, are still #455's.
 
 - **The lab's VM templates are written for Packer, and not yet built**

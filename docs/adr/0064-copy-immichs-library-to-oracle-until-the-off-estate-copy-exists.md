@@ -6,6 +6,13 @@ satisfy [ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md),
 and it amends nothing in it.
 
 > [!NOTE]
+> **Not interim any more, 2026-11-21.**
+> [ADR-0122](0122-drop-the-household-copy.md) drops the off-estate copy and
+> [#455](https://github.com/Gerrrt/HomeLab/issues/455) with it. This copy to
+> `oracle` is not superseded and stays as the library's copy off the host.
+> New sets are encrypted to the sensitive rule's recipients only, not to the
+> household's keys.
+>
 > **The sets open with the household's keys too, 2026-10-01.**
 > [ADR-0073](0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
 > encrypts every library set to `stacks/sensitive/household.recipients` as

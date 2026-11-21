@@ -83,10 +83,9 @@ step 9, installed with `make install-timers PROFILE=sensitive`
 Its outcome is `backup-sensitive` in the estate's `ScheduledJob*` alerts, so a
 night that fails, or a timer that stops, is a finding within two days. Every
 set is on `trinity` and on `oracle`. Both are in the same room and on the same
-power, so neither is the off-estate copy that
+power, and there is no copy outside the house: the one
 [ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-requires. That copy is step 10, and it is one reason the vault holds nothing
-real yet.
+required was dropped by [ADR-0122](../adr/0122-drop-the-household-copy.md).
 
 **The key that opens it is not the only one.** A set encrypted to `trinity`'s
 key alone dies with `trinity`'s disk, so [ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
@@ -478,10 +477,8 @@ Everything was deleted afterwards.
   on a single-volume restore, not a fault.
 
 **What is still not proven** (as of 2026-09-28; the next subsection closes the
-first point). Nothing came back from anywhere but `trinity`,
-and there is no copy of the originals off it. That is [#455](https://github.com/Gerrrt/HomeLab/issues/455),
-and until it exists the checksum pass above proves only that a copy of *this
-disk* restores. The restored server was not reached through Caddy, nor by a
+first point). Nothing came back from anywhere but `trinity`, so the checksum
+pass above proves only that a copy of *this disk* restores. The restored server was not reached through Caddy, nor by a
 phone. A phone reconnecting to a restored server is the moment a wrong
 restore would first be noticed, and nobody has watched it. Machine learning
 did not run, so the face and CLIP vectors came back but nothing used them.
@@ -540,12 +537,9 @@ key alone, so it proves a restore on a host that has that key. Losing
 `trinity` as well as the disk is recoverable only if the key has a proven
 copy (`make secrets-verify-backup STACK=sensitive`). Everything the
 2026-09-28 rehearsal left open about phones, Caddy, machine learning and
-cross-version restores is still open. And this is not off the estate. That is
-still [#455](https://github.com/Gerrrt/HomeLab/issues/455). Its copy is built
-([`carry-the-household-copy.md`](carry-the-household-copy.md)) and is waiting
-on a holder. A restore from the household drive copies its set directories back
-into `backups/immich-library/` and `backups/paperless-documents/`, and then
-follows this page.
+cross-version restores is still open. And this is not off the estate, nor
+will any copy be: [ADR-0122](../adr/0122-drop-the-household-copy.md) dropped
+the household copy, so a loss of the house loses the library.
 
 ---
 

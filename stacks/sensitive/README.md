@@ -30,8 +30,9 @@ under [#404]. It was authored ahead of the hardware, the way `stacks/lab` was, a
 the first start found five things that the file could not show; the sections
 below carry each of them. **It holds real data since 2026-09-28** — Immich's
 first 615 photographs, which arrived before the off-estate copy that #404 step
-10 gates them on; [*What backs Immich up*](#what-backs-immich-up-and-what-does-not-yet)
-says what that leaves exposed.
+10 then gated them on. [ADR-0122] has since dropped that copy;
+[*What backs Immich up*](#what-backs-immich-up-and-what-does-not-yet) says
+what that leaves exposed.
 
 ```bash
 make up STACK=sensitive
@@ -151,8 +152,6 @@ stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endp
 mosquitto/                 the broker's config and ACL, mounted read-only, and a
                            smoke.sh that signs in as both users (ADR-0104)
 ring-mqtt/smoke.sh         proves ring-mqtt reads its config under its hardening
-household.recipients       the age public keys that can open the household's copies
-household-age.sha256       checksums of the age release the household copy is opened with
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -453,19 +452,15 @@ The version-portable form is the exporter — `docker compose exec paperless
 document_exporter ../export`, into `export/` — which writes every document with
 a `manifest.json` that a fresh install of the *same* version re-imports.
 Upstream is explicit that an export does not cross versions, so it is the
-form to send off-estate rather than the form to rely on across an upgrade.
+form to keep for a move between installs rather than the form to rely on
+across an upgrade.
 
 One thing this does **not** do, stated rather than implied. It is
 scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
-each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
-[ADR-0023] requires before the first real document — encrypted, keyed to a
-second holder, with visible freshness. That copy is now built: `make
-household-copy` runs the exporter above, archives `export/` into a standard
-set encrypted to [`household.recipients`](household.recipients) as well, and
-carries it to the household drive ([ADR-0073],
-[`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)).
-It refuses a copy of record until there is a household holder, so the
-precondition on the data arriving is still open.
+each set to `oracle` ([#404] step 9). But **nothing here is a copy outside the
+house**, and none is planned: [ADR-0122] dropped the household copy that
+[ADR-0023] required and [ADR-0073] built. A loss of the house loses the
+documents.
 
 ## Vaultwarden
 
@@ -559,14 +554,12 @@ The household's notes, and the second *Tier extras* service —
   `memos_prod.db` is a 4 KB header and everything else is in the `-wal`, which
   a clean stop checkpoints back — and attachments are files under `./assets`.
   The backup names all three.
-- **Durable, under [ADR-0023], and running ahead of it.** The class
-  requires an off-estate copy before real notes, for the same reason as
-  Paperless-ngx. It holds real notes since 2026-10-22 anyway, by the
-  operator's accepted exception: the household's shared plan, which also
-  lives outside the estate, so this is not its only copy. What backs it up
-  today is the nightly volume set on `oracle`, age ciphertext, off-host and
-  not off-estate. `make household-copy` does not carry `memos-data`, and
-  until [#455] does, the class's condition is still owed.
+- **Durable, under [ADR-0023].** The class required an off-estate copy
+  before real notes, until [ADR-0122] dropped that requirement. It holds real
+  notes since 2026-10-22, the household's shared plan, which also lives
+  outside the estate, so this is not its only copy. What backs it up
+  is the nightly volume set on `oracle`, age ciphertext, off-host and not
+  off-estate, and [ADR-0122] says that is all there will be.
 - **Two admins, and the settings that came with the first real notes**
   (2026-10-22), all in the database and none in this file: public access
   off, so a signed-out visitor gets nothing; the content length limit at
@@ -1313,9 +1306,9 @@ the night it was written fails the next morning, as `verify-backups-sensitive`.
 The units and their installer are in
 [`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
 What this does **not** give is a copy off the estate. `oracle` is in the same
-room and on the same power, and [ADR-0023] requires that copy before Immich or
-Paperless-ngx hold a real file. It is step 10's, and [ADR-0073]'s:
-built, and waiting on a holder.
+room and on the same power. [ADR-0023] required that copy before Immich or
+Paperless-ngx held a real file, and [ADR-0122] dropped the requirement: there
+is no copy outside the house.
 And the volumes are not the photographs: the library is a bind mount, and
 no volume set contains it. Its own sets are the next section's.
 
@@ -1326,24 +1319,23 @@ The photographs are the household data most likely to be irreplaceable, and
 and an off-estate copy whose staleness is visible was to exist before the
 first real photo arrived. It did not; the warning below is the record. Three
 things hold the data. Each is copied off the host now, and none is copied
-off the estate: the copy [ADR-0023] requires, the one that covers the first
-two rows, still does not exist.
+off the estate. [ADR-0122] dropped that copy, so none will be: a loss of the
+house loses the photographs.
 
 > [!WARNING]
 > **The first real photographs arrived before that copy did.** Two accounts
 > uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
-> host was built, with [#455] undelivered and [ADR-0022]'s record and
-> [ADR-0023]'s *Independent* test still open. For their first day the USB disk
-> was the only copy of the originals anywhere. Since 2026-09-29 a nightly set
-> goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them. That
-> copy is in the same room and on the same power. Since 2026-10-01 it is
-> encrypted to [`household.recipients`](household.recipients) as well as to
-> `trinity`'s key ([ADR-0073]). It does not satisfy [ADR-0023], and this
-> warning stands until [#455] exists.
+> host was built, with the off-estate copy undelivered and [ADR-0022]'s record
+> and [ADR-0023]'s *Independent* test still open. For their first day the USB
+> disk was the only copy of the originals anywhere. Since 2026-09-29 a nightly
+> set goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them.
+> That copy is in the same room and on the same power. [ADR-0122] dropped the
+> off-estate copy on 2026-11-21, so `oracle`'s is the only other copy there
+> will be.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: built, waiting on a holder.** `make household-copy` carries the newest set to the household drive, a WD Elements 5 TB under [#455], every ninety days ([ADR-0073], [`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)). It refuses a copy of record until [`household.recipients`](household.recipients) has a household key |
+| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients. **Off-estate: none**, by [ADR-0122] |
 | Thumbnails and transcodes | The same disk, `thumbs/` and `encoded-video/` | Nothing, on purpose. They are derived from the originals, and a restore regenerates them from Immich's *Jobs* page. Only their `.immich` markers are archived, because the server will not start without them |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | It sits on the same disk on purpose, so a copy of the disk is also a copy of the metadata. It rides in every library set, three hours old at most, so each set is a restore unit on its own |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
@@ -1455,6 +1447,7 @@ it matters:
 [ADR-0104]: ../../docs/adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
+[ADR-0122]: ../../docs/adr/0122-drop-the-household-copy.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -1474,7 +1467,6 @@ it matters:
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
-[#455]: https://github.com/Gerrrt/HomeLab/issues/455
 [#533]: https://github.com/Gerrrt/HomeLab/issues/533
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535
 [#970]: https://github.com/Gerrrt/HomeLab/issues/970
