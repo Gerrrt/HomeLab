@@ -27,10 +27,12 @@ docstring gives: it is a record, not a claim about now.
   was judged not worth a reboot and slower transfers, so the gap is recorded
   in `hardware.md` and the docs that promised a row for it. Separately,
   #1597 merged with a commit that moved the job's lock into the textfile
-  directory on the claim that `ProtectSystem=strict` makes `/run/lock`
-  read-only. The monitoring host's `homelab-smart-state.service`, sandboxed
-  the same way, takes its lock there and exits 0 daily, so the claim was false
-  and the unit goes back to the default.
+  directory, to get around `ProtectSystem=strict` making `/run/lock`
+  read-only. That left a lock file beside the metrics. The lock goes back to
+  `/run/lock`, and the unit names `/run/lock` in `ReadWritePaths`, which grants
+  nothing new because the directory is world-writable. The monitoring host's
+  `homelab-smart-state.service`, sandboxed the same way without it, exits 0
+  daily, so whether strict blocks `/run/lock` there is not settled.
 
 - **`trinity` reads SMART from its own disks.** It was the one host with a
   checkout and Alloy that collected none, so a failing NVMe under the password
