@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **The UPS shutdown sequence is accepted without a live test, and the DNS
+  failure test is recorded as done.**
+  [ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md): the
+  operator will not run `shut-down-on-the-ups.md` steps 5 and 6, the forced
+  halt with `upsmon -c fsd` and the mains pull that measures the pack. Steps 0
+  to 4b are applied, #574 closes on them, and its roadmap entry leaves.
+  Separately, the operator confirmed that they stopped AdGuard on purpose and
+  `AdGuardNotAnswering` paged. The day was not written down, so the runbook's
+  table records it as before 2026-11-21, and the test leaves #404's list.
+
 - **`trinity` reads SMART from its own disks.** It was the one host with a
   checkout and Alloy that collected none, so a failing NVMe under the password
   vault, or a failing photo disk, would have shown first as I/O errors. A new
