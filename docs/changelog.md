@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **`trinity`'s memory limits re-derived from a month of RSS; Home
+  Assistant's goes to 1536m.** The stack README asked for it once the host had
+  run a month. Peak and median `container_memory_rss` over 2026-10-22 to 11-21,
+  the TSDB's whole retention, against each limit: Home Assistant peaked at 816
+  MiB of 1024 (median 536), the only service above two-thirds of its limit, so
+  it went to 1536m. Immich's server 2046 of 3072, AdGuard 954 of 1536,
+  Stirling-PDF 868 and Paperless-ngx 692 of 3072 (their load tests' 1454 and
+  1716 still set them), Immich's machine learning 708 of 4096, and everything
+  else under 350 MiB. Those stand.
+
 - **A tripped breaker set off the WAN's receive errors a fourth time, and
   another of the XB7's ports cleared them.** A breaker tripped and the XB7 lost
   power; `morpheus` stayed up, since `em0`'s error counter carried on from

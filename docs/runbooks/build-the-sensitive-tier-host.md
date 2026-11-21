@@ -559,8 +559,8 @@ Then the stack README's list, on the host it was written for:
 - **Home Assistant keeps booting under its hardening.** It is healthy above;
   the `dhcp` integration's `CAP_NET_RAW` error is the one expected line.
 - **AdGuard answers the prober and nobody else.** That is §11, step 1.
-- **The limits.** Nothing to do today. The README says re-derive after a
-  month.
+- **The limits.** Nothing to do today. After a month, re-derive them from
+  `container_memory_rss` the way the stack README's 2026-11-21 pass did.
 
 The agent, from `prometheus`:
 
