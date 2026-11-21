@@ -409,15 +409,16 @@ services:
     # `mqtt` as well, for the broker (DIFFERENCE 14, ADR-0104).
     networks: [sensitive, mqtt]
     init: false
-    # A ceiling to catch a leak, not a measurement: #114's method — median and
-    # peak over a fortnight of real use — replaces it once the tier runs. The
-    # only number there is: 316 MiB RSS at the end of a first boot on the
-    # pinned image, with default_config loaded and no devices, and 35
-    # tasks against the anchor's pids_limit of 512. Python threads count as
-    # tasks and Home Assistant is thread-heavy — its executor alone may hold
-    # 64 — so the margin under 512 is stated rather than assumed.
-    mem_limit: 1g
-    memswap_limit: 1g
+    # Was 1g, a ceiling set from 316 MiB RSS at the end of a first boot with
+    # no devices. #114's method replaced it: over 2026-10-22 -> 11-21, the
+    # TSDB's whole thirty days, RSS had a median of 536 MiB and a peak of 816,
+    # 80 % of that 1g. 1536m is 1.9x the peak, the house's devices and their
+    # integrations included. The first boot also counted 35 tasks against the
+    # anchor's pids_limit of 512. Python threads count as tasks and Home
+    # Assistant is thread-heavy — its executor alone may hold 64 — so the
+    # margin under 512 is stated rather than assumed.
+    mem_limit: 1536m
+    memswap_limit: 1536m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -1040,10 +1041,13 @@ services:
   # under 8 MiB. The ceilings sit well above those and below anything that
   # would let one container take the 32 GB host down; they exist to turn a
   # leak into an OOM kill of one service, which ContainerOomKilled then
-  # names. Re-derive them the way #114
-  # did once trinity has run a fortnight with real uploads and a transcode or
-  # two — `max_over_time(container_memory_rss{name=~"sensitive-immich.*"}[14d])`
-  # — and move the number and this paragraph together.
+  # names. Re-derived the way #114 did, from container_memory_rss over
+  # 2026-10-22 -> 11-21 (the TSDB's whole thirty days), median / peak MiB:
+  # server 821 / 2046 (1.5x under 3072m), machine learning 196 / 708 (5.8x),
+  # Postgres 7 / 344, Valkey 4 / 8. All four stand. The server is at #114's
+  # 1.5x floor and is not cut; machine learning keeps room for both models
+  # and a batch at once, which the month did not show; Postgres's RSS leaves
+  # out its shared buffers, so it says nothing against upstream's floor.
   immich-server:
     <<: *service-defaults
     image: ghcr.io/immich-app/immich-server:v3.4.1@sha256:7c489add298fc2f92cda4c777de6462aa206877e04087b815f62c7664af0b53b
@@ -1345,10 +1349,9 @@ services:
   # the whole install plus room for one document's OCR. Measured on trinity on
   # 2026-09-28: memory.peak 1716 MiB across five one-page scans and a 50-page
   # 300 dpi backlog, no oom_kill — 56 % of the limit, kept rather than cut on
-  # one sample, since a longer or denser scan grows the working set. The
-  # estate sizes from fourteen days of RSS; re-derive from
-  # container_memory_rss once trinity has run a month, the way
-  # stacks/observability did for its seven.
+  # one sample, since a longer or denser scan grows the working set. Over
+  # 2026-10-22 -> 11-21 container_memory_rss had a median of 688 MiB and a
+  # peak of 692: no backlog that month, so the backlog's 1716 still sets it.
   #
   # The healthcheck is the image's own (curl against 8000, which ALLOWED_HOSTS
   # always admits for localhost), written out so check_compose_health.py
@@ -1597,7 +1600,8 @@ services:
   # oom_kill. The heap is capped at 40 % (about 1.2 GiB), down from the 70 %
   # the entrypoint picks, so the heap, the JVM's off-heap, LibreOffice,
   # tesseract and a full 1 GiB /tmp all fit under 3072m together.
-  # Re-derive from container_memory_rss after a month, as for the rest. `cpus: 2`
+  # Over 2026-10-22 -> 11-21 container_memory_rss had a median of 757 MiB and
+  # a peak of 868, under the test's 1454, so 3072m stands. `cpus: 2`
   # is DIFFERENCE 10 again: an OCR here must not take cores Paperless's
   # ceiling of four is counting on.
   stirling-pdf:
