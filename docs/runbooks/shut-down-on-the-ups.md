@@ -64,6 +64,12 @@ follow the steps.**
 >
 > §6.5 now keeps the low-battery duration at or above the worst case plus
 > half again, whatever the measured run says.
+>
+> **Steps 5 and 6 will not be run, 2026-11-21.**
+> [ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)
+> accepts the sequence as configured. Steps 0 to 4b are applied, and #574
+> closes on them. Steps 5 to 7 stay below as a procedure, and nothing lists
+> them as owed.
 
 ## What this does
 
@@ -903,6 +909,10 @@ and `LISTEN 10.0.99.1` in place of `LISTEN 10.0.30.1`.
 
 ## Step 5 — Prove the shutdown order
 
+**Not run, by decision**
+([ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)).
+Kept as a procedure, not as a step owed.
+
 This halts everything. Your window must be open and you must be able to power
 the four hosts back on by hand.
 
@@ -1105,6 +1115,9 @@ investigate before step 6.
 ---
 
 ## Step 6 — Measure the pack
+
+**Not run, by decision**
+([ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)).
 
 Everything running, step 5 passed, every host back up.
 

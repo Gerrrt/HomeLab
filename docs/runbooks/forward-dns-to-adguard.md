@@ -236,7 +236,11 @@ Then step 3's leak test once more, and wait for the *resolved* notification.
 
 | Date | Stopped | Page arrived | DNS back | Resolved notice |
 | --- | --- | --- | --- | --- |
-| *not yet run* | — | — | — | — |
+| before 2026-11-21, day not written down | yes | yes | yes | — |
+
+The operator ran this and the `AdGuardNotAnswering` page arrived. The times
+were not written down when it happened; the row above was recorded on
+2026-11-21 from their account.
 
 **If AdGuard cannot be brought back** and the house needs DNS now: add
 `1.1.1.1` under *System → General Setup → DNS Servers* on `morpheus` and

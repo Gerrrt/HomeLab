@@ -54,17 +54,17 @@ UPS's model is read off the card as `upsIdentModel` and was in no document
 before then either. Who acts on the pack running out — and who does not — is
 [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
 and the runtime the pack actually gives at this load is **not measured**: the
-card claimed 47 minutes at 21 % load on 2026-09-20, and the one mains pull
-that turns that estimate into a number is
-[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §6. Since the
+card claimed 47 minutes at 21 % load on 2026-09-20, and that estimate stands
+([ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md)). Since the
 move, `trinity`, `gandalf` and the console are on the PDU too, and `smaug` is on
 it directly rather than by the long cord to the media room it had until
 2026-11-06.
 [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
 makes `trinity` a third host that halts on the signal: the runbook's step
 4b, applied on 2026-11-20. The card's low-battery duration was raised to 16
-minutes the same day, to cover `Saruman`'s bounded guest stop. Nobody has
-watched the sequence run yet. `gandalf`, the console and the KVM are left to
+minutes the same day, to cover `Saruman`'s bounded guest stop. The sequence
+is accepted as configured, without a live test
+([ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md)). `gandalf`, the console and the KVM are left to
 the pack by decision.
 
 Off-rack: only the eero Pro 6E units, distributed through the house.
