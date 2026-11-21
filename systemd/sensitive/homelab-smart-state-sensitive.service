@@ -1,0 +1,53 @@
+# SMART health for trinity's own disks: the boot NVMe that holds the tier, and
+# the USB disk at /srv/immich that holds the photographs (ADR-0064).
+#
+# The monitoring host's homelab-smart-state.service, run on the other host with
+# a checkout, and that unit explains every directive below; this one states
+# only what differs. Before it, trinity was the one Alloy host with a checkout
+# that read no SMART at all: a failing NVMe under the password vault would have
+# said so first as I/O errors.
+#
+# NOT `make smart-state`. That target also renders smart-baselines.prom, and
+# SmartDriveBadSectors joins it `on(host, slot)` from the one copy the
+# monitoring host serves (scripts/render-smart-baselines.sh). A second copy
+# from here would put two series on every key and break the join for the whole
+# estate. `make smart-state-sensitive` runs the collector alone.
+#
+# ROOT, for the estate unit's reason: smartctl's ATA and NVMe pass-through
+# ioctls need raw device access, and no group substitutes. Nothing here runs as
+# @RUN_USER@, so the unit reads that user's checkout and writes one directory.
+#
+# THE HOUSEHOLD DRIVE IS READ WHILE IT IS PLUGGED IN, and that is fine. It is
+# attached here between copies (ADR-0073) and leaves with the holder; its
+# series stop when it does, and no rule reads a drive's absence.
+[Unit]
+Description=HomeLab: collect SMART health for trinity's disks
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/schedule-maintenance.md
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=@DEPLOY_ROOT@
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job smart-state-sensitive -- /usr/bin/make -C @DEPLOY_ROOT@ smart-state-sensitive
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateNetwork=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-smart-state-sensitive
+
+# No [Install] section: the timer enables this.

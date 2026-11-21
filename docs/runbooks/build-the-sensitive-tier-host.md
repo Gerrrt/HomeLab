@@ -240,7 +240,7 @@ One block, pasted on `trinity`. It asks for your `sudo` password once:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl git make age tpm2-tools
+sudo apt-get install -y ca-certificates curl git make age tpm2-tools smartmontools
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
@@ -690,6 +690,20 @@ both kinds here and checks `oracle`'s copies against their MANIFESTs
 ([#856](https://github.com/Gerrrt/HomeLab/issues/856)). It stops nothing, so
 the installer primes it too. `verify-backups-sensitive.prom` must read exit
 code `0`.
+
+And `smart-state-sensitive`, daily at 08:30, which reads SMART from the NVMe
+and the photo disk as root. It needs `smartmontools` from step 4. The
+installer primes it, so read what it found straight away:
+
+```bash
+cat /var/lib/node_exporter/textfile_collector/smart-state-sensitive.prom
+grep -E '^homelab_smart_(devices|healthy)' /var/lib/node_exporter/textfile_collector/smart-state-trinity.prom
+```
+
+The job's exit code must be `0`, and `homelab_smart_healthy` must carry a row
+for `nvme0n1` and one for the photo disk. A USB disk whose bridge does not
+pass SMART through is left out with a warning in
+`journalctl -u homelab-smart-state-sensitive`, not counted as healthy.
 
 ## 13. Before the first real photo, document or vault item
 
