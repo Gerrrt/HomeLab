@@ -42,21 +42,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
-  UPS's signal.** Decided by
-  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
-  Steps 0–4 were built on 2026-09-23: NUT on `morpheus`, its rules, and
-  `Saruman` and `smaug` subscribed. The sequence is armed and not proved.
-  Since the rack move,
-  [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
-  adds `trinity` as a third subscriber and caps `Saruman`'s ordered guests at
-  `down=90`. `Saruman`'s half (steps 3.6 and 3.7 on `Saruman`) was applied
-  on 2026-11-13; `trinity`'s subscription, `HOSTSYNC 600` on `morpheus` and
-  step 3.8 on 2026-11-20. The gate is a rack visit. It reads the outlet
-  groups, proves the order
-  with `upsmon -c fsd`, and pulls the mains once to replace the card's
-  47-minute claim with a number.
-  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
@@ -108,9 +93,6 @@ Closes when #404 and #132 close, and #455 has its holder.
   host.** **Built and deployed 2026-09-28**
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages. #135
-    closed on 2026-09-28 without a record of it, so it is owed here
-    (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
   - the step 10 gate: the second age recipient, the off-estate copy
     (#455), ADR-0022's identity-provider record and ADR-0023's
     *Independent* test. Until #455 exists, the originals' only copy beyond
