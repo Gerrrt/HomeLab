@@ -692,7 +692,7 @@ the installer primes it too. `verify-backups-sensitive.prom` must read exit
 code `0`.
 
 And `smart-state-sensitive`, daily at 08:30, which reads SMART from the NVMe
-and the photo disk as root. It needs `smartmontools` from step 4. The
+as root. It needs `smartmontools` from step 4. The
 installer primes it, so read what it found straight away:
 
 ```bash
@@ -701,9 +701,10 @@ grep -E '^homelab_smart_(devices|healthy)' /var/lib/node_exporter/textfile_colle
 ```
 
 The job's exit code must be `0`, and `homelab_smart_healthy` must carry a row
-for `nvme0n1` and one for the photo disk. A USB disk whose bridge does not
-pass SMART through is left out with a warning in
-`journalctl -u homelab-smart-state-sensitive`, not counted as healthy.
+for `nvme0n1`. The photo disk has none: its enclosure passes no SMART through
+(`docs/hardware.md`), so `homelab_smart_devices` counts it and nothing else
+is read from it. The HOUSEHOLD drive, while it is plugged in, has a row of its
+own.
 
 ## 13. Before the first real photo, document or vault item
 
