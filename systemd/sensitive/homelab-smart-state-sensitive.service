@@ -23,6 +23,12 @@
 # ioctls need raw device access, and no group substitutes. Nothing here runs as
 # @RUN_USER@, so the unit reads that user's checkout and writes one directory.
 #
+# /run/lock IS NAMED IN ReadWritePaths because run-scheduled.sh opens its lock
+# there before it runs anything, and ProtectSystem=strict is documented to
+# leave everything outside /dev, /proc, /sys and ReadWritePaths read-only. The
+# directory is already world-writable (1777), so naming it grants this unit
+# nothing an unprivileged user lacks.
+#
 # THE HOUSEHOLD DRIVE IS READ WHILE IT IS PLUGGED IN, and that is fine. It is
 # attached here between copies (ADR-0073) and leaves with the holder; its
 # series stop when it does, and no rule reads a drive's absence.
@@ -47,7 +53,7 @@ RestrictRealtime=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
-ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ReadWritePaths=/var/lib/node_exporter/textfile_collector /run/lock
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
