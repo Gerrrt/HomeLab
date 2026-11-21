@@ -707,11 +707,13 @@ pass SMART through is left out with a warning in
 
 ## 13. Before the first real photo, document or vault item
 
-These five are the gate on the data, not on the containers, and each is
+These four are the gate on the data, not on the containers, and each is
 written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
-README's warning records it. Items 1 and 4 are done, and item 3 has an interim
-stand-in, ADR-0064's copy to `oracle`, which does not close it. ADR-0022's
+README's warning records it. Items 1 and 3 are done. There was a fifth, the
+off-estate copy, and
+[ADR-0122](../adr/0122-drop-the-household-copy.md) dropped it: ADR-0064's
+copy to `oracle` is the library's only copy off the host. ADR-0022's
 TOTP floor is met: Home Assistant's owner since 2026-09-28, Stirling-PDF's
 admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
 
@@ -724,15 +726,10 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
    Run `make secrets-add-recipient STACK=sensitive PUBKEY=age1…`, then one
    more `make backup STACK=sensitive`, so a set exists that the second key
    opens.
-3. **The off-estate copy**
-   ([ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md),
-   [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
-   [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)). This covers
-   the library disk as well as the volume sets.
-4. **ADR-0022's decision recorded.** Either an identity provider, or the
+3. **ADR-0022's decision recorded.** Either an identity provider, or the
    deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
    [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
-5. **ADR-0023's *Independent* test.** The household's own credentials open
+4. **ADR-0023's *Independent* test.** The household's own credentials open
    from the other person's device, without the operator present.
 
 ## 14. Write it down

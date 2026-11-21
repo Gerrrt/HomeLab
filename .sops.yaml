@@ -95,11 +95,6 @@ creation_rules:
   # second's recipient (ADR-0024, #294) was added by #835, after the tier had
   # held real data on one key for days. scripts/check_sops_rules.py now fails
   # if this file, or any whose key guards data, opens with fewer than two.
-  #
-  # The household holder's key never goes here (ADR-0073): it would open the
-  # tier's passwords as well as the household's copy. It goes in
-  # stacks/sensitive/household.recipients, and scripts/check_sops_rules.py
-  # fails if it ever appears in any rule.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
       age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw,

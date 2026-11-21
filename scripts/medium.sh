@@ -4,14 +4,13 @@
 # refusals that keep the medium from being this host in disguise, and the
 # standard set's copy, proof and retention on it.
 #
-# Two scripts source this, and their media differ. backup-offsite.sh writes the
-# estate's sets to the second age recipient's medium (ADR-0048).
-# carry-household-copy.sh writes the household's sets to the drive at the
-# holder's address (ADR-0073). Everything here is the same for both, so it was
-# moved out of backup-offsite.sh rather than copied, with only the names that
-# differ between the two passed in as arguments. The offsite
-# self-test still asserts every refusal and every proof through the original
-# script, and it passed unedited after the move.
+# backup-offsite.sh sources this, and writes the estate's sets to the second
+# age recipient's medium (ADR-0048). It was moved out of that script for a
+# second caller, the household copy's carry (ADR-0073), with the names that
+# differed between the two passed in as arguments. ADR-0122 removed that
+# caller; the arguments stay, because they cost nothing and the next medium
+# would need them again. The offsite self-test asserts every refusal and every
+# proof through backup-offsite.sh.
 #
 # Sourced AFTER scripts/backup-volumes.sh, which supplies is_stamp,
 # manifest_volumes, manifest_sha and the colours. Defines functions only, and
