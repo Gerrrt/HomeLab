@@ -472,7 +472,11 @@ the runbook rather than backed up.
   2026-09-28 as LUKS2 with `ext4` inside, opened at boot by a keyfile on the
   encrypted root, with a recovery passphrase in a second keyslot
   ([ADR-0054](adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)).
-  It reports itself as a *PS4 Game Drive*.
+  It reports itself as a *PS4 Game Drive*. Its enclosure (Seagate
+  `0bc2:ab18`, on the `uas` driver) passes no SMART through: `smartctl`
+  with `-d sat`, `-d sat,12` and `-T permissive` all fail to read its
+  identity (2026-11-21). So no rule can warn of its failure in advance, and a
+  dying disk shows first as I/O errors and failed backup jobs.
   One consumer spinning disk with no mirror, so the off-estate copy
   [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
   requires is what protects it — the same as would have been true of a bought
