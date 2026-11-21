@@ -438,6 +438,19 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 		./scripts/collect-smart-state.sh; \
 	fi
 
+.PHONY: smart-state-sensitive
+smart-state-sensitive: ## Collect SMART health from trinity's own disks (needs root), without the baselines
+	@# trinity's half of `smart-state`, run by homelab-smart-state-sensitive.timer.
+	@# The collector alone: the baseline table is rendered once, on the
+	@# monitoring host, and SmartDriveBadSectors joins it on(host, slot), so a
+	@# second copy from here would break the join for every drive.
+	@#
+	@# No SKIP for a missing smartctl or a missing root here, unlike
+	@# `smart-state`: this target exists for the timer, which runs as root, and
+	@# a host built without smartmontools should fail the job and page
+	@# ScheduledJobFailed rather than report a clean run that read nothing.
+	./scripts/collect-smart-state.sh
+
 .PHONY: gateway-state
 gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GUI certificate (#353, #604, #857)
 	@# Two measurements per family: what pfSense reports, and whether traffic of

@@ -742,6 +742,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 | `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
 | `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
+| `smart-state-sensitive` | `make smart-state-sensitive`, as **root** | daily 08:30 | 2 days |
 | `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
 | `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
 
@@ -766,6 +767,16 @@ MANIFEST. That is where `oracle`'s copies are verified, without a key on
 `oracle`. It stops nothing, and it shares the `backups` lock so a prune never
 deletes a set it is reading.
 
+`smart-state-sensitive` is the monitoring host's local `smart-state` for
+`trinity`'s own disks: the boot NVMe and the USB photo disk at `/srv/immich`.
+It runs as root for the same reason, and writes `smart-state-trinity.prom`,
+which `SmartStateStale` and the drive rules read like any other host's. It is
+not `make smart-state`, because that target also renders the baseline table
+that `SmartDriveBadSectors` joins `on(host, slot)`, and a second copy from
+`trinity` would put two series on every key. `make smart-state-sensitive` runs
+the collector alone, and has no `SKIP`: a `trinity` without `smartmontools`
+fails the job and pages `ScheduledJobFailed`.
+
 `converge-sensitive` is the monitoring host's `converge` for the tier
 ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
 `backups` lock too, so it never runs `make up` under a quiesced tier. **Before
@@ -780,12 +791,12 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-six. `household-copy` and `household-proof` are the household's copy
+seven. `household-copy` and `household-proof` are the household's copy
 ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
 [`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
 timer, and `HouseholdCopyStale` reads them. The alert rules join on the job name alone, so a name may appear in only
 one table, and `--check` enforces that. The installer primes `backup-library`,
-`converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+`converge-sensitive`, `verify-backups-sensitive` and `smart-state-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 

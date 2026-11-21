@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-21
+
+- **`trinity` reads SMART from its own disks.** It was the one host with a
+  checkout and Alloy that collected none, so a failing NVMe under the password
+  vault, or a failing photo disk, would have shown first as I/O errors. A new
+  sensitive-profile timer, `homelab-smart-state-sensitive`, runs the existing
+  collector as root daily at 08:30. It goes through a new make target,
+  `smart-state-sensitive`, and not `smart-state`, so the baseline table that
+  `SmartDriveBadSectors` joins stays rendered on the monitoring host alone.
+  The build runbook's step 4 now installs `smartmontools`. Found by the trinity
+  audit of 2026-11-13, which the repo had neither recorded nor decided.
+
 ## 2026-11-20
 
 - **`trinity` subscribes to the UPS, and the shutdown window is widened to
