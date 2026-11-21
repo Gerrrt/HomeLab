@@ -20,8 +20,10 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-21
 
 - **#404 closed: `trinity`'s last gate, ADR-0023's *Independent* test,
-  passed.** The other person in the household logged in to Vaultwarden on
-  their own device without the operator present. It was the one item left in
+  passed.** The household's credentials live in hosted Bitwarden, ADR-0023's
+  recommended route, and this Vaultwarden keeps the operator's. The other
+  person in the household opened them from their own device, signed in to
+  their own account, without the operator present. It was the one item left in
   the build runbook's §13 and on the roadmap. The second recipient
   (2026-10-03), ADR-0022's record (ADR-0075) and the Immich restore
   rehearsal on the host (2026-09-28 and 09-29) were already done, and

@@ -531,7 +531,9 @@ around it is here.
   the monitoring host on 2026-09-09, not on `trinity` (the restore runbook's
   *What is proven, and what is not*). ADR-0022's record is
   [ADR-0075](../../docs/adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md),
-  and the *Independent* test passed by 2026-11-21, which
+  and the *Independent* test passed by 2026-11-21 on the recommended route:
+  the household's credentials are in hosted Bitwarden, and the other person
+  opened them from their own device and account without the operator. That
   closed [#404].
 
 ## Memos

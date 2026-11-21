@@ -743,8 +743,10 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
    [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
 4. **ADR-0023's *Independent* test.** The household's own credentials open
    from the other person's device, without the operator present. Done by
-   2026-11-21: the other person logged in to Vaultwarden on their own device
-   without the operator, and #404 closed.
+   2026-11-21, by ADR-0023's recommended route: the household's credentials
+   live in hosted Bitwarden and this Vaultwarden keeps the operator's. The
+   other person opened them from their own device, signed in to their own
+   account, without the operator, and #404 closed.
 
 ## 14. Write it down
 
