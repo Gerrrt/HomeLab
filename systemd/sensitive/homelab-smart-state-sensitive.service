@@ -17,6 +17,14 @@
 # ioctls need raw device access, and no group substitutes. Nothing here runs as
 # @RUN_USER@, so the unit reads that user's checkout and writes one directory.
 #
+# ITS LOCK LIVES IN THE TEXTFILE DIRECTORY. run-scheduled.sh opens
+# ${HOMELAB_LOCK_DIR:-/run/lock}/homelab-<job>.lock before it runs anything, and
+# ProtectSystem=strict leaves every path read-only but /dev, /proc, /sys and
+# the ReadWritePaths below, /run/lock included. This job shares no lock with
+# any other, so its own lock file can sit in the one directory it may write;
+# node_exporter reads only *.prom there. Narrower than opening /run/lock, which
+# holds other programs' locks.
+#
 # THE HOUSEHOLD DRIVE IS READ WHILE IT IS PLUGGED IN, and that is fine. It is
 # attached here between copies (ADR-0073) and leaves with the holder; its
 # series stop when it does, and no rule reads a drive's absence.
@@ -30,6 +38,7 @@ User=root
 Group=root
 WorkingDirectory=@DEPLOY_ROOT@
 EnvironmentFile=-/etc/default/homelab-timers
+Environment=HOMELAB_LOCK_DIR=/var/lib/node_exporter/textfile_collector
 ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job smart-state-sensitive -- /usr/bin/make -C @DEPLOY_ROOT@ smart-state-sensitive
 TimeoutStartSec=300
 Restart=no
