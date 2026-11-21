@@ -460,8 +460,7 @@ STACK="${STACK:-observability}"
 VOL_OFFHOST="atropos@10.0.99.30:backups/volumes/${STACK}"
 # shellcheck source=scripts/backup-volumes.sh
 source "${REPO_ROOT}/scripts/backup-volumes.sh"
-# The refusals and the set's copy, proof and retention, which the household's
-# carry shares (ADR-0073).
+# The refusals and the set's copy, proof and retention.
 # shellcheck source=scripts/medium.sh
 source "${REPO_ROOT}/scripts/medium.sh"
 

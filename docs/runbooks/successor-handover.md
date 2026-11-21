@@ -41,10 +41,12 @@ The household's *data* recovery is a separate and newer question with its own
 answer:
 [ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
 constrains it rather than making anything highly available — nothing the
-household needs in an emergency may have the estate on its only route. None of
-what it requires is built, and it falls due on ADR-0022's triggers rather than
-on a date, so a successor inherits it as a written constraint and not as a
-running system.
+household needs in an emergency may have the estate on its only route. Its
+copy outside the estate for the photographs, documents and budget was dropped
+by [ADR-0122](../adr/0122-drop-the-household-copy.md): there is none, and a
+loss of the house loses them. What is left of it is not built, and it falls
+due on ADR-0022's triggers rather than on a date, so a successor inherits it
+as a written constraint and not as a running system.
 
 ---
 
@@ -200,7 +202,6 @@ inherits without knowing.
 | **The external heartbeat watcher** — a free-tier cron-monitor on somebody else's account | Whenever that account lapses | Nothing here can tell you. A watcher on this host would fail with the thing it watches, which is why it is off-host and therefore outside anything this repository can check |
 | **An offline copy of the age key stops working** | Whenever it happens | Nothing alerts. Checking a copy is optional and has no deadline ([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md)); `make secrets-verify-backup KEY=…` checks one when you want to know ([`back-up-the-age-key.md`](back-up-the-age-key.md)) |
 | **The offsite copy of the backup sets goes stale** | 90 days after the last visit that carried them | `OffsiteCopyStale`, routed to the normal alert channel. Before the first visit it is `ScheduledJobNeverRan` naming `offsite-copy` instead, which is the honest state of a copy nobody has made ([`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)) |
-| **The household's copy goes stale, or its holder's proof does** | 90 days after the last visit to the household drive; a year after the holder last opened it | `HouseholdCopyStale`, naming `household-copy` or `household-proof`. Until a household holder is named in `stacks/sensitive/household.recipients` it is `ScheduledJobNeverRan` for both. The drive is the household's, at their address, and their key opens it without you ([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md), [`carry-the-household-copy.md`](carry-the-household-copy.md)) |
 | **The CA key backup goes unproven** | 90 days after the last proof, and immediately after a re-mint | `CaKeyBackupUnproven`, routed to the normal alert channel. The proof is a comparison of public keys against a copy on the offline medium, keyed on the key's fingerprint so a re-minted root starts at never ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)) |
 | **Grafana's leaf certificate** | 825 days from issue; the APC card's own certificate expires on its own clock | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 — read off the served handshake by `blackbox-exporter`, not off a file. Let it lapse and `up{job="grafana"}` goes to 0 as well |
 | **The sensitive tier's certificates**, once `trinity` exists | Seven days after step-ca last answered Caddy — every leaf there is renewed automatically and lives a week, so the tier stays up for as long as its CA does ([ADR-0037](../adr/0037-give-the-sensitive-tier-its-own-root-and-issue-beneath-it-over-acme.md)) | Nothing pages on it yet: the estate's expiry rules are sized for 825-day leaves and would fire permanently on seven-day ones, so the tier is deliberately outside them until [#426](https://github.com/Gerrrt/HomeLab/issues/426) lands. Until then a dead step-ca is found by a browser refusing the handshake, a week late |

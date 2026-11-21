@@ -5,6 +5,12 @@
 left open, and amends its low-battery reasoning for the guest set `Saruman`
 now carries
 
+> [!NOTE]
+> **No live test, 2026-11-21.**
+> [ADR-0121](0121-accept-the-ups-shutdown-without-a-live-test.md) accepts the
+> sequence as configured. The runbook's forced-shutdown proof and mains pull
+> will not be run, and #574 closes on the applied steps.
+
 ## Context
 
 ADR-0049's *Who shuts down* table ends with a row it could not fill:

@@ -110,8 +110,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `backup-wiki.sh` | `backup-wiki` | A dump of the wiki's database, pulled off `oracle` ([ADR-0065](../docs/adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)) |
 | `backup-library.sh` | `backup-library` | Immich's library, archived on `trinity` and copied to `oracle` ([ADR-0064](../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)) |
 | `backup-offsite.sh` | `backup-offsite` | The newest set of each kind onto the medium that leaves the estate ([ADR-0048](../docs/adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)) |
-| `carry-household-copy.sh`, `household-recipients.sh` | `household-copy`, `household-proof` | The household's photos and documents onto the holder's drive, and who can open it ([ADR-0073](../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
-| `medium.sh` | — | Sourced by both of the above: the refusals that stop a "medium" being this host in disguise |
+| `medium.sh` | — | Sourced by `backup-offsite.sh`: the refusals that stop a "medium" being this host in disguise |
 
 ## Collectors: state as metrics
 

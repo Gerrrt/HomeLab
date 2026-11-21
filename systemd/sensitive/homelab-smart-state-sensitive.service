@@ -28,10 +28,6 @@
 # leave everything outside /dev, /proc, /sys and ReadWritePaths read-only. The
 # directory is already world-writable (1777), so naming it grants this unit
 # nothing an unprivileged user lacks.
-#
-# THE HOUSEHOLD DRIVE IS READ WHILE IT IS PLUGGED IN, and that is fine. It is
-# attached here between copies (ADR-0073) and leaves with the holder; its
-# series stop when it does, and no rule reads a drive's absence.
 [Unit]
 Description=HomeLab: collect SMART health for trinity's disks
 Documentation=file://@DEPLOY_ROOT@/docs/runbooks/schedule-maintenance.md

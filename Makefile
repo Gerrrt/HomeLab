@@ -931,7 +931,7 @@ backup-library: ## On trinity: archive Immich's library off its USB disk, encryp
 	@# backup-firewall gives for FW_KEEP; two, because every set is the whole
 	@# library and oracle's root volume is the limit. ARGS=--prove hashes
 	@# every original in the newest set against immich-db's checksums.
-	@# Off-host, NOT off-estate: ADR-0064 is the interim, #455 the answer.
+	@# Off-host, NOT off-house: ADR-0064, and ADR-0122 says there is no other.
 	./scripts/backup-library.sh $(ARGS)
 
 .PHONY: verify-backups
@@ -950,9 +950,7 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 	@# STACK=sensitive is trinity's half, and what
 	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
 	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
-	@# which trinity never holds. Not backups/paperless-documents/ either:
-	@# household-copy re-makes that set on every visit and nothing else reads
-	@# it (#942, carry-the-household-copy.md §4). Both scripts' --verify-only also has oracle
+	@# which trinity never holds. Both scripts' --verify-only also has oracle
 	@# hash every archive it holds against the MANIFEST here, so oracle's
 	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \
@@ -996,50 +994,6 @@ backup-offsite: ## Copy the newest set of each kind to the offline medium and pr
 		STACK=$(STACK) ./scripts/run-scheduled.sh --job offsite-copy --lock backups \
 			-- ./scripts/backup-offsite.sh "$(DEST)"; \
 	fi
-
-.PHONY: household-copy
-household-copy: ## On trinity: carry the household's photographs and documents to the holder's drive (DEST=/path/to/the/drive)
-	@# ADR-0073: the copy ADR-0023 requires, on the drive the household holder
-	@# keeps at their own address. backup-offsite's shape for the same reason:
-	@# a deadline and no timer, recorded as household-copy only for a copy of
-	@# record, with HouseholdCopyStale at ninety days. Two guards before the
-	@# wrapper, so that neither a forgotten DEST nor a recipients file with no
-	@# household key is recorded as a FAILED copy: the first is a typo and the
-	@# second is a decision nobody has taken yet. ARGS=--rehearse writes the
-	@# same copy without a holder and records nothing; --list, --verify-only and
-	@# --prune look at or tidy the drive without resetting the deadline.
-	@[[ -n "$(DEST)" ]] || { \
-		printf '\033[0;31merror:\033[0m DEST is required\n' >&2; \
-		printf 'Mount the drive, then:  make household-copy DEST=/path/to/the/drive\n' >&2; \
-		printf 'See docs/runbooks/carry-the-household-copy.md\n' >&2; \
-		exit 2; \
-	}
-	@if [[ -n "$(ARGS)" ]]; then \
-		./scripts/carry-household-copy.sh "$(DEST)" $(ARGS); \
-	else \
-		./scripts/household-recipients.sh --has-holder || { \
-			printf '\033[0;31merror:\033[0m stacks/sensitive/household.recipients has no household key yet\n' >&2; \
-			printf 'The copy of record needs the holder (ADR-0073). Rehearse instead:  make household-copy DEST=$(DEST) ARGS=--rehearse\n' >&2; \
-			exit 2; \
-		}; \
-		./scripts/run-scheduled.sh --job household-copy --lock backups \
-			-- ./scripts/carry-household-copy.sh "$(DEST)"; \
-	fi
-
-.PHONY: household-proof
-household-proof: ## On trinity: record the holder's own proof, from the code they read out (CODE=1234-5678-9012)
-	@# ADR-0023's second condition, made checkable: the holder opened
-	@# PROOF/proof.txt.age on their own device, with their own key and without
-	@# the operator, and read the code back. Checked unwrapped first, so a
-	@# misheard digit is a retry and not a FAILED household-proof; recorded
-	@# only on a match. Due yearly, beside ADR-0011's drill.
-	@[[ -n "$(CODE)" ]] || { \
-		printf '\033[0;31merror:\033[0m CODE is required: the twelve digits the holder read from PROOF/proof.txt.age\n' >&2; \
-		printf 'See docs/runbooks/open-the-household-copy.md\n' >&2; \
-		exit 2; \
-	}
-	@./scripts/carry-household-copy.sh --check-code "$(CODE)"
-	@./scripts/run-scheduled.sh --job household-proof -- ./scripts/carry-household-copy.sh --prove-code "$(CODE)"
 
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")

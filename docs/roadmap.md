@@ -32,7 +32,7 @@ What an entry here may contain:
 1. [**Nothing blocks these**](https://github.com/Gerrrt/HomeLab/milestone/1)
    — first because nothing gates them; most wait on an upstream release.
 2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the host
-   is built and serving; what is left is its gates, and the off-estate copy.
+   is built and serving; what is left is its gates.
 3. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline is built; what is left is using it, one exercise per weakness.
 4. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
@@ -42,21 +42,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
-  UPS's signal.** Decided by
-  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
-  Steps 0–4 were built on 2026-09-23: NUT on `morpheus`, its rules, and
-  `Saruman` and `smaug` subscribed. The sequence is armed and not proved.
-  Since the rack move,
-  [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
-  adds `trinity` as a third subscriber and caps `Saruman`'s ordered guests at
-  `down=90`. `Saruman`'s half (steps 3.6 and 3.7 on `Saruman`) was applied
-  on 2026-11-13; `trinity`'s subscription, `HOSTSYNC 600` on `morpheus` and
-  step 3.8 on 2026-11-20. The gate is a rack visit. It reads the outlet
-  groups, proves the order
-  with `upsmon -c fsd`, and pulls the mains once to replace the card's
-  47-minute claim with a number.
-  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
@@ -102,50 +87,22 @@ The milestone has no order between its issues.
 
 ## trinity
 
-Closes when #404 and #132 close, and #455 has its holder.
+Closes when #404 and #132 close.
 
 - **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
   host.** **Built and deployed 2026-09-28**
   ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
   → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages. #135
-    closed on 2026-09-28 without a record of it, so it is owed here
-    (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
-  - the step 10 gate: the second age recipient, the off-estate copy
-    (#455), ADR-0022's identity-provider record and ADR-0023's
-    *Independent* test. Until #455 exists, the originals' only copy beyond
-    the USB disk is the nightly one to `oracle`, in the same room
+  - the step 10 gate: the second age recipient, ADR-0022's
+    identity-provider record and ADR-0023's *Independent* test. There is no
+    off-estate copy to wait for:
+    [ADR-0122](adr/0122-drop-the-household-copy.md) dropped it, and the
+    originals' only copy beyond the USB disk is the nightly one to `oracle`,
+    in the same room
     ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
 - **[#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich**, the one of
   ADR-0008's nine still open; the issue says what is left. Its restore is
   rehearsed (→ [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)).
-- **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
-  **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
-  ([`hardware.md`](hardware.md)). **The key is decided**: on 2026-10-01
-  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
-  settled the first of
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)'s
-  two conditions. The copy is encrypted to the household holder's key, with
-  [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-  second recipient as a fallback. The keys are kept in
-  `stacks/sensitive/household.recipients` and not in a sops rule. The drive
-  holds age archives on exFAT. **The copy is built**: `make household-copy`
-  carries it, `HouseholdCopyStale` watches it, and the holder's page is
-  [`open-the-household-copy.md`](runbooks/open-the-household-copy.md).
-  The drive was formatted and rehearsed on 2026-10-01.
-  **What is left is a person**: choosing the
-  holder, and the holder opening the copy once **from their own device,
-  without the operator present**. Both were meant to come before the tier
-  held real data, and they did not.
-  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
-  first trigger, the first real photo, fired on 2026-09-28. Until this lands,
-  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
-  nightly copy to `oracle` stands in for the library, off-host and not
-  off-estate. When this lands, it supersedes ADR-0064. **It does not carry
-  Memos yet.** `make household-copy` writes Immich's library and a
-  Paperless export; `memos-data`, which holds real notes since 2026-10-22,
-  has only the nightly volume set on `oracle`. Adding it to the copy is
-  part of this, and Memos' *Durable* row is not met before it is.
 
 ## exercises
 
