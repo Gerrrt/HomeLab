@@ -766,7 +766,9 @@ MANIFEST. That is where `oracle`'s copies are verified, without a key on
 deletes a set it is reading.
 
 `smart-state-sensitive` is the monitoring host's local `smart-state` for
-`trinity`'s own disks: the boot NVMe and the USB photo disk at `/srv/immich`.
+`trinity`'s own disks. In practice that is the boot NVMe: the USB photo disk
+at `/srv/immich` sits in an enclosure that passes no SMART through
+([`hardware.md`](../hardware.md)).
 It runs as root for the same reason, and writes `smart-state-trinity.prom`,
 which `SmartStateStale` and the drive rules read like any other host's. It is
 not `make smart-state`, because that target also renders the baseline table

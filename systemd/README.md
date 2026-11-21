@@ -75,7 +75,7 @@ instead.
 | `homelab-backup-sensitive` | daily 04:30 | Quiesces the tier and archives its volumes |
 | `homelab-backup-library` | daily 05:15 | Archives Immich's library and copies it to `oracle` |
 | `homelab-verify-backups-sensitive` | daily 06:30 | Proves every volume and library set still decrypts, and `oracle`'s copies still hash to their MANIFESTs |
-| `homelab-smart-state-sensitive` | daily 08:30 | Reads SMART from `trinity`'s NVMe and photo disk, as root |
+| `homelab-smart-state-sensitive` | daily 08:30 | Reads SMART from `trinity`'s NVMe, as root (the photo disk's enclosure passes none) |
 
 ## On agent hosts
 

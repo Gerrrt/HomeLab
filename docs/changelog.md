@@ -51,6 +51,21 @@ docstring gives: it is a record, not a claim about now.
   `AdGuardNotAnswering` paged. The day was not written down, so the runbook's
   table records it as before 2026-11-21, and the test leaves #404's list.
 
+- **`trinity`'s photo disk passes no SMART through, and the lock-directory
+  change is reverted.** The first run of `smart-state-sensitive` read the NVMe
+  and the HOUSEHOLD drive and returned nothing for the photo disk. Its Seagate
+  enclosure (`0bc2:ab18`, `uas`) failed "Read Device Identity" under
+  `-d sat`, `-d sat,12` and `-T permissive`. Dropping the disk off `uas`
+  was judged not worth a reboot and slower transfers, so the gap is recorded
+  in `hardware.md` and the docs that promised a row for it. Separately,
+  #1597 merged with a commit that moved the job's lock into the textfile
+  directory, to get around `ProtectSystem=strict` making `/run/lock`
+  read-only. That left a lock file beside the metrics. The lock goes back to
+  `/run/lock`, and the unit names `/run/lock` in `ReadWritePaths`, which grants
+  nothing new because the directory is world-writable. The monitoring host's
+  `homelab-smart-state.service`, sandboxed the same way without it, exits 0
+  daily, so whether strict blocks `/run/lock` there is not settled.
+
 - **`trinity` reads SMART from its own disks.** It was the one host with a
   checkout and Alloy that collected none, so a failing NVMe under the password
   vault, or a failing photo disk, would have shown first as I/O errors. A new

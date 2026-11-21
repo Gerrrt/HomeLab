@@ -45,6 +45,9 @@ the pack.
   That is a look at the card's web page, not a test. A shed on group 1
   would cut the PDU before or during the halt, and the card's page is where
   to check.
-- `SmartDriveUnsafeShutdownsGrowing` still pages if a host loses power
-  uncleanly, so a sequence that fails in a real outage is still seen
-  afterwards.
+- `SmartDriveUnsafeShutdownsGrowing` is a conditional power-loss signal,
+  not a verdict on the sequence. It also pages when the UPS cuts its output
+  after a clean halt, and its one-day comparison with a one-hour pending
+  period can miss a host that stays down for a long outage. Whether the
+  sequence ran and finished is in each host's shutdown log, and
+  `shut-down-on-the-ups.md` *If something goes wrong* says how to read it.

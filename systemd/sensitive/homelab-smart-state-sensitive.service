@@ -1,5 +1,11 @@
-# SMART health for trinity's own disks: the boot NVMe that holds the tier, and
-# the USB disk at /srv/immich that holds the photographs (ADR-0064).
+# SMART health for trinity's own disks: the boot NVMe that holds the tier.
+#
+# NOT THE PHOTO DISK. The USB disk at /srv/immich sits in a Seagate enclosure
+# (0bc2:ab18, on the uas driver) that answers no ATA pass-through: -d sat,
+# -d sat,12 and -T permissive all fail "Read Device Identity" (2026-11-21).
+# smartctl still returns a device, so homelab_smart_devices counts it, but it
+# carries no health series and no rule can page on it. Its protection is the
+# nightly copy to oracle and verify-backups-sensitive's re-read of it.
 #
 # The monitoring host's homelab-smart-state.service, run on the other host with
 # a checkout, and that unit explains every directive below; this one states
@@ -17,13 +23,11 @@
 # ioctls need raw device access, and no group substitutes. Nothing here runs as
 # @RUN_USER@, so the unit reads that user's checkout and writes one directory.
 #
-# ITS LOCK LIVES IN THE TEXTFILE DIRECTORY. run-scheduled.sh opens
-# ${HOMELAB_LOCK_DIR:-/run/lock}/homelab-<job>.lock before it runs anything, and
-# ProtectSystem=strict leaves every path read-only but /dev, /proc, /sys and
-# the ReadWritePaths below, /run/lock included. This job shares no lock with
-# any other, so its own lock file can sit in the one directory it may write;
-# node_exporter reads only *.prom there. Narrower than opening /run/lock, which
-# holds other programs' locks.
+# /run/lock IS NAMED IN ReadWritePaths because run-scheduled.sh opens its lock
+# there before it runs anything, and ProtectSystem=strict is documented to
+# leave everything outside /dev, /proc, /sys and ReadWritePaths read-only. The
+# directory is already world-writable (1777), so naming it grants this unit
+# nothing an unprivileged user lacks.
 [Unit]
 Description=HomeLab: collect SMART health for trinity's disks
 Documentation=file://@DEPLOY_ROOT@/docs/runbooks/schedule-maintenance.md
@@ -34,7 +38,6 @@ User=root
 Group=root
 WorkingDirectory=@DEPLOY_ROOT@
 EnvironmentFile=-/etc/default/homelab-timers
-Environment=HOMELAB_LOCK_DIR=/var/lib/node_exporter/textfile_collector
 ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job smart-state-sensitive -- /usr/bin/make -C @DEPLOY_ROOT@ smart-state-sensitive
 TimeoutStartSec=300
 Restart=no
@@ -46,7 +49,7 @@ RestrictRealtime=true
 PrivateTmp=true
 ProtectHome=read-only
 ProtectSystem=strict
-ReadWritePaths=/var/lib/node_exporter/textfile_collector
+ReadWritePaths=/var/lib/node_exporter/textfile_collector /run/lock
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
