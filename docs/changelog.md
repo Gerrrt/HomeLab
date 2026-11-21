@@ -23,10 +23,20 @@ docstring gives: it is a record, not a claim about now.
   passed.** The other person in the household logged in to Vaultwarden on
   their own device without the operator present. It was the one item left in
   the build runbook's §13 and on the roadmap. The second recipient
-  (2026-10-03), ADR-0022's record (ADR-0075) and the restore rehearsal
-  (2026-09-28 and 09-29) were already done, and ADR-0122 had dropped the
-  off-estate copy. The roadmap's *trinity* section and its place in *The
+  (2026-10-03), ADR-0022's record (ADR-0075) and the Immich restore
+  rehearsal on the host (2026-09-28 and 09-29) were already done, and
+  ADR-0122 had dropped the off-estate copy. The roadmap's *trinity* section and its place in *The
   order* go with it; the milestone has no other issue.
+
+- **`trinity`'s memory limits re-derived from a month of RSS; Home
+  Assistant's goes to 1536m.** The stack README asked for it once the host had
+  run a month. Peak and median `container_memory_rss` over 2026-10-22 to 11-21,
+  the TSDB's whole retention, against each limit: Home Assistant peaked at 816
+  MiB of 1024 (median 536), the only service above two-thirds of its limit, so
+  it went to 1536m. Immich's server 2046 of 3072, AdGuard 954 of 1536,
+  Stirling-PDF 868 and Paperless-ngx 692 of 3072 (their load tests' 1454 and
+  1716 still set them), Immich's machine learning 708 of 4096, and everything
+  else under 350 MiB. Those stand.
 
 - **A tripped breaker set off the WAN's receive errors a fourth time, and
   another of the XB7's ports cleared them.** A breaker tripped and the XB7 lost

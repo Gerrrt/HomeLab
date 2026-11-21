@@ -368,7 +368,12 @@ time and lives in Caddy's `/data` volume, never on disk here.
   image-only: a peak of 1716 MiB, no OOM kill, 3.0 cores at the busiest
   minute and 0.2 s throttled in total, 3 min 54 s for the 50 pages, and
   Vaultwarden through Caddy never slower than 19 ms meanwhile. Both limits
-  stand. Re-derive from `container_memory_rss` once `trinity` has run a month.
+  stood. **Re-derived on 2026-11-21** from `container_memory_rss` over the
+  TSDB's whole thirty days (2026-10-22 to 11-21), #114's way: Home Assistant
+  peaked at 816 MiB, 80 % of its 1g, and went to 1536m. Every other service
+  peaked at or under two-thirds of its limit (Immich's server 2046 of 3072,
+  AdGuard 954 of 1536, the rest lower), and they stand; `compose.yaml` keeps
+  the numbers beside each.
 - **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
   `0640`, owned by whoever ran it, and root inside a container that has dropped
   `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
@@ -521,8 +526,10 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
-  All three are met. The restore was verified on the host on 2026-09-28 and
-  09-29, ADR-0022's record is
+  All three are met. Immich's restore was rehearsed on the host on
+  2026-09-28 and 09-29; Vaultwarden's was rehearsed with a seeded account on
+  the monitoring host on 2026-09-09, not on `trinity` (the restore runbook's
+  *What is proven, and what is not*). ADR-0022's record is
   [ADR-0075](../../docs/adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md),
   and the *Independent* test passed by 2026-11-21, which
   closed [#404].
