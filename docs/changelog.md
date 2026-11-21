@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **`trinity` re-checked after its audit, and what the re-check found.**
+  Every finding of 2026-11-13 was read again on the host and holds: key-only
+  `sshd`, three keys, the UPS client on line, USB boot off, the development
+  tooling gone and SMART collected. The re-check found what the fixes had
+  missed. `homelab-patch-state` was never installed on `trinity`: only
+  `prune-images` was, on 2026-10-07, so `RebootRequired` and the pending-update
+  alerts could not see the host. The build runbook's §9 now installs the
+  collectors by name, because the bare form would also install the agent
+  `smart-state`, which writes the same file as `smart-state-sensitive`.
+  [ADR-0123](adr/0123-keep-agent-sessions-on-trinity.md) records that Claude
+  Code stays on `trinity` while the development tooling left it, and what that
+  costs. `security.md`'s `trinity` login row still said the `sshd` step was
+  not applied; it was, on 2026-11-20. The roadmap's #404 list named the second
+  age recipient and ADR-0022's record as left, though both were done (on
+  2026-10-03 and by ADR-0075); only ADR-0023's *Independent* test is left.
+  #132 closes: it stayed open on #455, which ADR-0122 closed, and its restore
+  was rehearsed on 2026-09-28. Its roadmap entry leaves.
+
 - **The wall's big type is smaller, so its panels have room.** With the
   context card, the week and the Home row added, the wall had begun to look
   crowded. Nothing was taken off it. The largest type shrank by about a

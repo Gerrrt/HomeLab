@@ -155,7 +155,8 @@ holds the household's data. `trinity` has no host firewall by decision
 ([`security.md`](../security.md)), so this drop-in is the control on `22`.
 
 Keep `~/.ssh/authorized_keys` to the machines you administer it from:
-`prometheus`'s key, put there by `ssh-copy-id` above, and Hicks's. Install
+`prometheus`'s key, put there by `ssh-copy-id` above, Hicks's, and the
+operator's laptop's, which was kept by decision on 2026-11-20. Install
 Hicks's now, from Hicks, while a password still works:
 
 ```bash
@@ -164,7 +165,8 @@ ssh-copy-id <you>@10.0.99.40
 
 Delete every other line in the file, including any `gh:` import. Before
 going further, prove a fresh key login from each machine; run this on
-`prometheus` and on Hicks, and both must succeed with no password prompt:
+`prometheus`, on Hicks and on the laptop, and each must succeed with no
+password prompt:
 
 ```bash
 ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
@@ -564,11 +566,18 @@ The agent, from `prometheus`:
 
 ```bash
 ./scripts/deploy-agent.sh <you>@10.0.99.40
-make install-agent-collectors AGENT=<you>@10.0.99.40
+make install-agent-collectors AGENT=<you>@10.0.99.40 ARGS='--only patch-state'
+make install-agent-collectors AGENT=<you>@10.0.99.40 ARGS='--only prune-images'
 ```
 
-The first needs no privilege on `trinity`. The second asks for your `sudo`
-password there, which is why it is separate. Within a minute
+The first needs no privilege on `trinity`. The other two ask for your `sudo`
+password there, which is why they are separate. They are named one by one
+because the bare form also installs the agent `smart-state`, which writes the
+same `smart-state-trinity.prom` as the sensitive profile's
+`smart-state-sensitive` (§12): two timers would race on one file.
+`patch-state` is what lets `RebootRequired` and the pending-update alerts see
+`trinity`; the audit of 2026-11-13 found only `prune-images` installed, and
+`apt-patch-state.prom` missing. Within a minute
 `up{instance=~"trinity.*"}` is 1 in Prometheus.
 
 ## 10. Trust the root, then the first logins
@@ -711,7 +720,7 @@ gets a row of its own while it is attached.
 These four are the gate on the data, not on the containers, and each is
 written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
-README's warning records it. Items 1 and 3 are done. There was a fifth, the
+README's warning records it. Items 1, 2 and 3 are done. There was a fifth, the
 off-estate copy, and
 [ADR-0122](../adr/0122-drop-the-household-copy.md) dropped it: ADR-0064's
 copy to `oracle` is the library's only copy off the host. ADR-0022's
@@ -726,7 +735,9 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
    ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)).
    Run `make secrets-add-recipient STACK=sensitive PUBKEY=age1…`, then one
    more `make backup STACK=sensitive`, so a set exists that the second key
-   opens.
+   opens. Done on 2026-10-03
+   ([#866](https://github.com/Gerrrt/HomeLab/pull/866)); every nightly set
+   since is encrypted to both.
 3. **ADR-0022's decision recorded.** Either an identity provider, or the
    deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
    [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
