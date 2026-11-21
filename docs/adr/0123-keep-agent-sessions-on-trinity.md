@@ -30,9 +30,12 @@ preparing pull requests from a scratch clone. That is accepted with its cost.
 
 - Sessions work in a scratch clone for anything they change. The deployment
   checkout is converge's, and changes reach it only through `main`.
-- Language toolchains and upstream forks do not return. Lint and validation
-  run in the repository's pinned containers, which `homelab-prune-images`
-  clears weekly when unused.
+- Language toolchains and upstream forks do not return, and neither does
+  `pipx`. `scripts/lint.sh` runs some checks in pinned containers, which
+  `homelab-prune-images` clears weekly when unused, and others (yamllint,
+  ansible-lint, ruff) through host-side `pipx`. Without `pipx` those skip on
+  `trinity`, and CI runs them with `--require-all`. `scripts/validate.sh`
+  still runs the repository's own Python scripts on the host.
 - A later audit reads Claude Code on `trinity` as this decision, not as a
   finding.
 
@@ -45,8 +48,11 @@ preparing pull requests from a scratch clone. That is accepted with its cost.
   control on the host separates the two.
 - The agent's own dependencies (the Claude Code binary and its updates) are a
   supply chain into the sensitive tier that `compose.yaml` does not pin.
-- Moving agent work to `prometheus` and reaching `trinity` only by SSH would
-  remove both costs, and is the change to make if either becomes unacceptable.
-  This ADR would then be superseded.
+- Moving agent work to `prometheus` would take the agent's installation and
+  its supply chain off `trinity`. It would not take away its reach: `prometheus`'s
+  key logs in to the same operator account, with `docker` and `lxd`, so a
+  session there could still read the tier's secrets and reach root over SSH.
+  Separating the two would need a key or account on `trinity` that cannot do
+  that. Either change supersedes this ADR.
 - `fenrir` stays an appliance. The difference is that `trinity` is maintained
   interactively by the operator, and `fenrir` is not.

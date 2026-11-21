@@ -155,7 +155,8 @@ holds the household's data. `trinity` has no host firewall by decision
 ([`security.md`](../security.md)), so this drop-in is the control on `22`.
 
 Keep `~/.ssh/authorized_keys` to the machines you administer it from:
-`prometheus`'s key, put there by `ssh-copy-id` above, and Hicks's. Install
+`prometheus`'s key, put there by `ssh-copy-id` above, Hicks's, and the
+operator's laptop's, which was kept by decision on 2026-11-20. Install
 Hicks's now, from Hicks, while a password still works:
 
 ```bash
@@ -164,7 +165,8 @@ ssh-copy-id <you>@10.0.99.40
 
 Delete every other line in the file, including any `gh:` import. Before
 going further, prove a fresh key login from each machine; run this on
-`prometheus` and on Hicks, and both must succeed with no password prompt:
+`prometheus`, on Hicks and on the laptop, and each must succeed with no
+password prompt:
 
 ```bash
 ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
