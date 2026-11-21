@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **`trinity`'s photo disk passes no SMART through, and the lock-directory
+  change is reverted.** The first run of `smart-state-sensitive` read the NVMe
+  and the HOUSEHOLD drive and returned nothing for the photo disk. Its Seagate
+  enclosure (`0bc2:ab18`, `uas`) failed "Read Device Identity" under
+  `-d sat`, `-d sat,12` and `-T permissive`. Dropping the disk off `uas`
+  was judged not worth a reboot and slower transfers, so the gap is recorded
+  in `hardware.md` and the docs that promised a row for it. Separately,
+  #1597 merged with a commit that moved the job's lock into the textfile
+  directory on the claim that `ProtectSystem=strict` makes `/run/lock`
+  read-only. The monitoring host's `homelab-smart-state.service`, sandboxed
+  the same way, takes its lock there and exits 0 daily, so the claim was false
+  and the unit goes back to the default.
+
 - **`trinity` reads SMART from its own disks.** It was the one host with a
   checkout and Alloy that collected none, so a failing NVMe under the password
   vault, or a failing photo disk, would have shown first as I/O errors. A new
