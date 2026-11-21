@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-21
 
+- **A tripped breaker set off the WAN's receive errors a fourth time, and
+  another of the XB7's ports cleared them.** A breaker tripped and the XB7 lost
+  power; `morpheus` stayed up, since `em0`'s error counter carried on from
+  where 2026-11-19 left it rather than resetting. `em0` counted nothing all day
+  until about 17:50 PST, then 900 to 124,000 receive errors per fifteen
+  minutes, and `WanReceiveErrors` and `InternetDownloadSlow` fired; the last
+  scheduled test read 2.3 Mbit/s down. This was the third gigabit port, the one
+  2026-11-19 moved to, so the XB7 now had no port that had not failed. The
+  factory cable went back to one that had, and the counter held at 2,295,494
+  across three readings a minute apart, with 252 and 190 Mbit/s down from
+  Hetzner Ashburn and OVH. So a port that fails does not stay failed, and
+  this time the fault started soon after the XB7 power-cycled; restarting
+  the XB7 did not clear it. The
+  Hitron CODA56 bought on 2026-11-20
+  ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)) is still the fix.
+
 - **`trinity` re-checked after its audit, and what the re-check found.**
   Every finding of 2026-11-13 was read again on the host and holds: key-only
   `sshd`, three keys, the UPS client on line, USB boot off, the development
