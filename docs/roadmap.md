@@ -163,8 +163,9 @@ fitted and read back from the installed host
 ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). So did the factory
 patch cable for the WAN, fitted on 2026-11-01
 ([#923](https://github.com/Gerrrt/HomeLab/issues/923)); it fixed the
-hand-crimped plug, and the rest of that fault was the XB7's 2.5G port,
-recorded in the [changelog](changelog.md). On 2026-10-13 the move
+hand-crimped plug. The rest of that fault was blamed on the XB7's 2.5G port
+and turned out on 2026-11-22 to be `em0` itself, recorded in the
+[changelog](changelog.md). On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
 `Saruman`'s memory joined them. The six rows the move needed (`smaug`'s

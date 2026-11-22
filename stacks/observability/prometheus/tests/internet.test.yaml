@@ -199,10 +199,9 @@ tests:
                 `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
                 'crc|align|symbol|jabber|fragment'`. If crc_errs climbs with
                 symbol_errors at 0, the signal decodes cleanly and the frames
-                arrive bad: move the factory cable to another of the XB7's
-                gigabit ports, which cleared it on 2026-11-07 and 2026-11-19
-                when an XB7 reboot did not. If symbol_errors climb too, suspect
-                the plug's seating or the I219's port.
+                arrive bad: reboot morpheus, which cleared it on 2026-11-22
+                when a new modem, a re-plug and a different cable did not.
+                If symbol_errors climb too, suspect the plug's seating.
 
   # A stray error every two minutes, 7.5 in fifteen: under the line.
   - interval: 1m

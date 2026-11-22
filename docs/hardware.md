@@ -337,6 +337,15 @@ The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
 revisions of this repository treated `shiva` as the hypervisor itself.
 
+## WAN
+
+The link to the internet, outside the rack.
+
+| Part | What | Notes |
+| --- | --- | --- |
+| Modem | Hitron CODA56, DOCSIS 3.1, owned[^modem] | Installed 2026-11-22 in place of a rented Xfinity XB7 ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). A modem only: no router, no Wi-Fi. One 2.5G Ethernet port, to `morpheus`'s `em0` at 1000baseT ([`network.md`](network.md)) |
+| Power | The CODA56's 12 V brick | **Which outlet it is on is not read yet**, nor whether that outlet is on the UPS. The XB7 was not on the UPS: a tripped breaker on 2026-11-21 cut it while `morpheus` stayed up |
+
 ## Wall display
 
 The office's dashboard, outside the rack
@@ -1188,6 +1197,7 @@ the runbook rather than backed up.
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
+[^modem]: [Hitron CODA56](https://us.hitrontech.com/products/consumers/coda56/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^Exos2]: [Seagate Exos X20 18TB 7200 SATA 6Gb/s 3.5" Enterprise Hard Drive - ST18000NM003D, eBay Refurbished](https://www.ebay.com/itm/155636746868)

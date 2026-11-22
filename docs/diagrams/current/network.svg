@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" width="2400" height="1540" role="img" aria-labelledby="title desc">
 <title id="title">matrix.elysium home network</title>
-<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
+<desc id="desc">Physical and logical topology of the home network: cable modem, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
 <style>
   text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; fill: #c9d1d9; }
   .mono, .ip { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-06</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-22</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
@@ -101,8 +101,8 @@
 <path d="M1440 77 H1262" class="wire" stroke="#39c5cf" stroke-width="2.5" stroke-dasharray="8 5"/>
 <line x1="1180" y1="102" x2="1180" y2="146" stroke="#8b949e" stroke-width="3"/>
 <rect x="1030" y="146" width="300" height="46" rx="8" class="box"/>
-<text x="1180" y="166" class="hn" text-anchor="middle">ISP gateway · Xfinity XB7</text>
-<text x="1180" y="183" class="sub" text-anchor="middle">bridge mode · its Wi-Fi radio unused</text>
+<text x="1180" y="166" class="hn" text-anchor="middle">Cable modem · Hitron CODA56</text>
+<text x="1180" y="183" class="sub" text-anchor="middle">modem only · no router, no Wi-Fi</text>
 <line x1="1180" y1="192" x2="1180" y2="226" stroke="#8b949e" stroke-width="3"/>
 <text x="1190" y="214" class="lbl">Cat6 → em0</text>
 <g id="morpheus">

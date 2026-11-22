@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **The Hitron CODA56 is in, and the WAN's receive errors were `em0`'s, not
+  the XB7's ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)).** This
+  corrects 2026-11-21's "A tripped breaker set off the WAN's receive errors a
+  fourth time, and another of the XB7's ports cleared them", and with it the
+  XB7 diagnosis in the 2026-11-19, 2026-11-08 and 2026-11-07 entries. The
+  CODA56 bought on 2026-11-20 replaced the XB7 at about 18:00 PST. `em0`,
+  whose counter had been flat all afternoon, began counting receive errors
+  as soon as it went in: about 10,000 in the first fifteen minutes. Downloads
+  fell to 20–48 Mbit/s. `ifconfig em0` read `1000baseT <full-duplex>` and
+  `mac_stats` read the old signature: CRC errors (1,152,752) and fragment and
+  length errors (1,374,571 each), with alignment, symbol and collision
+  errors all zero. A re-plug at `em0` did not stop it, and nor did a
+  different cable (1,200 more errors in four minutes after the swap). A
+  reboot of `morpheus` did: the counter restarted at 0 and held there, with
+  243 Mbit/s down from Hetzner Ashburn and OVH and 940 from the scheduled
+  test. So the fault is `em0`, the onboard I219, getting into a state a link
+  reset does not always clear. The earlier "fixes" by moving XB7 ports were
+  re-plugs that happened to reset it. The factory cable was never at fault.
+  `WanReceiveErrors`' description now says to reboot `morpheus`, and
+  `network.md`, the rack runbook's §6.1, the roadmap's #923 note and the
+  network diagram name the CODA56 and `em0`. Taking the WAN off `em0`, onto
+  a VLAN through `neo` to `igc0` or onto a NIC of its own, is the durable
+  fix and is not decided. The XB7 goes back to Comcast.
+
 - **The office wall stops counting `info` alerts.** Its verdict took every
   firing alert but Watchdog, so the two `HostBatteryTempNotMeasured` alerts
   (on `oracle` and `prometheus`), which are `info` by design and resolve only
