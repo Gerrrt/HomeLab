@@ -91,6 +91,36 @@ Never set it up: power it off from the setup screen (Shift+F10, then
   no management plane on this segment, and
   [ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)
   keeps the name `ifrit` for this one in case it is ever turned on.
+
+  The firmware setting is the evidence that AMT is disabled. The OS cannot
+  read it: `/dev/mei0` exists either way. What can be checked from off the
+  box is reachability: whether anything answers on AMT's TCP ports at
+  `gandalf`'s address. Run it from `morpheus` while the box is on, one port per
+  call, because FreeBSD's `nc` takes a single port and exits 1 on a usage
+  error as well as on a closed port:
+
+  ```bash
+  sh -c 'for p in 16992 16993 16994 16995 623 664; do nc -vz -w3 10.0.30.30 $p; echo "tcp $p exit=$?"; done'
+  ```
+
+  Each port should report a refusal or a timeout with `exit=1`, and none
+  should report `succeeded`. That shows AMT does not answer at the host's
+  address. The ME answers these ports before Proxmox sees the packet, so the
+  host firewall cannot hide them. It is not proof that AMT is disabled:
+  - AMT that is enabled but unprovisioned need not listen at all.
+  - The UDP side of 623 and 664 (RMCP) is not tested.
+  - An AMT given its own address would not be seen here.
+
+  The *Intel Manageability: Disabled* setting above remains the evidence.
+  The probe backs it up.
+
+  > **Probed 2026-11-22**, after the 2026-11-13 audit of `gandalf` found
+  > AMT's state unproven. A first run put all six ports on one `nc` line,
+  > which FreeBSD's `nc` rejects, so its `exit=1` proved nothing. The
+  > per-port run above, with `gandalf` up since 13:52 that day, gave
+  > `Operation timed out` and `exit=1` on every port, with none `succeeded`.
+  > The timeout, not a refusal, is the host firewall's `DROP`. An ME
+  > listening on the port would have answered before the firewall.
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.

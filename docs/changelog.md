@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf`'s AMT does not answer on the network.** The 2026-11-13 audit
+  of `gandalf` found AMT's state unproven. The ME is present (`/dev/mei0`),
+  and the OS cannot read whether it is provisioned. `build-the-playground.md`
+  §1 now has a per-port TCP probe from `morpheus`. It is framed as a
+  reachability check that backs up the firmware's *Intel Manageability:
+  Disabled* setting, not as proof of it.
+  - The first run put all six ports on one FreeBSD `nc` line, which `nc`
+    does not accept, and review on the PR caught it.
+  - The per-port rerun timed out on all six: 16992–16995, 623 and 664.
+  - `hardware.md` states the result.
+
 - **The Hitron CODA56 is in, and the WAN's receive errors were `em0`'s, not
   the XB7's ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)).** This
   corrects 2026-11-21's "A tripped breaker set off the WAN's receive errors a
