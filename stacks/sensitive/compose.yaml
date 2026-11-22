@@ -1253,7 +1253,7 @@ services:
     # upstream's compose names: the Debian 9.1.2 carried libssl3t64 and
     # libpcre2-8-0 that Debian had fixed and the image had not taken (#1006),
     # and one variant for both brokers is one thing to rebuild and rescan.
-    image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+    image: valkey/valkey:9.1.4-alpine@sha256:56729e68bdda139cbd3f6a2538683dc3523325fc5711ea1a379938f1b37893f0
     container_name: sensitive-immich-valkey
     # DIFFERENCE 16 again, Paperless's argument for Immich: not on
     # `sensitive`, and neither is immich-db. Valkey has no password, and the
@@ -1508,7 +1508,7 @@ services:
   # regardless, so `user:` only makes the drop unnecessary.
   paperless-broker:
     <<: *service-defaults
-    image: valkey/valkey:9.1.3-alpine@sha256:bf09d58e96d6b4524a15396b65b242bbe18beebbcc15a04d8ee75ddac62fae0b
+    image: valkey/valkey:9.1.4-alpine@sha256:56729e68bdda139cbd3f6a2538683dc3523325fc5711ea1a379938f1b37893f0
     container_name: sensitive-paperless-broker
     # DIFFERENCE 16: not on `sensitive`, and neither is paperless-db. The
     # broker has no password: any client that can open 6379 is Valkey's
