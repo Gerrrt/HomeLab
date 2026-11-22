@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`finish-attack-vm.sh` tests `ragnarok`'s scope with a send that reports
+  its refusal.** Its first run against `ragnarok` stopped with "a send to
+  `1.1.1.1` was not refused", but the scope itself held:
+  - Both tables were loaded as written, and the raw-frame check passed.
+  - Python's sends to `1.1.1.1` (ICMP, raw ICMP and UDP) each raised
+    `Operation not permitted`.
+  - `eth0` transmitted nothing during the tests.
+
+  The check was the fault. It grepped `ping`'s output for that error, and
+  Kali's iputils (20250605) reports a refused send as plain packet loss
+  instead. The script and `build-the-playground.md` §8 now make the send
+  from Python, which raises the kernel's `EPERM`. This corrects the
+  2026-11-13 entry on `ragnarok`'s outbound scope, which said the script
+  fails unless `ping` is refused.
+
 - **`gandalf`'s AMT does not answer on the network.** The 2026-11-13 audit
   of `gandalf` found AMT's state unproven. The ME is present (`/dev/mei0`),
   and the OS cannot read whether it is provisioned. `build-the-playground.md`

@@ -251,10 +251,23 @@ if [ -n "$legacy" ]; then echo "legacy NAT present"; else echo "no legacy NAT"; 
 echo "nftables $(systemctl is-enabled nftables 2>/dev/null || echo disabled)"
 chain="$(nft list chain inet range_scope output 2>/dev/null)" || chain=""
 if printf '%s\n' "$chain" | grep -q 'policy drop;'; then echo "scope policy drop"; else echo "scope missing"; fi
-p="$(ping -n -c1 -W2 1.1.1.1 2>&1)" || true
-if printf '%s\n' "$p" | grep -q 'Operation not permitted'; then echo "egress refused"; else echo "egress not refused"; fi
-p="$(ping -n -c1 -W2 10.0.30.1 2>&1)" || true
-if printf '%s\n' "$p" | grep -q 'Operation not permitted'; then echo "segment refused"; else echo "segment allowed"; fi
+# The send is made from Python, not ping: Kali's iputils (20250605) reports
+# a send the filter refused as plain packet loss and drops the error, while
+# Python raises the kernel's EPERM. UDP to the discard port, because the
+# scope is by address and the protocol does not matter. The gateway ping
+# after it stays for the raw probe below: it resolves the gateway's MAC.
+send() { python3 -c 'import socket, sys
+s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+try:
+    s.sendto(b"range-scope-probe", (sys.argv[1], 9))
+    print("sent")
+except PermissionError:
+    print("refused")
+except OSError as e:
+    print("error", e.errno)' "$1"; }
+if [ "$(send 1.1.1.1)" = refused ]; then echo "egress refused"; else echo "egress not refused"; fi
+if [ "$(send 10.0.30.1)" = sent ]; then echo "segment allowed"; else echo "segment refused"; fi
+ping -n -c1 -W2 10.0.30.1 >/dev/null 2>&1 || true
 # Raw Ethernet, which the ping cannot test: one ICMP echo to 1.1.1.1 written
 # to eth0 through a packet socket, addressed to the gateway's MAC the ping
 # above just resolved. The send may fail with ENOBUFS once the egress hook
