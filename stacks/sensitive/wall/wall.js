@@ -195,8 +195,14 @@
       return;
     }
 
-    const faults = all
-      .filter((a) => a.metric.alertname !== "Watchdog")
+    // Only warning and critical count, as those are what Alertmanager
+    // delivers. An info rule is recorded, never notified, and some fire for
+    // good (HostBatteryTempNotMeasured), so they would hold the wall amber
+    // forever. They are counted on one muted line under "All quiet".
+    const others = all.filter((a) => a.metric.alertname !== "Watchdog");
+    const info = others.filter((a) => a.metric.severity === "info").length;
+    const faults = others
+      .filter((a) => a.metric.severity !== "info")
       .sort((a, b) => (SEVERITY_RANK[a.metric.severity] ?? 3) - (SEVERITY_RANK[b.metric.severity] ?? 3));
 
     if (faults.length === 0) {
@@ -207,7 +213,8 @@
       // patches stand. Without an answer for them, it says what it always did.
       const lab = labLines();
       if (lab.length) for (const line of lab) q.append(line);
-      else q.append(el("small", null, "Nothing is firing."));
+      else q.append(el("small", null, info ? "Nothing that notifies is firing." : "Nothing is firing."));
+      if (info) q.append(el("small", "lab", `${info} info recorded`));
       body.append(q);
       return;
     }

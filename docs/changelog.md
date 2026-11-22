@@ -43,6 +43,17 @@ docstring gives: it is a record, not a claim about now.
   a VLAN through `neo` to `igc0` or onto a NIC of its own, is the durable
   fix and is not decided. The XB7 goes back to Comcast.
 
+- **The office wall stops counting `info` alerts.** Its verdict took every
+  firing alert but Watchdog, so the two `HostBatteryTempNotMeasured` alerts
+  (on `oracle` and `prometheus`), which are `info` by design and resolve only
+  when a pack with a working thermistor is fitted, held it at "2 alerts
+  firing" in amber, and "All quiet" could not show. The alert is right; the
+  wall was wrong to treat `info` as something to act on. `wall.js` now counts
+  only `critical` and `warning`, as Alertmanager delivers and the Glance
+  *Estate* panel already counts, and shows any `info` alerts as one muted
+  line under "All quiet". Watchdog, the broken states and Caddy's
+  `/api/q/alerts` are unchanged.
+
 ## 2026-11-21
 
 - **#404 closed: `trinity`'s last gate, ADR-0023's *Independent* test,
