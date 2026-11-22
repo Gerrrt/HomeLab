@@ -19,6 +19,13 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf`'s AMT is off, proven from the network.** The 2026-11-13 audit
+  of `gandalf` found AMT's state unproven: the ME is present (`/dev/mei0`), and
+  the OS cannot read whether it is provisioned. A probe from `morpheus` of
+  AMT's ports on `10.0.30.30` (16992–16995, 623, 664) found none answering.
+  `build-the-playground.md` §1 now carries the probe and its result, and
+  `hardware.md` states it.
+
 - **The Hitron CODA56 is in, and the WAN's receive errors were `em0`'s, not
   the XB7's ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)).** This
   corrects 2026-11-21's "A tripped breaker set off the WAN's receive errors a

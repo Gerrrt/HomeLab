@@ -91,6 +91,22 @@ Never set it up: power it off from the setup screen (Shift+F10, then
   no management plane on this segment, and
   [ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)
   keeps the name `ifrit` for this one in case it is ever turned on.
+
+  The OS cannot read whether AMT is provisioned: `/dev/mei0` exists either
+  way. So prove it from off the box, while it is on, from `morpheus`:
+
+  ```bash
+  nc -z -w3 10.0.30.30 16992 16993 16994 16995 623 664; echo "amt exit=$?"
+  ```
+
+  `amt exit=1` means none of AMT's ports answered, and that is the pass. The
+  host firewall cannot hide AMT, because the ME answers these ports before
+  Proxmox sees the packet. So a silent port means no AMT, not a filtered one.
+  The probe covers AMT sharing the host's address, which is what an
+  unprovisioned ME does.
+
+  > **Probed 2026-11-22**, during a session after the 2026-11-13 audit of
+  > `gandalf`, which found AMT's state unproven: `amt exit=1`.
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.

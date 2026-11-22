@@ -213,6 +213,8 @@ ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
 installed on 2026-11-07 as the node `gandalf`. The box's Intel AMT, the name
 `ifrit`, was unconfigured and left disabled at the same sitting
 ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+A probe from `morpheus` on 2026-11-22 found none of AMT's ports answering
+([`build-the-playground.md`](runbooks/build-the-playground.md) §1).
 The Windows it shipped with was never set up. Its fitted parts, read from the
 running host on 2026-11-07 (machine type 11DN, BIOS `M2WKT5AA`):
 
