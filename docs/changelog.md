@@ -19,7 +19,8 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
-- **`vmbr1`'s IPv6 off now survives a boot.** The `gandalf` audit follow-up
+- **`vmbr1`'s IPv6 off moves to `post-up`, because `pre-up` failed at boot.**
+  The `gandalf` audit follow-up
   rebooted the box into a new kernel. `vmbr1` then had an `fe80::` address and
   `accept_ra` at `1`. Since 2026-11-07, `build-the-playground.md` §2 had
   disabled IPv6 there with a `pre-up sysctl`. At boot that runs before
@@ -29,7 +30,8 @@ docstring gives: it is a record, not a claim about now.
   since. The line is now `post-up`. §2 records why, and §7's per-session
   read-back checks that `vmbr1` has no address. The Proxmox firewall held
   throughout: no SSH or `8006` over IPv6, and the host had no global IPv6
-  address or IPv6 default route. Not yet applied on `gandalf`.
+  address or IPv6 default route. Not yet applied on `gandalf`, and the
+  reboot that proves the new line holds has not been run.
 
 - **`finish-attack-vm.sh` tests `ragnarok`'s scope with a send that reports
   its refusal.** Its first run against `ragnarok` stopped with "a send to
