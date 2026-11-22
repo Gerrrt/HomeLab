@@ -114,11 +114,13 @@ Never set it up: power it off from the setup screen (Shift+F10, then
   The *Intel Manageability: Disabled* setting above remains the evidence.
   The probe backs it up.
 
-  > **2026-11-22: inconclusive.** After the 2026-11-13 audit of `gandalf`
-  > found AMT's state unproven, the probe was run with all six ports on one
-  > `nc` line and gave `exit=1`. FreeBSD's `nc` rejects that form, so the
-  > result does not separate a usage error from closed ports. It needs the
-  > per-port run above.
+  > **Probed 2026-11-22**, after the 2026-11-13 audit of `gandalf` found
+  > AMT's state unproven. A first run put all six ports on one `nc` line,
+  > which FreeBSD's `nc` rejects, so its `exit=1` proved nothing. The
+  > per-port run above, with `gandalf` up since 13:52 that day, gave
+  > `Operation timed out` and `exit=1` on every port, with none `succeeded`.
+  > The timeout, not a refusal, is the host firewall's `DROP`. An ME
+  > listening on the port would have answered before the firewall.
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.
