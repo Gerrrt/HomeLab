@@ -1034,19 +1034,20 @@ nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
 systemctl is-enabled nftables; sudo nft list chain inet range_scope output | grep 'policy drop'
 sudo nft list chain netdev range_scope_l2 egress | grep 'policy drop'
-ping -n -c1 -W2 1.1.1.1
+python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b"x", ("1.1.1.1", 9))'
 ```
 
 Both sysctls `= 0`, and no NAT from either table — Kali's `iptables` is
 nft-backed, so the two commands can disagree about a rule that exists.
-`nftables` reads `enabled`, the `range_scope` chain is loaded with
-`policy drop`, and the ping fails with *Operation not permitted*: the filter
-refused it. A timeout is not a pass, because it is what the internet being down
-looks like too. The raw-Ethernet half, a frame to `1.1.1.1` through a packet
-socket that must raise `range_scope_l2`'s `out_of_scope` counter, needs a
-crafted frame, so it is left to `finish-attack-vm.sh`. Run this after
-installing anything that touches the network stack, and after any install that
-lifted the scope, not just once.
+`nftables` reads `enabled`, the `range_scope` chain is loaded with `policy
+drop`, and the send fails with `PermissionError: [Errno 1] Operation not
+permitted`: the filter refused it. Use the Python line, not `ping`. Kali's
+`ping` (iputils 20250605) reports a refused send as plain packet loss, which
+looks the same as the internet being down, so it proves nothing either way. The
+raw-Ethernet half, a frame to `1.1.1.1` through a packet socket that must raise
+`range_scope_l2`'s `out_of_scope` counter, needs a crafted frame, so it is left
+to `finish-attack-vm.sh`. Run this after installing anything that touches the
+network stack, and after any install that lifted the scope, not just once.
 
 **Four — a target has no route anywhere.** On a target:
 
