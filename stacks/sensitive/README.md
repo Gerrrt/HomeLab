@@ -777,6 +777,13 @@ container of its own: Caddy serves `wall/` as static files.
 - **It loads nothing from anywhere else.** The site's Content-Security-Policy
   allows only itself. There are no web fonts; the stacks fall back to the
   Pi's DejaVu.
+- **Only what notifies counts.** The verdict and the alert list take
+  `critical` and `warning` alerts only, as those are what Alertmanager
+  delivers, the same rule the Glance *Estate* panel keeps. An `info` alert is
+  recorded, never notified, and some fire for good
+  (`HostBatteryTempNotMeasured`), so they leave "All quiet" standing and are
+  counted on one muted line under it ("2 info recorded"). `/api/q/alerts`
+  still returns every firing alert, so the page sees Watchdog.
 - **It says when it does not know.** No answer from Prometheus, or a
   Watchdog that is not firing, is shown in red as exactly that, never as
   "All quiet". Under a real "All quiet", two lines say how the lab stands:
@@ -784,7 +791,8 @@ container of its own: Caddy serves `wall/` as static files.
   overdue job against its own allowance (`/api/q/backups`), and the security
   updates and reboots waiting (`/api/q/patches`). Overdue, failed, never
   succeeded or waiting is amber. What no host reports is left out rather
-  than shown as none, and with neither line, "Nothing is firing." stays. A host that stops reporting reads *no data*. The status bar
+  than shown as none, and with neither line, "Nothing is firing." stays
+  ("Nothing that notifies is firing." while an info alert is). A host that stops reporting reads *no data*. The status bar
   gives each source's age and turns amber at two and a half minutes.
 - **The household half comes from Home Assistant, the same way.** Each
   `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
