@@ -19,12 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
-- **`gandalf`'s AMT is off, proven from the network.** The 2026-11-13 audit
-  of `gandalf` found AMT's state unproven: the ME is present (`/dev/mei0`), and
-  the OS cannot read whether it is provisioned. A probe from `morpheus` of
-  AMT's ports on `10.0.30.30` (16992–16995, 623, 664) found none answering.
-  `build-the-playground.md` §1 now carries the probe and its result, and
-  `hardware.md` states it.
+- **`gandalf`'s AMT gets a reachability probe, and its first run was
+  inconclusive.** The 2026-11-13 audit of `gandalf` found AMT's state
+  unproven. The ME is present (`/dev/mei0`), and the OS cannot read whether
+  it is provisioned. `build-the-playground.md` §1 now has a per-port TCP probe
+  from `morpheus`, framed as a reachability check that backs up the firmware's
+  *Intel Manageability: Disabled* setting, not proof of it. The 2026-11-22
+  run put all six ports on one FreeBSD `nc` line, which `nc` does not accept,
+  so its `exit=1` is inconclusive. `hardware.md` says so. Review on the PR
+  caught both points.
 
 - **The Hitron CODA56 is in, and the WAN's receive errors were `em0`'s, not
   the XB7's ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)).** This
