@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" width="2400" height="1540" role="img" aria-labelledby="title desc">
 <title id="title">matrix.elysium home network</title>
-<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
+<desc id="desc">Physical and logical topology of the home network: cable modem, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
 <style>
   text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; fill: #c9d1d9; }
   .mono, .ip { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-06</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-22</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>

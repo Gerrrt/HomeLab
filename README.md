@@ -144,8 +144,8 @@ documents for different readers.
 
 ## Architecture
 
-[![The home network: the ISP gateway in bridge mode, the pfSense firewall
-morpheus, the core switch neo and the 32U rack across the top; below them one
+[![The home network: the cable modem, the pfSense firewall morpheus,
+the core switch neo and the 32U rack across the top; below them one
 panel per VLAN in its patch-cable colour, holding every addressed host —
 Winterfell's monitoring, wiki and household hosts, Hicks' workstations by role,
 CasaBonita's NAS and screens, ImaginationLAN's hypervisor and its twenty-one guests,
