@@ -46,6 +46,11 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > step in §6.1 was wrong: the XB7's striped 2.5G port corrupted about one inbound
 > frame in ten on `em0`, so the WAN patch now uses one of the XB7's gigabit
 > ports. §6.1 says so.
+>
+> **2026-11-22: the WAN step corrected again.** The XB7 is gone: a Hitron
+> CODA56 replaced it, and the errors blamed on the XB7's ports were `em0`'s
+> own, cleared by rebooting `morpheus`
+> ([`network.md`](../network.md)). §6.1 says so.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -421,14 +426,12 @@ units (§1.2), then the next one up.
 - **`trinity`'s 2 TB USB photo disk goes on `trinity`'s tray**, beside it,
   strapped down with velcro so it cannot slide off or hang by its cable. Plug
   it back in before `trinity` powers up in §7: it holds Immich's originals.
-- **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
-  clicks, in one of the XB7's **gigabit** ports, **not** the striped 2.5 Gbit
-  one. On 2026-11-07 the 2.5G port delivered about 10 % of inbound frames
-  to `em0` corrupt (`sysctl dev.em.0.mac_stats` showed CRC and length errors,
-  with zero symbol errors). That held downloads near 20 Mbit/s. A gigabit
-  port gave zero errors and about 630 Mbit/s. `em0` is a 1 Gbit I219, so
-  the 2.5G port never had anything to give it. After moving it,
-  `netstat -I em0 -w 5` should show `errs` at 0.
+- **The modem to `morpheus`'s `em0`:** Cat6, seated until the latch clicks,
+  in the CODA56's one Ethernet port. `em0` is a 1 Gbit I219 and meets the
+  port at 1000baseT. Afterwards `netstat -I em0 -w 5` should show `errs` at
+  0. If `errs` climbs with `sysctl dev.em.0.mac_stats` showing CRC and length
+  errors and zero symbol errors, reboot `morpheus`: on 2026-11-22 that
+  cleared it when a new modem, a re-plug and a different cable did not.
 - KVM: one lead set each, **by the port map in
   [`hardware.md`](../hardware.md#console-and-power-maps)**: `morpheus` on 1,
   `trinity` on 2, `Saruman` on 3, `smaug` on 4 if the TS150's rear VGA is

@@ -81,20 +81,24 @@ truth for what a box actually does.
 
 ### Notes
 
-- Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk]
-  (`em0`): a factory cable since 2026-11-01
-  ([#923](https://github.com/Gerrrt/HomeLab/issues/923)), in the
-  gateway's ports. Every one of the XB7's ports has now gone bad under it:
-  the striped 2.5G one (2026-11-01), the first two gigabit ports (2026-11-07,
-  2026-11-18), and the third (2026-11-21, after a tripped breaker cut the
-  XB7's power), when the cable went back to a port that had failed before.
-  Each one sent `em0` CRC and length errors with zero symbol errors, and
-  moving ports cleared it each time, so a port that fails does not stay
-  failed. That shows up as `errs` in `netstat -I em0 -w 5`, and as
-  `WanReceiveErrors`. The XB7 is the suspect, not the cable; the
-  [Hitron CODA56](https://github.com/Gerrrt/HomeLab/issues/1594) replaces it.
-- The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
-  unused. All wireless is handled by eero units on tagged VLANs.
+- Cat6 from the cable modem[^modem] to the WAN interface of the ProDesk[^ProDesk]
+  (`em0`), in the modem's one Ethernet port, a 2.5G port that `em0`, a
+  1 Gbit I219, meets at 1000baseT. The modem is a Hitron CODA56, owned, since
+  2026-11-22 ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)); it
+  replaced a rented Xfinity XB7.
+- **`em0` itself is the known fault on this link.** From time to time it
+  starts taking inbound frames as CRC and fragment (length) errors, with
+  zero symbol, alignment and collision errors on a clean 1000baseT
+  full-duplex link, and downloads fall to a few Mbit/s while upload and
+  latency look normal. That shows up as `errs` in `netstat -I em0 -w 5`, and
+  as `WanReceiveErrors`. On 2026-11-22 it carried on across a new modem, a
+  re-plug at `em0` and a different cable, and stopped when `morpheus` was
+  rebooted. So **the remedy is rebooting `morpheus`**, not the modem or the
+  cable. The earlier incidents blamed on the XB7's ports (2026-11-01, 11-07,
+  11-18, 11-21) were cleared by re-plugging, which also reset `em0`'s link.
+  Taking the WAN off `em0` is the durable fix, and it is not decided.
+- The modem is a modem only: no router and no Wi-Fi radio. All wireless is
+  handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md): a
   UDP `rdr` to the lab jumpbox, terminating on ImaginationLAN and reaching the
@@ -112,7 +116,7 @@ truth for what a box actually does.
   what arrives through it is a keyed peer or nothing, and how far a peer
   reaches is decided on the ImaginationLAN interface, not here.
 
-[^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
+[^modem]: [Hitron CODA56](https://us.hitrontech.com/products/consumers/coda56/)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 
 ---
