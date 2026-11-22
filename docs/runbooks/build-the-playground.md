@@ -209,7 +209,7 @@ iface vmbr1 inet manual
         bridge-ports none
         bridge-stp off
         bridge-fd 0
-        pre-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
+        post-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
 
 source /etc/network/interfaces.d/*
 ```
@@ -226,9 +226,14 @@ Two things in there are load-bearing and neither is obvious:
   unreachable neighbour stops being unreachable. `inet manual` covers IPv4
   only. Linux gives every interface that comes up an IPv6 link-local address,
   and an `fe80::` address on `vmbr1` is an on-link endpoint every target can
-  reach without a gateway. The `pre-up` line stops that.
+  reach without a gateway. It also takes router advertisements
+  (`accept_ra` is `1`), so a target or `ragnarok` could hand the host a
+  global address and a route through the range. The `sysctl` line on `vmbr1`
+  stops both. It has to be `post-up`. At boot, `pre-up` runs before
+  `ifupdown2` has created the bridge, so the key does not exist yet, the
+  `sysctl` fails, and the boot carries on with IPv6 on.
 
-The `post-up` line is not isolation. It is the usual workaround for the
+The `post-up` line on `nic0` is not isolation. It is the usual workaround for the
 I219's e1000e transmit hang under load, which would take the range's one
 link down mid-session.
 
@@ -248,8 +253,14 @@ commands again, with
 should have changed. The ARC cap should read `4294967296` and the pool
 should be healthy. On 2026-11-07 the offloads, the ARC cap and the pool held
 across the reboot. `vmbr1` still had an `fe80::` address after that
-reboot. The `pre-up` line was added the same day, from review, and after
-`ifreload -a` the `grep -c` read `0`.
+reboot. A `pre-up` line was added the same day, from review, and after
+`ifreload -a` the `grep -c` read `0`. That proved it with the bridge already
+up, not at boot. The next boot was on 2026-11-22, during the follow-up to the
+2026-11-13 audit. The `pre-up` failed with `cannot stat
+/proc/sys/net/ipv6/conf/vmbr1/disable_ipv6`, and `vmbr1` came up with an
+`fe80::` address and `accept_ra` at `1`. The line is now `post-up`. The check
+that counts is the one after a reboot: `ifreload -a` cannot show a boot-order
+fault.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -963,6 +974,9 @@ probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
 should read `without-password` and `no`, because an upgrade that replaces
 `sshd_config.d` would be as silent as one that rewrites the firewall. Any other
 answer means the session does not start until §4 has been rerun.
+`ip addr show dev vmbr1 | grep -c inet` should print `0` (§2): the host has
+no address on the range. Anything else means the session does not start until
+§2's `sysctl` has been rerun and its line in `/etc/network/interfaces` checked.
 
 **Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
 packages only (§4, *Services on `gandalf`*). `apt update && apt list
