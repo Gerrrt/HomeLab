@@ -19,6 +19,28 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The UPS card's temperature probe is bought, plugged in, and read.** The
+  APC AP9335T decided on 2026-10-16 leaves *Everything still to buy*; the
+  operator reported it in the card's universal I/O port on 2026-11-23. The
+  `apc_ups` module now walks `uioSensorStatusTable`, where an NMC3 reports a
+  probe on that port, and three rules watch it: `UpsTemperatureProbeMissing`
+  if the table comes back empty while the card answers, which is also the
+  check that the right table was chosen; `UpsTemperatureProbeCommsLost`; and
+  `RackAmbientTemperatureAlarm` on the card's own alarm. No fixed temperature
+  limit yet: PowerNet-MIB says the Celsius column is in tenths of a degree,
+  APC's cards have been seen to report whole degrees there, and the first
+  readings settle which.
+- **NUT is watched from its own logs.** The 2026-11-13 audit of `mjolnir`
+  found that nothing watched the shutdown path itself, which is how the
+  driver could stay down until 2026-11-07 with only the generic card-silence
+  alerts firing. Every `upsmon` but `smaug`'s was already in Loki: `morpheus`'s
+  through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+  `loki/rules/nut.rules.yaml` adds `NutDriverNotConnected` and
+  `NutCommunicationsLost`, both critical, and `NutMonitorFailedToStart`. They
+  were evaluated against the 48 hours to 2026-11-23 and would not have fired.
+  The brief *data stale* spells, about a hundred a day, are left alone: their
+  cause is not established, and they do not line up with the Prometheus
+  scrape of the card.
 - **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
   disarmed for at least two of them.** This records what the 2026-11-13
   read-only audit of `mjolnir` found and no entry had written down.
@@ -60,13 +82,14 @@ docstring gives: it is a record, not a claim about now.
     `check_versions.py` does, from SNMP.
   - **Alerts added.** NUT on `morpheus` marked the UPS's data stale 1,363
     times in the fortnight to 2026-11-23, never for more than 5.2 seconds and
-    never more than 9 times in an hour. Nothing watched it.
-    `NutUpsDataStaleSustained` and `NutUpsDataStaleFrequent`, in a new
-    `loki/rules/ups.rules.yaml`, fire when a gap lasts two minutes or an hour
-    has twenty. Neither sees a gap that lasts days, like the driver outage
-    above, so `NutUpsUnreadable` asks `upsc` on the firewall every 15 minutes
-    from `make gateway-state` (`scripts/collect-nut-state.sh`) and pages at
-    30 minutes. The cause of the stale gaps is not found. The two syslog TLS
+    never more than 12 times in a sliding hour. `NutUpsDataStaleFrequent`,
+    added to #1673's `loki/rules/nut.rules.yaml`, warns when an hour has more
+    than 24; a spell that lasts is that file's `NutCommunicationsLost`.
+    `NutUpsUnreadable` asks `upsc` on the firewall every 15 minutes from
+    `make gateway-state` (`scripts/collect-nut-state.sh`) and pages at 30
+    minutes, which needs no log line at all: Loki holds no `upsmon` or `upsd`
+    line from `morpheus` for 2026-11-06, the middle of the driver outage. The
+    cause of the stale gaps is not found. The two syslog TLS
     leaves, due 2029-01-09, had no expiry alert. `make gateway-state` now
     reads them, morpheus's client leaf from the pinned file through a new
     `--file` in `collect-cert-expiry.sh`, and
@@ -82,6 +105,27 @@ docstring gives: it is a record, not a claim about now.
     console session is still open on `ttyv0`. Two Hicks leases with no row
     in `network.md`, one with an Amazon prefix, had expired by 2026-11-23,
     so they were not identified. The NVMe read 61 °C, against 64 on the 13th.
+
+- **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
+  entry for the `prometheus` audit, which said a raw value outside 0–100 now
+  falls back to the normalised column. That change was deployed, and on
+  2026-11-22 the collector still rendered `-78` for the Apple SSD SM256E. Its
+  figure therefore comes from `Wear_Leveling_Count` or
+  `Media_Wearout_Indicator`, whose normalised column was not range-checked
+  either. All three ATA wear spellings now drop a life-left value outside
+  0–100. Which attribute the drive reports was not read, because `smartctl`
+  needs root. Until it is, the drive has no wear series and
+  `SmartDriveWearHigh` cannot fire for it. NVMe's `percentage_used` keeps its
+  meaning, which can exceed 100.
+- **`SystemdUnitFailed`: a system unit failing twice in 48 hours now
+  warns.** A re-audit of `prometheus` found `logrotate` failing every night
+  since 2026-10-16 on both `prometheus` and `oracle`, seen by nothing. The
+  `cloud-init` and `cloud-init-base` packages each ship a rotation for the
+  same log. The audit of 2026-11-13 had read `systemctl --failed` as empty
+  minutes after a reboot, which clears that state. The rule reads PID 1's own
+  journal line, like `UnitOomKilled`. Run against the live store, it returned
+  exactly those two units. The duplicate config itself is fixed on each host,
+  not here.
 
 ## 2026-11-22
 

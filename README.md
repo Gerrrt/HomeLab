@@ -101,7 +101,7 @@ documents for different readers.
   can't run an agent (firewall, switch, UPS, iLO). One agent config, deployed
   identically everywhere. [How](docs/architecture.md#observability-data-flow)
 - **Dashboards and alerting as code.** 8 provisioned dashboards, 156 panels, and
-  186 alert rules — 163 metric-based in Prometheus, 23 log-based in Loki — sharing
+  192 alert rules — 166 metric-based in Prometheus, 26 log-based in Loki — sharing
   one Alertmanager routing tree. No dashboard exists only in a database.
 - **Secrets encrypted in-repo with SOPS + age.** Per-device credentials,
   decrypted at deploy time into gitignored paths, with `git log` showing which
@@ -207,9 +207,9 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 .
 ├── stacks/
 │   ├── observability/        # the estate's stack on prometheus — ten services
-│   │   ├── prometheus/       #   config, file_sd targets, 163 alert rules
+│   │   ├── prometheus/       #   config, file_sd targets, 166 alert rules
 │   │   ├── alertmanager/     #   routing and inhibition
-│   │   ├── loki/             #   single-binary config + 23 LogQL rules
+│   │   ├── loki/             #   single-binary config + 26 LogQL rules
 │   │   ├── alloy/            #   the agent config directory, shipped to every host
 │   │   ├── snmp-exporter/    #   generator.yaml is the source of truth
 │   │   └── grafana/          #   provisioning + 8 dashboards
@@ -413,7 +413,7 @@ is [`docs/changelog.md`](docs/changelog.md), dated and never rewritten.
 
 **Every purchase still outstanding is in one place**, the roadmap's
 [*Everything still to buy*](docs/roadmap.md#everything-still-to-buy):
-11 items now, 0 later, and a rule that nothing joins them without a
+10 items now, 0 later, and a rule that nothing joins them without a
 decision. This sentence used to carry the list itself, name three purchases
 coupled to the UPS work and omit the tier's host entirely, which is how one
 ProDesk came to be bought for two jobs. It names no current item for the

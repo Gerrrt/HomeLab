@@ -7,12 +7,10 @@
 # learns of a power cut only from it. From 2026-11-05 to 2026-11-07 the driver
 # was not connected, upsmon logged it 23,048 times, and nothing raised a word
 # (changelog, 2026-11-23). The card-silence alerts are about the card answering
-# SNMP; they say nothing about NUT, and a driver that stays down while the card
-# answers raises nothing at all. Loki does not fill the gap either: syslogd
-# folds a repeated line into "last message repeated", so a driver down for
-# days leaves one line, and a log rule's window has moved past it within
-# minutes. The two Loki rules in loki/rules/ups.rules.yaml cover the short
-# gaps; this covers the long one.
+# SNMP; they say nothing about NUT. loki/rules/nut.rules.yaml now reads
+# upsmon's lines, but a log rule needs the lines to arrive: Loki holds none
+# from morpheus's upsmon or upsd for 2026-11-06, mid-outage, and an upsd that
+# is down or hung logs nothing at all.
 #
 # So this asks NUT itself, the way a secondary does: `upsc mjolnir@127.0.0.1
 # ups.status` on the firewall, over the ssh `make gateway-state` already makes.
@@ -37,13 +35,18 @@ UPS="mjolnir"
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
 # upsc's answer -> "1 <status>" or "0 <reason>". The answer is the remote
-# output: the status line, or upsc's error, then "rc=N".
+# output, stderr merged: the status line or upsc's error, then "rc=N". upsc can
+# print a diagnostic before a good status ("Init SSL without certificate
+# database"), so the status is the line shaped like one, wherever it is, and
+# the reason for a failure is the first line.
 classify() {
-  local answer="$1" first rc
-  first="$(printf '%s\n' "$answer" | grep -v '^rc=' | head -1 | tr -d '\r')"
+  local answer="$1" lines first status rc
+  lines="$(printf '%s\n' "$answer" | grep -v '^rc=' | tr -d '\r')"
+  first="$(printf '%s\n' "$lines" | head -1)"
+  status="$(printf '%s\n' "$lines" | grep -E '^[A-Z]+( [A-Z]+)*$' | tail -1)"
   rc="$(printf '%s\n' "$answer" | sed -n 's/^rc=//p' | tail -1)"
-  if [[ "$rc" == 0 && "$first" =~ ^[A-Z]+( [A-Z]+)*$ ]]; then
-    printf '1 %s\n' "$first"
+  if [[ "$rc" == 0 && -n "$status" ]]; then
+    printf '1 %s\n' "$status"
   else
     first="${first#Error: }"
     printf '0 %s\n' "${first:-no answer}"
@@ -69,6 +72,10 @@ if [[ "${1:-}" == "--self-test" ]]; then
   same "a driver not connected is not" "$(classify $'Error: Driver not connected\nrc=1')" "0 Driver not connected"
   same "no answer at all is not"       "$(classify 'rc=255')"                             "0 no answer"
   same "a status with a failing rc is not" "$(classify $'OL\nrc=1')"                      "0 OL"
+  same "a diagnostic before the status is still readable" \
+    "$(classify $'Init SSL without certificate database\nOL\nrc=0')" "1 OL"
+  same "a diagnostic with no status is not" \
+    "$(classify $'Init SSL without certificate database\nrc=0')" "0 Init SSL without certificate database"
   HOST_LABEL=morpheus
   same "the series" "$(render 0 | tail -1)" 'homelab_nut_ups_readable{host="morpheus",ups="mjolnir"} 0'
   exit $fail

@@ -53,7 +53,7 @@ prometheus/
   targets/snmp.yaml        SNMP targets — hot-reloaded, no restart needed
   targets/node.yaml        node_exporter scrapes, for the host that runs no Alloy (smaug)
   targets/blackbox*.yaml   probe targets, http, dns and latency — hot-reloaded, no restart
-  rules/*.rules.yaml       163 alert rules: host, network, ups, containers, blackbox,
+  rules/*.rules.yaml       166 alert rules: host, network, ups, containers, blackbox,
                            dns, backup, ids, deploy, stack, internet and watchdog
   tests/*.test.yaml        promtool unit tests — assert the rules can fire
 blackbox/blackbox.yaml     probe modules — reachability, and what a resolver said
@@ -61,7 +61,7 @@ alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/
   loki-config.yaml         single-binary, filesystem, 30-day retention
-  rules/*.rules.yaml       23 LogQL rules, security, NUT and watchdog, evaluated by Loki's ruler
+  rules/*.rules.yaml       26 LogQL rules, security, watchdog and NUT, evaluated by Loki's ruler
 alloy/                     the agent config — Alloy loads the directory
   config.alloy             every monitored host
   docker.alloy             hosts with a Docker socket
