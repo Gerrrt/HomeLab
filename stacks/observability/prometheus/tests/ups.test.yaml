@@ -681,3 +681,34 @@ tests:
                 (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
                 the DL360's inlet temperature before anything else; the probe sits
                 at the bottom of the rack, where the heavy iron is.
+
+  # The warning limit counts too: uioWarning (2).
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusAlarmStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "2x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: RackAmbientTemperatureAlarm
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "Rack ambient at mjolnir's probe is past the card's limit"
+              description: >-
+                The card raises its own alarm for probe
+                Port 1 Temp 1: status 2
+                (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
+                the DL360's inlet temperature before anything else; the probe sits
+                at the bottom of the rack, where the heavy iron is.
