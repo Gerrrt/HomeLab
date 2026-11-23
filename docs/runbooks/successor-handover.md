@@ -436,6 +436,7 @@ The remaining runbooks are task-shaped and are best read when you have the task:
 [`rotate-snmp-community.md`](rotate-snmp-community.md),
 [`ship-firewall-logs.md`](ship-firewall-logs.md),
 [`fit-the-ups-battery.md`](fit-the-ups-battery.md),
+[`update-the-ups-firmware.md`](update-the-ups-firmware.md),
 [`replace-the-smart-storage-battery.md`](replace-the-smart-storage-battery.md),
 [`enable-suricata.md`](enable-suricata.md),
 [`build-the-lab-guest.md`](build-the-lab-guest.md),
