@@ -5,131 +5,107 @@ updates:
   # Pinned container images in compose.yaml. This is what makes pinning
   # sustainable — without it, pinned tags simply rot.
   #
-  # grafana/alloy is the exception to "one PR per directory is fine". lab,
-  # sensor, soc, bloodhound and analyst all mount this stack's
-  # alloy/config.alloy, so their Alloy has to be this one, digest for digest,
-  # and check_image_pins.py fails a pull request that moves one without the
-  # others (#848). Those six entries cannot be merged the way soc and scratch
-  # were, because here and in lab Alloy rides in the grafana-stack group. So
-  # when an Alloy bump arrives, push the same bump to the other five stacks
-  # onto that PR and close the rest.
-  - package-ecosystem: docker-compose
-    directory: /stacks/observability
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 25  # above the image count (#1433)
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "observability"]
-    groups:
-      grafana-stack:
-        patterns: ["grafana/*"]
-      prometheus-stack:
-        patterns: ["prom/*"]
-
-  # The lab stack. A second entry rather than a second directory on the one
-  # above, because Dependabot takes a single directory per entry — and without
-  # it the lab's pins would rot exactly the way the comment above says pinned
-  # tags do, while the estate's stayed current. The two run the same four
-  # images, so they are expected to move together; they get separate PRs
-  # because they are separate deploys to separate hosts, and the lab's is a
-  # host the operator has to be sitting in front of.
-  - package-ecosystem: docker-compose
-    directory: /stacks/lab
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 10  # above the image count (#1433)
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "lab"]
-    groups:
-      grafana-stack:
-        patterns: ["grafana/*"]
-      prometheus-stack:
-        patterns: ["prom/*"]
-
-  # The sensitive tier. Its images share nothing with the other stacks, and
-  # each bump is its own PR except Immich's two, and each merge is a deploy:
-  # trinity's homelab-converge-sensitive applies it within the hour (#533), so
-  # review it as one. Immich's server and machine-learning images are one
-  # release and run as a matched pair; ungrouped, #1461 moved the server to
-  # v3.4.1 alone and trinity ran it beside machine-learning v3.3.6. The group
-  # names both and not immich-app/postgres, whose majors are held below.
-  # Written before the host existed, for the reason the lab entry gives: pins
-  # rot from the day they are written.
+  # One entry for every stack that shares config with another, because
+  # check_image_pins.py fails a pull request that moves one copy of a shared
+  # image without the others (#848), and Dependabot opens one PR per entry
+  # per directory. The links, read off the mounts:
+  #   - analyst, bloodhound, lab, sensor and soc run observability's
+  #     alloy/*.alloy and docker-socket-proxy/ config, so their Alloy and
+  #     socket proxy must be observability's, digest for digest;
+  #   - sensitive's Caddy mounts observability's alloy/ingest-ca.pem;
+  #   - scratch (#438, ADR-0071), the disposable copy of soc on diabolos,
+  #     mounts soc's wazuh/ and velociraptor/ config.
+  # Those links reach every stack below, so they are one entry. Before this,
+  # each stack had its own and every Alloy, Caddy or socket-proxy release
+  # arrived as up to six red PRs that had to be folded into one by hand
+  # (the week of 2026-11-22 left fourteen). media and wiki mount nothing of
+  # another stack's and keep their own entries.
   #
-  # Postgres majors are held, by wiki's rule below: the tier's three Postgres
-  # volumes — Immich's, Paperless's and Miniflux's — are quiesced data
-  # directory tars in `make backup`, restorable only into the same major, and
-  # a major is a dump and a restore (ADR-0065), never a digest bump. This
-  # entry carried no such line while wiki's and bloodhound's did, and here the
-  # merge IS the deploy: trinity would have started the next major against
-  # the previous major's data directory within the hour, with the previous
-  # night's set the only way back. Two names, because Immich's is its own image: the vectorchord
-  # build's tag moves with both the Postgres major and the extension's, and
-  # either is a migration Immich documents, not a bump.
+  # How a bump arrives:
+  #   - shared-config: one PR per image, covering every directory that pins
+  #     it (`group-by: dependency-name`). Listed first, since a dependency
+  #     goes to the first group it matches and grafana/alloy is also grafana/*.
+  #   - wazuh: the indexer, manager and dashboard must match to the patch
+  #     version, so one PR carries a release to soc and scratch together.
+  #     The Wazuh cert tool vendored in stacks/soc/wazuh/certs-tool/
+  #     (ADR-0094) is not something Dependabot can bump; it tracks the wazuh/*
+  #     major.minor, and the compose file says so where it is used.
+  #   - velociraptor: soc and scratch together, for the same reason.
+  #   - immich: the server and machine-learning images are one release and run
+  #     as a matched pair; ungrouped, #1461 moved the server alone and trinity
+  #     ran it beside the previous machine-learning release. The group names
+  #     both and not immich-app/postgres, whose majors are held below.
+  #   - grafana-stack, prometheus-stack: observability's and lab's now arrive
+  #     in one PR rather than one each. Lab's Prometheus and Grafana mount
+  #     nothing of observability's and could move alone, but nothing gained
+  #     from that was worth a second entry and the hand-folding above. Merging
+  #     is not deploying: lab's host still takes the bump only when the
+  #     operator, sitting in front of it, pulls the stack.
+  #   - everything else: ungrouped, one PR per image per directory.
   #
-  # The PR limit is above the stack's image count, the rule every entry
-  # follows since #1433. With no groups, every release is its own PR, and a limit
-  # below the image count drops bumps silently: the 2026-11-08 run opened
-  # five and stopped, and Mealie v3.30.0, out since 2026-10-31, never got
-  # its PR while #981 counted 9 critical CVEs it fixed. Keep the limit
-  # above the number of images the stack pins.
+  # A merge here can be a deploy: trinity's homelab-converge-sensitive applies
+  # sensitive's pins within the hour (#533), so review a PR that touches
+  # /stacks/sensitive as one.
+  #
+  # Ignored:
+  #   - Postgres majors, everywhere: sensitive's three Postgres volumes
+  #     (Immich's, Paperless's, Miniflux's) and bloodhound's are quiesced data
+  #     directory tars in `make backup`, restorable only into the same major,
+  #     and a major is a dump and a restore (ADR-0065), never a digest bump.
+  #     immich-app/postgres is named separately because it is its own image:
+  #     its vectorchord tag moves with both the Postgres major and the
+  #     extension's, and either is a migration Immich documents. Written
+  #     without the registry: Dependabot names a ghcr.io image by its path,
+  #     so a ghcr.io/ prefix matched nothing (#1433).
+  #   - tecnativa/docker-socket-proxy majors. Upstream added tags named for
+  #     the HAProxy base (3.2, 3.4, lts) beside its own vX.Y.Z releases, and
+  #     Dependabot read 3.4 as a major release after the one pinned here and
+  #     opened six PRs for it. It is a different tag series, not the next
+  #     release. Adopting it is a deliberate edit to all six stacks in one
+  #     PR, after reading what upstream's series means; drop this rule then.
+  #
+  # The PR limit stays above the number of images these stacks pin (74 on
+  # 2026-11-22), the rule since #1433: below it, bumps are dropped silently.
+  # The 2026-11-08 run opened five and stopped, and a Mealie release that
+  # fixed 9 critical CVEs (#981) never got its PR.
   - package-ecosystem: docker-compose
-    directory: /stacks/sensitive
+    directories:
+      - /stacks/observability
+      - /stacks/lab
+      - /stacks/sensitive
+      - /stacks/soc
+      - /stacks/scratch
+      - /stacks/sensor
+      - /stacks/bloodhound
+      - /stacks/analyst
     schedule:
       interval: weekly
       day: sunday
-    open-pull-requests-limit: 25
+    open-pull-requests-limit: 90
     ignore:
       - dependency-name: postgres
         update-types: ["version-update:semver-major"]
-      # Without the registry: Dependabot names a ghcr.io image as its path
-      # (its PRs read "Bump immich-app/immich-server"), so a ghcr.io/ prefix
-      # here matched nothing and a Postgres major could reach trinity (#1433).
       - dependency-name: immich-app/postgres
+        update-types: ["version-update:semver-major"]
+      - dependency-name: tecnativa/docker-socket-proxy
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: "chore(deps)"
-    labels: ["dependencies", "sensitive"]
+    labels: ["dependencies"]
     groups:
-      immich:
-        patterns: ["immich-app/immich-server", "immich-app/immich-machine-learning"]
-
-  # The SOC stack, on odin. Three wazuh/* images that move together and are
-  # grouped so one PR carries a release — the indexer, manager and dashboard
-  # must match to the patch version, and three separate bumps would be three
-  # deploys of a half-upgraded SIEM. Velociraptor and Alloy bump alone. Present
-  # before the host is, for the reason the entries above give: pins rot from
-  # the day they are written. One thing Dependabot cannot bump is the Wazuh
-  # cert tool vendored in stacks/soc/wazuh/certs-tool/ (ADR-0094), which tracks
-  # the wazuh/* major.minor — the compose file says so where it is used.
-  #
-  # stacks/scratch (#438, ADR-0071), the disposable copy of soc on diabolos,
-  # rides in this entry rather than its own. It mounts soc's config
-  # (../soc/wazuh/..., ../soc/velociraptor/...), so a scratch store on a
-  # different Wazuh from odin's answers a different question. With its own
-  # entry a release arrived as two PRs that had to be merged together, and only
-  # discipline made sure they were. Since #848 check_image_pins.py fails either
-  # one alone, and `directories` puts each group's bump to both stacks in ONE PR.
-  # Velociraptor gets a group for the same reason; an ungrouped dependency would
-  # still arrive as one PR per directory.
-  - package-ecosystem: docker-compose
-    directories: [/stacks/soc, /stacks/scratch]
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 20  # above the image count (#1433)
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "soc", "scratch"]
-    groups:
+      shared-config:
+        group-by: dependency-name
+        patterns: ["grafana/alloy", "caddy", "tecnativa/docker-socket-proxy"]
       wazuh:
         patterns: ["wazuh/*"]
       velociraptor:
         patterns: ["velocidex/*"]
+      immich:
+        patterns: ["immich-app/immich-server", "immich-app/immich-machine-learning"]
+      grafana-stack:
+        patterns: ["grafana/*"]
+      prometheus-stack:
+        patterns: ["prom/*"]
 
   # The media stack on smaug. Present before the pool is, for the reason the
   # entries above give — but this one was absent while three documents said it
@@ -169,51 +145,6 @@ updates:
     commit-message:
       prefix: "chore(deps)"
     labels: ["dependencies", "wiki"]
-
-  # stacks/sensor (#437): Zeek and Alloy on fenrir. It shipped without an
-  # entry, so for its first day its two digests were pinned and bumped by
-  # nothing, the rot the first entry warns about. ADR-0069 found the gap,
-  # because its whole argument leans on this stack's image being kept current.
-  # Deployed by hand with `docker compose` on fenrir, like media and wiki, so
-  # a merged bump reaches the host when the stack is pulled there.
-  - package-ecosystem: docker-compose
-    directory: /stacks/sensor
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "sensor"]
-
-  # stacks/bloodhound (#451, ADR-0081): BloodHound CE and the one Postgres
-  # that holds its state and its graph, on eden. Postgres majors are held, by
-  # wiki's rule: a major is a dump and a restore. An entry from the first
-  # commit, which is the lesson sensor's comment above records.
-  - package-ecosystem: docker-compose
-    directory: /stacks/bloodhound
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 10  # above the image count (#1433)
-    ignore:
-      - dependency-name: postgres
-        update-types: ["version-update:semver-major"]
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "bloodhound"]
-
-  # stacks/analyst (#921, ADR-0091): Alloy and its socket proxy on garuda,
-  # and nothing else. An entry from the first commit, by sensor's lesson.
-  - package-ecosystem: docker-compose
-    directory: /stacks/analyst
-    schedule:
-      interval: weekly
-      day: sunday
-    open-pull-requests-limit: 5
-    commit-message:
-      prefix: "chore(deps)"
-    labels: ["dependencies", "analyst"]
 
   # ansible/ (ADR-0077): ansible-core in requirements.txt, ansible-lint in
   # requirements-lint.txt, both exact. The collections in requirements.yml are
