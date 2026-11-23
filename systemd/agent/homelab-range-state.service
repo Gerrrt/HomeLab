@@ -1,0 +1,34 @@
+# The range host gandalf's own controls, for Prometheus (#1651, ADR-0126).
+#
+# WHAT IT IS FOR. ADR-0125 keeps gandalf on, so build-the-playground.md §7's
+# per-session read-back is a gap of days. This records the barriers that
+# read-back checks that the Proxmox firewall collector cannot see — the
+# vmbr1_host_in ingress table, vmbr0 and sshd forwarding — and the attack-VM
+# stop timer's state and deadline. The range rules alert on them.
+#
+# HARDENING AS LIGHT AS homelab-pve-firewall-state.service, for the same
+# reason: it reads nft, sysctl, sshd -T, systemctl and the stop helper, which
+# touch /run, /proc and /var/run/qemu-server, and a private mount namespace
+# could hide those and read as "all clear". Root is for the textfile directory;
+# the reads themselves do not need it.
+[Unit]
+Description=HomeLab: record the range host's own controls (ADR-0126)
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
+ConditionPathExists=/usr/sbin/nft
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/usr/local/bin/homelab-collect-range-state
+TimeoutStartSec=120
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-range-state

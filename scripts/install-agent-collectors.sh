@@ -127,6 +127,7 @@ COLLECTORS=(
   "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
   "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
+  "range-state scripts/collect-range-state.sh range-state.prom /usr/sbin/nft"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
