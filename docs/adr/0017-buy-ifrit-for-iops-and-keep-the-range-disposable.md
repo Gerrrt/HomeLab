@@ -3,6 +3,17 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **The host stays on; the attack VM is what stops.**
+> [ADR-0125](0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md), which
+> supersedes ADR-0124, keeps `gandalf` on and stops `ragnarok` at a deadline:
+> six hours after it starts, or what a session's last extension set, up to
+> twelve hours ahead. "Off between sessions" no longer holds for the host,
+> so *No monitoring*'s reason is gone. Monitoring is
+> [#1651](https://github.com/Gerrrt/HomeLab/issues/1651), which needs its own
+> ADR to supersede *No monitoring*. The note below about ADR-0124 is
+> superseded with it. The text below is left as written, per ADR-0001.
+>
+> [!NOTE]
 > **"Off between sessions" is enforced by a timer.** Two audits found the
 > range host left on for days, against the discipline that *No monitoring*
 > and the second Consequence below rest on.

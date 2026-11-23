@@ -19,6 +19,58 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf` stays on, and the attack VM stops on a timer instead
+  ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
+  [#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** ADR-0125
+  supersedes ADR-0124 the day it was accepted. The host power-off timer was
+  installed at 17:44 and removed at 19:26, never having fired. The exposure
+  ADR-0124 bounded is `ragnarok` on VLAN 30, and a host that turns itself off
+  makes every session start at the rack. `scripts/range-poweroff.sh` becomes
+  `scripts/ragnarok-stop.sh`. The deadline is six hours after the VM starts,
+  and an extension is stored with the QEMU process's PID, so it never carries
+  into the next start. The warnings also go inside the VM through the guest
+  agent. The `dpkg` wait asks the agent about the VM's lock, and the stop is
+  `qm shutdown` with a forced stop after three minutes. `build-the-playground.md`
+  §7 now installs it and removes the old timer, and §1's *After Power Loss*
+  stays at *Power Off*, with ADR-0125's reason.
+  - The `--self-test` has 25 fixtures. Two deliberate breaks each failed
+    one: an extension that ignores the PID, and a stopped VM that keeps its
+    extension.
+  - Installed on `gandalf` at 19:26, and proved at 19:32 with a deadline
+    written a few minutes out. The timer sent the 5-minute warning, then shut
+    `ragnarok` down with ACPI in 2 seconds and cleared its state, and
+    `range-extend` refused afterwards. A `wall` reaching a shell inside the VM
+    was sent but not seen, because none was open. The run logged every line
+    twice, which ADR-0124's script also did, so `say` no longer calls
+    `logger` under systemd.
+  - Monitoring the host is [#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+    opened the same day. ADR-0017's reason for none, a host that is off by
+    design, no longer holds.
+  - This corrects the entry below on the timer being built: what it built is
+    replaced, not proved.
+- **The 2026-11-22 audit's fixes are applied on `gandalf`
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** These are the
+  steps the audit entry below wrote into `build-the-playground.md`, each then
+  marked *Not yet applied*.
+  - **§2** at 19:19: `ip-forward off` and `ip6-forward off` on `vmbr0`, and
+    the `vmbr1_host_in` table. A reboot at 19:21 proved them: both forwarding
+    flags `0`, the table loaded, `vmbr1` without an address.
+  - **§4** at 19:19: the SSH drop-in with both forwardings off, checked with a
+    password login refused and a key login accepted. The first password test
+    "passed" through this workstation's shared SSH connection, which never
+    re-authenticates, so the runbook's tests now carry `-o ControlPath=none`.
+  - **§4, *Nothing else on `gandalf`*,** at 19:20: root's shell is bash, the
+    1Password and Charm repositories and 14 packages are gone, and so is the
+    dotfiles install. The runbook's `rm` missed about a third of it (atuin's
+    user unit, Go's and npm's caches, mise, tmux and zsh files), so a second
+    `rm` was added. About 5 GB came off the root disk.
+  - **§8 check four** at 19:25, from a throwaway clone of `tpl-kali` at `.199`:
+    no route, the host unreachable with the `dropped` counter rising, and
+    `ragnarok` still reaching the target. The clone had no DHCP stanza, which
+    proves #1341 on the template rebuilt that day.
+  - The audit's last finding, leftovers with no runbook step (the
+    `PhoenixIsoCleanup` role, the Kali ISO and an empty `local-lvm`), is
+    still open. `/root/.claude/remote` went with the dotfiles.
 - **`gandalf`'s power-off timer is built, not installed
   ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** This builds
   ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline

@@ -1,0 +1,43 @@
+# The attack VM's stop backstop (ADR-0125, #1647). It runs on gandalf only,
+# which has no checkout of this repository and no agent, so this unit calls
+# the script directly, the way systemd/agent/ units do. Nothing reports its
+# outcome to Prometheus yet: gandalf's monitoring is its own follow-up under
+# ADR-0125, and build-the-playground.md §7's read-back is what checks the
+# timer is on.
+#
+# RUNS AS ROOT because `qm` and writing to every terminal need it. `qm`
+# writes the cluster filesystem, its lock and its task log, so those are
+# the paths this unit may write besides its own state directory. The state
+# directory is kept when the unit stops, because the deadline and the
+# warnings already sent have to survive from one run to the next.
+#
+# TimeoutStartSec covers `qm shutdown`'s three-minute wait and its
+# forced stop, with room to spare.
+#
+# The script is installed at /usr/local/sbin/homelab-ragnarok-stop by
+# build-the-playground.md §7, which also installs this file.
+[Unit]
+Description=HomeLab: stop the attack VM ragnarok at its deadline (ADR-0125)
+Documentation=https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md
+After=pve-cluster.service
+Requires=pve-cluster.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/homelab-ragnarok-stop check
+TimeoutStartSec=300
+Restart=no
+RuntimeDirectory=homelab-ragnarok-stop
+RuntimeDirectoryPreserve=yes
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/etc/pve /var/log/pve /var/lock /run
+ProtectKernelModules=true
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-ragnarok-stop

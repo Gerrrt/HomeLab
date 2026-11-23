@@ -1350,8 +1350,10 @@ Both came onto the PDU in the move into the 32U rack, on 2026-11-07.
 or a disk that a hard stop can leave half-written, so it halts with the
 first group
 ([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
-`gandalf` is the range: disposable by decision, off between sessions, and
-the only copy of nothing.
+`gandalf` is the range: disposable by decision, and the only copy of
+nothing. It is on outside sessions too
+([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)),
+and a hard stop costs it nothing a rebuild does not restore.
 
 ### What this does not prove
 

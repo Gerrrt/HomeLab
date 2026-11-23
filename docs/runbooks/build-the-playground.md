@@ -124,9 +124,12 @@ Never set it up: power it off from the setup screen (Shift+F10, then
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.
-- **After Power Loss: Power Off.** `gandalf` is off between sessions (§7),
-  and nothing alerts when it is left on, so a power cut must not bring it
-  back by itself. A session starts at the power button.
+- **After Power Loss: Power Off.** `gandalf` stays on
+  ([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)),
+  but nothing watches it yet
+  ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), so a power cut
+  must not bring it back by itself where nobody knows it is up. After a cut,
+  it starts at the power button. ADR-0125 reopens this with #1651.
 - Secure Boot can stay on, because the Proxmox VE 9 installer is signed.
 
 Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
@@ -312,8 +315,13 @@ Applied on `gandalf` the same day, then proved by a reboot at 15:53. After
 it, `disable_ipv6` read `1`, the `grep -c` read `0`, and the boot's
 networking log had no failed `sysctl`.
 The `ip-forward` lines and the `vmbr1_host_in` table were written later on
-2026-11-22, from the audit that day. **Not yet applied on `gandalf`.** As with
-the `sysctl` line, only a reboot followed by the commands above proves them.
+2026-11-22, from the audit that day. As with the `sysctl` line, only a reboot
+followed by the commands above proves them.
+Applied on `gandalf` the same evening with `ifreload -a`, then proved by a
+reboot at 19:21. After it, both `vmbr0` forwarding flags read `0`, the
+`policy drop` count read `1`, `vmbr1` had no address, both offloads were
+`off`, the ARC cap read `4294967296` and the pool was healthy. §8 check four
+proved the table from a target the same night.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -722,18 +730,26 @@ isolation host from becoming a tunnel. Nothing here needs one, because
 `8006` is reached directly from Hicks. The drop-in applied on 2026-11-22 had
 the first three lines only. The audit that day found both forwardings on
 (Debian's `X11Forwarding yes` and the `AllowTcpForwarding` default), so the
-step is rerun with all five. **Not yet applied on `gandalf`.** The drop-in wins over the main file's
+step is rerun with all five, which was done on 2026-11-22 at 19:19 and read
+back as above. The drop-in wins over the main file's
 `PermitRootLogin yes` because `Include` comes first in `sshd_config` and
 `sshd` keeps the first value it reads. Then, from Hicks, a password login must
 be refused while a key login still works:
 
 ```bash
-ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
-ssh -o PasswordAuthentication=no root@10.0.30.30 true
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
+ssh -o ControlPath=none -o PasswordAuthentication=no root@10.0.30.30 true
 ```
 
 The first should fail with `Permission denied (publickey)`, offering no
-password prompt. The second should succeed. If it fails, go back to the shell
+password prompt. The second should succeed. `ControlPath=none` matters on a
+workstation whose SSH config shares connections (`ControlMaster auto`). Without
+it, both commands ride the connection already open, which authenticated
+before the change, and the first "succeeds" with no password at all. On
+2026-11-22 it did exactly that, and only the rerun with `ControlPath=none`
+gave the refusal. The same sharing keeps the old login shell after `chsh`
+below, so close a shared connection (`ssh -O exit root@10.0.30.30`) before
+the next step. If it fails, go back to the shell
 you kept open, remove the drop-in, and run `systemctl reload ssh`.
 
 ### Services on `gandalf`: only what the range uses
@@ -804,6 +820,11 @@ find /root -maxdepth 3 -lname '*dotgibson*' -print -delete
 rm -rf /root/code /root/.local /root/.config/atuin /root/.config/gh /root/.config/go \
        /root/.claude /root/.claude.json /root/.ssh/config.d /root/.ssh/sockets \
        /root/.ssh/config.pre-dotfiles.*
+rm -rf /root/.zshrc /root/.atuin /root/.actual /root/go /root/.npm /root/.w3m /root/.cache \
+       /root/.config/carapace /root/.config/git /root/.config/jj /root/.config/lazygit \
+       /root/.config/mise /root/.config/sesh /root/.config/systemd /root/.config/tealdeer \
+       /root/.config/tmux /root/.config/zsh
+rmdir /root/.config 2>/dev/null || true
 ```
 
 The `find` removes the dotfiles' symlinks before the checkout goes, so none
@@ -818,7 +839,16 @@ pgrep -a atuin; command -v gh op zsh
 
 **You should see** only `ceph.sources`, `debian.sources`, `proxmox.sources`
 and `pve-enterprise.sources`, the shell `/bin/bash`, and nothing from the last
-line. **Not yet run on `gandalf`.**
+line.
+
+> **Ran on `gandalf` 2026-11-22 at 19:20**, and read back as above. The first
+> `rm` left the second's paths behind: atuin's user unit and history, Go's
+> module cache (888 MB), npm's cache, mise, the tmux plugins and zsh's own
+> files, which the dotfiles install had put outside the symlinks. The second
+> `rm` was added from that run. Together they freed about 5 GB of the root
+> disk. The dotfiles checkout held one local change, the credential helper
+> `gh auth setup-git` writes, and nothing worth keeping. `/root/.bashrc`,
+> `.profile` and `.forward` are Debian's and Proxmox's own, and stay.
 
 ---
 
@@ -1072,24 +1102,26 @@ Then boot it, run §8's check four on it, power it off and take the snapshot
 
 ## 7. Powering the range
 
-`gandalf` is off between sessions. There is no alert for it being left on, and
-ADR-0017 says why: every rule shape available says "this host is down", which is
-the normal state. Nothing is watching, so the discipline is yours.
-
-Two audits found the box left on for days anyway (2026-11-13 and 2026-11-22).
-[ADR-0124](../adr/0124-power-gandalf-off-on-a-timer.md) takes the backstop
-off the person: a timer on the host powers it off at a deadline, six hours
-after boot by default or what the last `range-extend` set (1 to 12 hours
-ahead), with a warning on every shell 30 and 5 minutes before
-([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). The power-off at
-the end below is still the plan. The timer is what happens when the plan is
-forgotten. Installed on `gandalf` on 2026-11-22, below.
+`gandalf` stays on. The attack VM, `ragnarok`, is what stops between sessions
+([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
+which supersedes ADR-0124's host power-off). A timer on the host stops it at a
+deadline, six hours after it starts by default or what the last
+`range-extend` set (1 to 12 hours ahead), with a warning on every shell, on
+the host and inside the VM, 30 and 5 minutes before
+([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). Stopping it at the
+end of a session is still the plan. The timer is what happens when the plan
+is forgotten. Two audits found it left running for days (2026-11-13 and
+2026-11-22).
 
 ```text
-on  → read the firewall back → revert every target to `clean` → work → revert → off
-                                                                    ↑
-                         6 h after boot or the last range-extend → off, by itself
+start ragnarok → read the host back → revert every target to `clean` → work → revert → stop ragnarok
+                                                                              ↑
+                    6 h after ragnarok started, or the last range-extend → stopped, by itself
 ```
+
+Nothing watches the host yet
+([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), so the read-back
+below is the only check on it, once per session.
 
 **Read the firewall back before anything else.** The collector and the alerts
 that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
@@ -1108,81 +1140,103 @@ print `1`. Anything else means the session does not start until §2's lines
 have been rerun and checked in `/etc/network/interfaces`.
 `ls /etc/apt/sources.list.d/` should list Debian's and Proxmox's sources
 only (§4, *Nothing else on `gandalf`*).
-`systemctl is-enabled homelab-range-poweroff.timer; systemctl is-active
-homelab-range-poweroff.timer` should read `enabled` and `active`, and
-`homelab-range-poweroff status` should show a deadline in the future. A
-disabled timer puts the range back on discipline alone (ADR-0124), so the
-session does not start until *The power-off timer* above has been rerun.
+`systemctl is-enabled homelab-ragnarok-stop.timer; systemctl is-active
+homelab-ragnarok-stop.timer` should read `enabled` and `active`, and, once
+`ragnarok` is up, `homelab-ragnarok-stop status` should show a deadline in the
+future. A disabled timer puts the attack VM back on discipline alone
+(ADR-0125), so the session does not start until *The attack VM's timer* below
+has been rerun.
 
 **Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
-packages only (§4, *Services on `gandalf`*). `apt update && apt list
---upgradable` at power-on shows what is waiting from the Proxmox repository,
-and `apt full-upgrade` applies it before the session starts, not during one.
+packages only (§4, *Services on `gandalf`*), daily now that the host stays
+up. `apt update && apt list --upgradable` at the start of a session shows
+what is waiting from the Proxmox repository, and `apt full-upgrade` applies it
+before the session starts, not during one. Nothing else applies them, so a
+month without a session is a month behind.
 A new kernel does nothing until the box boots into it. So if the upgrade
 installed a `proxmox-kernel-*` package, or `/run/reboot-required` exists,
 reboot and start this section again from the top. The firewall read-back runs
 again too, since a reboot is a fresh power-on.
 
-### The power-off timer
+### The attack VM's timer
 
 Install it once, from a Hicks workstation in a checkout of this repository.
-It is three files and a symlink, and nothing else on the host changes:
+It is three files and a symlink. The first `ssh` removes ADR-0124's host
+power-off timer, if the host still has it:
 
 ```bash
 G=root@10.0.30.30
-ssh "$G" 'install -d -m 0755 /usr/local/sbin'
-scp scripts/range-poweroff.sh "$G":/usr/local/sbin/homelab-range-poweroff
-scp systemd/range/homelab-range-poweroff.service systemd/range/homelab-range-poweroff.timer "$G":/etc/systemd/system/
-ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-range-poweroff &&
-  chmod 0644 /etc/systemd/system/homelab-range-poweroff.* &&
-  ln -sf /usr/local/sbin/homelab-range-poweroff /usr/local/sbin/range-extend &&
-  homelab-range-poweroff --self-test >/dev/null && echo self-test-ok &&
-  range-extend 6 &&
-  systemd-analyze verify /etc/systemd/system/homelab-range-poweroff.service &&
-  systemctl daemon-reload && systemctl enable --now homelab-range-poweroff.timer &&
-  homelab-range-poweroff status'
+ssh "$G" 'systemctl disable --now homelab-range-poweroff.timer 2>/dev/null;
+  rm -f /etc/systemd/system/homelab-range-poweroff.service /etc/systemd/system/homelab-range-poweroff.timer \
+        /usr/local/sbin/homelab-range-poweroff /usr/local/sbin/range-extend;
+  rm -rf /run/homelab-range-poweroff; install -d -m 0755 /usr/local/sbin'
+scp scripts/ragnarok-stop.sh "$G":/usr/local/sbin/homelab-ragnarok-stop
+scp systemd/range/homelab-ragnarok-stop.service systemd/range/homelab-ragnarok-stop.timer "$G":/etc/systemd/system/
+ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-ragnarok-stop &&
+  chmod 0644 /etc/systemd/system/homelab-ragnarok-stop.* &&
+  ln -sf /usr/local/sbin/homelab-ragnarok-stop /usr/local/sbin/range-extend &&
+  homelab-ragnarok-stop --self-test >/dev/null && echo self-test-ok &&
+  systemd-analyze verify /etc/systemd/system/homelab-ragnarok-stop.service &&
+  systemctl daemon-reload && systemctl enable --now homelab-ragnarok-stop.timer &&
+  homelab-ragnarok-stop status'
 ```
 
-**You should see** `self-test-ok`, no output from `systemd-analyze`, and a
-deadline six hours from now. The `range-extend 6` before the enable is
-deliberate. Without it the deadline is six hours after *this* boot, and on a
-box that has been up longer than that, the first run powers it off a
-minute after the install. The self-test exercises every branch with
-fakes, so it can run on the host without powering anything off.
+**You should see** `self-test-ok`, no output from `systemd-analyze`, and
+either `ragnarok (VM 130) is not running` or a deadline six hours after it
+started. If `ragnarok` has been up longer than that, the first run stops it a
+minute after the install, so run `range-extend` first if it is in use. The
+self-test exercises every branch with fakes, so it can run on the host
+without stopping anything.
 
 Running it, as root on `gandalf`:
 
 | | |
 | --- | --- |
-| `homelab-range-poweroff status` | The deadline and the minutes left |
-| `range-extend 3` | Set the deadline three hours from now. 1 to 12. It can also bring the deadline closer |
-| `journalctl -t homelab-range-poweroff` | Every warning, extension, wait and power-off |
+| `homelab-ragnarok-stop status` | The deadline and the minutes left, or that `ragnarok` is not running |
+| `range-extend 3` | Set the deadline three hours from now. 1 to 12. It can also bring the deadline closer. It refuses while `ragnarok` is stopped, and a new start begins again from six hours |
+| `journalctl -t homelab-ragnarok-stop` | Every warning, extension, wait and stop |
 
-At 30 minutes and again at 5, every shell on the host gets a `wall` message
-that says how to extend. Past the deadline the next run powers off, unless
-`dpkg` holds its lock. Then it waits for the run after that. Nothing reaches
-the Proxmox web UI, so a session driven only from `8006` gets no warning.
-Check `status` from a shell when you start one.
+At 30 minutes and again at 5, every shell on the host and inside `ragnarok`
+gets a `wall` message that says how to extend. Past the deadline the next run
+shuts the VM down, unless `dpkg` holds its lock inside it. Then it waits for
+the run after that. `range-extend` runs on the host, not in the VM. Nothing
+reaches the Proxmox web UI or a VNC console, so a session driven only from
+`8006` gets no warning. Check `status` from a shell when you start one.
 
-**Prove it once after installing**, with a session you can afford to lose:
+**Prove it once after installing.** Start `ragnarok`, then set its deadline
+a few minutes out by writing the state files the way an extension does:
 
-1. `range-extend 1`, then check `status` reads about 60 minutes.
-2. Keep an SSH session open. The 30- and 5-minute `wall` messages should
-   reach it.
-3. Start one guest. At the deadline the box should power itself off, and
-   `journalctl -t homelab-range-poweroff -b -1` at the next power-on should
-   end with `powering gandalf off`.
+```bash
+pid=$(cat /var/run/qemu-server/130.pid)
+printf '%s\n' "$pid" > /run/homelab-ragnarok-stop/run
+printf '%s\n' "$(( $(date +%s) + 330 ))" > /run/homelab-ragnarok-stop/deadline
+homelab-ragnarok-stop status
+```
 
-> **Installed on `gandalf` 2026-11-22 at 17:44**, from #1649's branch
-> before it merged, by the commands above. The output was `self-test-ok`,
-> nothing from `systemd-analyze`, and a deadline of 23:44. A run of the
-> service by hand ended `Result=success`. The timer read `enabled` and
-> `active`, with its next run five minutes out. That install had the first
-> timer, every five minutes. Review on #1649 moved it to every minute and
-> added the lock. The new files were reinstalled the same way, and the
-> self-test ran 21 fixtures on the box.
+Within a minute, `journalctl -t homelab-ragnarok-stop` should show the
+5-minute warning. A minute past the deadline it should show the stop, and
+`qm status 130` should read `stopped`. Then `homelab-ragnarok-stop status`
+should say it is not running, and `range-extend 2` should refuse.
 
-Record the proof's result here. **Not yet run on `gandalf`.**
+> **Installed on `gandalf` 2026-11-22 at 19:26**, in place of ADR-0124's
+> host power-off timer, which had been installed at 17:44 and never fired.
+> The self-test passed all 25 checks on the box, lock interleavings
+> included, `systemd-analyze` printed nothing, and a run by hand ended
+> `Result=success`. `range-extend 1` set a deadline 60 minutes out.
+>
+> **Proved the same evening** by the steps above, with the deadline at
+> 19:31:54. The first run, at 19:27:17, was inside five minutes, so it sent
+> the single 5-minute warning, as the self-test expects. The run at 19:32:34
+> logged `deadline 2026-11-22 19:31 has passed; stopping ragnarok`, and the
+> `qmshutdown` task ended `OK` at 19:32:38. ACPI was enough, so the forced
+> stop never ran. The unit ended `Result=success` under its sandbox. After
+> it, `status` read `not running`, the state directory held only its lock,
+> and `range-extend 2` refused with exit `1`. The guest-agent `wall` returned
+> `exitcode 0`. No shell was open inside the VM to see it, so a warning
+> reaching a session in `ragnarok` has not been observed. Every message was
+> logged twice, by `logger` and by the unit's stdout. The script now skips
+> `logger` under systemd, and was reinstalled. The installed files match the
+> repository by `sha256sum`.
 
 ---
 
@@ -1302,6 +1356,22 @@ means the table is not loaded. The target should still answer `ragnarok`'s
 ping, which shows that the table drops traffic to the host and not traffic
 between guests.
 
+> **Check four ran on `gandalf` 2026-11-22 at 19:25**, after the reboot that
+> proved §2, on a throwaway full clone of `tpl-kali` at `172.30.30.199`,
+> VMID 199. Its `net0` was moved to `vmbr1` before its first boot, because
+> the template's is on `vmbr0`. The commands ran through the guest agent, and
+> the clone was destroyed afterwards.
+>
+> - **No DHCP stanza.** `interfaces.d` held only `50-cloud-init`, so the
+>   template rebuilt that day after #1341 no longer carries the file.
+> - **No route.** The only route was `172.30.30.0/24 dev eth0`. Both pings
+>   gave `Network is unreachable`.
+> - **The host takes nothing.** With the on-link route to `10.0.30.30`, both
+>   pings went unanswered, the neighbour read `INCOMPLETE`, and the `dropped`
+>   counter rose from 20 to 23 packets.
+> - **Guests still reach each other.** `ragnarok` pinged `172.30.30.199` with
+>   2 of 2 replies.
+
 ---
 
 ## 9. Prove that a leak reports itself
@@ -1384,9 +1454,12 @@ Addresses are parsed at query time rather than indexed, per
 
 ## Also worth knowing
 
-**The range is not monitored and not backed up, and both are decisions.**
-ADR-0017 declines an Alloy agent because `gandalf` is off by design, so any rule
-watching it is permanently firing or permanently silenced; and it declines PBS
+**The range is not monitored and not backed up.** Only the second is still a
+decision. ADR-0017 declined an Alloy agent because `gandalf` was off by design,
+so any rule watching it would be permanently firing or permanently silenced.
+Since [ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)
+the host stays on, so that reason is gone, and monitoring it is
+[#1651](https://github.com/Gerrrt/HomeLab/issues/1651). ADR-0017 also declines PBS
 because a deliberately-vulnerable image in the estate's backup store is a
 supported path for it to arrive somewhere it should not be. If you find yourself
 wanting to back something up here, the thing you want to keep has stopped being
