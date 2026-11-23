@@ -24,14 +24,18 @@ docstring gives: it is a record, not a claim about now.
   ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline
   under `/run`, sends the 30- and 5-minute `wall` warnings, waits while `dpkg`
   holds its lock, and powers off. Linked as `range-extend`, it sets the
-  deadline 1 to 12 hours from now. `systemd/range/` runs it every five
-  minutes. `build-the-playground.md` §7 gains *The power-off timer*, which
-  installs it from Hicks with a `range-extend 6` first, so an install on a box
-  already up six hours does not power it off five minutes later. The
-  read-back checks the timer is enabled and active.
-  - The `--self-test` has 18 fixtures, and `self-tests.sh` runs it in CI.
-  - Each of three deliberate breaks failed at least one fixture: no `dpkg`
-    wait, no extension cap, no 5-minute warning.
+  deadline 1 to 12 hours from now. `systemd/range/` runs it every
+  minute. `check` and `extend` hold one lock, so a check never acts on a
+  deadline an extension has just replaced. Review on the PR caught both: a
+  five-minute timer could skip the last warning, and the unlocked version
+  could act on a replaced deadline. `build-the-playground.md` §7 gains *The
+  power-off timer*, which installs it from Hicks with a `range-extend 6`
+  first, so an install on a box already up six hours does not power it off a
+  minute later. The read-back checks the timer is enabled and active.
+  - The `--self-test` has 21 fixtures, and `self-tests.sh` runs it in CI.
+    The two lock interleavings skip where there is no `flock`, as on macOS.
+  - Four deliberate breaks each failed at least one fixture: no `dpkg` wait,
+    no extension cap, no 5-minute warning, and no lock.
   - It passed under `gandalf`'s own bash, run from standard input without
     installing anything.
   - `systemd-analyze verify` on `gandalf` reported only that the script was
@@ -40,6 +44,8 @@ docstring gives: it is a record, not a claim about now.
   It was installed on `gandalf` the same evening at 17:44, from this
   branch, by §7's commands: `self-test-ok`, a deadline of 23:44, and a run
   by hand ending `Result=success`. The timer read `enabled` and `active`.
+  The every-minute timer and the lock were reinstalled the same way after
+  review.
   The one-power-off proof in §7 has not been run.
 
 - **`gandalf` will power itself off on a timer

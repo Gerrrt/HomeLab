@@ -16,10 +16,17 @@
 # it" cannot quietly switch the backstop off.
 #
 # THE WARNINGS go to every shell through `wall`: once at 30 minutes or
-# less, once at 5 or less. The timer runs this every five minutes, so
-# exactly one run falls inside the last five. A warning is recorded
-# against the deadline it was for, so an extension re-arms both without
-# clearing anything.
+# less, once at 5 or less. The timer runs this every minute, well inside
+# the five-minute window, so a late run cannot skip the last warning (at
+# five minutes it could: review on #1649). A warning is recorded against the
+# deadline it was for, so an extension re-arms both without clearing
+# anything.
+#
+# ONE LOCK. `check` and `extend` each hold an flock on the state
+# directory's lock file for the whole operation, the power-off request
+# included. Without it, a check that had read the old deadline could power
+# off after `range-extend` reported success, and two extensions could race
+# on one temporary file (review on #1649).
 #
 # IT NEVER POWERS OFF IN THE MIDDLE OF A PACKAGE INSTALL. While something
 # holds dpkg's lock, a run past the deadline logs that it is waiting and
@@ -42,6 +49,7 @@ STATE_DIR="${RANGE_STATE_DIR:-/run/homelab-range-poweroff}"
 now() { date +%s; }
 boot_time() { awk '/^btime /{print $2}' /proc/stat; }
 dpkg_busy() { fuser -s /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock 2>/dev/null; }
+take_lock() { flock -w 30 9; }
 say() { logger -t homelab-range-poweroff -- "$*" 2>/dev/null || true; printf '%s\n' "$*"; }
 warn_all() { wall -- "$*" 2>/dev/null || true; }
 power_off() { systemctl poweroff; }
@@ -58,9 +66,22 @@ read_state() {
 
 write_state() {
   # Write then rename, so a reader never sees half a number.
+  # The temporary name is unique, so two writers never share one.
+  local tmp
   mkdir -p "${STATE_DIR}"
-  printf '%s\n' "$2" > "${STATE_DIR}/$1.tmp"
-  mv -f "${STATE_DIR}/$1.tmp" "${STATE_DIR}/$1"
+  tmp="$(mktemp "${STATE_DIR}/.$1.XXXXXX")"
+  printf '%s\n' "$2" > "${tmp}"
+  mv -f "${tmp}" "${STATE_DIR}/$1"
+}
+
+with_lock() {
+  # Run "$@" holding the lock. fd 9 closes when the group ends, which
+  # releases it, so nothing outlives the operation.
+  mkdir -p "${STATE_DIR}"
+  {
+    take_lock || { say "could not take ${STATE_DIR}/lock in 30 s"; return 1; }
+    "$@"
+  } 9>"${STATE_DIR}/lock"
 }
 
 deadline() {
@@ -74,7 +95,9 @@ minutes_left() { printf '%s' "$(( ($1 + 59) / 60 ))"; }
 
 fmt_time() { date -d "@$1" '+%Y-%m-%d %H:%M' 2>/dev/null || date -r "$1" '+%Y-%m-%d %H:%M'; }
 
-cmd_check() {
+cmd_check() { with_lock check_locked; }
+
+check_locked() {
   local t d left mins
   t="$(now)"
   d="$(deadline)"
@@ -108,12 +131,16 @@ cmd_check() {
 }
 
 cmd_extend() {
-  local h="${1:-}" t d
+  local h="${1:-}"
   if ! is_uint "${h}" || (( 10#${h} < 1 || 10#${h} > MAX_EXTEND )); then
     printf 'usage: range-extend <hours>, a whole number from 1 to %d\n' "${MAX_EXTEND}" >&2
     return 2
   fi
-  h=$(( 10#${h} ))
+  with_lock extend_locked "$(( 10#${h} ))"
+}
+
+extend_locked() {
+  local h="$1" t d
   t="$(now)"
   d=$(( t + h * 3600 ))
   write_state deadline "${d}"
@@ -153,6 +180,11 @@ self_test() {
   say() { :; }
   warn_all() { printf '%s\n' "$*" >> "${WALL_LOG}"; }
   power_off() { printf 'off\n' >> "${OFF_LOG}"; }
+  local HAVE_FLOCK=1
+  if ! command -v flock >/dev/null 2>&1; then
+    HAVE_FLOCK=0
+    take_lock() { :; }
+  fi
 
   reset() { rm -rf "${STATE_DIR}" "${WALL_LOG}" "${OFF_LOG}"; BUSY=1; }
   walls() { [[ -f "${WALL_LOG}" ]] && wc -l < "${WALL_LOG}" | tr -d ' ' || printf 0; }
@@ -207,6 +239,34 @@ self_test() {
 
   reset; mkdir -p "${STATE_DIR}"; printf 'garbage\n' > "${STATE_DIR}/deadline"
   check "an unreadable deadline file falls back to six hours after boot" "$(deadline)" "$((BOOT + 6 * H))"
+
+  # The two interleavings the lock exists for. The test holds the lock on
+  # fd 8, starts the other operation in the background, does what the
+  # lock's holder would do, and lets go.
+  if ((HAVE_FLOCK)); then
+    local pid
+    reset; mkdir -p "${STATE_DIR}"; NOW=$((BOOT + 6 * H + 10))
+    exec 8>"${STATE_DIR}/lock"; flock 8
+    # 8>&-: the child must not inherit the test's hold on the lock, or it
+    # waits on itself until the timeout.
+    cmd_check 8>&- & pid=$!
+    sleep 0.3
+    write_state deadline "$((NOW + H))"
+    exec 8>&-
+    wait "${pid}"
+    check "a check waiting on the lock reads the deadline the extension wrote" "$(offs)" "0"
+
+    reset; mkdir -p "${STATE_DIR}"; NOW=$((BOOT + H))
+    exec 8>"${STATE_DIR}/lock"; flock 8
+    cmd_extend 2 >/dev/null 8>&- & pid=$!
+    sleep 0.3
+    check "an extension waits while a check holds the lock" "$(read_state deadline)" ""
+    exec 8>&-
+    wait "${pid}"
+    check "and writes its deadline once the check lets go" "$(read_state deadline)" "$((NOW + 2 * H))"
+  else
+    printf '\033[0;33m  SKIP\033[0m the two lock interleavings: no flock on this host\n'
+  fi
 
   ((failed == 0))
 }

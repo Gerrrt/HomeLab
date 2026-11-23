@@ -1146,8 +1146,8 @@ ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-range-poweroff &&
 **You should see** `self-test-ok`, no output from `systemd-analyze`, and a
 deadline six hours from now. The `range-extend 6` before the enable is
 deliberate. Without it the deadline is six hours after *this* boot, and on a
-box that has been up longer than that, the first run powers it off five
-minutes after the install. The self-test exercises every branch with
+box that has been up longer than that, the first run powers it off a
+minute after the install. The self-test exercises every branch with
 fakes, so it can run on the host without powering anything off.
 
 Running it, as root on `gandalf`:
@@ -1177,7 +1177,10 @@ Check `status` from a shell when you start one.
 > before it merged, by the commands above. The output was `self-test-ok`,
 > nothing from `systemd-analyze`, and a deadline of 23:44. A run of the
 > service by hand ended `Result=success`. The timer read `enabled` and
-> `active`, with its next run five minutes out.
+> `active`, with its next run five minutes out. That install had the first
+> timer, every five minutes. Review on #1649 moved it to every minute and
+> added the lock. The new files were reinstalled the same way, and the
+> self-test ran 21 fixtures on the box.
 
 Record the proof's result here. **Not yet run on `gandalf`.**
 

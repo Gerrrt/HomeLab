@@ -4,16 +4,21 @@ Documentation=https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-th
 
 [Timer]
 Unit=homelab-range-poweroff.service
-# Every five minutes from five minutes after boot. The script decides; the
-# timer only asks. Five minutes puts exactly one run inside the last five
-# before the deadline, which is what the 5-minute warning relies on, and it
-# is the most the power-off can lag the deadline by.
+# Every minute from a minute after boot. The script decides; the timer only
+# asks. The period has to sit well inside the five-minute warning window.
+# At five minutes, a run that came a little late could land past the
+# deadline having skipped the window, and power off with no last warning
+# (review on #1649). A minute is also about how far the power-off lags the
+# deadline. A run is a few reads of /run and costs nothing.
+#
+# AccuracySec is tight for the same reason. systemd's default of a minute
+# would let a run slip by a whole period.
 #
 # No Persistent=: a run missed while the box was off has nothing to catch
 # up on, because the deadline is counted from this boot.
-OnBootSec=5min
-OnUnitActiveSec=5min
-AccuracySec=30s
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
 
 [Install]
 WantedBy=timers.target
