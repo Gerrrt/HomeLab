@@ -1,0 +1,115 @@
+---
+# NUT, the UPS shutdown path, read from its own logs.
+#
+# WHY THESE EXIST. The UPS card is polled over SNMP and ups.rules.yaml pages on
+# what it reports. None of that sees NUT: the driver on morpheus that turns the
+# card's low-battery signal into a halt, and the upsmon clients that act on it.
+# From about 2026-10-30 to 20:59 on 2026-11-07 the driver was down. morpheus's
+# upsmon logged "Driver not connected" 23,048 times from 2026-11-05 alone, a
+# mains cut would have halted nothing in order, and the only alerts were the
+# generic card-silence ones (the changelog, 2026-11-23). A driver that stays
+# down while the card still answers SNMP would raise nothing at all.
+#
+# WHERE THE LINES COME FROM. Every upsmon is already in Loki:
+#
+#   morpheus  pfSense's syslog, through loki.source.syslog "network":
+#             log_type="syslog", app="upsmon" (and "upsd", "snmp-ups").
+#   Saruman   the journal, unit="nut-monitor.service".
+#   trinity   the same.
+#   smaug     nothing: TrueNAS ships no logs to Loki. Its upsmon is unwatched.
+#
+# A union of two branches, the way security.rules.yaml reads sshd: `or` keeps
+# each host counted once, from its one source.
+#
+# WHAT IS DELIBERATELY NOT HERE.
+#   - The brief "data stale" spells. Measured over 2026-11-16..22: about 100 a
+#     day from upsd, each lasting 1 to 5 s, and upsmon's "Communications ...
+#     lost" back within 5 to 10 s. Their cause is not established (they do not
+#     line up with the Prometheus scrape of the card), and an alert on them
+#     would fire all day. The two rules below fire only on a loss that lasts.
+#   - Absence. If upsmon itself stops, it logs nothing; a rule on silence would
+#     lean on the stale spells above as its heartbeat, and would start firing
+#     the day they are fixed.
+groups:
+  - name: nut
+    interval: 1m
+    rules:
+      - alert: NutDriverNotConnected
+        # upsd answers but has no driver behind it, so every upsmon polls and
+        # gets "Driver not connected". Sustained, the shutdown is disarmed: the
+        # clients cannot see the card's low-battery signal.
+        #
+        # A driver restart is not this. pfSense restarts it on a save and on
+        # every boot of morpheus, and each restart logs one or two of these
+        # lines per upsmon (seven restarts in the week to 2026-11-22, none over
+        # two lines). Ten in ten minutes is a driver that stayed down.
+        expr: |
+          (
+            sum by (host) (count_over_time({log_type="syslog", app="upsmon"} |= "failed - Driver not connected" [10m]))
+            or
+            sum by (host) (count_over_time({unit="nut-monitor.service"} |= "failed - Driver not connected" [10m]))
+          ) >= 10
+        for: 5m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#what-this-does"
+          summary: "The UPS shutdown is disarmed: NUT on morpheus has no driver for mjolnir"
+          description: >-
+            upsmon on {{ $labels.host }} logged "Driver not connected"
+            {{ $value }} times in ten minutes. The snmp-ups driver on morpheus
+            is down, so a mains cut would halt nothing in order. Check
+            Services → UPS on morpheus and `upsc mjolnir` there; the card's
+            own SNMP may still be answering.
+
+      - alert: NutCommunicationsLost
+        # upsmon logs "UPS <name> is unavailable" once it has had no data for
+        # NOCOMMWARNTIME (300 s by default, set nowhere here), and again every
+        # 300 s while that lasts. One line is therefore five minutes without the
+        # UPS, on that host: a client that cannot reach morpheus, or morpheus
+        # that cannot reach the card. Either way that host will not halt on
+        # the card's signal.
+        expr: |
+          (
+            sum by (host) (count_over_time({log_type="syslog", app="upsmon"} |= " is unavailable" [10m]))
+            or
+            sum by (host) (count_over_time({unit="nut-monitor.service"} |= " is unavailable" [10m]))
+          ) > 0
+        for: 0s
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#what-this-does"
+          summary: "{{ $labels.host }} has had no UPS data for five minutes"
+          description: >-
+            upsmon on {{ $labels.host }} reports the UPS unavailable. That host
+            will not halt on the card's low-battery signal until it is back. If
+            the host is morpheus, the driver or the card is at fault; if it is
+            a client, check that it can reach 10.0.99.1 on 3493.
+
+      - alert: NutMonitorFailedToStart
+        # "Fatal error" is how upsmon refuses its configuration, for example
+        # MINSUPPLIES above the power values configured, which trinity did five
+        # times on 2026-11-20 before its upsmon.conf was right. It then exits,
+        # and an upsmon that is not running logs nothing else.
+        expr: |
+          (
+            sum by (host) (count_over_time({log_type="syslog", app="upsmon"} |= "Fatal error" [15m]))
+            or
+            sum by (host) (count_over_time({unit="nut-monitor.service"} |= "Fatal error" [15m]))
+          ) > 0
+        for: 0s
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "upsmon on {{ $labels.host }} refused to start"
+          description: >-
+            upsmon logged a fatal error on {{ $labels.host }} and exited, so
+            that host is not subscribed to the UPS. Read
+            `journalctl -u nut-monitor` there for the line before it.

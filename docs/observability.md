@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-183 rules in total: 161 metric-based in `prometheus/rules/`, and 22 log-based in
+186 rules in total: 161 metric-based in `prometheus/rules/`, and 25 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -372,6 +372,18 @@ only `heimdall` exports `node_systemd_unit_state`, and nothing alerts on that
 series anyway. On the hosts that ship their journal, a failing unit was seen by
 nothing: `logrotate` failed nightly on `prometheus` and `oracle` from
 2026-10-16 until the 2026-11-23 re-audit found it.
+
+`loki/rules/nut.rules.yaml` watches the UPS shutdown path, which the card's
+SNMP cannot see. Every `upsmon` but `smaug`'s is already in Loki: `morpheus`'s
+through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+`NutDriverNotConnected` (critical) fires when an `upsmon` has had "Driver not
+connected" ten times in ten minutes, which is the driver on `morpheus` staying
+down and the shutdown disarmed, as it was until 2026-11-07.
+`NutCommunicationsLost` (critical) fires on upsmon's own "is unavailable",
+five minutes without UPS data on that host. `NutMonitorFailedToStart` catches
+an `upsmon` that refused its configuration and exited. The brief *data stale*
+spells, about a hundred a day and seconds long, are left alone, and so is
+silence: an `upsmon` that is not running logs nothing.
 
 **OOM kills have four owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903), [#1095](https://github.com/Gerrrt/HomeLab/issues/1095)):
 
