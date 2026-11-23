@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The monitoring host's weekly prune also removes anonymous volumes that
+  no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
+  and there were 99 by today, left behind by validation and scratch runs.
+  They were pruned by hand today (121.5 MB reclaimed), and the three
+  `prometheus_` volumes from the 2025 compose project were removed with them.
+  `make prune-images` now runs `docker volume prune` after the image prune.
+  Without `--all`, that removes only volumes labelled
+  `com.docker.volume.anonymous`, so a named volume survives even while its
+  stack is down. A probe on the host proved it both ways: a dangling
+  anonymous volume went, and a dangling named one stayed. On a Docker API
+  older than 1.42, where prune would also take named volumes, the step
+  refuses and the job fails. The agent hosts' copy is unchanged. The unit's
+  description changed, so the next `sudo make install-timers` on
+  `prometheus` is what brings the installed unit back in line.
+
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.

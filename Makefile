@@ -501,14 +501,28 @@ port-state: ## Collect whether each container holds the ports and networks it wa
 	$(PYTHON) scripts/collect-port-state.py
 
 .PHONY: prune-images
-prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
+prune-images: ## Remove Docker images and anonymous volumes no container uses (weekly on the monitoring host)
 	@# The unit says why: nothing else removes superseded digests, and they
 	@# filled `/` once (#136's cutover found it, 2026-09-29). Only images no
 	@# container references, running or stopped. The before and after are
 	@# printed so the journal records what each run reclaimed.
-	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	@#
+	@# Then anonymous volumes no container references. Validation and scratch
+	@# runs leave them behind: the 2026-11-13 audit found 69, and 99 by
+	@# 2026-11-23. `docker volume prune` without `--all` removes only volumes
+	@# carrying `com.docker.volume.anonymous`. It never removes a named volume,
+	@# so a stack that is down keeps its data. That holds from API 1.42
+	@# (Docker 23). On an older daemon it would remove named volumes too, so
+	@# the step refuses and fails the job instead.
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 	docker image prune -a -f
-	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	@api=$$(docker version --format '{{.Server.APIVersion}}') && \
+		if printf '1.42\n%s\n' "$$api" | sort -V -C; then \
+		docker volume prune -f; \
+		else \
+		echo "docker API $$api predates 1.42: volume prune would remove named volumes, refusing" >&2; exit 1; \
+		fi
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
