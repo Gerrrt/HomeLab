@@ -337,6 +337,58 @@ groups:
             KernelOomKill also fired on this host, the whole machine ran out,
             not just the unit.
 
+      - alert: SystemdUnitFailed
+        # A system unit that keeps failing, on any host that ships its journal.
+        # Nothing else here saw one: only heimdall exports node_systemd_unit_state,
+        # and turning that collector on for the Alloy hosts would hand each
+        # Alloy container the system D-Bus socket. So logrotate failed every
+        # night on prometheus and oracle from 2026-10-16 to the 2026-11-23
+        # re-audit, 36 runs, with no alert (cloud-init and cloud-init-base both
+        # ship a rotation for the same log).
+        #
+        # The line is UnitOomKilled's, from the same source and for the same
+        # reasons: PID 1 writes "<unit>: Failed with result '<result>'." on the
+        # journal's native transport, so `logger` and a service's stdout cannot
+        # raise it. Unlike that rule, this one reads system units only, not a
+        # user's manager.
+        #
+        # TWICE IN 48 HOURS, NOT ONCE. Over the 14 days to 2026-11-23 most
+        # single failures were shutdown noise: snap mounts, apparmor,
+        # cryptsetup, finalrd and livepatch failing while a host went down.
+        # A log rule cannot tell a shutdown from normal running, and every
+        # real fault in that window repeated: logrotate daily, nut-monitor on
+        # trinity, suricata on oracle. So it fires when a unit fails at least
+        # twice in 48h. A daily job then fires within a day of its second
+        # failure. A service that dies once and stays down is missed; that is
+        # what EndpointUnreachable and the job alerts are for.
+        #
+        # LEFT TO OTHER RULES. 'oom-kill' is UnitOomKilled's. homelab-* units
+        # are the scheduled jobs, and ScheduledJobFailed already names them.
+        expr: |
+          sum by (host, failed_unit) (
+            count_over_time(
+              {log_type="journal", transport="journal", unit="init.scope"}
+              |= "Failed with result"
+              !~ "^homelab-"
+              !~ "'oom-kill'"
+              | regexp "^(?P<failed_unit>[^ :]+): Failed with result"
+              [48h]
+            )
+          ) >= 2
+        labels:
+          component: logs
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.failed_unit }} failed {{ $value }} times in 48h"
+          description: >-
+            systemd reports that {{ $labels.failed_unit }} failed at least
+            twice in two days. `systemctl status {{ $labels.failed_unit }}` and
+            `journalctl -u {{ $labels.failed_unit }} -b` on {{ $labels.host }}
+            say why. If the unit comes from a package rather than this
+            repository, fix it on the host. If it is the repository's, fix it
+            through a PR. The alert clears 48h after the second-last failure.
+
       - alert: FilesystemRemountedReadOnly
         expr: |
           sum by (host) (

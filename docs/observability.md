@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-182 rules in total: 161 metric-based in `prometheus/rules/`, and 21 log-based in
+183 rules in total: 161 metric-based in `prometheus/rules/`, and 22 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -362,6 +362,16 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**`SystemdUnitFailed`** reads the same systemd verdict as `UnitOomKilled`
+below, for any result but `oom-kill`, from PID 1's own stream. It fires when a
+system unit fails at least twice in 48 hours. A single failure is not enough,
+because most single failures are shutdown noise, which a log rule cannot tell
+apart. `homelab-*` units are left to `ScheduledJobFailed`. It exists because
+only `heimdall` exports `node_systemd_unit_state`, and nothing alerts on that
+series anyway. On the hosts that ship their journal, a failing unit was seen by
+nothing: `logrotate` failed nightly on `prometheus` and `oracle` from
+2026-10-16 until the 2026-11-23 re-audit found it.
 
 **OOM kills have four owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903), [#1095](https://github.com/Gerrrt/HomeLab/issues/1095)):
 

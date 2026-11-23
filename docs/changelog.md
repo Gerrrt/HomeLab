@@ -46,6 +46,27 @@ docstring gives: it is a record, not a claim about now.
   the operator to *Configuration → UPS → General*, which does not have it.
   §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
 
+- **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
+  entry for the `prometheus` audit, which said a raw value outside 0–100 now
+  falls back to the normalised column. That change was deployed, and on
+  2026-11-22 the collector still rendered `-78` for the Apple SSD SM256E. Its
+  figure therefore comes from `Wear_Leveling_Count` or
+  `Media_Wearout_Indicator`, whose normalised column was not range-checked
+  either. All three ATA wear spellings now drop a life-left value outside
+  0–100. Which attribute the drive reports was not read, because `smartctl`
+  needs root. Until it is, the drive has no wear series and
+  `SmartDriveWearHigh` cannot fire for it. NVMe's `percentage_used` keeps its
+  meaning, which can exceed 100.
+- **`SystemdUnitFailed`: a system unit failing twice in 48 hours now
+  warns.** A re-audit of `prometheus` found `logrotate` failing every night
+  since 2026-10-16 on both `prometheus` and `oracle`, seen by nothing. The
+  `cloud-init` and `cloud-init-base` packages each ship a rotation for the
+  same log. The audit of 2026-11-13 had read `systemctl --failed` as empty
+  minutes after a reboot, which clears that state. The rule reads PID 1's own
+  journal line, like `UnitOomKilled`. Run against the live store, it returned
+  exactly those two units. The duplicate config itself is fixed on each host,
+  not here.
+
 ## 2026-11-22
 
 - **The range on `gandalf` is built
