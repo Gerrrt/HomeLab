@@ -35,6 +35,12 @@ docstring gives: it is a record, not a claim about now.
   `Wear_Leveling_Count`, normalised 178 against a threshold of 100, so it has
   no wear percent and no `homelab_smart_percentage_used` series, which is
   correct.
+  The rest of the audit's finding 8 was applied too. `ModemManager`,
+  `udisks2`, `multipathd` and `bolt` are masked, and `b43`, which loaded
+  without firmware for the unused BCM4331 Wi-Fi on every boot, is
+  blacklisted with its two buses. After that, no unit had failed, no target
+  was down, and the USB NIC stayed up. `restore-the-stack.md` gains *Trim what
+  the laptop does not use*, so a rebuild does the same.
 
 - **The range host will be monitored now that it stays on
   ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),

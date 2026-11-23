@@ -172,6 +172,7 @@ Same, without `--only`. On a rebuilt host, do it in this order:
 
 0. Make `sshd` key-only first, before the host holds the age key
    ([Make `sshd` key-only](#make-sshd-key-only)).
+   Then [trim what the laptop does not use](#trim-what-the-laptop-does-not-use).
 1. If `prometheus` is what died, or is unreachable, take the set from `oracle`
    first. The age key is not there; bring it from its offline copy
    ([`back-up-the-age-key.md`](back-up-the-age-key.md)):
@@ -368,6 +369,32 @@ ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthent
 
 The first must fail with `Permission denied (publickey)`, and the second must
 succeed.
+
+---
+
+## Trim what the laptop does not use
+
+The 2012 MacBook Pro boots with services and a driver that have no job here.
+They were masked on 2026-11-23, and a rebuild does the same:
+
+- `ModemManager`: there is no modem.
+- `udisks2`: there is no removable media to mount.
+- `multipathd` and its socket: there is one SATA disk and no SAN.
+- `bolt`: there is no Thunderbolt device. The NIC is the USB `r8152` adapter,
+  so this is safe. If a Thunderbolt adapter ever carries the network, unmask
+  `bolt` first, or the adapter is never authorised.
+- `b43`, with the `bcma` and `ssb` buses it loads: the BCM4331 Wi-Fi is unused,
+  and `b43` has no firmware for it, so it only logs errors at boot.
+
+```bash
+sudo systemctl mask --now ModemManager.service udisks2.service multipathd.service multipathd.socket bolt.service
+printf 'blacklist b43\nblacklist bcma\nblacklist ssb\n' | sudo tee /etc/modprobe.d/blacklist-b43-prometheus.conf
+sudo modprobe -r b43 bcma ssb
+lsmod | grep -E '^(b43|bcma|ssb) ' || echo none
+```
+
+Expect `none`, and `systemctl is-enabled` reading `masked` for each unit.
+`systemctl unmask` undoes any of them.
 
 ---
 
