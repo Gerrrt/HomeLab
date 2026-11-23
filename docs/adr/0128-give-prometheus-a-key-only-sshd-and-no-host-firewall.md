@@ -41,8 +41,8 @@ Who reaches `22` here:
   give a key first.
 
 Docker publishes Grafana (`3000`) and speedtest-tracker (`8443`) on
-`0.0.0.0`, and the ingest proxy's `9090`, `3100` and `6514` on
-`10.0.99.20`. Docker's rules run ahead of `ufw`'s for published ports, so a
+`0.0.0.0`. On `10.0.99.20` it publishes the ingest proxy's `9090` and
+`3100`, and Alloy's syslog listener on `6514`. Docker's rules run ahead of `ufw`'s for published ports, so a
 `ufw` policy here would govern `22` alone. That was the finding on `trinity`
 too (changelog, 2026-11-23).
 
@@ -68,9 +68,16 @@ policy would cover is `22`, and the key is the control there. The published
 ports are fenced elsewhere:
 
 - `morpheus` admits Hicks to `3000` and `8443` only;
-- the ingest proxy serves a push or a query only to a token, over TLS
+- on `9090` and `3100`, the ingest proxy serves a push or a query only to a
+  token, over TLS
   ([#182](https://github.com/Gerrrt/HomeLab/issues/182),
   [#764](https://github.com/Gerrrt/HomeLab/issues/764));
+- on `6514`, Alloy's syslog listener takes TLS only, and only with
+  `morpheus`'s pinned client certificate. It keeps a line only when the
+  connection's source address is on its sender list
+  ([#1049](https://github.com/Gerrrt/HomeLab/issues/1049),
+  [#844](https://github.com/Gerrrt/HomeLab/issues/844),
+  `stacks/observability/alloy/syslog.alloy`);
 - Alertmanager and the rest bind to loopback.
 
 A host firewall that did cover those ports would have to be written in
@@ -90,8 +97,9 @@ place. The step ends with the checks that prove both halves.
   that can route here. It adds a second tool's state to read in every audit,
   and no control.
 - **Rules in `DOCKER-USER`** to narrow the published ports by source.
-  Declined for now. `morpheus` already narrows the Hicks side, and the
-  ingest proxy's tokens bound VLAN 99 and the agents. A wrong rule fails
+  Declined for now. `morpheus` already narrows the Hicks side. On VLAN 99,
+  the ingest proxy's tokens bound the agents, and the syslog listener's
+  pinned certificate bounds `6514`. A wrong rule fails
   silently, on the monitoring host itself.
 - **`AllowUsers` naming the operator.** Not needed today. The host has one
   login account, and the unused `prometheus` user has `/bin/false` (the
@@ -107,7 +115,8 @@ place. The step ends with the checks that prove both halves.
 - **`trinity`'s logins here need a key,** or stop. Its runbook already gives
   `prometheus`'s key to `trinity`. The reverse direction is new.
 - **The published ports keep their current fence:** `morpheus` by
-  destination, and the ingest proxy by token. This ADR does not change them.
+  destination, the ingest proxy by token, and the syslog listener by
+  certificate and sender address. This ADR does not change them.
 - **Reopened by:**
   - a host listener on something other than `22` that is not loopback;
   - `morpheus`'s Hicks pass narrowing to named workstations, which would let
