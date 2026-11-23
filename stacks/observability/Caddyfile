@@ -60,6 +60,7 @@
 		"Bearer {$INGEST_TOKEN_ORACLE}" oracle agent
 		"Bearer {$INGEST_TOKEN_TRINITY}" trinity agent
 		"Bearer {$INGEST_TOKEN_SARUMAN}" saruman agent
+		"Bearer {$INGEST_TOKEN_GANDALF}" gandalf agent
 		"Bearer {$INGEST_TOKEN_READER}" reader reader
 		default - -
 	}
