@@ -193,8 +193,8 @@ truth for what a box actually does.
     `10.7.7.1`.
   - IPv6 is disabled on the switch (`disable-ipv6=yes`), so it has no
     address of either kind, link-local included.
-  - Every port with nothing plugged in is disabled, so a cable pushed into a
-    spare port joins no VLAN until someone enables it.
+  - Ports kept spare are disabled, so a cable pushed into one joins no VLAN
+    until someone enables it.
   - Neighbour discovery (LLDP, CDP, MNDP) and MAC-WinBox are limited to the
     switch-LAN interface; MAC-Telnet is off. MAC-WinBox is how you reach the
     switch by MAC after a reset, as
