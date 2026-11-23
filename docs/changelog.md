@@ -35,6 +35,14 @@ docstring gives: it is a record, not a claim about now.
   description changed, so the next `sudo make install-timers` on
   `prometheus` is what brings the installed unit back in line.
 
+- **The rack's temperature has fixed limits.** The probe's first reading, at
+  15:26 UTC after the deploy, was 22 °C: the card reports whole degrees in
+  `uioSensorStatusTemperatureDegC`, not the tenths PowerNet-MIB describes. That
+  settles what the probe entry below this one left open, and
+  `RackAmbientTemperatureHigh` (warning, over 30 °C for fifteen minutes) and
+  `RackAmbientTemperatureCritical` (critical, over 35 °C for ten) are added.
+  35 °C is the top of ASHRAE class A2, the DL360's rated inlet limit.
+
 - **`neo`'s log leaves the switch
   ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md), accepted).**
   The core switch kept its log in RAM, 1,000 lines deep. It now sends
