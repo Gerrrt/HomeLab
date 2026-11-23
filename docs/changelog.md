@@ -19,6 +19,45 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **A second read-only audit of `gandalf` finds containment holding, and
+  writes four fixes into the runbook.** It was run from Hicks after a power-on
+  and a full upgrade. Holding:
+  - `vmbr1` had no port and no address after a cold boot;
+  - the host and `ragnarok` had no NAT, and only `ragnarok` was dual-homed;
+  - all three targets had `clean`;
+  - the firewall read back as §4 writes it, and `morpheus` saw 22, 8006 and
+    the six AMT ports closed;
+  - `ragnarok` was started for the read and shut down after. Its
+    `range_scope` tables were loaded at boot as `finish-attack-vm.sh` writes
+    them, and a send to `1.1.1.1` was refused with `EPERM`.
+
+  Of the 2026-11-13 findings, these were found fixed:
+  - keys-only SSH and the NFS services;
+  - template 902, rebuilt that day after #1341;
+  - the old kernel;
+  - the GitHub token, the Claude Code credentials and the HomeLab checkout,
+    removed from `root` before this audit. No entry had recorded that.
+
+  New, and written into `build-the-playground.md`:
+  - `vmbr0` read IPv4 and IPv6 `forwarding = 1` while the global flag was
+    `0`. Nothing in `sysctl.d` sets it, so it is most likely ifupdown2's
+    default for an interface that carries an address. §2 adds `ip-forward off` and `ip6-forward off`.
+  - Nothing but the host firewall stopped a rooted target from reaching the
+    host: Linux answered ARP for `10.0.30.30` on `vmbr1`. §2 adds a netdev
+    `ingress` table on `vmbr1`, and §8 check four proves it.
+  - `sshd` still allowed X11 and TCP forwarding. §4's drop-in turns both off.
+  - `root` carried a dotfiles install, `1password-cli`, `gh`, Go and the
+    1Password and Charm apt repositories. §4's new *Nothing else on
+    `gandalf`* removes them. `security.md` adds the row.
+
+  §7's read-back checks all four. None is applied on `gandalf` yet.
+
+  The audit also found that the box had not been powered off between
+  sessions. `ragnarok` ran from 2026-11-12 to 2026-11-22, and the host was up
+  from 2026-11-07, nine days past the audit that reported it. ADR-0017's
+  "no monitoring" rests on that discipline, and what replaces it is left to
+  its own decision.
+
 - **`vmbr1`'s `post-up` holds across a boot.** This completes the entry below
   that moved the line to `post-up`, which left the proof outstanding. The line
   was applied on `gandalf`, and the box rebooted at 15:53. After the boot,
