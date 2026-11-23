@@ -161,6 +161,31 @@ pick it in the *Storage* field when creating each VM, and §6's `clean`
 snapshot is then a ZFS snapshot on that pool. Nothing of the range goes on
 the M.2.
 
+So the installer's `local-lvm` has no use here, and a storage that can hold
+guest disks is one a guest can be put on by mistake. Remove it, after
+checking that nothing is on it and no guest names it:
+
+```bash
+lvs --noheadings -o lv_name,pool_lv pve | awk '$2 == "data" { print }'
+grep -l local-lvm /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf 2>/dev/null
+pvesm remove local-lvm
+lvremove -y pve/data
+pvesm status; vgs pve
+```
+
+Both of the first two commands should print nothing. The `awk` lists every
+thin volume whose pool is `data`, and there must be none — `Data%` would read
+`0.00` even if one existed, because an unwritten thin volume uses no data
+blocks, so the list of volumes is the check, not the usage. The `grep` is the
+second belt: no guest config names `local-lvm`.
+After it, `pvesm status` lists `local` and `range` only, and the M.2's
+141 GiB is free space in the `pve` volume group. It is left there rather
+than grown into `/`, because ext4 does not shrink while mounted, and
+nothing on the host needs the room.
+
+> **Ran on `gandalf` 2026-11-22**, from the audit that day, which found the
+> thin pool empty and named by no guest.
+
 **Cap ZFS's read cache.** The installer limits the ARC only when the root is
 ZFS, and here it is not, so by default ZFS may take half of RAM: 16 GB of
 the 32 the range's guests need. Four GiB is plenty for one pool:
