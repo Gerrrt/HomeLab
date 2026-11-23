@@ -31,6 +31,16 @@ docstring gives: it is a record, not a claim about now.
   answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
   `morpheus`. The house's DNS is unchanged.
 
+- **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
+  the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
+  services, and the admin user's address, are narrowed from all of
+  `10.0.99.0/24` to the switch LAN and desktop-02, with SNMP from
+  `prometheus` and `api-ssl` from `trinity` as named rules of their own.
+  `api-ssl` takes TLS 1.2 only, IPv6 is disabled on the switch, and the
+  unused ports are disabled. Applied under a five-minute automatic revert,
+  cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
+  `trinity` were proven. device-mode, which needs a button press, is not done.
+
 - **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
   through `neo`'s SFP+ cages at 2.5G
   ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
@@ -65,6 +75,17 @@ docstring gives: it is a record, not a claim about now.
   package* section that says so. Afterwards both interfaces were running
   and reaching Loki, `make check-firewall` passed
   35/35, and no new alert fired.
+- **`morpheus`'s console menu asks for a password.** The 2026-11-13 audit
+  found a root session sitting at the console menu on `ttyv0`. It was not a
+  session anyone had left open: with *Password protect the console menu* off,
+  pfSense's `getty` logs root in automatically at every boot, so the menu,
+  and its shell, were open to anyone at the rack. Sunday's reboot had ended
+  the audit's session and started another. *Password protect the console
+  menu* is now on (System → Advanced → Admin Access), `ttyv0`'s `getty` runs
+  without autologin, and no console session is open. The console is still
+  the way back when the UI is unreachable; it now takes `admin` and the web
+  UI's password first, which `close-the-firewall-to-its-segments.md` and
+  `restore-the-firewall.md` now say.
 
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
