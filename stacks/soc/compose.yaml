@@ -426,7 +426,7 @@ services:
   # ---------------------------------------------------------------------------
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:a5c0bd262761b1957350831d71e9bbddce234c35e2e621504cebc6a87bd4d4a0
+    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:cc6b012eadea16d21b9e3ab9cc13dad81396f66be4e344aad3fe8efd53b20756
     container_name: soc-velociraptor
     pids_limit: 1024
     # A single Go binary; ADR-0030 sizes it at "a few hundred megabytes of
