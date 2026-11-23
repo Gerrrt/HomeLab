@@ -117,7 +117,7 @@ minutes. Don't power-cycle the UPS or pull the card while it works.
    in the system description:
 
    ```bash
-   scripts/snmp-walk.sh --device mjolnir 1.3.6.1.2.1.1.1
+   cd ~/code/Gerrrt/HomeLab && scripts/snmp-walk.sh --device mjolnir 1.3.6.1.2.1.1.1
    ```
 
 2. **SNMPv3 still answers.** In Prometheus, `up{job="snmp", device="mjolnir"}`
@@ -159,8 +159,22 @@ with `#1698` in the silence's comment in place of `#919`.
 
 ### B.3 Shut the hosts down, in order
 
-Follow `move-into-the-32u-rack.md` §4, rows 1 to 4: `Saruman`, `smaug`,
-`trinity`, then `morpheus`. **Stop there.** Leave `neo` and the UPS on.
+**Use addresses, not names, from here on.** DNS goes with `trinity`.
+
+| Order | Host | How | You should see |
+| --- | --- | --- | --- |
+| 1 | `Saruman` and its guests | The Proxmox UI at `https://10.0.30.20:8006` from the Mac on Hicks, *node → Shutdown*. It stops its guests first | The iLO at `10.0.30.10` shows the server off |
+| 2 | `gandalf` and its guests | The Proxmox UI at `https://10.0.30.30:8006`, *node → Shutdown*. It stops `ragnarok` and the range guests first | The M80q's power light goes out |
+| 3 | `smaug` | The TrueNAS UI, *Power → Shut Down* | The tower's power light goes out. `erebor` is exported on the way down |
+| 4 | `trinity` | `ssh rabbit@10.0.99.40 sudo systemctl poweroff` | The ProDesk's light goes out. AdGuard goes with it |
+| 5 | `morpheus` | The pfSense console on the KVM, option *Halt system* | The house loses internet, DNS and DHCP |
+
+**Stop there.** Leave `neo` and the UPS on: B.4 still needs the card.
+`prometheus` and `oracle` keep running on their own batteries.
+
+**If a hypervisor won't shut down** within five minutes, a guest is holding
+it. Shut that guest down from its own console first. Don't hold the power
+button on a hypervisor with running guests.
 
 ### B.4 Connect the Mac straight to the card
 
@@ -181,13 +195,42 @@ Follow `move-into-the-32u-rack.md` §4, rows 1 to 4: `Saruman`, `smaug`,
 
 ### B.6 Bring everything back
 
-1. *Control → UPS*, *Turn UPS Output On*.
+1. *Control → UPS*, *Turn UPS Output On*. Every outlet is live again, and
+   `neo` boots on its own.
 2. Plug the card's cable back into `neo`. Set the Mac's adapter back to DHCP.
-3. Power up as in `move-into-the-32u-rack.md` §7, then delete the silence and
-   resume what B.2 paused (§7.1 and §7.3).
-4. On `morpheus`, `upsc mjolnir ups.firmware` reads `UPS 15.0 (ID20)`, and
+3. Power the hosts up, in this order:
+
+   | Order | Host | How | You should see |
+   | --- | --- | --- | --- |
+   | 1 | `morpheus` | From the KVM, pressing its power button if it hasn't started on its own | The console reaches its menu. The house gets DHCP and internet. `nc -z -w2 10.0.99.1 22` from `prometheus` succeeds |
+   | 2 | `trinity` | It powers on by itself (*After Power Loss: Power On*) | It boots unattended; the TPM unseals its root disk. If it stops at a passphrase prompt, read ADR-0054 before typing anything |
+   | 3 | `Saruman` | *Momentary Press* in the iLO at `10.0.30.10` | Its guests start on their own |
+   | 4 | `smaug` | Its front button | `erebor` imports, and the shares are back |
+   | 5 | `gandalf` | Its front button. It's set to stay off after a power loss | The Proxmox UI at `https://10.0.30.30:8006` answers. `ragnarok` stays off until its timer or you start it |
+
+4. **Delete the silence before reading anything,** then resume what B.2
+   paused: the healthchecks.io check, and the converge timer:
+
+   ```bash
+   curl -sS -X DELETE http://localhost:9093/api/v2/silence/<UUID from B.2>
+   sudo sed -i '/^HOMELAB_CONVERGE_APPLY=0$/d' /etc/default/homelab-timers
+   ```
+
+5. **Verify,** on `prometheus`, five minutes after the last host is up:
+
+   ```bash
+   cd ~/code/Gerrrt/HomeLab
+   make ps
+   make ps STACK=sensitive
+   make check-firewall
+   curl -sG http://localhost:9090/api/v1/query --data-urlencode 'query=up == 0'
+   ```
+
+   Every container is healthy, no target is down, and the only alerts are
+   the ones that were standing before the window.
+6. On `morpheus`, `upsc mjolnir ups.firmware` reads `UPS 15.0 (ID20)`, and
    `UpsLowBatteryDurationShort` and `UpsRideThroughShort` are quiet.
-5. Update [`hardware.md`](../hardware.md#management), add a changelog entry,
+7. Update [`hardware.md`](../hardware.md#management), add a changelog entry,
    and close #1698 if Part A is also done.
 
 ## If something goes wrong
@@ -197,5 +240,5 @@ Follow `move-into-the-32u-rack.md` §4, rows 1 to 4: `Saruman`, `smaug`,
 | `scp` is refused or hangs | SSH must be on under *Configuration → Network → Console → Access*. Try `ssh -v` to the card to see which algorithm it rejects. Don't turn on FTP instead |
 | The card doesn't come back after A.4 | Wait the full ten minutes. Then press the card's reset button once and release it immediately, which reboots it. Don't hold the button down |
 | The card is back, but the SNMP scrape fails | See A.5 step 2. The scrape credentials are in `secrets/observability.sops.yaml` and don't change with firmware; the card's profiles might |
-| The UPS update fails in B.5 | Leave the output off. Retry once. If it fails again, stop: power the estate back up by plugging the PDU straight into the wall, so the house isn't waiting on APC support, and open a case with APC |
+| The UPS update fails in B.5 | Leave the output off. Retry once. If it fails again, bypass the UPS so the house isn't waiting on APC support. Move all three of its loads to wall outlets: the PDU (group 1), both laptops' chargers (group 2) and the MokerLink (group 3), as mapped in [`hardware.md`](../hardware.md). Plug the card's cable back into `neo`, then carry on from B.6 step 3. Nothing is on battery backup until the UPS is fixed, so open a case with APC the same day |
 | The UPS reports a different ID | Don't load `SMX20UPS_15-0.enc`. Find the file for that ID in FA170679's table |
