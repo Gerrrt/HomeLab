@@ -6,8 +6,7 @@
 window: about a minute with the LAN down, and up to fifteen with the
 internet down
 **You will need:** two MikroTik S+RJ10 modules, physical access to the rack,
-a workstation on Hicks, the switch's serial console cable if you have one, and
-`em0`'s MAC address read from `morpheus` (it is not in this repository)
+a workstation on Hicks, and the switch's serial console cable if you have one
 
 [ADR-0131](../adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
 decided the shape. This is how it gets there,
@@ -36,8 +35,15 @@ decided the shape. This is how it gets there,
    MikroTik's
    [S+RJ10 guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)
    warns against. Do not start Phase 2 until §1.2's hour of temperatures
-   has been read and the alert exists.
-4. **Until Phase 2, the remedy for `WanReceiveErrors` is still rebooting
+   has been read and the alert is live.
+4. **The public address may change.** pfSense does not let a VLAN interface
+   take another MAC, and cloning `em0`'s onto `igc0` would change the
+   gateway's MAC on every segment. So the WAN arrives with `igc0`'s MAC, the
+   modem is power-cycled to learn it, and the ISP may lease a new address.
+   The dynamic DNS client of
+   [ADR-0044](../adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+   follows it, and the remote path waits for that record.
+5. **Until Phase 2, the remedy for `WanReceiveErrors` is still rebooting
    `morpheus`.** Nothing in Phase 1 changes the WAN.
 
 ---
@@ -49,16 +55,15 @@ decided the shape. This is how it gets there,
 - `morpheus`: *Diagnostics → Backup & Restore*, download the configuration.
   Keep it off the repository.
 - `neo`: `/export file=pre-wan` and copy `pre-wan.rsc` off the switch.
-- Read and write down, outside the repository: `em0`'s MAC
-  (`ifconfig em0 | grep ether`), the WAN's current public address and its
-  IPv6 prefix (*Status → Interfaces*).
+- Write down, outside the repository, the WAN's current public address and
+  its IPv6 prefix (*Status → Interfaces*), to compare after the window.
 
-### 1.2 Seat the modules and read their heat
+### 1.2 Seat the modules, read their heat, and scrape it
 
 Insert both S+RJ10s, `sfp-sfpplus1` and `sfp-sfpplus2`, with nothing
 plugged into them. Then:
 
-```
+```text
 /interface ethernet monitor sfp-sfpplus1,sfp-sfpplus2 once
 ```
 
@@ -66,18 +71,30 @@ Each should show the module (`sfp-module-present: yes`, vendor MikroTik,
 part S+RJ10) and an `sfp-temperature`. Read it again after an hour. Write
 both readings, and the room's temperature, into #1691.
 
-Then add the temperature to the scrape, so Phase 2 is watched:
+Then put two things into the `crs326` module, the one
+`prometheus/targets/snmp.yaml` selects for `neo`. Its walk has neither today:
 
-- Walk MIKROTIK-MIB's optical table with `scripts/snmp-walk.sh` and confirm
-  the temperature column (`mtxrOpticalTemperature`, under
-  `1.3.6.1.4.1.14988.1.1.19.1`) returns a row per module, as
-  `generator.yaml`'s other modules were measured before they were written.
-- Add it to the `neo` module in
-  `stacks/observability/snmp-exporter/generator.yaml`, and add a warning
-  alert to `network.rules.yaml` for either module at 80 °C or more for ten
-  minutes, with a test. The module can reach 90 °C itself, so 80 leaves
-  room to act.
-- Deploy it, and see both series in Prometheus before going on.
+- **The modules' temperature**, MIKROTIK-MIB's `mtxrOpticalTemperature`,
+  under `1.3.6.1.4.1.14988.1.1.19.1`. Add MIKROTIK-MIB to
+  `scripts/snmp-mibs.sh`, which does not fetch it yet.
+- **`ifInErrors`**, `1.3.6.1.2.1.2.2.1.14`, so that Phase 3's
+  `WanReceiveErrors` can read the modem-facing port from the switch's side.
+
+The steps:
+
+1. Walk both with `scripts/snmp-walk.sh` first, as `generator.yaml`'s other
+   modules were measured. The temperature should return one row per
+   module.
+2. Add them to the `crs326` walk in
+   `stacks/observability/snmp-exporter/generator.yaml`. Then run
+   `make snmp-mibs` and `make snmp-generate`, so that the `snmp.yaml` the
+   exporter loads is regenerated. Editing the generator alone changes
+   nothing.
+3. Add `SwitchSfpModuleHot` to `network.rules.yaml`, with a test: either
+   module at 80 °C or more for ten minutes, warning. The module can reach
+   90 °C itself, so 80 leaves room to act.
+4. Deploy, and see both modules' temperatures and `ifInErrors` for
+   `sfp-sfpplus2` in Prometheus before going on.
 
 If an idle module already reads within 10 °C of the alert, stop here.
 ADR-0131's fallback is one module, or none.
@@ -87,19 +104,23 @@ ADR-0131's fallback is one module, or none.
 Nothing below changes a port with a link. In Safe Mode:
 
 1. Read `ether1`'s port entry, so `sfp-sfpplus1` can match it:
-   ```
+
+   ```text
    /interface bridge port print detail where interface=ether1
    /interface bridge vlan print
    ```
+
 2. Add `sfp-sfpplus1` to the bridge with `ether1`'s `pvid` (7),
    `frame-types` and `ingress-filtering`. Add it to the `tagged` list of
    every VLAN entry where `ether1` is tagged.
-3. Add `sfp-sfpplus2`:
-   ```
+3. Add `sfp-sfpplus2`. `<bridge>` is the name `/interface bridge print`
+   shows:
+
+   ```text
    /interface bridge port add bridge=<bridge> interface=sfp-sfpplus2 pvid=2 frame-types=admit-only-untagged-and-priority-tagged ingress-filtering=yes edge=yes
    /interface bridge vlan add bridge=<bridge> vlan-ids=2 tagged=sfp-sfpplus1 untagged=sfp-sfpplus2
    ```
-   `<bridge>` is the name `/interface bridge print` shows.
+
 4. Re-read `/interface bridge vlan print`. VLAN 2 names the two cages and
    nothing else, and not the bridge itself. Leave Safe Mode to commit.
 
@@ -118,9 +139,11 @@ bridge ports before. Their `dot1qPvid` rows appear now, reading 7 and 2.
 
 ## Phase 2 — the window
 
-Silence alerts with `component=~"internet|network"` for an hour, from
-`prometheus`, as [`move-into-the-32u-rack.md`](move-into-the-32u-rack.md) §2
-does. Delete the silence at the end, not on expiry.
+From `prometheus`, silence `component=~"internet|network"` with
+`alertname!="SwitchSfpModuleHot"` for an hour, as
+[`move-into-the-32u-rack.md`](move-into-the-32u-rack.md) §2 does. The
+module-temperature alert stays live: the window is the modules' first time
+under load. Delete the silence at the end, not on expiry.
 
 ### 2.1 Move the trunk: `igc0` to `sfp-sfpplus1`
 
@@ -141,24 +164,29 @@ LAN is down for as long as that takes.
    `sfp-sfpplus2` should read `2.5Gbps`.
 2. *Interfaces → Assignments*: set WAN to `igc0.2` (VLAN 2 on `igc0`).
    Save, then apply.
-3. *Interfaces → WAN*: set *MAC Address* to `em0`'s, as read in §1.1. Save,
-   then apply.
-4. *Status → Interfaces*: WAN has an address, the IPv6 prefix is delegated,
-   and *Status → Dynamic DNS* shows the record current. If WAN has no lease
-   within two minutes, unplug the CODA56's brick from PDU outlet 5 for 30
-   seconds. The modem then learns the client again.
-5. Run a speed test from a wired host and one from speedtest-tracker's UI.
-   Expect about 940 down on the wired host, which is the client's own
-   gigabit port. The tracker's figure is the one to record.
+3. Unplug the CODA56's brick from PDU outlet 5 for 30 seconds, then plug it
+   back in, so the modem learns the new client. Wait for it to come online.
+4. *Status → Interfaces*: WAN has an address, and the IPv6 prefix is
+   delegated. Compare them with §1.1. *Status → Dynamic DNS* shows the
+   record current with the address WAN now holds.
+5. Speed tests, as baselines: one from a wired host, and one from
+   speedtest-tracker's UI. Each is a single gigabit client, `prometheus`
+   included, so each should read about 940 down. Neither measures the new
+   path's aggregate.
+6. **The aggregate:** start large downloads on three or more wired hosts on
+   different switch ports at once, and read `homelab_wan_bits_per_second`
+   for `receive` while they run. The highest figure that holds for a few
+   minutes is Phase 3's capacity.
 
-**Rollback B:** the modem's cable back into `em0`, and WAN reassigned to
-`em0`, with the *MAC Address* field cleared. Then Rollback A if the trunk is
-also suspect.
+**Rollback B:** the modem's cable back into `em0`, WAN reassigned to `em0`,
+and the modem power-cycled again. Then Rollback A if the trunk is also
+suspect.
 
 ### 2.3 Close the window
 
 - `netstat -I igc0 -w 5` for a minute: `errs` stays at 0.
-- The two modules' temperatures under load are in Prometheus.
+- The two modules' temperatures under load are in Prometheus, under the
+  alert.
 - Delete the silence.
 
 ---
@@ -171,11 +199,11 @@ In one PR, with the facts the window measured:
   WAN by `pfInterfacesIfDescr`. Replace `0x656D30` (`em0`) with the hex of
   the new interface's description, read from the exporter rather than
   derived. `WanReceiveErrors` reads `ifInErrors` on `igc0` from `morpheus`
-  and on `sfp-sfpplus2` from `neo`. Its description drops the reboot remedy
-  and says which end counted. The receive figure in
-  `homelab_wan_capacity_bits_per_second` becomes the plan's usable rate, as
-  measured in §2.2. The comment at the top of the file stops calling the
-  port the ceiling.
+  and on `sfp-sfpplus2` from `neo`, the series §1.2 added. Its description
+  drops the reboot remedy and says which end counted. The receive figure in
+  `homelab_wan_capacity_bits_per_second` becomes §2.2's aggregate, not a
+  single client's speed test. The comment at the top of the file stops
+  calling the port the ceiling.
 - **The Internet dashboard and Glance's network page**, wherever they name
   `em0`.
 - `grep -rnE 'em0|0x656D30|ether1\b|port 1\b' docs stacks` and settle
@@ -184,8 +212,8 @@ In one PR, with the facts the window measured:
 - **The current-state documents** ADR-0131's *Consequences* lists, and the
   diagram's PNG re-rendered in the same commit.
 - **The changelog**, a dated entry: the window, both modules'
-  temperatures idle and under load, the speed test, and anything that went
-  differently from here.
+  temperatures idle and under load, the baselines and the aggregate, whether
+  the public address changed, and anything that went differently from here.
 
 Then empty `ether1`: remove it from the VLAN entries and from the bridge, in
 Safe Mode. `SwitchInterfaceDown` stays quiet, because the port has been down

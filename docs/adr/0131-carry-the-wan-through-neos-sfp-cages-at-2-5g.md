@@ -59,13 +59,16 @@ S+RJ10. `em0` leaves service. The 2000/250 plan stays.**
    left configured until the cutover has held, then emptied. The way back
    into the switch stays untagged and stays on the trunk, as ADR-0041
    requires. Only the cage it arrives through changes.
-4. **On `morpheus`, WAN is reassigned from `em0` to `igc0.2`**, with `em0`'s
-   MAC set on the new interface. The modem and the ISP then see the same
-   client, so the DHCP lease and the public address can carry over, and with
-   them the dynamic DNS record of
-   [ADR-0044](0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md).
-   pfSense's rules, NAT and the WireGuard `rdr` name the WAN interface, not
-   `em0`, so they follow the assignment.
+4. **On `morpheus`, WAN is reassigned from `em0` to `igc0.2`**, with
+   `igc0`'s own MAC, and the modem is power-cycled to learn it. pfSense makes
+   a VLAN interface's MAC read-only, and cloning `em0`'s onto the parent
+   `igc0` would change the gateway's MAC on every segment, so `em0`'s MAC
+   does not carry over. The ISP may lease a new public address. The dynamic
+   DNS client of
+   [ADR-0044](0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)
+   follows it, as it would after any lease change. pfSense's rules, NAT and
+   the WireGuard `rdr` name the WAN interface, not `em0`, so they follow the
+   assignment.
 5. **Heat is watched before it is trusted.** MikroTik's S+RJ10 guidance says
    not to place two side by side, and to add cooling where they must be or
    where the device is passive. The CRS326 is passive, and its two cages are
@@ -74,12 +77,15 @@ S+RJ10. `em0` leaves service. The 2000/250 plan stays.**
    switch is already a vented blank for this. The modules' DDM temperature
    joins `neo`'s SNMP scrape, with an alert, before the cutover, and the
    cutover waits until an hour of both modules idling in the cages has been
-   read.
+   read. The temperature alert is left out of the window's silence.
 6. **Monitoring follows the WAN.** The recording rules and
    `WanReceiveErrors` move from `em0` to `igc0` and `neo`'s
    `sfp-sfpplus2`, and `homelab_wan_capacity_bits_per_second`'s receive
    figure moves from ~940 Mbit/s to what the plan delivers through the new
-   path, measured.
+   path. That is measured as an aggregate across several wired clients at
+   once, because every client in the house, `prometheus` and its speed test
+   included, is gigabit. `neo`'s `crs326` module gains `ifInErrors` and the
+   modules' temperature for this, and `snmp.yaml` is regenerated from it.
 
 The procedure is
 [`move-the-wan-onto-neo.md`](../runbooks/move-the-wan-onto-neo.md), and the
