@@ -1,0 +1,153 @@
+---
+# The range host gandalf's own controls (ADR-0126, #1651). ADR-0125 keeps
+# gandalf on, so build-the-playground.md §7's per-session read-back is a gap of
+# days; these turn its checks into rules. The firewall itself is covered by the
+# PveFirewall* alerts in host.rules.yaml, which gandalf joins the day its
+# collector reports; what is here is the rest of §7 — the netdev barrier,
+# forwarding, sshd forwarding — and the ADR-0125 stop timer, read by
+# scripts/collect-range-state.sh. collect-pve-firewall-state.sh exports the
+# rule count but no alert read it, so PveFirewallZeroRules is here too.
+groups:
+  - name: range
+    interval: 60s
+    rules:
+      - alert: PveFirewallZeroRules
+        # Enabled, DROP policy, and no host rules is a firewall that locks
+        # everyone out — and the easy thing to "fix" in a hurry is policy
+        # ACCEPT (PveFirewallPolicyAccept), which opens the segment. The
+        # collector has carried homelab_pve_firewall_rules since #576; nothing
+        # alerted on it being zero until now (ADR-0126 review).
+        expr: >-
+          homelab_pve_firewall_rules{file="host"} == 0
+          and on (host) homelab_pve_firewall_enabled == 1
+          and on (host) homelab_pve_firewall_policy_drop == 1
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }} firewall is enabled with a DROP policy and zero host rules"
+          description: >-
+            pve-firewall is on and refuses unmatched inbound, but host.fw holds
+            no rules, so nothing reaches the node — including the management
+            paths build-the-playground.md §4 grants. Restore host.fw's rules
+            rather than dropping the policy to ACCEPT, which would open the
+            whole segment.
+
+      - alert: RangeIngressBarrierDown
+        # The vmbr1_host_in netdev table drops what the range bridge sends the
+        # host (§2). Without it, only the Proxmox firewall stands between a
+        # rooted target and the host, and nothing else here notices.
+        expr: homelab_range_ingress_table_loaded == 0
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: the vmbr1 ingress barrier is not loaded"
+          description: >-
+            The netdev ingress table vmbr1_host_in, which drops frames the range
+            bridge passes up to the host, is gone. A rooted target could reach
+            the host behind only the Proxmox firewall. Reload it, per
+            build-the-playground.md §2, and check §8 check four.
+
+      - alert: RangeHostForwardingOn
+        # ifupdown2's default turns vmbr0 forwarding on; §2 turns it off. A host
+        # that forwards routes for VLAN 30 hosts that send it traffic.
+        expr: homelab_range_forwarding{dev="vmbr0"} == 1
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: IP forwarding is on for {{ $labels.dev }} ({{ $labels.family }})"
+          description: >-
+            The range host should route for no one (build-the-playground.md §2).
+            Set ip-forward off on the bridge and reload; the proof is a reboot
+            plus §2's read-back.
+
+      - alert: RangeSshForwardingOn
+        # §4's drop-in turns X11 and TCP forwarding off, so a root session on
+        # the isolation host cannot become a tunnel.
+        expr: homelab_range_sshd_forwarding == 1
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: sshd permits {{ $labels.kind }} forwarding"
+          description: >-
+            sshd on the range host allows {{ $labels.kind }} forwarding, which
+            build-the-playground.md §4 turns off so a root session cannot tunnel
+            off the segment. An upgrade that rewrote sshd_config.d is the usual
+            cause; rerun §4.
+
+      - alert: RagnarokStopTimerInactive
+        # The attack VM is running, but the timer that stops it (ADR-0125) is
+        # not active — disabled or failed. The §7 read-back checks the timer at
+        # power-on; this catches it going wrong between sessions, by its effect.
+        expr: >-
+          homelab_ragnarok_running == 1
+          and on (host) homelab_ragnarok_stop_timer_active == 0
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: ragnarok is running but its stop timer is not active"
+          description: >-
+            The attack VM shares VLAN 30 with the estate, and its bound is the
+            homelab-ragnarok-stop timer (ADR-0125). The timer is not active, so
+            nothing stops the VM. Re-enable it (`systemctl enable --now
+            homelab-ragnarok-stop.timer`) or stop ragnarok by hand.
+
+      - alert: RagnarokPastDeadline
+        # The timer is meant to be active, but the VM has run well past the
+        # deadline the timer itself set (extensions and dpkg waits folded in).
+        # Ten minutes past is not a late run — the timer fires every minute — it
+        # is a timer that is not stopping the VM.
+        # The time-past-deadline vector is on the left so $value is the overage
+        # (an `and` takes the left operand's value), and `and on (host)` keeps
+        # the attack VM running.
+        expr: >-
+          (time() - homelab_ragnarok_deadline_seconds) > 600
+          and on (host) homelab_ragnarok_running == 1
+          and on (host) homelab_ragnarok_stop_deferred == 0
+        for: 5m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: ragnarok is {{ $value | humanizeDuration }} past its stop deadline"
+          description: >-
+            The attack VM is running more than ten minutes past the deadline the
+            stop timer set for it. The timer runs every minute, so it should
+            have stopped the VM; something is wedging it (check `journalctl -t
+            homelab-ragnarok-stop`), or stop ragnarok by hand.
+
+      - alert: RangeStateStale
+        # The collector stopped, which is not the range being fine: the
+        # textfile exporter keeps serving the last values, so a barrier that
+        # fell afterwards reads healthy. PveFirewallStateStale watches only the
+        # firewall file. Twenty-five minutes past a five-minute timer is five
+        # missed runs (ADR-0126 review).
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*range-state\\.prom"} > 25 * 60
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its range state recently"
+          description: >-
+            range-state.prom is {{ $value | humanizeDuration }} old, so the
+            range barrier and stop-timer alerts are reading an old answer and
+            cannot fire. Check homelab-range-state.timer on the host and
+            `journalctl -u homelab-range-state`.

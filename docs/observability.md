@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-192 rules in total: 166 metric-based in `prometheus/rules/`, and 26 log-based in
+201 rules in total: 173 metric-based in `prometheus/rules/`, and 28 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -362,6 +362,14 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**`SwitchLoginFromUnexpectedSource`** and **`SwitchLogsStopped`** read `neo`'s
+log, which morpheus relays to the same syslog listener as its own
+([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)). The first fires on a
+login to the core switch from anywhere but the switch LAN, desktop-02, or Home
+Assistant's read-only API user. The second fires when 30 minutes pass without a
+line, and the switch logs a heartbeat every five minutes so that silence means
+the path is broken.
 
 **`SystemdUnitFailed`** reads the same systemd verdict as `UnitOomKilled`
 below, for any result but `oom-kill`, from PID 1's own stream. It fires when a
@@ -540,7 +548,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-166 rules across twelve files in `prometheus/rules/`:
+173 rules across 13 files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -555,6 +563,7 @@ argument and for what to do when it exits 1.
 | `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and the page: `ScheduledJobStaleCritical` at three of a job's own periods and never under a day, because the warning reaches only the in-house channel and a backup that stopped in week one was otherwise a notification repeating on the same network for as long as nobody acted (2026-10-14) — whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), and whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)) |
 | `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Also whether convergence had to start a stack service that something stopped — `DeployServiceRevived` — and whether one has been left stopped for two hours, held or under a backup — `DeployServicesStopped` ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)) |
 | `internet.rules.yaml` | Why the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)): three scheduled speed tests in a row under 400 Mbit/s down or 100 up, the WAN held above 85% of what it can carry, frames arriving corrupted on the WAN port — `WanReceiveErrors`, the fault found the day these were written, when a cable between the XB7 and `morpheus` cut downloads to ~2 Mbit/s — and `speedtest-tracker` itself going quiet or unreachable. Also records `homelab_wan_bits_per_second` from pf's own em0 counters. Download thresholds are against the ~940 Mbit/s the 1000baseT WAN port can carry, not the plan's 2000. `speedtest-tracker` is left out of `InstanceDown`, so its outage is a warning and not a page |
+| `range.rules.yaml` | The range host `gandalf`'s own controls, now that it stays on ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)): the `vmbr1_host_in` ingress barrier, `vmbr0` forwarding and `sshd` forwarding being off (`build-the-playground.md` §2, §4), and the attack-VM stop timer (ADR-0125) — read by `scripts/collect-range-state.sh`. `PveFirewallZeroRules` is here too: the firewall collector exports the rule count but no other rule reads it |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
 
 **Every critical alert links to a runbook** ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
@@ -576,8 +585,8 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 166 rules of 166 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
-in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
+against the broken rule too. Coverage is 173 rules of 173 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
+in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, all seven in `range.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
 [#838](https://github.com/Gerrrt/HomeLab/issues/838) and

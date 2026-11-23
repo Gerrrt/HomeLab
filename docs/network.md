@@ -35,7 +35,9 @@ above CasaBonita, which the spectrum does not. Reasoning in
     LAN to any* until 2026-09-02, when six logged blocks — one per VLAN — were
     placed above an egress rule renamed *Allow internet*, leaving DNS and NTP to
     the gateway as the only passes above them
-    ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). Inbound, nothing on
+    ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). A third joined
+    them on 2026-11-23: `neo`'s syslog to the gateway's own `10.7.7.1:5514/udp`
+    ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)). Inbound, nothing on
     Winterfell can reach it since 2026-09-06: `Gerrrt/Lemmiwinks#177` added a
     logged block from `10.0.99.0/24`, leaving SNMP as the one pass above that.
     One residual, in both directions: the stock *Default allow LAN IPv6 to any*
@@ -182,6 +184,14 @@ truth for what a box actually does.
     switch by MAC after a reset, as
     [`swap-the-switch.md`](runbooks/swap-the-switch.md) does.
   - NTP comes from `10.7.7.1`. The default `admin` user is disabled.
+  - The log leaves the switch. Topics `info`, `warning`, `error` and
+    `critical` go to syslog-ng on `10.7.7.1:5514` over UDP, from
+    `10.7.7.2`, and morpheus relays them to Loki as `host="neo"`. A
+    scheduler entry, `log-heartbeat`, logs a line every five minutes so that
+    silence means the path broke. The `memory` rules stay.
+    [ADR-0127](adr/0127-relay-neos-log-through-morpheus.md) records why, and
+    [`ship-firewall-logs.md`](runbooks/ship-firewall-logs.md) §10 is the
+    procedure.
 - DHCP disabled.
 - **`morpheus` pins thirteen reservations in its ARP table, on every
   segment but Skids and Degens.** Each is a Kea reservation with *Create a

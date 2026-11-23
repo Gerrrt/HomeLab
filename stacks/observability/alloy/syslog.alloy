@@ -28,6 +28,13 @@
 // pfSense reaches this on the management VLAN, where it already has an
 // interface (10.0.99.1), so no firewall rule is required.
 //
+// neo's log rides the same connection (ADR-0127). RouterOS sends standard
+// syslog over UDP only and offers no client certificate, so neo sends to
+// syslog-ng on morpheus, on the switch LAN, and syslog-ng relays it here
+// stamped with hostname `neo`. The `neo` rule in loki.relabel.network_syslog
+// below is the one place this file reads a message hostname, and why that is
+// safe is written there.
+//
 // TLS ON 6514, AND NO UDP (#1049). This listener was UDP and RFC3164 at
 // first, because that is what pfSense sends by default. But a UDP source
 // address can be forged by any host on VLAN 99, so #844's allowlist below
@@ -164,11 +171,44 @@ loki.relabel "network_syslog" {
 		replacement   = "morpheus"
 	}
 
+	// neo, relayed by morpheus (ADR-0127). After the morpheus rule, so it
+	// overrides it, and only for a line that both arrives on morpheus's
+	// connection AND carries hostname `neo`. Every other line from 10.0.99.1
+	// stays host="morpheus"; `neo` from any other address gets no host and is
+	// dropped below.
+	//
+	// This trusts a message hostname, which the paragraph above refuses, and
+	// that is safe here because the sender does not write it. morpheus's
+	// syslog-ng sets HOST itself on both of its paths: `neo` on the switch-LAN
+	// source, which also ignores any hostname neo sends (flags(no-hostname)),
+	// and `morpheus` on pfSense's own loopback path. So `neo` reaches this
+	// field only through the neo path, and only over the pinned TLS connection.
+	// docs/runbooks/ship-firewall-logs.md §10 is the syslog-ng side.
+	rule {
+		source_labels = ["__syslog_connection_ip_address", "__syslog_message_hostname"]
+		regex         = "10\\.0\\.99\\.1;neo"
+		target_label  = "host"
+		replacement   = "neo"
+	}
+
 	// pfSense tags filterlog, dhcpd, unbound, sshd and so on. Low cardinality,
 	// and it is how you separate firewall decisions from everything else.
 	rule {
 		source_labels = ["__syslog_message_app_name"]
 		target_label  = "app"
+	}
+
+	// ...except on neo's lines, which get a fixed app whatever their tag says.
+	// The firewall's Loki rules select by app (filterlog, suricata, kea-dhcp4),
+	// and a line on the neo path tagged `filterlog` must never be read as the
+	// firewall's: it could raise a firewall alert, or keep FirewallLogsStopped
+	// quiet while morpheus says nothing. Those rules also require
+	// host="morpheus" (ADR-0127), so either guard alone is enough.
+	rule {
+		source_labels = ["host"]
+		regex         = "neo"
+		target_label  = "app"
+		replacement   = "routeros"
 	}
 
 	// Which interface a Suricata alert came from. pfSense runs one Suricata
@@ -192,8 +232,9 @@ loki.relabel "network_syslog" {
 	// local4.none;local7.none;...`, so an interface set to one of those alerts on
 	// the box and sends nothing — which looks exactly like a quiet interface.
 	//
-	// Both labels are sourced, joined with the default `;`, so a facility
-	// collision with some other pfSense daemon cannot mislabel its lines. And an
+	// The labels are sourced, joined with the default `;`, so a facility
+	// collision with some other pfSense daemon cannot mislabel its lines, and
+	// `host` is among them so a line on neo's path never gets an interface. And an
 	// unmapped facility gets NO interface label rather than a guessed one, for
 	// the reason `.+` not `.*` is spelled out below: absent is visibly absent.
 	// `sum by (interface)` shows it as an empty series; a wrong value would not.
@@ -201,15 +242,15 @@ loki.relabel "network_syslog" {
 	// Two values, one per interface, alongside filterlog's igc0.<vlan> vocabulary
 	// so the same picker drives both.
 	rule {
-		source_labels = ["__syslog_message_app_name", "__syslog_message_facility"]
-		regex         = "suricata;local1"
+		source_labels = ["host", "__syslog_message_app_name", "__syslog_message_facility"]
+		regex         = "morpheus;suricata;local1"
 		target_label  = "interface"
 		replacement   = "igc0.20"
 	}
 
 	rule {
-		source_labels = ["__syslog_message_app_name", "__syslog_message_facility"]
-		regex         = "suricata;local2"
+		source_labels = ["host", "__syslog_message_app_name", "__syslog_message_facility"]
+		regex         = "morpheus;suricata;local2"
 		target_label  = "interface"
 		replacement   = "igc0.10"
 	}

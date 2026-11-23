@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: the range host's own controls
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-range-state.service
+# Every 5 minutes, like homelab-pve-firewall-state: these are the same
+# security controls §7 checks, and the stop-timer alerts (ADR-0126) want a
+# sample well inside the stop timer's own one-minute cadence rather than a
+# daily one. RangeStateStale bounds how long a stopped collector can hide a
+# fault.
+OnCalendar=*:0/5
+RandomizedDelaySec=30
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target
