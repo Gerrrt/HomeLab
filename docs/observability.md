@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-199 rules in total: 173 metric-based in `prometheus/rules/`, and 26 log-based in
+201 rules in total: 173 metric-based in `prometheus/rules/`, and 28 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -362,6 +362,14 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**`SwitchLoginFromUnexpectedSource`** and **`SwitchLogsStopped`** read `neo`'s
+log, which morpheus relays to the same syslog listener as its own
+([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)). The first fires on a
+login to the core switch from anywhere but the switch LAN, desktop-02, or Home
+Assistant's read-only API user. The second fires when 30 minutes pass without a
+line, and the switch logs a heartbeat every five minutes so that silence means
+the path is broken.
 
 **`SystemdUnitFailed`** reads the same systemd verdict as `UnitOomKilled`
 below, for any result but `oom-kill`, from PID 1's own stream. It fires when a

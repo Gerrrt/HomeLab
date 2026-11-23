@@ -340,6 +340,24 @@ ssh root@10.0.99.1 'pfctl -sr | grep -c "<Tunnel_Peers>"'
 # makes every rule using it match nothing, which reads as "no leaks".
 ```
 
+```bash
+# 7. Are both log streams back? The syslog-ng package and its objects come back
+#    with config.xml, including neo's source and the switch-LAN pass
+#    (ADR-0127), but the TLS files it relays with do not: they sit outside
+#    config.xml. Copy them back first, as ship-firewall-logs.md §3 step 2
+#    says, then restart the service from Status → Services.
+ssh admin@10.0.99.1 'ls /usr/local/etc/syslog-ng/tls/; sockstat -4l | grep syslog-ng'
+# expect ca.pem, morpheus-key.pem and morpheus.pem, and listeners on
+# 127.0.0.1:5140 (pfSense's own log) and 10.7.7.1:5514 (neo's)
+
+# On prometheus, a few minutes later:
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (host) (count_over_time({source="network"}[10m]))' \
+  | jq -r '.data.result[] | "\(.metric.host)\t\(.value[1])"'
+# expect a count for both morpheus and neo. Missing both: the TLS files or
+# syslog-ng. Missing only neo: the pass on igc0 or the s_neo source.
+```
+
 > [!NOTE]
 > Step 4 matters more than it looks. A restore that brings back connectivity but
 > not the rule set leaves the house on a flat network that *appears* to work

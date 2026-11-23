@@ -101,8 +101,10 @@ default deny. IoT, media and guest are
 terminal — traffic goes out, nothing comes back in. One path the diagram cannot
 draw: the switch is plumbing here, not a segment, but its management address
 sits on the untagged LAN (`10.7.7.0/24`). Since 2026-09-02 that interface
-blocks every VLAN and passes only DNS, NTP and the internet
-([#229](https://github.com/Gerrrt/HomeLab/issues/229)), and since 2026-09-06
+blocks every VLAN and passes only DNS, NTP, the switch's syslog to the
+firewall itself, and the internet
+([#229](https://github.com/Gerrrt/HomeLab/issues/229),
+[ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)), and since 2026-09-06
 Winterfell reaches it only through named passes
 ([ADR-0025](adr/0025-close-the-switch-lan-to-winterfell.md)). IPv6 is the
 residual: the stock *Default allow LAN IPv6 to any* rule is still there.
