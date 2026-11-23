@@ -527,6 +527,7 @@ services:
       INGEST_TOKEN_ORACLE: ${INGEST_TOKEN_ORACLE:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_TRINITY: ${INGEST_TOKEN_TRINITY:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_SARUMAN: ${INGEST_TOKEN_SARUMAN:?set in secrets/observability.sops.yaml}
+      INGEST_TOKEN_GANDALF: ${INGEST_TOKEN_GANDALF:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
