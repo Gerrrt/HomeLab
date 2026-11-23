@@ -35,7 +35,9 @@ interfaces:
 
   # The switch management LAN. Default deny since 2026-09-02 (#229) outbound and
   # 2026-09-06 inbound (ADR-0025); ADR-0013 read it before either and describes
-  # the wider state.
+  # the wider state. Its passes to the gateway's own address (DNS, NTP, and
+  # neo's syslog to 10.7.7.1:5514/udp since ADR-0127) reach no segment, so they
+  # are not claims this file makes.
   #
   # The inet6 row is the residual ADR-0025 and network.md's [^lan] footnote both
   # record: this interface still carries pfSense's stock *Default allow LAN IPv6

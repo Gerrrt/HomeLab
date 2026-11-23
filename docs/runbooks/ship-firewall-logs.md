@@ -131,15 +131,17 @@ openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null
    `certificates/morpheus.matrix.elysium-key.pem` to
    `/usr/local/etc/syslog-ng/tls/` on morpheus, as `ca.pem`, `morpheus.pem`
    and `morpheus-key.pem`. The key must be `0600`, owned by root.
-3. In **Services → Syslog-ng**, under Advanced, add these objects. They
-   receive pfSense's own syslog on loopback and relay it over TLS. Check the
-   field names against the package's form on the box, since this was written
-   before the first install:
+3. In **Services → Syslog-ng**, on **General**, enable it on interface
+   `lo0`, protocol UDP, port `5140`. The package generates the source from
+   these, and it cannot carry flags:
 
    ```text
-   source s_pfsense {
-     network(ip("127.0.0.1") port(5140) transport("udp") flags(no-hostname));
-   };
+   source _DEFAULT { internal(); syslog(transport(udp) port(5140) ip(127.0.0.1)); };
+   ```
+
+4. On **Advanced**, add these objects. They relay that source over TLS:
+
+   ```text
    destination d_alloy_tls {
      syslog("10.0.99.20" port(6514) transport("tls")
        tls(ca-file("/usr/local/etc/syslog-ng/tls/ca.pem")
@@ -147,20 +149,30 @@ openssl s_client -connect 10.0.99.20:6514 -CAfile certificates/ca.pem </dev/null
            key-file("/usr/local/etc/syslog-ng/tls/morpheus-key.pem")
            peer-verify(required-trusted)));
    };
-   log { source(s_pfsense); destination(d_alloy_tls); };
+   rewrite r_host_morpheus { set("morpheus" value("HOST")); };
+   log { source(_DEFAULT); rewrite(r_host_morpheus); destination(d_alloy_tls); };  # form name l_alloy_tls
    ```
 
-   `flags(no-hostname)` matters. pfSense's lines carry no hostname
-   (`<134>Oct  7 18:00:00 filterlog[4242]: …`), and without the flag syslog-ng
-   can read the tag as one. `peer-verify(required-trusted)` makes morpheus
-   check the listener's certificate as well, against the same CA.
+   The package prints a log object without its name, so the name is only the
+   form's key. `peer-verify(required-trusted)` makes morpheus check the
+   listener's certificate as well, against the same CA.
+
+   `r_host_morpheus` is what makes the hostname on this connection mean
+   something. Alloy stores every line from `10.0.99.1` as `host="morpheus"`
+   unless its hostname is `neo` (§10). Without the rewrite, syslog-ng would
+   fill the hostname from the line itself whenever the token after the
+   timestamp looked like one, so a local process logging with a tag of
+   `neo something` would be stored as the switch. The generated source cannot
+   take `flags(no-hostname)`, which would be the other fix, so the hostname is
+   overwritten on the way out instead. The default file destination keeps
+   whatever syslog-ng parsed.
 
 The loopback hop is UDP, and that is fine: `127.0.0.1` cannot be reached, let
 alone forged, from another host. The TLS hop is the one that crosses VLAN 99.
 
 The certificate files sit outside `config.xml`, so a config restore does not
 bring them back. After [`restore-the-firewall.md`](restore-the-firewall.md),
-repeat step 2.
+repeat step 2: its §4 step 7 checks both log streams came back.
 
 ---
 
@@ -468,6 +480,111 @@ replayed. Then pfSense stopped sending UDP, and the UDP listener and its `1514`
 and `514` publishes were removed. Nothing on the monitoring host listens for
 UDP syslog now. A UDP line sent from `10.0.99.1` itself is not stored, and
 `scripts/check_syslog_senders.sh` proves it.
+
+---
+
+## 10. Relay `neo`'s log ([ADR-0127](../adr/0127-relay-neos-log-through-morpheus.md))
+
+`neo` kept its log in RAM only, 1,000 lines deep. RouterOS sends standard
+syslog over UDP only and offers no client certificate, so it cannot meet the
+listener in §2. It sends to syslog-ng on morpheus instead, on the switch LAN,
+and syslog-ng relays the lines over the same TLS connection, stamped as
+`neo`'s:
+
+```text
+neo ──udp──▶ 10.7.7.1:5514 syslog-ng (on morpheus) ──TLS (§3)──▶ 10.0.99.20:6514 Alloy ──▶ Loki, host="neo"
+```
+
+Do the steps in this order. Each makes the next one safe: the first line
+from `neo` arrives at a sender rule that names it, with its `app` fixed and no
+firewall rule able to read it.
+
+1. **Deploy the receiver side.** `syslog.alloy`'s `neo` rule, its fixed
+   `app="routeros"`, and the `host="morpheus"` selectors on the firewall's
+   Loki rules ship with the change that added this section, and
+   `scripts/check_syslog_senders.sh` covers them. Confirm the running Alloy
+   has them, as §2 says to, before going on:
+
+   ```bash
+   docker exec alloy grep -c 'routeros' /etc/alloy/syslog.alloy   # expect 1
+   docker inspect -f '{{.State.StartedAt}}' alloy
+   ```
+
+2. **On morpheus, add the neo path** under **Services → Syslog-ng →
+   Advanced**:
+
+   ```text
+   source s_neo { network(ip("10.7.7.1") port(5514) transport("udp") flags(no-hostname)); };
+   rewrite r_host_neo { set("neo" value("HOST")); };
+   log { source(s_neo); rewrite(r_host_neo); destination(d_alloy_tls); };  # form name l_neo
+   ```
+
+   Port `5514`, because pfSense's own `syslogd` holds `*:514`. Bound to
+   `10.7.7.1`, so nothing on another interface reaches it.
+   `flags(no-hostname)` means whatever `neo` writes as its hostname is never
+   read, and the rewrite sets it. Check `sockstat -4l | grep 5514` shows
+   syslog-ng on `10.7.7.1`.
+
+3. **On morpheus, one pass on the switch LAN** (`igc0`):
+   `10.7.7.2 → 10.7.7.1` UDP `5514`, *Allow Neo syslog to Firewall*, above the
+   per-VLAN blocks, beside the DNS and NTP passes to the gateway. It reaches the
+   firewall's own address and nothing else, and nothing into or out of
+   Winterfell changes.
+
+4. **On `neo`**, from the switch LAN or SSH jumped through morpheus
+   (`ssh -J admin@10.0.99.1 gerrrt@10.7.7.2`), with safe mode on:
+
+   ```text
+   /system logging action set remote remote=10.7.7.1 remote-port=5514 \
+       remote-protocol=udp remote-log-format=syslog src-address=10.7.7.2
+   /system logging add topics=info action=remote
+   /system logging add topics=warning action=remote
+   /system logging add topics=error action=remote
+   /system logging add topics=critical action=remote
+   /system scheduler add name=log-heartbeat interval=5m policy=read,write,test \
+       on-event=":log info \"log heartbeat\""
+   ```
+
+   One rule per topic, because a rule that lists several matches only lines
+   carrying all of them. The `memory` rules stay, so the console still shows
+   the log when morpheus is the suspect. The heartbeat is what keeps
+   `SwitchLogsStopped` honest: Home Assistant's API session logged in once in
+   four hours on 2026-11-23, so traffic alone is no pulse.
+
+5. **Verify both hops.** On morpheus, the plain hop:
+
+   ```bash
+   tcpdump -ni igc0 -A -c 3 'udp port 5514 and src host 10.7.7.2'
+   ```
+
+   On prometheus, the stored lines and their labels:
+
+   ```bash
+   curl -sG http://localhost:3100/loki/api/v1/query_range \
+     --data-urlencode 'query={host="neo"}' --data-urlencode 'limit=5' \
+     | jq -r '.data.result[] | "\(.stream.app) \(.stream.level)\t\(.values[0][1])"'
+   ```
+
+   Expect `routeros` on every line. A line from `neo` stored as
+   `host="morpheus"` means Alloy is running without the `neo` rule. Nothing in
+   Loki with packets on `igc0` means syslog-ng is not listening on `5514`.
+
+6. **Measure a day of it**, as §8 does for the firewall:
+
+   ```bash
+   curl -sG http://localhost:3100/loki/api/v1/query \
+     --data-urlencode 'query=sum(count_over_time({host="neo"}[24h]))' | jq '.data.result'
+   ```
+
+   On 2026-11-23 a link flapping on `ether4` was most of it, about 250 lines
+   an hour. If Home Assistant's login and logout pairs ever dominate, drop
+   them in Alloy by user and address, not on the switch, so a login by anyone
+   else is never filtered.
+
+To undo it, set the `remote` action back to `0.0.0.0` and remove the four
+`remote` rules and the scheduler entry on `neo`, then the pass and the three
+syslog-ng objects on morpheus. Silence `SwitchLogsStopped`, which fires 30
+minutes later, as it should.
 
 ---
 

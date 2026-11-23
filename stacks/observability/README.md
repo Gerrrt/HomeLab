@@ -61,7 +61,7 @@ alertmanager/
   alertmanager.yaml        severity + category routing, inhibition
 loki/
   loki-config.yaml         single-binary, filesystem, 30-day retention
-  rules/*.rules.yaml       26 LogQL rules, security, watchdog and NUT, evaluated by Loki's ruler
+  rules/*.rules.yaml       28 LogQL rules, security, watchdog and NUT, evaluated by Loki's ruler
 alloy/                     the agent config — Alloy loads the directory
   config.alloy             every monitored host
   docker.alloy             hosts with a Docker socket
