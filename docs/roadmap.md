@@ -117,8 +117,9 @@ Gated on the domain, on a household observation, or on something to publish.
   management plane, and the attack VM `ragnarok` on template 902. So are §8
   and §9, which ran before any target, because the leak proof must run
   before any vulnerable image is on the machine, and then §6, the targets.
-  Next, Sliver goes on `ragnarok` before the first exercise:
-  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481).
+  The C2, Sliver on `ragnarok`, went on 2026-11-22 and a target beaconed back
+  ([#1481](https://github.com/Gerrrt/HomeLab/issues/1481), §5), so the build is
+  complete and what is left is the exercises below, each its own issue.
   The name is
   [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
   → [runbook](runbooks/build-the-playground.md)

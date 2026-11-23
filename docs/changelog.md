@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **Sliver is the range C2, installed on `ragnarok`, and a target beaconed
+  back ([ADR-0095](adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md),
+  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481)).** `build-the-playground.md`
+  §5 gains *The C2*. The server (v1.7.9, signature verified against Sliver's
+  own minisign key) runs as a `sliver` systemd daemon, operator console on
+  `31337/tcp` on the lease, added to §5's reachability list. The install
+  lifted the outbound scope and `systemctl restart nftables` put it back, with
+  forwarding still `0` — the thing #1481 names, because installing Docker would
+  have turned it on. An mTLS listener on `172.30.30.10:8443` and a Linux beacon
+  run on `ms3-ub1404` (VMID 101) produced a call-back from `172.30.30.101`,
+  with the scope on, so a range target reaches the C2 and the scope does not
+  break it. The target was reverted to `clean`. The install is on the running
+  VM, not the template, so a `tofu` rebuild of `ragnarok` reruns §5's steps,
+  as the targets are redone — Sliver is VM state (ADR-0095). The install left
+  one stale test-beacon record on the server, which Sliver prunes an hour
+  after its last check-in. This is the last piece of
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s build.
 - **`gandalf` stays on, and the attack VM stops on a timer instead
   ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
   [#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** ADR-0125
