@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The range host will be monitored now that it stays on
+  ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
+  [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).** ADR-0125 made
+  `gandalf` always-on, so ADR-0017's reason for *No monitoring* — a host off
+  by design — is gone, and ADR-0126 supersedes that clause. `gandalf` gets the
+  Alloy agent and the `pve-firewall-state` and guest-state collectors
+  `Saruman` already runs, pushing hypervisor state (the ADR-0028 class, not
+  guest telemetry) outbound to `prometheus` over one new host-scoped pass on
+  `morpheus`. The alerts are three: the host firewall off or `ACCEPT` (the §7
+  read-back as a rule, the main gap), `ragnarok` run past the longest timer
+  deadline (a backstop to the ADR-0125 timer), and the SSD's SMART and pending
+  Proxmox updates. Not host uptime: an always-on host has no "up too long"
+  fault, which would be the permanently-firing rule ADR-0017 warned of. The
+  script, the pass and the rules are built under #1651; this is the decision.
 - **The UPS card's temperature probe is bought, plugged in, and read.** The
   APC AP9335T decided on 2026-10-16 leaves *Everything still to buy*; the
   operator reported it in the card's universal I/O port on 2026-11-23. The

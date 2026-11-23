@@ -8,10 +8,12 @@
 > supersedes ADR-0124, keeps `gandalf` on and stops `ragnarok` at a deadline:
 > six hours after it starts, or what a session's last extension set, up to
 > twelve hours ahead. "Off between sessions" no longer holds for the host,
-> so *No monitoring*'s reason is gone. Monitoring is
-> [#1651](https://github.com/Gerrrt/HomeLab/issues/1651), which needs its own
-> ADR to supersede *No monitoring*. The note below about ADR-0124 is
-> superseded with it. The text below is left as written, per ADR-0001.
+> so *No monitoring*'s reason is gone.
+> [ADR-0126](0126-monitor-gandalf-now-that-it-stays-on.md) supersedes the *No
+> monitoring* clause: `gandalf` gets `Saruman`'s agent and the range gains a
+> firewall alert ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)). The
+> rest of this ADR, and the note below about ADR-0124, stand. The text below
+> is left as written, per ADR-0001.
 >
 > [!NOTE]
 > **"Off between sessions" is enforced by a timer.** Two audits found the
