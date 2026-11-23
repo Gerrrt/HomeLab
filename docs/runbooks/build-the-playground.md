@@ -1219,12 +1219,17 @@ the route away:
 
 ```bash
 ip route add 10.0.30.30/32 dev eth0
+ip neigh flush to 10.0.30.30
 ping -c2 -W1 10.0.30.30
+ip neigh show 10.0.30.30
 ip route del 10.0.30.30/32 dev eth0
 ```
 
-The pings should get no reply, and `ip neigh show 10.0.30.30` on the target
-should read `FAILED` or `INCOMPLETE`: the host never answered ARP. The
+The flush drops any neighbour entry an earlier probe left, so the ping has to
+start a fresh ARP exchange. Without it, a cached `REACHABLE` entry would read
+as an unloaded table even while the table drops every ping. The pings should
+get no reply, and the `ip neigh show` line should read `FAILED` or
+`INCOMPLETE`: the host never answered ARP. The
 counter on `gandalf` should have risen. A reply, or a `REACHABLE` neighbour,
 means the table is not loaded. The target should still answer `ragnarok`'s
 ping, which shows that the table drops traffic to the host and not traffic
