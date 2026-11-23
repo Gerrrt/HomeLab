@@ -110,19 +110,6 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
 
 Gated on the domain, on a household observation, or on something to publish.
 
-- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
-  `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§5
-  are behind it: the host, its bridges, `Saruman` at `.20`, the closed
-  management plane, and the attack VM `ragnarok` on template 902. So are §8
-  and §9, which ran before any target, because the leak proof must run
-  before any vulnerable image is on the machine, and then §6, the targets.
-  The C2, Sliver on `ragnarok`, went on 2026-11-22 and a target beaconed back
-  ([#1481](https://github.com/Gerrrt/HomeLab/issues/1481), §5), so the build is
-  complete and what is left is the exercises below, each its own issue.
-  The name is
-  [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
-  → [runbook](runbooks/build-the-playground.md)
 - **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
   Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
   certificate generator, and it is the only path that closes the CVE issues

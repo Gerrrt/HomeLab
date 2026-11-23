@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **The range on `gandalf` is built
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421) closed).** The whole of
+  [`build-the-playground.md`](runbooks/build-the-playground.md) has run: the
+  host and its two bridges (§1–§2), `Saruman` at `.20` and the closed
+  management plane (§3–§4), the attack VM `ragnarok` on template 902 (§5), the
+  three targets (§6), the four-property and leak proofs that ran before any
+  vulnerable image (§8–§9), and now the C2, Sliver (§5, #1481). Gated on #414
+  and the SOC, both long met. What is left on the range is the exercises, each
+  its own issue in the `last` milestone. Its roadmap entry leaves with this.
 - **Sliver is the range C2, installed on `ragnarok`, and a target beaconed
   back ([ADR-0095](adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md),
   [#1481](https://github.com/Gerrrt/HomeLab/issues/1481)).** `build-the-playground.md`
