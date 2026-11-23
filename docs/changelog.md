@@ -35,6 +35,30 @@ docstring gives: it is a record, not a claim about now.
   description changed, so the next `sudo make install-timers` on
   `prometheus` is what brings the installed unit back in line.
 
+- **The firewall's own addresses are closed to every segment, and its `sshd`
+  takes keys only
+  ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
+  A read-only audit of `morpheus` on 2026-11-13 found every segment reaching
+  the admin UI and `sshd` on the WAN address: each interface's *Block … to
+  pfSense* rows named only that interface's own address. From `prometheus`,
+  https there answered 200 and port 22 gave a banner, though `network.md` said
+  Winterfell was blocked from the UI. Hicks also reached both on the lab's
+  gateway, through *Allow Hicks access to ImaginationLAN*. `sshd` accepted
+  passwords; `admin` had logged in by password from Hicks and from `oracle`
+  that week. The blocks now name *This Firewall (self)*, Winterfell gains
+  *Allow SSH to pfSense from prometheus*, and *SSHd Key Only* is *Public Key
+  Only*, by
+  [`close-the-firewall-to-its-segments.md`](runbooks/close-the-firewall-to-its-segments.md).
+  `make check-firewall` was blind to it, because the WAN address is in no
+  segment. It now also asks which of the firewall's addresses each segment
+  reaches on ssh, http and https, with fixtures in CI.
+  Applied the same day, with the three administering keys proved first.
+  `make check-firewall` passed all 35 checks, where it had failed 21. From
+  `prometheus`, the WAN address answered neither https nor ssh, `sshd -T`
+  read `passwordauthentication no` and `kbdinteractiveauthentication no`, and
+  a password login was refused. The dead *Allow SSH from Mac to WSL* rule,
+  whose two ends are both on Hicks, was deleted at the same time. The Hicks
+  desktop's SSH pass into `smaug` stays, as `network.md` declares it.
 - **The rack's temperature has fixed limits.** The probe's first reading, at
   15:26 UTC after the deploy, was 22 °C: the card reports whole degrees in
   `uioSensorStatusTemperatureDegC`, not the tenths PowerNet-MIB describes. That
