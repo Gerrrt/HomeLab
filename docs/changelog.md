@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf`'s power-off timer is built, not installed
+  ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** This builds
+  ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline
+  under `/run`, sends the 30- and 5-minute `wall` warnings, waits while `dpkg`
+  holds its lock, and powers off. Linked as `range-extend`, it sets the
+  deadline 1 to 12 hours from now. `systemd/range/` runs it every five
+  minutes. `build-the-playground.md` §7 gains *The power-off timer*, which
+  installs it from Hicks with a `range-extend 6` first, so an install on a box
+  already up six hours does not power it off five minutes later. The
+  read-back checks the timer is enabled and active.
+  - The `--self-test` has 18 fixtures, and `self-tests.sh` runs it in CI.
+  - Each of three deliberate breaks failed at least one fixture: no `dpkg`
+    wait, no extension cap, no 5-minute warning.
+  - It passed under `gandalf`'s own bash, run from standard input without
+    installing anything.
+  - `systemd-analyze verify` on `gandalf` reported only that the script was
+    not installed yet.
+
+  Nothing is installed on `gandalf`, and the one-power-off proof in §7 has
+  not been run.
+
 - **`gandalf` will power itself off on a timer
   ([ADR-0124](adr/0124-power-gandalf-off-on-a-timer.md)).** Both audits of
   `gandalf` found it left on for days, `ragnarok` included, against the

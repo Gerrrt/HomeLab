@@ -23,7 +23,7 @@ Times are the host's local time. The full procedure, and what to do when a
 job goes stale, is
 [`docs/runbooks/schedule-maintenance.md`](../docs/runbooks/schedule-maintenance.md).
 
-## The four directories
+## The five directories
 
 | Directory | Host | Installed by | Runs through |
 | --- | --- | --- | --- |
@@ -31,6 +31,7 @@ job goes stale, is
 | [`sensitive/`](sensitive) | `trinity` | `make install-timers ARGS="--profile sensitive"` | the same, with `@DEPLOY_ROOT@` and `@RUN_USER@` filled in at install |
 | [`agent/`](agent) | each agent host, by what it can run | `make install-agent-collectors AGENT=user@host` | a collector copied to `/usr/local/bin`; an agent host has no checkout |
 | [`host/`](host) | `prometheus` | `make install-host-units` | nothing: boot ordering, not a schedule. Docker waits for `10.0.99.20` ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)) |
+| [`range/`](range) | `gandalf` | by hand, [`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §7 | `scripts/range-poweroff.sh`, copied to `/usr/local/sbin`. The range's power-off backstop, every 5 min ([ADR-0124](../docs/adr/0124-power-gandalf-off-on-a-timer.md)); it reports nothing, by ADR-0017 |
 
 The estate's units name the deployment checkout's absolute path, because the
 live stack runs from that checkout and nowhere else, and `install-timers.sh

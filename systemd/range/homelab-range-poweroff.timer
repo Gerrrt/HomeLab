@@ -1,0 +1,19 @@
+[Unit]
+Description=HomeLab: power gandalf off at the range deadline (ADR-0124)
+Documentation=https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md
+
+[Timer]
+Unit=homelab-range-poweroff.service
+# Every five minutes from five minutes after boot. The script decides; the
+# timer only asks. Five minutes puts exactly one run inside the last five
+# before the deadline, which is what the 5-minute warning relies on, and it
+# is the most the power-off can lag the deadline by.
+#
+# No Persistent=: a run missed while the box was off has nothing to catch
+# up on, because the deadline is counted from this boot.
+OnBootSec=5min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target
