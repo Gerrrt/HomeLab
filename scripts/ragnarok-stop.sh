@@ -243,6 +243,27 @@ cmd_status() {
   return 0
 }
 
+# Machine-readable state for collect-range-state.sh (#1651, ADR-0126), so the
+# effective deadline a monitor alerts on comes from one place — here — rather
+# than a second copy of this script's run-identity and six-hour-default logic.
+# One key=value per line. A stopped VM prints `running=0` and no deadline.
+cmd_deadline_epoch() {
+  local pid
+  pid="$(vm_pid)"
+  if [[ -z "${pid}" ]]; then
+    printf 'running=0\n'
+    return 0
+  fi
+  printf 'running=1\n'
+  printf 'deadline_epoch=%s\n' "$(deadline "${pid}")"
+  if [[ -n "$(extended "${pid}")" ]]; then
+    printf 'source=extended\n'
+  else
+    printf 'source=default\n'
+  fi
+  return 0
+}
+
 self_test() {
   local passed=0 failed=0 tmp
   tmp="$(mktemp -d)"
@@ -334,6 +355,18 @@ self_test() {
   PID=5151; START=$((NOW + 60)); NOW=$((START + 6 * H)); cmd_check
   check "a new run ignores the old run's extension" "$(stops)" "1"
 
+  # deadline-epoch: the machine-readable state the monitor reads (#1651).
+  reset; NOW=$((START + H)); PID=""
+  check "deadline-epoch on a stopped VM prints running=0" "$(cmd_deadline_epoch)" "running=0"
+  reset; NOW=$((START + H))
+  check "deadline-epoch on a fresh run gives start + six hours" \
+    "$(cmd_deadline_epoch | sed -n 's/^deadline_epoch=//p')" "$((START + 6 * H))"
+  check "and marks it the default" "$(cmd_deadline_epoch | sed -n 's/^source=//p')" "default"
+  reset; NOW=$((START + H)); cmd_extend 3 >/dev/null
+  check "deadline-epoch after an extension gives the extended deadline" \
+    "$(cmd_deadline_epoch | sed -n 's/^deadline_epoch=//p')" "$((NOW + 3 * H))"
+  check "and marks it extended" "$(cmd_deadline_epoch | sed -n 's/^source=//p')" "extended"
+
   # A restart between reading the PID and stopping: the new run is not the
   # one whose deadline passed (review on #1652).
   reset; NOW=$((START + 6 * H + 10)); RESTART=5151; cmd_check
@@ -382,5 +415,6 @@ case "${1:-}" in
   check) cmd_check ;;
   status) cmd_status ;;
   extend) shift; cmd_extend "$@" ;;
-  *) printf 'usage: %s check|status|extend <hours>|--self-test\n' "$0" >&2; exit 2 ;;
+  deadline-epoch) cmd_deadline_epoch ;;
+  *) printf 'usage: %s check|status|extend <hours>|deadline-epoch|--self-test\n' "$0" >&2; exit 2 ;;
 esac

@@ -1424,6 +1424,56 @@ should say it is not running, and `range-extend 2` should refuse.
 > `logger` under systemd, and was reinstalled. The installed files match the
 > repository by `sha256sum`.
 
+### Monitoring the host
+
+`gandalf` stays on, so the per-session read-back above is a gap of days.
+[ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) gives it the
+same Alloy agent `Saruman` has, reporting *hypervisor state* — the ADR-0028
+class, not guest telemetry — to `prometheus`, with alerts for the faults this
+section used to catch by hand. **Not yet deployed on `gandalf`.**
+
+**First, the pass.** The agent pushes metrics to `10.0.99.20:9090`. On
+`morpheus`, add a host-scoped pass `10.0.30.30 → 10.0.99.20` on `9090`,
+**metrics only** — beside the two that already carry ImaginationLAN there, and
+above the block to Winterfell. No `3100`: the range host does not ship logs
+(below). This is the one crossing ADR-0014 counts, and it is outbound.
+
+**Then the collectors**, host-only. From a Hicks workstation, install each by
+name with [`install-agent-collectors.sh`](../../scripts/install-agent-collectors.sh),
+which runs it once per collector:
+
+```bash
+for c in pve-firewall-state range-state guest-state smart-state patch-state pve-version; do
+  scripts/install-agent-collectors.sh --only "$c" root@10.0.30.30
+done
+```
+
+**Not** `guest-disk-state` or `guest-service-state`: both read *inside* a guest
+through its agent (`qm guest cmd … get-fsinfo`), which on the range would read
+a target's filesystem — guest telemetry from the attacker's segment, which
+ADR-0126 does not allow. `range-state` is `gandalf`'s own control file
+([`collect-range-state.sh`](../../scripts/collect-range-state.sh)): the
+`vmbr1_host_in` ingress barrier, `vmbr0` and `sshd` forwarding, and the
+`ragnarok` stop timer and the deadline it set.
+
+**Then the agent, metrics only.** `gandalf`'s journal and auth logs can carry
+what happens on the attacker's segment, so its agent must not ship them to
+Loki. The estate's standard `config.alloy` pushes both metrics and logs, so a
+metrics-only variant (no `loki.*`, no `3100`) and a deploy check that requires
+only metrics are what [`deploy-agent.sh`](../../scripts/deploy-agent.sh) needs
+for this host — **still to build (#1651)**; until it exists, do not deploy the
+standard agent here, which would ship the range's logs.
+
+**What it watches.** Once the collectors report, `gandalf` joins the
+`PveFirewall*` alerts in `host.rules.yaml`, and
+[`range.rules.yaml`](../../stacks/observability/prometheus/rules/range.rules.yaml)
+adds: the firewall enabled with zero host rules (`PveFirewallZeroRules`), the
+ingress barrier down, `vmbr0` or `sshd` forwarding on, and the stop timer
+failing — `ragnarok` running with the timer inactive, or past the deadline the
+timer itself set. `DisposableGuestOutlived` also begins covering any
+`disposable`-tagged guest here. Host uptime is deliberately not alerted: an
+always-on host has no "up too long" fault (ADR-0126).
+
 ---
 
 ## 8. Check the four properties
