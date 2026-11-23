@@ -1477,7 +1477,8 @@ off and verifies metrics alone.
 **Register `gandalf`'s ingest token first**, or the deploy stops for a missing
 token and the proxy answers every push with `401`. Do
 [`add-monitored-device.md`](add-monitored-device.md)'s *First, the host's
-token*: add `INGEST_TOKEN_gandalf` to `secrets/observability.sops.yaml`, add
+token*: add `INGEST_TOKEN_GANDALF` to `secrets/observability.sops.yaml` (the
+hostname upper-cased, as `deploy-agent.sh` looks it up), add
 its line to the ingest proxy's allowlist and compose environment, and `make up`
 so the proxy is recreated with it — exporting the token on Hicks alone does not
 register it. Then, from a Hicks workstation:
