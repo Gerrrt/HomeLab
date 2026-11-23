@@ -28,8 +28,9 @@ docstring gives: it is a record, not a claim about now.
   `Saruman` already runs, pushing hypervisor state (the ADR-0028 class, not
   guest telemetry) outbound to `prometheus` over one new host-scoped pass on
   `morpheus`. The alerts are three: the host firewall off or `ACCEPT` (the §7
-  read-back as a rule, the main gap), `ragnarok` run past the longest timer
-  deadline (a backstop to the ADR-0125 timer), and the SSD's SMART and pending
+  read-back as a rule, the main gap), `ragnarok` still running when its
+  timer should have stopped it (a backstop to the ADR-0125 timer), and the
+  SSD's SMART and pending
   Proxmox updates. Not host uptime: an always-on host has no "up too long"
   fault, which would be the permanently-firing rule ADR-0017 warned of. The
   script, the pass and the rules are built under #1651; this is the decision.

@@ -55,33 +55,58 @@ and carries no workstation tooling.
 by hand.** ADR-0017's *No monitoring* clause is superseded; the rest of
 ADR-0017 stands.
 
-- **The agent is the estate's standard one**, the Alloy agent and
-  `node_exporter` with the textfile collectors `Saruman` runs
-  (`scripts/collect-pve-firewall-state.sh`, `scripts/collect-guest-state.sh`),
-  installed by `scripts/install-agent-collectors.sh`. It reads the host, not
-  the guests: `pve-firewall status` and its rule counts, uptime, which guests
-  exist and whether they run, the range SSD's SMART counters, and Proxmox's
-  pending updates. Nothing is read from inside a target. This is the
-  ADR-0028 class of fact, and the collectors that produce it already exist.
-- **It pushes outbound to `10.0.99.20` only**, over a third host-scoped pass on
-  `morpheus` beside the two that already carry ImaginationLAN there
+- **The agent is the estate's Alloy agent and `node_exporter`, with a
+  host-only subset of the collectors**, installed by
+  `scripts/install-agent-collectors.sh` with `--only` naming exactly:
+  `pve-firewall-state` (firewall status, rule counts and policy),
+  `guest-state` (which guests exist and whether they run — read from `qm list`
+  on the host, the ADR-0028 class), `smart-state` (the range SSD),
+  `patch-state` and `pve-version` (Proxmox updates and version). It does **not**
+  take the installer's full default set: `guest-disk-state` and
+  `guest-service-state` reach *inside* a guest through its agent
+  (`qm guest cmd … get-fsinfo`), which on the range would read a target's
+  filesystem — guest telemetry from the attacker's segment, which this decision
+  does not allow. `guest-state` is the line ADR-0028 draws: run-state crosses,
+  contents do not. Nothing is read from inside a target.
+- **It pushes metrics only, outbound to `10.0.99.20:9090`**, over one
+  host-scoped pass on `morpheus` beside the two that already carry
+  ImaginationLAN there
   ([ADR-0031](0031-narrow-hicks-to-a-named-list-on-winterfell-and-leave-the-lab-open.md)).
   That pass is the one boundary crossing this decision authorizes, and ADR-0014
-  counts it: `10.0.30.30 → 10.0.99.20` for metrics, and nothing toward the
-  range. No listener is opened on `gandalf`, no path is opened *into* the
-  segment, and the attack VM gains no reach it did not have.
+  counts it: `10.0.30.30 → 10.0.99.20` on `9090`, metrics, and nothing toward
+  the range. **Not the standard Alloy config**: that ships journal and file
+  logs to `10.0.99.20:3100` as well, and `deploy-agent.sh` checks both arrived.
+  A range host's logs can carry what happens on the attacker's segment, so
+  `#1651` writes a metrics-only Alloy config — no `loki.*` push, no `3100` —
+  and a deploy check that requires metrics alone. No listener is opened on
+  `gandalf`, no path is opened *into* the segment, and the attack VM gains no
+  reach it did not have.
 - **The alerts are three faults, not four.**
-  - **The host firewall is off or open.** The `pve-firewall-state` alerts
-    `Saruman` already has, now with `instance="gandalf"`: firewall disabled,
-    zero rules under a `DROP` policy, policy `ACCEPT`, or a stale state file.
-    This is §7's read-back made into a rule, and the main gap.
-  - **`ragnarok` has run past what the timer allows.** A new alert: the attack
-    VM running longer than the longest ADR-0125 deadline (twelve hours) plus a
-    margin means the timer did not stop it, which means the timer is disabled
-    or broken. It is the backstop to the backstop. `DisposableGuestOutlived`
-    (#438) already covers the other end — a disposable guest that *exists* too
-    long, running or stopped — for any guest tagged `disposable` on `gandalf`
-    once the collector is there, at no extra cost.
+  - **The host firewall is off or open.** Three existing `pve-firewall-state`
+    alerts (`host.rules.yaml`) begin evaluating `instance="gandalf"` the day
+    the collector reports: `PveFirewallDisabled`, `PveFirewallPolicyAccept` and
+    `PveFirewallStateStale`. They do **not** yet catch an enabled firewall with
+    empty rule files under a `DROP` policy — the collector exports the count
+    (`homelab_pve_firewall_rules`) but no rule reads it — so `#1651` adds that
+    alert. Together these cover the *host firewall* half of §7's read-back.
+    The §2 controls §7 also reads — the `vmbr1_host_in` ingress table and
+    `ip-forward off` — are a separate nftables table that this collector does
+    not see, so `#1651` extends the host collector to export their state and
+    adds the matching alerts; until it does, those stay in §7's manual
+    read-back. This is the main gap.
+  - **The timer stopped working.** ADR-0125 lets a session re-extend
+    `ragnarok` repeatedly, up to twelve hours *from now* each time, so there is
+    no fixed runtime cap to compare against — an alert on "ran past twelve
+    hours" would page on a legitimately extended session. The fault is the
+    timer failing, so the alert watches the timer, not the clock: `ragnarok`
+    running while `homelab-ragnarok-stop.timer` is not `active`, or running
+    past the *effective deadline* the timer itself wrote under
+    `/run/homelab-ragnarok-stop` (which already folds in every extension and
+    `dpkg` deferral) by a margin. `#1651` exports that deadline and the timer's
+    state. `DisposableGuestOutlived` (#438) already covers the other end — a
+    disposable guest that *exists* too long, running or stopped — for any guest
+    tagged `disposable` on `gandalf` once the collector is there, at no extra
+    cost.
   - **The slow faults.** The range SSD's reallocated-sector count rising
     (the [ADR-0047](0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md)
     SMART pattern) and Proxmox updates waiting. Warnings, because the answer is

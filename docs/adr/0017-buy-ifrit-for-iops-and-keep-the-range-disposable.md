@@ -12,8 +12,10 @@
 > [ADR-0126](0126-monitor-gandalf-now-that-it-stays-on.md) supersedes the *No
 > monitoring* clause: `gandalf` gets `Saruman`'s agent and the range gains a
 > firewall alert ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)). The
-> rest of this ADR, and the note below about ADR-0124, stand. The text below
-> is left as written, per ADR-0001.
+> rest of this ADR stands. The note below about ADR-0124 is superseded with
+> it — ADR-0125 replaced the host power-off, so that note's "*No monitoring*
+> stands" no longer holds — but is left as written, per ADR-0001. The text
+> below is left as written too.
 >
 > [!NOTE]
 > **"Off between sessions" is enforced by a timer.** Two audits found the
