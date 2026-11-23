@@ -171,7 +171,6 @@ move and stay until they are bought or dropped.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
 | Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `gandalf`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
 | USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |

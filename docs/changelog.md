@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The UPS card's temperature probe is bought, plugged in, and read.** The
+  APC AP9335T decided on 2026-10-16 leaves *Everything still to buy*; the
+  operator reported it in the card's universal I/O port on 2026-11-23. The
+  `apc_ups` module now walks `uioSensorStatusTable`, where an NMC3 reports a
+  probe on that port, and three rules watch it: `UpsTemperatureProbeMissing`
+  if the table comes back empty while the card answers, which is also the
+  check that the right table was chosen; `UpsTemperatureProbeCommsLost`; and
+  `RackAmbientTemperatureAlarm` on the card's own alarm. No fixed temperature
+  limit yet: PowerNet-MIB says the Celsius column is in tenths of a degree,
+  APC's cards have been seen to report whole degrees there, and the first
+  readings settle which.
 - **NUT is watched from its own logs.** The 2026-11-13 audit of `mjolnir`
   found that nothing watched the shutdown path itself, which is how the
   driver could stay down until 2026-11-07 with only the generic card-silence

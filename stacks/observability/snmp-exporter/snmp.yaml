@@ -35,6 +35,7 @@ modules:
     walk:
     - 1.3.6.1.2.1.33.1
     - 1.3.6.1.4.1.318.1.1.1.7.2
+    - 1.3.6.1.4.1.318.1.1.25.1.2
     metrics:
     - name: upsIdentManufacturer
       oid: 1.3.6.1.2.1.33.1.1.1
@@ -462,6 +463,80 @@ modules:
         5: friday
         6: saturday
         7: sunday
+    - name: uioSensorStatusTemperatureDegC
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.6
+      type: gauge
+      help: The sensor's current temperature reading in tenths of degrees Celsius.
+        - 1.3.6.1.4.1.318.1.1.25.1.2.1.6
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+    - name: uioSensorStatusViolationStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.8
+      type: gauge
+      help: The violation status of the sensor - 1.3.6.1.4.1.318.1.1.25.1.2.1.8
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+    - name: uioSensorStatusAlarmStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.9
+      type: gauge
+      help: The alarm status of the sensor. - 1.3.6.1.4.1.318.1.1.25.1.2.1.9
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+      enum_values:
+        1: uioNormal
+        2: uioWarning
+        3: uioCritical
+        4: sensorStatusNotApplicable
+    - name: uioSensorStatusCommStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.10
+      type: gauge
+      help: The communications status of the sensor. - 1.3.6.1.4.1.318.1.1.25.1.2.1.10
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+      enum_values:
+        1: notInstalled
+        2: commsOK
+        3: commsLost
   crs326:
     walk:
     - 1.3.6.1.2.1.17.1.4.1.2
