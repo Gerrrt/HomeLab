@@ -810,6 +810,10 @@ tests:
           uioSensorStatusSensorName="Port 1 Temp 1"}
         values: "33x10 22x50"
     alert_rule_test:
+      # Still at 33 °C, ten minutes in: under the 15m, so nothing yet.
+      - eval_time: 10m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts: []
       - eval_time: 20m
         alertname: RackAmbientTemperatureHigh
         exp_alerts: []
