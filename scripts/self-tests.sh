@@ -23,6 +23,9 @@
 #   collect-pve-version.sh    pveversion's format, for a host this repo cannot
 #                             reach; one fixture stops the kernel being read as
 #                             the PVE version (#311)
+#   collect-range-state.sh    gandalf's range controls (ADR-0126): the ingress
+#                             barrier, forwarding and sshd parses, and the keys
+#                             read back from the stop timer's deadline-epoch
 #   collect-guest-state.sh    qm list, same unreachable host; a stopped guest has
 #                             no PID column and a guest name can contain a space
 #   record-applied.sh         what `make up` applied, kept apart from HEAD; the
