@@ -19,6 +19,13 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The rack's temperature has fixed limits.** The probe's first reading, at
+  15:26 UTC after the deploy, was 22 °C: the card reports whole degrees in
+  `uioSensorStatusTemperatureDegC`, not the tenths PowerNet-MIB describes. That
+  settles what the probe entry below this one left open, and
+  `RackAmbientTemperatureHigh` (warning, over 30 °C for fifteen minutes) and
+  `RackAmbientTemperatureCritical` (critical, over 35 °C for ten) are added.
+  35 °C is the top of ASHRAE class A2, the DL360's rated inlet limit.
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.
