@@ -75,6 +75,9 @@
 #                             tree, a non-fast-forward, red CI. None can be
 #                             staged on a deployment host, and each was tested
 #                             only by never having fired (#854)
+#   range-poweroff.sh         the deadline, the two warnings and the dpkg wait;
+#                             a real run powers gandalf off, so the fixtures are
+#                             the only way to see each branch before it fires
 #   backup-volumes.sh         a real backup of a throwaway volume with real age:
 #                             the set opens with either recipient's key and not
 #                             a third's (#835), and the refusals refuse (#854)

@@ -1080,14 +1080,15 @@ Two audits found the box left on for days anyway (2026-11-13 and 2026-11-22).
 [ADR-0124](../adr/0124-power-gandalf-off-on-a-timer.md) takes the backstop
 off the person: a timer on the host powers it off at a deadline, six hours
 after boot by default or what the last `range-extend` set (1 to 12 hours
-ahead), with a warning on every shell 30 and 5 minutes
-before. **It is decided and not built yet**
-([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). Until it is, the
-power-off at the end below is still yours alone. Once it is built, this
-section installs it and the read-back checks it is enabled.
+ahead), with a warning on every shell 30 and 5 minutes before
+([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). The power-off at
+the end below is still the plan. The timer is what happens when the plan is
+forgotten. Installed on `gandalf` on 2026-11-22, below.
 
 ```text
 on  → read the firewall back → revert every target to `clean` → work → revert → off
+                                                                    ↑
+                         6 h after boot or the last range-extend → off, by itself
 ```
 
 **Read the firewall back before anything else.** The collector and the alerts
@@ -1107,6 +1108,11 @@ print `1`. Anything else means the session does not start until §2's lines
 have been rerun and checked in `/etc/network/interfaces`.
 `ls /etc/apt/sources.list.d/` should list Debian's and Proxmox's sources
 only (§4, *Nothing else on `gandalf`*).
+`systemctl is-enabled homelab-range-poweroff.timer; systemctl is-active
+homelab-range-poweroff.timer` should read `enabled` and `active`, and
+`homelab-range-poweroff status` should show a deadline in the future. A
+disabled timer puts the range back on discipline alone (ADR-0124), so the
+session does not start until *The power-off timer* above has been rerun.
 
 **Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
 packages only (§4, *Services on `gandalf`*). `apt update && apt list
@@ -1116,6 +1122,67 @@ A new kernel does nothing until the box boots into it. So if the upgrade
 installed a `proxmox-kernel-*` package, or `/run/reboot-required` exists,
 reboot and start this section again from the top. The firewall read-back runs
 again too, since a reboot is a fresh power-on.
+
+### The power-off timer
+
+Install it once, from a Hicks workstation in a checkout of this repository.
+It is three files and a symlink, and nothing else on the host changes:
+
+```bash
+G=root@10.0.30.30
+ssh "$G" 'install -d -m 0755 /usr/local/sbin'
+scp scripts/range-poweroff.sh "$G":/usr/local/sbin/homelab-range-poweroff
+scp systemd/range/homelab-range-poweroff.service systemd/range/homelab-range-poweroff.timer "$G":/etc/systemd/system/
+ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-range-poweroff &&
+  chmod 0644 /etc/systemd/system/homelab-range-poweroff.* &&
+  ln -sf /usr/local/sbin/homelab-range-poweroff /usr/local/sbin/range-extend &&
+  homelab-range-poweroff --self-test >/dev/null && echo self-test-ok &&
+  range-extend 6 &&
+  systemd-analyze verify /etc/systemd/system/homelab-range-poweroff.service &&
+  systemctl daemon-reload && systemctl enable --now homelab-range-poweroff.timer &&
+  homelab-range-poweroff status'
+```
+
+**You should see** `self-test-ok`, no output from `systemd-analyze`, and a
+deadline six hours from now. The `range-extend 6` before the enable is
+deliberate. Without it the deadline is six hours after *this* boot, and on a
+box that has been up longer than that, the first run powers it off a
+minute after the install. The self-test exercises every branch with
+fakes, so it can run on the host without powering anything off.
+
+Running it, as root on `gandalf`:
+
+| | |
+| --- | --- |
+| `homelab-range-poweroff status` | The deadline and the minutes left |
+| `range-extend 3` | Set the deadline three hours from now. 1 to 12. It can also bring the deadline closer |
+| `journalctl -t homelab-range-poweroff` | Every warning, extension, wait and power-off |
+
+At 30 minutes and again at 5, every shell on the host gets a `wall` message
+that says how to extend. Past the deadline the next run powers off, unless
+`dpkg` holds its lock. Then it waits for the run after that. Nothing reaches
+the Proxmox web UI, so a session driven only from `8006` gets no warning.
+Check `status` from a shell when you start one.
+
+**Prove it once after installing**, with a session you can afford to lose:
+
+1. `range-extend 1`, then check `status` reads about 60 minutes.
+2. Keep an SSH session open. The 30- and 5-minute `wall` messages should
+   reach it.
+3. Start one guest. At the deadline the box should power itself off, and
+   `journalctl -t homelab-range-poweroff -b -1` at the next power-on should
+   end with `powering gandalf off`.
+
+> **Installed on `gandalf` 2026-11-22 at 17:44**, from #1649's branch
+> before it merged, by the commands above. The output was `self-test-ok`,
+> nothing from `systemd-analyze`, and a deadline of 23:44. A run of the
+> service by hand ended `Result=success`. The timer read `enabled` and
+> `active`, with its next run five minutes out. That install had the first
+> timer, every five minutes. Review on #1649 moved it to every minute and
+> added the lock. The new files were reinstalled the same way, and the
+> self-test ran 21 fixtures on the box.
+
+Record the proof's result here. **Not yet run on `gandalf`.**
 
 ---
 
