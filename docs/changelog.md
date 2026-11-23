@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`morpheus`'s console menu asks for a password.** The 2026-11-13 audit
+  found a root session sitting at the console menu on `ttyv0`. It was not a
+  session anyone had left open: with *Password protect the console menu* off,
+  pfSense's `getty` logs root in automatically at every boot, so the menu,
+  and its shell, were open to anyone at the rack. Sunday's reboot had ended
+  the audit's session and started another. *Password protect the console
+  menu* is now on (System → Advanced → Admin Access), `ttyv0`'s `getty` runs
+  without autologin, and no console session is open. The console is still
+  the way back when the UI is unreachable; it now takes `admin` and the web
+  UI's password first, which `close-the-firewall-to-its-segments.md` and
+  `restore-the-firewall.md` now say.
+
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
   and there were 99 by today, left behind by validation and scratch runs.
