@@ -166,14 +166,18 @@ guest disks is one a guest can be put on by mistake. Remove it, after
 checking that nothing is on it and no guest names it:
 
 ```bash
-lvs pve/data -o lv_name,data_percent
+lvs --noheadings -o lv_name,pool_lv pve | awk '$2 == "data" { print }'
 grep -l local-lvm /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf 2>/dev/null
 pvesm remove local-lvm
 lvremove -y pve/data
 pvesm status; vgs pve
 ```
 
-The first line should read `0.00` and the `grep` should print nothing.
+Both of the first two commands should print nothing. The `awk` lists every
+thin volume whose pool is `data`, and there must be none — `Data%` would read
+`0.00` even if one existed, because an unwritten thin volume uses no data
+blocks, so the list of volumes is the check, not the usage. The `grep` is the
+second belt: no guest config names `local-lvm`.
 After it, `pvesm status` lists `local` and `range` only, and the M.2's
 141 GiB is free space in the `pve` volume group. It is left there rather
 than grown into `/`, because ext4 does not shrink while mounted, and

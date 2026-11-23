@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf`'s two audit leftovers are cleared
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** This corrects the
+  audit-fixes entry below, which recorded both as still open.
+  `build-the-lab-templates.md` deletes the `PhoenixIsoCleanup` role that the
+  2026-11-09 revoke had left defined with no ACL, and `build-the-playground.md`
+  §1 removes the empty `local-lvm` thin pool, since nothing of the range goes
+  on the M.2; its 141 GiB stays free in the `pve` volume group. Both ran on
+  `gandalf` that night.
 - **`gandalf` stays on, and the attack VM stops on a timer instead
   ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
   [#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** ADR-0125
@@ -76,15 +84,11 @@ docstring gives: it is a record, not a claim about now.
     no route, the host unreachable with the `dropped` counter rising, and
     `ragnarok` still reaching the target. The clone had no DHCP stanza, which
     proves #1341 on the template rebuilt that day.
-  - The audit's last finding, leftovers with no runbook step, got steps and
-    was cleared. `build-the-lab-templates.md` deletes the `PhoenixIsoCleanup`
-    role, which the 2026-11-09 revoke had left defined with no ACL.
-    `build-the-playground.md` §1 removes the empty `local-lvm`, because
-    nothing of the range goes on the M.2. Its 141 GiB stays free in the `pve`
-    volume group. Both ran on `gandalf` that night. The Kali installer ISO the
-    audit also listed is not a leftover: `packer/kali.pkr.hcl` builds
-    template 902 from it (`kali_iso_file`). `/root/.claude/remote` went with
-    the dotfiles.
+  - The audit's last finding, leftovers with no runbook step, is still open
+    for two of them: the `PhoenixIsoCleanup` role, revoked from the token but
+    never deleted, and an empty `local-lvm`. The Kali installer ISO the audit
+    also listed is not a leftover. `packer/kali.pkr.hcl` builds template 902
+    from it (`kali_iso_file`). `/root/.claude/remote` went with the dotfiles.
 - **`gandalf`'s power-off timer is built, not installed
   ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** This builds
   ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline
