@@ -1469,11 +1469,28 @@ ADR-0126 does not allow. `range-state` is `gandalf`'s own control file
 
 **Then the agent, metrics only.** `gandalf`'s journal and auth logs can carry
 what happens on the attacker's segment, so its agent must not ship them to
-Loki. The estate's standard `config.alloy` pushes both metrics and logs, so a
-metrics-only variant (no `loki.*`, no `3100`) and a deploy check that requires
-only metrics are what [`deploy-agent.sh`](../../scripts/deploy-agent.sh) needs
-for this host — **still to build (#1651)**; until it exists, do not deploy the
-standard agent here, which would ship the range's logs.
+Loki. The log pipeline is its own file, `logs.alloy`, deployed with
+`config.alloy` everywhere but here;
+[`deploy-agent.sh`](../../scripts/deploy-agent.sh) `--metrics-only` leaves it
+off and verifies metrics alone.
+
+**Register `gandalf`'s ingest token first**, or the deploy stops for a missing
+token and the proxy answers every push with `401`. Do
+[`add-monitored-device.md`](add-monitored-device.md)'s *First, the host's
+token*: add `INGEST_TOKEN_gandalf` to `secrets/observability.sops.yaml`, add
+its line to the ingest proxy's allowlist and compose environment, and `make up`
+so the proxy is recreated with it — exporting the token on Hicks alone does not
+register it. Then, from a Hicks workstation:
+
+```bash
+scripts/deploy-agent.sh --metrics-only --runtime native root@10.0.30.30
+```
+
+`--runtime native` because `gandalf` runs the package, not a container; a
+docker host cannot be metrics-only, since `docker.alloy` needs the log
+pipeline. The agent then pushes node and collector metrics to
+`10.0.99.20:9090` and no logs. This is the one crossing the `morpheus` pass
+above carries.
 
 **What it watches.** Once the collectors report, `gandalf` joins the
 `PveFirewall*` alerts in `host.rules.yaml`, and
