@@ -98,7 +98,11 @@ truth for what a box actually does.
   rebooted. So **the remedy is rebooting `morpheus`**, not the modem or the
   cable. The earlier incidents blamed on the XB7's ports (2026-11-01, 11-07,
   11-18, 11-21) were cleared by re-plugging, which also reset `em0`'s link.
-  Taking the WAN off `em0` is the durable fix, and it is not decided.
+  Taking the WAN off `em0` is the durable fix.
+  [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
+  decided it on 2026-11-23: VLAN 2 through `neo`'s SFP+ cages to `igc0` at
+  2.5G. It is not built yet ([#1691](https://github.com/Gerrrt/HomeLab/issues/1691)),
+  so this link is still `em0`, and rebooting is still the remedy.
 - The modem is a modem only: no router and no Wi-Fi radio. All wireless is
   handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by

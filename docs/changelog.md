@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
+  through `neo`'s SFP+ cages at 2.5G
+  ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
+  #922's own data, 2026-10-10 to 2026-11-09, said the 2.5G path bought no
+  throughput and pointed to a downgrade. What changed the answer is
+  2026-11-22's finding that `em0` itself is the WAN's fault. Every design
+  that takes the WAN off `em0` ends it, and #922's sketch is one of them,
+  with the CODA56's 2.5G port now trusted where the XB7's was not. The free
+  alternative, VLAN 2 on the existing gigabit trunk with the modem on a
+  copper port, was recommended and fixes `em0` as well. The operator chose
+  the two-module build, so that the plan's 2000 is usable in aggregate and
+  the trunk goes to 2.5G. MikroTik's S+RJ10 guidance warns against two
+  modules side by side on a passive switch, which is this design, so the
+  runbook reads an hour of idle temperatures and puts an alert on them before
+  the cutover, and the copper-port VLAN stays the fallback. The two S+RJ10s
+  entered *Everything still to buy*. The build is
+  [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), by
+  [`move-the-wan-onto-neo.md`](runbooks/move-the-wan-onto-neo.md). Until then
+  the remedy for `WanReceiveErrors` is still rebooting `morpheus`.
+
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
   and there were 99 by today, left behind by validation and scratch runs.
