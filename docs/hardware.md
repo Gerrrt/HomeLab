@@ -155,7 +155,7 @@ neighbours, so they sit together at the high-numbered end.
 | 2 | DL360, supply 2 if fitted, else spare |
 | 3 | `smaug` |
 | 4 | CRS326 |
-| 5 | spare |
+| 5 | The CODA56's 12 V brick (the modem, outside the rack; [WAN](#wan)) |
 | 6 | `morpheus`'s brick |
 | 7 | `trinity`'s brick |
 | 8 | `gandalf`'s brick |
@@ -167,8 +167,8 @@ that feeds them**, not on the PDU. The runbook's §1.7 counts them as PDU
 loads and says to move them to the UPS if the count reaches eleven; with
 two DL360 supplies it does, and the laptops carry their own cells, so they
 need the PDU's outlets least. Putting them there in either case keeps the
-map the same whatever the DL360 turns out to have, and outlet 5 stays
-spare.
+map the same whatever the DL360 turns out to have. Outlet 5, the spare that
+left, went to the cable modem on 2026-11-22.
 
 **The UPS's outlet groups, read at the rack on 2026-11-07:** the PDU is on
 group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
@@ -357,7 +357,7 @@ The link to the internet, outside the rack.
 | Part | What | Notes |
 | --- | --- | --- |
 | Modem | Hitron CODA56, DOCSIS 3.1, owned[^modem] | Installed 2026-11-22 in place of a rented Xfinity XB7 ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). A modem only: no router, no Wi-Fi. One 2.5G Ethernet port, to `morpheus`'s `em0` at 1000baseT ([`network.md`](network.md)) |
-| Power | The CODA56's 12 V brick | **Which outlet it is on is not read yet**, nor whether that outlet is on the UPS. The XB7 was not on the UPS: a tripped breaker on 2026-11-21 cut it while `morpheus` stayed up |
+| Power | The CODA56's 12 V brick | PDU outlet 5, so on the UPS's group 1 with every host but the laptops ([the power map](#console-and-power-maps)). The XB7 was not on the UPS: a tripped breaker on 2026-11-21 cut it while `morpheus` stayed up |
 
 ## Wall display
 
