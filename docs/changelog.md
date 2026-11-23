@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The weekly digest check is green on its tool pins again.** It had been red since
+  2026-10-19. The Velociraptor digest it also flagged already landed in #1662, the
+  first bump Dependabot's grouped shared-config entry carried to `soc` and `scratch`
+  together. Three tool pins moved:
+  - `ansible.windows` 3.8.0 → 3.9.2. The changelog's one breaking change is to `dsc3`,
+    and nothing here uses it, nor `win_dns_record`, `win_template` or `win_updates`,
+    the other modules it changed.
+  - The Alpine cloud image, 3.24.2-r2 → 3.24.4-r0.
+  - The Gentoo cloud image, 20261004T164559Z → 20261122T164601Z. The old build had
+    been pruned upstream, so the check could not even ask about it.
+
+  Both images were re-pinned by the rule in `import-cloud-template.sh`: each was
+  downloaded, its `.asc` verified against the key that script names, and its SHA-256
+  taken from the verified file. Neither is proven where it runs yet: the import and
+  Packer build on Saruman, and the playbooks against the Windows lab from phoenix,
+  are the operator's.
+
+- **Alertmanager has its own DNS fallback
+  ([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)).** With
+  AdGuard on `trinity` as `morpheus`'s only forwarder (ADR-0055), a `trinity`
+  outage left the ntfy.sh copy of every urgent page, and the healthchecks.io
+  heartbeat, unable to resolve. The only page was healthchecks.io calling
+  Alertmanager dead. That happened on 2026-11-13, and the audit of
+  `prometheus` recorded it as finding 4. Alertmanager's compose service now
+  lists `10.0.99.1`, `1.1.1.1` and `9.9.9.9`. A scratch container measured
+  that Docker's embedded resolver moves to the next server when `morpheus`
+  answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
+  `morpheus`. The house's DNS is unchanged.
 - **The last of `morpheus`'s audit leftovers are tidied.** After a fresh
   `make backup-firewall`, in one config write:
   - Winterfell's catch-all now has a description, *Allow internet*, as most
@@ -45,6 +73,7 @@ docstring gives: it is a record, not a claim about now.
   Winterfell remain above the block. The firmware was read against APC's site:
   the card's AOS 2.0.0.6 against 3.6.1.2, and the UPS's 09.8 against 15.0;
   `hardware.md` records both. Updating them is left to the operator.
+
 - **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
   the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
   services, and the admin user's address, are narrowed from all of
@@ -54,6 +83,7 @@ docstring gives: it is a record, not a claim about now.
   unused ports are disabled. Applied under a five-minute automatic revert,
   cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
   `trinity` were proven. device-mode, which needs a button press, is not done.
+
 - **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
   through `neo`'s SFP+ cages at 2.5G
   ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**

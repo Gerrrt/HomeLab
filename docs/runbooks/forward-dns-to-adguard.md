@@ -197,7 +197,11 @@ done; echo "blocked=$b leaked=$l"
 
 Since [ADR-0055](../adr/0055-forward-to-adguard-alone.md) there is no fallback
 to prove. What this proves is that the page reaches you, and about how long
-the house is without outside names before it does. **Do not silence
+the house is without outside names before it does. Both copies of the page
+should arrive, the in-house ntfy and ntfy.sh. The ntfy.sh copy resolves
+through Alertmanager's own fallback
+([ADR-0130](../adr/0130-give-alertmanager-its-own-dns-fallback.md)), not
+through the house's DNS. **Do not silence
 `AdGuardNotAnswering` for this**: the page is the result. Pick a moment
 nobody in the house needs the internet for about ten minutes.
 
