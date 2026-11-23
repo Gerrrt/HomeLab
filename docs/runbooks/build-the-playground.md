@@ -203,6 +203,8 @@ iface vmbr0 inet static
         bridge-ports nic0
         bridge-stp off
         bridge-fd 0
+        ip-forward off
+        ip6-forward off
 
 auto vmbr1
 iface vmbr1 inet manual
@@ -210,8 +212,23 @@ iface vmbr1 inet manual
         bridge-stp off
         bridge-fd 0
         post-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
+        post-up /usr/sbin/nft -f /etc/network/vmbr1-host-in.nft
 
 source /etc/network/interfaces.d/*
+```
+
+`/etc/network/vmbr1-host-in.nft`, which the last line loads:
+
+```text
+table netdev vmbr1_host_in
+delete table netdev vmbr1_host_in
+table netdev vmbr1_host_in {
+        counter dropped { }
+        chain ingress {
+                type filter hook ingress device "vmbr1" priority filter; policy drop;
+                counter name "dropped" drop
+        }
+}
 ```
 
 Two things in there are load-bearing and neither is obvious:
@@ -233,6 +250,32 @@ Two things in there are load-bearing and neither is obvious:
   `ifupdown2` has created the bridge, so the key does not exist yet, the
   `sysctl` fails, and the boot carries on with IPv6 on.
 
+Two more lines close what the address alone does not:
+
+- **`ip-forward off` and `ip6-forward off` on `vmbr0`.** The host routes for
+  no one. The global `ip_forward` is `0`, but IPv4 decides per interface,
+  on the one a packet arrived on. On 2026-11-22 `vmbr0` read
+  `forwarding = 1` in both families while everything else read `0`. Nothing
+  in `sysctl.d` set it, which points at ifupdown2's default for an
+  interface that carries an address. These two lines are ifupdown2's own way
+  to turn it off. There is no route to the range, so it was
+  never a path in, but the host would route between VLAN 30 hosts that sent
+  it a packet to pass on.
+- **The `vmbr1_host_in` table.** No address on `vmbr1` is not the same as
+  nothing from `vmbr1` reaching the host. Linux answers ARP for any of its
+  addresses on any interface, and it accepts a packet for `10.0.30.30` on
+  whichever interface it arrives (`arp_ignore` `0`, and `rp_filter` `2`, which
+  `pve-firewall` sets host-wide). So a target someone has rooted can add an
+  on-link route to `10.0.30.30`, and its packets are delivered to the host.
+  Until this table, the host firewall was what dropped them, and nothing
+  watches that on `gandalf` (§7). The table sits on `vmbr1`'s netdev
+  `ingress` hook. That hook sees only frames the bridge passes up to the host
+  itself, never frames it forwards between two guests. So it drops everything
+  addressed to the host, ARP included, and the targets still reach
+  `ragnarok`. It is loaded from `post-up` because a netdev chain needs its
+  device to exist, and `nftables.service` runs before the bridges do. The
+  first two lines make a reload start clean.
+
 The `post-up` line on `nic0` is not isolation. It is the usual workaround for the
 I219's e1000e transmit hang under load, which would take the range's one
 link down mid-session.
@@ -241,11 +284,15 @@ link down mid-session.
 ip -br addr show
 ip addr show dev vmbr1 | grep -c inet
 ethtool -k nic0 | grep -E 'tcp-segmentation-offload|generic-segmentation-offload'
+sysctl net.ipv4.conf.vmbr0.forwarding net.ipv6.conf.vmbr0.forwarding
+nft list chain netdev vmbr1_host_in ingress | grep -c 'policy drop'
 ```
 
 **You should see** `vmbr0` with `10.0.30.30/24`, and **`vmbr1` with no
 address at all**: the `grep -c` prints `0`, so no `inet` and no `inet6`.
-`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`.
+`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`,
+both `vmbr0` forwarding flags `0`, and the last line `1`. §8 check four
+proves the table drops what a target sends to the host.
 
 Then reboot once, which also picks up §1's kernel, and run the same
 commands again, with
@@ -264,6 +311,9 @@ fault.
 Applied on `gandalf` the same day, then proved by a reboot at 15:53. After
 it, `disable_ipv6` read `1`, the `grep -c` read `0`, and the boot's
 networking log had no failed `sysctl`.
+The `ip-forward` lines and the `vmbr1_host_in` table were written later on
+2026-11-22, from the audit that day. **Not yet applied on `gandalf`.** As with
+the `sysctl` line, only a reboot followed by the commands above proves them.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -657,14 +707,22 @@ printf '%s\n' \
   'PermitRootLogin prohibit-password' \
   'PasswordAuthentication no' \
   'KbdInteractiveAuthentication no' \
+  'X11Forwarding no' \
+  'AllowTcpForwarding no' \
   > /etc/ssh/sshd_config.d/10-keys-only.conf
 sshd -t && systemctl reload ssh
-sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication) '
+sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication|x11forwarding|allowtcpforwarding) '
 ```
 
 **You should see** `permitrootlogin without-password` (`sshd -T`'s name for
-`prohibit-password`), `passwordauthentication no` and
-`kbdinteractiveauthentication no`. The drop-in wins over the main file's
+`prohibit-password`), `passwordauthentication no`,
+`kbdinteractiveauthentication no`, `x11forwarding no` and
+`allowtcpforwarding no`. The last two keep a root session on the range's
+isolation host from becoming a tunnel. Nothing here needs one, because
+`8006` is reached directly from Hicks. The drop-in applied on 2026-11-22 had
+the first three lines only. The audit that day found both forwardings on
+(Debian's `X11Forwarding yes` and the `AllowTcpForwarding` default), so the
+step is rerun with all five. **Not yet applied on `gandalf`.** The drop-in wins over the main file's
 `PermitRootLogin yes` because `Include` comes first in `sshd_config` and
 `sshd` keeps the first value it reads. Then, from Hicks, a password login must
 be refused while a key login still works:
@@ -707,6 +765,60 @@ The `ss` output should list `22`, `8006` and `3128` on all addresses, and
 `25` and `85` on loopback only. `chronyd`'s `323` is also loopback only.
 Nothing on `111` should remain. If NFS storage is ever added, unmask and
 enable them first, or the mount will fail.
+
+### Nothing else on `gandalf`
+
+`gandalf` is the box that keeps the attacker's segment away from the estate.
+It shares layer 2 with `ragnarok`, and nothing watches it (ADR-0017). So it
+holds no estate credential, no GitHub login, no personal tooling and no apt
+repository but Debian's and Proxmox's. Repository work and anything that needs
+a login are done from a Hicks workstation or `phoenix`, never from a shell
+here. Every apt source can install a package that runs as root on the
+isolation host, so a third-party repository is a supply chain the range
+does not need.
+
+The 2026-11-13 audit found a GitHub token, Claude Code credentials and a
+HomeLab checkout here. They were removed before the 2026-11-22 audit, which
+found none of them. It did find a dotfiles install for `root`:
+
+- zsh as the login shell, and `~/.ssh/config` linked into the checkout;
+- an `atuin` daemon, Go toolchains, and tools under `~/.local`;
+- the packages `1password-cli` (signed out), `gh` (logged out), `glow`,
+  `gum`, `netavark` and `skopeo`;
+- the 1Password and Charm apt repositories, and Claude Code's remote-session
+  files under `/root/.claude`.
+
+Remove them, as root on `gandalf`, from a shell opened with `bash` (the login
+shell changes first):
+
+```bash
+chsh -s /bin/bash root
+pkill -x atuin || true
+rm -f /etc/apt/sources.list.d/1password.list /etc/apt/sources.list.d/charm.list \
+      /etc/apt/keyrings/1password.gpg /etc/apt/keyrings/charm.gpg
+apt purge 1password-cli gh glow gum netavark skopeo zsh zsh-common \
+      golang-go golang-src golang-1.24-go golang-1.24-src \
+      golang-github-containers-common golang-github-containers-image
+apt autoremove --purge && apt update
+find /root -maxdepth 3 -lname '*dotgibson*' -print -delete
+rm -rf /root/code /root/.local /root/.config/atuin /root/.config/gh /root/.config/go \
+       /root/.claude /root/.claude.json /root/.ssh/config.d /root/.ssh/sockets \
+       /root/.ssh/config.pre-dotfiles.*
+```
+
+The `find` removes the dotfiles' symlinks before the checkout goes, so none
+is left dangling. Keep `/root/.ssh/id_rsa`, `id_rsa.pub` and `known_hosts`:
+they are Proxmox's own node key. Then read it back:
+
+```bash
+ls /etc/apt/sources.list.d/
+getent passwd root | cut -d: -f7
+pgrep -a atuin; command -v gh op zsh
+```
+
+**You should see** only `ceph.sources`, `debian.sources`, `proxmox.sources`
+and `pve-enterprise.sources`, the shell `/bin/bash`, and nothing from the last
+line. **Not yet run on `gandalf`.**
 
 ---
 
@@ -973,13 +1085,18 @@ that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
 it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
 once per session. `pve-firewall status` should read `enabled/running`, and §4's
 probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
-`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication) '`
-should read `without-password` and `no`, because an upgrade that replaces
+`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication|x11forwarding|allowtcpforwarding) '`
+should read `without-password` and three `no`s, because an upgrade that replaces
 `sshd_config.d` would be as silent as one that rewrites the firewall. Any other
 answer means the session does not start until §4 has been rerun.
 `ip addr show dev vmbr1 | grep -c inet` should print `0` (§2): the host has
-no address on the range. Anything else means the session does not start until
-§2's `sysctl` has been rerun and its line in `/etc/network/interfaces` checked.
+no address on the range. `sysctl net.ipv4.conf.vmbr0.forwarding
+net.ipv6.conf.vmbr0.forwarding` should read `0` twice, and
+`nft list chain netdev vmbr1_host_in ingress | grep -c 'policy drop'` should
+print `1`. Anything else means the session does not start until §2's lines
+have been rerun and checked in `/etc/network/interfaces`.
+`ls /etc/apt/sources.list.d/` should list Debian's and Proxmox's sources
+only (§4, *Nothing else on `gandalf`*).
 
 **Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
 packages only (§4, *Services on `gandalf`*). `apt update && apt list
@@ -1016,9 +1133,10 @@ by anything else in this repository.
 >   and dhcpcd stopped, the guest had no default route, and both pings gave
 >   `Network is unreachable` while `172.30.30.10` answered. `ragnarok` is not
 >   affected, because its `eth0` takes a real lease. Since #1341 the build
->   removes the stanza before templating. **Until 902 is rebuilt, a
->   static-only clone of it on `vmbr1` needs that file removed before this
->   check passes.**
+>   removes the stanza before templating. 902 was rebuilt on 2026-11-22,
+>   after #1341 merged (`range/base-902-disk-1` is dated that day), so a new
+>   clone should not carry the file. The next check four on a static clone
+>   is what proves it.
 
 **One — `gandalf` is single-homed, and `vmbr1` has no port.** On the host:
 
@@ -1078,6 +1196,29 @@ No `default` line in the first, and both pings failing with *Network is
 unreachable* rather than timing out. A timeout means a default route exists and
 something is swallowing the packets, which is a different and much worse state:
 it is a filtered target rather than an unrouted one.
+
+Then prove that the host takes nothing from the range, which is what a rooted
+target would try next (§2, `vmbr1_host_in`). On `gandalf`, read the counter:
+
+```bash
+nft list counter netdev vmbr1_host_in dropped
+```
+
+On the target, give it the route an attacker would add, send once, and take
+the route away:
+
+```bash
+ip route add 10.0.30.30/32 dev eth0
+ping -c2 -W1 10.0.30.30
+ip route del 10.0.30.30/32 dev eth0
+```
+
+The pings should get no reply, and `ip neigh show 10.0.30.30` on the target
+should read `FAILED` or `INCOMPLETE`: the host never answered ARP. The
+counter on `gandalf` should have risen. A reply, or a `REACHABLE` neighbour,
+means the table is not loaded. The target should still answer `ragnarok`'s
+ping, which shows that the table drops traffic to the host and not traffic
+between guests.
 
 ---
 
