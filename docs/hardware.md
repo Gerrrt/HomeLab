@@ -356,8 +356,11 @@ the UPS's are well behind APC's.** Read on 2026-11-23: the card runs AOS
 2026-11-17; the UPS runs `UPS 09.8 (ID20)`, against 15.0 for that ID. The UPS
 releases since 09.8 improve its handling of very weak batteries and its
 replace-battery indicator (09.9), and add a setting that locks firmware
-updates to chosen ports (15.0). Updating either is a visit to the card, and
-the operator's call. The card answers HTTPS and SSH; its HTTP port is closed.
+updates to chosen ports (15.0). The card's 3.x line needs a paid Secure NMC
+subscription, so its free ceiling is 2.5.x, and this model can't update the
+UPS with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
+is the procedure for both, tracked in
+[#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed.
 
 ## WAN
 

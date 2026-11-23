@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`update-the-ups-firmware.md` is written, for #1698.** Reading the release
+  notes changed the plan for both updates. The card's current firmware, 3.6.1.2,
+  installs only through Schneider's Windows SNS tool and with a paid Secure NMC
+  subscription, so the runbook takes the card to the last free line, 2.5.x,
+  by SCP from `prometheus`, with no outage. APC's table says the Smart-UPS X
+  (ID 20) can't load firmware with its output on, so the UPS's move from 09.8
+  to 15.0 shuts down everything `mjolnir` powers. The runbook keeps it for an
+  outage already planned for something else, with the Mac cabled straight to
+  the card, since `neo` is dark too.
 - **The weekly digest check is green on its tool pins again.** It had been red since
   2026-10-19. The Velociraptor digest it also flagged already landed in #1662, the
   first bump Dependabot's grouped shared-config entry carried to `soc` and `scratch`

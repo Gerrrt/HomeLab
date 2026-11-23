@@ -137,7 +137,7 @@ documents for different readers.
   CRITICAL CVEs, and each image with findings has an open issue until a scan
   finds it clean.
 - **Documented decisions and runbooks.** 131 ADRs covering what was chosen
-  and what was rejected — including the costs accepted knowingly; 55
+  and what was rejected — including the costs accepted knowingly; 56
   runbooks for the operations that are easy to get wrong at 1am, one of which
   is the handover page a successor reads first. Every critical alert links to
   one.
@@ -238,7 +238,7 @@ inbound passes may still reach it. Data flow and the maintained Mermaid topology
 │   ├── diagrams/             # the network diagram (SVG) and its predecessors
 │   ├── adr/                  # 131 ADRs — architecture decision records
 │   ├── exercises/            # purple-team exercise records — see its README
-│   └── runbooks/             # 55 runbooks; successor-handover.md is the front door
+│   └── runbooks/             # 56 runbooks; successor-handover.md is the front door
 └── Makefile                  # make help
 ```
 
