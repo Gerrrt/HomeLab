@@ -28,8 +28,10 @@ docstring gives: it is a record, not a claim about now.
   gains *Make `sshd` key-only*, the same drop-in `trinity` and `phoenix` use,
   and §3 of a rebuild runs it first. No host firewall, as on `trinity`:
   Docker's rules run ahead of `ufw`'s for the published ports, so a policy
-  would cover `22` alone. A new `security.md` row records both. The step is
-  not yet applied on the host. The same reads found the SSD reports only
+  would cover `22` alone. A new `security.md` row records both. The step was
+  applied the same evening. `sshd -T` read `no` for all four settings, a
+  password login and a keyboard-interactive login were refused, and a key
+  login from Hicks succeeded after the reload. The same reads found the SSD reports only
   `Wear_Leveling_Count`, normalised 178 against a threshold of 100, so it has
   no wear percent and no `homelab_smart_percentage_used` series, which is
   correct.
