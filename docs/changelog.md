@@ -31,6 +31,21 @@ docstring gives: it is a record, not a claim about now.
   answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
   `morpheus`. The house's DNS is unchanged.
 
+- **`morpheus`'s three add-ons are updated: Suricata, net-snmp and System
+  Patches.** Each was installed with `pfSense-upgrade -y -i`, the path Package
+  Manager uses, after a fresh `make backup-firewall`; four packages in all,
+  Suricata's engine among them. That is four of the 41 pending updates the
+  2026-11-13 audit found. The other 37 are packages pfSense itself is built
+  on (PHP, Unbound, OpenVPN, strongSwan and others). `pfSense-upgrade -c`
+  reports the system up to date, so they wait for pfSense's next release
+  rather than a raw `pkg upgrade`, which can break the web UI and its
+  configuration scripts. The Suricata install stopped both instances and did
+  not start them again; they were started by hand within a minute, before
+  `SuricataStopped` could fire. `enable-suricata.md` now has an *Updating the
+  package* section that says so. Afterwards both interfaces were running
+  and reaching Loki, `make check-firewall` passed
+  35/35, and no new alert fired.
+
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
   and there were 99 by today, left behind by validation and scratch runs.
