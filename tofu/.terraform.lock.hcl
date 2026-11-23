@@ -3,7 +3,7 @@
 
 provider "registry.opentofu.org/bpg/proxmox" {
   version     = "0.123.1"
-  constraints = "0.121.0"
+  constraints = "0.123.1"
   hashes = [
     "h1:/1v3eGtZEkgHH6EfdrftyIJfiSv5fWbELDs8w/uPyv8=",
     "h1:0p7+PCONScVIGfFqI29TYCcjMRCMNK0+I1fo9UqKl+o=",
@@ -31,6 +31,7 @@ provider "registry.opentofu.org/bpg/proxmox" {
     "zh:b56ba73f6af2d784efca40d877f26407fd1c085f03c93e1f05fc339fc8fd1c96",
     "zh:d1a136278b50915dd122710355d0a17406fee62286a645f9414a6ebfecd6cccc",
     "zh:da299008135425f1c6f5ae83dc5c45ceab475d7e24bee8dae40a3aa7edcd475f",
+    "zh:f26e0763dbe6a6b2195c94b44696f2110f7f55433dc142839be16b9697fa5597",
   ]
 }
 
