@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The weekly digest check is green on its tool pins again.** It had been red since
+  2026-10-19. The Velociraptor digest it also flagged already landed in #1662, the
+  first bump Dependabot's grouped shared-config entry carried to `soc` and `scratch`
+  together. Three tool pins moved:
+  - `ansible.windows` 3.8.0 → 3.9.2. The changelog's one breaking change is to `dsc3`,
+    and nothing here uses it, nor `win_dns_record`, `win_template` or `win_updates`,
+    the other modules it changed.
+  - The Alpine cloud image, 3.24.2-r2 → 3.24.4-r0.
+  - The Gentoo cloud image, 20261004T164559Z → 20261122T164601Z. The old build had
+    been pruned upstream, so the check could not even ask about it.
+
+  Both images were re-pinned by the rule in `import-cloud-template.sh`: each was
+  downloaded, its `.asc` verified against the key that script names, and its SHA-256
+  taken from the verified file. Neither is proven where it runs yet: the import and
+  Packer build on Saruman, and the playbooks against the Windows lab from phoenix,
+  are the operator's.
+
 - **Alertmanager has its own DNS fallback
   ([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)).** With
   AdGuard on `trinity` as `morpheus`'s only forwarder (ADR-0055), a `trinity`
