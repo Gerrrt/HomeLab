@@ -1,0 +1,126 @@
+---
+# Behaviour tests for loki/rules/nut.rules.yaml, run by
+# scripts/test_loki_rules.py. The format is security.test.yaml's: each case
+# pushes these lines into a throwaway Loki and runs the rule's own expr as an
+# instant query; `expect` is the series it must return, [] none.
+#
+# The lines are upsmon's own, as Loki stores them on 2026-11-22: morpheus's
+# arrive through pfSense's syslog with the message only, and the clients'
+# through the journal, where the UPS is named by the upsd each one monitors:
+# mjolnir@10.0.30.1 on Saruman, mjolnir@10.0.99.1 on trinity.
+tests:
+  # --- NutDriverNotConnected --------------------------------------------------
+  - alert: NutDriverNotConnected
+    name: a driver down on morpheus, upsmon polling every five seconds, fires
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 3m
+            count: 36
+            every: 5s
+            line: Poll UPS [mjolnir] failed - Driver not connected
+    expect:
+      - {host: morpheus}
+
+  - alert: NutDriverNotConnected
+    name: the same seen from a client's journal fires for that client
+    streams:
+      - labels: {log_type: journal, unit: nut-monitor.service, host: trinity}
+        entries:
+          - before: 3m
+            count: 36
+            every: 5s
+            line: Poll UPS [mjolnir@10.0.99.1] failed - Driver not connected
+    expect:
+      - {host: trinity}
+
+  - alert: NutDriverNotConnected
+    name: a driver restart, two lines per upsmon, does not
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 3m
+            count: 2
+            every: 3s
+            line: Poll UPS [mjolnir] failed - Driver not connected
+      - labels: {log_type: journal, unit: nut-monitor.service, host: trinity}
+        entries:
+          - before: 3m
+            line: Poll UPS [mjolnir@10.0.99.1] failed - Driver not connected
+    expect: []
+
+  - alert: NutDriverNotConnected
+    name: a 55-second outage that has since recovered does not
+    # Twelve failures, the last over three minutes ago. A ten-minute window
+    # still counted them, and `for: 5m` then paged after the driver was back.
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 4m
+            count: 12
+            every: 5s
+            line: Poll UPS [mjolnir] failed - Driver not connected
+    expect: []
+
+  - alert: NutDriverNotConnected
+    name: the everyday stale spells do not
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 8m
+            count: 12
+            every: 40s
+            line: Poll UPS [mjolnir] failed - Data stale
+    expect: []
+
+  # --- NutCommunicationsLost --------------------------------------------------
+  - alert: NutCommunicationsLost
+    name: five minutes without the UPS on a client fires
+    streams:
+      - labels: {log_type: journal, unit: nut-monitor.service, host: Saruman}
+        entries:
+          - before: 2m
+            line: UPS mjolnir@10.0.30.1 is unavailable
+    expect:
+      - {host: Saruman}
+
+  - alert: NutCommunicationsLost
+    name: on morpheus too
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 2m
+            line: UPS mjolnir is unavailable
+    expect:
+      - {host: morpheus}
+
+  - alert: NutCommunicationsLost
+    name: a loss that comes back within seconds does not
+    streams:
+      - labels: {log_type: journal, unit: nut-monitor.service, host: Saruman}
+        entries:
+          - before: 3m
+            line: Communications with UPS mjolnir@10.0.30.1 lost
+          - before: 2m55s
+            line: Communications with UPS mjolnir@10.0.30.1 established
+    expect: []
+
+  # --- NutMonitorFailedToStart ------------------------------------------------
+  - alert: NutMonitorFailedToStart
+    name: trinity's refusal of 2026-11-20 fires
+    streams:
+      - labels: {log_type: journal, unit: nut-monitor.service, host: trinity}
+        entries:
+          - before: 5m
+            line: "Fatal error: insufficient power configured!"
+    expect:
+      - {host: trinity}
+
+  - alert: NutMonitorFailedToStart
+    name: a clean start does not
+    streams:
+      - labels: {log_type: journal, unit: nut-monitor.service, host: trinity}
+        entries:
+          - before: 5m
+            line: Network UPS Tools upsmon 2.8.4 release
+    expect: []

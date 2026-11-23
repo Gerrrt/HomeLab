@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **NUT is watched from its own logs.** The 2026-11-13 audit of `mjolnir`
+  found that nothing watched the shutdown path itself, which is how the
+  driver could stay down until 2026-11-07 with only the generic card-silence
+  alerts firing. Every `upsmon` but `smaug`'s was already in Loki: `morpheus`'s
+  through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+  `loki/rules/nut.rules.yaml` adds `NutDriverNotConnected` and
+  `NutCommunicationsLost`, both critical, and `NutMonitorFailedToStart`. They
+  were evaluated against the 48 hours to 2026-11-23 and would not have fired.
+  The brief *data stale* spells, about a hundred a day, are left alone: their
+  cause is not established, and they do not line up with the Prometheus
+  scrape of the card.
 - **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
   disarmed for at least two of them.** This records what the 2026-11-13
   read-only audit of `mjolnir` found and no entry had written down.

@@ -1226,6 +1226,23 @@ Then close [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 
 ## If something goes wrong
 
+**`NutDriverNotConnected` or `NutCommunicationsLost` paged.** These read
+`upsmon`'s own logs in Loki (`loki/rules/nut.rules.yaml`), so they fire
+whether or not the card still answers SNMP. Until it clears, **the shutdown
+is disarmed** on the host it names. Which one paged says where to look:
+
+- `NutDriverNotConnected`, from any host, is the driver on `morpheus`. A
+  client that logs it has reached `upsd`, so its network is fine. On
+  `morpheus`, run `upsc mjolnir`: if it says `Driver not connected`, the
+  `snmp-ups` driver is down, so check that the card answers at
+  `https://10.0.99.10`, then *Services → UPS → Save* restarts the driver.
+- `NutCommunicationsLost` on `morpheus` is the driver or the card, as above.
+  On a client it is that client's path to `upsd` on 3493: `10.0.30.1` from
+  `Saruman` (3.3), `10.0.99.1` from `trinity` (4b.4). Run `upsc
+  mjolnir@<that address>` there, then re-run its verify step (3.5 or 4b.5).
+
+`smaug` ships no logs, so these alerts never name it.
+
 **`upsc` says `Connection refused`.** Either `upsd` is not listening on that
 address (check 1.6) or the pass rule is below the block or the catch-all
 (check 2.5). Both look identical from the client.
