@@ -102,9 +102,14 @@ Turn `api-ssl` on with the leaf `www-ssl` already serves, for `trinity` only.
 Plain `api` stays off:
 
 ```text
-/ip/service/set api-ssl certificate=neo.matrix.elysium available-from=10.0.99.40/32 disabled=no
+/ip/service/set api-ssl certificate=neo.matrix.elysium available-from=10.0.99.40/32 tls-version=only-1.2 disabled=no
+/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8729 src-address=10.0.99.40 comment="Home Assistant api-ssl" place-before=[find comment="everything else"]
 /ip/service/print where name~"api"
 ```
+
+The filter rule is needed because the switch's own input filter admits only
+the sources [`network.md`](../network.md) lists, and drops the rest before
+the service's `available-from` is ever consulted.
 
 `api` reads `X` (disabled), and `api-ssl` reads port `8729`, the
 certificate and `10.0.99.40/32` under *AVAILABLE-FROM*. RouterOS 7 renamed
