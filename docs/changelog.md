@@ -43,6 +43,13 @@ docstring gives: it is a record, not a claim about now.
   a password login was refused. The dead *Allow SSH from Mac to WSL* rule,
   whose two ends are both on Hicks, was deleted at the same time. The Hicks
   desktop's SSH pass into `smaug` stays, as `network.md` declares it.
+- **The rack's temperature has fixed limits.** The probe's first reading, at
+  15:26 UTC after the deploy, was 22 °C: the card reports whole degrees in
+  `uioSensorStatusTemperatureDegC`, not the tenths PowerNet-MIB describes. That
+  settles what the probe entry below this one left open, and
+  `RackAmbientTemperatureHigh` (warning, over 30 °C for fifteen minutes) and
+  `RackAmbientTemperatureCritical` (critical, over 35 °C for ten) are added.
+  35 °C is the top of ASHRAE class A2, the DL360's rated inlet limit.
 - **`neo`'s log leaves the switch
   ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md), accepted).**
   The core switch kept its log in RAM, 1,000 lines deep. It now sends
@@ -66,6 +73,21 @@ docstring gives: it is a record, not a claim about now.
     about one every seven seconds by the afternoon: 987 of the 1,000 lines in
     the buffer. Nothing saw it, because nothing read the switch's log. Not
     fixed here.
+- **The agent's log pipeline is its own file, so the range host can ship
+  metrics and no logs ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** `config.alloy`
+  mixed the metrics and log pipelines, and `gandalf`'s journal and auth logs
+  can carry what happens on the attacker's segment. The log sources, the level
+  normaliser and `loki.write` move to a new `logs.alloy`, deployed with
+  `config.alloy` everywhere but a metrics-only host. `deploy-agent.sh` gains
+  `--metrics-only`: it omits `logs.alloy` (and refuses a docker host, whose
+  `docker.alloy` needs the log pipeline) and verifies metrics alone. The five
+  stacks that mount `config.alloy` individually now mount `logs.alloy` beside
+  it; the observability stack mounts the whole directory, so it picks it up.
+  `build-the-playground.md` §7 gives `gandalf`'s deploy command. The split was
+  checked with `alloy validate` on the whole directory and on `config.alloy`
+  alone (the metrics-only case), both clean, so every cross-file reference
+  resolves and the metrics-only config has no dangling one.
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.

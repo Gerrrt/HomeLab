@@ -1243,6 +1243,16 @@ is disarmed** on the host it names. Which one paged says where to look:
 
 `smaug` ships no logs, so these alerts never name it.
 
+**`RackAmbientTemperatureCritical` paged.** The AP9335T on the card's
+universal I/O port has read over 35 °C for ten minutes at the bottom of the
+rack, past the DL360's rated inlet. Check the room first: a closed door, a
+heater, or something stacked against the frame's back, which needs its 30 cm
+from the wall. Read the DL360's inlet temperature on the iLO to confirm it is
+the room and not the probe. If it keeps climbing, shut `Saruman` down cleanly
+(it is most of the heat) before its own thermal trip does it hard; the rest
+can stay up. `RackAmbientTemperatureHigh` is the same reading over 30 °C, a
+warning with time to act.
+
 **`upsc` says `Connection refused`.** Either `upsd` is not listening on that
 address (check 1.6) or the pass rule is below the block or the catch-all
 (check 2.5). Both look identical from the client.

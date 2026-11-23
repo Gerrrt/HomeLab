@@ -446,12 +446,12 @@ groups:
       # which table the card reports it in, and why that is a reading to
       # confirm, not a certainty: UpsTemperatureProbeMissing is that check.
       #
-      # NO STATIC TEMPERATURE THRESHOLD YET. PowerNet-MIB describes
-      # uioSensorStatusTemperatureDegC as tenths of a degree, and APC's cards
-      # are known to report whole degrees in that column. A fixed limit is
-      # added once the first readings settle which it is. Until then the
-      # card's own alarm status carries the threshold, so set the probe's
-      # high-temperature limits at the card.
+      # WHOLE DEGREES. PowerNet-MIB describes uioSensorStatusTemperatureDegC
+      # as tenths of a degree, but this card reports whole degrees there: the
+      # first reading, at 15:26 UTC on 2026-11-23, was 22 with the battery at
+      # 25 °C beside it. RackAmbientTemperatureHigh and ...Critical are the
+      # fixed limits; RackAmbientTemperatureAlarm still carries whatever
+      # limits are set at the card.
       - alert: UpsTemperatureProbeMissing
         expr: |
           up{job="snmp", device="mjolnir"} == 1
@@ -500,3 +500,38 @@ groups:
             (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
             the DL360's inlet temperature before anything else; the probe sits
             at the bottom of the rack, where the heavy iron is.
+
+      - alert: RackAmbientTemperatureHigh
+        # 30 °C is three above the top of ASHRAE's recommended 18-27 °C inlet
+        # range, with the probe at 22 °C on the day it went in. Fifteen minutes
+        # so a door left open or a sunny afternoon passing through does not.
+        expr: uioSensorStatusTemperatureDegC{device="mjolnir"} > 30
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "Rack ambient at {{ $labels.device }}'s probe is {{ $value }}°C"
+          description: >-
+            The probe at the bottom of the rack has read over 30 °C for fifteen
+            minutes. Check the room and the rack's airflow, then the DL360's
+            inlet temperature on the iLO. A hot rack also ages the UPS pack.
+
+      - alert: RackAmbientTemperatureCritical
+        # 35 °C is the top of ASHRAE class A2, the standard inlet limit HPE
+        # rates the DL360 for. Past it, hardware throttles or trips.
+        expr: uioSensorStatusTemperatureDegC{device="mjolnir"} > 35
+        for: 10m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#if-something-goes-wrong"
+          summary: "Rack ambient at {{ $labels.device }}'s probe is {{ $value }}°C, past 35"
+          description: >-
+            The probe at the bottom of the rack has read over 35 °C for ten
+            minutes, past the DL360's rated inlet limit. Cool the
+            room or open the rack now; if it keeps climbing, shut down the
+            heaviest load (Saruman) before its own thermal trip does.
