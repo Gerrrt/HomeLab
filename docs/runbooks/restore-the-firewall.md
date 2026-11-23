@@ -266,6 +266,9 @@ worked, not the ones that were expected to.
    encrypted). On the rehearsal the box rebooted **straight to the console
    menu with every interface assigned — no assignment prompt** — WAN on `em0`,
    LAN on `igc0` at `10.7.7.1`, and all six VLANs on `igc0.10` … `igc0.99`.
+   Since 2026-11-23 the config password protects the console menu, so after
+   the restore the console asks for a login first: `admin` and the web UI's
+   password, the one in the backup, not the fresh install's.
    It then tries to reinstall the config's packages in the background, which
    needs the WAN; on a bench with the WAN unplugged it cannot, and a package
    the rules depend on is worth checking once the WAN is back.
