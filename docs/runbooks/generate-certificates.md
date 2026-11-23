@@ -244,6 +244,15 @@ is within 15 minutes. For the others it is the next day, or sooner if the
 collector is run by hand: `systemctl start homelab-cert-expiry` on Saruman, or
 the cron job's **Run Now** on smaug.
 
+The two syslog TLS leaves are read the same way, from the same job
+([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)): `syslog-listener` off
+the handshake on `10.0.99.20:6514`, and `syslog-client`, `morpheus`'s client
+leaf, from the copy the listener pins in `certificates/`, because a client
+certificate has no handshake to read. Both are this CA's, 825 days, due
+2029-01-09. They raise `SyslogTlsCertificateExpiringSoon` at 30 days, not the
+console pair, and are reissued by
+[`ship-firewall-logs.md`](ship-firewall-logs.md) §1 and §3.
+
 A console whose certificate cannot be read raises
 `ManagementCertificateUnchecked` after six hours rather than going silent. Run
 the collector with `--print` to see which probe failed.

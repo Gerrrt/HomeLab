@@ -22,11 +22,13 @@
 # each host counted once, from its one source.
 #
 # WHAT IS DELIBERATELY NOT HERE.
-#   - The brief "data stale" spells. Measured over 2026-11-16..22: about 100 a
-#     day from upsd, each lasting 1 to 5 s, and upsmon's "Communications ...
-#     lost" back within 5 to 10 s. Their cause is not established (they do not
-#     line up with the Prometheus scrape of the card), and an alert on them
-#     would fire all day. The two rules below fire only on a loss that lasts.
+#   - The brief "data stale" spells themselves. Measured over 2026-11-16..22:
+#     about 100 a day from upsd, each lasting 1 to 5 s, and upsmon's
+#     "Communications ... lost" back within 5 to 10 s. Their cause is not
+#     established (they do not line up with the Prometheus scrape of the
+#     card), and an alert on them would fire all day. The rules below fire only
+#     on a loss that lasts, and NutUpsDataStaleFrequent on their rate rising
+#     well past that baseline.
 #   - Absence. If upsmon itself stops, it logs nothing; a rule on silence would
 #     lean on the stale spells above as its heartbeat, and would start firing
 #     the day they are fixed.
@@ -120,3 +122,28 @@ groups:
             upsmon logged a fatal error on {{ $labels.host }} and exited, so
             that host is not subscribed to the UPS. Read
             `journalctl -u nut-monitor` there for the line before it.
+
+      - alert: NutUpsDataStaleFrequent
+        # The stale spells' rate, not any one spell. upsd logs "Data for UPS
+        # [...] is stale" when one starts. Over the fortnight to 2026-11-23 no
+        # sliding hour had more than 12 (measured in 10-minute steps), so more
+        # than 24 is twice the worst hour: the poll of the card is degrading,
+        # even while each spell still closes in seconds. Each spell is a window
+        # in which a power cut reaches no secondary. A spell that does not
+        # close is NutCommunicationsLost's; a NUT that cannot read the card at
+        # all is NutUpsUnreadable's, in prometheus/rules/ups.rules.yaml.
+        expr: |
+          sum by (host) (count_over_time({log_type="syslog", app="upsd"} |= "is stale" [1h])) > 24
+        for: 0s
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+          summary: "NUT on {{ $labels.host }} lost the UPS data {{ $value }} times in an hour"
+          description: >-
+            upsd's data for the UPS went stale twice as often as the worst
+            hour on record. Look at what else polls the card (Prometheus's
+            SNMP job, the driver's pollfreq on morpheus) and the card's own
+            event log before the gaps start lasting.

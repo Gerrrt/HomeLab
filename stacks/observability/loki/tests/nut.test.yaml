@@ -124,3 +124,29 @@ tests:
           - before: 5m
             line: Network UPS Tools upsmon 2.8.4 release
     expect: []
+
+  # --- NutUpsDataStaleFrequent ------------------------------------------------
+  - alert: NutUpsDataStaleFrequent
+    name: twenty-five stale spells in an hour fire
+    window: 1h
+    streams:
+      - labels: {log_type: syslog, app: upsd, host: morpheus}
+        entries:
+          - before: 55m
+            count: 25
+            every: 2m
+            line: "Data for UPS [mjolnir] is stale - check driver"
+    expect:
+      - {host: morpheus}
+
+  - alert: NutUpsDataStaleFrequent
+    name: the measured worst hour, twelve, does not
+    window: 1h
+    streams:
+      - labels: {log_type: syslog, app: upsd, host: morpheus}
+        entries:
+          - before: 55m
+            count: 12
+            every: 4m
+            line: "Data for UPS [mjolnir] is stale - check driver"
+    expect: []

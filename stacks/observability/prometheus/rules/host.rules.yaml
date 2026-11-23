@@ -2138,7 +2138,7 @@ groups:
       - alert: ManagementCertificateExpiringSoon
         expr: >-
           min by (endpoint, host)
-            (homelab_cert_expiry_timestamp_seconds - time())
+            (homelab_cert_expiry_timestamp_seconds{endpoint!~"syslog-.*"} - time())
           / 86400 < 30
         for: 1h
         labels:
@@ -2161,7 +2161,7 @@ groups:
       - alert: ManagementCertificateExpiryImminent
         expr: >-
           min by (endpoint, host)
-            (homelab_cert_expiry_timestamp_seconds - time())
+            (homelab_cert_expiry_timestamp_seconds{endpoint!~"syslog-.*"} - time())
           / 86400 < 7
         for: 10m
         labels:
@@ -2178,6 +2178,36 @@ groups:
             console keeps answering, but browsers start refusing it, and this
             is the console someone reaches for when something else is already
             wrong. Reissue it now from the runbook.
+
+      # The two syslog TLS leaves (#1049): the listener's on the monitoring
+      # host, and morpheus's client leaf, which the listener pins exactly. Both
+      # come from scripts/gen-certs.sh, which issues 825 days, so they lapse
+      # together and rarely enough to be forgotten. Not the console rules:
+      # neither is reissued from a UI, and the day either lapses nothing breaks
+      # visibly, morpheus's logs just stop (FirewallLogsStopped). One tier,
+      # because the fix is the same at 30 days as at 7.
+      - alert: SyslogTlsCertificateExpiringSoon
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds{endpoint=~"syslog-.*"} - time())
+          / 86400 < 30
+        for: 1h
+        labels:
+          component: logs
+          severity: warning
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/ship-firewall-logs.md#1-issue-both-certificates-before-the-receiver-is-deployed"
+          summary: >-
+            {{ $labels.endpoint }} ({{ $labels.host }}) has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            One of the syslog TLS leaves is close to expiry. Reissue both with
+            scripts/gen-certs.sh on the monitoring host
+            (ship-firewall-logs.md §1), copy morpheus's new client leaf and key
+            to pfSense (§3), and restart Alloy, which reads the pinned leaf
+            only at start. Until then the firewall's logs keep arriving; after
+            the date, FirewallLogsStopped.
 
       # The reader could not complete a handshake. Kept apart from the expiry
       # rules on purpose (the homelab_ddns_record_checked pattern): an unread

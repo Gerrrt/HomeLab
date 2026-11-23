@@ -308,10 +308,14 @@ hardware depends on —
 recorded as a USB NIC in four documents until 2026-09-09, when the box was
 read directly: `pciconf` shows it on a PCIe root port, and the only USB device
 is the Wi-Fi module's Bluetooth half. The table records the release line
-only, as [`check_docs.py`](../scripts/check_docs.py) requires, and unlike the
-Linux hosts nothing collects the running release from pfSense — so it is
-written here with its date: **pfSense CE 2.9.0-RELEASE**, build
-`20260817-1836`, from `/etc/version` on 2026-09-09. Restoring the config
+only, as [`check_docs.py`](../scripts/check_docs.py) requires. The running
+release is collected, but not into this table: the SNMP scrape carries
+pfSense's `sysDescr`, and [`check_versions.py`](../scripts/check_versions.py)
+compares it every Wednesday with the one prose claim of it, in
+[`enable-suricata.md`](runbooks/enable-suricata.md). The build is not
+collected, so it is written here with its date: **pfSense CE 2.9.0-RELEASE**,
+build `20260817-1836`, from `/etc/version` on 2026-09-09 and the same on
+2026-11-23. Restoring the config
 needs a release at least that new
 ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3).
 

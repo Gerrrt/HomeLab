@@ -67,6 +67,44 @@ docstring gives: it is a record, not a claim about now.
   [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §0.2 had sent
   the operator to *Configuration → UPS → General*, which does not have it.
   §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
+- **`morpheus` audited, read-only, on 2026-11-13, and re-read on 2026-11-23.**
+  Segmentation held: `make check-firewall` passed, NAT had one `rdr`, and the
+  VLANs, Hicks' passes, the resolver and Suricata matched the repository. Two
+  findings were worse than anything else, and
+  [#1503](https://github.com/Gerrrt/HomeLab/pull/1503) carries them: every
+  segment reached the admin UI and `sshd` on the firewall's WAN address, and
+  `sshd` accepted passwords. On 2026-11-23 both were still so on the box. The
+  rest, as they stood on 2026-11-23:
+  - **Fixed here.** `network.md` now declares the undeclared Hicks SSH pass
+    into `smaug` (the count is ten), the eighth Skids reservation at `.24`,
+    and the thirteen reservations `morpheus` pins in its ARP table.
+    `hardware.md` no longer says nothing collects pfSense's release:
+    `check_versions.py` does, from SNMP.
+  - **Alerts added.** NUT on `morpheus` marked the UPS's data stale 1,363
+    times in the fortnight to 2026-11-23, never for more than 5.2 seconds and
+    never more than 12 times in a sliding hour. `NutUpsDataStaleFrequent`,
+    added to #1673's `loki/rules/nut.rules.yaml`, warns when an hour has more
+    than 24; a spell that lasts is that file's `NutCommunicationsLost`.
+    `NutUpsUnreadable` asks `upsc` on the firewall every 15 minutes from
+    `make gateway-state` (`scripts/collect-nut-state.sh`) and pages at 30
+    minutes, which needs no log line at all: Loki holds no `upsmon` or `upsd`
+    line from `morpheus` for 2026-11-06, the middle of the driver outage. The
+    cause of the stale gaps is not found. The two syslog TLS
+    leaves, due 2029-01-09, had no expiry alert. `make gateway-state` now
+    reads them, morpheus's client leaf from the pinned file through a new
+    `--file` in `collect-cert-expiry.sh`, and
+    `SyslogTlsCertificateExpiringSoon` warns at 30 days.
+  - **Done elsewhere.** `trinity` subscribes to NUT
+    ([#1596](https://github.com/Gerrrt/HomeLab/pull/1596)). The `netstat`
+    left running on `em0` since 2026-11-07 is gone.
+  - **Left for the operator, on the box.** The dead *Allow SSH from Mac to
+    WSL* rule, whose two ends are both on Hicks, is still loaded. The 41
+    pending package updates are still pending; the base system is current.
+    The GUI still serves pfSense's default self-signed certificate, due
+    2027-04-16 and watched by `ManagementCertificateExpiringSoon`. A root
+    console session is still open on `ttyv0`. Two Hicks leases with no row
+    in `network.md`, one with an Amazon prefix, had expired by 2026-11-23,
+    so they were not identified. The NVMe read 61 °C, against 64 on the 13th.
 
 - **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
   entry for the `prometheus` audit, which said a raw value outside 0–100 now

@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-189 rules in total: 164 metric-based in `prometheus/rules/`, and 25 log-based in
+192 rules in total: 166 metric-based in `prometheus/rules/`, and 26 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -382,8 +382,13 @@ connected" ten times in three minutes, held for five, which is the driver on
 `NutCommunicationsLost` (critical) fires on upsmon's own "is unavailable",
 five minutes without UPS data on that host. `NutMonitorFailedToStart` catches
 an `upsmon` that refused its configuration and exited. The brief *data stale*
-spells, about a hundred a day and seconds long, are left alone, and so is
-silence: an `upsmon` that is not running logs nothing.
+spells, about a hundred a day and seconds long, are left alone, but
+`NutUpsDataStaleFrequent` warns when an hour has more than 24 of them, twice
+the worst hour measured to 2026-11-23. Silence is left alone too: an `upsmon`
+that is not running logs nothing. That case, and `upsd` itself down, is
+`NutUpsUnreadable`'s in `prometheus/rules/ups.rules.yaml`, which asks `upsc`
+on the firewall every 15 minutes (`scripts/collect-nut-state.sh`) and needs no
+log line.
 
 **OOM kills have four owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903), [#1095](https://github.com/Gerrrt/HomeLab/issues/1095)):
 
@@ -535,7 +540,7 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-164 rules across twelve files in `prometheus/rules/`:
+166 rules across twelve files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
@@ -571,7 +576,7 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 164 rules of 164 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
+against the broken rule too. Coverage is 166 rules of 166 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
 in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
