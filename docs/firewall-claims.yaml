@@ -12,7 +12,7 @@
 # other segment is blocked above the catch-all, or there is no catch-all for that
 # family at all. Those are different rulesets and the same posture.
 #
-# WHAT `firewall` MEANS (ADR-0126). For each interface, which of the firewall's
+# WHAT `firewall` MEANS (ADR-0128). For each interface, which of the firewall's
 # OWN addresses a host on that segment reaches on ssh, http and https. Each
 # address is named by the segment it sits on, `WAN`, or `link-local`; never by
 # number. The 2026-11-13 audit found every segment reaching the admin UI and
@@ -59,7 +59,7 @@ interfaces:
       inet6: [OPT1, OPT2, OPT3, OPT4, OPT5, OPT6]
     # The anti-lockout rule pfSense generates on LAN sits above every user rule
     # and passes 22, 80 and 443 to this interface's own address, which is also
-    # its link-local. Kept as the way back in (ADR-0126).
+    # its link-local. Kept as the way back in (ADR-0128).
     firewall:
       ssh: [Switch LAN, link-local]
       http: [Switch LAN, link-local]

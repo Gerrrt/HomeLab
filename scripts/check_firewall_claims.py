@@ -35,7 +35,7 @@ WHAT IT ASSERTS. Two questions, per interface.
    full-segment block sits above it? That set is what "default deny" means here
    operationally, and it is what all three wrong claims above got wrong.
 
-2. `firewall` (ADR-0126): which of the firewall's OWN addresses does a host on
+2. `firewall` (ADR-0128): which of the firewall's OWN addresses does a host on
    this segment reach on ssh, http and https? The 2026-11-13 audit found every
    segment reaching the admin UI and sshd on the WAN address, under rules
    named *Block HTTPS to pfSense*: each block named only its own interface's
@@ -721,7 +721,7 @@ def main() -> int:
         if opened:
             # The one direction where the file is probably not the stale half.
             # A segment reaching the firewall's own admin UI or sshd is a rule
-            # that names too little, the defect ADR-0126 closed; re-deriving
+            # that names too little, the defect ADR-0128 closed; re-deriving
             # would write the hole into the claims file and call it policy.
             print(
                 "\nA segment reaches the firewall itself on a management port the claims "

@@ -170,6 +170,34 @@ groups:
         annotations:
           summary: "UPS {{ $labels.device }} battery at {{ $value }}°C"
 
+      # NUT on the firewall cannot read the UPS, so no secondary would hear of
+      # a power cut. Everything else in this group reads the card directly
+      # over SNMP and stays green while NUT is blind: from 2026-11-05 to
+      # 2026-11-07 the driver was not connected and nothing said so
+      # (changelog, 2026-11-23). scripts/collect-nut-state.sh asks `upsc` on
+      # morpheus from `make gateway-state`, every 15 minutes; 30 minutes is
+      # three reads. Critical, because while this fires a mains cut halts
+      # nothing in order. The few-second stale gaps that are the baseline never
+      # reach it; NutUpsDataStaleFrequent in Loki watches those. Unlike
+      # NutDriverNotConnected (Loki), this needs no log line to arrive.
+      - alert: NutUpsUnreadable
+        expr: homelab_nut_ups_readable == 0
+        for: 30m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+          summary: "NUT on {{ $labels.host }} cannot read UPS {{ $labels.ups }}"
+          description: >-
+            For half an hour `upsc {{ $labels.ups }}@127.0.0.1` on
+            {{ $labels.host }} has returned an error, not a status, so a power
+            cut would reach none of the NUT secondaries. `make gateway-state`'s
+            output names the error. If the card answers SNMP (the UPS panels
+            read it directly), restart NUT from Status -> Services on pfSense
+            and check the driver's SNMPv3 credentials still match the card.
+
       # The two rules that can actually detect a UPS which cannot carry load.
       # Everything above this point reads a value the management card is willing
       # to fabricate; these read the one it is not.
@@ -410,3 +438,65 @@ groups:
             has aged, or the low battery duration was raised. Read
             upsOutputPercentLoad and upsEstimatedMinutesRemaining on the UPS &
             Power dashboard before changing anything.
+
+      # --- The AP9335T temperature probe on the card's universal I/O port ----
+      #
+      # Rack ambient at the bottom of the rack, where the DL360 and the UPS
+      # sit (decided 2026-10-16, plugged in by 2026-11-23). generator.yaml says
+      # which table the card reports it in, and why that is a reading to
+      # confirm, not a certainty: UpsTemperatureProbeMissing is that check.
+      #
+      # NO STATIC TEMPERATURE THRESHOLD YET. PowerNet-MIB describes
+      # uioSensorStatusTemperatureDegC as tenths of a degree, and APC's cards
+      # are known to report whole degrees in that column. A fixed limit is
+      # added once the first readings settle which it is. Until then the
+      # card's own alarm status carries the threshold, so set the probe's
+      # high-temperature limits at the card.
+      - alert: UpsTemperatureProbeMissing
+        expr: |
+          up{job="snmp", device="mjolnir"} == 1
+          unless on(device) uioSensorStatusCommStatus{device="mjolnir"}
+        for: 30m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} answers SNMP but reports no temperature probe"
+          description: >-
+            The card answers, and uioSensorStatusTable has no row. Either the
+            AP9335T is unplugged from the card's universal I/O port, or this
+            card reports it in a table generator.yaml does not walk. Check the
+            probe at the card's web interface before changing the generator.
+
+      - alert: UpsTemperatureProbeCommsLost
+        # commsOK is 2. notInstalled (1) and commsLost (3) both mean no reading.
+        expr: uioSensorStatusCommStatus{device="mjolnir"} != 2
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "The temperature probe on {{ $labels.device }} is not talking to the card"
+          description: >-
+            uioSensorStatusCommStatus reads {{ $value }} (1 not installed,
+            3 communication lost) on port {{ $labels.uioSensorStatusPortID }}.
+            Rack ambient is unmeasured until the probe's lead is reseated.
+
+      - alert: RackAmbientTemperatureAlarm
+        # uioWarning is 2 and uioCritical 3, against the limits set on the card.
+        expr: uioSensorStatusAlarmStatus{device="mjolnir"} == 2 or uioSensorStatusAlarmStatus{device="mjolnir"} == 3
+        for: 10m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "Rack ambient at {{ $labels.device }}'s probe is past the card's limit"
+          description: >-
+            The card raises its own alarm for probe
+            {{ $labels.uioSensorStatusSensorName }}: status {{ $value }}
+            (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
+            the DL360's inlet temperature before anything else; the probe sits
+            at the bottom of the rack, where the heavy iron is.

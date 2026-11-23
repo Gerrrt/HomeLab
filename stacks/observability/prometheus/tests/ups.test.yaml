@@ -559,3 +559,201 @@ tests:
       - eval_time: 45m
         alertname: UpsRideThroughShort
         exp_alerts: []
+
+  # --- NutUpsUnreadable: NUT on morpheus cannot read the UPS ----------------
+  # The textfile is rewritten every 15 minutes and re-served between, so the
+  # series is flat; 0 from t=0 crosses `for: 30m` after half an hour.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_nut_ups_readable{host="morpheus", ups="mjolnir",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: NutUpsUnreadable
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: NutUpsUnreadable
+        exp_alerts:
+          - exp_labels:
+              alertname: NutUpsUnreadable
+              host: morpheus
+              ups: mjolnir
+              instance: prometheus
+              job: prometheus-metrics
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "NUT on morpheus cannot read UPS mjolnir"
+              description: >-
+                For half an hour `upsc mjolnir@127.0.0.1` on
+                morpheus has returned an error, not a status, so a power
+                cut would reach none of the NUT secondaries. `make gateway-state`'s
+                output names the error. If the card answers SNMP (the UPS panels
+                read it directly), restart NUT from Status -> Services on pfSense
+                and check the driver's SNMPv3 credentials still match the card.
+
+  # --- NutUpsUnreadable: quiet while NUT reads a status ---------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_nut_ups_readable{host="morpheus", ups="mjolnir",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: NutUpsUnreadable
+        exp_alerts: []
+  # --- The temperature probe -------------------------------------------------
+  # The production shape once the probe reports: card up, probe talking, no
+  # alarm. Every probe rule must be quiet.
+  - interval: 1m
+    input_series:
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "1x60"
+      - series: >-
+          uioSensorStatusCommStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "2x60"
+      - series: >-
+          uioSensorStatusAlarmStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: UpsTemperatureProbeMissing
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: UpsTemperatureProbeCommsLost
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: RackAmbientTemperatureAlarm
+        exp_alerts: []
+
+  # The card answers and the table is empty: the probe is missing.
+  - interval: 1m
+    input_series:
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: UpsTemperatureProbeMissing
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+            exp_annotations:
+              summary: "mjolnir answers SNMP but reports no temperature probe"
+              description: >-
+                The card answers, and uioSensorStatusTable has no row. Either the
+                AP9335T is unplugged from the card's universal I/O port, or this
+                card reports it in a table generator.yaml does not walk. Check the
+                probe at the card's web interface before changing the generator.
+
+  # The card is down: the generic card-silence alerts own that, not this one.
+  - interval: 1m
+    input_series:
+      - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: UpsTemperatureProbeMissing
+        exp_alerts: []
+
+  # The probe's lead is out: commsLost (3).
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusCommStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "3x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: UpsTemperatureProbeCommsLost
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "The temperature probe on mjolnir is not talking to the card"
+              description: >-
+                uioSensorStatusCommStatus reads 3 (1 not installed,
+                3 communication lost) on port 1.
+                Rack ambient is unmeasured until the probe's lead is reseated.
+
+  # The card's own limit is crossed: uioCritical (3).
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusAlarmStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "3x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: RackAmbientTemperatureAlarm
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "Rack ambient at mjolnir's probe is past the card's limit"
+              description: >-
+                The card raises its own alarm for probe
+                Port 1 Temp 1: status 3
+                (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
+                the DL360's inlet temperature before anything else; the probe sits
+                at the bottom of the rack, where the heavy iron is.
+
+  # The warning limit counts too: uioWarning (2).
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusAlarmStatus{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "2x60"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: RackAmbientTemperatureAlarm
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "Rack ambient at mjolnir's probe is past the card's limit"
+              description: >-
+                The card raises its own alarm for probe
+                Port 1 Temp 1: status 2
+                (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
+                the DL360's inlet temperature before anything else; the probe sits
+                at the bottom of the rack, where the heavy iron is.

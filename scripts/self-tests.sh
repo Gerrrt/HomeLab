@@ -39,6 +39,8 @@
 #                             agent_control JSON; a removed state file (both
 #                             say they will be deprecated) cannot be staged
 #   collect-gateway-state.sh  the gateway parse, for morpheus
+#   collect-nut-state.sh      upsc's answer, readable or not; a driver that is
+#                             down cannot be staged on the firewall on demand
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
 #                             was read off smaug at the console on 2026-09-21
@@ -58,7 +60,7 @@
 #   check_firewall_claims.py  what reaches the firewall's own addresses, which is
 #                             a pf evaluation of a ruleset CI may never hold
 #                             (ADR-0026); the shape that left every segment
-#                             reaching the WAN address is a fixture (ADR-0126)
+#                             reaching the WAN address is a fixture (ADR-0128)
 #   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
 #                             clone never shows the zero-commit scan that the
 #                             fixture for the worktree regression stages

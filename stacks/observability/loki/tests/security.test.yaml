@@ -664,6 +664,73 @@ tests:
               shmem-rss:0kB, UID:1000 pgtables:1200kB oom_score_adj:0
     expect: []
 
+  # --- SystemdUnitFailed ------------------------------------------------------
+  # The 2026-11-23 re-audit: logrotate failed every night on prometheus and
+  # oracle and nothing fired. The lines are the shape journalctl shows there.
+  # The rule looks back 48h, past the runner's gap, and three 48h windows
+  # would overrun what Loki accepts. So, like the new-device rules' MACs, each
+  # case uses unit names no other case in this file does.
+  # For the same reason the lines are hours old, not days: the 48h edge is
+  # Loki's range arithmetic, not this rule's, and is not tested here.
+  - alert: SystemdUnitFailed
+    name: a unit that fails twice in 48h fires, named from the line
+    isolated_by: failed_unit
+    streams:
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "logrotate.service: Failed with result 'exit-code'."
+          - before: 1h
+            line: "logrotate.service: Failed with result 'exit-code'."
+    expect:
+      - {host: prometheus, failed_unit: logrotate.service}
+
+  - alert: SystemdUnitFailed
+    name: one failure, as at a shutdown, does not
+    isolated_by: failed_unit
+    streams:
+      - labels: {log_type: journal, host: trinity, unit: init.scope, transport: journal}
+        entries:
+          - before: 2h
+            line: "finalrd.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "systemd-cryptsetup@immich.service: Failed with result 'exit-code'."
+    expect: []
+
+  - alert: SystemdUnitFailed
+    name: scheduled jobs, OOM kills and other sources do not
+    isolated_by: failed_unit
+    streams:
+      # ScheduledJobFailed's.
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "homelab-silence-state.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "homelab-silence-state.service: Failed with result 'exit-code'."
+      # UnitOomKilled's.
+      - labels: {log_type: journal, host: oracle, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "suricata.service: Failed with result 'oom-kill'."
+          - before: 2h
+            line: "suricata.service: Failed with result 'oom-kill'."
+      # `logger` from a login shell.
+      - labels: {log_type: journal, host: trinity, unit: session-4.scope, transport: syslog}
+        entries:
+          - before: 3h
+            line: "nut-monitor.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "nut-monitor.service: Failed with result 'exit-code'."
+      # A user's manager: system units only.
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: journal}
+        entries:
+          - before: 3h
+            line: "run-p1.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "run-p1.service: Failed with result 'exit-code'."
+    expect: []
+
   # --- IoTAttemptedLateralMovement: more than 20 blocked IoT->internal in 10m -
   - alert: IoTAttemptedLateralMovement
     name: 21 blocked attempts from IoT to management fire

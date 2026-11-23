@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **The firewall's own addresses are closed to every segment, and its `sshd`
   takes keys only
-  ([ADR-0126](adr/0126-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
+  ([ADR-0128](adr/0128-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
   A read-only audit of `morpheus` on 2026-11-13 found every segment reaching
   the admin UI and `sshd` on the WAN address: each interface's *Block … to
   pfSense* rows named only that interface's own address. From `prometheus`,
@@ -36,9 +36,161 @@ docstring gives: it is a record, not a claim about now.
   `make check-firewall` was blind to it, because the WAN address is in no
   segment. It now also asks which of the firewall's addresses each segment
   reaches on ssh, http and https, with fixtures in CI.
+- **The range host will be monitored now that it stays on
+  ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
+  [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).** ADR-0125 made
+  `gandalf` always-on, so ADR-0017's reason for *No monitoring* — a host off
+  by design — is gone, and ADR-0126 supersedes that clause. `gandalf` gets the
+  Alloy agent and the `pve-firewall-state` and guest-state collectors
+  `Saruman` already runs, pushing hypervisor state (the ADR-0028 class, not
+  guest telemetry) outbound to `prometheus` over one new host-scoped pass on
+  `morpheus`. The alerts are three: the host firewall off or `ACCEPT` (the §7
+  read-back as a rule, the main gap), `ragnarok` still running when its
+  timer should have stopped it (a backstop to the ADR-0125 timer), and the
+  SSD's SMART and pending
+  Proxmox updates. Not host uptime: an always-on host has no "up too long"
+  fault, which would be the permanently-firing rule ADR-0017 warned of. The
+  script, the pass and the rules are built under #1651; this is the decision.
+- **The UPS card's temperature probe is bought, plugged in, and read.** The
+  APC AP9335T decided on 2026-10-16 leaves *Everything still to buy*; the
+  operator reported it in the card's universal I/O port on 2026-11-23. The
+  `apc_ups` module now walks `uioSensorStatusTable`, where an NMC3 reports a
+  probe on that port, and three rules watch it: `UpsTemperatureProbeMissing`
+  if the table comes back empty while the card answers, which is also the
+  check that the right table was chosen; `UpsTemperatureProbeCommsLost`; and
+  `RackAmbientTemperatureAlarm` on the card's own alarm. No fixed temperature
+  limit yet: PowerNet-MIB says the Celsius column is in tenths of a degree,
+  APC's cards have been seen to report whole degrees there, and the first
+  readings settle which.
+- **NUT is watched from its own logs.** The 2026-11-13 audit of `mjolnir`
+  found that nothing watched the shutdown path itself, which is how the
+  driver could stay down until 2026-11-07 with only the generic card-silence
+  alerts firing. Every `upsmon` but `smaug`'s was already in Loki: `morpheus`'s
+  through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+  `loki/rules/nut.rules.yaml` adds `NutDriverNotConnected` and
+  `NutCommunicationsLost`, both critical, and `NutMonitorFailedToStart`. They
+  were evaluated against the 48 hours to 2026-11-23 and would not have fired.
+  The brief *data stale* spells, about a hundred a day, are left alone: their
+  cause is not established, and they do not line up with the Prometheus
+  scrape of the card.
+- **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
+  disarmed for at least two of them.** This records what the 2026-11-13
+  read-only audit of `mjolnir` found and no entry had written down.
+  - **The card.** It answered no SNMP from about 01:40 UTC on 2026-10-30 to
+    about 22:30 on 2026-11-06 (`up{device="mjolnir"}` 0 throughout, measured
+    at five-minute steps). `InstanceDown`, `SnmpTargetUnreachable` and
+    `EndpointUnreachable` fired the whole time, and nothing acted on them.
+  - **NUT.** `morpheus`'s own log keeps about a week. It began on 2026-11-05
+    with `upsmon` logging *Poll UPS [mjolnir] failed - Driver not connected*,
+    and went on doing so until 20:59 on 2026-11-07, 23,048 times. Its NUT
+    configuration files were rewritten at 12:56 on 2026-11-08. For as long as
+    the driver was down, a mains cut would have halted nothing in order, and
+    every host would have dropped when the pack ran out.
+  - **The cause is not established.** The card came back during the move into
+    the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)), but
+    it went silent a week before that started, and the card's event log, which
+    would say, has not been read.
+  - **What no rule could see.** The card-silence alerts are generic, and
+    nothing watches NUT itself: a driver that stays down while the card
+    answers SNMP would raise nothing at all. On 2026-11-22 `morpheus` still
+    logged 190 to 320 *data stale* or *communications lost* lines a day, each
+    spell lasting one to ten seconds.
+- **The low battery duration is under *Configuration → Shutdown*.**
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §0.2 had sent
+  the operator to *Configuration → UPS → General*, which does not have it.
+  §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
+- **`morpheus` audited, read-only, on 2026-11-13, and re-read on 2026-11-23.**
+  Segmentation held: `make check-firewall` passed, NAT had one `rdr`, and the
+  VLANs, Hicks' passes, the resolver and Suricata matched the repository. Two
+  findings were worse than anything else, and
+  [#1503](https://github.com/Gerrrt/HomeLab/pull/1503) carries them: every
+  segment reached the admin UI and `sshd` on the firewall's WAN address, and
+  `sshd` accepted passwords. On 2026-11-23 both were still so on the box. The
+  rest, as they stood on 2026-11-23:
+  - **Fixed here.** `network.md` now declares the undeclared Hicks SSH pass
+    into `smaug` (the count is ten), the eighth Skids reservation at `.24`,
+    and the thirteen reservations `morpheus` pins in its ARP table.
+    `hardware.md` no longer says nothing collects pfSense's release:
+    `check_versions.py` does, from SNMP.
+  - **Alerts added.** NUT on `morpheus` marked the UPS's data stale 1,363
+    times in the fortnight to 2026-11-23, never for more than 5.2 seconds and
+    never more than 12 times in a sliding hour. `NutUpsDataStaleFrequent`,
+    added to #1673's `loki/rules/nut.rules.yaml`, warns when an hour has more
+    than 24; a spell that lasts is that file's `NutCommunicationsLost`.
+    `NutUpsUnreadable` asks `upsc` on the firewall every 15 minutes from
+    `make gateway-state` (`scripts/collect-nut-state.sh`) and pages at 30
+    minutes, which needs no log line at all: Loki holds no `upsmon` or `upsd`
+    line from `morpheus` for 2026-11-06, the middle of the driver outage. The
+    cause of the stale gaps is not found. The two syslog TLS
+    leaves, due 2029-01-09, had no expiry alert. `make gateway-state` now
+    reads them, morpheus's client leaf from the pinned file through a new
+    `--file` in `collect-cert-expiry.sh`, and
+    `SyslogTlsCertificateExpiringSoon` warns at 30 days.
+  - **Done elsewhere.** `trinity` subscribes to NUT
+    ([#1596](https://github.com/Gerrrt/HomeLab/pull/1596)). The `netstat`
+    left running on `em0` since 2026-11-07 is gone.
+  - **Left for the operator, on the box.** The dead *Allow SSH from Mac to
+    WSL* rule, whose two ends are both on Hicks, is still loaded. The 41
+    pending package updates are still pending; the base system is current.
+    The GUI still serves pfSense's default self-signed certificate, due
+    2027-04-16 and watched by `ManagementCertificateExpiringSoon`. A root
+    console session is still open on `ttyv0`. Two Hicks leases with no row
+    in `network.md`, one with an Amazon prefix, had expired by 2026-11-23,
+    so they were not identified. The NVMe read 61 °C, against 64 on the 13th.
+
+- **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
+  entry for the `prometheus` audit, which said a raw value outside 0–100 now
+  falls back to the normalised column. That change was deployed, and on
+  2026-11-22 the collector still rendered `-78` for the Apple SSD SM256E. Its
+  figure therefore comes from `Wear_Leveling_Count` or
+  `Media_Wearout_Indicator`, whose normalised column was not range-checked
+  either. All three ATA wear spellings now drop a life-left value outside
+  0–100. Which attribute the drive reports was not read, because `smartctl`
+  needs root. Until it is, the drive has no wear series and
+  `SmartDriveWearHigh` cannot fire for it. NVMe's `percentage_used` keeps its
+  meaning, which can exceed 100.
+- **`SystemdUnitFailed`: a system unit failing twice in 48 hours now
+  warns.** A re-audit of `prometheus` found `logrotate` failing every night
+  since 2026-10-16 on both `prometheus` and `oracle`, seen by nothing. The
+  `cloud-init` and `cloud-init-base` packages each ship a rotation for the
+  same log. The audit of 2026-11-13 had read `systemctl --failed` as empty
+  minutes after a reboot, which clears that state. The rule reads PID 1's own
+  journal line, like `UnitOomKilled`. Run against the live store, it returned
+  exactly those two units. The duplicate config itself is fixed on each host,
+  not here.
 
 ## 2026-11-22
 
+- **The range on `gandalf` is built
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421) closed).** The whole of
+  [`build-the-playground.md`](runbooks/build-the-playground.md) has run: the
+  host and its two bridges (§1–§2), `Saruman` at `.20` and the closed
+  management plane (§3–§4), the attack VM `ragnarok` on template 902 (§5), the
+  three targets (§6), the four-property and leak proofs that ran before any
+  vulnerable image (§8–§9), and now the C2, Sliver (§5, #1481). Gated on #414
+  and the SOC, both long met. What is left on the range is the exercises, each
+  its own issue in the `last` milestone. Its roadmap entry leaves with this.
+- **Sliver is the range C2, installed on `ragnarok`, and a target beaconed
+  back ([ADR-0095](adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md),
+  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481)).** `build-the-playground.md`
+  §5 gains *The C2*. The server (v1.7.9, signature verified against Sliver's
+  own minisign key) runs as a `sliver` systemd daemon, operator console on
+  `31337/tcp` on the lease, added to §5's reachability list. The install
+  lifted the outbound scope and `systemctl restart nftables` put it back, with
+  forwarding still `0` — the thing #1481 names, because installing Docker would
+  have turned it on. An mTLS listener on `172.30.30.10:8443` and a Linux beacon
+  run on `ms3-ub1404` (VMID 101) produced a call-back from `172.30.30.101`,
+  with the scope on — a range-local reachability proof on `vmbr1`, which Zeek
+  does not see, not a SOC-visibility one (that is a later exercise with a
+  domain host on VLAN 30). The scope restore was the lightweight reload; the
+  full `finish-attack-vm.sh` re-prove (§8 check three, the raw-Ethernet path)
+  needs `phoenix`'s credentials and is left for the next session. The target
+  was reverted to `clean`. The install is on the running
+  VM, not the template, so a `tofu` rebuild of `ragnarok` reruns §5's steps,
+  as the targets are redone — Sliver is VM state (ADR-0095). The install left
+  one stale test-beacon record on the server, which Sliver prunes an hour
+  after its last check-in. This is the last piece of
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s build.
 - **`gandalf`'s two audit leftovers are cleared
   ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** This corrects the
   audit-fixes entry below, which recorded both as still open.

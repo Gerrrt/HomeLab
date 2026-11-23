@@ -426,7 +426,7 @@ services:
   # ---------------------------------------------------------------------------
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:a5c0bd262761b1957350831d71e9bbddce234c35e2e621504cebc6a87bd4d4a0
+    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:cc6b012eadea16d21b9e3ab9cc13dad81396f66be4e344aad3fe8efd53b20756
     container_name: soc-velociraptor
     pids_limit: 1024
     # A single Go binary; ADR-0030 sizes it at "a few hundred megabytes of
@@ -653,7 +653,7 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: soc-alloy
     pids_limit: 1024
     # A bound, not a measurement: re-derive from process_resident_memory_bytes

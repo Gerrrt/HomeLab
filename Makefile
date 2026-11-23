@@ -470,6 +470,17 @@ gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GU
 	@# it needs no new timer; a failure fails the job like any other.
 	./scripts/collect-cert-expiry.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus \
 		--probe pfsense-ui=morpheus=127.0.0.1:443
+	@#
+	@# And the two syslog TLS leaves (#1049): the listener's, off its handshake
+	@# here, and morpheus's client leaf, from the copy the listener pins. Both
+	@# were issued for 825 days; the day either lapses, morpheus's logs stop.
+	./scripts/collect-cert-expiry.sh --host syslog-tls \
+		--probe syslog-listener=prometheus=10.0.99.20:6514 \
+		--file syslog-client=morpheus=certificates/morpheus.matrix.elysium.pem
+	@#
+	@# And whether NUT on the firewall can read the UPS, asked the way a
+	@# secondary asks (#1656's eight days): NutUpsUnreadable reads it.
+	./scripts/collect-nut-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
 .PHONY: silence-state
 silence-state: ## Collect Alertmanager's silences as metrics (#575)

@@ -179,17 +179,19 @@ Stop and fix that first — every later step depends on reaching this card.
 ### 0.2 Change it at the card
 
 1. Open `https://10.0.99.10` in a browser and log in.
-2. Go to **Configuration → UPS → General** (on AOS 2.x; on an older firmware
-   it is **UPS → Configuration**).
-3. Find the field for **low battery duration**. It is the setting whose value
-   is currently **2** and whose units are minutes.
-4. Change it to **8**.
-5. Apply or Save.
+2. Go to **Configuration → Shutdown**. The field is under *Start of
+   Shutdown* and is labelled **Low Battery Duration**, in minutes.
+3. Change it to **8**.
+4. Apply or Save.
 
-**The label wording varies by firmware.** It is the only setting on that page
-measured in minutes and currently reading 2. If two fields could match, come
-back and confirm with 0.3 rather than guessing — 0.3 reads the exact object
-you need to have changed.
+**Not *Basic Low Battery Duration*.** The same page has that field under
+*Basic Signaling Shutdown*. It is for a simple-signaling cable, and nothing
+here uses one; `snmp-ups` and 0.3 read the other field. This step used to
+send you to *Configuration → UPS → General*, where the field is not; the
+operator caught that on 2026-11-14. APC's NMC3 user guide for the AP9640,
+AP9641 and AP9643 puts it under *Configuration → Shutdown*. On the card's command line the same field is `cfgshutdn -lo <minutes>`, and
+`cfgshutdn -all` reads it back. 0.3 is still the check either way, because it
+reads the exact object you need to have changed.
 
 ### 0.3 Confirm it took
 
@@ -1223,6 +1225,23 @@ Then close [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 ---
 
 ## If something goes wrong
+
+**`NutDriverNotConnected` or `NutCommunicationsLost` paged.** These read
+`upsmon`'s own logs in Loki (`loki/rules/nut.rules.yaml`), so they fire
+whether or not the card still answers SNMP. Until it clears, **the shutdown
+is disarmed** on the host it names. Which one paged says where to look:
+
+- `NutDriverNotConnected`, from any host, is the driver on `morpheus`. A
+  client that logs it has reached `upsd`, so its network is fine. On
+  `morpheus`, run `upsc mjolnir`: if it says `Driver not connected`, the
+  `snmp-ups` driver is down, so check that the card answers at
+  `https://10.0.99.10`, then *Services → UPS → Save* restarts the driver.
+- `NutCommunicationsLost` on `morpheus` is the driver or the card, as above.
+  On a client it is that client's path to `upsd` on 3493: `10.0.30.1` from
+  `Saruman` (3.3), `10.0.99.1` from `trinity` (4b.4). Run `upsc
+  mjolnir@<that address>` there, then re-run its verify step (3.5 or 4b.5).
+
+`smaug` ships no logs, so these alerts never name it.
 
 **`upsc` says `Connection refused`.** Either `upsd` is not listening on that
 address (check 1.6) or the pass rule is below the block or the catch-all

@@ -5,7 +5,7 @@
 **You will need:** the pfSense web UI from a Hicks workstation, a shell on
 `prometheus`, and the console at the rack in case a step locks the UI out
 
-[ADR-0126](../adr/0126-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
+[ADR-0128](../adr/0128-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
 decides this. Every interface's *Block SSH/HTTPS/HTTP to pfSense* rows named
 only that interface's address, so every segment reached the admin UI and `sshd`
 on the firewall's WAN address, and Hicks reached them on the lab's gateway as

@@ -108,7 +108,7 @@ services:
   # would have been reachable by every other container on this network.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: sensitive-caddy
     # A fixed address, for one reader: Home Assistant's `trusted_proxies`
     # names the proxy it will believe X-Forwarded-For from, and "whatever
@@ -675,7 +675,7 @@ services:
   # filter again. Nothing else is writable.
   adguard:
     <<: *service-defaults
-    image: adguard/adguardhome:v0.107.80@sha256:e2e1b48c832f7705be915873f95de0d5114de573736441d7f2923a8a6293027c
+    image: adguard/adguardhome:v1.0.0@sha256:f00a586f0d1caa74f149340bfb225014960310488ffa838406b89256900a96c2
     container_name: sensitive-adguard
     # Was 512m: 5x the measured 95 MiB RSS with two blocklists (433k rules,
     # 2026-09-09). The threat-intelligence list adds 1.56M rules. Measured on
@@ -1253,7 +1253,7 @@ services:
     # upstream's compose names: the Debian 9.1.2 carried libssl3t64 and
     # libpcre2-8-0 that Debian had fixed and the image had not taken (#1006),
     # and one variant for both brokers is one thing to rebuild and rescan.
-    image: valkey/valkey:9.1.4-alpine@sha256:56729e68bdda139cbd3f6a2538683dc3523325fc5711ea1a379938f1b37893f0
+    image: valkey/valkey:9.2.0-alpine@sha256:c8e2d17498838af5d91e12eb7c11220b3434a7b7131a333e3af52ad5e0b80882
     container_name: sensitive-immich-valkey
     # DIFFERENCE 16 again, Paperless's argument for Immich: not on
     # `sensitive`, and neither is immich-db. Valkey has no password, and the
@@ -1464,7 +1464,7 @@ services:
   # application's: shared_buffers defaults to 128 MB and this is four times it.
   paperless-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
     container_name: sensitive-paperless-db
     # Not `sensitive`: DIFFERENCE 16 says why.
     networks: [paperless-backend]
@@ -1508,7 +1508,7 @@ services:
   # regardless, so `user:` only makes the drop unnecessary.
   paperless-broker:
     <<: *service-defaults
-    image: valkey/valkey:9.1.4-alpine@sha256:56729e68bdda139cbd3f6a2538683dc3523325fc5711ea1a379938f1b37893f0
+    image: valkey/valkey:9.2.0-alpine@sha256:c8e2d17498838af5d91e12eb7c11220b3434a7b7131a333e3af52ad5e0b80882
     container_name: sensitive-paperless-broker
     # DIFFERENCE 16: not on `sensitive`, and neither is paperless-db. The
     # broker has no password: any client that can open 6379 is Valkey's
@@ -1905,7 +1905,7 @@ services:
   # cleanup job archives after 60 days read and 180 unread.
   miniflux-db:
     <<: *service-defaults
-    image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
     container_name: sensitive-miniflux-db
     user: "999:999"
     mem_limit: 512m

@@ -403,6 +403,14 @@ for d in docs:
             # column, which starts at 100 and falls on every drive here that
             # carries it; if that is not a percent either, render nothing
             # rather than a number the rule would misread.
+            #
+            # That fix was not enough: on 2026-11-22 the same drive still
+            # rendered -78 from a collector that carried it, so its figure
+            # comes from one of the two branches below, whose normalised
+            # column is not range-checked either. Every ATA branch now drops a
+            # life-left outside 0-100 (the 2026-11-23 re-audit). Which
+            # attribute the Apple drive reports was not read: smartctl needs
+            # root. Until someone reads it, that drive has no wear series.
             life_left = None
             if raw is not None and 0 <= int(raw) <= 100:
                 life_left = int(raw)
@@ -418,8 +426,10 @@ for d in docs:
             # 100 and falls — and the raw column is not defined for it, unlike
             # the two spellings above. Same inversion, same metric, so
             # SmartDriveWearHigh reads this drive too (#483).
+            # Only a value in 0-100 is life left; see the note above
+            # percent_lifetime_remain.
             value = attr.get("value")
-            if value is not None:
+            if value is not None and 0 <= int(value) <= 100:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
                     plain, 100 - int(value))
@@ -435,8 +445,10 @@ for d in docs:
             # P440ar gave both SM863a a wear series from 177 — 6 % used on
             # cciss,2 and 4 % on cciss,3 — so the attribute does reach the
             # host through the controller.
+            # Only a value in 0-100 is life left; see the note above
+            # percent_lifetime_remain.
             value = attr.get("value")
-            if value is not None:
+            if value is not None and 0 <= int(value) <= 100:
                 add("homelab_smart_percentage_used",
                     "Vendor estimate of endurance consumed, percent. 100 means the rated life is used.",
                     plain, 100 - int(value))
@@ -557,6 +569,16 @@ if ((SELF_TEST)); then
   out="$(emit)"
   check "no column in 0-100: no wear series, never a negative one" \
     0 '^homelab_smart_percentage_used'
+
+  # 3c. The same guard on the two normalised-column spellings. Whichever of
+  #     them prometheus's Apple drive uses, a normalised 178 must render
+  #     nothing, never -78.
+  for attr in Media_Wearout_Indicator Wear_Leveling_Count; do
+    payload='[{"device":{"name":"/dev/sda"},"model_name":"APPLE SSD SM256E","smart_status":{"passed":true},"ata_smart_attributes":{"table":[{"id":177,"name":"'"${attr}"'","value":178,"raw":{"value":0}}]}}]'
+    out="$(emit)"
+    check "${attr} out of 0-100: no wear series, never a negative one" \
+      0 '^homelab_smart_percentage_used'
+  done
 
   # 4. morpheus's NVMe, the other vocabulary entirely.
   payload='[{"device":{"name":"/dev/nvme0"},"model_name":"NVME DRIVE","smart_status":{"passed":true},"temperature":{"current":62},"nvme_smart_health_information_log":{"percentage_used":3,"available_spare":100,"available_spare_threshold":10,"media_errors":0,"unsafe_shutdowns":41,"critical_warning":0}}]'

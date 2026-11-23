@@ -391,7 +391,7 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
     container_name: loki
     user: "10001:10001"
     # 1.5x the 1015 MiB peak — the tightest ratio and the largest number, which
@@ -507,7 +507,7 @@ services:
   # client still speaks http.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: ingest-proxy
     user: "65534:65534"
     group_add:
@@ -1084,7 +1084,7 @@ services:
     # record for `prometheus` aimed at this container, and remote_write started
     # dialling Alloy instead of Prometheus. config.alloy reads ALLOY_HOSTNAME
     # from the environment instead; the header of that file has the whole story.
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: alloy
     # 1024 rather than the shared 512: this is the one service that walks
     # cgroups, tails the journal and talks to the Docker socket, so it has more
@@ -1531,7 +1531,7 @@ services:
   # leaving the token in .git/config. Its entrypoint IS zizmor.
   zizmor:
     profiles: ["lint"]
-    image: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+    image: ghcr.io/zizmorcore/zizmor:1.33.1@sha256:ecd3ffe6158de1322e05a044ed43749bee12b1dccb7e1a7859bc6ac4b2a1c516
     command: ["--version"]
 
   # markdownlint-cli2 and shellcheck (#848). They ran from `npx --yes` and the

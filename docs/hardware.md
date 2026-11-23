@@ -182,10 +182,13 @@ and the power-up order in the move runbook's §7, and write them here.
 under *Before you start*, because shedding on group 1 would cut the PDU
 before any host is told to halt.
 
-**Two more decisions of 2026-10-16, both on the purchase table.** The UPS's
-AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
-bottom where the DL360 and the UPS sit; the SNMP job that already polls the
-card picks it up once the generator names it. And the strip gives way to a
+**Two more decisions of 2026-10-16.** The UPS's AP9641 card gets an APC
+AP9335T temperature probe, for rack ambient at the bottom where the DL360 and
+the UPS sit. **It is bought and plugged into the card's universal I/O port**,
+recorded 2026-11-23, and the `apc_ups` module walks the card's
+`uioSensorStatusTable` for it, so it is read on the SNMP job that already polls
+the card; `ups.rules.yaml` raises an alert if that table comes back empty. The
+second decision is still on the purchase table: the strip gives way to a
 **switched, SNMP-managed PDU**, so the four hosts without a BMC (`morpheus`,
 `trinity`, `gandalf`, `smaug`) can be power-cycled without a walk to the rack.
 The outlet map above is the strip's and is redrawn when that PDU is placed;
@@ -305,10 +308,14 @@ hardware depends on —
 recorded as a USB NIC in four documents until 2026-09-09, when the box was
 read directly: `pciconf` shows it on a PCIe root port, and the only USB device
 is the Wi-Fi module's Bluetooth half. The table records the release line
-only, as [`check_docs.py`](../scripts/check_docs.py) requires, and unlike the
-Linux hosts nothing collects the running release from pfSense — so it is
-written here with its date: **pfSense CE 2.9.0-RELEASE**, build
-`20260817-1836`, from `/etc/version` on 2026-09-09. Restoring the config
+only, as [`check_docs.py`](../scripts/check_docs.py) requires. The running
+release is collected, but not into this table: the SNMP scrape carries
+pfSense's `sysDescr`, and [`check_versions.py`](../scripts/check_versions.py)
+compares it every Wednesday with the one prose claim of it, in
+[`enable-suricata.md`](runbooks/enable-suricata.md). The build is not
+collected, so it is written here with its date: **pfSense CE 2.9.0-RELEASE**,
+build `20260817-1836`, from `/etc/version` on 2026-09-09 and the same on
+2026-11-23. Restoring the config
 needs a release at least that new
 ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3).
 
@@ -377,6 +384,9 @@ the runbook rather than backed up.
   the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
   `upsBasicBatteryLastReplaceDate` still reads `08/15/2026` and wants resetting
   to the fit date — it is the only record of the pack's age
+- APC AP9335T temperature probe on the UPS card's universal I/O port, for rack
+  ambient at the bottom of the rack. Bought and plugged in by 2026-11-23, read
+  over the card's SNMP from then
 - 1U vented rack shelf, 4-post with square-hole mounting — in the 9U frame's
   U4 from 2026-09-08 and in the 32U rack's U14 since 2026-11-06, carrying the
   unmanaged switch that feeds `prometheus` and `oracle`

@@ -204,3 +204,49 @@ tests:
       - eval_time: 71h
         alertname: CertExpiryStateStale
         exp_alerts: []
+
+  # --- The syslog TLS leaves: their own rule, not the console ones ----------
+  # morpheus's client leaf 20 days out (1735200 = 20 × 86400 + 7200), beside
+  # the listener's a year away. The console rules must not see either.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_cert_expiry_timestamp_seconds{endpoint="syslog-client", host="morpheus",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "1735200+0x180"
+      - series: 'homelab_cert_expiry_timestamp_seconds{endpoint="syslog-listener", host="prometheus",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "34567200+0x180"
+    alert_rule_test:
+      # Under 30 days from t=0, but `for: 1h`.
+      - eval_time: 30m
+        alertname: SyslogTlsCertificateExpiringSoon
+        exp_alerts: []
+
+      - eval_time: 2h
+        alertname: SyslogTlsCertificateExpiringSoon
+        exp_alerts:
+          - exp_labels:
+              alertname: SyslogTlsCertificateExpiringSoon
+              endpoint: syslog-client
+              host: morpheus
+              component: logs
+              severity: warning
+              category: availability
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/ship-firewall-logs.md#1-issue-both-certificates-before-the-receiver-is-deployed"
+              summary: "syslog-client (morpheus) has a certificate with 20 days left"
+              description: >-
+                One of the syslog TLS leaves is close to expiry. Reissue both with
+                scripts/gen-certs.sh on the monitoring host
+                (ship-firewall-logs.md §1), copy morpheus's new client leaf and key
+                to pfSense (§3), and restart Alloy, which reads the pinned leaf
+                only at start. Until then the firewall's logs keep arriving; after
+                the date, FirewallLogsStopped.
+
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiringSoon
+        exp_alerts: []
+
+      - eval_time: 2h
+        alertname: ManagementCertificateExpiryImminent
+        exp_alerts: []

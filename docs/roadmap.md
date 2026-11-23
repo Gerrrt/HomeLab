@@ -41,12 +41,14 @@ What an entry here may contain:
 Closes when it is empty.
 
 - **[#1651](https://github.com/Gerrrt/HomeLab/issues/1651) Monitor
-  `gandalf` now that it stays on.** Needed by
-  [ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md). No
-  gate. First an ADR of its own, because a collector's metrics leaving the
-  range host cross the boundary ADR-0014 counts, and it supersedes ADR-0017's
-  "no monitoring". Until it lands, the host firewall on an always-on range
-  host is checked only by `build-the-playground.md` §7's read-back.
+  `gandalf` now that it stays on.** Decided by
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md): `gandalf` gets
+  `Saruman`'s agent, pushing hypervisor state to `prometheus` over one
+  host-scoped pass, with alerts for the host firewall off, `ragnarok` run past
+  the timer, and the SSD and updates. No gate. Left: the collector install,
+  the `morpheus` pass and the rules. Until it lands, the host firewall on an
+  always-on range host is checked only by `build-the-playground.md` §7's
+  read-back.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
@@ -110,18 +112,6 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
 
 Gated on the domain, on a household observation, or on something to publish.
 
-- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
-  `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§5
-  are behind it: the host, its bridges, `Saruman` at `.20`, the closed
-  management plane, and the attack VM `ragnarok` on template 902. So are §8
-  and §9, which ran before any target, because the leak proof must run
-  before any vulnerable image is on the machine, and then §6, the targets.
-  Next, Sliver goes on `ragnarok` before the first exercise:
-  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481).
-  The name is
-  [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
-  → [runbook](runbooks/build-the-playground.md)
 - **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
   Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
   certificate generator, and it is the only path that closes the CVE issues
@@ -183,7 +173,6 @@ move and stay until they are bought or dropped.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
 | Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `gandalf`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
 | USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |
