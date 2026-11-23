@@ -288,7 +288,8 @@ other way, CasaBonita, ImaginationLAN, Skids and Degens each carry paired
 `inet`/`inet6` blocks toward the six VLAN macros and neither toward the switch
 LAN, so their IPv6 catch-all reaches it. Both are latent rather than live for
 the same reason — `igc0` has only a link-local address, which does not route —
-and both are divergences from the pattern rather than paths anything can use
+and on the far side `neo` has IPv6 disabled since 2026-11-23, so the switch
+LAN holds no v6 address of the switch's to reach. Both are divergences from the pattern rather than paths anything can use
 today. Whether IPv6 is carried inside at all was settled when
 [#353](https://github.com/Gerrrt/HomeLab/issues/353) closed: pfSense does not
 carry it, as the paragraph headed *pfSense terminates IPv6 at the WAN*

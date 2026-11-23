@@ -308,13 +308,19 @@ not the one that signed the leaf: import `ca.pem` first with `ca_import()`,
 which is what the first install did. The previous leaf stays in the manager;
 delete it in **System → Certificates** once the new one is served.
 
-Then delete the staged copies, overwriting them first, and check what is
-served from the firewall itself, since the GUI is closed to the monitoring
-host:
+Then delete the staged copies, and check what is served from the firewall
+itself, since the GUI is closed to the monitoring host:
 
 ```bash
-ssh root@10.0.99.1 'rm -P /root/guicert/* && rmdir /root/guicert'
+ssh root@10.0.99.1 'rm /root/guicert/* && rmdir /root/guicert'
 ```
+
+This deletes; it does not overwrite. `rm -P` has been a no-op since FreeBSD
+13, and `morpheus`'s root is ZFS, which is copy-on-write, so no overwrite
+would reach the old blocks anyway. That leaves no exposure the firewall does
+not already carry: pfSense stores the same key in `config.xml` on the same
+disk, which is what the root-only directory and the encrypted backups are
+for.
 
 ```bash
 ssh root@10.0.99.1 'echo | openssl s_client -connect 10.0.99.1:443 2>/dev/null | openssl x509 -noout -issuer -enddate'

@@ -19,6 +19,34 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
+  the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
+  services, and the admin user's address, are narrowed from all of
+  `10.0.99.0/24` to the switch LAN and desktop-02, with SNMP from
+  `prometheus` and `api-ssl` from `trinity` as named rules of their own.
+  `api-ssl` takes TLS 1.2 only, IPv6 is disabled on the switch, and the
+  unused ports are disabled. Applied under a five-minute automatic revert,
+  cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
+  `trinity` were proven. device-mode, which needs a button press, is not done.
+- **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
+  through `neo`'s SFP+ cages at 2.5G
+  ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
+  #922's own data, 2026-10-10 to 2026-11-09, said the 2.5G path bought no
+  throughput and pointed to a downgrade. What changed the answer is
+  2026-11-22's finding that `em0` itself is the WAN's fault. Every design
+  that takes the WAN off `em0` ends it, and #922's sketch is one of them,
+  with the CODA56's 2.5G port now trusted where the XB7's was not. The free
+  alternative, VLAN 2 on the existing gigabit trunk with the modem on a
+  copper port, was recommended and fixes `em0` as well. The operator chose
+  the two-module build, so that the plan's 2000 is usable in aggregate and
+  the trunk goes to 2.5G. MikroTik's S+RJ10 guidance warns against two
+  modules side by side on a passive switch, which is this design, so the
+  runbook reads an hour of idle temperatures and puts an alert on them before
+  the cutover, and the copper-port VLAN stays the fallback. The two S+RJ10s
+  entered *Everything still to buy*. The build is
+  [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), by
+  [`move-the-wan-onto-neo.md`](runbooks/move-the-wan-onto-neo.md). Until then
+  the remedy for `WanReceiveErrors` is still rebooting `morpheus`.
 - **`morpheus`'s GUI serves a leaf from the estate CA.** It was pfSense's
   default self-signed certificate, 398 days, due 2027-04-16, which the
   2026-11-13 audit listed. The new leaf is `morpheus-ui.matrix.elysium`, 825
@@ -27,7 +55,7 @@ docstring gives: it is a record, not a claim about now.
   syslog client leaf. The CA and the leaf were imported into pfSense's
   certificate manager from the firewall's shell, after a fresh
   `make backup-firewall`, so the key never reached a screen, and the staged
-  copies were deleted with `rm -P`. The handshake on both addresses verifies
+  copies were deleted afterwards. The handshake on both addresses verifies
   against `ca.pem`, and `pfsense-ui`'s expiry reads 2029-02-25. The
   self-signed certificate stays in the manager as the rollback. Browsers on
   the Mac still warn, since nothing there trusts this CA.
@@ -47,6 +75,17 @@ docstring gives: it is a record, not a claim about now.
   package* section that says so. Afterwards both interfaces were running
   and reaching Loki, `make check-firewall` passed
   35/35, and no new alert fired.
+- **`morpheus`'s console menu asks for a password.** The 2026-11-13 audit
+  found a root session sitting at the console menu on `ttyv0`. It was not a
+  session anyone had left open: with *Password protect the console menu* off,
+  pfSense's `getty` logs root in automatically at every boot, so the menu,
+  and its shell, were open to anyone at the rack. Sunday's reboot had ended
+  the audit's session and started another. *Password protect the console
+  menu* is now on (System → Advanced → Admin Access), `ttyv0`'s `getty` runs
+  without autologin, and no console session is open. The console is still
+  the way back when the UI is unreachable; it now takes `admin` and the web
+  UI's password first, which `close-the-firewall-to-its-segments.md` and
+  `restore-the-firewall.md` now say.
 
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
