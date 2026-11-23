@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **Alertmanager has its own DNS fallback
+  ([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)).** With
+  AdGuard on `trinity` as `morpheus`'s only forwarder (ADR-0055), a `trinity`
+  outage left the ntfy.sh copy of every urgent page, and the healthchecks.io
+  heartbeat, unable to resolve. The only page was healthchecks.io calling
+  Alertmanager dead. That happened on 2026-11-13, and the audit of
+  `prometheus` recorded it as finding 4. Alertmanager's compose service now
+  lists `10.0.99.1`, `1.1.1.1` and `9.9.9.9`. A scratch container measured
+  that Docker's embedded resolver moves to the next server when `morpheus`
+  answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
+  `morpheus`. The house's DNS is unchanged.
+
 - **The monitoring host's weekly prune also removes anonymous volumes that
   no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
   and there were 99 by today, left behind by validation and scratch runs.

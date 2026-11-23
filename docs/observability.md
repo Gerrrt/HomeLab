@@ -788,7 +788,11 @@ separately, so either half can fail without taking the other with it. If the
 in-house ntfy is the thing that has failed, the page still goes out:
 `EndpointUnreachable` (from the `http_2xx_tier_ca` probe of
 `ntfy.matrix.elysium`) and `AlertmanagerNotificationsFailing` are both
-critical, so both reach `urgent` and its ntfy.sh copy. The runbook has the
+critical, so both reach `urgent` and its ntfy.sh copy. That holds while
+`trinity`, and the AdGuard on it, is down too: Alertmanager falls back to
+public resolvers when `morpheus` cannot answer
+([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)), so the
+ntfy.sh copy and the heartbeat still resolve. The runbook has the
 table and the cutover:
 [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#where-the-real-alerts-go).
 
