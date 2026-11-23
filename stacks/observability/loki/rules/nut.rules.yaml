@@ -42,12 +42,17 @@ groups:
         # A driver restart is not this. pfSense restarts it on a save and on
         # every boot of morpheus, and each restart logs one or two of these
         # lines per upsmon (seven restarts in the week to 2026-11-22, none over
-        # two lines). Ten in ten minutes is a driver that stayed down.
+        # two lines). Ten in three minutes is a driver that is down now: upsmon
+        # polls every 5 s, and morpheus logged one about every 11 s while it was
+        # down. The window is short so the condition ends within about a minute
+        # of the driver's return, and `for: 5m` has to see it hold throughout;
+        # a ten-minute window kept a 50-second outage's lines long enough to
+        # page five minutes after it was over.
         expr: |
           (
-            sum by (host) (count_over_time({log_type="syslog", app="upsmon"} |= "failed - Driver not connected" [10m]))
+            sum by (host) (count_over_time({log_type="syslog", app="upsmon"} |= "failed - Driver not connected" [3m]))
             or
-            sum by (host) (count_over_time({unit="nut-monitor.service"} |= "failed - Driver not connected" [10m]))
+            sum by (host) (count_over_time({unit="nut-monitor.service"} |= "failed - Driver not connected" [3m]))
           ) >= 10
         for: 5m
         labels:
@@ -59,7 +64,8 @@ groups:
           summary: "The UPS shutdown is disarmed: NUT on morpheus has no driver for mjolnir"
           description: >-
             upsmon on {{ $labels.host }} logged "Driver not connected"
-            {{ $value }} times in ten minutes. The snmp-ups driver on morpheus
+            {{ $value }} times in three minutes, for five minutes now. The
+            snmp-ups driver on morpheus
             is down, so a mains cut would halt nothing in order. Check
             Services → UPS on morpheus and `upsc mjolnir` there; the card's
             own SNMP may still be answering.
@@ -89,7 +95,8 @@ groups:
             upsmon on {{ $labels.host }} reports the UPS unavailable. That host
             will not halt on the card's low-battery signal until it is back. If
             the host is morpheus, the driver or the card is at fault; if it is
-            a client, check that it can reach 10.0.99.1 on 3493.
+            a client, check that it can reach its upsd on 3493: 10.0.30.1 from
+            Saruman, 10.0.99.1 from trinity.
 
       - alert: NutMonitorFailedToStart
         # "Fatal error" is how upsmon refuses its configuration, for example

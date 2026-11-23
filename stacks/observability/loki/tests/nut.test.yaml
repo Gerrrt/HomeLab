@@ -6,7 +6,8 @@
 #
 # The lines are upsmon's own, as Loki stores them on 2026-11-22: morpheus's
 # arrive through pfSense's syslog with the message only, and the clients'
-# through the journal, where the UPS is named mjolnir@10.0.99.1.
+# through the journal, where the UPS is named by the upsd each one monitors:
+# mjolnir@10.0.30.1 on Saruman, mjolnir@10.0.99.1 on trinity.
 tests:
   # --- NutDriverNotConnected --------------------------------------------------
   - alert: NutDriverNotConnected
@@ -14,8 +15,8 @@ tests:
     streams:
       - labels: {log_type: syslog, app: upsmon, host: morpheus}
         entries:
-          - before: 9m
-            count: 100
+          - before: 3m
+            count: 36
             every: 5s
             line: Poll UPS [mjolnir] failed - Driver not connected
     expect:
@@ -26,8 +27,8 @@ tests:
     streams:
       - labels: {log_type: journal, unit: nut-monitor.service, host: trinity}
         entries:
-          - before: 9m
-            count: 100
+          - before: 3m
+            count: 36
             every: 5s
             line: Poll UPS [mjolnir@10.0.99.1] failed - Driver not connected
     expect:
@@ -49,6 +50,19 @@ tests:
     expect: []
 
   - alert: NutDriverNotConnected
+    name: a 55-second outage that has since recovered does not
+    # Twelve failures, the last over three minutes ago. A ten-minute window
+    # still counted them, and `for: 5m` then paged after the driver was back.
+    streams:
+      - labels: {log_type: syslog, app: upsmon, host: morpheus}
+        entries:
+          - before: 4m
+            count: 12
+            every: 5s
+            line: Poll UPS [mjolnir] failed - Driver not connected
+    expect: []
+
+  - alert: NutDriverNotConnected
     name: the everyday stale spells do not
     streams:
       - labels: {log_type: syslog, app: upsmon, host: morpheus}
@@ -66,7 +80,7 @@ tests:
       - labels: {log_type: journal, unit: nut-monitor.service, host: Saruman}
         entries:
           - before: 2m
-            line: UPS mjolnir@10.0.99.1 is unavailable
+            line: UPS mjolnir@10.0.30.1 is unavailable
     expect:
       - {host: Saruman}
 
@@ -86,9 +100,9 @@ tests:
       - labels: {log_type: journal, unit: nut-monitor.service, host: Saruman}
         entries:
           - before: 3m
-            line: Communications with UPS mjolnir@10.0.99.1 lost
+            line: Communications with UPS mjolnir@10.0.30.1 lost
           - before: 2m55s
-            line: Communications with UPS mjolnir@10.0.99.1 established
+            line: Communications with UPS mjolnir@10.0.30.1 established
     expect: []
 
   # --- NutMonitorFailedToStart ------------------------------------------------

@@ -377,8 +377,8 @@ nothing: `logrotate` failed nightly on `prometheus` and `oracle` from
 SNMP cannot see. Every `upsmon` but `smaug`'s is already in Loki: `morpheus`'s
 through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
 `NutDriverNotConnected` (critical) fires when an `upsmon` has had "Driver not
-connected" ten times in ten minutes, which is the driver on `morpheus` staying
-down and the shutdown disarmed, as it was until 2026-11-07.
+connected" ten times in three minutes, held for five, which is the driver on
+`morpheus` staying down and the shutdown disarmed, as it was until 2026-11-07.
 `NutCommunicationsLost` (critical) fires on upsmon's own "is unavailable",
 five minutes without UPS data on that host. `NutMonitorFailedToStart` catches
 an `upsmon` that refused its configuration and exited. The brief *data stale*
