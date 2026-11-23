@@ -18,8 +18,9 @@ well. This makes the blocks name `This Firewall (self)`, adds one pass for
 > through the web UI or the console.
 
 **The way back if the UI stops answering from Hicks** is the console at the
-rack: **15) Restore recent configuration**, and pick the configuration from
-before your edit. The second way back is a laptop cabled into an untagged port
+rack: log in as `admin` with the web UI's password (the console menu has been
+password protected since 2026-11-23), then **15) Restore recent
+configuration**, and pick the configuration from before your edit. The second way back is a laptop cabled into an untagged port
 on `neo`, where pfSense's anti-lockout rule still passes the UI on `10.7.7.1`.
 
 ---
@@ -205,7 +206,8 @@ Last, from a Hicks workstation: the UI at `https://10.0.99.1` loads, and
 
 - **One rule wrong:** fix it in the UI from Hicks, or from `prometheus` over
   SSH if it is the Hicks tab that broke.
-- **The UI unreachable from Hicks:** the console at the rack, **15) Restore
+- **The UI unreachable from Hicks:** the console at the rack, logged in as
+  `admin`, **15) Restore
   recent configuration**, and choose the one saved just before the change.
   Or cable a laptop into an untagged port on `neo` and use `https://10.7.7.1`.
 - **A key missing after §6:** set *SSHd Key Only* back to *Password or Public
