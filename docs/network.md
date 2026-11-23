@@ -183,6 +183,20 @@ truth for what a box actually does.
     [`swap-the-switch.md`](runbooks/swap-the-switch.md) does.
   - NTP comes from `10.7.7.1`. The default `admin` user is disabled.
 - DHCP disabled.
+- **`morpheus` pins thirteen reservations in its ARP table, on every
+  segment but Skids and Degens.** Each is a Kea reservation with *Create a
+  static ARP table entry* set: `mjolnir`, `prometheus` and `oracle` on
+  Winterfell; `laptop-01`, `desktop-01`, `workstation-01`, `workstation-02`,
+  `laptop-02` and `desktop-02` on Hicks; `nibelheim`, `hyrule` and `mediatv`
+  on CasaBonita; and `shiva`'s iLO on ImaginationLAN. `arp -an` shows 21
+  permanent entries, these thirteen and the firewall's own eight interface
+  addresses. Read on 2026-11-23 for the audit of 2026-11-13. Only `mediatv`'s
+  has a recorded reason, the wake across the VLAN (CasaBonita, below). The
+  cost of the others: a host whose NIC or MAC changes keeps its address in
+  DHCP and is still unreachable through the firewall until the reservation's
+  MAC is edited, because the pinned entry never ages out. Check this list
+  first when a replaced or re-imaged machine answers on its own segment and
+  nowhere else.
 
 > [!CAUTION]
 > Do not re-enable DHCP on this interface. It races the DHCP servers on every
@@ -528,7 +542,13 @@ Televisions and consoles. Internet only.
   [#485](https://github.com/Gerrrt/HomeLab/issues/485)). It was created on
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
-  it, and `alexander` is refused.
+  it, and `alexander` is refused. **A tenth is in force, and no document
+  declared it until the audit of `morpheus` on 2026-11-13 found it:** an
+  SSH pass on Hicks' interface, `desktop-02` (`10.0.50.90`) →
+  `10.0.40.30:22`. It is host-scoped, so `make check-firewall`'s wholesale
+  question cannot see it, and no ADR or issue says why it was made. It is
+  listed here so this count is true. Removing it, or recording why it stays,
+  is the operator's decision.
 - **One more from Hicks is specified and not yet created.**
   `Allow 5800 to smaug`, Hicks → `10.0.40.30:5800`, is for MakeMKV's web GUI,
   the disc ripper that runs on `smaug` only while someone is ripping
@@ -926,12 +946,13 @@ the least trusted.
   on ADR-0099's three rows since 2026-10-21. The HomePod rows are in force
   and reach the devices. Adding the HomePods in Home Assistant is a separate
   matter, waiting on pyatv.
-- **Seven addresses here are reserved, all below the `.100–.200` pool:**
+- **Eight addresses here are reserved, all below the `.100–.200` pool:**
   `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
   `.11`–`.13` since 2026-10-20
-  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), and three
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), three
   HomePods at `.21`–`.23` since 2026-10-21
-  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Every other
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)), and the fourth
+  HomePod's reservation at `.24`, which the audit of 2026-11-13 found. Every other
   device above sits inside the pool by lease, so its row is what it had when
   it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
@@ -941,8 +962,10 @@ the least trusted.
   Assistant can control the HomePods (play, pause, volume, what's playing)
   and not stream audio to them. Three are reserved at `.21`–`.23`, beside
   `bifrost`, since 2026-10-21. They were reset and set up again that day,
-  and the fourth has not been set up again yet. `.24` is kept for it, and the
-  rows cover it already.
+  and the fourth is reserved at `.24`, which the rows cover already. It
+  held a lease there when `morpheus` was audited on 2026-11-13 and none on
+  2026-11-23, so whether it is set up again, and whether discovery from
+  `trinity` finds it, is not settled.
   Traffic matching them is translated on its way out of the Skids interface,
   from `10.0.99.40` to `10.0.20.1`, because the HomePods ignore mDNS queries
   from another subnet. With that, discovery from `trinity` finds all three.

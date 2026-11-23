@@ -559,3 +559,49 @@ tests:
       - eval_time: 45m
         alertname: UpsRideThroughShort
         exp_alerts: []
+
+  # --- NutUpsUnreadable: NUT on morpheus cannot read the UPS ----------------
+  # The textfile is rewritten every 15 minutes and re-served between, so the
+  # series is flat; 0 from t=0 crosses `for: 30m` after half an hour.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_nut_ups_readable{host="morpheus", ups="mjolnir",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: NutUpsUnreadable
+        exp_alerts: []
+      - eval_time: 35m
+        alertname: NutUpsUnreadable
+        exp_alerts:
+          - exp_labels:
+              alertname: NutUpsUnreadable
+              host: morpheus
+              ups: mjolnir
+              instance: prometheus
+              job: prometheus-metrics
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "NUT on morpheus cannot read UPS mjolnir"
+              description: >-
+                For half an hour `upsc mjolnir@127.0.0.1` on
+                morpheus has returned an error, not a status, so a power
+                cut would reach none of the NUT secondaries. `make gateway-state`'s
+                output names the error. If the card answers SNMP (the UPS panels
+                read it directly), restart NUT from Status -> Services on pfSense
+                and check the driver's SNMPv3 credentials still match the card.
+
+  # --- NutUpsUnreadable: quiet while NUT reads a status ---------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_nut_ups_readable{host="morpheus", ups="mjolnir",
+                 instance="prometheus", job="prometheus-metrics"}'
+        values: "1x60"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: NutUpsUnreadable
+        exp_alerts: []

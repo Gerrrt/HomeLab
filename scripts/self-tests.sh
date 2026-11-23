@@ -39,6 +39,8 @@
 #                             agent_control JSON; a removed state file (both
 #                             say they will be deprecated) cannot be staged
 #   collect-gateway-state.sh  the gateway parse, for morpheus
+#   collect-nut-state.sh      upsc's answer, readable or not; a driver that is
+#                             down cannot be staged on the firewall on demand
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
 #                             was read off smaug at the console on 2026-09-21

@@ -170,6 +170,33 @@ groups:
         annotations:
           summary: "UPS {{ $labels.device }} battery at {{ $value }}°C"
 
+      # NUT on the firewall cannot read the UPS, so no secondary would hear of
+      # a power cut. Everything else in this group reads the card directly
+      # over SNMP and stays green while NUT is blind: from 2026-11-05 to
+      # 2026-11-07 the driver was not connected and nothing said so
+      # (changelog, 2026-11-23). scripts/collect-nut-state.sh asks `upsc` on
+      # morpheus from `make gateway-state`, every 15 minutes; 30 minutes is
+      # three reads. Critical, because while this fires a mains cut halts
+      # nothing in order. The few-second stale gaps that are the baseline never
+      # reach it; NutUpsDataStale* in Loki watch those.
+      - alert: NutUpsUnreadable
+        expr: homelab_nut_ups_readable == 0
+        for: 30m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+          summary: "NUT on {{ $labels.host }} cannot read UPS {{ $labels.ups }}"
+          description: >-
+            For half an hour `upsc {{ $labels.ups }}@127.0.0.1` on
+            {{ $labels.host }} has returned an error, not a status, so a power
+            cut would reach none of the NUT secondaries. `make gateway-state`'s
+            output names the error. If the card answers SNMP (the UPS panels
+            read it directly), restart NUT from Status -> Services on pfSense
+            and check the driver's SNMPv3 credentials still match the card.
+
       # The two rules that can actually detect a UPS which cannot carry load.
       # Everything above this point reads a value the management card is willing
       # to fabricate; these read the one it is not.
