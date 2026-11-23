@@ -187,7 +187,8 @@ AP9335T temperature probe, for rack ambient at the bottom where the DL360 and
 the UPS sit. **It is bought and plugged into the card's universal I/O port**,
 recorded 2026-11-23, and the `apc_ups` module walks the card's
 `uioSensorStatusTable` for it, so it is read on the SNMP job that already polls
-the card; `ups.rules.yaml` raises an alert if that table comes back empty. The
+the card; `ups.rules.yaml` raises an alert if that table comes back empty, warns over
+30 °C and pages over 35 °C. It read 22 °C on its first scrape. The
 second decision is still on the purchase table: the strip gives way to a
 **switched, SNMP-managed PDU**, so the four hosts without a BMC (`morpheus`,
 `trinity`, `gandalf`, `smaug`) can be power-cycled without a walk to the rack.

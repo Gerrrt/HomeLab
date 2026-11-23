@@ -622,9 +622,20 @@ tests:
           uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
           uioSensorStatusSensorName="Port 1 Temp 1"}
         values: "1x60"
+      - series: >-
+          uioSensorStatusTemperatureDegC{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "22x60"
     alert_rule_test:
       - eval_time: 45m
         alertname: UpsTemperatureProbeMissing
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts: []
+      - eval_time: 45m
+        alertname: RackAmbientTemperatureCritical
         exp_alerts: []
       - eval_time: 45m
         alertname: UpsTemperatureProbeCommsLost
@@ -757,3 +768,102 @@ tests:
                 (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
                 the DL360's inlet temperature before anything else; the probe sits
                 at the bottom of the rack, where the heavy iron is.
+
+  # A warm rack: 31 °C held. The warning fires, the critical does not.
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusTemperatureDegC{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "31x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "Rack ambient at mjolnir's probe is 31°C"
+              description: >-
+                The probe at the bottom of the rack has read over 30 °C for fifteen
+                minutes. Check the room and the rack's airflow, then the DL360's
+                inlet temperature on the iLO. A hot rack also ages the UPS pack.
+      - eval_time: 20m
+        alertname: RackAmbientTemperatureCritical
+        exp_alerts: []
+
+  # Ten minutes at 33 °C, then back to 22: shorter than the warning's 15m.
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusTemperatureDegC{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "33x10 22x50"
+    alert_rule_test:
+      # Still at 33 °C, ten minutes in: under the 15m, so nothing yet.
+      - eval_time: 10m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts: []
+
+  # Past the servers' rated inlet: 36 °C held. Both fire.
+  - interval: 1m
+    input_series:
+      - series: >-
+          uioSensorStatusTemperatureDegC{device="mjolnir",instance="10.0.99.10",job="snmp",
+          uioSensorStatusPortID="1",uioSensorStatusSensorID="1",
+          uioSensorStatusSensorName="Port 1 Temp 1"}
+        values: "36x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: RackAmbientTemperatureCritical
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: critical
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#if-something-goes-wrong"
+              summary: "Rack ambient at mjolnir's probe is 36°C, past 35"
+              description: >-
+                The probe at the bottom of the rack has read over 35 °C for ten
+                minutes, past the DL360's rated inlet limit. Cool the
+                room or open the rack now; if it keeps climbing, shut down the
+                heaviest load (Saruman) before its own thermal trip does.
+      - eval_time: 20m
+        alertname: RackAmbientTemperatureHigh
+        exp_alerts:
+          - exp_labels:
+              component: power
+              severity: warning
+              category: power
+              device: mjolnir
+              instance: 10.0.99.10
+              job: snmp
+              uioSensorStatusPortID: "1"
+              uioSensorStatusSensorID: "1"
+              uioSensorStatusSensorName: Port 1 Temp 1
+            exp_annotations:
+              summary: "Rack ambient at mjolnir's probe is 36°C"
+              description: >-
+                The probe at the bottom of the rack has read over 30 °C for fifteen
+                minutes. Check the room and the rack's airflow, then the DL360's
+                inlet temperature on the iLO. A hot rack also ages the UPS pack.
