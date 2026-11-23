@@ -410,14 +410,14 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   reservation is on the watch's private Wi-Fi address, so it holds only while
   the watch keeps that address *Fixed* rather than *Rotating* for this network.
 - **What this segment reaches on Winterfell is a list of destinations, not the
-  segment.** Twelve passes sit above a logged *Block access to Winterfell*, and
+  segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
 
   | Destination | Ports |
   | --- | --- |
   | `10.0.99.0/24` — the segment | `22/tcp`, ICMP echo |
   | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
-  | `10.0.99.10` — `mjolnir` | `443/tcp` UPS card. `80/tcp` was passed too until 2026-11-23, to a port the card keeps closed |
+  | `10.0.99.10` — `mjolnir` | `443/tcp` UPS card, and `22/tcp` through the segment's row above. `80/tcp` was passed too until 2026-11-23, to a port the card keeps closed |
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana, `8443/tcp` speedtest-tracker's UI (since 2026-10-06, [#914](https://github.com/Gerrrt/HomeLab/issues/914)) |
   | `10.0.99.30` — `oracle` | `443/tcp` the wiki, served by its Caddy since [#847](https://github.com/Gerrrt/HomeLab/issues/847)'s cutover on 2026-10-07, and `80/tcp`, which only redirects to it ([`stacks/wiki/README.md`](../stacks/wiki/README.md#tls)). 443 had been dropped on 2026-09-30, when nothing listened on it ([#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
