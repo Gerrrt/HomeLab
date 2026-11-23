@@ -137,6 +137,16 @@ RULE = re.compile(
     r"\s+to\s+(?P<dst>" + ADDR + r")(?:\s+port\s+(?P<dport>" + PORT + r"))?)"
 )
 
+# What may follow the address part without narrowing which new TCP connection
+# the rule matches. `flags S/SA` matches every connection's first SYN, which is
+# what reaching a port means; state options, `tag` (which sets a tag, not
+# tests one) and `allow-opts` change what happens after a match. Anything else
+# is a condition, and an unrecognised word is treated as one.
+HARMLESS_SUFFIX = re.compile(
+    r"\s*(?:flags\s+(?:S/SA|any)|(?:keep|modulate|synproxy|no)\s+state|\([^)]*\)"
+    r"|allow-opts|tag\s+\S+)"
+)
+
 # What the firewall answers on, read off `ifconfig`. Loopback and pf's own
 # pseudo-interfaces hold no address a segment can be routed to.
 SKIP_IFACES = re.compile(r"^(lo|pflog|pfsync|enc)\d*$")
@@ -160,6 +170,11 @@ class Rule:
     dst: str
     dport: str | None
     text: str
+    # Something after the address part that pf also has to match, or that this
+    # parser cannot vouch for: `tagged`, `flags A/A`, `user`, `received-on`.
+    # Such a rule may not apply to a new connection, so it never proves a path
+    # closed (a block is skipped) and is assumed to apply (a pass is taken).
+    conditional: bool = False
 
 
 @dataclass(frozen=True)
@@ -323,6 +338,7 @@ def parse_rules(lines: list[str]) -> tuple[list[Rule], list[str]]:
                 dst="any" if g["all"] else g["dst"].strip(),
                 dport=g["dport"],
                 text=line,
+                conditional=bool(HARMLESS_SUFFIX.sub("", line[m.end() :]).strip()),
             )
         )
     return rules, unreadable
@@ -376,22 +392,68 @@ def carries_tcp(proto: str | None) -> bool:
     return "tcp" in proto.strip("{} ").replace(",", " ").split()
 
 
-def table_networks(entries: list[str]) -> list:
-    nets = []
+def table_entries(entries: list[str]) -> list[tuple[bool, object]]:
+    """A table's entries as (excluded, network). Unparseable entries are dropped."""
+    out = []
     for entry in entries:
-        if entry.startswith("!"):
-            continue  # a negated entry excludes; ignoring it errs toward matching
+        excluded = entry.startswith("!")
         try:
-            nets.append(ipaddress.ip_network(entry.split()[0], strict=False))
+            out.append((excluded, ipaddress.ip_network(entry.lstrip("! ").split()[0], strict=False)))
         except ValueError:
             continue
-    return nets
+    return out
 
 
-def contains(nets: list, target) -> bool:
-    if isinstance(target, (ipaddress.IPv4Network, ipaddress.IPv6Network)):
-        return any(n.version == target.version and target.subnet_of(n) for n in nets)
-    return any(n.version == target.version and target in n for n in nets)
+def table_holds(entries: list[str], ip) -> bool:
+    """pf's table lookup: the most specific entry containing the address
+    decides, and a `!` entry excludes."""
+    best = None
+    for excluded, net in table_entries(entries):
+        if net.version == ip.version and ip in net and (best is None or net.prefixlen > best[1].prefixlen):
+            best = (excluded, net)
+    return best is not None and not best[0]
+
+
+# How much of a segment's network a source spec takes in.
+ALL, SOME, NONE, UNKNOWN = "all", "some", "none", "unknown"
+
+
+def net_coverage(net, own) -> str:
+    if net.version != own.version or not net.overlaps(own):
+        return NONE
+    return ALL if own.subnet_of(net) else SOME
+
+
+def table_coverage(entries: list[str], own) -> str:
+    """A table against one network. An exclusion that overlaps it could carve
+    any part out, so the answer is only known without one."""
+    parsed = [(x, n) for x, n in table_entries(entries) if n.version == own.version and n.overlaps(own)]
+    if any(x for x, _ in parsed):
+        return UNKNOWN
+    if any(own.subnet_of(n) for _, n in parsed):
+        return ALL
+    return SOME if parsed else NONE
+
+
+def combine(parts: list[str]) -> str:
+    """Several networks of one segment: all of them, none of them, or between."""
+    if UNKNOWN in parts:
+        return UNKNOWN
+    if parts and all(p == ALL for p in parts):
+        return ALL
+    if all(p == NONE for p in parts):
+        return NONE
+    return SOME
+
+
+def union(parts: list[str]) -> str:
+    """A brace list. Partial members are not summed: two halves read as SOME,
+    which never lets a block cover more than one entry proves."""
+    if ALL in parts:
+        return ALL
+    if UNKNOWN in parts:
+        return UNKNOWN
+    return SOME if SOME in parts else NONE
 
 
 def split_negation(spec: str) -> tuple[bool, str]:
@@ -400,39 +462,46 @@ def split_negation(spec: str) -> tuple[bool, str]:
     return False, spec
 
 
-def source_matches(spec: str, own_macro: str, own_nets: list, tables: dict, lenient: bool) -> bool:
-    """Does a rule's source take in "a host on this segment"?
-
-    Only `any`, the segment's own network macro, or something that contains the
-    whole of the segment's network does. A host or a narrower table is a
-    host-scoped exception, not a path for the segment."""
+def source_coverage(spec: str, own_macro: str, own_nets: list, tables: dict) -> str:
     negated, spec = split_negation(spec)
-
-    def inner() -> bool:
-        if spec in ("any", "all"):
-            return True
-        if spec.startswith("{"):
-            return any(
-                source_matches(s, own_macro, own_nets, tables, lenient)
-                for s in spec.strip("{} ").replace(",", " ").split()
-            )
-        if spec.startswith("<"):
-            name = spec.strip("<>")
-            if name == f"{own_macro}__NETWORK":
-                return True
-            if name not in tables:
-                return lenient
-            nets = table_networks(tables[name])
-            return any(contains(nets, own) for own in own_nets)
-        if spec.startswith("(") or spec in ("self", "no-route"):
-            return False  # the firewall's own address, never a segment host
+    if spec in ("any", "all"):
+        cov = ALL
+    elif spec.startswith("{"):
+        cov = union(
+            [source_coverage(s, own_macro, own_nets, tables) for s in spec.strip("{} ").replace(",", " ").split()]
+        )
+    elif spec.startswith("<"):
+        name = spec.strip("<>")
+        if name == f"{own_macro}__NETWORK":
+            cov = ALL
+        elif name not in tables:
+            cov = UNKNOWN
+        else:
+            cov = combine([table_coverage(tables[name], own) for own in own_nets])
+    elif spec.startswith("(") or spec in ("self", "no-route"):
+        cov = NONE  # the firewall's own address, never a segment host
+    else:
         try:
             net = ipaddress.ip_network(spec, strict=False)
         except ValueError:
-            return lenient
-        return any(contains([net], own) for own in own_nets)
+            cov = UNKNOWN
+        else:
+            cov = combine([net_coverage(net, own) for own in own_nets])
+    if not negated:
+        return cov
+    # The complement: everything a disjoint spec leaves out is the segment.
+    return {ALL: NONE, NONE: ALL}.get(cov, cov)
 
-    return (not inner()) if negated else inner()
+
+def source_matches(spec: str, own_macro: str, own_nets: list, tables: dict, lenient: bool) -> bool:
+    """Does a rule's source take in "a host on this segment"?
+
+    Only a source that takes in the whole of the segment's network does: `any`,
+    the segment's own macro, a table or network containing it, or a negation
+    disjoint from it. Part of the segment is a host-scoped exception, not a path
+    for the segment. What cannot be worked out answers `lenient`."""
+    cov = source_coverage(spec, own_macro, own_nets, tables)
+    return lenient if cov == UNKNOWN else cov == ALL
 
 
 def destination_matches(spec: str, target: Address, addresses: list[Address], tables: dict, lenient: bool) -> bool:
@@ -460,7 +529,7 @@ def destination_matches(spec: str, target: Address, addresses: list[Address], ta
             name = spec.strip("<>")
             if name not in tables:
                 return lenient
-            return contains(table_networks(tables[name]), target.ip)
+            return table_holds(tables[name], target.ip)
         try:
             net = ipaddress.ip_network(spec, strict=False)
         except ValueError:
@@ -500,6 +569,8 @@ def reaches(
         # A source-port condition narrows a block to less than "this segment",
         # so it never covers; on a pass, client ports are ephemeral, so it counts.
         if r.sport is not None and not lenient:
+            continue
+        if r.conditional and not lenient:
             continue
         if not source_matches(r.src, own_macro, own_nets, tables, lenient):
             continue
@@ -729,6 +800,7 @@ def main() -> int:
                 "re-derive: see docs/runbooks/close-the-firewall-to-its-segments.md.",
                 file=sys.stderr,
             )
+            return 1
         print(
             f"\n{len(failures)} claim(s) in {args.claims.name} disagree with the "
             f"running firewall.\nThe firewall is right and the file is stale — it "
@@ -789,6 +861,8 @@ FIXTURE_TABLES = {
     "OPT2__NETWORK": ["10.0.50.0/24"],
     "OPT4__NETWORK": ["10.0.30.0/24"],
     "sshguard": [],
+    # Everything but the WAN address: pf's most specific entry decides.
+    "all_but_wan": ["0.0.0.0/0", "!192.0.2.10"],
 }
 
 DEFAULT_DENY = [
@@ -805,6 +879,11 @@ CATCH_ALL_30 = [
     "pass in quick on igc0.30 inet6 from <OPT4__NETWORK> to any flags S/SA keep state",
 ]
 SEGMENTS = {"igc0.99": "Winterfell", "igc0.50": "Hicks", "igc0.30": "ImaginationLAN"}
+
+
+# Every address the fixture firewall holds over IPv4, which is what an IPv4
+# catch-all reaches when nothing above it closes a port.
+OPEN_ALL = ["Hicks", "ImaginationLAN", "WAN", "Winterfell"]
 
 
 def _blocks(iface: str, dst: str, fam: str = "inet") -> list[str]:
@@ -907,6 +986,37 @@ FIXTURES: list[tuple[str, list[str], str, dict[str, list[str]]]] = [
         ],
         "igc0.99",
         {"ssh": ["Hicks", "ImaginationLAN", "WAN", "Winterfell"], "http": [], "https": []},
+    ),
+    (
+        "a block with a trailing condition (flags A/A, tagged) closes nothing; flags S/SA does",
+        [
+            "block drop in quick on igc0.99 inet proto tcp from any to (self) port = ssh flags A/A",
+            "block drop in quick on igc0.99 inet proto tcp from any to (self) port = https tagged dhcpin",
+            "block drop in quick on igc0.99 inet proto tcp from any to (self) port = http flags S/SA",
+            CATCH_ALL_99,
+        ],
+        "igc0.99",
+        {"ssh": OPEN_ALL, "http": [], "https": OPEN_ALL},
+    ),
+    (
+        "a block to a table whose exclusion is the WAN address leaves the WAN address open",
+        [
+            *_blocks("igc0.99", "<all_but_wan>"),
+            CATCH_ALL_99,
+        ],
+        "igc0.99",
+        {"ssh": ["WAN"], "http": ["WAN"], "https": ["WAN"]},
+    ),
+    (
+        "a block from a negation overlapping the segment covers none of it; one disjoint from it covers all",
+        [
+            "block drop in quick on igc0.99 inet proto tcp from ! 10.0.99.0/25 to (self) port = ssh",
+            "block drop in quick on igc0.99 inet proto tcp from ! 10.0.50.0/24 to (self) port = https",
+            "block drop in quick on igc0.99 inet proto tcp from ! 10.0.50.0/24 to (self) port = http",
+            CATCH_ALL_99,
+        ],
+        "igc0.99",
+        {"ssh": OPEN_ALL, "http": [], "https": []},
     ),
 ]
 
