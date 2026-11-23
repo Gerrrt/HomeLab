@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`morpheus`'s GUI serves a leaf from the estate CA.** It was pfSense's
+  default self-signed certificate, 398 days, due 2027-04-16, which the
+  2026-11-13 audit listed. The new leaf is `morpheus-ui.matrix.elysium`, 825
+  days, due 2029-02-25, with SANs for `morpheus.matrix.elysium`, `10.0.99.1`
+  and `10.7.7.1`. It has its own name because `morpheus.matrix.elysium` is the
+  syslog client leaf. The CA and the leaf were imported into pfSense's
+  certificate manager from the firewall's shell, after a fresh
+  `make backup-firewall`, so the key never reached a screen, and the staged
+  copies were deleted with `rm -P`. The handshake on both addresses verifies
+  against `ca.pem`, and `pfsense-ui`'s expiry reads 2029-02-25. The
+  self-signed certificate stays in the manager as the rollback. Browsers on
+  the Mac still warn, since nothing there trusts this CA.
+  `generate-certificates.md` has the reissue steps and a trust-table row.
+
 - **`morpheus`'s three add-ons are updated: Suricata, net-snmp and System
   Patches.** Each was installed with `pfSense-upgrade -y -i`, the path Package
   Manager uses, after a fresh `make backup-firewall`; four packages in all,
