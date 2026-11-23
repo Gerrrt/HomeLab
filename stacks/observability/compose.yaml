@@ -349,6 +349,16 @@ services:
       - no-new-privileges:true
     # No tmpfs needed; see prometheus above for how that was established.
     read_only: true
+    # ADR-0130. morpheus first, so the matrix.elysium overrides (the in-house
+    # ntfy) still answer from it. The public two are asked only when morpheus
+    # fails: Docker's embedded resolver moves to the next server on SERVFAIL,
+    # which is what morpheus answers while AdGuard on trinity is down
+    # (ADR-0055). Without them, the ntfy.sh copy and the heartbeat cannot
+    # resolve during the outage they should be reporting.
+    dns:
+      - 10.0.99.1
+      - 1.1.1.1
+      - 9.9.9.9
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
