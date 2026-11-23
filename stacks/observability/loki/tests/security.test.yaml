@@ -946,27 +946,27 @@ tests:
   - alert: SwitchLoginFromUnexpectedSource
     name: an admin login from Winterfell fires
     streams:
-      - labels: {log_type: syslog, host: neo, app: routeros, level: info}
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
         entries:
           - before: 3m
             line: "system,info,account user gerrrt logged in from 10.0.99.20 via ssh"
     expect:
-      - {user: gerrrt, source: 10.0.99.20, via: ssh}
+      - {user: gerrrt, login_from: 10.0.99.20, via: ssh}
 
   - alert: SwitchLoginFromUnexpectedSource
     name: another user from Home Assistant's address fires
     streams:
-      - labels: {log_type: syslog, host: neo, app: routeros, level: info}
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
         entries:
           - before: 3m
             line: "system,info,account user gerrrt logged in from 10.0.99.40 via api"
     expect:
-      - {user: gerrrt, source: 10.0.99.40, via: api}
+      - {user: gerrrt, login_from: 10.0.99.40, via: api}
 
   - alert: SwitchLoginFromUnexpectedSource
     name: the expected sources and ordinary lines do not
     streams:
-      - labels: {log_type: syslog, host: neo, app: routeros, level: info}
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
         entries:
           - before: 5m
             line: "system,info,account user homeassistant logged in from 10.0.99.40 via api"
@@ -992,7 +992,7 @@ tests:
     name: one heartbeat twenty minutes ago is enough
     window: 30m
     streams:
-      - labels: {log_type: syslog, host: neo, app: routeros, level: info}
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
         entries:
           - before: 20m
             line: "script,info log heartbeat"

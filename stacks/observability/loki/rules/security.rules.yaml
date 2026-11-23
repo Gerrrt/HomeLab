@@ -970,14 +970,20 @@ groups:
         # The `|=` comes first because the label filters below are true for a
         # line the regexp did not match: an absent label is "", which is
         # neither the switch LAN nor `homeassistant`.
+        #
+        # The address is captured as `login_from`, not `source`: every line on
+        # this path already carries source="network" from the listener, and
+        # Loki renames a capture that collides with a stream label to
+        # `<name>_extracted`, so a filter on `source` would compare "network"
+        # and every login would fire.
         expr: |
-          sum by (user, source, via) (
+          sum by (user, login_from, via) (
             count_over_time(
               {host="neo"}
               |= " logged in from "
-              | regexp `user (?P<user>\S+) logged in from (?P<source>\S+) via (?P<via>\S+)`
-              | source !~ `10\.7\.7\.[0-9]+|10\.0\.50\.90`
-              | user != "homeassistant" or source != "10.0.99.40" or via != "api"
+              | regexp `user (?P<user>\S+) logged in from (?P<login_from>\S+) via (?P<via>\S+)`
+              | login_from !~ `10\.7\.7\.[0-9]+|10\.0\.50\.90`
+              | user != "homeassistant" or login_from != "10.0.99.40" or via != "api"
               [10m]
             )
           ) > 0
@@ -988,7 +994,7 @@ groups:
           category: security
         annotations:
           runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#switchloginfromunexpectedsource"
-          summary: "neo: {{ $labels.user }} logged in from {{ $labels.source }} via {{ $labels.via }}"
+          summary: "neo: {{ $labels.user }} logged in from {{ $labels.login_from }} via {{ $labels.via }}"
           description: >-
             A login to the core switch from somewhere other than the switch
             LAN, desktop-02, or Home Assistant's read-only API user. Either a

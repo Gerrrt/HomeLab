@@ -499,7 +499,17 @@ Do the steps in this order. Each makes the next one safe: the first line
 from `neo` arrives at a sender rule that names it, with its `app` fixed and no
 firewall rule able to read it.
 
-1. **Deploy the receiver side.** `syslog.alloy`'s `neo` rule, its fixed
+1. **On morpheus, make the existing path write its own name first.** The
+   `r_host_morpheus` rewrite on the TLS log path (§3 step 4) must be live
+   before Alloy trusts the hostname `neo`. Without it, the package-generated
+   source can take a hostname from a pfSense line, and one that read `neo`
+   would be stored as the switch. Check:
+
+   ```bash
+   ssh admin@10.0.99.1 'grep -c "rewrite(r_host_morpheus)" /usr/local/etc/syslog-ng.conf'   # expect 1
+   ```
+
+2. **Deploy the receiver side.** `syslog.alloy`'s `neo` rule, its fixed
    `app="routeros"`, and the `host="morpheus"` selectors on the firewall's
    Loki rules ship with the change that added this section, and
    `scripts/check_syslog_senders.sh` covers them. Confirm the running Alloy
@@ -510,7 +520,7 @@ firewall rule able to read it.
    docker inspect -f '{{.State.StartedAt}}' alloy
    ```
 
-2. **On morpheus, add the neo path** under **Services → Syslog-ng →
+3. **On morpheus, add the neo path** under **Services → Syslog-ng →
    Advanced**:
 
    ```text
@@ -525,13 +535,13 @@ firewall rule able to read it.
    read, and the rewrite sets it. Check `sockstat -4l | grep 5514` shows
    syslog-ng on `10.7.7.1`.
 
-3. **On morpheus, one pass on the switch LAN** (`igc0`):
+4. **On morpheus, one pass on the switch LAN** (`igc0`):
    `10.7.7.2 → 10.7.7.1` UDP `5514`, *Allow Neo syslog to Firewall*, above the
    per-VLAN blocks, beside the DNS and NTP passes to the gateway. It reaches the
    firewall's own address and nothing else, and nothing into or out of
    Winterfell changes.
 
-4. **On `neo`**, from the switch LAN or SSH jumped through morpheus
+5. **On `neo`**, from the switch LAN or SSH jumped through morpheus
    (`ssh -J admin@10.0.99.1 gerrrt@10.7.7.2`), with safe mode on:
 
    ```text
@@ -551,7 +561,7 @@ firewall rule able to read it.
    `SwitchLogsStopped` honest: Home Assistant's API session logged in once in
    four hours on 2026-11-23, so traffic alone is no pulse.
 
-5. **Verify both hops.** On morpheus, the plain hop:
+6. **Verify both hops.** On morpheus, the plain hop:
 
    ```bash
    tcpdump -ni igc0 -A -c 3 'udp port 5514 and src host 10.7.7.2'
@@ -569,7 +579,7 @@ firewall rule able to read it.
    `host="morpheus"` means Alloy is running without the `neo` rule. Nothing in
    Loki with packets on `igc0` means syslog-ng is not listening on `5514`.
 
-6. **Measure a day of it**, as §8 does for the firewall:
+7. **Measure a day of it**, as §8 does for the firewall:
 
    ```bash
    curl -sG http://localhost:3100/loki/api/v1/query \
