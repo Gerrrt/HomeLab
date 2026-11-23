@@ -261,6 +261,9 @@ up, not at boot. The next boot was on 2026-11-22, during the follow-up to the
 `fe80::` address and `accept_ra` at `1`. The line is now `post-up`. The check
 that counts is the one after a reboot: `ifreload -a` cannot show a boot-order
 fault.
+Applied on `gandalf` the same day, then proved by a reboot at 15:53. After
+it, `disable_ipv6` read `1`, the `grep -c` read `0`, and the boot's
+networking log had no failed `sysctl`.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea

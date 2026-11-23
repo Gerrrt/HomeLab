@@ -19,6 +19,13 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`vmbr1`'s `post-up` holds across a boot.** This completes the entry below
+  that moved the line to `post-up`, which left the proof outstanding. The line
+  was applied on `gandalf`, and the box rebooted at 15:53. After the boot,
+  `net.ipv6.conf.vmbr1.disable_ipv6` read `1`, `vmbr1` had no address in
+  either family, and the networking log had no failed `sysctl`.
+  `build-the-playground.md` §2 records it.
+
 - **`vmbr1`'s IPv6 off moves to `post-up`, because `pre-up` failed at boot.**
   The `gandalf` audit follow-up
   rebooted the box into a new kernel. `vmbr1` then had an `fe80::` address and
