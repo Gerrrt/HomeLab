@@ -71,8 +71,11 @@ What changes is that "off between sessions" no longer depends on anyone.
   own guest shutdown, which stops every guest and forces any that ignore ACPI,
   as Mr-Robot does. Reverting the targets to `clean` stays §7's step at the
   start of the next session, which already reverts before any work.
-- **A systemd timer runs the check every five minutes.** The script and its
-  two units are in the repository, and §7 installs them. §7's read-back
+- **A systemd timer runs the check every minute.** That is well inside the
+  five-minute warning window, so a late run cannot skip the last warning. A
+  check and an extension hold one lock, so a check never acts on a deadline
+  an extension has just replaced. The script and its two units are in the
+  repository, and §7 installs them. §7's read-back
   checks that the timer is enabled and active, so a disabled timer is caught
   at the next power-on, as a disabled firewall is.
 
@@ -82,7 +85,7 @@ Built under [#1647](https://github.com/Gerrrt/HomeLab/issues/1647).
 
 - **A forgotten session ends by itself.** The bound is the deadline: six
   hours after boot, or up to twelve hours after the last `range-extend`. It
-  is late by up to one five-minute timer period, and by as long as `dpkg`
+  is late by about a minute, one timer period, and by as long as `dpkg`
   holds its lock past the deadline, which is unbounded if `dpkg` hangs. The
   attack VM's time on VLAN 30, and the time the host firewall goes
   unchecked, are bounded that way. Before this they were bounded by nothing.
