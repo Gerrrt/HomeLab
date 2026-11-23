@@ -36,6 +36,13 @@ docstring gives: it is a record, not a claim about now.
   `make check-firewall` was blind to it, because the WAN address is in no
   segment. It now also asks which of the firewall's addresses each segment
   reaches on ssh, http and https, with fixtures in CI.
+  Applied the same day, with the three administering keys proved first.
+  `make check-firewall` passed all 35 checks, where it had failed 21. From
+  `prometheus`, the WAN address answered neither https nor ssh, `sshd -T`
+  read `passwordauthentication no` and `kbdinteractiveauthentication no`, and
+  a password login was refused. The dead *Allow SSH from Mac to WSL* rule,
+  whose two ends are both on Hicks, was deleted at the same time. The Hicks
+  desktop's SSH pass into `smaug` stays, as `network.md` declares it.
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.

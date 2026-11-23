@@ -119,14 +119,12 @@ pfSense* and *Block HTTP to pfSense*, the same way as §2.2: source **Any**,
 destination **This Firewall (self)**, family **IPv4+IPv6**. Then drag the three
 up so the top of the tab reads:
 
-1. `Allow SSH from Mac to WSL` (where it already is; it never reaches the
-   firewall)
-2. `Allow SSH to Winterfell`
-3. `Allow HTTPS to pfSense on its management address`
-4. `Block SSH to pfSense`
-5. `Block HTTPS to pfSense`
-6. `Block HTTP to pfSense`
-7. `Allow DNS to the resolver`, and the rest in their existing order
+1. `Allow SSH to Winterfell`
+2. `Allow HTTPS to pfSense on its management address`
+3. `Block SSH to pfSense`
+4. `Block HTTPS to pfSense`
+5. `Block HTTP to pfSense`
+6. `Allow DNS to the resolver`, and the rest in their existing order
 
 What matters is that the blocks sit above *Allow Hicks access to
 ImaginationLAN*, which passes TCP to the lab's gateway, `10.0.30.1`. **Apply
