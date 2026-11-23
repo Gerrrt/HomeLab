@@ -54,14 +54,14 @@ Three ways to stop relying on memory:
 extension a session asks for.** Option 2. ADR-0017's "no monitoring" stands.
 What changes is that "off between sessions" no longer depends on anyone.
 
-- **The deadline is six hours** after the later of the boot and the last
-  extension. A session is an afternoon. The 2026-11-22 session, which ran a
-  full upgrade, a reboot and an audit, fitted inside three hours.
-- **A session can extend it.** A command on the host, `range-extend`, moves
-  the deadline to a given number of hours from now. One extension is capped
-  at twelve hours, so a typo or a "just leave it" cannot turn the timer off by
-  the back door. The deadline lives under `/run`, which a reboot clears, so
-  every boot starts the six hours again.
+- **The deadline is six hours after boot by default.** A session is an
+  afternoon. The 2026-11-22 session, which ran a full upgrade, a reboot and an
+  audit, fitted inside three hours.
+- **A session can replace it.** A command on the host, `range-extend H`, sets
+  the deadline H hours from now, whatever the default or an earlier extension
+  had set. H is 1 to 12, so a typo or a "just leave it" cannot turn the timer
+  off by the back door. The deadline lives under `/run`, which a reboot
+  clears, so every boot starts again from the six-hour default.
 - **It warns before it acts.** `wall` reaches every shell on the host 30
   minutes and 5 minutes before the deadline, which is enough to extend from
   the session already open.
@@ -80,10 +80,12 @@ Built under [#1647](https://github.com/Gerrrt/HomeLab/issues/1647).
 
 ## Consequences
 
-- **A forgotten session ends by itself, at most six hours after it started
-  or was last extended.** The attack VM's time on VLAN 30, and the time the
-  host firewall goes unchecked, are bounded by that. Before this they were
-  bounded by nothing.
+- **A forgotten session ends by itself.** The bound is the deadline: six
+  hours after boot, or up to twelve hours after the last `range-extend`. It
+  is late by up to one five-minute timer period, and by as long as `dpkg`
+  holds its lock past the deadline, which is unbounded if `dpkg` hangs. The
+  attack VM's time on VLAN 30, and the time the host firewall goes
+  unchecked, are bounded that way. Before this they were bounded by nothing.
 - **Nothing still watches the host firewall while the box is on.** This
   decision bounds the window and leaves the check to §7. If a window without
   a firewall check stops being acceptable, option 1 is still open, and it

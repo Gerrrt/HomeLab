@@ -7,7 +7,8 @@
 > range host left on for days, against the discipline that *No monitoring*
 > and the second Consequence below rest on.
 > [ADR-0124](0124-power-gandalf-off-on-a-timer.md) has the host power itself
-> off six hours after boot or after a session's last extension. *No
+> off at a deadline: six hours after boot, or what a session's last
+> extension set, up to twelve hours ahead. *No
 > monitoring* stands. The text below is left as written, per ADR-0001.
 >
 > [!NOTE]
