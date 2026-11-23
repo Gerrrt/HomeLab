@@ -72,7 +72,7 @@ equivalent size bound.
 ## Log level normalisation
 
 Logs arrive spelling severity about twenty different ways — `ERROR`, `err`,
-`eror`, `crit`, `fatal`, `panic`, `dbug`. `config.alloy` maps all of them onto
+`eror`, `crit`, `fatal`, `panic`, `dbug`. `logs.alloy` maps all of them onto
 five canonical values before they reach Loki:
 
 ```text

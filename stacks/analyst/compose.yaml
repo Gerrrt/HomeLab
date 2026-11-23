@@ -158,6 +158,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - alloy-data:/var/lib/alloy/data

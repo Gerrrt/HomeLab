@@ -172,7 +172,8 @@ Two collection paths, because the estate has two kinds of device:
 - **Things that run an agent.** Linux hosts get a Grafana Alloy agent, which
   gathers node metrics, cAdvisor container metrics, the systemd journal, syslog
   and `auth.log`, then pushes to Loki and remote-writes to Prometheus. The same
-  `alloy/` directory runs everywhere — `config.alloy` on every host,
+  `alloy/` directory runs everywhere — `config.alloy` (metrics) on every host,
+  `logs.alloy` with it except on a metrics-only host like `gandalf` ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)),
   `docker.alloy` where there is a Docker socket, `syslog.alloy` only here — and
   `scripts/deploy-agent.sh` ships the right subset, in a container or as the
   native package; only the endpoint variables differ.

@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The agent's log pipeline is its own file, so the range host can ship
+  metrics and no logs ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** `config.alloy`
+  mixed the metrics and log pipelines, and `gandalf`'s journal and auth logs
+  can carry what happens on the attacker's segment. The log sources, the level
+  normaliser and `loki.write` move to a new `logs.alloy`, deployed with
+  `config.alloy` everywhere but a metrics-only host. `deploy-agent.sh` gains
+  `--metrics-only`: it omits `logs.alloy` (and refuses a docker host, whose
+  `docker.alloy` needs the log pipeline) and verifies metrics alone. The five
+  stacks that mount `config.alloy` individually now mount `logs.alloy` beside
+  it; the observability stack mounts the whole directory, so it picks it up.
+  `build-the-playground.md` §7 gives `gandalf`'s deploy command. The split was
+  checked with `alloy validate` on the whole directory and on `config.alloy`
+  alone (the metrics-only case), both clean, so every cross-file reference
+  resolves and the metrics-only config has no dangling one.
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.
