@@ -22,7 +22,7 @@ docstring gives: it is a record, not a claim about now.
 - **`morpheus`'s three add-ons are updated: Suricata, net-snmp and System
   Patches.** Each was installed with `pfSense-upgrade -y -i`, the path Package
   Manager uses, after a fresh `make backup-firewall`; four packages in all,
-  Suricata's engine among them. That is three of the 41 pending updates the
+  Suricata's engine among them. That is four of the 41 pending updates the
   2026-11-13 audit found. The other 37 are packages pfSense itself is built
   on (PHP, Unbound, OpenVPN, strongSwan and others). `pfSense-upgrade -c`
   reports the system up to date, so they wait for pfSense's next release
