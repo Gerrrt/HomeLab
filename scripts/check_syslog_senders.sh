@@ -29,6 +29,18 @@
 #  10. morpheus's certificate from another address
 #      -> the handshake completes, the allowlist drops it, and it is counted
 #
+# and three for neo's log, which morpheus relays stamped with hostname `neo`
+# (ADR-0127):
+#
+#  11. from the allowed address, hostname `neo`, tagged `filterlog`
+#      -> stored as host="neo", app="routeros", with none of filterlog's labels
+#  12. the same, tagged `suricata` on Skids's facility
+#      -> stored as host="neo", app="routeros", and no `interface`
+#  13. hostname `neo` from another address -> dropped and counted, like 10
+#
+# 11 and 12 are what keep a line on neo's path out of the firewall's alerts:
+# those rules select by app, and a neo line must never carry the firewall's.
+#
 # Each refusal (1, 6-10) is checked for absence only after the accepted lines,
 # which were sent after it, have arrived. "Absent" therefore means refused,
 # not slow. The counter shows 10 reached Alloy at all, and Alloy's own log
@@ -39,9 +51,9 @@
 #
 # The one change made to syslog.alloy: the scratch network cannot be
 # 10.0.99.0/24 without taking the monitoring host's real route to VLAN 99, so
-# the allowed address literal is rewritten to the scratch "morpheus". The
-# rewrite has to match at least once, or this fails rather than testing a file
-# with no allowlist in it.
+# the allowed address literal is rewritten to the scratch "morpheus", in the
+# morpheus rule and in the neo rule's "<address>;neo". The rewrite has to
+# match both, or this fails rather than testing a file with no allowlist in it.
 #
 # Usage: scripts/check_syslog_senders.sh [--skips-file PATH] [--alloy-file PATH]
 #   --alloy-file  test a different syslog config (used to measure alternatives
@@ -149,12 +161,13 @@ python3 - "${ALLOY_FILE}" "${WORK}/alloy/syslog.alloy" "${ALLOWED_IP}" <<'REWRIT
 import sys
 src, dst, ip = sys.argv[1:]
 text = open(src, encoding="utf-8").read()
-old = '"10\\\\.0\\\\.99\\\\.1"'
-new = '"' + ip.replace(".", "\\\\.") + '"'
-n = text.count(old)
-if n == 0:
-    sys.exit(f"the allowed-sender literal {old} is not in {src}: nothing to test")
-open(dst, "w", encoding="utf-8").write(text.replace(old, new))
+esc = ip.replace(".", "\\\\.")
+for old, new in (('"10\\\\.0\\\\.99\\\\.1"', '"' + esc + '"'),
+                 ('"10\\\\.0\\\\.99\\\\.1;neo"', '"' + esc + ';neo"')):
+    if text.count(old) != 1:
+        sys.exit(f"the sender literal {old} is not in {src} exactly once: nothing to test")
+    text = text.replace(old, new)
+open(dst, "w", encoding="utf-8").write(text)
 REWRITE
 chmod -R a+rwX "${WORK}"
 
@@ -246,9 +259,9 @@ send_tls() { # from-ip line cert-name
       printf "%d %s" "${#msg}" "${msg}" | timeout 15 openssl s_client "${args[@]}" >/dev/null 2>&1 || true
     ' _ "$2" "${ALLOY_IP}" "$3"
 }
-rfc5424() { # hostname token
-  printf '<134>1 %s %s filterlog 4242 - - %s,,,1000000103,igc0.20,match,block,in,4' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "$2"
+rfc5424() { # hostname token [app] [pri]
+  printf '<%s>1 %s %s %s 4242 - - %s,,,1000000103,igc0.20,match,block,in,4 [Priority: 1]' \
+    "${4:-134}" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${3:-filterlog}" "$2"
 }
 
 RUN_ID="$(date +%s)-$$"
@@ -260,6 +273,9 @@ TOK_TLS_SIBLING="tls-sibling-${RUN_ID}"
 TOK_TLS_SERVER="tls-serverleaf-${RUN_ID}"
 TOK_TLS_OTHERCA="tls-otherca-${RUN_ID}"
 TOK_TLS_STRANGER="tls-stranger-${RUN_ID}"
+TOK_NEO="neo-filterlog-${RUN_ID}"
+TOK_NEO_SURICATA="neo-suricata-${RUN_ID}"
+TOK_NEO_STRANGER="neo-stranger-${RUN_ID}"
 STAMP="$(LC_ALL=C date -u '+%b %e %H:%M:%S')"
 
 dropped_before="$(dropped)"
@@ -272,8 +288,12 @@ send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_SIBLING}")"  sibling
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_SERVER}")"   grafana
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS_OTHERCA}")"  rogue
 send_tls "${STRANGER_IP}" "$(rfc5424 - "${TOK_TLS_STRANGER}")" morpheus
+send_tls "${STRANGER_IP}" "$(rfc5424 neo "${TOK_NEO_STRANGER}")" morpheus
 send_tls "${ALLOWED_IP}"  "$(rfc5424 - "${TOK_TLS}")"          morpheus
 send_tls "${ALLOWED_IP}"  "$(rfc5424 evil "${TOK_TLS_EVIL}")"  morpheus
+# 142 is local1.info, the facility syslog.alloy maps to Skids's Suricata.
+send_tls "${ALLOWED_IP}"  "$(rfc5424 neo "${TOK_NEO}")"                     morpheus
+send_tls "${ALLOWED_IP}"  "$(rfc5424 neo "${TOK_NEO_SURICATA}" suricata 142)" morpheus
 
 # Prints the label set of every stream holding the token, one JSON per line.
 streams_with() {
@@ -302,7 +322,7 @@ wait_streams() { # token seconds -> prints streams once present
 }
 
 FAILED=0
-info "sent one line over UDP and seven over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
+info "sent one line over UDP and ten over TLS through ${ALLOY_FILE#"${REPO_ROOT}"/}"
 
 # host_is <streams> — every stream carries host="morpheus" and nothing else
 # says `evil`.
@@ -343,6 +363,40 @@ else
   fail "TLS line with a hostname never reached Loki"
 fi
 
+# --- neo, relayed by morpheus (ADR-0127) ----------------------------------------
+
+# neo_labels_ok <forbidden label>... — every stream is host="neo",
+# app="routeros", and carries none of the named labels.
+neo_labels_ok() {
+  python3 -c '
+import json, sys
+bad = sys.argv[1:]
+streams = [json.loads(l) for l in sys.stdin if l.strip()]
+ok = streams and all(s.get("host") == "neo" and s.get("app") == "routeros"
+                     and not any(b in s for b in bad) for s in streams)
+sys.exit(0 if ok else 1)' "$@"
+}
+
+if s11="$(wait_streams "${TOK_NEO}" 15)"; then
+  if printf '%s\n' "${s11}" | neo_labels_ok action interface direction; then
+    pass "hostname \"neo\" on morpheus's connection is host=\"neo\", and its filterlog tag becomes app=\"routeros\""
+  else
+    fail "neo's line tagged filterlog was stored with the wrong labels: ${s11}"
+  fi
+else
+  fail "neo's line on morpheus's connection never reached Loki"
+fi
+
+if s12="$(wait_streams "${TOK_NEO_SURICATA}" 15)"; then
+  if printf '%s\n' "${s12}" | neo_labels_ok interface priority classification; then
+    pass "neo's line tagged suricata on Skids's facility gets app=\"routeros\" and no interface"
+  else
+    fail "neo's line tagged suricata was stored with the wrong labels: ${s12}"
+  fi
+else
+  fail "neo's line tagged suricata never reached Loki"
+fi
+
 absent() { # token description
   local out
   if ! out="$(streams_with "$1")"; then
@@ -359,6 +413,7 @@ absent "${TOK_TLS_SIBLING}"  "a TLS line with another client certificate from th
 absent "${TOK_TLS_SERVER}"   "a TLS line authenticated with a serverAuth leaf"
 absent "${TOK_TLS_OTHERCA}"  "a TLS line with another CA's client certificate"
 absent "${TOK_TLS_STRANGER}" "a TLS line with morpheus's certificate from ${STRANGER_IP}"
+absent "${TOK_NEO_STRANGER}" "a line with hostname neo from ${STRANGER_IP}"
 
 # The handshake refusals, by Alloy's own reason, so a refusal for some other
 # cause (a broken leaf, a wrong path) cannot pass as the intended one. Cases 7,
@@ -377,10 +432,10 @@ else
 fi
 
 dropped_after="$(dropped)"
-if ((dropped_after - dropped_before == 1)); then
-  pass "the TLS line from ${STRANGER_IP} is counted (reason=\"syslog_sender_not_allowed\")"
+if ((dropped_after - dropped_before == 2)); then
+  pass "both TLS lines from ${STRANGER_IP} are counted (reason=\"syslog_sender_not_allowed\")"
 else
-  fail "drop counter moved by $((dropped_after - dropped_before)), expected 1"
+  fail "drop counter moved by $((dropped_after - dropped_before)), expected 2"
 fi
 
 exit "${FAILED}"
