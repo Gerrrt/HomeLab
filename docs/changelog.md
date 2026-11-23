@@ -33,9 +33,17 @@ docstring gives: it is a record, not a claim about now.
   `qm shutdown` with a forced stop after three minutes. `build-the-playground.md`
   §7 now installs it and removes the old timer, and §1's *After Power Loss*
   stays at *Power Off*, with ADR-0125's reason.
-  - The `--self-test` has 25 fixtures. Two deliberate breaks each failed
-    one: an extension that ignores the PID, and a stopped VM that keeps its
-    extension.
+  - The `--self-test` has 27 fixtures. Three deliberate breaks each failed
+    at least one: an extension that ignores the PID, a stopped VM that keeps
+    its extension, and a stop without the PID read again.
+  - Review on the PR caught three things:
+    - The check now reads the PID again just before `qm shutdown`, so a VM
+      restarted during the guest-agent calls is not stopped by the old run's
+      deadline.
+    - The default deadline comes from the QEMU process's start in
+      `/proc/<pid>/stat`, not `now` minus `ps -o etimes`. The old way could
+      move by a second between runs and repeat a warning.
+    - §7 now enables the timer last, after `status` and a chance to extend.
   - Installed on `gandalf` at 19:26, and proved at 19:32 with a deadline
     written a few minutes out. The timer sent the 5-minute warning, then shut
     `ragnarok` down with ACPI in 2 seconds and cleared its state, and

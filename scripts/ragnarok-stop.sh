@@ -39,7 +39,17 @@
 #
 # THE STOP is `qm shutdown` with a three-minute timeout and --forceStop, so
 # an ACPI shutdown gets its chance and a guest that ignores it is stopped
-# anyway.
+# anyway. Just before it, the run reads the PID again. The guest-agent calls
+# before it can take seconds, and a VM stopped and started in that time is a
+# new run that this run's deadline does not cover, so it is left alone
+# (review on #1652). `qm` takes no PID, so a restart in the instant between
+# that read and the shutdown is the window left, and it is milliseconds.
+#
+# THE START TIME is the QEMU process's own, from /proc/<pid>/stat: boot time
+# plus the process's start in clock ticks. It is the same on every run, so
+# the default deadline is too, and a warning is never sent twice for it.
+# `now` minus `ps -o etimes` would sample two clocks and could move by a
+# second between runs (review on #1652).
 set -euo pipefail
 
 VMID="${RAGNAROK_VMID:-130}"
@@ -57,7 +67,17 @@ vm_pid() {
   if is_uint "${p}" && [[ -d "/proc/${p}" ]]; then printf '%s' "${p}"; fi
   return 0
 }
-vm_uptime() { ps -o etimes= -p "$1" | tr -d ' '; }
+vm_start() {
+  # Seconds since the epoch at which process $1 started. Field 22 of
+  # /proc/<pid>/stat, counted after the ") " that ends the command name,
+  # which may itself hold spaces.
+  local ticks btime hz
+  ticks="$(sed 's/^.*) //' "/proc/$1/stat" 2>/dev/null | awk '{print $20}')"
+  btime="$(awk '/^btime /{print $2}' /proc/stat)"
+  hz="$(getconf CLK_TCK)"
+  is_uint "${ticks}" && is_uint "${btime}" && is_uint "${hz}" && printf '%s' "$(( btime + ticks / hz ))"
+  return 0
+}
 guest_dpkg_busy() {
   # True only if the agent answers and fuser finds a holder (exit 0).
   qm guest exec "${VMID}" --timeout 15 -- fuser -s /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock 2>/dev/null \
@@ -119,12 +139,12 @@ extended() {
 
 deadline() {
   # $1 is the PID of the running VM.
-  local d up
+  local d st
   d="$(extended "$1")"
   if [[ -n "${d}" ]]; then printf '%s' "${d}"; return; fi
-  up="$(vm_uptime "$1")"
-  is_uint "${up}" || up=0
-  printf '%s' "$(( $(now) - up + HOURS * 3600 ))"
+  st="$(vm_start "$1")"
+  is_uint "${st}" || st="$(now)"
+  printf '%s' "$(( st + HOURS * 3600 ))"
 }
 
 minutes_left() { printf '%s' "$(( ($1 + 59) / 60 ))"; }
@@ -150,6 +170,10 @@ check_locked() {
     fi
     say "deadline $(fmt_time "${d}") has passed; stopping ragnarok"
     warn_all "ragnarok: the deadline has passed (ADR-0125). Shutting down now."
+    if [[ "$(vm_pid)" != "${pid}" ]]; then
+      say "ragnarok stopped or restarted during this check; leaving the new run to its own deadline"
+      return 0
+    fi
     stop_vm
     clear_state
     return 0
@@ -230,8 +254,11 @@ self_test() {
   local START=1800000000 NOW=0 PID=4242 BUSY=1 WALL_LOG="${tmp}/wall" STOP_LOG="${tmp}/stop"
   now() { printf '%s' "${NOW}"; }
   vm_pid() { printf '%s' "${PID}"; }
-  vm_uptime() { printf '%s' "$(( NOW - START ))"; }
-  guest_dpkg_busy() { return "${BUSY}"; }
+  vm_start() { printf '%s' "${START}"; }
+  # RESTART, when set, is the PID the VM comes back with while the check is
+  # asking the guest agent about dpkg: a stop and a start mid-check.
+  local RESTART=""
+  guest_dpkg_busy() { if [[ -n "${RESTART}" ]]; then PID="${RESTART}"; fi; return "${BUSY}"; }
   say() { :; }
   warn_all() { printf '%s\n' "$*" >> "${WALL_LOG}"; }
   stop_vm() { printf 'stop\n' >> "${STOP_LOG}"; }
@@ -241,7 +268,7 @@ self_test() {
     take_lock() { :; }
   fi
 
-  reset() { rm -rf "${STATE_DIR}" "${WALL_LOG}" "${STOP_LOG}"; BUSY=1; PID=4242; START=1800000000; }
+  reset() { rm -rf "${STATE_DIR}" "${WALL_LOG}" "${STOP_LOG}"; BUSY=1; PID=4242; START=1800000000; RESTART=""; }
   walls() { [[ -f "${WALL_LOG}" ]] && wc -l < "${WALL_LOG}" | tr -d ' ' || printf 0; }
   stops() { [[ -f "${STOP_LOG}" ]] && wc -l < "${STOP_LOG}" | tr -d ' ' || printf 0; }
   check() {
@@ -306,6 +333,13 @@ self_test() {
   reset; NOW=$((START + H)); cmd_extend 12 >/dev/null
   PID=5151; START=$((NOW + 60)); NOW=$((START + 6 * H)); cmd_check
   check "a new run ignores the old run's extension" "$(stops)" "1"
+
+  # A restart between reading the PID and stopping: the new run is not the
+  # one whose deadline passed (review on #1652).
+  reset; NOW=$((START + 6 * H + 10)); RESTART=5151; cmd_check
+  check "a VM restarted during the check is not stopped by the old run's deadline" "$(stops)" "0"
+  RESTART=""; START=$((NOW - 60)); cmd_check
+  check "and the new run gets its own six hours" "$(stops)" "0"
 
   # The two interleavings the lock exists for. The test holds the lock on
   # fd 8, starts the other operation in the background, does what the

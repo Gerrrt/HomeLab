@@ -1161,8 +1161,9 @@ again too, since a reboot is a fresh power-on.
 ### The attack VM's timer
 
 Install it once, from a Hicks workstation in a checkout of this repository.
-It is three files and a symlink. The first `ssh` removes ADR-0124's host
-power-off timer, if the host still has it:
+It is three files and a symlink, in three steps. The timer is enabled last,
+after you have seen the deadline it will act on. The first `ssh` removes
+ADR-0124's host power-off timer, if the host still has it:
 
 ```bash
 G=root@10.0.30.30
@@ -1177,15 +1178,29 @@ ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-ragnarok-stop &&
   ln -sf /usr/local/sbin/homelab-ragnarok-stop /usr/local/sbin/range-extend &&
   homelab-ragnarok-stop --self-test >/dev/null && echo self-test-ok &&
   systemd-analyze verify /etc/systemd/system/homelab-ragnarok-stop.service &&
-  systemctl daemon-reload && systemctl enable --now homelab-ragnarok-stop.timer &&
+  systemctl daemon-reload &&
   homelab-ragnarok-stop status'
 ```
 
 **You should see** `self-test-ok`, no output from `systemd-analyze`, and
-either `ragnarok (VM 130) is not running` or a deadline six hours after it
-started. If `ragnarok` has been up longer than that, the first run stops it a
-minute after the install, so run `range-extend` first if it is in use. The
-self-test exercises every branch with fakes, so it can run on the host
+either `ragnarok (VM 130) is not running` or the deadline the timer will act
+on. Nothing acts on it yet, because the timer is not enabled. If `ragnarok`
+is in use and the deadline is past or close, extend it now. `range-extend`
+works before the timer is on:
+
+```bash
+ssh "$G" 'range-extend 3 && homelab-ragnarok-stop status'
+```
+
+Then turn the timer on. Its first run is within a minute, because
+`OnBootSec` has long passed on a host that is already up:
+
+```bash
+ssh "$G" 'systemctl enable --now homelab-ragnarok-stop.timer &&
+  systemctl is-active homelab-ragnarok-stop.timer'
+```
+
+The self-test exercises every branch with fakes, so it can run on the host
 without stopping anything.
 
 Running it, as root on `gandalf`:
