@@ -61,12 +61,25 @@ it already holds.**
 4. **In Alloy, a second sender rule:** connection address `10.0.99.1` **and**
    message hostname `neo` give `host="neo"`. It sits after the `morpheus` rule
    and overrides it. Every other line from `10.0.99.1` stays `host="morpheus"`.
+   A line with `host="neo"` also takes a fixed `app="routeros"` instead of the
+   tag it carries. Today `app` comes from the tag on every line, and the
+   filterlog and Suricata rules in `security.rules.yaml` select by `app` alone,
+   so without this a line on the `neo` path tagged `filterlog` would be read as
+   the firewall's.
+5. **In Loki, the firewall's rules name their host.** Every selector in
+   `security.rules.yaml` that reads `app="filterlog"` or `app="suricata"` gains
+   `host="morpheus"`, `FirewallLogsStopped` and the Suricata absence rule
+   included. This is a second guard behind step 4: either one alone keeps a
+   `neo` line out of the firewall's alerts and out of their absence checks.
 
 The procedure belongs in a new section of
-[`ship-firewall-logs.md`](../runbooks/ship-firewall-logs.md). The order is
-Alloy first, then syslog-ng, then the pass, then `neo`. That way the first
-line arrives at a sender rule that names it, instead of being stored as
-`morpheus`.
+[`ship-firewall-logs.md`](../runbooks/ship-firewall-logs.md). The order is the
+Loki rules and Alloy first, then syslog-ng, then the pass, then `neo`. That way
+the first line arrives at a sender rule that names it and fixes its `app`, and
+no firewall rule can read it, instead of it being stored as `morpheus`'s.
+Steps 4 and 5, and the `check_syslog_senders.sh` cases below, are
+prerequisites: `neo` is not pointed at the relay until they are deployed and
+the cases pass.
 
 ### Why trusting a message hostname is safe here and nowhere else
 
@@ -84,15 +97,17 @@ The forgery that #1049 removed was a VLAN 99 host claiming `10.0.99.1` on a
 segment the firewall does not stand between. This hop is different:
 
 - The source address `neo` uses can be claimed only on the switch LAN.
-  pfSense's generated antispoof rule,
-  `block drop in log on ! igc0 inet from 10.7.7.0/24`, drops it on every
-  other interface, and that rule was read off the live ruleset on 2026-11-23.
+  pfSense's generated antispoof rule drops a switch LAN source address that
+  arrives on any other interface. That rule was confirmed on the live ruleset
+  on 2026-11-23.
 - The switch LAN is port 1's untagged VLAN, and its only addresses are
   `morpheus` and `neo`. A host that could put a frame on it would already
   hold `neo`'s bridge, which matters far more than its log.
 - The worst a forged line can do is put false lines under `host="neo"`. It
-  cannot reach `host="morpheus"`, and the filterlog and Suricata rules read
-  only that stream.
+  cannot reach `host="morpheus"`, and with steps 4 and 5 it cannot reach the
+  firewall's alerts either: its `app` is fixed, and those rules read only
+  `host="morpheus"`. Without them it could, because those rules select by
+  `app` alone today.
 
 ## Considered and rejected
 
@@ -135,15 +150,23 @@ segment the firewall does not stand between. This hop is different:
   - an absence rule on `host="neo"`. Home Assistant's API logins give the
     stream a steady heartbeat, so silence means the path is broken.
 
-  `scripts/check_syslog_senders.sh` gains a case proving a line from
-  `10.0.99.1` with hostname `neo` gets `host="neo"`, and that the same
-  hostname from any other address is dropped.
+  `scripts/check_syslog_senders.sh` gains cases proving that:
+  - a line from `10.0.99.1` with hostname `neo` gets `host="neo"`;
+  - the same hostname from any other address is dropped;
+  - a `neo` line tagged `filterlog` or `suricata` gets `app="routeros"`, and so
+    neither raises a firewall alert nor keeps `FirewallLogsStopped` quiet.
 - **Volume is unmeasured.** Home Assistant's login and logout pairs will be
   most of it. Measure a day of it, as
   [`ship-firewall-logs.md`](../runbooks/ship-firewall-logs.md) §8 does for
   the firewall. If the pairs dominate, drop them in Alloy by user and
   address, not on the switch, so a login by anyone else is never filtered.
-- **A restore of `morpheus` must bring back the second syslog-ng source**
-  along with the first. That is the same step in
-  [`restore-the-firewall.md`](../runbooks/restore-the-firewall.md) that
-  already covers the TLS files.
+- **A restore of `morpheus` has to bring syslog-ng back, and no runbook step
+  says so today.** The TLS files sit outside `config.xml`, and
+  [`ship-firewall-logs.md`](../runbooks/ship-firewall-logs.md) §3 says to
+  copy them again after a restore, but
+  [`restore-the-firewall.md`](../runbooks/restore-the-firewall.md) has no step
+  that does it or checks it. Rebuilt from that runbook alone, `morpheus` comes
+  back with both log streams down. The applying PR adds a step to
+  `restore-the-firewall.md` that restores the TLS files and both syslog-ng
+  sources, and a §4 check that `host="morpheus"` and `host="neo"` are both
+  arriving in Loki.
