@@ -252,7 +252,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   each interface's blocks named only its own address, so every segment
   reached both on the WAN address; the 2026-11-13 audit proved it from
   `prometheus`. `sshd` takes keys only.
-  [ADR-0128](adr/0128-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
+  [ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
   records the decision, and `docs/firewall-claims.yaml`'s `firewall` entries
   are what `make check-firewall` holds the ruleset to.
 - **One pass into Skids, in force since 2026-09-28:**
@@ -417,7 +417,7 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   under the `22` and admin-UI passes, above *Allow Hicks access to
   ImaginationLAN*. That rule passes TCP to all of `10.0.30.0/24`, the lab's
   gateway included, and until 2026-11-23 it was a second way to the UI and
-  `sshd` ([ADR-0128](adr/0128-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).
+  `sshd` ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).
   `sshd` takes keys only, so the `22` pass gets a corporate laptop a prompt it
   cannot answer.
 

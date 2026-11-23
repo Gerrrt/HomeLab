@@ -1,4 +1,4 @@
-# ADR-0128: Close the firewall's own addresses to every segment, and take passwords off its SSH
+# ADR-0129: Close the firewall's own addresses to every segment, and take passwords off its SSH
 
 **Status:** Accepted · 2026-11
 

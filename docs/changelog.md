@@ -21,7 +21,7 @@ docstring gives: it is a record, not a claim about now.
 
 - **The firewall's own addresses are closed to every segment, and its `sshd`
   takes keys only
-  ([ADR-0128](adr/0128-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
+  ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
   A read-only audit of `morpheus` on 2026-11-13 found every segment reaching
   the admin UI and `sshd` on the WAN address: each interface's *Block … to
   pfSense* rows named only that interface's own address. From `prometheus`,
@@ -36,6 +36,29 @@ docstring gives: it is a record, not a claim about now.
   `make check-firewall` was blind to it, because the WAN address is in no
   segment. It now also asks which of the firewall's addresses each segment
   reaches on ssh, http and https, with fixtures in CI.
+- **`prometheus` will take SSH keys only, and stays without a host firewall
+  ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
+  The root-only reads that finished the 2026-11-13 audit were taken today.
+  `sshd -T` read `passwordauthentication yes` and `x11forwarding yes`, from
+  cloud-init's drop-in, and `ufw` was inactive, on the host that holds the CA
+  key and the age key that opens every backup set. `restore-the-stack.md`
+  gains *Make `sshd` key-only*, the same drop-in `trinity` and `phoenix` use,
+  and §3 of a rebuild runs it first. No host firewall, as on `trinity`:
+  Docker's rules run ahead of `ufw`'s for the published ports, so a policy
+  would cover `22` alone. A new `security.md` row records both. The step was
+  applied the same evening. `sshd -T` read `no` for all four settings, a
+  password login and a keyboard-interactive login were refused, and a key
+  login from Hicks succeeded after the reload. The same reads found the SSD reports only
+  `Wear_Leveling_Count`, normalised 178 against a threshold of 100, so it has
+  no wear percent and no `homelab_smart_percentage_used` series, which is
+  correct.
+  The rest of the audit's finding 8 was applied too. `ModemManager`,
+  `udisks2`, `multipathd` and `bolt` are masked, and `b43`, which loaded
+  without firmware for the unused BCM4331 Wi-Fi on every boot, is
+  blacklisted with its two buses. After that, no unit had failed, no target
+  was down, and the USB NIC stayed up. `restore-the-stack.md` gains *Trim what
+  the laptop does not use*, so a rebuild does the same.
+
 - **The range host will be monitored now that it stays on
   ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
   [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).** ADR-0125 made
