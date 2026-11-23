@@ -1031,6 +1031,11 @@ its signature against Sliver's own minisign key, the way this repository trusts
 no third-party binary unchecked. As root on `ragnarok`:
 
 ```bash
+set -euo pipefail
+# Put the scope back on any exit, so a failed download or signature check
+# leaves the VM filtered, not open. `set -e` makes curl or minisign abort the
+# block, and the trap still restores the scope.
+trap 'systemctl restart nftables' EXIT
 nft delete table inet range_scope
 nft delete table netdev range_scope_l2
 apt-get install -y minisign
@@ -1038,14 +1043,20 @@ cd /opt && mkdir -p sliver-dist && cd sliver-dist
 BASE=https://github.com/BishopFox/sliver/releases/download/v1.7.9
 PK='RWTZPg959v3b7tLG7VzKHRB1/QT+d3c71Uzetfa44qAoX5rH7mGoQTTR'
 for f in sliver-server_linux-amd64 sliver-client_linux-amd64; do
-  curl -fSL -o "$f" "$BASE/$f"; curl -fSL -o "$f.minisig" "$BASE/$f.minisig"
-  minisign -V -P "$PK" -m "$f"            # must print "Signature and comment signature verified"
+  curl -fSL -o "$f" "$BASE/$f"
+  curl -fSL -o "$f.minisig" "$BASE/$f.minisig"
+  minisign -V -P "$PK" -m "$f"   # non-zero if it does not verify, which set -e catches
 done
 install -m0755 sliver-server_linux-amd64 /usr/local/bin/sliver-server
 install -m0755 sliver-client_linux-amd64 /usr/local/bin/sliver-client
 ln -sf /usr/local/bin/sliver-client /usr/local/bin/sliver
 sliver-server unpack --force
 ```
+
+The `trap` restores the outbound scope whether the block finishes or a
+download or signature check fails part way, so an aborted install never leaves
+`ragnarok` without its filter. The server binary generates implants offline,
+so the scope is already back before the first one is built.
 
 The `PK` is Sliver's published minisign public key, taken from its own install
 script (`https://sliver.sh/install`) rather than typed from memory. The server
@@ -1073,18 +1084,30 @@ WantedBy=multi-user.target
 UNIT
 chmod 600 /etc/systemd/system/sliver.service
 systemctl daemon-reload && systemctl enable --now sliver.service
+# `operator --save` writes into the directory but does not create it, so make
+# it first (0700: it will hold a client certificate and key).
+install -d -m 0700 /root/.sliver-client/configs
 sliver-server operator --name root --lhost 127.0.0.1 --permissions all --save /root/.sliver-client/configs/
 sliver-server operator --name operator-hicks --lhost "$(ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1)" --permissions all --save /tmp/operator-hicks.cfg
 ```
 
-**Then put the scope back** before anything else — `systemctl restart nftables`
-— and confirm the install did not turn forwarding on, which is Docker's trick
-and Sliver's install does not use (#1481):
+**Then re-prove the scope** before the beacon. The install's `trap` already
+restored the tables (`systemctl restart nftables` reloads them), and a quick
+local check is:
 
 ```bash
 sysctl -n net.ipv4.ip_forward net.ipv6.conf.all.forwarding     # 0 and 0
 nft list tables                                                # both range_scope tables back
 ```
+
+But that only shows the tables are loaded, not that egress is actually
+dropped. The proof #1481 asks for is a rerun of
+[`finish-attack-vm.sh`](../../scripts/finish-attack-vm.sh) from `phoenix`,
+which reloads the scope and runs §8's check three: forwarding `0`, no NAT in
+`nft` or legacy `iptables`, and a raw-Ethernet send to `1.1.1.1` that must be
+counted in `out_of_scope` and dropped. Installing Docker would have turned
+forwarding on; Sliver's install does not, and the script is what confirms it.
+**Its checks must pass before the beacon below.**
 
 The operator config `operator-hicks.cfg` is carried to the Hicks workstation
 and imported with `sliver-client import operator-hicks.cfg`; the console is
@@ -1096,10 +1119,16 @@ credential, like an implant or a profile.
 multiplayer listener. Add it to the list above. It is reached from Hicks over
 the `50 → 30` path, not from `garuda` (which is defensive, ADR-0091).
 
-A beacon proves the channel end to end. Start a listener on the range bridge,
-build an implant for a target, run it there, and watch it call back. The
-listener is on `172.30.30.10` (`eth1`, `vmbr1`), so the callback crosses the
-segment the SOC watches:
+A beacon proves the channel works end to end. Start a listener on the range
+bridge, build an implant for a target, run it there, and watch it call back.
+The listener is on `172.30.30.10` (`eth1`, `vmbr1`). **This is a range-local
+C2 reachability proof, not a SOC-visibility one:** the callback stays on
+`vmbr1`, the routeless bridge, which the estate's Zeek never sees — Zeek
+mirrors `Saruman`'s `vmbr0` ([`network.md`](../network.md)), not this one. SOC
+visibility is what an *exercise* measures, when a **domain host on VLAN 30**
+beacons — that callback crosses the segment the SOC watches (ADR-0095), and a
+miss there is a real detection gap. Here the point is only that the C2 runs
+and the scope does not block a legitimate range callback:
 
 ```bash
 # in the console (sliver-client), or piped: printf '…\n' | sliver-client
@@ -1122,12 +1151,16 @@ keys.
 
 > **Installed on `ragnarok` 2026-11-22**, v1.7.9, signatures verified. The
 > daemon listens on `31337`. A Linux beacon over mTLS on `172.30.30.10:8443`
-> was run on `ms3-ub1404` (VMID 101, `172.30.30.101`) and called back; the
+> was run on `ms3-ub1404` (VMID 101, `172.30.30.101`) and called back — a
+> range-local reachability proof on `vmbr1`, not a SOC-visibility one. The
 > target was reverted to `clean` afterwards. The install lifted the scope and
-> `systemctl restart nftables` put it back, with forwarding still `0`. The
-> install is on the running VM, so a `tofu` rebuild of `ragnarok` loses it and
-> this subsection is rerun — like the targets, Sliver is VM state, not part of
-> the template.
+> `systemctl restart nftables` put it back, with forwarding `0` and a send
+> past the segment refused. The full re-prove — `finish-attack-vm.sh` from
+> `phoenix`, §8 check three, which also exercises the raw-Ethernet path — was
+> not rerun here, because it needs `phoenix`'s credentials; run it before the
+> next session uses the range. The install is on the running VM, so a `tofu`
+> rebuild of `ragnarok` loses it and this subsection is rerun — like the
+> targets, Sliver is VM state, not part of the template.
 
 ---
 

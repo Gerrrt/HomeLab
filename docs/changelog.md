@@ -29,8 +29,12 @@ docstring gives: it is a record, not a claim about now.
   forwarding still `0` — the thing #1481 names, because installing Docker would
   have turned it on. An mTLS listener on `172.30.30.10:8443` and a Linux beacon
   run on `ms3-ub1404` (VMID 101) produced a call-back from `172.30.30.101`,
-  with the scope on, so a range target reaches the C2 and the scope does not
-  break it. The target was reverted to `clean`. The install is on the running
+  with the scope on — a range-local reachability proof on `vmbr1`, which Zeek
+  does not see, not a SOC-visibility one (that is a later exercise with a
+  domain host on VLAN 30). The scope restore was the lightweight reload; the
+  full `finish-attack-vm.sh` re-prove (§8 check three, the raw-Ethernet path)
+  needs `phoenix`'s credentials and is left for the next session. The target
+  was reverted to `clean`. The install is on the running
   VM, not the template, so a `tofu` rebuild of `ragnarok` reruns §5's steps,
   as the targets are redone — Sliver is VM state (ADR-0095). The install left
   one stale test-beacon record on the server, which Sliver prunes an hour
