@@ -206,7 +206,9 @@ disabling the first proves the second, which is
 so they install on the hypervisor and nowhere else.
 
 **`prune-images` is the agent hosts' copy of the `prune-images` row above.** It
-runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does,
+runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does.
+Unlike the monitoring host's, it leaves anonymous volumes alone. Those come from
+`make validate` and scratch runs, which happen on the monitoring host. It runs
 from `systemd/agent/homelab-prune-images.timer`. Nothing removed superseded
 images on an agent host before it, and on 2026-10-01 `odin`'s 30 GB root was at
 98%, 7.8 GB of it images no container used. It requires `/usr/bin/docker`, so
@@ -943,7 +945,7 @@ expected rather than a second fault.
 | `smart-state-remote` exits 1 | `morpheus` could not be read over SSH | The warning line carries ssh's own message — `Permission denied (publickey)` means the key or the user is wrong, `No route to host` means the firewall is unreachable. This job runs as `robo` and uses the same key as `backup-firewall`, so if that job is also failing the cause is shared |
 | `pkg-state` exits 1 | `morpheus` could not be read, or its catalogue fetch failed | The message carries ssh's or pkg's own words. A catalogue fetch needs the firewall to reach its update servers, so a WAN outage looks exactly like this and is not a fault in the collector — check `BlackboxProbeFailed` for the gateway before investigating. It runs as `robo` with the same key as `backup-firewall`, so if that is failing too the cause is shared |
 | `silence-state` exits 1 | Alertmanager could not be read on loopback, or answered something that is not a silence list | The previous `alertmanager-silences.prom` is left in place, so the last known silences stay served and a silence deleted during the outage looks alive until the next successful run — by design, because an empty file would read as "no silences". `docker ps` for the container, then `make silence-state` by hand |
-| `prune-images` exits non-zero | `docker image prune` failed, or the `backups` lock was held for the whole 900s wait | The journal line says which. A lock timeout means a backup or converge ran long, and the next week's run catches up. Anything else, run `make prune-images` by hand and read Docker's error. Until it runs, unused images accumulate at a few gigabytes a week, and `HostDiskWillFillIn24h` and `HostDiskCritical` are the backstop |
+| `prune-images` exits non-zero | `docker image prune` or `docker volume prune` failed, or the `backups` lock was held for the whole 900s wait | The journal line says which. A lock timeout means a backup or converge ran long, and the next week's run catches up. Anything else, run `make prune-images` by hand and read Docker's error. Until it runs, unused images accumulate at a few gigabytes a week, and `HostDiskWillFillIn24h` and `HostDiskCritical` are the backstop |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |
