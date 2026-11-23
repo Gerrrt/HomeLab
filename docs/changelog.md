@@ -19,6 +19,33 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
+  disarmed for at least two of them.** This records what the 2026-11-13
+  read-only audit of `mjolnir` found and no entry had written down.
+  - **The card.** It answered no SNMP from about 01:40 UTC on 2026-10-30 to
+    about 22:30 on 2026-11-06 (`up{device="mjolnir"}` 0 throughout, measured
+    at five-minute steps). `InstanceDown`, `SnmpTargetUnreachable` and
+    `EndpointUnreachable` fired the whole time, and nothing acted on them.
+  - **NUT.** `morpheus`'s own log keeps about a week. It began on 2026-11-05
+    with `upsmon` logging *Poll UPS [mjolnir] failed - Driver not connected*,
+    and went on doing so until 20:59 on 2026-11-07, 23,048 times. Its NUT
+    configuration files were rewritten at 12:56 on 2026-11-08. For as long as
+    the driver was down, a mains cut would have halted nothing in order, and
+    every host would have dropped when the pack ran out.
+  - **The cause is not established.** The card came back during the move into
+    the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)), but
+    it went silent a week before that started, and the card's event log, which
+    would say, has not been read.
+  - **What no rule could see.** The card-silence alerts are generic, and
+    nothing watches NUT itself: a driver that stays down while the card
+    answers SNMP would raise nothing at all. On 2026-11-22 `morpheus` still
+    logged 190 to 320 *data stale* or *communications lost* lines a day, each
+    spell lasting one to ten seconds.
+- **The low battery duration is under *Configuration → Shutdown*.**
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §0.2 had sent
+  the operator to *Configuration → UPS → General*, which does not have it.
+  §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
+
 - **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
   entry for the `prometheus` audit, which said a raw value outside 0–100 now
   falls back to the normalised column. That change was deployed, and on
@@ -42,6 +69,44 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **The range on `gandalf` is built
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421) closed).** The whole of
+  [`build-the-playground.md`](runbooks/build-the-playground.md) has run: the
+  host and its two bridges (§1–§2), `Saruman` at `.20` and the closed
+  management plane (§3–§4), the attack VM `ragnarok` on template 902 (§5), the
+  three targets (§6), the four-property and leak proofs that ran before any
+  vulnerable image (§8–§9), and now the C2, Sliver (§5, #1481). Gated on #414
+  and the SOC, both long met. What is left on the range is the exercises, each
+  its own issue in the `last` milestone. Its roadmap entry leaves with this.
+- **Sliver is the range C2, installed on `ragnarok`, and a target beaconed
+  back ([ADR-0095](adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md),
+  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481)).** `build-the-playground.md`
+  §5 gains *The C2*. The server (v1.7.9, signature verified against Sliver's
+  own minisign key) runs as a `sliver` systemd daemon, operator console on
+  `31337/tcp` on the lease, added to §5's reachability list. The install
+  lifted the outbound scope and `systemctl restart nftables` put it back, with
+  forwarding still `0` — the thing #1481 names, because installing Docker would
+  have turned it on. An mTLS listener on `172.30.30.10:8443` and a Linux beacon
+  run on `ms3-ub1404` (VMID 101) produced a call-back from `172.30.30.101`,
+  with the scope on — a range-local reachability proof on `vmbr1`, which Zeek
+  does not see, not a SOC-visibility one (that is a later exercise with a
+  domain host on VLAN 30). The scope restore was the lightweight reload; the
+  full `finish-attack-vm.sh` re-prove (§8 check three, the raw-Ethernet path)
+  needs `phoenix`'s credentials and is left for the next session. The target
+  was reverted to `clean`. The install is on the running
+  VM, not the template, so a `tofu` rebuild of `ragnarok` reruns §5's steps,
+  as the targets are redone — Sliver is VM state (ADR-0095). The install left
+  one stale test-beacon record on the server, which Sliver prunes an hour
+  after its last check-in. This is the last piece of
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s build.
+- **`gandalf`'s two audit leftovers are cleared
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** This corrects the
+  audit-fixes entry below, which recorded both as still open.
+  `build-the-lab-templates.md` deletes the `PhoenixIsoCleanup` role that the
+  2026-11-09 revoke had left defined with no ACL, and `build-the-playground.md`
+  §1 removes the empty `local-lvm` thin pool, since nothing of the range goes
+  on the M.2; its 141 GiB stays free in the `pve` volume group. Both ran on
+  `gandalf` that night.
 - **`gandalf` stays on, and the attack VM stops on a timer instead
   ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
   [#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** ADR-0125

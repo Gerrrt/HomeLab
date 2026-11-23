@@ -76,7 +76,8 @@ auths:
 
   # neo moved on 2026-11-05 (#444): the CRS326 replaced the MokerLink, and its
   # v3 user was created at the bench on 2026-10-05 with the agent limited to
-  # 10.0.99.20 and no v2c community at all (ADR-0041 decision 4).
+  # 10.0.99.20 and no enabled v2c community (ADR-0041 decision 4). RouterOS's
+  # default community row cannot be removed; it is disabled.
   auth_neo:
     community: ""
     username: prometheus

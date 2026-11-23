@@ -573,6 +573,18 @@ and 910 with this section and §5b to clear it.
    pveum acl delete /storage/local --users phoenix@pve --roles PhoenixIsoCleanup
    ```
 
+   The revoke left the role itself defined on `gandalf`, with no ACL using
+   it. The 2026-11-22 audit found it there. Nothing on the range uses it, so
+   delete it too:
+
+   ```bash
+   pveum acl list | grep -c PhoenixIsoCleanup
+   pveum role delete PhoenixIsoCleanup
+   pveum role list | grep -c PhoenixIsoCleanup
+   ```
+
+   Both counts should be `0`. Deleted on `gandalf` 2026-11-22.
+
    That paste went first into a zsh on `phoenix`, where `pveum` does not
    exist, and the paste handling turned every space after the first line
    into a literal `\s`. Nothing ran there. Paste into the node's **Shell**
