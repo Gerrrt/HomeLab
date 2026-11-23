@@ -81,10 +81,13 @@ Closes when it is empty.
   ([postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930) or an
   equivalent). The component and its package go then. The mount stays while
   `ring_push_guard` does.
-- **[#922](https://github.com/Gerrrt/HomeLab/issues/922) Decide: a 2.5 Gbit
-  WAN, or a cheaper plan.** The decision was due around 2026-11-03, on four
-  weeks of `WanLinkSaturated`. If it implies a purchase, the purchase enters
-  through *Everything still to buy* in the same PR that decides it.
+- **[#1691](https://github.com/Gerrrt/HomeLab/issues/1691) Move the WAN
+  off `em0`, through `neo`'s SFP+ cages at 2.5G.** Decided by
+  [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md);
+  the procedure is
+  [`move-the-wan-onto-neo.md`](runbooks/move-the-wan-onto-neo.md). Gate: the
+  two S+RJ10s in *Everything still to buy*. Until it is built, the remedy for
+  `WanReceiveErrors` is rebooting `morpheus`.
 - **[#1454](https://github.com/Gerrrt/HomeLab/issues/1454) Deploy MakeMKV on
   `smaug`.** Decided by
   [ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
@@ -173,6 +176,7 @@ move and stay until they are bought or dropped.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
+| 2 × MikroTik S+RJ10, genuine | `neo`'s two SFP+ cages: the CODA56's 2.5G port into `sfp-sfpplus2`, `morpheus`'s `igc0` into `sfp-sfpplus1`, taking the WAN off `em0` ([#1691](https://github.com/Gerrrt/HomeLab/issues/1691)) | [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md), the operator, 2026-11-23 | Now: until it is built, every `em0` fault is a reboot of the firewall |
 | Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `gandalf`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
 | USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |
