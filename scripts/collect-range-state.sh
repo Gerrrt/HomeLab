@@ -48,13 +48,14 @@ parse_ingress_drop() {
   '
 }
 
-# For an `sshd -T` keyword, 1 when it reads `yes`, 0 when `no`, and nothing when
-# the keyword is absent. `sshd -T` lowercases its keys and prints one setting
-# per line, e.g. `x11forwarding no`. Used for forwarding keys, where `yes` is
-# the fault, so the metric is 1-is-bad.
+# For an `sshd -T` keyword, 0 only when it reads `no`, 1 for any other value,
+# and nothing when the keyword is absent. `sshd -T` lowercases its keys and
+# prints one setting per line, e.g. `allowtcpforwarding no`. Only `no` disables
+# forwarding: AllowTcpForwarding also takes `local` and `remote`, which both
+# permit a tunnel, so anything but `no` is the fault (1-is-bad).
 parse_sshd_flag() {
   awk -v key="$1" '
-    $1 == key { print ($2 == "yes") ? 1 : 0; found = 1; exit }
+    $1 == key { print ($2 == "no") ? 0 : 1; found = 1; exit }
     END { if (!found) exit 0 }
   '
 }
@@ -67,6 +68,11 @@ parse_kv() {
 }
 
 is_uint() { [[ "$1" =~ ^[0-9]+$ ]]; }
+now() { date +%s; }
+# A dpkg deferral counts as current only this close to now: the stop timer runs
+# every minute, so a wait that is still happening rewrote the mark within the
+# last couple of runs. Older than this and the timer has stopped confirming it.
+DEFER_FRESH=180
 
 if [[ "${1:-}" == "--self-test" ]]; then
   fail=0
@@ -101,6 +107,11 @@ if [[ "${1:-}" == "--self-test" ]]; then
     "$(printf 'x11forwarding yes\nallowtcpforwarding no\n' | parse_sshd_flag x11forwarding)" "1"
   check "allowtcpforwarding no is clean" \
     "$(printf 'x11forwarding yes\nallowtcpforwarding no\n' | parse_sshd_flag allowtcpforwarding)" "0"
+  # AllowTcpForwarding local and remote both permit a tunnel — only no is off.
+  check "allowtcpforwarding local is the fault" \
+    "$(printf 'allowtcpforwarding local\n' | parse_sshd_flag allowtcpforwarding)" "1"
+  check "allowtcpforwarding remote is the fault" \
+    "$(printf 'allowtcpforwarding remote\n' | parse_sshd_flag allowtcpforwarding)" "1"
   check "an absent key prints nothing" \
     "$(printf 'permitrootlogin without-password\n' | parse_sshd_flag x11forwarding)" ""
   # sshd -T prints the key once; a value that is a substring must not match.
@@ -121,7 +132,9 @@ PRINT_ONLY=0
 
 command -v nft >/dev/null 2>&1 || die "no nft on this host — it is not the range host."
 
-ingress_drop="$(nft list chain netdev vmbr1_host_in ingress 2>/dev/null | parse_ingress_drop)"
+# An absent table makes nft exit non-zero; `|| true` keeps that from aborting
+# the collector under `set -e`, so the 0 sample (no barrier) is still written.
+ingress_drop="$({ nft list chain netdev vmbr1_host_in ingress 2>/dev/null || true; } | parse_ingress_drop)"
 fwd4="$(sysctl -n net.ipv4.conf.vmbr0.forwarding 2>/dev/null || echo "")"
 fwd6="$(sysctl -n net.ipv6.conf.vmbr0.forwarding 2>/dev/null || echo "")"
 sshd_out="$(sshd -T 2>/dev/null || true)"
@@ -130,10 +143,18 @@ tcpf="$(printf '%s\n' "$sshd_out" | parse_sshd_flag allowtcpforwarding)"
 
 timer_active=0
 [[ "$(systemctl is-active "${STOP_TIMER}" 2>/dev/null)" == "active" ]] && timer_active=1
-stop_state="$("${STOP_CMD}" deadline-epoch 2>/dev/null || true)"
+
+# The attack-VM state comes from the stop helper (one source of the deadline).
+# A command that fails, or output with no `running=` line, is an unusable
+# answer — an old helper without `deadline-epoch`, say — NOT a stopped VM, so
+# the ragnarok metrics are left out rather than written as running=0, which
+# would suppress the alerts. The runbook makes upgrading the helper a step.
+stop_ok=1
+stop_state="$("${STOP_CMD}" deadline-epoch 2>/dev/null)" || stop_ok=0
+[[ "$stop_state" == *running=* ]] || stop_ok=0
 rag_running="$(printf '%s\n' "$stop_state" | parse_kv running)"
-is_uint "${rag_running}" || rag_running=0
 rag_deadline="$(printf '%s\n' "$stop_state" | parse_kv deadline_epoch)"
+rag_deferred="$(printf '%s\n' "$stop_state" | parse_kv deferred_epoch)"
 
 emit() {
   printf '# HELP homelab_range_ingress_table_loaded 1 when vmbr1 drops what it sends the host (vmbr1_host_in, build-the-playground.md §2).\n'
@@ -150,20 +171,38 @@ emit() {
   [[ -n "$x11" ]] && printf 'homelab_range_sshd_forwarding{host="%s",kind="x11"} %s\n' "$HOSTNAME_LABEL" "$x11"
   [[ -n "$tcpf" ]] && printf 'homelab_range_sshd_forwarding{host="%s",kind="tcp"} %s\n' "$HOSTNAME_LABEL" "$tcpf"
 
-  printf '# HELP homelab_ragnarok_running 1 when the attack VM (ADR-0125) is running.\n'
-  printf '# TYPE homelab_ragnarok_running gauge\n'
-  printf 'homelab_ragnarok_running{host="%s"} %s\n' "$HOSTNAME_LABEL" "$rag_running"
-
   printf '# HELP homelab_ragnarok_stop_timer_active 1 when the stop timer (ADR-0125) is active.\n'
   printf '# TYPE homelab_ragnarok_stop_timer_active gauge\n'
   printf 'homelab_ragnarok_stop_timer_active{host="%s"} %s\n' "$HOSTNAME_LABEL" "$timer_active"
 
-  # The effective stop deadline, only while the VM runs. Absent when it is
-  # stopped, so RagnarokPastDeadline cannot fire on a box with no attack VM.
-  if [[ "$rag_running" == 1 ]] && is_uint "${rag_deadline}"; then
-    printf '# HELP homelab_ragnarok_deadline_seconds The epoch the stop timer will shut ragnarok down at (ADR-0125, from the timer itself).\n'
-    printf '# TYPE homelab_ragnarok_deadline_seconds gauge\n'
-    printf 'homelab_ragnarok_deadline_seconds{host="%s"} %s\n' "$HOSTNAME_LABEL" "$rag_deadline"
+  # Only when the stop helper gave a usable answer. A failed or old helper
+  # writes none of these, so the alerts cannot read a false "stopped"; the gap
+  # is a broken helper, which the runbook's reinstall step prevents and
+  # RangeStateStale catches if the whole collector stops.
+  if [[ "$stop_ok" == 1 ]] && is_uint "${rag_running}"; then
+    printf '# HELP homelab_ragnarok_running 1 when the attack VM (ADR-0125) is running.\n'
+    printf '# TYPE homelab_ragnarok_running gauge\n'
+    printf 'homelab_ragnarok_running{host="%s"} %s\n' "$HOSTNAME_LABEL" "$rag_running"
+
+    if [[ "$rag_running" == 1 ]]; then
+      # The effective stop deadline, only while the VM runs, so
+      # RagnarokPastDeadline cannot fire on a box with no attack VM.
+      if is_uint "${rag_deadline}"; then
+        printf '# HELP homelab_ragnarok_deadline_seconds The epoch the stop timer will shut ragnarok down at (ADR-0125, from the timer itself).\n'
+        printf '# TYPE homelab_ragnarok_deadline_seconds gauge\n'
+        printf 'homelab_ragnarok_deadline_seconds{host="%s"} %s\n' "$HOSTNAME_LABEL" "$rag_deadline"
+      fi
+      # 1 when the timer most recently chose to wait, within the last few runs,
+      # because dpkg's lock was held inside the VM (ADR-0125). A past-deadline
+      # VM that is deferring for this reason is not a failed timer, so
+      # RagnarokPastDeadline excludes it; a stale mark (the timer stopped
+      # confirming) reads 0 and the alert can fire.
+      deferred=0
+      is_uint "${rag_deferred}" && (( $(now) - rag_deferred < DEFER_FRESH )) && deferred=1
+      printf '# HELP homelab_ragnarok_stop_deferred 1 when the stop timer is currently waiting on dpkg inside ragnarok (ADR-0125).\n'
+      printf '# TYPE homelab_ragnarok_stop_deferred gauge\n'
+      printf 'homelab_ragnarok_stop_deferred{host="%s"} %s\n' "$HOSTNAME_LABEL" "$deferred"
+    fi
   fi
 }
 

@@ -26,15 +26,19 @@ docstring gives: it is a record, not a claim about now.
   `ragnarok` stop timer with the deadline it set. The deadline comes from one
   place: `ragnarok-stop.sh` gains a `deadline-epoch` subcommand so the monitor
   reads the timer's own effective deadline rather than a second copy of its
-  logic. `stacks/observability/prometheus/rules/range.rules.yaml` adds six
+  logic. `stacks/observability/prometheus/rules/range.rules.yaml` adds seven
   alerts — `PveFirewallZeroRules` (the firewall on with no host rules, which
   the collector measured but nothing read), the ingress barrier down,
-  `vmbr0`/`sshd` forwarding on, and the stop timer failing
-  (`RagnarokStopTimerInactive`, `RagnarokPastDeadline`) — each with a firing
-  and a quiet promtool test. Host uptime is deliberately not alerted: an
-  always-on host has no "up too long" fault. `install-agent-collectors.sh`
-  gains the `range-state` row, and `build-the-playground.md` §7 gains the
-  install steps, host-only (no `guest-disk-state`, which reads inside a guest).
+  `vmbr0`/`sshd` forwarding on, the stop timer failing
+  (`RagnarokStopTimerInactive`, `RagnarokPastDeadline`, which excludes a dpkg
+  wait so a protected install is not mistaken for a failed timer), and
+  `RangeStateStale` for the collector itself stopping — each with a firing and
+  a quiet promtool test. Host uptime is deliberately not alerted: an always-on
+  host has no "up too long" fault. `install-agent-collectors.sh` gains the
+  `range-state` row and `systemd/agent/` its unit pair, and
+  `build-the-playground.md` §7 gains the install steps, host-only (no
+  `guest-disk-state`, which reads inside a guest) and upgrading the stop helper
+  first.
   - Still to deploy, needing the lab and the firewall: the `morpheus` pass
     (`10.0.30.30 → 10.0.99.20:9090`, metrics only), a **metrics-only** Alloy
     config and deploy check so the range host ships no logs, and installing

@@ -1438,6 +1438,17 @@ section used to catch by hand. **Not yet deployed on `gandalf`.**
 above the block to Winterfell. No `3100`: the range host does not ship logs
 (below). This is the one crossing ADR-0014 counts, and it is outbound.
 
+**Upgrade the stop helper first.** `collect-range-state.sh` reads the deadline
+from `homelab-ragnarok-stop deadline-epoch`, a subcommand added for the
+monitor. An older helper without it makes the collector leave the `ragnarok`
+metrics out rather than read a false "stopped", so reinstall the current script
+(*The attack VM's timer* above does the same) before the collector:
+
+```bash
+scp scripts/ragnarok-stop.sh root@10.0.30.30:/usr/local/sbin/homelab-ragnarok-stop
+ssh root@10.0.30.30 'chmod 0755 /usr/local/sbin/homelab-ragnarok-stop && homelab-ragnarok-stop deadline-epoch'
+```
+
 **Then the collectors**, host-only. From a Hicks workstation, install each by
 name with [`install-agent-collectors.sh`](../../scripts/install-agent-collectors.sh),
 which runs it once per collector:
@@ -1470,7 +1481,10 @@ standard agent here, which would ship the range's logs.
 adds: the firewall enabled with zero host rules (`PveFirewallZeroRules`), the
 ingress barrier down, `vmbr0` or `sshd` forwarding on, and the stop timer
 failing — `ragnarok` running with the timer inactive, or past the deadline the
-timer itself set. `DisposableGuestOutlived` also begins covering any
+timer itself set (a dpkg wait inside the VM is excluded, so a protected install
+is not mistaken for a failed timer). `RangeStateStale` catches the collector
+itself stopping, so a barrier that falls after it goes quiet is not read as
+healthy. `DisposableGuestOutlived` also begins covering any
 `disposable`-tagged guest here. Host uptime is deliberately not alerted: an
 always-on host has no "up too long" fault (ADR-0126).
 

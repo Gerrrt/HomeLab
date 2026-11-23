@@ -117,7 +117,7 @@ write_state() {
   mv -f "${tmp}" "${STATE_DIR}/$1"
 }
 
-clear_state() { rm -f "${STATE_DIR}/deadline" "${STATE_DIR}/run" "${STATE_DIR}/warned-30" "${STATE_DIR}/warned-5"; }
+clear_state() { rm -f "${STATE_DIR}/deadline" "${STATE_DIR}/run" "${STATE_DIR}/warned-30" "${STATE_DIR}/warned-5" "${STATE_DIR}/deferred"; }
 
 with_lock() {
   # Run "$@" holding the lock. fd 9 closes when the group ends, which
@@ -165,6 +165,7 @@ check_locked() {
   left=$(( d - t ))
   if (( left <= 0 )); then
     if guest_dpkg_busy; then
+      write_state deferred "${t}"
       say "deadline $(fmt_time "${d}") has passed, but dpkg's lock is held inside ragnarok; waiting for the next run"
       return 0
     fi
@@ -261,6 +262,9 @@ cmd_deadline_epoch() {
   else
     printf 'source=default\n'
   fi
+  local dfr
+  dfr="$(read_state deferred)"
+  [[ -n "${dfr}" ]] && printf 'deferred_epoch=%s\n' "${dfr}"
   return 0
 }
 
@@ -366,6 +370,16 @@ self_test() {
   check "deadline-epoch after an extension gives the extended deadline" \
     "$(cmd_deadline_epoch | sed -n 's/^deadline_epoch=//p')" "$((NOW + 3 * H))"
   check "and marks it extended" "$(cmd_deadline_epoch | sed -n 's/^source=//p')" "extended"
+
+  # A dpkg wait past the deadline records the deferral, so the monitor can tell
+  # it from a failed timer (#1651 review). BUSY=0 means dpkg is held.
+  reset; NOW=$((START + 6 * H + 10)); BUSY=0; cmd_check
+  check "a dpkg deferral past the deadline is recorded" \
+    "$(cmd_deadline_epoch | sed -n 's/^deferred_epoch=//p')" "${NOW}"
+  check "and no stop happened while deferring" "$(stops)" "0"
+  # It clears when the VM stops, so a stale mark cannot outlive the run.
+  reset; NOW=$((START + 6 * H + 10)); BUSY=0; cmd_check; PID=""; cmd_check
+  check "the deferral mark is cleared when the VM stops" "$(read_state deferred)" ""
 
   # A restart between reading the PID and stopping: the new run is not the
   # one whose deadline passed (review on #1652).

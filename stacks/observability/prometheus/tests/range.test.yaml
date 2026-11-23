@@ -215,6 +215,8 @@ tests:
         values: "1x17"
       - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
         values: "0x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "0x17"
     alert_rule_test:
       - eval_time: 16m
         alertname: RagnarokPastDeadline
@@ -243,7 +245,62 @@ tests:
         values: "1x17"
       - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
         values: "100000x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "0x17"
     alert_rule_test:
       - eval_time: 16m
         alertname: RagnarokPastDeadline
+        exp_alerts: []
+
+  # --- RagnarokPastDeadline: quiet while deferring to a dpkg install ---------
+  # Past the deadline, but the stop timer is waiting on dpkg (deferred=1), which
+  # is a protected install, not a failed timer (ADR-0126 review).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+      - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
+        values: "0x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: RagnarokPastDeadline
+        exp_alerts: []
+
+  # --- RangeStateStale: fires when the collector stops writing -------------
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="gandalf",job="gandalf-metrics",file="range-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: RangeStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              job: gandalf-metrics
+              file: range-state.prom
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf has not rewritten its range state recently"
+              description: >-
+                range-state.prom is 36m 0s old, so the range barrier and
+                stop-timer alerts are reading an old answer and cannot fire.
+                Check homelab-range-state.timer on the host and `journalctl -u
+                homelab-range-state`.
+      - eval_time: 20m
+        alertname: RangeStateStale
+        exp_alerts: []
+
+  # --- RangeStateStale: quiet while the file keeps moving -------------------
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="gandalf",job="gandalf-metrics",file="range-state.prom"}'
+        values: "0+60x40"
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: RangeStateStale
         exp_alerts: []

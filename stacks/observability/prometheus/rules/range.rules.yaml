@@ -117,6 +117,7 @@ groups:
         expr: >-
           (time() - homelab_ragnarok_deadline_seconds) > 600
           and on (host) homelab_ragnarok_running == 1
+          and on (host) homelab_ragnarok_stop_deferred == 0
         for: 5m
         labels:
           component: host
@@ -129,3 +130,24 @@ groups:
             stop timer set for it. The timer runs every minute, so it should
             have stopped the VM; something is wedging it (check `journalctl -t
             homelab-ragnarok-stop`), or stop ragnarok by hand.
+
+      - alert: RangeStateStale
+        # The collector stopped, which is not the range being fine: the
+        # textfile exporter keeps serving the last values, so a barrier that
+        # fell afterwards reads healthy. PveFirewallStateStale watches only the
+        # firewall file. Twenty-five minutes past a five-minute timer is five
+        # missed runs (ADR-0126 review).
+        expr: >-
+          time() - node_textfile_mtime_seconds{file=~".*range-state\\.prom"} > 25 * 60
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }} has not rewritten its range state recently"
+          description: >-
+            range-state.prom is {{ $value | humanizeDuration }} old, so the
+            range barrier and stop-timer alerts are reading an old answer and
+            cannot fire. Check homelab-range-state.timer on the host and
+            `journalctl -u homelab-range-state`.
