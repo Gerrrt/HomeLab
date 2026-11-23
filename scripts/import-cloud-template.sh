@@ -17,15 +17,21 @@
 # §2b), and the rest of the build stays on phoenix.
 #
 # THE PINS. Each image is named by its exact file and pinned by SHA-256 below.
-# The hash was taken on 2026-10-09 from a file whose publisher's signature
+# The hash was taken on 2026-11-23 from a file whose publisher's signature
 # verified, against a key found off the image:
-#   alpine  alpine-3.24.2-x86_64-cloudinit-r2.qcow2: the .asc from
+#   alpine  alpine-3.24.4-x86_64-cloudinit-r0.qcow2: the .asc from
 #           F26A DFAD BAE7 02EF 7AF6 3745 9DA7 EF23 BFFC DF22, the key
-#           alpinelinux.org/cloud names; the .sha512 beside it matched too.
-#   gentoo  di-amd64-cloudinit-20261004T164559Z.qcow2: the .asc from
+#           alpinelinux.org/cloud names (alpinelinux.org/keys/tomalok.asc;
+#           keys.openpgp.org does not carry it); the .sha512 beside it
+#           matched too.
+#   gentoo  di-amd64-cloudinit-20261122T164601Z.qcow2: the .asc from
 #           Gentoo's Automated Weekly Release Key 13EB BDBE DE7A 1277 5DFD
 #           B1BA BB57 2E0E 2D18 2910, which gentoo.org/downloads/signatures
-#           lists, refreshed by WKD (the keyserver copy showed it expired).
+#           lists, fetched by WKD (the keyserver copy showed it expired).
+#           Its size matched latest-di-amd64-cloudinit.txt too. Gentoo
+#           prunes autobuilds after some weeks: the 2026-10-04 build this
+#           replaced was no longer served by 2026-11-23, so the pin has to
+#           move before check_tool_versions.py can even ask about it.
 # A download whose hash differs is refused. A newer image is a new pin, a new
 # name, and the same check by hand first. scripts/check_tool_versions.py
 # reads the two url= lines below weekly and says when upstream has moved on.
@@ -56,8 +62,8 @@ case $distro in
   alpine)
     vmid=917
     name=stage-alpine
-    url=https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/alpine-3.24.2-x86_64-cloudinit-r2.qcow2
-    sha256=53a02ce7466524a83f8b07b6fe4ef212f6019752c0e563db9538d9b54d468a8e
+    url=https://dl-cdn.alpinelinux.org/alpine/v3.24/releases/cloud/alpine-3.24.4-x86_64-cloudinit-r0.qcow2
+    sha256=8b5b26c8880e079346bb0c6cf921caae562ea077d311efb1e6ed6ab25e1bbdcf
     # The image is under half a gigabyte; 8 GiB is ADR-0090's size for the
     # guest, and the template is grown to it here so the module's disk floor
     # for 907 is the guest's.
@@ -67,8 +73,8 @@ case $distro in
   gentoo)
     vmid=918
     name=stage-gentoo
-    url=https://distfiles.gentoo.org/releases/amd64/autobuilds/20261004T164559Z/di-amd64-cloudinit-20261004T164559Z.qcow2
-    sha256=bd4e146d45d1fbe56f00835f82a57eb1c4e978c1d0cc399314b42e769d20768d
+    url=https://distfiles.gentoo.org/releases/amd64/autobuilds/20261122T164601Z/di-amd64-cloudinit-20261122T164601Z.qcow2
+    sha256=098afba594cb1961654d735f5e6a89e2ad5f5d692431f47e3034b20dbf3a55e2
     # Already 20 GiB as published; left as it is.
     disk_gib=
     memory=4096
