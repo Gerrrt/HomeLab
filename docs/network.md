@@ -167,7 +167,8 @@ truth for what a box actually does.
   2026-11-11.**
   [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
   turned `api-ssl` on at `8729` for Home Assistant on `trinity` alone, with
-  the same leaf as the UI and `available-from=10.0.99.40/32`. The user is
+  the same leaf as the UI, `tls-version=only-1.2` since 2026-11-23, and
+  `available-from=10.0.99.40/32`. The user is
   `homeassistant`, in a group with `read,api,test` and nothing else, and it
   is also limited to `10.0.99.40`. Plain `api` is off. The integration
   does not verify the certificate, and ADR-0111 records why that is
@@ -180,9 +181,20 @@ truth for what a box actually does.
     PVID 7, and tagged to the bridge's own interface, which admits tagged
     frames only. The number is arbitrary. Any VID unused elsewhere works, but
     port 1's PVID and the management interface must agree.
-  - The switch has its own small input filter that accepts management from a
-    named address list and drops the rest. The morpheus rules above are the
-    outer gate, and this is the inner one.
+  - The switch has its own input filter, narrowed on 2026-11-23 to the same
+    sources the morpheus rules above admit. It accepts replies and ICMP,
+    admin from the address list `mgmt` (`10.7.7.0/24` and desktop-02 at
+    `10.0.50.90`), SNMP from `10.0.99.20` and `api-ssl` from `10.0.99.40`,
+    and drops the rest. `ssh`, `winbox` and `www-ssl` are available from the
+    same two `mgmt` entries, and so is the admin user `gerrrt`. The morpheus
+    rules are the outer gate, and this is the inner one. From `prometheus`,
+    SSH reaches the switch only jumped through morpheus
+    (`ssh -J admin@10.0.99.1 gerrrt@10.7.7.2`), which arrives from
+    `10.7.7.1`.
+  - IPv6 is disabled on the switch (`disable-ipv6=yes`), so it has no
+    address of either kind, link-local included.
+  - Every port with nothing plugged in is disabled, so a cable pushed into a
+    spare port joins no VLAN until someone enables it.
   - Neighbour discovery (LLDP, CDP, MNDP) and MAC-WinBox are limited to the
     switch-LAN interface; MAC-Telnet is off. MAC-WinBox is how you reach the
     switch by MAC after a reset, as

@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
+  the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
+  services, and the admin user's address, are narrowed from all of
+  `10.0.99.0/24` to the switch LAN and desktop-02, with SNMP from
+  `prometheus` and `api-ssl` from `trinity` as named rules of their own.
+  `api-ssl` takes TLS 1.2 only, IPv6 is disabled on the switch, and the
+  unused ports are disabled. Applied under a five-minute automatic revert,
+  cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
+  `trinity` were proven. device-mode, which needs a button press, is not done.
 - **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
   through `neo`'s SFP+ cages at 2.5G
   ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
