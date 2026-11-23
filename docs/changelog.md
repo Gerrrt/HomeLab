@@ -36,6 +36,18 @@ docstring gives: it is a record, not a claim about now.
   Packer build on Saruman, and the playbooks against the Windows lab from phoenix,
   are the operator's.
 
+- **Alertmanager has its own DNS fallback
+  ([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)).** With
+  AdGuard on `trinity` as `morpheus`'s only forwarder (ADR-0055), a `trinity`
+  outage left the ntfy.sh copy of every urgent page, and the healthchecks.io
+  heartbeat, unable to resolve. The only page was healthchecks.io calling
+  Alertmanager dead. That happened on 2026-11-13, and the audit of
+  `prometheus` recorded it as finding 4. Alertmanager's compose service now
+  lists `10.0.99.1`, `1.1.1.1` and `9.9.9.9`. A scratch container measured
+  that Docker's embedded resolver moves to the next server when `morpheus`
+  answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
+  `morpheus`. The house's DNS is unchanged.
+
 - **The firewall no longer passes Hicks to `mjolnir`'s card on HTTP, and its
   firmware was found behind.** The last two items of the 2026-11-13 audit
   that needed no visit to the card. *Allow HTTP to Mjolnir*, a pass on Hicks
@@ -46,6 +58,7 @@ docstring gives: it is a record, not a claim about now.
   Winterfell remain above the block. The firmware was read against APC's site:
   the card's AOS 2.0.0.6 against 3.6.1.2, and the UPS's 09.8 against 15.0;
   `hardware.md` records both. Updating them is left to the operator.
+
 - **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
   the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
   services, and the admin user's address, are narrowed from all of
@@ -55,6 +68,7 @@ docstring gives: it is a record, not a claim about now.
   unused ports are disabled. Applied under a five-minute automatic revert,
   cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
   `trinity` were proven. device-mode, which needs a button press, is not done.
+
 - **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
   through `neo`'s SFP+ cages at 2.5G
   ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
