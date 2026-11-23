@@ -1078,8 +1078,9 @@ the normal state. Nothing is watching, so the discipline is yours.
 
 Two audits found the box left on for days anyway (2026-11-13 and 2026-11-22).
 [ADR-0124](../adr/0124-power-gandalf-off-on-a-timer.md) takes the backstop
-off the person: a timer on the host powers it off six hours after boot, or
-after the last `range-extend`, with a warning on every shell 30 and 5 minutes
+off the person: a timer on the host powers it off at a deadline, six hours
+after boot by default or what the last `range-extend` set (1 to 12 hours
+ahead), with a warning on every shell 30 and 5 minutes
 before. **It is decided and not built yet**
 ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). Until it is, the
 power-off at the end below is still yours alone. Once it is built, this
