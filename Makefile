@@ -509,19 +509,16 @@ prune-images: ## Remove Docker images and anonymous volumes no container uses (w
 	@#
 	@# Then anonymous volumes no container references. Validation and scratch
 	@# runs leave them behind: the 2026-11-13 audit found 69, and 99 by
-	@# 2026-11-23. `docker volume prune` without `--all` removes only volumes
-	@# carrying `com.docker.volume.anonymous`. It never removes a named volume,
-	@# so a stack that is down keeps its data. That holds from API 1.42
-	@# (Docker 23). On an older daemon it would remove named volumes too, so
-	@# the step refuses and fails the job instead.
+	@# 2026-11-23. The filter selects only volumes carrying
+	@# `com.docker.volume.anonymous`, so a named volume is never removed and a
+	@# stack that is down keeps its data. The filter is explicit on purpose:
+	@# prune's own default of anonymous-only depends on the request's API
+	@# version, and a request below 1.42 (an old client, or
+	@# DOCKER_API_VERSION) prunes named volumes too. Proved on prometheus: an
+	@# API 1.41 request with this filter kept a dangling named volume.
 	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 	docker image prune -a -f
-	@api=$$(docker version --format '{{.Server.APIVersion}}') && \
-		if printf '1.42\n%s\n' "$$api" | sort -V -C; then \
-		docker volume prune -f; \
-		else \
-		echo "docker API $$api predates 1.42: volume prune would remove named volumes, refusing" >&2; exit 1; \
-		fi
+	docker volume prune -f --filter label=com.docker.volume.anonymous
 	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 
 .PHONY: pkg-state

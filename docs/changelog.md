@@ -24,13 +24,14 @@ docstring gives: it is a record, not a claim about now.
   and there were 99 by today, left behind by validation and scratch runs.
   They were pruned by hand today (121.5 MB reclaimed), and the three
   `prometheus_` volumes from the 2025 compose project were removed with them.
-  `make prune-images` now runs `docker volume prune` after the image prune.
-  Without `--all`, that removes only volumes labelled
-  `com.docker.volume.anonymous`, so a named volume survives even while its
-  stack is down. A probe on the host proved it both ways: a dangling
-  anonymous volume went, and a dangling named one stayed. On a Docker API
-  older than 1.42, where prune would also take named volumes, the step
-  refuses and the job fails. The agent hosts' copy is unchanged. The unit's
+  `make prune-images` now runs `docker volume prune` after the image prune,
+  filtered to volumes labelled `com.docker.volume.anonymous`, so a named
+  volume survives even while its stack is down. The filter is explicit
+  because prune's own anonymous-only default depends on the request's API
+  version, and a request below 1.42 takes named volumes too. A probe on the
+  host proved it both ways, including with `DOCKER_API_VERSION=1.41`: a
+  dangling anonymous volume went, and a dangling named one stayed. The
+  agent hosts' copy is unchanged. The unit's
   description changed, so the next `sudo make install-timers` on
   `prometheus` is what brings the installed unit back in line.
 
