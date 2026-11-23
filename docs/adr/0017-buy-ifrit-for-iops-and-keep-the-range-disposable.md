@@ -3,6 +3,15 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **"Off between sessions" is enforced by a timer.** Two audits found the
+> range host left on for days, against the discipline that *No monitoring*
+> and the second Consequence below rest on.
+> [ADR-0124](0124-power-gandalf-off-on-a-timer.md) has the host power itself
+> off at a deadline: six hours after boot, or what a session's last
+> extension set, up to twelve hours ahead. *No
+> monitoring* stands. The text below is left as written, per ADR-0001.
+>
+> [!NOTE]
 > **The host's name.** The machine this ADR calls `ifrit` is named
 > **`gandalf`** since 2026-11-07
 > ([ADR-0106](0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).

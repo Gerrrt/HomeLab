@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-22
 
+- **`gandalf` will power itself off on a timer
+  ([ADR-0124](adr/0124-power-gandalf-off-on-a-timer.md)).** Both audits of
+  `gandalf` found it left on for days, `ragnarok` included, against the
+  "off between sessions" that ADR-0017's "no monitoring" rests on. The ADR
+  chooses a timer on the host over a collector and an "on too long" alert.
+  The host powers off at a deadline: six hours after boot by default, or
+  what the last `range-extend` set, 1 to 12 hours ahead. It warns 30 and 5
+  minutes before.
+  It never powers off while `dpkg` holds its lock. ADR-0017 gains a note,
+  and `build-the-playground.md` §7 says the timer is decided and not built.
+  [#1647](https://github.com/Gerrrt/HomeLab/issues/1647) builds it.
+
 - **A second read-only audit of `gandalf` finds containment holding, and
   writes four fixes into the runbook.** It was run from Hicks after a power-on
   and a full upgrade. Holding:
