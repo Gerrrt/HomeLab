@@ -68,9 +68,11 @@ docstring gives: it is a record, not a claim about now.
     no route, the host unreachable with the `dropped` counter rising, and
     `ragnarok` still reaching the target. The clone had no DHCP stanza, which
     proves #1341 on the template rebuilt that day.
-  - The audit's last finding, leftovers with no runbook step (the
-    `PhoenixIsoCleanup` role, the Kali ISO and an empty `local-lvm`), is
-    still open. `/root/.claude/remote` went with the dotfiles.
+  - The audit's last finding, leftovers with no runbook step, is still open
+    for two of them: the `PhoenixIsoCleanup` role, revoked from the token but
+    never deleted, and an empty `local-lvm`. The Kali installer ISO the audit
+    also listed is not a leftover. `packer/kali.pkr.hcl` builds template 902
+    from it (`kali_iso_file`). `/root/.claude/remote` went with the dotfiles.
 - **`gandalf`'s power-off timer is built, not installed
   ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** This builds
   ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline
