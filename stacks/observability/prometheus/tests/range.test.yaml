@@ -1,0 +1,306 @@
+---
+# Tests for range.rules.yaml (#1651, ADR-0126). Each alert gets a firing case
+# and a quiet near-miss, as scripts/check_rule_tests.py (#843) requires.
+# promtool's time() counts from 0 at the first sample, so the deadline fixtures
+# below use small epochs, not real ones.
+
+rule_files:
+  - ../rules/range.rules.yaml
+
+evaluation_interval: 1m
+
+tests:
+  # --- PveFirewallZeroRules: fires on enabled + DROP + zero host rules -------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_rules{instance="gandalf",host="gandalf",file="host"}'
+        values: "0x12"
+      - series: 'homelab_pve_firewall_enabled{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+      - series: 'homelab_pve_firewall_policy_drop{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: PveFirewallZeroRules
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              file: host
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf firewall is enabled with a DROP policy and zero host rules"
+              description: >-
+                pve-firewall is on and refuses unmatched inbound, but host.fw holds
+                no rules, so nothing reaches the node — including the management
+                paths build-the-playground.md §4 grants. Restore host.fw's rules
+                rather than dropping the policy to ACCEPT, which would open the
+                whole segment.
+      - eval_time: 5m
+        alertname: PveFirewallZeroRules
+        exp_alerts: []
+
+  # --- PveFirewallZeroRules: quiet when host.fw has rules --------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_pve_firewall_rules{instance="gandalf",host="gandalf",file="host"}'
+        values: "4x12"
+      - series: 'homelab_pve_firewall_enabled{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+      - series: 'homelab_pve_firewall_policy_drop{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: PveFirewallZeroRules
+        exp_alerts: []
+
+  # --- RangeIngressBarrierDown: fires when the table is gone -----------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_ingress_table_loaded{instance="gandalf",host="gandalf"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeIngressBarrierDown
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf: the vmbr1 ingress barrier is not loaded"
+              description: >-
+                The netdev ingress table vmbr1_host_in, which drops frames the range
+                bridge passes up to the host, is gone. A rooted target could reach
+                the host behind only the Proxmox firewall. Reload it, per
+                build-the-playground.md §2, and check §8 check four.
+      - eval_time: 5m
+        alertname: RangeIngressBarrierDown
+        exp_alerts: []
+
+  # --- RangeIngressBarrierDown: quiet when the table is loaded ---------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_ingress_table_loaded{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeIngressBarrierDown
+        exp_alerts: []
+
+  # --- RangeHostForwardingOn: fires when vmbr0 forwards ----------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_forwarding{instance="gandalf",host="gandalf",dev="vmbr0",family="ipv4"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeHostForwardingOn
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              dev: vmbr0
+              family: ipv4
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf: IP forwarding is on for vmbr0 (ipv4)"
+              description: >-
+                The range host should route for no one (build-the-playground.md §2).
+                Set ip-forward off on the bridge and reload; the proof is a reboot
+                plus §2's read-back.
+      - eval_time: 5m
+        alertname: RangeHostForwardingOn
+        exp_alerts: []
+
+  # --- RangeHostForwardingOn: quiet when forwarding is off -------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_forwarding{instance="gandalf",host="gandalf",dev="vmbr0",family="ipv4"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeHostForwardingOn
+        exp_alerts: []
+
+  # --- RangeSshForwardingOn: fires when sshd permits forwarding --------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_sshd_forwarding{instance="gandalf",host="gandalf",kind="x11"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeSshForwardingOn
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              kind: x11
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf: sshd permits x11 forwarding"
+              description: >-
+                sshd on the range host allows x11 forwarding, which
+                build-the-playground.md §4 turns off so a root session cannot tunnel
+                off the segment. An upgrade that rewrote sshd_config.d is the usual
+                cause; rerun §4.
+      - eval_time: 5m
+        alertname: RangeSshForwardingOn
+        exp_alerts: []
+
+  # --- RangeSshForwardingOn: quiet when forwarding is off --------------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_range_sshd_forwarding{instance="gandalf",host="gandalf",kind="x11"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RangeSshForwardingOn
+        exp_alerts: []
+
+  # --- RagnarokStopTimerInactive: fires when running with no active timer ----
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+      - series: 'homelab_ragnarok_stop_timer_active{instance="gandalf",host="gandalf"}'
+        values: "0x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RagnarokStopTimerInactive
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf: ragnarok is running but its stop timer is not active"
+              description: >-
+                The attack VM shares VLAN 30 with the estate, and its bound is the
+                homelab-ragnarok-stop timer (ADR-0125). The timer is not active, so
+                nothing stops the VM. Re-enable it (`systemctl enable --now
+                homelab-ragnarok-stop.timer`) or stop ragnarok by hand.
+      - eval_time: 5m
+        alertname: RagnarokStopTimerInactive
+        exp_alerts: []
+
+  # --- RagnarokStopTimerInactive: quiet when the timer is active -------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+      - series: 'homelab_ragnarok_stop_timer_active{instance="gandalf",host="gandalf"}'
+        values: "1x12"
+    alert_rule_test:
+      - eval_time: 11m
+        alertname: RagnarokStopTimerInactive
+        exp_alerts: []
+
+  # --- RagnarokPastDeadline: fires when running past the deadline + margin ---
+  # deadline_seconds=0, so time() - 0 crosses 600s after 10m; held to 16m so
+  # for: 5m elapses.
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+      - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
+        values: "0x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "0x17"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: RagnarokPastDeadline
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              host: gandalf
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf: ragnarok is 16m 0s past its stop deadline"
+              description: >-
+                The attack VM is running more than ten minutes past the deadline the
+                stop timer set for it. The timer runs every minute, so it should
+                have stopped the VM; something is wedging it (check `journalctl -t
+                homelab-ragnarok-stop`), or stop ragnarok by hand.
+      - eval_time: 9m
+        alertname: RagnarokPastDeadline
+        exp_alerts: []
+
+  # --- RagnarokPastDeadline: quiet while within the deadline ----------------
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+      - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
+        values: "100000x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "0x17"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: RagnarokPastDeadline
+        exp_alerts: []
+
+  # --- RagnarokPastDeadline: quiet while deferring to a dpkg install ---------
+  # Past the deadline, but the stop timer is waiting on dpkg (deferred=1), which
+  # is a protected install, not a failed timer (ADR-0126 review).
+  - interval: 1m
+    input_series:
+      - series: 'homelab_ragnarok_running{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+      - series: 'homelab_ragnarok_deadline_seconds{instance="gandalf",host="gandalf"}'
+        values: "0x17"
+      - series: 'homelab_ragnarok_stop_deferred{instance="gandalf",host="gandalf"}'
+        values: "1x17"
+    alert_rule_test:
+      - eval_time: 16m
+        alertname: RagnarokPastDeadline
+        exp_alerts: []
+
+  # --- RangeStateStale: fires when the collector stops writing -------------
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="gandalf",job="gandalf-metrics",file="range-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: RangeStateStale
+        exp_alerts:
+          - exp_labels:
+              instance: gandalf
+              job: gandalf-metrics
+              file: range-state.prom
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "gandalf has not rewritten its range state recently"
+              description: >-
+                range-state.prom is 36m 0s old, so the range barrier and
+                stop-timer alerts are reading an old answer and cannot fire.
+                Check homelab-range-state.timer on the host and `journalctl -u
+                homelab-range-state`.
+      - eval_time: 20m
+        alertname: RangeStateStale
+        exp_alerts: []
+
+  # --- RangeStateStale: quiet while the file keeps moving -------------------
+  - interval: 1m
+    input_series:
+      - series: 'node_textfile_mtime_seconds{instance="gandalf",job="gandalf-metrics",file="range-state.prom"}'
+        values: "0+60x40"
+    alert_rule_test:
+      - eval_time: 36m
+        alertname: RangeStateStale
+        exp_alerts: []
