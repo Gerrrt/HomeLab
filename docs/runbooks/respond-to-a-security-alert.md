@@ -78,6 +78,29 @@ An SSH login was **accepted** from outside VLAN 50 and VLAN 99.
   [TerminalSegmentReachedInternalNetwork](#terminalsegmentreachedinternalnetwork)
   explains how to read it from the firewall.
 
+## SwitchLoginFromUnexpectedSource
+
+Someone logged in to `neo`, the core switch, from a source other than the
+three it expects: the switch LAN, desktop-02 (`10.0.50.90`), or Home
+Assistant's read-only `homeassistant` user from `trinity` over the API.
+The alert's labels name the user, the source address and the service.
+
+```logql
+{host="neo"} |= " logged in from "
+```
+
+- **Was it you?** SSH jumped through morpheus arrives as `10.7.7.1` and does
+  not fire. A login straight from `prometheus` or another Winterfell host does,
+  because no pass for it is supposed to exist.
+- **If it was not you, end the session first.** From the switch LAN or WinBox
+  by MAC, `/user active print` shows it, and `/user active request-logout`
+  with its number ends it. Then change that user's password or key, and read
+  `/log print where topics~"system"` around the login for any change made.
+- **Then find the path.** A source outside the switch LAN reached the switch
+  through a pass on morpheus, or through the switch's own management list
+  being wider than the firewall. `network.md`'s LAN notes name every pass
+  that should exist. Anything else on the switch LAN interface is the fault.
+
 ## TerminalSegmentReachedInternalNetwork
 
 pfSense **passed** a packet from VLAN 10, 20 or 40 toward VLAN 30, 50 or 99,
