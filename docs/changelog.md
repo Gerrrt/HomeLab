@@ -31,6 +31,17 @@ docstring gives: it is a record, not a claim about now.
   answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
   `morpheus`. The house's DNS is unchanged.
 
+- **The firewall no longer passes Hicks to `mjolnir`'s card on HTTP, and its
+  firmware was found behind.** The last two items of the 2026-11-13 audit
+  that needed no visit to the card. *Allow HTTP to Mjolnir*, a pass on Hicks
+  to `10.0.99.10:80`, was deleted from `morpheus`: the card keeps 80 closed,
+  and the rule had matched no packet since the firewall's last boot.
+  *Allow HTTPS to Mjolnir* stays, and the segment-wide SSH pass still reaches
+  the card's `22`, which the operator has yet to decide on. Eleven passes to
+  Winterfell remain above the block. The firmware was read against APC's site:
+  the card's AOS 2.0.0.6 against 3.6.1.2, and the UPS's 09.8 against 15.0;
+  `hardware.md` records both. Updating them is left to the operator.
+
 - **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
   the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
   services, and the admin user's address, are narrowed from all of
