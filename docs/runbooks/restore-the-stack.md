@@ -170,6 +170,8 @@ make up
 
 Same, without `--only`. On a rebuilt host, do it in this order:
 
+0. Make `sshd` key-only first, before the host holds the age key
+   ([Make `sshd` key-only](#make-sshd-key-only)).
 1. If `prometheus` is what died, or is unreachable, take the set from `oracle`
    first. The age key is not there; bring it from its offline copy
    ([`back-up-the-age-key.md`](back-up-the-age-key.md)):
@@ -308,6 +310,64 @@ curl -sG http://localhost:9090/api/v1/query \
 - If the cause was `make nuke`, the confirmation worked and someone typed it.
   Record it in [`roadmap.md`](../roadmap.md) if the design should have made that
   harder.
+
+---
+
+## Make `sshd` key-only
+
+[ADR-0128](../adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md):
+`prometheus` holds the CA key and the age key that opens every backup set, and
+`22` answers all of Hicks and VLAN 99. It has no host firewall by decision, so
+this drop-in is the control on `22`. The installer's OpenSSH takes passwords,
+and cloud-init's `50-cloud-init.conf` keeps it that way.
+
+Keep `~/.ssh/authorized_keys` to the machines you administer the host from:
+Hicks's workstations, and `trinity` if you log in from there. Install any that
+is missing now, from that machine, while a password still works:
+
+```bash
+ssh-copy-id <you>@10.0.99.20
+```
+
+Then prove a fresh key login from each one. Each must succeed with no password
+prompt; fix that machine's key first if it does not, because the next step
+takes away the password it would otherwise fall back on:
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.20 true
+```
+
+Log in with a key and keep that session open while you do the rest, so a
+mistake cannot lock you out. If one does, the laptop's own keyboard in the
+rack still takes a password.
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-prometheus.conf > /dev/null <<'EOF'
+# Keys only (ADR-0128, restore-the-stack.md). Sorts ahead of
+# 50-cloud-init.conf, and sshd keeps the first value it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four read `no`. Then, from Hicks, in a new terminal, prove both halves.
+`ControlPath=none` makes each probe open a fresh connection instead of riding
+on the session you kept open:
+
+```bash
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password <you>@10.0.99.20 true
+```
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.20 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed.
 
 ---
 
