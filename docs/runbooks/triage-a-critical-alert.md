@@ -110,7 +110,8 @@ A filesystem has less than 10% free.
 
 - **Find what is growing:** `du -xh --max-depth=1 <mountpoint> | sort -h`
   on the host. On a Docker host, `docker system df` first: superseded images
-  are the usual cause.
+  are the usual cause, and on the monitoring host, anonymous volumes left by
+  validation runs are the next.
 - **The monitoring host:** Prometheus's retention is capped by size
   (`PROMETHEUS_RETENTION_SIZE`), so it should not be Prometheus. Loki's
   chunks and the backup staging directory are the usual suspects.

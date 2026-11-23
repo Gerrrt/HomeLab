@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The monitoring host's weekly prune also removes anonymous volumes that
+  no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
+  and there were 99 by today, left behind by validation and scratch runs.
+  They were pruned by hand today (121.5 MB reclaimed), and the three
+  `prometheus_` volumes from the 2025 compose project were removed with them.
+  `make prune-images` now runs `docker volume prune` after the image prune,
+  filtered to volumes labelled `com.docker.volume.anonymous`, so a named
+  volume survives even while its stack is down. The filter is explicit
+  because prune's own anonymous-only default depends on the request's API
+  version, and a request below 1.42 takes named volumes too. A probe on the
+  host proved it both ways, including with `DOCKER_API_VERSION=1.41`: a
+  dangling anonymous volume went, and a dangling named one stayed. The
+  agent hosts' copy is unchanged. The unit's
+  description changed, so the next `sudo make install-timers` on
+  `prometheus` is what brings the installed unit back in line.
+
 - **The firewall's own addresses are closed to every segment, and its `sshd`
   takes keys only
   ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
@@ -50,6 +66,7 @@ docstring gives: it is a record, not a claim about now.
   `RackAmbientTemperatureHigh` (warning, over 30 °C for fifteen minutes) and
   `RackAmbientTemperatureCritical` (critical, over 35 °C for ten) are added.
   35 °C is the top of ASHRAE class A2, the DL360's rated inlet limit.
+
 - **`neo`'s log leaves the switch
   ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md), accepted).**
   The core switch kept its log in RAM, 1,000 lines deep. It now sends
@@ -73,6 +90,7 @@ docstring gives: it is a record, not a claim about now.
     about one every seven seconds by the afternoon: 987 of the 1,000 lines in
     the buffer. Nothing saw it, because nothing read the switch's log. Not
     fixed here.
+
 - **The agent's log pipeline is its own file, so the range host can ship
   metrics and no logs ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
   [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** `config.alloy`
@@ -88,6 +106,7 @@ docstring gives: it is a record, not a claim about now.
   checked with `alloy validate` on the whole directory and on `config.alloy`
   alone (the metrics-only case), both clean, so every cross-file reference
   resolves and the metrics-only config has no dangling one.
+
 - **`prometheus` will take SSH keys only, and stays without a host firewall
   ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
   The root-only reads that finished the 2026-11-13 audit were taken today.
