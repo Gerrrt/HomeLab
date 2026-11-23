@@ -1076,6 +1076,15 @@ Then boot it, run §8's check four on it, power it off and take the snapshot
 ADR-0017 says why: every rule shape available says "this host is down", which is
 the normal state. Nothing is watching, so the discipline is yours.
 
+Two audits found the box left on for days anyway (2026-11-13 and 2026-11-22).
+[ADR-0124](../adr/0124-power-gandalf-off-on-a-timer.md) takes the backstop
+off the person: a timer on the host powers it off six hours after boot, or
+after the last `range-extend`, with a warning on every shell 30 and 5 minutes
+before. **It is decided and not built yet**
+([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). Until it is, the
+power-off at the end below is still yours alone. Once it is built, this
+section installs it and the read-back checks it is enabled.
+
 ```text
 on  → read the firewall back → revert every target to `clean` → work → revert → off
 ```
