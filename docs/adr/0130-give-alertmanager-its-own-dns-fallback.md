@@ -101,9 +101,14 @@ filtering is not weakened anywhere a person browses.
 - **Alertmanager's lookups bypass AdGuard while `morpheus` cannot answer.**
   They are three hostnames, all of them notification services, so nothing is
   lost by not filtering them. The query leaves the house only in that window.
-- **An internal name could reach a public resolver** only if `morpheus` itself
-  failed to answer it. With `morpheus` down there is no route out either, so
-  in practice it cannot.
+- **An internal name reaches a public resolver if Unbound fails while
+  `morpheus` keeps routing.** The `matrix.elysium` overrides are Unbound's,
+  so a stopped or wedged Unbound fails them along with every outside name.
+  Docker then asks `1.1.1.1` and `9.9.9.9` for `ntfy.matrix.elysium`. They
+  answer `NXDOMAIN`, and the in-house copy fails as it would have anyway, but
+  the name has left the house. That is accepted: the name is already
+  published in this repository, and the query carries nothing else. A whole
+  `morpheus` outage leaks nothing, because then there is no route out either.
 - **The fallback depends on Docker's resolver behaviour,** measured on 29.9.1.
   After the change is deployed, `nslookup doubleclick.net` inside the
   `alertmanager` container proves it in place: it answers only if the
