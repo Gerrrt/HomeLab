@@ -1083,7 +1083,7 @@ after boot by default or what the last `range-extend` set (1 to 12 hours
 ahead), with a warning on every shell 30 and 5 minutes before
 ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). The power-off at
 the end below is still the plan. The timer is what happens when the plan is
-forgotten. **Not yet installed on `gandalf`.**
+forgotten. Installed on `gandalf` on 2026-11-22, below.
 
 ```text
 on  → read the firewall back → revert every target to `clean` → work → revert → off
@@ -1173,7 +1173,13 @@ Check `status` from a shell when you start one.
    `journalctl -t homelab-range-poweroff -b -1` at the next power-on should
    end with `powering gandalf off`.
 
-Record the result here. **Not yet run on `gandalf`.**
+> **Installed on `gandalf` 2026-11-22 at 17:44**, from #1649's branch
+> before it merged, by the commands above. The output was `self-test-ok`,
+> nothing from `systemd-analyze`, and a deadline of 23:44. A run of the
+> service by hand ended `Result=success`. The timer read `enabled` and
+> `active`, with its next run five minutes out.
+
+Record the proof's result here. **Not yet run on `gandalf`.**
 
 ---
 

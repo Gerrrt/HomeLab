@@ -37,8 +37,10 @@ docstring gives: it is a record, not a claim about now.
   - `systemd-analyze verify` on `gandalf` reported only that the script was
     not installed yet.
 
-  Nothing is installed on `gandalf`, and the one-power-off proof in §7 has
-  not been run.
+  It was installed on `gandalf` the same evening at 17:44, from this
+  branch, by §7's commands: `self-test-ok`, a deadline of 23:44, and a run
+  by hand ending `Result=success`. The timer read `enabled` and `active`.
+  The one-power-off proof in §7 has not been run.
 
 - **`gandalf` will power itself off on a timer
   ([ADR-0124](adr/0124-power-gandalf-off-on-a-timer.md)).** Both audits of

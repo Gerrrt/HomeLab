@@ -43,8 +43,8 @@ Closes when it is empty.
 - **[#1647](https://github.com/Gerrrt/HomeLab/issues/1647) Power `gandalf`
   off on a timer.** Decided by
   [ADR-0124](adr/0124-power-gandalf-off-on-a-timer.md). No gate. The script
-  and its units are in the repository. Left: install them on `gandalf` and
-  prove one power-off, both in `build-the-playground.md` §7. Until then the
+  and its units are in the repository and installed on `gandalf`. Left: prove
+  one power-off, `build-the-playground.md` §7. Until then the
   range's "off between sessions" rests on the operator, and two audits found
   it left on.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
