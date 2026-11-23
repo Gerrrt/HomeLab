@@ -599,7 +599,7 @@ Where things get broken on purpose.
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.20` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
-| gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, off between sessions. Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
+| gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, always on; its attack VM stops on a timer ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)). Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | golem | `10.0.30.80` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Proxmox Backup Server 4 | Rack U3 | Backups (PBS) |

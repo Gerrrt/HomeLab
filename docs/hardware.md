@@ -141,7 +141,7 @@ power-on, which is empty: select 8 first.
 | 7 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
 | 6 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
 | 5 | `smaug`, U5–U9 | Racked, it lost the monitor it had in the media room; cabled from the TS150's rear VGA |
-| 4 | `gandalf`, U18 | Off between range sessions |
+| 4 | `gandalf`, U18 | The range host; always on, with only its attack VM stopped between sessions (ADR-0125) |
 | 1–3 | spare | |
 
 **The PDU follows the rack from the bottom up, bricks at the far end.** It

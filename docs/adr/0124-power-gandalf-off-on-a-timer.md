@@ -1,7 +1,14 @@
 # ADR-0124: Power `gandalf` off on a timer
 
-**Status:** Accepted · 2026-11 · amends
-[ADR-0017](0017-buy-ifrit-for-iops-and-keep-the-range-disposable.md)
+**Status:** Superseded · 2026-11 · by
+[ADR-0125](0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md) · accepted 2026-11
+
+> [!NOTE]
+> Wholly superseded: [ADR-0125](0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)
+> keeps `gandalf` on and puts the timer on the attack VM, `ragnarok`, instead
+> of the host. The host power-off timer described here was installed on
+> 2026-11-22, never proved, and removed the same day. The text here is left
+> as written, per ADR-0001 and ADR-0115.
 
 ## Context
 
