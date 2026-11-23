@@ -17,6 +17,35 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-23
+
+- **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
+  disarmed for at least two of them.** This records what the 2026-11-13
+  read-only audit of `mjolnir` found and no entry had written down.
+  - **The card.** It answered no SNMP from about 01:40 UTC on 2026-10-30 to
+    about 22:30 on 2026-11-06 (`up{device="mjolnir"}` 0 throughout, measured
+    at five-minute steps). `InstanceDown`, `SnmpTargetUnreachable` and
+    `EndpointUnreachable` fired the whole time, and nothing acted on them.
+  - **NUT.** `morpheus`'s own log keeps about a week. It began on 2026-11-05
+    with `upsmon` logging *Poll UPS [mjolnir] failed - Driver not connected*,
+    and went on doing so until 20:59 on 2026-11-07, 23,048 times. Its NUT
+    configuration files were rewritten at 12:56 on 2026-11-08. For as long as
+    the driver was down, a mains cut would have halted nothing in order, and
+    every host would have dropped when the pack ran out.
+  - **The cause is not established.** The card came back during the move into
+    the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)), but
+    it went silent a week before that started, and the card's event log, which
+    would say, has not been read.
+  - **What no rule could see.** The card-silence alerts are generic, and
+    nothing watches NUT itself: a driver that stays down while the card
+    answers SNMP would raise nothing at all. On 2026-11-22 `morpheus` still
+    logged 190 to 320 *data stale* or *communications lost* lines a day, each
+    spell lasting one to ten seconds.
+- **The low battery duration is under *Configuration → Shutdown*.**
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §0.2 had sent
+  the operator to *Configuration → UPS → General*, which does not have it.
+  §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
+
 ## 2026-11-22
 
 - **`gandalf`'s two audit leftovers are cleared

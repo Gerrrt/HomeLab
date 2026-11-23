@@ -179,17 +179,19 @@ Stop and fix that first — every later step depends on reaching this card.
 ### 0.2 Change it at the card
 
 1. Open `https://10.0.99.10` in a browser and log in.
-2. Go to **Configuration → UPS → General** (on AOS 2.x; on an older firmware
-   it is **UPS → Configuration**).
-3. Find the field for **low battery duration**. It is the setting whose value
-   is currently **2** and whose units are minutes.
-4. Change it to **8**.
-5. Apply or Save.
+2. Go to **Configuration → Shutdown**. The field is under *Start of
+   Shutdown* and is labelled **Low Battery Duration**, in minutes.
+3. Change it to **8**.
+4. Apply or Save.
 
-**The label wording varies by firmware.** It is the only setting on that page
-measured in minutes and currently reading 2. If two fields could match, come
-back and confirm with 0.3 rather than guessing — 0.3 reads the exact object
-you need to have changed.
+**Not *Basic Low Battery Duration*.** The same page has that field under
+*Basic Signaling Shutdown*. It is for a simple-signaling cable, and nothing
+here uses one; `snmp-ups` and 0.3 read the other field. This step used to
+send you to *Configuration → UPS → General*, where the field is not; the
+operator caught that on 2026-11-14. APC's NMC3 user guide for the AP9640,
+AP9641 and AP9643 puts it under *Configuration → Shutdown*. On the card's command line the same field is `cfgshutdn -lo <minutes>`, and
+`cfgshutdn -all` reads it back. 0.3 is still the check either way, because it
+reads the exact object you need to have changed.
 
 ### 0.3 Confirm it took
 
