@@ -19,6 +19,22 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-23
 
+- **The last of `morpheus`'s audit leftovers are tidied.** After a fresh
+  `make backup-firewall`, in one config write:
+  - Winterfell's catch-all now has a description, *Allow internet*, as most
+    segments' catch-alls do.
+  - The `LAN_DHCP` gateway is gone. The LAN's address is static, and nothing
+    referred to that gateway or monitored it.
+  - `Saruman`'s reservation no longer says it is "inside the DHCP pool":
+    `10.0.30.20` is below ImaginationLAN's pool, `.100` to `.200`.
+  - A DynDNS cache file from 2026-09-21 that matched no configured entry was
+    deleted; the live one is untouched.
+
+  `make check-firewall` still passed 35/35, and both gateway monitors kept
+  running. Still open from the audit: the two Hicks devices nobody has
+  identified (`.105` is back), the cause of NUT's brief stale spells, and the
+  NVMe's temperature (64 °C).
+
 - **The firewall no longer passes Hicks to `mjolnir`'s card on HTTP, and its
   firmware was found behind.** The last two items of the 2026-11-13 audit
   that needed no visit to the card. *Allow HTTP to Mjolnir*, a pass on Hicks
