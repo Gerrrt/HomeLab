@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **NUT on `morpheus` had no stall spell in the 18 h 20 min after the
+  driver's retry change.** This updates the entry "The audit of `morpheus` of
+  2026-11-13 is closed", which recorded 16 h 42 min. Read in Loki at 20:56
+  UTC, counting from the change at 02:36 UTC. The one spell in that window,
+  19:37:21 to 19:38:56, lasted 95 seconds and was the card restarting into
+  firmware 3.6.1.2 (entry "`mjolnir`'s card runs 3.6.1.2"); the stalls the
+  change answers lasted 2 to 8 seconds. Afterwards `upsc` read `OL` at 100 %
+  charge and no NUT alert was firing. The stalls came from the card, and the
+  new firmware had run about 1 h 15 min, so these hours do not say whether
+  3.6.1.2 still stalls. The 14-second retry budget rides out every stall
+  measured either way.
+
 - **The audit of `morpheus` of 2026-11-13 is closed.** This completes the
   entry "`morpheus` audited, read-only, on 2026-11-13, and re-read on
   2026-11-23". A re-check on 2026-11-24 found every finding fixed on the box,
@@ -358,6 +370,17 @@ docstring gives: it is a record, not a claim about now.
   README's count goes from 10 to 9; delivery is tracked on
   [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), and they join
   `hardware.md` when they are in hand.
+
+- **`mjolnir`'s card runs boot monitor 2.1.0.3**, read by the owner on its
+  *About → Network* page. That's the version the 3.6.1.2 package carried, so
+  the entry above that left it unread is settled.
+- **`gen-certs.sh --csr` signs a request made on another device.** The key
+  stays on the device and no key is written here. The CA sets the subject
+  and SANs whatever the request asked for, and refuses a request whose own
+  signature doesn't verify. It's for the APC card, which can make a key and
+  a request on its command line. `generate-certificates.md` has the card's
+  steps, which end by switching its probe to `http_2xx_lab_ca`. The card
+  still serves its factory certificate until those steps are run.
 
 - **A CPU near its critical temperature now alerts.** `HostCpuHot`, a
   warning in `host.rules.yaml`, fires when a host's hottest coretemp core has
