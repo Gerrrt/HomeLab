@@ -339,7 +339,10 @@ docstring gives: it is a record, not a claim about now.
   offered runs at 10G only, which has no rate in common with the CODA56's
   2.5G port or `igc0`, and it is not the module
   [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
-  chose. The roadmap row stays until they arrive.
+  chose. Bought, so their row leaves *Everything still to buy* and the
+  README's count goes from 10 to 9; delivery is tracked on
+  [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), and they join
+  `hardware.md` when they are in hand.
 
 ## 2026-11-23
 
