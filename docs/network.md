@@ -442,10 +442,11 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   2026-11-24.** `.101` is `mobile-02`, which held `.109` when its row was
   written. `.100` is `laptop-02` on Wi-Fi, under a private address, so it
   takes a pool lease while its reservation at `.80` is on the wired MAC.
-  `.105` is `desktop-01` on its board's second Ethernet port, whose MAC is one
-  above the reserved one. Its reservation at `.20` and that address's static
-  ARP entry ([LAN](#lan)'s notes) belong to the other port, so the firewall
-  sees `desktop-01` as a pool device. `mobile-01` held `.105` when its row was
+  `.105` was `desktop-01` on its board's second Ethernet port, whose MAC is one
+  above the one its reservation at `.20` named, so it took a pool lease. The
+  operator re-pointed the reservation to that port's MAC the same day, and
+  `morpheus`'s static ARP entry for `.20` ([LAN](#lan)'s notes) followed; the
+  desktop moves to `.20` when its lease renews. `mobile-01` held `.105` when its row was
   written; it was not on the network on 2026-11-24.
 - **What this segment reaches on Winterfell is a list of destinations, not the
   segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
