@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The audit of `morpheus` of 2026-11-13 is closed.** This completes the
+  entry "`morpheus` audited, read-only, on 2026-11-13, and re-read on
+  2026-11-23". A re-check on 2026-11-24 found every finding fixed on the box,
+  recorded, or decided:
+  - **Firewall and SSH.** `make check-firewall` passes 35 of 35. The admin UI
+    and `sshd` time out from Winterfell on the WAN address, and `sshd` takes
+    keys only ([#1503](https://github.com/Gerrrt/HomeLab/pull/1503)).
+  - **Passes.** `network.md` gives the Hicks SSH pass into `smaug` its reason
+    and names `gandalf`'s pass into Winterfell. `smaug` takes keys only for
+    both its SSH users ([#1707](https://github.com/Gerrrt/HomeLab/pull/1707)).
+  - **Hicks leases.** All three unnamed pool leases are identified, and
+    `desktop-01` holds its `.20` reservation again
+    ([#1716](https://github.com/Gerrrt/HomeLab/pull/1716)).
+  - **NUT.** No *data stale* spell in Loki for 16 h 42 min after the driver's
+    retry change at 02:36 UTC
+    ([#1702](https://github.com/Gerrrt/HomeLab/pull/1702)), against 5 to 47 a
+    day before it. The operator closed the audit before the full day the
+    change's entry set as its bar. No alert stands in for it:
+    `NutUpsDataStaleFrequent` warns only above 24 spells in a sliding hour,
+    and the worst hour before the change had 12, so a return to the old rate
+    would be silent. Counting `Data stale` lines in Loki is the check.
+  - **The NVMe at U15** runs at 64 °C, below its warning threshold, and the
+    operator found the tray's airflow fine.
+  - **Restore.** The restore onto the spare stands on its rehearsal of
+    2026-09-27 (`restore-the-firewall.md`).
+
+  What remains is upkeep, not findings: pfSense's 37 pending base packages
+  wait for the next release, and `SystemUpdateAvailable` says when.
+
 - **Five warnings on `gandalf` were the estate's general host rules firing on the
   range host's resting state — the exclusions the estate already has were missing
   from the `#1651` monitoring onboarding.** `HypervisorGuestStopped` paged on the
@@ -297,6 +326,12 @@ docstring gives: it is a record, not a claim about now.
   [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) now
   installs it and checks the signature, and `hardware.md` follows. Nothing
   has been installed yet. Refs #1698.
+
+- **The console cable for `neo` is on hand.** The operator already had the
+  USB-to-RJ45 serial cable the roadmap listed as still to buy since
+  2026-10-16, so its row leaves *Everything still to buy* and it is listed
+  under `hardware.md`'s accessories. The README's count of outstanding
+  purchases goes from 11 to 10.
 
 - **`mjolnir`'s card runs 3.6.1.2.** Installed by Part A of
   [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) at

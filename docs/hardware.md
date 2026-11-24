@@ -433,6 +433,9 @@ the runbook rather than backed up.
   SNMP and NUT show it with a filler day, as `08/15/2026`. Prometheus reads it,
   and `UpsBatteryPackAging` warns when the pack reaches three years, in August
   2029. APC rates the pack at three to five years
+- USB-to-RJ45 serial console cable for the CRS326's console port, on hand by
+  2026-11-24: the way into `neo` when its UI and SSH are unreachable, which
+  is the rollback case in [`swap-the-switch.md`](runbooks/swap-the-switch.md)
 - APC AP9335T temperature probe on the UPS card's universal I/O port, for rack
   ambient at the bottom of the rack. Bought and plugged in by 2026-11-23, read
   over the card's SNMP from then
