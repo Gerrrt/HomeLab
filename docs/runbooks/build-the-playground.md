@@ -1515,9 +1515,14 @@ fire on `gandalf`'s resting state.** `HypervisorGuestStopped` in
 pages on any guest stopped for an hour unless it is tagged `disposable` or
 `on-demand`, a template, or mid-clone (ADR-0071, ADR-0079). The range's targets
 sit stopped and reverted between sessions, and `ragnarok` is stopped until a
-session needs it, so tag them — once, as root on `gandalf`:
-`qm set <vmid> --tags disposable` for each target (100, 101, 102) and
-`qm set 130 --tags 'attack;range;on-demand'` for `ragnarok`. And
+session needs it, so both are `on-demand` — not `disposable`, which the targets
+would outlive: `DisposableGuestOutlived` fires on a `disposable` guest once it
+passes fourteen days from creation, stopped or not, and the targets are kept and
+reverted, not destroyed. The targets are not in `tofu/`, so tag them by hand,
+once as root on `gandalf`: `qm set <vmid> --tags on-demand` for each (100, 101,
+102). `ragnarok` is `tofu`-managed, so its `on-demand` is declared in
+[`tofu/guests.tf`](../../tofu/guests.tf) beside `attack` and `range`, not set by
+hand — a `qm set` there is undone on the next apply. And
 `SmartDriveBadSectors` pages above a recorded baseline, so a drive with a known
 count needs a row in
 [`render-smart-baselines.sh`](../../scripts/render-smart-baselines.sh): the
