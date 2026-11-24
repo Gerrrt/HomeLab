@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **Correction to the entry below on `gandalf`'s §4 tooling removal: the deleted
+  root SSH key was Proxmox's own node key, not a dedicated github credential, and
+  removing it broke root self-SSH.** The key at `/root/.ssh/id_rsa` carried the
+  comment `root@gandalf` and its public half was the node's own line in
+  `/etc/pve/priv/authorized_keys`; the `github.com` in root's `known_hosts` was a
+  trace of root having reached github over SSH, which is what the 2026-11-13 audit
+  flagged. Deleting it left `ssh root@localhost` refused with `Permission denied
+  (publickey)` — no day-to-day effect on this single, un-clustered node, but not
+  Proxmox's intended state. It was restored the same day with `pvecm updatecerts`,
+  which regenerated a fresh RSA node key and re-merged `authorized_keys`; the
+  stale orphaned `root@gandalf` entry and the github `known_hosts` line were then
+  removed by hand, and `ssh root@localhost` succeeds again. The fresh key is not
+  registered with github, so no credential on the host reaches the repository;
+  revoking the old key on github, if it was ever added there as a deploy key, is
+  off-host and the owner's. The `.claude` removal stands.
 - **`gandalf` is now monitored ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
   [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** ADR-0125 keeps
   the range host on, so ADR-0017's reason for giving it no monitoring — off
