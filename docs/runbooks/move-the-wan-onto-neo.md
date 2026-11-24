@@ -6,7 +6,7 @@
 window: about a minute with the LAN down, and up to fifteen with the
 internet down
 **You will need:** two MikroTik S+RJ10 modules, physical access to the rack,
-a workstation on Hicks, and the switch's serial console cable if you have one
+a workstation on Hicks, and the switch's serial console cable
 
 [ADR-0131](../adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
 decided the shape. This is how it gets there,
