@@ -434,8 +434,11 @@ TrueNAS ships SSH disabled, and on the day this ran §0.5's port-22 pass was
 inert. Enabling it here to save a walk to the machine would have widened this
 host's attack surface for the sake of five commands; §6.2's backup pull was
 the reason to turn it on, on 2026-09-19, and this was not it. The service
-now answers one key-only user, `frodo`, who can read a snapshot and nothing
-else — still not a way to administer the box.
+answered one key-only user, `frodo`, who can read a snapshot and nothing
+else. Since 2026-11-13 it also answers the administrator `gerrrt` from
+`desktop-02`, through the Hicks pass in [`network.md`](../network.md), and
+both are key-only since 2026-11-24. This section still runs at the console:
+it predates that account, and the console needs no pass.
 
 ```bash
 lsblk

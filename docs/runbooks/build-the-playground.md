@@ -1725,18 +1725,21 @@ Addresses are parsed at query time rather than indexed, per
 
 ## Also worth knowing
 
-**The range is not monitored and not backed up.** Only the second is still a
-decision. ADR-0017 declined an Alloy agent because `gandalf` was off by design,
-so any rule watching it would be permanently firing or permanently silenced.
-Since [ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)
-the host stays on, so that reason is gone, and monitoring it is
-[#1651](https://github.com/Gerrrt/HomeLab/issues/1651). ADR-0017 also declines PBS
+**The range is monitored but not backed up.** ADR-0017 declined an Alloy agent
+because `gandalf` was off by design, so any rule watching it would be
+permanently firing or permanently silenced. Since
+[ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md) the
+host stays on, and since 2026-11-23 its metrics-only agent and the range rules
+are live (*Monitoring the host*, above;
+[#1651](https://github.com/Gerrrt/HomeLab/issues/1651)). ADR-0017 also declines PBS
 because a deliberately-vulnerable image in the estate's backup store is a
 supported path for it to arrive somewhere it should not be. If you find yourself
 wanting to back something up here, the thing you want to keep has stopped being
 range and started being estate, and it is on the wrong machine.
 
-**The tripwire is the only thing watching.** `pass` + `log` for
+**The tripwire is the only thing watching the segment's edge.** The range
+rules watch `gandalf` itself; what crosses from ImaginationLAN into the house
+is seen only by the tripwire: `pass` + `log` for
 `vlan30 net → Internal_Segments` on the ImaginationLAN interface, below the
 blocks and the `quick` iLO pass, above the `→ any` egress rule
 ([#234](https://github.com/Gerrrt/HomeLab/issues/234)). It matches nothing while

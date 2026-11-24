@@ -88,16 +88,22 @@ docstring gives: it is a record, not a claim about now.
   Pi built the old way. That purge is still to run on `heimdall`, from the
   Mac, since `prometheus` reaches it only on 9100.
 
-- **`network.md` declares two passes into other segments, and the diagram
-  catches up.** The audit of `morpheus` left the Hicks SSH pass into `smaug`
+- **`network.md` declares two passes into other segments, `smaug` stops
+  taking passwords, and the diagram catches up.** The audit of `morpheus` left the Hicks SSH pass into `smaug`
   (`desktop-02` → `10.0.40.30:22`) declared but unexplained. It stays: on
   2026-11-23 the operator recorded it as where `smaug` is administered from by
-  hand. A re-check of the box on 2026-11-24 found `Allow metrics from gandalf`
+  hand. Review then found what that path is: since 2026-11-13 the
+  administrator `gerrrt` had logged in through it **by password**, allowed
+  twice over, on the user and in the SSH service's *Password Login Groups*,
+  while `network.md` and `build-the-nas.md` said `smaug`'s SSH answered
+  `frodo` alone, key-only. Both settings were cleared on 2026-11-24, and
+  `smaug` now offers every user `publickey` alone. A re-check of the box on 2026-11-24 found `Allow metrics from gandalf`
   (`10.0.30.30 → 10.0.99.20:9090`, #1651) in force while `network.md` still
   called `Saruman` the one ImaginationLAN host with a path into Winterfell;
   it now names both. The network diagram's foot for VLAN 30 lists the
   gandalf pass, and the rack row no longer calls `gandalf` off (ADR-0125
-  keeps it on).
+  keeps it on). `build-the-playground.md` stops saying the range is not
+  monitored.
 
 ## 2026-11-23
 

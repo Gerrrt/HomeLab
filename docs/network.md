@@ -594,8 +594,12 @@ Televisions and consoles. Internet only.
   SSH pass on Hicks' interface, `desktop-02` (`10.0.50.90`) →
   `10.0.40.30:22`. It is host-scoped, so `make check-firewall`'s wholesale
   question cannot see it. It stays, by the operator's decision on
-  2026-11-23: `desktop-02` is where `smaug` is administered from by hand,
-  and `prometheus`'s own pass carries the automation.
+  2026-11-23: `desktop-02` is where `smaug` is administered from by hand, as
+  the administrator `gerrrt`, and `prometheus`'s own pass carries the
+  automation. `gerrrt` logged in by password from 2026-11-13 until
+  2026-11-24, when both TrueNAS settings that allowed it (the user's and the
+  SSH service's *Password Login Groups*) were cleared; `smaug` now offers
+  every user `publickey` alone.
 - **One more from Hicks is specified and not yet created.**
   `Allow 5800 to smaug`, Hicks → `10.0.40.30:5800`, is for MakeMKV's web GUI,
   the disc ripper that runs on `smaug` only while someone is ripping
@@ -646,7 +650,9 @@ Televisions and consoles. Internet only.
   when [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched it on
   for the backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
   decided: key-only, one read-only user, `frodo`, and the rule already scopes
-  it to `10.0.99.20`. The first pull landed on 2026-09-20.
+  it to `10.0.99.20`. The first pull landed on 2026-09-20. A second user, the
+  administrator `gerrrt`, reaches it from `desktop-02` through the Hicks pass
+  above, key-only since 2026-11-24.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)
