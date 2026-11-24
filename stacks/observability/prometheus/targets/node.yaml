@@ -113,8 +113,11 @@
 # answered with node_arp_entries{device="wlan0"} 1.
 #
 # `role: display` is what keeps InstanceDown from paging for it
-# (rules/host.rules.yaml): a dead screen shows itself, and what this scrape is
-# for is the Pi's temperature and throttle state on a wall nobody watches.
+# (rules/host.rules.yaml): a dead screen shows itself. The same label selects
+# the four Display* warnings there, on what the wall does not show: the SoC's
+# temperature, upgrades left pending, a failed unit, and two hours unscraped.
+# node_exporter does not report the throttle state. That is
+# `vcgencmd get_throttled`, read on the Pi.
 
 - targets: ["10.0.50.15:9100"]
   labels:

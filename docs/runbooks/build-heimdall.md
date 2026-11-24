@@ -126,13 +126,21 @@ systemctl --failed --no-legend                  # nothing
 `unattended-upgrades` installs Debian's updates daily, but its default
 origins are Debian's alone. Chromium, the kernel, the firmware and the
 EEPROM come from `archive.raspberrypi.com`, and Raspberry Pi's Chromium
-outranks Debian's by its epoch. So none of them update without this:
+outranks Debian's by its epoch. So none of them update without this.
+The second line removes what an upgrade leaves unused, so old dependencies
+do not pile up on a Pi nobody logs in to:
 
 ```bash
-echo 'Unattended-Upgrade::Origins-Pattern:: "origin=Raspberry Pi Foundation,codename=${distro_codename}";' \
+printf '%s\n' \
+  'Unattended-Upgrade::Origins-Pattern:: "origin=Raspberry Pi Foundation,codename=${distro_codename}";' \
+  'Unattended-Upgrade::Remove-Unused-Dependencies "true";' \
   | sudo tee /etc/apt/apt.conf.d/52heimdall-unattended-upgrades
 apt-config dump | grep -c 'origin=Raspberry Pi Foundation'    # 1
+apt-config dump | grep 'Remove-Unused-Dependencies'           # "true"
 ```
+
+The EEPROM *package* updates this way. The bootloader it carries does not
+reach the chip by itself: see the next section.
 
 An upgraded Chromium runs only once Chromium restarts, and a new kernel only
 once the Pi does. Nothing on the Pi does either by itself, and a Chromium
@@ -160,6 +168,34 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now nightly-reboot.timer
 systemctl list-timers nightly-reboot.timer --no-legend    # next at 04:30
 ```
+
+### The bootloader updates too
+
+`rpi-eeprom-update.service` runs at every boot with `-s`, which writes a new
+bootloader only when the one on the chip is older than a floor Raspberry Pi
+sets for critical fixes. Anything newer than that floor stays as it is. On
+2026-11-24 the chip held June 2025's bootloader, the package carried October
+2026's, and the first boot after the upgrade logged "Skipping automatic
+bootloader upgrade". Drop the `-s`, so each boot writes the newest default release when
+it is newer than the chip's:
+
+```bash
+sudo mkdir -p /etc/systemd/system/rpi-eeprom-update.service.d
+printf '[Service]\nExecStart=\nExecStart=/usr/bin/rpi-eeprom-update -a\n' \
+  | sudo tee /etc/systemd/system/rpi-eeprom-update.service.d/50-always.conf
+sudo systemctl daemon-reload
+sudo systemctl restart rpi-eeprom-update.service    # writes it now
+sudo reboot
+# after the reboot:
+rpi-eeprom-update | grep -E '^BOOTLOADER|CURRENT'    # up to date
+```
+
+On a Pi 5 the service writes the chip with `flashrom` while the Pi runs, and
+the new bootloader runs from the next boot. The script verifies what it
+wrote. If the write fails, it leaves the update and `recovery.bin` on the
+boot partition, and the next boot writes the chip from the card instead.
+With the nightly reboot, a release that the package brings in at 06:00 is
+written at the next 04:30 boot and runs from the one after.
 
 ### A journal that survives a reboot
 
@@ -191,7 +227,8 @@ packages:
 sudo systemctl mask --now rpcbind.service rpcbind.socket nfs-blkmap.service \
   avahi-daemon.service avahi-daemon.socket \
   cups.service cups.socket cups.path bluetooth.service
-sudo apt purge -y realvnc-vnc-server wayvnc rpi-connect
+sudo apt purge -y realvnc-vnc-server wayvnc rpi-connect rpi-connect-lite
+sudo apt autoremove --purge -y    # the libraries they leave behind
 sudo ss -tulnH | awk '{print $1, $5}' | sort -u    # tcp 22 and 9100, nothing else
 ```
 
@@ -231,6 +268,12 @@ Done on 2026-11-17: it returned `node_arp_entries{device="wlan0"} 1`. The
 `heimdall` target in `stacks/observability/prometheus/targets/node.yaml` is
 picked up once `prometheus` has converged on `main` (ADR-0021) and reloaded
 the file, within five minutes of that. Check `up{instance="heimdall"}` reads 1.
+
+The target's `role: display` keeps `InstanceDown` from paging for the Pi. It
+also selects four warnings in `rules/host.rules.yaml`, none of which pages:
+`DisplayUpdatesStalled` (an origin's upgrades pending for three days),
+`DisplayUnitFailed`, `DisplayHot` (the SoC above 75 °C for 15 minutes) and
+`DisplayDown` (unscraped for two hours).
 
 ## 5. HDMI
 
@@ -378,6 +421,10 @@ the roadmap's *Everything still to buy* and an ADR of its own.
   then delete both `nightly-reboot.*` units from `/etc/systemd/system`.
 - **Raspberry Pi's updates:** delete
   `/etc/apt/apt.conf.d/52heimdall-unattended-upgrades`.
+- **The bootloader:** delete
+  `/etc/systemd/system/rpi-eeprom-update.service.d/50-always.conf` and
+  `daemon-reload`. A bootloader already written stays, and the stock
+  service goes back to writing critical fixes only.
 - **The journal:** delete `/etc/systemd/journald.conf.d/50-persistent.conf`
   and restart `systemd-journald`.
 - **The masked services:** `sudo systemctl unmask` the units §2 masked, then

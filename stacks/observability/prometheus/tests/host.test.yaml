@@ -196,9 +196,9 @@ tests:
         exp_alerts: []
 
   # --- InstanceDown: quiet for the wall display, which does not page --------
-  # `heimdall` (ADR-0119) is scraped for its temperature and throttle state,
-  # not watched for liveness: a dead screen shows itself to anyone in the
-  # office. Down for twenty minutes, well past `for: 5m`, and still quiet.
+  # `heimdall` (ADR-0119) does not page when down: a dead screen shows itself
+  # to anyone in the office, and DisplayDown below warns after two hours.
+  # Down for twenty minutes, well past `for: 5m`, and still quiet.
   # The smaug case below, with no `role`, is the pair that proves the
   # exclusion is that narrow.
   - interval: 1m
@@ -208,6 +208,138 @@ tests:
     alert_rule_test:
       - eval_time: 15m
         alertname: InstanceDown
+        exp_alerts: []
+
+  # --- DisplayDown: the same Pi, down for two hours, does warn -------------
+  # The display's own down rule, at warning. Down for 2h10m it fires, and
+  # the pair inside `for: 2h` is quiet: the nightly reboot and a Wi-Fi gap
+  # are both far shorter.
+  - interval: 5m
+    input_series:
+      - series: 'up{instance="heimdall",job="node",role="display",vlan="50"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: DisplayDown
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "heimdall has not answered a scrape for two hours"
+              description: >-
+                The wall Pi is off, off Hicks, or its exporter stopped. Look at the
+                wall first, then `ssh` to it from Hicks (build-heimdall.md).
+      - eval_time: 110m
+        alertname: DisplayDown
+        exp_alerts: []
+
+  # --- DisplayUpdatesStalled: the same origin pending for three days --------
+  # The firing series stays above zero for 80 hours. The quiet one is the
+  # normal day: pending from the morning run until the next one clears it,
+  # then pending again, never three days at a stretch. Samples every 5m, as
+  # scraped: a series unsampled for longer goes stale and resets `for`.
+  - interval: 5m
+    input_series:
+      - series: >-
+          apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",
+          origin="Raspberry Pi Foundation:trixie/stable",arch="arm64"}
+        values: "16x960"
+      - series: 'apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",origin="Debian:trixie/stable",arch="arm64"}'
+        values: "2x252 0x36 3x252 0x36 1x252 0x144"
+    alert_rule_test:
+      - eval_time: 76h
+        alertname: DisplayUpdatesStalled
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              origin: "Raspberry Pi Foundation:trixie/stable"
+              arch: arm64
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "heimdall: 16 upgrade(s) from Raspberry Pi Foundation:trixie/stable pending three days"
+              description: >-
+                unattended-upgrades runs every morning and should have installed
+                these. On the Pi, read /var/log/unattended-upgrades/unattended-upgrades.log
+                and check `apt-config dump | grep Origins-Pattern` still names
+                the origin (build-heimdall.md §2).
+      - eval_time: 70h
+        alertname: DisplayUpdatesStalled
+        exp_alerts: []
+
+  # --- DisplayUnitFailed: a failed unit for longer than 15 minutes ----------
+  # openipmi.service failed at every boot on the first build (2026-11-17).
+  # The pair is the same unit inactive, the state it reports when fine.
+  - interval: 5m
+    input_series:
+      - series: 'node_systemd_unit_state{instance="heimdall",job="node",role="display",vlan="50",name="openipmi.service",state="failed",type="oneshot"}'
+        values: "1x6"
+      - series: 'node_systemd_unit_state{instance="heimdall",job="node",role="display",vlan="50",name="ssh.service",state="failed",type="notify"}'
+        values: "0x6"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DisplayUnitFailed
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              name: openipmi.service
+              state: failed
+              type: oneshot
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "openipmi.service has failed on heimdall"
+              description: >-
+                `systemctl --failed` and `journalctl -b -u openipmi.service` on
+                the Pi. The journal is kept across reboots (build-heimdall.md §2),
+                so the cause survives the 04:30 reboot.
+      - eval_time: 10m
+        alertname: DisplayUnitFailed
+        exp_alerts: []
+
+  # --- DisplayHot: the SoC above 75 °C for 15 minutes -----------------------
+  # Two SoC sensors reading alike give one alert. The RP1 ADC, hotter but not
+  # what throttles, is left out: at 74 °C on the SoC and 79 °C on RP1, quiet.
+  - interval: 5m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="thermal_thermal_zone0",sensor="temp0"}'
+        values: "74x4 78x6"
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="thermal_thermal_zone0",sensor="temp1"}'
+        values: "74x4 78x6"
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="1000120000_pcie_1f000c8000_adc",sensor="temp1"}'
+        values: "79x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: DisplayHot
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              role: display
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "heimdall has been above 75 °C for 15 minutes"
+              description: >-
+                78.0 °C on the SoC. It throttles at 80 °C.
+                Check the fan and the space around the Pi, and
+                `vcgencmd get_throttled` on it.
+      - eval_time: 20m
+        alertname: DisplayHot
         exp_alerts: []
 
   # --- InstanceDown: fires for a SCRAPED HOST, naming it rather than its port -

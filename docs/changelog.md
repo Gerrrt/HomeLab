@@ -19,6 +19,36 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **A re-check of `heimdall` found its bootloader never updates, and nothing
+  watching it.** It was read-only, from the Mac on Hicks, after the
+  2026-11-23 audit's fixes. All twelve findings held on the Pi: only 22 and
+  9100 listened, sudo asked for the password, the seed files were gone,
+  Chromium ran under `lwrespawn`, and the journal kept four boots, each with
+  its cause. Two things a new audit would still find:
+  - **The bootloader stayed at June 2025.** The `rpi-eeprom` package went
+    to 28.38 unattended at 06:09, carrying October 2026's bootloader.
+    `rpi-eeprom-update.service` runs with `-s` at boot, and writes only when
+    the chip is older than Raspberry Pi's floor for critical fixes. The 09:10
+    boot logged "Skipping automatic bootloader upgrade". `build-heimdall.md`
+    §2 said the nightly reboot made upgraded firmware run, which was true of
+    the boot partition's firmware and not of the bootloader.
+    `build-heimdall.md` §2 now drops the `-s` with a drop-in, so each boot
+    writes the newest default release.
+  - **No rule read what `heimdall` exports.** `InstanceDown` leaves it out
+    by design, and the nightly `HostRebooted` is `info`, which is never sent.
+    `apt_upgrades_pending`, `node_systemd_unit_state` and the SoC's
+    temperature reached Prometheus and stopped there. Four warnings now read
+    them, selected by `role="display"`: `DisplayUpdatesStalled`,
+    `DisplayUnitFailed`, `DisplayHot` and `DisplayDown`. None pages. The
+    `node.yaml` comment that the scrape was for the throttle state is
+    corrected: `node_exporter` does not report it.
+  - **What the VNC purge left.** Five libraries were autoremovable, and
+    `rpi-connect-lite` was removed but not purged. §2 now purges it, runs
+    `apt autoremove --purge`, and sets unattended-upgrades to remove unused
+    dependencies from then on.
+  - The new §2 steps need the operator's password at the Pi, so they are
+    written here and not yet applied.
+
 - **The audit of `morpheus` of 2026-11-13 is closed.** This completes the
   entry "`morpheus` audited, read-only, on 2026-11-13, and re-read on
   2026-11-23". A re-check on 2026-11-24 found every finding fixed on the box,
