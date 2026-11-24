@@ -56,11 +56,27 @@ Expect `passwordauthentication no`, `permitrootlogin no` and
 ## 2. Updates and the exporter
 
 ```bash
-sudo apt update && sudo apt install -y unattended-upgrades prometheus-node-exporter libnss3-tools
+sudo apt update
+sudo apt install -y --no-install-recommends unattended-upgrades \
+  prometheus-node-exporter prometheus-node-exporter-collectors libnss3-tools
 systemctl is-active prometheus-node-exporter    # active
+systemctl --failed --no-legend                  # nothing
 ```
 
 `unattended-upgrades` installs security updates daily, Chromium among them.
+The collectors package adds the textfile metrics for pending upgrades and a
+pending reboot. Without `--no-install-recommends`, apt also brings in what
+it recommends for a server: `ipmitool`, which pulls in `openipmi`, and
+`smartmontools`. A Pi has no management controller and its card reports no
+SMART data, so `openipmi.service` and `smartmontools.service` fail at every
+boot. The first build, on 2026-11-17, left both failed. On a Pi built that
+way:
+
+```bash
+sudo apt purge -y openipmi ipmitool smartmontools
+sudo systemctl reset-failed openipmi.service smartmontools.service
+systemctl --failed --no-legend                  # nothing
+```
 
 ## 3. The reservation
 
