@@ -386,9 +386,9 @@ gave the same cause for all three: distorted input, not a cut. They lasted
 2026-11-21. Until 2026-11-24 the card's clock kept UTC−7 all year, so from
 2026-11-01 its log read an hour ahead of local time. The owner corrected it on
 2026-11-24. **Its local users are `apc`, the administrator, `prometheus`, the
-SNMPv3 user, and the factory `device` and `readonly` accounts.** Whether those
-two are enabled has not been read. The `prometheus` SNMPv3 user is allowed
-from two addresses only: `10.0.99.20`, `prometheus`, and `10.0.99.1`, NUT on
+SNMPv3 user, and the factory `device` and `readonly` accounts.** Both
+factory accounts are disabled, read by the owner on 2026-11-24. The
+`prometheus` SNMPv3 user is allowed from two addresses only: `10.0.99.20`, `prometheus`, and `10.0.99.1`, NUT on
 `morpheus`.
 
 ## WAN

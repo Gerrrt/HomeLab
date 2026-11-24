@@ -261,6 +261,10 @@ docstring gives: it is a record, not a claim about now.
   keeps it on). `build-the-playground.md` stops saying the range is not
   monitored.
 
+- **`mjolnir`'s factory `device` and `readonly` accounts are disabled.** The
+  owner read the card's user list. That settles the last account question
+  the audit left open, and [`hardware.md`](hardware.md) now says so.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
