@@ -125,11 +125,11 @@ Never set it up: power it off from the setup screen (Shift+F10, then
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.
 - **After Power Loss: Power Off.** `gandalf` stays on
-  ([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)),
-  but nothing watches it yet
-  ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), so a power cut
-  must not bring it back by itself where nobody knows it is up. After a cut,
-  it starts at the power button. ADR-0125 reopens this with #1651.
+  ([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)) and
+  is monitored now
+  ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).
+  It is still set to stay down after a power cut, so it is up only when someone
+  powers it on; after a cut, it starts at the power button.
 - Secure Boot can stay on, because the Proxmox VE 9 installer is signed.
 
 Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
@@ -532,7 +532,7 @@ run they record:
 | The `local_network` alias | `10.0.30.20` | `10.0.30.30` |
 | Guest NICs | 140 and 170, by the loop | **None yet**: the node is empty. Clear the flag on each NIC as §5 and §6 create it. `tpl-kali` and its clones carry `firewall=0` from Packer, but a NIC added in the GUI, such as the attack VM's `net1`, defaults to on |
 | The probe from `morpheus` | `10.0.30.20 8006` | `10.0.30.30 8006` |
-| Telemetry, the collector and the alert drill | All three | **None of them.** ADR-0017 gives `gandalf` no agent, so nothing reads the collector's file and the three alerts cannot see it. The check that it stays on is §7's read-back at every power-on |
+| Telemetry, the collector and the alert drill | All three | **All three now**, added by *Monitoring the host* below ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), which supersedes ADR-0017's no-agent: `gandalf` runs its own metrics-only agent, so the collector's file is read and the alerts see it. §7's read-back at every power-on stays as the per-session backstop |
 
 > [!CAUTION]
 > **Enable with a permissive policy first, then flip it.** `pve-firewall
@@ -678,8 +678,9 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
-**Then that it stays on**, on `Saruman` only: `gandalf` has no agent, and §7
-is its check. The probe above is a thing a person does once, and
+**Then that it stays on**: on `Saruman` here, and on `gandalf` through its own
+agent since *Monitoring the host* ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md)), with §7's read-back as its
+backstop. The probe above is a thing a person does once, and
 the ordinary ways the firewall goes off again — a `pve-firewall stop` while
 debugging a guest, an upgrade rewriting `/etc/pve/firewall`, a rebuild that
 skips this section — page nothing on their own. Install the collector that
@@ -714,9 +715,10 @@ has never fired is a rule nobody knows can.
 The firewall above lets `22` in from Hicks alone. Behind it, Proxmox's
 installer leaves `sshd` taking root's password: `PermitRootLogin yes` in
 `/etc/ssh/sshd_config`, and Debian's `PasswordAuthentication` default of
-`yes`. On `gandalf` nothing watches whether the firewall is on (§7), so if it
-ever goes off, the root password is all that stands between VLAN 30, where the
-attack VM is, and a root shell on the range's isolation host. Keys only takes
+`yes`. On `gandalf` the firewall is watched now ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md)), but an alert is
+not a barrier: if it ever goes off, the root password would be all that stands
+between VLAN 30, where the attack VM is, and a root shell on the range's
+isolation host. Keys only takes
 that away. An audit on 2026-11-13 found both still on.
 
 Root's password stays set. The `root@pam` login on `8006` uses it, and so does
@@ -810,7 +812,8 @@ enable them first, or the mount will fail.
 ### Nothing else on `gandalf`
 
 `gandalf` is the box that keeps the attacker's segment away from the estate.
-It shares layer 2 with `ragnarok`, and nothing watches it (ADR-0017). So it
+It shares layer 2 with `ragnarok`. It is monitored now
+([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) supersedes ADR-0017's no-agent), but the segment it shares is why it still
 holds no estate credential, no GitHub login, no personal tooling and no apt
 repository but Debian's and Proxmox's. Repository work and anything that needs
 a login are done from a Hicks workstation or `phoenix`, never from a shell
@@ -1290,14 +1293,14 @@ start ragnarok → read the host back → revert every target to `clean` → wor
                     6 h after ragnarok started, or the last range-extend → stopped, by itself
 ```
 
-Nothing watches the host yet
-([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), so the read-back
-below is the only check on it, once per session.
+The host is monitored now
+([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), and the read-back
+below is the per-session backstop on top of it.
 
-**Read the firewall back before anything else.** The collector and the alerts
-that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
-it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
-once per session. `pve-firewall status` should read `enabled/running`, and §4's
+**Read the firewall back before anything else.** `gandalf` runs its own
+`pve-firewall-state` collector now ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) supersedes ADR-0017's
+no-agent), so the firewall is watched between sessions. The read-back here is
+the belt-and-suspenders check, once per session. `pve-firewall status` should read `enabled/running`, and §4's
 probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
 `control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication|x11forwarding|allowtcpforwarding) '`
 should read `without-password` and three `no`s, because an upgrade that replaces
@@ -1430,7 +1433,7 @@ should say it is not running, and `range-extend 2` should refuse.
 [ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) gives it the
 same Alloy agent `Saruman` has, reporting *hypervisor state* — the ADR-0028
 class, not guest telemetry — to `prometheus`, with alerts for the faults this
-section used to catch by hand. **Not yet deployed on `gandalf`.**
+section used to catch by hand. **Deployed on 2026-11-23** ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)): the agent, the `morpheus` pass and the rules are live, metrics-only.
 
 **First, the pass.** The agent pushes metrics to `10.0.99.20:9090`. On
 `morpheus`, add a host-scoped pass `10.0.30.30 → 10.0.99.20` on `9090`,
