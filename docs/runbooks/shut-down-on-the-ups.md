@@ -1286,8 +1286,9 @@ halt.** Run `journalctl -u nut-monitor -b -1` on `trinity`. A secondary that
 never logged in never saw the flag. Check 4b.5's `upsc -c` listing, and that
 4b.1's pass is above its block.
 
-**`UpsOnBattery` did not fire within a minute in 6.2.** The scrape is every 60
-seconds and the rule waits 30, so two minutes is the outside limit. Past that,
+**`UpsOnBattery` did not fire within a minute in 6.2.** It pages on the first
+scrape that reads more than 30 seconds on battery. Scrapes and rule evaluations
+are each every 60 seconds, so two and a half minutes is the outside limit. Past that,
 the card is not reporting the transfer — plug back in and stop.
 
 **A real cut later ended with a host stopping uncleanly anyway.** The sequence

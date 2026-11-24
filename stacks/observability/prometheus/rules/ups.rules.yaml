@@ -92,8 +92,13 @@ groups:
     interval: 60s
     rules:
       - alert: UpsOnBattery
-        expr: upsSecondsOnBattery > 0
-        for: 30s
+        # Any scrape that saw more than 30 s on battery pages, with no `for`.
+        # `> 0` for 30s needed two scrapes in a row, a minute apart, so the
+        # 82-second transfer of 2026-11-21 was read once (42 s), went pending
+        # and cleared without paging. The 2m window keeps that one reading
+        # firing for the next evaluation. A transfer that never reaches 30 s
+        # still does not page.
+        expr: max_over_time(upsSecondsOnBattery[2m]) > 30
         labels:
           component: power
           severity: critical

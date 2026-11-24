@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
+  ran on battery for 82 seconds, for distorted input, and nothing paged. The
+  rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in
+  a row a minute apart. One scrape read 42 seconds, the alert went pending, and
+  the next read 0. It is now `max_over_time(upsSecondsOnBattery[2m]) > 30`
+  with no `for`, so any scrape that reads more than 30 seconds on battery
+  pages. A transfer that ends inside 30 seconds still does not, like the
+  1-second one on 2026-11-07. `ups.test.yaml` replays both.
+  `shut-down-on-the-ups.md` puts the outside limit for the page at two and a
+  half minutes.
 - **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
   card's event log gives the cause, and it is the move into the 32U rack
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
