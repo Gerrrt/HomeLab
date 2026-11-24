@@ -3485,9 +3485,11 @@ tests:
         exp_alerts: []
 
   # --- HostCpuHot: 96 °C against a 105 °C critical, held, fires ----------
-  # 96 is inside the rule's ten degrees on prometheus; the core is held there
-  # past the ten minutes. Labels other than instance and job are aggregated
-  # away, so one host gives one alert however many cores are hot.
+  # 96 is inside the rule's ten degrees on prometheus, held from the first
+  # sample. Quiet at 5m and firing at 10m pins the hold to `for: 10m`: removing
+  # it fails the first check, lengthening it fails the second. Labels other
+  # than instance and job are aggregated away, so one host gives one alert
+  # however many cores are hot.
   - interval: 1m
     input_series:
       - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
@@ -3499,7 +3501,10 @@ tests:
       - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp3"}'
         values: "105x20"
     alert_rule_test:
-      - eval_time: 15m
+      - eval_time: 5m
+        alertname: HostCpuHot
+        exp_alerts: []
+      - eval_time: 10m
         alertname: HostCpuHot
         exp_alerts:
           - exp_labels:
