@@ -3484,6 +3484,73 @@ tests:
         alertname: HostBatteryNotReported
         exp_alerts: []
 
+  # --- HostCpuHot: 96 °C against a 105 °C critical, held, fires ----------
+  # 96 is inside the rule's ten degrees on prometheus, held from the first
+  # sample. Quiet at 5m and firing at 10m pins the hold to `for: 10m`: removing
+  # it fails the first check, lengthening it fails the second. Labels other
+  # than instance and job are aggregated away, so one host gives one alert
+  # however many cores are hot.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "96x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "105x20"
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp3"}'
+        values: "97x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp3"}'
+        values: "105x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HostCpuHot
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HostCpuHot
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: CPU at 97 °C, within 10 °C of critical"
+              description: >-
+                A CPU core on prometheus has been within 10 °C of its own
+                critical temperature for ten minutes. Heavy work alone has not
+                done that on any host here. Check the fan and the vents first,
+                then whatever is using the CPU; at the critical point the
+                machine shuts itself down.
+
+  # --- HostCpuHot: the audit's 92 °C peak, for five minutes, does not -------
+  # The hottest the laptop ran in the audit's heavy work: 92 °C, briefly. It is
+  # 13 under critical, so outside the ten degrees, and a spike that short would
+  # not outlast the ten minutes anyway.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "70x5 92x5 70x10"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "105x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostCpuHot
+        exp_alerts: []
+
+  # --- HostCpuHot: a chip whose critical point is not one does not ----------
+  # smaug's DIMM sensors report a critical point of 0 °C, so every sample is
+  # over it. They are not coretemp, so the rule never reads them.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="smaug",job="node",chip="i2c_0_0_0018",sensor="temp1"}'
+        values: "28x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="smaug",job="node",chip="i2c_0_0_0018",sensor="temp1"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostCpuHot
+        exp_alerts: []
+
   # --- HostBatteryHot: fires at 48 °C after five minutes --------------------
   # 48 is inside the band a swollen or charging-out-of-spec cell produces and
   # comfortably over the 45 the rule reads. The cell this threshold was measured
