@@ -122,6 +122,7 @@ the host.
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 | `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
 | `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-06** | **nothing alerts** |
+| `mjolnir`'s card HTTPS leaf | **you**, [`generate-certificates.md`](generate-certificates.md) *The APC card's leaf*, steps 1 to 5 | no timer; once, before **2029-02-26** | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -130,8 +131,9 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
-**The last row is a date, not a job.** The switch's `www-ssl` leaf was issued
-from the estate CA on 2026-10-05 and expires at 2029-01-06 23:51 UTC (read off the switch on 2026-11-06), and
+**The last two rows are dates, not jobs.** The first is the switch's
+`www-ssl` leaf, issued
+from the estate CA on 2026-10-05 and expiring at 2029-01-06 23:51 UTC (read off the switch on 2026-11-06), and
 the switch cannot renew it
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 Nothing here watches it: there is no probe of the switch UI, by decision — the
@@ -151,6 +153,10 @@ lapsed leaf and nothing would say so. Then rerun
 §5, which does verify it. The CA does not change, so nothing needs
 re-trusting. The same date is in
 [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
+
+The second, `mjolnir`'s card leaf, is watched: the `ups-ui` probe verifies it
+against the CA, and the TLS expiry rules warn at 30 days and page at 7.
+Renewing it reuses the card's RSA key, so skip step 1's key commands.
 
 **`neo`'s next RouterOS upgrade needs a space check first.** The switch has
 16 MiB of flash, and on 2026-11-13 it had about 3 MiB free with a RouterOS

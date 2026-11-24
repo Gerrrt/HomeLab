@@ -458,6 +458,26 @@ docstring gives: it is a record, not a claim about now.
   ten minutes, and prometheus's brief peaks came within 13. Other chips are left
   out, because smaug's DIMM sensors report a critical point of 0 °C.
 
+- **`mjolnir`'s card serves a leaf from the estate CA, and its probe verifies
+  it.** `mjolnir.matrix.elysium` with `10.0.99.10`, until 2029-02-26, signed
+  from a request the card made, so its key never left it. The first attempt
+  used the card's factory ECDSA P-256 key. The card imported that leaf, then
+  dropped every TLS handshake for about 25 minutes, through one reboot, until
+  it was given an RSA 2048 key and a leaf for that. SNMP, NUT and the shutdown
+  path were unaffected, and the card and NUT alerts were silenced throughout.
+  Its `scp` writes uploads to its root whatever path is named, which is what
+  the first `E100` on import was. The `ups-ui` probe moves to
+  `http_2xx_lab_ca`, and `generate-certificates.md` records the steps that
+  worked. This was audit item 11.
+- **A re-check of `mjolnir` found three stale documents.** The UPS dashboard's
+  text panel said runtime still sat on the fabricated `63`, but it moved
+  between 29 and 45 minutes over the past week. It also said nothing watched
+  the self-test schedule, but `UpsSelfTestScheduleOff`, `UpsSelfTestStale`
+  and `UpsSelfTestFailed` do; the last test, on 2026-11-18, passed.
+  `fit-the-ups-battery.md` still listed a screenshot and the shelf as to-do,
+  and both were done in October. `schedule-maintenance.md` gains the card
+  leaf's renewal date, 2029-02-26.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data

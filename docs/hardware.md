@@ -381,7 +381,9 @@ batteries and its replace-battery indicator (09.9), and add a setting that
 locks firmware updates to chosen ports (15.0). This model can't update the UPS
 with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
 is the procedure for both, tracked in
-[#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed.
+[#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed. Since 2026-11-24
+its HTTPS serves a leaf from the estate CA, for an RSA key made on the card,
+and the `ups-ui` probe verifies it ([`generate-certificates.md`](runbooks/generate-certificates.md), *The APC card's leaf*).
 SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
 medium**, lowered from high by 2026-11-24, and `UpsInputSensitivityChanged`
 warns if a card reset or anyone else moves it. The card's event log gives the
@@ -392,7 +394,9 @@ gave the same cause for all three: distorted input, not a cut. They lasted
 2026-11-01 its log read an hour ahead of local time. The owner corrected it on
 2026-11-24. **Its local users are `apc`, the administrator, `prometheus`, the
 SNMPv3 user, and the factory `device` and `readonly` accounts.** Both
-factory accounts are disabled, read by the owner on 2026-11-24. The
+factory accounts are disabled, read by the owner on 2026-11-24.
+`prometheus` is the one enabled read-only local user, which the card's login
+banner counts, and stays enabled by the owner's decision of 2026-11-24. The
 `prometheus` SNMPv3 user is allowed from two addresses only: `10.0.99.20`, `prometheus`, and `10.0.99.1`, NUT on
 `morpheus`.
 

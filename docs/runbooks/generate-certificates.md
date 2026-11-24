@@ -206,8 +206,9 @@ against `ca.pem`, and reads the expiry off the handshake — so what is watched
 is the certificate actually being served, not a file on disk.
 `TlsCertificateExpiringSoon` fires at 30 days and `TlsCertificateExpiryImminent`
 at 7, one alert per certificate however many URLs serve it
-([#91](https://github.com/Gerrrt/HomeLab/issues/91)). The same two rules read
-the APC card's self-signed certificate, which is not trusted but does expire.
+([#91](https://github.com/Gerrrt/HomeLab/issues/91)). The APC card's leaf
+is read and verified the same way since 2026-11-24 (*The APC card's leaf*
+below); it can't be renewed with the `make certs` line that follows.
 
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana --force"
@@ -333,71 +334,115 @@ Certificate**.
 
 ### The APC card's leaf
 
-`mjolnir`'s AP9641 card makes its own key and a certificate signing request,
-and imports a signed certificate, all from its command line. Its key never
-leaves the card: `gen-certs.sh --csr` signs the request and writes only the
-certificate. The card's key is ECDSA P-256, made on the card. The leaf is
-`mjolnir.matrix.elysium` with an IP SAN for `10.0.99.10`. The name doesn't
-resolve, so the address is what the probe and a browser use.
+`mjolnir`'s AP9641 card serves `mjolnir.matrix.elysium`, with an IP SAN for
+`10.0.99.10`, since 2026-11-24. The name doesn't resolve, so the address is
+what the probe and a browser use. The card makes its own key and a
+certificate signing request, and imports a signed certificate, all from its
+command line. Its key never leaves the card: `gen-certs.sh --csr` signs the
+request and writes only the certificate. The leaf is good for 825 days, until
+2029-02-26. The `ups-ui` probe verifies it against `ca.pem`, and
+`TlsCertificateExpiringSoon` and `TlsCertificateExpiryImminent` read its
+expiry.
+
+**The card's key must be RSA.** The card's factory key is ECDSA P-256, and the
+first leaf, on 2026-11-24, was signed for it. The card imported that leaf and
+then dropped every TLS handshake at the point where it signs, on TLS 1.3 and
+1.2 alike, before and after a reboot. Its TLS code appears to choose how to
+sign from the certificate's signature algorithm, here this CA's
+`sha256WithRSA`, not from its own key. An RSA 2048 key made on the card, under
+the same CA, works. An ECDSA key would need an ECDSA-signed certificate, which
+this CA can't issue.
 
 Everything below runs from the main checkout on the monitoring host, as the
 card's super user `apc`, whose password you type. The card offers no
 curve25519, which `prometheus`'s SSH client is limited to, so each command
-names the card's key exchange and host key:
+names the card's key exchange and host key. Silence the card and NUT first,
+as in
+[`update-the-ups-firmware.md`](update-the-ups-firmware.md) A.2: step 4
+restarts the card.
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
 O=(-o KexAlgorithms=ecdh-sha2-nistp256 -o HostKeyAlgorithms=ecdsa-sha2-nistp256)
 ```
 
-1. **Make the request on the card, and copy it off.** `-q` builds it from the
-   card's current key and settings. Its subject and SANs don't matter, because
-   the CA sets its own:
+1. **Make the request on the card, and copy it off.** For a renewal, skip
+   `ssl key -d` and `ssl key -rsa 2048` and keep the key the card already has;
+   `ssl cert -s` shows whether it's RSA. Otherwise, in one session at the
+   card's prompt (`ssh "${O[@]}" apc@10.0.99.10`):
+
+   ```text
+   ssl key -d
+   ssl key -rsa 2048
+   ssl csr -q
+   exit
+   ```
+
+   `-q` builds the request from the card's key and settings. Its subject and
+   SANs don't matter, because the CA sets its own. Then:
 
    ```bash
-   ssh "${O[@]}" apc@10.0.99.10 ssl csr -q
    scp -O "${O[@]}" apc@10.0.99.10:ssl/nmc.csr ./certificates/mjolnir-nmc.csr
+   openssl req -in certificates/mjolnir-nmc.csr -noout -text | grep 'Public Key Algorithm'
    ```
 
-2. **Sign it.** `--force` only when reissuing:
+   You want `rsaEncryption`.
+
+2. **Sign it.** `--force` when a leaf already exists:
 
    ```bash
-   make certs ARGS="--host mjolnir.matrix.elysium --ip 10.0.99.10 --csr certificates/mjolnir-nmc.csr"
+   make certs ARGS="--host mjolnir.matrix.elysium --ip 10.0.99.10 --csr certificates/mjolnir-nmc.csr --force"
    ```
 
-3. **Copy the certificate to the card and import it.** The card serves it at
-   once; nothing restarts:
+3. **Copy the certificate to the card and import it.** The card's `scp`
+   writes an upload to its root directory whatever path you give, so name it
+   there, and import it from there. An import of a path that holds nothing
+   answers only `E100: Command Failed`:
 
    ```bash
-   scp -O "${O[@]}" certificates/mjolnir.matrix.elysium.pem apc@10.0.99.10:ssl/nmc.crt
-   ssh "${O[@]}" apc@10.0.99.10 ssl cert -i ssl/nmc.crt
+   scp -O "${O[@]}" certificates/mjolnir.matrix.elysium.pem apc@10.0.99.10:nmc.crt
    ```
 
-   The card refuses a certificate that doesn't match the key its request came
-   from. If the import fails, it keeps serving the certificate it had.
+   Then at the card's prompt:
 
-4. **Check what it serves**, against the CA rather than by eye:
+   ```text
+   ssl cert -i nmc.crt
+   ssl cert -s
+   ```
+
+   The card refuses a certificate that doesn't match its key, and then keeps
+   serving the one it had. `ssl cert -s` should show the CA as issuer and
+   `RSA (2048 bit)`.
+
+4. **Restart the card's management interface**, at the same prompt. This
+   restarts the network card only, not the UPS or its outlets, and SNMP is
+   gone for about a minute. Until it's done, the card may serve the new
+   certificate and still fail every handshake:
+
+   ```text
+   reboot -Y
+   ```
+
+5. **Check what it serves**, against the CA rather than by eye:
 
    ```bash
-   echo | openssl s_client -connect 10.0.99.10:443 -CAfile certificates/ca.pem \
-     -verify_return_error -verify_ip 10.0.99.10 2>&1 | grep -E 'Verify return code|subject=|issuer='
+   curl -sSL --cacert certificates/ca.pem -o /dev/null -w '%{http_code}\n' https://10.0.99.10/
    ```
 
-   You want `Verify return code: 0 (ok)`.
+   You want `200`, after `-L` follows the card's redirect from `/` to
+   `/home.htm`, as the probe does. `openssl s_client -verify_return_error` alone isn't enough:
+   it reports `Verify return code: 0 (ok)` from the certificate even when the
+   handshake then fails.
 
-5. **Make the probe verify it.** In
-   [`targets/blackbox.yaml`](../../stacks/observability/prometheus/targets/blackbox.yaml),
-   change the `ups-ui` target's module from `http_2xx_self_signed` to
-   `http_2xx_lab_ca`, so a lapsed or factory-reset certificate fails the probe
-   rather than passing it. `TlsCertificateExpiringSoon` and
-   `TlsCertificateExpiryImminent` read its expiry either way.
-
-Delete `certificates/mjolnir-nmc.csr` afterwards. It isn't secret, but
-`certificates/` is for what this CA issues.
+Delete `certificates/mjolnir-nmc.csr` and the silences afterwards. The request
+isn't secret, but `certificates/` is for what this CA issues.
 
 A factory reset of the card, or a downgrade below 2.4, which formats it,
-brings back a self-signed certificate. Once step 5 is done, that fails the
-probe and `EndpointUnreachable` fires. Re-run steps 1 to 4 to recover.
+brings back a self-signed certificate. That fails the `ups-ui` probe, and
+`EndpointUnreachable` fires. Re-run steps 1 to 5 to recover. To go back to a
+self-signed certificate on purpose: `ssl key -d`, then `reboot -Y`, and the
+card makes a new key and certificate for itself. Set the probe's module back to
+`http_2xx_self_signed` in the same change.
 
 ## If something goes wrong
 
