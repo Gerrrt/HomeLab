@@ -755,8 +755,9 @@ by `heimdall`'s kiosk
 ([ADR-0119](../../docs/adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
 [`build-heimdall.md`](../../docs/runbooks/build-heimdall.md)). It shows about
 eight things at a size read from across the room: the time, the firing
-alerts, eight hosts, the internet, the UPS, and how old each answer is. No
-container of its own: Caddy serves `wall/` as static files.
+alerts, ten tiles of hosts and devices, the internet, the UPS, and any source
+whose answer is late. No container of its own: Caddy serves `wall/` as
+static files.
 
 - **The page chooses the question, never the query.** Each `/api/q/NAME` is a
   `handle` in the Caddyfile that rewrites to one PromQL query written there,
@@ -793,26 +794,46 @@ container of its own: Caddy serves `wall/` as static files.
   succeeded or waiting is amber. What no host reports is left out rather
   than shown as none, and with neither line, "Nothing is firing." stays
   ("Nothing that notifies is firing." while an info alert is). A host that stops reporting reads *no data*. The status bar
-  gives each source's age and turns amber at two and a half minutes.
+  names only a source that has fallen behind, with its age, amber from two
+  and a half minutes and red from seven and a half or when it has never
+  answered; with none behind it reads "all sources live". `heimdall`'s own
+  temperature sits at its right end.
+- **The tiles.** Ten, five to a row: `morpheus`, `neo` and `mjolnir` by
+  whether they answer SNMP (`/api/q/snmp`); `Saruman`, `gandalf`,
+  `trinity`, `prometheus`, `oracle` and `smaug` by CPU (`/api/q/cpu`);
+  and the eero mesh as one tile, how many of its access points answer their
+  ping (`/api/q/eero`, `targets/blackbox-eero.yaml`), amber when one is
+  silent and red when all are. The lab's guests report to `alexander`'s
+  Prometheus, not this one, so they have no tile.
+- **The Internet card is the last speed test.** Download, upload and ping
+  from speedtest-tracker, which runs every 30 minutes (`/api/q/speedtest`),
+  and how long ago it landed (`/api/q/speedtest_at`, the last minute in
+  three hours at which its result id changed). A figure is amber under the
+  bars `internet.rules.yaml` alerts on, 400 Mbit/s down and 100 up, and all
+  of them are when the test is over 90 minutes old. Under them, the WAN
+  port's traffic now (`/api/q/wan`), and the sparkline is its last hour of
+  download (`/api/q/wan_hour`).
 - **The household half comes from Home Assistant, the same way.** Each
   `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
   in `?`, so the client's query string is dropped. Caddy adds
   `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
   `weather.forecast_home`, the front, garage, garden and patio door contacts,
-  the two window contacts, and two template entities from
-  `home-assistant/packages/wall_house.yaml`: `sensor.wall_alarm` (the
-  house's one alarm panel) and `binary_sensor.wall_office_lights` (on when
-  any light whose id contains `office` is on).
+  the two window contacts, `input_boolean.house_empty` from
+  `home-assistant/packages/presence.yaml` at `/api/ha/house_empty`, and
+  `sensor.wall_alarm` from `home-assistant/packages/wall_house.yaml`, the
+  house's one alarm panel.
   The page shows them as the header's weather and a one-line Home row: the
-  alarm's mode, any open door or window in amber, the hallway thermostat's
-  temperature, humidity and whether it is heating or cooling (read from
-  `climate.thermostat` at `/api/ha/thermostat`), the office lights, and the
-  Litter-Robot in amber only when it wants something (`sensor.wall_litter`
-  at `/api/ha/litter`, from `wall_house.yaml`), and as `—` when it cannot be
-  read. A row too long for the screen drops the office lights first, then
-  the thermostat, then an unreadable Litter-Robot's `—`, never an amber
-  item; if the warnings alone are still too wide, each says how many
-  instead of which ("6 doors & windows").
+  alarm's mode; "House empty" while presence has marked it so, and nothing
+  otherwise; any open door or window in amber; the hallway thermostat's
+  temperature and humidity, then what it is set to and whether it is
+  heating or cooling ("68° · 45% · heating to 70", a range in heat_cool,
+  "away" while presence holds it there; read from `climate.thermostat` at
+  `/api/ha/thermostat`); and the Litter-Robot, always: `ok`, what it wants in
+  amber, or `—` when it cannot be read (`sensor.wall_litter` at
+  `/api/ha/litter`, from `wall_house.yaml`). A row too long for the screen
+  shortens the thermostat to its reading and target ("68° → 70"); if the
+  warnings are still too wide, each says how many instead of which
+  ("6 doors & windows").
   The header's high and low, the next rain and the next sunrise or sunset
   are `sensor.wall_weather` at `/api/ha/forecast`, from
   `home-assistant/packages/wall_weather.yaml`, which asks
@@ -831,8 +852,7 @@ container of its own: Caddy serves `wall/` as static files.
   (`/api/ha/commute`); Shabbat or Yom Tov, from six hours before candle
   lighting to havdalah (`/api/ha/shabbat`); the bins, from 16:00 the evening
   before pickup to noon on the day (`/api/ha/trash`); packages to go and
-  get (`/api/ha/deliveries`); the dogs, while a walk or a feeding is overdue
-  (`/api/ha/dogs`); the open to-do items (`/api/ha/todo`); what is
+  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); what is
   playing on the players labelled `wall_media` (`/api/ha/media`); and
   otherwise a Hebrew word of the day from a static list in the page. The
   others that also apply are named on the card's last line. Each source is a
@@ -841,18 +861,16 @@ container of its own: Caddy serves `wall/` as static files.
   `Home`, region US, any destination, its polling off) and the label
   `wall_commute` on each calendar to route from, the Jewish Calendar
   integration, a to-do list labelled `wall_todo`, the trash helpers'
-  pickup day, the 17TRACK integration with the household's account, a
-  walking or feeding interval above 0 for the dogs, and the label
+  pickup day, the 17TRACK integration with the household's account, and the label
   `wall_media` on each player to show. The
   commute card sends the next labelled event's location to Waze. The UPS's mains or battery,
   charge and runtime are in its node tile, `mjolnir`. Booted on
   Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
   sensor held both events, and with no calendar it read unavailable, which
-  the page shows as `calendar · unavailable`. The real ids of the alarm and the
-  office lights name the city and a person, so the package finds them and
-  only its own ids are written here. Booted on Home Assistant 2026.11.1 with
-  a stand-in alarm and office light, both followed the real ones from
-  disarmed and off to armed and on. HA has no read-only role, so the narrowing in
+  the page shows as `calendar · unavailable`. The alarm's real id names the city,
+  so the package finds it and only its own id is written here. Booted on
+  Home Assistant 2026.11.1 with a stand-in alarm, it followed the real one
+  from disarmed to armed. HA has no read-only role, so the narrowing in
   Caddy is the read-only part (`docs/security.md`). Measured against the
   pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
   its entity with the token, `?x=1` was dropped, POST was refused with 405,

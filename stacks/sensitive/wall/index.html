@@ -71,11 +71,14 @@
 
     <section class="card wan" aria-labelledby="h-wan">
       <h2 id="h-wan">Internet</h2>
+      <!-- The last speed test (speedtest-tracker, every 30 minutes); the line
+           under it and the sparkline are the traffic on the WAN port now. -->
       <div class="pair">
-        <div><div class="hero" id="wan-down">—</div><div class="unit">Mb/s down</div></div>
-        <div><div class="hero dim" id="wan-up">—</div><div class="unit">Mb/s up</div></div>
-        <div><div class="hero dim" id="wan-rtt">—</div><div class="unit">ms to 1.1.1.1</div></div>
+        <div><div class="hero" id="st-down">—</div><div class="unit">Mb/s down</div></div>
+        <div><div class="hero dim" id="st-up">—</div><div class="unit">Mb/s up</div></div>
+        <div><div class="hero dim" id="st-ping">—</div><div class="unit">ms ping</div></div>
       </div>
+      <div class="wan-now" id="wan-now"></div>
       <svg id="wan-spark" class="spark" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden="true"></svg>
     </section>
 

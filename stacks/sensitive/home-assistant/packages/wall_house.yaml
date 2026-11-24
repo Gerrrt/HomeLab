@@ -1,21 +1,18 @@
 ---
-# The alarm's mode, the office lights and the Litter-Robot, as entities the
-# office wall can read by a fixed id (ADR-0119).
+# The alarm's mode and the Litter-Robot, as entities the office wall can read
+# by a fixed id (ADR-0119).
 #
 # The wall reads Home Assistant through fixed `GET /api/states/<entity>`
 # handles in the Caddyfile. The Ring Alarm's own entity id names the city, and
-# the office lights' ids name a person, and docs/security.md keeps both out of
-# the repository. So the Caddyfile names these two template entities instead,
-# and they find the real ones without naming them:
+# docs/security.md keeps that out of the repository. So the Caddyfile names
+# this template entity instead, and it finds the real one without naming it:
+# the house's one `alarm_control_panel`. A second panel would be ignored, and
+# the first, sorted by id, kept. It reads unavailable, not "disarmed", when
+# nothing matches or what matches is unavailable, so the wall shows "—"
+# rather than a wrong all-clear.
 #
-# - the alarm: the house's one `alarm_control_panel`. A second panel would be
-#   ignored, and the first, sorted by id, kept.
-# - the office lights: every light whose id contains `office`, on when any of
-#   them is on. The Hue room and its bulbs both match, which gives the same
-#   answer.
-#
-# Both read unavailable, not "disarmed" or "off", when nothing matches or what
-# matches is unavailable, so the wall shows "—" rather than a wrong all-clear.
+# The office lights had a template here too until 2026-11-24, when the wall
+# stopped showing them.
 
 template:
   - sensor:
@@ -29,19 +26,8 @@ template:
           {% set panel = states.alarm_control_panel | map(attribute='entity_id') | sort | first %}
           {{ panel is not none and has_value(panel) }}
 
-  - binary_sensor:
-      - name: Wall office lights
-        unique_id: wall_office_lights
-        device_class: light
-        state: >-
-          {{ states.light | selectattr('entity_id', 'search', 'office')
-             | selectattr('state', 'eq', 'on') | list | count > 0 }}
-        availability: >-
-          {{ states.light | selectattr('entity_id', 'search', 'office')
-             | rejectattr('state', 'in', ['unavailable', 'unknown']) | list | count > 0 }}
-
-  # The Litter-Robot, for the wall's Home row, which shows it only when it
-  # wants something: `ok`, or `attention` with what, in `needs`. The
+  # The Litter-Robot, for the wall's Home row: `ok`, or `attention` with
+  # what, in `needs`. The
   # thresholds are litter_robot.yaml's reminder's (drawer at 90%, litter
   # under 30%) and its weight sensors', so the wall and the phones agree.
   # Its own sensors' ids are already in that file and name no person; this
