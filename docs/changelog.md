@@ -19,6 +19,39 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **`gandalf` is now monitored ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** ADR-0125 keeps
+  the range host on, so ADR-0017's reason for giving it no monitoring — off
+  between sessions — is gone. `gandalf` now runs `Saruman`'s Grafana Alloy agent
+  in metrics-only mode: node metrics and two host collectors push to `prometheus`
+  over `morpheus`'s ingest proxy on one host-scoped bearer token, and no logs
+  leave the range host (its journal can carry the attacker's segment, so
+  `deploy-agent.sh --metrics-only` ships `config.alloy` without `logs.alloy`). The
+  `pve-firewall-state` and new `range-state` collectors record the host firewall,
+  the `vmbr1_host_in` ingress table, `vmbr0`/`sshd` forwarding, and the
+  `homelab-ragnarok-stop.timer`'s state and deadline — the barriers
+  `build-the-playground.md` §7's per-session read-back checked by hand.
+  `range.rules.yaml` adds seven alerts over them. Built and deployed across
+  #1676, #1679, #1682, #1685 and #1693; verified live on 2026-11-23 — 0 push
+  failures and the `range_scope` tables enforcing with 0 out-of-scope packets.
+  The §4 tooling removal on `gandalf` was applied the same day: the
+  GitHub-capable root SSH key (`/root/.ssh/id_rsa`) and the `.claude` footprint
+  were removed and verified gone, with nothing on the host or in the repo using
+  or re-provisioning the key, so the host now matches §4's *Nothing else on
+  `gandalf`*.
+- **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
+  ran on battery for 82 seconds, for distorted input, and nothing paged. The
+  rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in
+  a row a minute apart. One scrape read 42 seconds, the alert went pending, and
+  the next read 0. It is now `max_over_time(upsSecondsOnBattery[2m]) > 30`
+  with no `for`, so any scrape that reads more than 30 seconds on battery
+  pages. A transfer that ends inside 30 seconds still does not, like the
+  1-second one on 2026-11-07. `ups.test.yaml` replays both.
+  `shut-down-on-the-ups.md` puts the outside limit for the rule firing at about
+  three and a quarter minutes. That is a scrape starting up to 90 seconds after
+  the cut, up to 45 seconds for it to finish, and up to 60 seconds to the next
+  evaluation. The page then goes out with no group wait. The runbook also
+  separates a rule that never fired from a page that was never delivered.
 - **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
   card's event log gives the cause, and it is the move into the 32U rack
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
@@ -42,6 +75,18 @@ docstring gives: it is a record, not a claim about now.
   sensitivity is now medium, and group 1's load-shedding values are set so
   they cannot fire. Group 1's overload shed and every group's delays are
   still not read.
+- **`build-heimdall.md` installs the exporter without apt's recommendations.**
+  `openipmi.service` and `smartmontools.service` had been failed on `heimdall`
+  since its first scrape on 2026-11-17, through the 2026-11-21 reboot.
+  `prometheus-node-exporter` recommends the collectors package, which
+  recommends `ipmitool` and `smartmontools`, and `ipmitool` recommends
+  `openipmi`. The Pi has no management controller and its card reports no
+  SMART data, so both fail at boot. Nothing alerted: `SystemdUnitFailed`
+  reads Alloy's journals, and `heimdall` runs no Alloy. §2 now installs with
+  `--no-install-recommends`, names the collectors package so the apt and
+  reboot metrics stay, checks `systemctl --failed`, and gives the purge for a
+  Pi built the old way. That purge is still to run on `heimdall`, from the
+  Mac, since `prometheus` reaches it only on 9100.
 
 ## 2026-11-23
 
