@@ -300,9 +300,10 @@ docstring gives: it is a record, not a claim about now.
 
 - **`mjolnir`'s card runs 3.6.1.2.** Installed by Part A of
   [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) at
-  about 19:38 UTC: AOS and the Smart-UPS application went from 2.0.0.6 and 2.0.0.5
-  to 3.6.1.2, the boot monitor to 4.2.9, by a plain `scp` with no Secure NMC
-  subscription. The card was back on SNMPv3 within two minutes. Afterwards
+  about 19:38 UTC: AOS and the Smart-UPS application went from 2.0.0.6 and
+  2.0.0.5 to 3.6.1.2, by a plain `scp` with no Secure NMC subscription. The
+  package also carried boot monitor 2.1.0.3; the installed boot monitor
+  wasn't read. The card was back on SNMPv3 within two minutes. Afterwards
   Prometheus read the low-battery duration at 16 minutes, sensitivity medium,
   all three outlet groups on with a 90-second off delay, and the battery date
   unchanged; the HTTPS probe passed, and NUT on `morpheus` read `OL` with all
