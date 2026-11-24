@@ -21,7 +21,10 @@ docstring gives: it is a record, not a claim about now.
 
 - **An audit of `heimdall` found that its browser never updated by itself.
   `build-heimdall.md` now trims it to a kiosk.** It was read-only, from the
-  Mac on Hicks. The Pi has not yet been taken through the new steps.
+  Mac on Hicks. The same evening every new step was applied to the Pi except
+  removing the passwordless sudo file, which needs the operator's password at
+  the keyboard. After that, only 22 and 9100 listened and `prometheus` still
+  read `up` 1. The Pi had not yet rebooted onto the changes.
   - **Chromium was never upgraded unattended.** `unattended-upgrades`
     allowed Debian's origins only. Chromium, the kernel, the firmware and the
     EEPROM come from Raspberry Pi's archive, and its Chromium outranks
