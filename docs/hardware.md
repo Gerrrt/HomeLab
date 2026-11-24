@@ -368,7 +368,8 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 
 **`mjolnir`'s card is an AP9641 at `10.0.99.10`, on current firmware; the
 UPS's own firmware is well behind APC's.** The card runs AOS 3.6.1.2 with the
-Smart-UPS application 3.6.1.2, installed on 2026-11-24 from AOS 2.0.0.6. Schneider's notes put the 3.x line behind a paid
+Smart-UPS application 3.6.1.2 and boot monitor 2.1.0.3, installed on
+2026-11-24 from AOS 2.0.0.6. Schneider's notes put the 3.x line behind a paid
 Secure NMC subscription, but its support said 3.6.1.2 installs without one,
 and the card took it by a plain file copy. The card kept its settings, its
 SSH host key and its factory TLS certificate. Its SSH offers only

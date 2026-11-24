@@ -359,6 +359,17 @@ docstring gives: it is a record, not a claim about now.
   [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), and they join
   `hardware.md` when they are in hand.
 
+- **`mjolnir`'s card runs boot monitor 2.1.0.3**, read by the owner on its
+  *About → Network* page. That's the version the 3.6.1.2 package carried, so
+  the entry above that left it unread is settled.
+- **`gen-certs.sh --csr` signs a request made on another device.** The key
+  stays on the device and no key is written here. The CA sets the subject
+  and SANs whatever the request asked for, and refuses a request whose own
+  signature doesn't verify. It's for the APC card, which can make a key and
+  a request on its command line. `generate-certificates.md` has the card's
+  steps, which end by switching its probe to `http_2xx_lab_ca`. The card
+  still serves its factory certificate until those steps are run.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
