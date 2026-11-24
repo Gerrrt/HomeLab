@@ -173,9 +173,12 @@ left, went to the cable modem on 2026-11-22.
 **The UPS's outlet groups, read at the rack on 2026-11-07:** the PDU is on
 group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
 Smart-UPS X's card can switch and sequence each group separately, so the PDU
-— and with it every host but the laptops — is one group. **Each group's
-turn-off, turn-on and load-shedding settings are not read yet**: check them
-against the shutdown in
+— and with it every host but the laptops — is one group. **Group 1's load
+shedding was read on 2026-11-24**: shed after 32767 seconds on battery, and
+shed below 0 seconds of runtime remaining. Those are the far ends of their
+ranges, so neither can cut the PDU before the pack runs out, ticked or not.
+**Still not read:** whether group 1 sheds when the UPS is overloaded, and each
+group's turn-off and turn-on delays. Check them against the shutdown in
 [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
 and the power-up order in the move runbook's §7, and write them here.
 [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) reads them
@@ -361,6 +364,13 @@ subscription, so its free ceiling is 2.5.x, and this model can't update the
 UPS with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
 is the procedure for both, tracked in
 [#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed.
+SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
+medium**, lowered from high by 2026-11-24. The card's event log gives the
+reason. It shows three transfers to battery since 2026-10-29, and the UPS
+gave the same cause for all three: distorted input, not a cut. They lasted
+279 seconds on 2026-10-29, 1 second on 2026-11-07 and 82 seconds on
+2026-11-21. The card's clock keeps UTC−7 all year, so since 2026-11-01 its
+log reads an hour ahead of local time.
 
 ## WAN
 
@@ -395,8 +405,9 @@ the runbook rather than backed up.
 - APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28,
   proven by a passing self-test the same day and under a biweekly schedule on
   the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
-  `upsBasicBatteryLastReplaceDate` still reads `08/15/2026` and wants resetting
-  to the fit date — it is the only record of the pack's age
+  *Last Battery Replacement* takes a month and year only. It holds August
+  2026, the month the pack went in, and is the only record of the pack's age.
+  SNMP and NUT show it with a filler day, as `08/15/2026`
 - APC AP9335T temperature probe on the UPS card's universal I/O port, for rack
   ambient at the bottom of the rack. Bought and plugged in by 2026-11-23, read
   over the card's SNMP from then
