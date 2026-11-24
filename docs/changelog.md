@@ -47,6 +47,31 @@ docstring gives: it is a record, not a claim about now.
   registered with github, so no credential on the host reaches the repository;
   revoking the old key on github, if it was ever added there as a deploy key, is
   off-host and the owner's. The `.claude` removal stands.
+
+- **`mjolnir`'s outlet groups are polled, and the card's last settings are
+  recorded.**
+  - **Outlet groups.** The card's outlet-group status and config tables are
+    now in `generator.yaml`. The control table, which switches the groups,
+    is left out. Read on 2026-11-24, every group was on, had no load shedding
+    of any kind, and had a 90-second turn-off delay and a 0-second turn-on
+    delay. `UpsOutletGroupOff` pages when a group is off for five minutes.
+    In practice that is only group 2. Turning off group 1 (the firewall and
+    the core switch) or group 3 (the MokerLink) cuts the monitoring path
+    first, and the external `Watchdog` heartbeat is what notices.
+    `UpsOutletGroupLoadShedEnabled` and `UpsOutletGroupDelayChanged` warn
+    when a setting moves. `UpsOutletGroupsUnread` warns when any group or
+    column those rules read is missing. `hardware.md` no longer says the
+    settings are unread.
+  - **The card's users and SNMPv3 access.** The users are `apc`,
+    `prometheus`, and the factory `device` and `readonly`. SNMPv3 is allowed
+    from `prometheus` and `morpheus` only. The owner fixed the card's clock,
+    and the 2026-11-13 SSH login from `prometheus` was the owner's.
+  - **`Saruman`'s half of ADR-0107 checked on the box.** All four ordered
+    guests have `down=90`. Each config file also shows a copy of the setting
+    without `down=90`, which is a snapshot's saved settings. NUT is 2.8.1,
+    with `SHUTDOWNEXIT no`, and `nut-monitor` is ordered before
+    `pve-guests` and active.
+  - Alert rules: 210 in all, 182 in Prometheus.
 - **An audit of `heimdall` found that its browser never updated by itself.
   `build-heimdall.md` now trims it to a kiosk.** It was read-only, from the
   Mac on Hicks. The same evening every new step was applied to the Pi except

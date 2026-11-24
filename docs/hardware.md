@@ -173,16 +173,29 @@ left, went to the cable modem on 2026-11-22.
 **The UPS's outlet groups, read at the rack on 2026-11-07:** the PDU is on
 group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
 Smart-UPS X's card can switch and sequence each group separately, so the PDU
-— and with it every host but the laptops — is one group. **Group 1's load
-shedding was read on 2026-11-24**: shed after 32767 seconds on battery, and
-shed below 0 seconds of runtime remaining. Those are the far ends of their
-ranges, so neither can cut the PDU before the pack runs out, ticked or not.
-**Still not read:** whether group 1 sheds when the UPS is overloaded, and each
-group's turn-off and turn-on delays. Check them against the shutdown in
-[ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
-and the power-up order in the move runbook's §7, and write them here.
-[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) reads them
-under *Before you start*, because shedding on group 1 would cut the PDU
+— and with it every host but the laptops — is one group. **All three groups'
+settings were read on 2026-11-24**, at the card and over SNMP:
+
+- **No load shedding on any group.** Shedding on time on battery, on runtime
+  remaining and on overload is disabled outright. The two thresholds sit at
+  32767 seconds and 0 seconds, the far ends of their ranges.
+- **A 90-second turn-off delay and a 0-second turn-on delay on each group.**
+  The turn-off delay is how long `morpheus` has to halt after it tells the
+  UPS to turn off. On 2026-10-29 the groups went off 90 seconds after the
+  command.
+
+Prometheus reads both tables from the card. `UpsOutletGroupLoadShedEnabled`
+and `UpsOutletGroupDelayChanged` warn if a setting moves from the values
+above. `UpsOutletGroupsUnread` warns if any of the three groups, or any column
+those rules read, stops arriving. `UpsOutletGroupOff` pages if a group goes
+off, **but in practice only for group 2.** Group 1 carries the firewall and
+the core switch, and group 3 the MokerLink that is `prometheus`'s and
+`oracle`'s only network. Either one off cuts the scrape or the way out before
+the page can leave. For those two the warning is the external heartbeat going
+quiet: `Watchdog`'s pings stop, and the cron-monitor alerts from outside
+([`observability.md`](observability.md)).
+[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) still reads
+them under *Before you start*, because shedding on group 1 would cut the PDU
 before any host is told to halt.
 
 **Two more decisions of 2026-10-16.** The UPS's AP9641 card gets an APC
@@ -370,8 +383,13 @@ warns if a card reset or anyone else moves it. The card's event log gives the
 reason. It shows three transfers to battery since 2026-10-29, and the UPS
 gave the same cause for all three: distorted input, not a cut. They lasted
 279 seconds on 2026-10-29, 1 second on 2026-11-07 and 82 seconds on
-2026-11-21. The card's clock keeps UTC−7 all year, so since 2026-11-01 its
-log reads an hour ahead of local time.
+2026-11-21. Until 2026-11-24 the card's clock kept UTC−7 all year, so from
+2026-11-01 its log read an hour ahead of local time. The owner corrected it on
+2026-11-24. **Its local users are `apc`, the administrator, `prometheus`, the
+SNMPv3 user, and the factory `device` and `readonly` accounts.** Whether those
+two are enabled has not been read. The `prometheus` SNMPv3 user is allowed
+from two addresses only: `10.0.99.20`, `prometheus`, and `10.0.99.1`, NUT on
+`morpheus`.
 
 ## WAN
 
