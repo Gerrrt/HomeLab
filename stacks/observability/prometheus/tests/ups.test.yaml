@@ -198,8 +198,8 @@ tests:
 
   # --- The nine UPS rules untested until #843 -------------------------------
 
-  # UpsOnBattery: 120s on battery fires after its 30s `for`; a UPS on mains (0) beside
-  # it does not. Quiet at 1m, before the cut.
+  # UpsOnBattery: 120s on battery fires on the first scrape that reads it; a UPS
+  # on mains (0) beside it does not. Quiet at 1m, before the cut.
   - interval: 1m
     input_series:
       - series: 'upsSecondsOnBattery{job="snmp",instance="10.0.99.10",device="mjolnir"}'
@@ -227,6 +227,41 @@ tests:
               description: >-
                 On battery for 2m 0s. Estimated runtime remaining is reported by
                 upsEstimatedMinutesRemaining.
+
+  # UpsOnBattery on a short transfer: 2026-11-21's 82 seconds on battery, read
+  # by one scrape at 42 s, pages on that scrape. The 1-second transfer of
+  # 2026-11-07 (read as 1) does not. Both are quiet again once the 2m window has
+  # passed the reading.
+  - interval: 1m
+    input_series:
+      - series: 'upsSecondsOnBattery{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "0 0 42 0 0 0 0 0"
+      - series: 'upsSecondsOnBattery{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "0 0 1 0 0 0 0 0"
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: UpsOnBattery
+        exp_alerts: []
+      - eval_time: 2m
+        alertname: UpsOnBattery
+        exp_alerts:
+          - exp_labels:
+              alertname: UpsOnBattery
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+              summary: "UPS mjolnir is running on battery"
+              description: >-
+                On battery for 42s. Estimated runtime remaining is reported by
+                upsEstimatedMinutesRemaining.
+      - eval_time: 5m
+        alertname: UpsOnBattery
+        exp_alerts: []
 
   # UpsBatteryLow: batteryLow(3) fires; batteryNormal(2) is the near miss the `> 2`
   # exists for.
