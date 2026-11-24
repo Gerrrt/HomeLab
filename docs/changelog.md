@@ -29,6 +29,18 @@ docstring gives: it is a record, not a claim about now.
   restarting it loaded the new page, which then asked only for routes that
   answer. Without the header, the page's six-hourly reload would not have
   brought in a change either.
+- **`heimdall` runs October 2026's bootloader.** This completes the entry
+  "`heimdall` runs the new §2 steps, and its bootloader is staged on the
+  card, not written by `flashrom`". The operator rebooted it, and it was up
+  again at 15:39:52. `rpi-eeprom-update` then read "up to date", CURRENT
+  2026-10-30 where it had read 2025-06-13. `pieeprom.upd` and
+  `recovery.bin` were gone from `/boot/firmware`, so the recovery boot
+  wrote the chip and cleaned up after itself. The kiosk came back on the
+  wall page at 1920 × 1080, Wi-Fi without the seed files, and only 22 and
+  9100 listened. No unit had failed, `throttled=0x0` at 54.3 °C, and
+  `prometheus` read `up` 1. The journal kept the previous boot, which ended
+  cleanly at 15:39:27.
+
 - **The wall page changes after the operator's card-by-card review**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
   `stacks/sensitive/README.md`, *The wall page*). Not yet deployed or seen
