@@ -262,7 +262,7 @@ No certificate step. That is the point of this runbook.
 | The intermediate is suspected compromised | On `prometheus`, `make tier-ca ARGS="--mint --force"` mints a new root **and** intermediate — the root changes too, so every device re-trusts. Re-minting only the intermediate beneath the existing root is `step certificate create` against `certificates/tier-ca/` and is not scripted; ADR-0037 leaves it to the day it is needed |
 | The root key on `prometheus` is lost | Nothing stops. The intermediate issues until 2036 without it. Before then, a new root: `--mint --force`, step 3 onward, and a re-trust on every household device |
 | `STEPCA_PASSWORD` is lost | Both keys are unrecoverable; treat as the row above |
-| step-ca is down | Caddy keeps serving each leaf until it expires, at least two days and at most seven after the CA stopped answering. Nothing pages on it yet ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — `docker ps` on `trinity` is the check until it does |
+| step-ca is down | Caddy keeps serving each leaf until it expires, at least two days and at most seven after the CA stopped answering. `TlsAcmeRenewalLate` warns at 48 hours left and `TlsAcmeRenewalStalled` pages at 36, about eight and twenty hours after Caddy should have renewed. Then `docker ps` on `trinity` |
 
 ## If something goes wrong
 
