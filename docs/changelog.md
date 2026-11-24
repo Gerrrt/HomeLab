@@ -67,6 +67,12 @@ docstring gives: it is a record, not a claim about now.
   reboot metrics stay, checks `systemctl --failed`, and gives the purge for a
   Pi built the old way. That purge is still to run on `heimdall`, from the
   Mac, since `prometheus` reaches it only on 9100.
+- **`successor-handover.md` names the alerts on the sensitive tier's
+  certificates.** Its row still said nothing paged on them until #426
+  landed, and that a dead step-ca would be found by a browser a week late.
+  #426 added `TlsAcmeRenewalLate` (48 hours) and `TlsAcmeRenewalStalled`
+  (36 hours, critical) for every `renewal: acme` target. Found re-checking
+  the `prometheus` audit.
 
 ## 2026-11-23
 
