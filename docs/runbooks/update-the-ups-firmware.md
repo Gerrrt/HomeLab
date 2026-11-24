@@ -61,10 +61,13 @@ Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
    ```
 
 3. On `prometheus`, check the signature. `osslsigncode` isn't installed, so
-   run it in a throwaway container:
+   run it in a throwaway container from the pinned Debian `archiver` image. It
+   needs the bridge network to install the tool and fetch DigiCert's CRL:
 
    ```bash
-   docker run --rm -v ~/apc_hw21_su_3-6-1-2.exe:/w/fw.exe:ro debian:stable-slim sh -c \
+   cd ~/code/Gerrrt/HomeLab
+   docker run --rm --network bridge -v ~/apc_hw21_su_3-6-1-2.exe:/w/fw.exe:ro \
+     "$(./scripts/image-for.sh archiver)" sh -c \
      'apt-get -qq update >/dev/null && apt-get -qq install -y osslsigncode ca-certificates >/dev/null &&
       osslsigncode verify -in /w/fw.exe -CAfile /etc/ssl/certs/ca-certificates.crt' 2>&1 |
      grep -E 'CN=SCHNEIDER|Signature verification'
