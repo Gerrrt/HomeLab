@@ -19,6 +19,21 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **Five warnings on `gandalf` were the estate's general host rules firing on the
+  range host's resting state — the exclusions the estate already has were missing
+  from the `#1651` monitoring onboarding.** `HypervisorGuestStopped` paged on the
+  three targets and `ragnarok`, all stopped by design, and `SmartDriveBadSectors`
+  on the range SSD's known 8 reallocated sectors. All four range guests are now
+  tagged `on-demand` ([ADR-0079](adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)),
+  which `HypervisorGuestStopped` excludes — not `disposable`
+  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)),
+  which the targets would outlive, since they are reverted and kept rather than
+  destroyed. `ragnarok`'s tag is declared in `tofu/guests.tf` so an apply keeps
+  it; the targets, not in `tofu/`, are tagged by hand. The SSD's 8 — stable since
+  2026-11-13, overall assessment passing, ~90% endurance left — is recorded in
+  `render-smart-baselines.sh`, so `SmartDriveBadSectors` accepts it and still
+  pages if it grows. `build-the-playground.md`'s *Monitoring the host* now lists
+  both as onboarding steps.
 - **`heimdall` took its first Chromium upgrade unattended.** The first
   nightly reboot fired at 04:30. At 06:08, unattended-upgrades took Chromium
   from 156.0.8078.79 to 156.0.8078.108 from Raspberry Pi's archive, the

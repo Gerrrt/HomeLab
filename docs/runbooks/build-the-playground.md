@@ -1509,6 +1509,28 @@ healthy. `DisposableGuestOutlived` also begins covering any
 `disposable`-tagged guest here. Host uptime is deliberately not alerted: an
 always-on host has no "up too long" fault (ADR-0126).
 
+**Tag the range guests, and baseline the range SSD — or the general host rules
+fire on `gandalf`'s resting state.** `HypervisorGuestStopped` in
+[`host.rules.yaml`](../../stacks/observability/prometheus/rules/host.rules.yaml)
+pages on any guest stopped for an hour unless it is tagged `disposable` or
+`on-demand`, a template, or mid-clone (ADR-0071, ADR-0079). The range's targets
+sit stopped and reverted between sessions, and `ragnarok` is stopped until a
+session needs it, so both are `on-demand` — not `disposable`, which the targets
+would outlive: `DisposableGuestOutlived` fires on a `disposable` guest once it
+passes fourteen days from creation, stopped or not, and the targets are kept and
+reverted, not destroyed. The targets are not in `tofu/`, so tag them by hand,
+once as root on `gandalf`: `qm set <vmid> --tags on-demand` for each (100, 101,
+102). `ragnarok` is `tofu`-managed, so its `on-demand` is declared in
+[`tofu/guests.tf`](../../tofu/guests.tf) beside `attack` and `range`, not set by
+hand — a `qm set` there is undone on the next apply. And
+`SmartDriveBadSectors` pages above a recorded baseline, so a drive with a known
+count needs a row in
+[`render-smart-baselines.sh`](../../scripts/render-smart-baselines.sh): the
+range pool's SSD read 8 reallocated sectors on 2026-11-24 (#1651), stable since
+2026-11-13, and now carries that baseline. Both were missed when `gandalf` was
+first onboarded, and both surfaced as five warnings the day the guests crossed
+the hour.
+
 ---
 
 ## 8. Check the four properties
