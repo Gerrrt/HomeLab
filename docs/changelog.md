@@ -289,6 +289,15 @@ docstring gives: it is a record, not a claim about now.
   owner read the card's user list. That settles the last account question
   the audit left open, and [`hardware.md`](hardware.md) now says so.
 
+- **`mjolnir`'s card update moves to 3.6.1.2.** Schneider has taken the 2.5.x
+  NMC3 packages off its site, and its support said that 3.6.1.2 installs with
+  the free update utility, without the Secure NMC subscription its own notes
+  ask for, and directly over 2.0.0.6. The package downloaded today is signed
+  by Schneider Electric USA; Schneider publishes no checksum for it. Part A of
+  [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) now
+  installs it and checks the signature, and `hardware.md` follows. Nothing
+  has been installed yet. Refs #1698.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data

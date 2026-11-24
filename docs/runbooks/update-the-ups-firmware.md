@@ -16,17 +16,24 @@ Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
   [`hardware.md`](../hardware.md#management)): the AP9641 card runs AOS
   2.0.0.6 with Smart-UPS application 2.0.0.5. The Smart-UPS X (ID 20) runs
   `UPS 09.8`.
-- **The card's free ceiling is the 2.5 line.** Schneider's 3.x firmware for
-  the NMC3 (3.6.1.2 on 2026-11-17, with six CVEs fixed) installs only through
-  its Secure NMC System (SNS) tool, which runs on Windows, and with a paid
-  Secure NMC subscription. A one-year subscription comes with a new AP9641, and
-  whether this card's has already run out is unknown. 2.5.x is the last line
-  that installs by a plain file copy. Part A installs the newest 2.5.x. Moving
-  to 3.x is a purchase decision; record it on #1698 if you make it.
+- **Part A installs 3.6.1.2, by a plain file copy.** Schneider's release notes
+  and its FAQ FA156047 say the 3.x line installs only through the Secure NMC
+  System (SNS) tool, with a paid subscription. Schneider support said
+  otherwise on 2026-11-24: 3.6.1.2 installs with the free NMC Firmware Update
+  Utility, without SNS or a subscription, and directly over 2.0.0.6. The
+  utility only unpacks the package and copies the `.nmc3` to the card, which
+  A.4 does by hand. The 2.5.x packages are no longer downloadable, so 3.6.1.2
+  is the only file there is. If the card refuses it, the card keeps running
+  what it had and nothing is lost: stop, and take it back to Schneider on
+  #1698.
+- **No checksum is published for 3.6.1.2.** Earlier versions had a SHA-256
+  on Schneider's community page; this version's notes, there and in the PDF,
+  have none. A.1 checks the package's Authenticode signature instead, and the
+  card checks the `.sig` inside the `.nmc3` before it installs anything.
 - **There is no going back.** Firmware 2.0 or later can't be downgraded below
   2.0. Downgrading from 2.4 or later to anything below 2.4 formats the card,
   erasing its certificates, keys, configuration and logs. Treat Part A as one
-  way.
+  way: a later 3.x release may need the subscription after all.
 - **The UPS update needs its output off** for this model (APC's table:
   *SMX, ID 20, firmware update with output on: No*). With the output off, `neo`
   is dark too, so the card can only be reached over a cable from the Mac
@@ -44,26 +51,44 @@ Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
 
 1. On the Mac, open Schneider's download page for *Network Management Card 3
    (NMC3) Firmware for Smart-UPS (SU) with AP9640/41/43* (document reference
-   `APC_NMC3_SU_EN`). Download the newest **2.5.x** package, a self-extracting
-   `apc_hw21_su_2-5-x-x.exe`. If the page offers only 3.x, look for older
-   versions on the same page. If no 2.5 package can be found, stop here: Part A
-   then depends on the subscription decision above.
-2. Copy it to `prometheus` and unpack it there. The `.exe` is a 7-Zip archive,
-   and `prometheus` has `7z`:
+   `APC_NMC3_SU_EN`) and download the **EXE**, `apc_hw21_su_3-6-1-2.exe`,
+   about 4.3 MB. Check its size before copying it: a download refused by
+   Schneider's CDN saves a page of a few hundred bytes under the same name.
+2. Copy it to `prometheus`:
 
    ```bash
-   scp ~/Downloads/apc_hw21_su_2-5-*.exe robo@10.0.99.20:
+   scp ~/Downloads/apc_hw21_su_3-6-1-2.exe robo@10.0.99.20:
    ```
 
-   Then on `prometheus`:
+3. On `prometheus`, check the signature. `osslsigncode` isn't installed, so
+   run it in a throwaway container from the pinned Debian `archiver` image. It
+   needs the bridge network to install the tool and fetch DigiCert's CRL:
 
    ```bash
-   mkdir -p ~/apc-fw && cd ~/apc-fw && 7z x ~/apc_hw21_su_2-5-*.exe
-   ls -1 *.nmc3
+   cd ~/code/Gerrrt/HomeLab
+   docker run --rm --network bridge -v ~/apc_hw21_su_3-6-1-2.exe:/w/fw.exe:ro \
+     "$(./scripts/image-for.sh archiver)" sh -c \
+     'apt-get -qq update >/dev/null && apt-get -qq install -y osslsigncode ca-certificates >/dev/null &&
+      osslsigncode verify -in /w/fw.exe -CAfile /etc/ssl/certs/ca-certificates.crt' 2>&1 |
+     grep -E 'CN=SCHNEIDER|Signature verification'
+   sha256sum ~/apc_hw21_su_3-6-1-2.exe
    ```
 
-   You want exactly one `apc_hw21_su_2-5-x-x.nmc3`. The package may also hold a
-   Windows upgrade utility; ignore it.
+   You want `O=SCHNEIDER ELECTRIC USA, INC.` and `Signature verification: ok`.
+   *Timestamp Server Signature verification: failed* is expected: Debian's
+   bundle lacks GlobalSign's timestamping root. The copy downloaded on
+   2026-11-24 hashed to
+   `260e20e3c812e95cc5faed72bfd8802d1acb5955ffcc37e55a042a6a79887cb7`.
+4. Unpack it. The `.exe` is a 7-Zip archive:
+
+   ```bash
+   mkdir -p ~/apc-fw && cd ~/apc-fw && 7z x ~/apc_hw21_su_3-6-1-2.exe
+   ls -1 Bins/*.nmc3
+   ```
+
+   You want exactly one `Bins/apc_hw21_su_3-6-1-2.nmc3`. It carries the
+   Smart-UPS application 3.6.1.2, boot monitor 2.1.0.3 and their signature.
+   The package also holds the Windows update utility; ignore it.
 
 ### A.2 Silence the card and NUT
 
@@ -104,10 +129,11 @@ and you delete it in A.5.
 ### A.4 Copy the firmware to the card
 
 ```bash
-scp -O apc_hw21_su_2-5-*.nmc3 <superuser>@10.0.99.10:$(ls apc_hw21_su_2-5-*.nmc3)
+scp -O Bins/apc_hw21_su_3-6-1-2.nmc3 <superuser>@10.0.99.10:apc_hw21_su_3-6-1-2.nmc3
 ```
 
-The card installs the file on receipt and reboots on its own. Allow up to ten
+The card installs the file on receipt and reboots on its own, more than once,
+because the package updates the boot monitor as well. Allow up to ten
 minutes. Don't power-cycle the UPS or pull the card while it works.
 
 ### A.5 Verify, then clear up
