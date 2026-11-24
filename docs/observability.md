@@ -390,8 +390,10 @@ connected" ten times in three minutes, held for five, which is the driver on
 `NutCommunicationsLost` (critical) fires on upsmon's own "is unavailable",
 five minutes without UPS data on that host. `NutMonitorFailedToStart` catches
 an `upsmon` that refused its configuration and exited. The brief *data stale*
-spells, about a hundred a day and seconds long, are left alone, but
-`NutUpsDataStaleFrequent` warns when an hour has more than 24 of them, twice
+spells are the UPS card going silent for a few seconds; since 2026-11-23 the
+driver on `morpheus` retries for 14 seconds to ride them out
+([`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md#why-the-driver-retries-for-14-seconds)).
+The spells that remain are left alone, but `NutUpsDataStaleFrequent` warns when an hour has more than 24 of them, twice
 the worst hour measured to 2026-11-23. Silence is left alone too: an `upsmon`
 that is not running logs nothing. That case, and `upsd` itself down, is
 `NutUpsUnreadable`'s in `prometheus/rules/ups.rules.yaml`, which asks `upsc`

@@ -280,12 +280,17 @@ authPassword=<AUTHPASS>
 privPassword=<PRIVPASS>
 mibs=apcc
 pollfreq=15
+snmp_timeout = 2
+snmp_retries = 6
 ```
 
 `secName` is `prometheus` — the username in `generator.yaml`'s `auth_apc`
 block, which is the credential the exporter has already been using against
 this card since 2026-09-21. `mibs=apcc` names NUT's PowerNet MIB; `snmp-ups`
-autodetects it and the line only makes the choice visible.
+autodetects it and the line only makes the choice visible. The last two
+lines give the driver about 14 seconds of retries before `upsd` marks the
+data stale; [Why the driver retries for 14 seconds](#why-the-driver-retries-for-14-seconds)
+says why.
 
 ### 1.4 Reveal and fill in Advanced settings
 
@@ -347,6 +352,8 @@ secLevel=authPriv
 secName=prometheus
 mibs=apcc
 pollfreq=15
+snmp_timeout = 2
+snmp_retries = 6
 LISTEN 127.0.0.1
 LISTEN ::1
 LISTEN 10.0.30.1 3493
@@ -1362,6 +1369,24 @@ username* and *Remote password* fields are read for other types and ignored
 for this one. Anything the driver needs beyond the address has to arrive
 through *Extra Arguments to driver*, which the package appends inside the
 `[mjolnir]` section. That is why the v3 credential goes there.
+
+### Why the driver retries for 14 seconds
+
+The card stops answering SNMP for a few seconds about twice a minute. A
+45-minute capture on `morpheus` on 2026-11-23 counted 93 such stalls, mostly
+3 to 5 seconds and up to 8; the card sends nothing during one, neither a reply
+nor an error. With the driver's defaults, one-second retries, NUT gives up at
+about 6 seconds, and `upsd` marks the data stale. In the capture only the two
+stalls longer than that, 7.1 and 8.2 seconds, became *data stale* spells, each
+logged the second its stall passed 6 seconds and cleared on the card's next
+answer. The exporter sees the same stalls as scrapes that time out at 5
+seconds.
+
+`snmp_timeout = 2` with `snmp_retries = 6` waits about 14 seconds, longer than
+any stall measured and still inside `upsd`'s 15-second `MAXAGE`. So a card that
+is really gone is still marked stale, about 8 seconds later than before. Why
+the card stalls at all is not known; it is the card's own behaviour, not the
+network's, since ICMP to it lost nothing during the capture.
 
 ### Why `smaug` is a subscriber at all
 
