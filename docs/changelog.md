@@ -34,6 +34,16 @@ docstring gives: it is a record, not a claim about now.
   `render-smart-baselines.sh`, so `SmartDriveBadSectors` accepts it and still
   pages if it grows. `build-the-playground.md`'s *Monitoring the host* now lists
   both as onboarding steps.
+- **`heimdall` took its first Chromium upgrade unattended.** The first
+  nightly reboot fired at 04:30. At 06:08, unattended-upgrades took Chromium
+  from 156.0.8078.79 to 156.0.8078.108 from Raspberry Pi's archive, the
+  origin `build-heimdall.md` §2 added the evening before. Nothing else was
+  left pending. The kiosk's Chromium had started at 04:30, so it kept running
+  the old code. This is the lag the 04:30 time accepts: an upgrade runs from
+  the next night's reboot. The operator rebooted the Pi at 09:10 to start the
+  new version early, and the kiosk came back on 156.0.8078.108 under
+  `lwrespawn`, with `throttled=0x0` and nothing failed.
+
 - **`heimdall` runs every step of `build-heimdall.md` and has rebooted onto
   them.** This completes the entry "An audit of `heimdall` found that its
   browser never updated by itself", which left the sudo file in place and the
