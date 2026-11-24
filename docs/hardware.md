@@ -366,16 +366,19 @@ The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
 revisions of this repository treated `shiva` as the hypervisor itself.
 
-**`mjolnir`'s card is an AP9641 at `10.0.99.10`, and both its firmware and
-the UPS's are well behind APC's.** Read on 2026-11-23: the card runs AOS
-2.0.0.6 with the Smart-UPS application 2.0.0.5, against 3.6.1.2, released on
-2026-11-17; the UPS runs `UPS 09.8 (ID20)`, against 15.0 for that ID. The UPS
-releases since 09.8 improve its handling of very weak batteries and its
-replace-battery indicator (09.9), and add a setting that locks firmware
-updates to chosen ports (15.0). Schneider's notes put the card's 3.x line behind a paid Secure NMC
-subscription, but its support said on 2026-11-24 that 3.6.1.2 installs
-without one, and the 2.5.x packages are gone, so the card's update is to
-3.6.1.2. This model can't update the UPS with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
+**`mjolnir`'s card is an AP9641 at `10.0.99.10`, on current firmware; the
+UPS's own firmware is well behind APC's.** The card runs AOS 3.6.1.2 with the
+Smart-UPS application 3.6.1.2, installed on 2026-11-24 from AOS 2.0.0.6. Schneider's notes put the 3.x line behind a paid
+Secure NMC subscription, but its support said 3.6.1.2 installs without one,
+and the card took it by a plain file copy. The card kept its settings, its
+SSH host key and its factory TLS certificate. Its SSH offers only
+`ecdh-sha2-nistp256` and the finite-field group exchanges, with an
+`ecdsa-sha2-nistp256` host key, so a client restricted to curve25519 needs
+those named for the one command. The UPS runs `UPS 09.8 (ID20)`, against 15.0
+for that ID. The UPS releases since 09.8 improve its handling of very weak
+batteries and its replace-battery indicator (09.9), and add a setting that
+locks firmware updates to chosen ports (15.0). This model can't update the UPS
+with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
 is the procedure for both, tracked in
 [#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed.
 SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
