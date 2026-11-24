@@ -1,0 +1,17 @@
+[Unit]
+Description=HomeLab: nightly RouterOS config export from neo
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-backup-switch.service
+# 09:45, after the morning run's last slot. It leaves this host (to the switch
+# through morpheus, then to oracle), so it sits with the jobs that do, at the
+# end. Not in working hours' first minutes by chance: an export is a read and
+# disturbs nothing on the switch.
+OnCalendar=*-*-* 09:45:00
+RandomizedDelaySec=900
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

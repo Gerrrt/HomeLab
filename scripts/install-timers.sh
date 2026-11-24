@@ -138,6 +138,7 @@ JOBS=(
   "backup-wiki       homelab-backup-wiki         172800  backup-wiki"
   "verify-backups    homelab-verify-backups      259200  verify-backups"
   "backup-firewall   homelab-backup-firewall     259200  backup-firewall"
+  "backup-switch     homelab-backup-switch       259200  backup-switch"
   "snmp-verify       homelab-snmp-verify        1209600  snmp-verify"
   "check-versions    homelab-check-versions     1209600  check-versions"
   "dashboards-drift  homelab-dashboards-drift    172800  dashboards-export"

@@ -409,10 +409,11 @@ def main() -> int:
             problems.append(f"path_regex {raw!r} does not compile — {exc}")
 
     # The paths sops is actually asked to encrypt. Stack secrets files, plus one
-    # firewall export: the stamp is arbitrary, so any well-formed name stands in
-    # for the whole class.
+    # firewall export and one switch export: the stamp is arbitrary, so any
+    # well-formed name stands in for the whole class.
     paths = [f"secrets/{stack}.sops.yaml" for stack in stacks()]
     paths.append("backups/firewall/config-20260101T000000Z.sops.yaml")
+    paths.append("backups/switch/config-20260101T000000Z.sops.yaml")
 
     matched_by: dict[str, str] = {}
     used: set[str] = set()
