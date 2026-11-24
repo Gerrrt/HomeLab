@@ -35,13 +35,11 @@ un-silenced by hand at the right moment.**
 > `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2` is still how
 > you read the card directly when one of those fires.
 >
-> **One reading that was not reset.** `upsBasicBatteryLastReplaceDate` is
-> `08/15/2026` — thirteen days before the pack went in, on a date when this
-> card's own self-test was still aborting over an empty bay. Step 2, item 5 asks
-> for that date to come back reset and it did not, so the card's battery-age
-> accounting, and the replacement date it projects from it, are keyed to
-> something that did not happen. Harmless today; wrong in four years, when it is
-> the only record of how old the pack is.
+> **The replacement date is right.** `upsBasicBatteryLastReplaceDate` reads
+> `08/15/2026`, which read as thirteen days before the pack went in. It isn't
+> wrong: the card's *Last Battery Replacement* field stores a month and year
+> only (read at the card on 2026-11-24), and SNMP and NUT add a filler day.
+> August 2026 is the fit month, so the field is the record of the pack's age.
 >
 > The shelf and the switch move (step 2, items 1–3) were not done that day;
 > they were done on 2026-09-08, which closed
@@ -187,8 +185,9 @@ the cases that genuinely need the wire, and reads the credential from SOPS.
    powered off; [ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
    makes that box the sensitive tier's host instead, and
    [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where it lives.
-5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure, and
-   confirm the card comes back with the battery-replacement date reset.
+5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure,
+   then set *Configuration → UPS → Last Battery Replacement* to the month and
+   year of the fit. The field takes no day.
 
 ## 3. Delete the silence — immediately, not on expiry
 
@@ -410,7 +409,6 @@ moved into Done in the same pass, because its third step is now satisfied.
 | File | What changes |
 | --- | --- |
 | `docs/images/ups-power.png` | Re-capture the set with `make screenshots`. The committed image is from 2026-08-22 and shows the original no-battery banner; it needs the decrypted Grafana password, so it is a human step |
-| The NMC | Reset `upsBasicBatteryLastReplaceDate`, which still reads `08/15/2026` for a pack fitted on the 28th. A human step at the card's web UI: every SNMP path in this repository reads and none of them writes |
 
 And when the shelf is racked, which is a separate visit and separate issue:
 
