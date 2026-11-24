@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The three Hicks pool leases the `morpheus` audit could not name are
+  named.** The operator identified them, and `morpheus`'s ARP table placed
+  them on 2026-11-24. `.101` is `mobile-02`, whose row moves from `.109`, and
+  `.100` is `laptop-02` on Wi-Fi under a private address. `.105` is
+  `desktop-01` on its board's second Ethernet port, one MAC above the reserved
+  one, so its `.20` reservation and static ARP entry do not apply to it.
+  `mobile-01`'s row, which claimed `.105`, now says pool. Refs #1503.
+
 - **`heimdall` runs every step of `build-heimdall.md` and has rebooted onto
   them.** This completes the entry "An audit of `heimdall` found that its
   browser never updated by itself", which left the sudo file in place and the
