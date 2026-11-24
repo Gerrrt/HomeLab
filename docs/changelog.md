@@ -34,8 +34,11 @@ docstring gives: it is a record, not a claim about now.
   `range.rules.yaml` adds seven alerts over them. Built and deployed across
   #1676, #1679, #1682, #1685 and #1693; verified live on 2026-11-23 — 0 push
   failures and the `range_scope` tables enforcing with 0 out-of-scope packets.
-  The §4 tooling removal on `gandalf` (a GitHub-capable root SSH key and a
-  `.claude` footprint) stays the one open item, as `security.md` records.
+  The §4 tooling removal on `gandalf` was applied the same day: the
+  GitHub-capable root SSH key (`/root/.ssh/id_rsa`) and the `.claude` footprint
+  were removed and verified gone, with nothing on the host or in the repo using
+  or re-provisioning the key, so the host now matches §4's *Nothing else on
+  `gandalf`*.
 - **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
   ran on battery for 82 seconds, for distorted input, and nothing paged. The
   rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in
