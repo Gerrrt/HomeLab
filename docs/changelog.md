@@ -59,6 +59,26 @@ docstring gives: it is a record, not a claim about now.
     flags, blanking off, the 1080p `kanshi` profile, only the tier's root in
     Chromium's store, 52 °C with `throttled=0x0`, and no card errors.
 
+- **`gandalf` is now monitored ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** ADR-0125 keeps
+  the range host on, so ADR-0017's reason for giving it no monitoring — off
+  between sessions — is gone. `gandalf` now runs `Saruman`'s Grafana Alloy agent
+  in metrics-only mode: node metrics and two host collectors push to `prometheus`
+  over `morpheus`'s ingest proxy on one host-scoped bearer token, and no logs
+  leave the range host (its journal can carry the attacker's segment, so
+  `deploy-agent.sh --metrics-only` ships `config.alloy` without `logs.alloy`). The
+  `pve-firewall-state` and new `range-state` collectors record the host firewall,
+  the `vmbr1_host_in` ingress table, `vmbr0`/`sshd` forwarding, and the
+  `homelab-ragnarok-stop.timer`'s state and deadline — the barriers
+  `build-the-playground.md` §7's per-session read-back checked by hand.
+  `range.rules.yaml` adds seven alerts over them. Built and deployed across
+  #1676, #1679, #1682, #1685 and #1693; verified live on 2026-11-23 — 0 push
+  failures and the `range_scope` tables enforcing with 0 out-of-scope packets.
+  The §4 tooling removal on `gandalf` was applied the same day: the
+  GitHub-capable root SSH key (`/root/.ssh/id_rsa`) and the `.claude` footprint
+  were removed and verified gone, with nothing on the host or in the repo using
+  or re-provisioning the key, so the host now matches §4's *Nothing else on
+  `gandalf`*.
 - **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
   ran on battery for 82 seconds, for distorted input, and nothing paged. The
   rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in
