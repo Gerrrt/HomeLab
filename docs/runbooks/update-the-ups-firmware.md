@@ -8,7 +8,8 @@ so it means shutting down everything `mjolnir` powers. Do Part A when it
 suits you. Do Part B only inside a whole-estate outage that is already
 planned for something else.
 
-Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
+Part A ran on 2026-11-24 under [#1698](https://github.com/Gerrrt/HomeLab/issues/1698),
+now closed. Part B is tracked in [#1731](https://github.com/Gerrrt/HomeLab/issues/1731).
 
 ## Read this part first
 
@@ -25,8 +26,9 @@ Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
   utility only unpacks the package and copies the `.nmc3` to the card, which
   A.4 does by hand. The 2.5.x packages are no longer downloadable, so 3.6.1.2
   is the only file there is. If the card refuses it, the card keeps running
-  what it had and nothing is lost: stop, and take it back to Schneider on
-  #1698.
+  what it had and nothing is lost: stop, and take it back to Schneider,
+  citing the owner's support case from 2026-11-24. Its number is kept with
+  the owner, not in this public repository.
 - **No checksum is published for 3.6.1.2.** Earlier versions had a SHA-256
   on Schneider's community page; this version's notes, there and in the PDF,
   have none. A.1 checks the package's Authenticode signature instead, and the
@@ -103,10 +105,13 @@ END=$(date -u -d '+1 hour' +%Y-%m-%dT%H:%M:%SZ)
 for m in '{"name":"role","value":"ups","isRegex":false,"isEqual":true}' \
          '{"name":"alertname","value":"Nut.*","isRegex":true,"isEqual":true}'; do
   curl -sS -X POST http://localhost:9093/api/v2/silences -H 'Content-Type: application/json' \
-    --data "$(printf '{"matchers":[%s],"startsAt":"%s","endsAt":"%s","createdBy":"#1698 card firmware","comment":"#1698 mjolnir card firmware upgrade: the card reboots. Delete at A.5."}' "$m" "$START" "$END")"
+    --data "$(printf '{"matchers":[%s],"startsAt":"%s","endsAt":"%s","createdBy":"#NNN card firmware","comment":"#NNN mjolnir card firmware upgrade: the card reboots. Delete at A.5."}' "$m" "$START" "$END")"
   echo
 done
 ```
+
+Replace `#NNN` with the issue for the update; the silence collector reads
+its owner from a comment that begins with one.
 
 **Record both silence IDs.** A.5 deletes them.
 
@@ -192,7 +197,7 @@ so the house has no internet for the duration.
 ### B.2 Silence the estate and pause deploys
 
 Follow [`move-into-the-32u-rack.md`](move-into-the-32u-rack.md) §2 and §3,
-with `#1698` in the silence's comment in place of `#919`.
+with `#1731` in the silence's comment in place of `#919`.
 
 ### B.3 Shut the hosts down, in order
 
@@ -268,7 +273,7 @@ button on a hypervisor with running guests.
 6. On `morpheus`, `upsc mjolnir ups.firmware` reads `UPS 15.0 (ID20)`, and
    `UpsLowBatteryDurationShort` and `UpsRideThroughShort` are quiet.
 7. Update [`hardware.md`](../hardware.md#management), add a changelog entry,
-   and close #1698 if Part A is also done.
+   and close #1731.
 
 ## If something goes wrong
 

@@ -380,8 +380,9 @@ for that ID. The UPS releases since 09.8 improve its handling of very weak
 batteries and its replace-battery indicator (09.9), and add a setting that
 locks firmware updates to chosen ports (15.0). This model can't update the UPS
 with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
-is the procedure for both, tracked in
-[#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed. Since 2026-11-24
+is the procedure for both. The card's update was
+[#1698](https://github.com/Gerrrt/HomeLab/issues/1698), done; the UPS's is
+[#1731](https://github.com/Gerrrt/HomeLab/issues/1731). The card answers HTTPS and SSH; its HTTP port is closed. Since 2026-11-24
 its HTTPS serves a leaf from the estate CA, for an RSA key made on the card,
 and the `ups-ui` probe verifies it ([`generate-certificates.md`](runbooks/generate-certificates.md), *The APC card's leaf*).
 SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
