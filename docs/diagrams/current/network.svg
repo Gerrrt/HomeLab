@@ -227,7 +227,7 @@
 <rect x="2010" y="313" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
 <rect x="2010" y="313" width="5" height="19" fill="#2ea043"/>
 <text x="2024" y="327" class="mono">U18</text>
-<text x="2086" y="327" class="role">ThinkCentre M80q · gandalf (off)</text>
+<text x="2086" y="327" class="role">ThinkCentre M80q · gandalf</text>
 <rect x="2010" y="334" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
 <rect x="2010" y="334" width="5" height="19" fill="#f85149"/>
 <text x="2024" y="348" class="mono">U16</text>
@@ -493,8 +493,8 @@
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
 <text x="1204" y="1460" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
-<text x="1204" y="1476" class="foot">9090/3100; Saruman, golem → smaug NFS. Hicks: all of it.</text>
-<text x="1204" y="1492" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
+<text x="1204" y="1476" class="foot">9090/3100, gandalf → 9090; Saruman, golem → smaug NFS.</text>
+<text x="1204" y="1492" class="foot">Hicks: all of it. WireGuard peers via phoenix: lab only.</text>
 <rect x="1202" y="772" width="492" height="642" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
 <g class="host" data-host="Saruman">
