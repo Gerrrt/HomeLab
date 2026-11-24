@@ -403,15 +403,27 @@ only ever fast-forwards `main`, so a converge that fires while a branch is
 checked out refuses exactly as above, and its `ScheduledJobFailed` fires with
 it.
 
-Nothing was deployed from the branch: the branch check runs before any fetch or
-`make up`, so the refusal is the whole effect, and the gate is doing its job —
-it would rather stop than deploy whatever a half-finished branch happens to
-hold. The alert clears on the next converge that finds the checkout back on
-`main`; put it there with the `git switch` the error prints. If the branch work
-is still in flight it refuses again on the next run, so `ScheduledJobFailed`
-flaps for as long as the tree is left off `main` across a converge — benign,
-but noisy. Authoring from a `git worktree` keeps the deployment checkout on
-`main` while the work goes on, and the timer stays quiet.
+No branch configuration is deployed — the branch check runs before any fetch or
+`make up`. That is not the same as no effect: `revive_stopped` runs earlier in
+the same pass, so a converge that then refuses may already have restarted a
+stopped stack service, brought back on its last-applied configuration rather
+than the branch's (see *When a service is stopped*). What the gate prevents,
+every time, is shipping a half-finished branch.
+
+`ScheduledJobFailed` reads the job's last exit code, so it clears on the next
+*successful* converge — the checkout on `main` **and** clean, since uncommitted
+edits carried across the switch are their own refusal. Put the tree back with
+the `git switch` the error prints; if the alert outlives a run that should have
+passed, the journal says what the last one refused on:
+
+```bash
+journalctl -u 'homelab-converge*' -n 20 --no-pager | grep homelab-deploy
+```
+
+While branch work is in flight the converge refuses on every run it overlaps,
+so `ScheduledJobFailed` flaps for as long as the tree is left off `main` —
+benign, but noisy. Authoring from a `git worktree` keeps the deployment
+checkout on `main` while the work goes on, and the timer stays quiet.
 
 ### The tip did not verify
 
