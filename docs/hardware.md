@@ -184,10 +184,16 @@ settings were read on 2026-11-24**, at the card and over SNMP:
   UPS to turn off. On 2026-10-29 the groups went off 90 seconds after the
   command.
 
-Prometheus reads both tables from the card. `UpsOutletGroupOff` pages if a
-group goes off. `UpsOutletGroupLoadShedEnabled` and
-`UpsOutletGroupDelayChanged` warn if a setting moves from the values above,
-and `UpsOutletGroupsUnread` warns if the tables stop arriving.
+Prometheus reads both tables from the card. `UpsOutletGroupLoadShedEnabled`
+and `UpsOutletGroupDelayChanged` warn if a setting moves from the values
+above. `UpsOutletGroupsUnread` warns if any of the three groups, or any column
+those rules read, stops arriving. `UpsOutletGroupOff` pages if a group goes
+off, **but in practice only for group 2.** Group 1 carries the firewall and
+the core switch, and group 3 the MokerLink that is `prometheus`'s and
+`oracle`'s only network. Either one off cuts the scrape or the way out before
+the page can leave. For those two the warning is the external heartbeat going
+quiet: `Watchdog`'s pings stop, and the cron-monitor alerts from outside
+([`observability.md`](observability.md)).
 [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) still reads
 them under *Before you start*, because shedding on group 1 would cut the PDU
 before any host is told to halt.

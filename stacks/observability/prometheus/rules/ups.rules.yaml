@@ -636,6 +636,13 @@ groups:
         # upsOutletGroupStatusGroupState: on(1), off(2), unknown(3). An off
         # group has cut power to what is plugged into it. During a cut that
         # ends in a shutdown this fires with UpsOnBattery, which is right.
+        #
+        # ONLY GROUP 2 CAN REALLY PAGE. Group 1 carries the firewall and the
+        # core switch, and group 3 the MokerLink that is prometheus's and
+        # oracle's only network. Either one off cuts the scrape or the way out
+        # before five minutes pass, so this rule cannot deliver for them. What
+        # does is the external heartbeat: Watchdog's pings stop, and the
+        # cron-monitor alerts from outside (observability.md, Watchdog).
         expr: upsOutletGroupStatusGroupState{device="mjolnir"} != 1
         for: 5m
         labels:
@@ -699,13 +706,19 @@ groups:
             change this rule and hardware.md with it.
 
       - alert: UpsOutletGroupsUnread
-        # Without this the three rules above would sit quiet on nothing.
+        # Without this the three rules above would sit quiet on nothing. It
+        # needs every column they read, for all three groups: one group's rows
+        # must not hide another's missing row, and a missing column must not
+        # hide behind the ones that are there.
         expr: |
           up{job="snmp", device="mjolnir"} == 1
           unless on(device) (
-            upsOutletGroupStatusGroupState
-            and on(device) upsOutletGroupConfigPowerOffDelay
-            and on(device) upsOutletGroupConfigLoadShedControlInOverload
+                count by (device) (upsOutletGroupStatusGroupState) == 3
+            and on(device) count by (device) (upsOutletGroupConfigPowerOffDelay) == 3
+            and on(device) count by (device) (upsOutletGroupConfigPowerOnDelay) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlTimeOnBattery) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlRuntimeRemaining) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlInOverload) == 3
           )
         for: 1h
         labels:
@@ -715,8 +728,9 @@ groups:
         annotations:
           summary: "{{ $labels.device }} answers SNMP but its outlet groups are unread"
           description: >-
-            The outlet-group status or config table came back empty, so
-            UpsOutletGroupOff, ...LoadShedEnabled and ...DelayChanged cannot
-            fire. Read them from the repository checkout with
+            A group or a column is missing from the outlet-group status or
+            config table, so UpsOutletGroupOff, ...LoadShedEnabled or
+            ...DelayChanged cannot fire for it. Read them from the repository
+            checkout with
             `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
             and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.

@@ -1147,7 +1147,173 @@ tests:
                 morpheus before it has halted. If the change was deliberate,
                 change this rule and hardware.md with it.
 
-  # UpsOutletGroupsUnread: tables absent fires after an hour; present does not.
+  # UpsOutletGroupsUnread needs all six columns for all three groups. The rule
+  # counts by device, so these series carry only the device and an index.
+  #
+  # Every column for every group, the card as read on 2026-11-24: quiet.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="1"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="2"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="3"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="1"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="2"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="3"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="3"}'
+        values: "1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsOutletGroupsUnread
+        exp_alerts: []
+
+  # One column gone (the on delay), the other five complete: fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="1"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="2"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="3"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="3"}'
+        values: "1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsOutletGroupsUnread
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir answers SNMP but its outlet groups are unread"
+              description: >-
+                A group or a column is missing from the outlet-group status or
+                config table, so UpsOutletGroupOff, ...LoadShedEnabled or
+                ...DelayChanged cannot fire for it. Read them from the repository
+                checkout with
+                `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
+                and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.
+
+  # One group gone from one column (group 3's overload shed), groups 1 and 2
+  # still there: fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="1"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="2"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{device="mjolnir",idx="3"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="1"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="2"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigPowerOnDelay{device="mjolnir",idx="3"}'
+        values: "0x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="2"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir",idx="3"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir",idx="2"}'
+        values: "1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsOutletGroupsUnread
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir answers SNMP but its outlet groups are unread"
+              description: >-
+                A group or a column is missing from the outlet-group status or
+                config table, so UpsOutletGroupOff, ...LoadShedEnabled or
+                ...DelayChanged cannot fire for it. Read them from the repository
+                checkout with
+                `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
+                and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.
+
+  # Nothing from either table: fires.
   - interval: 1m
     input_series:
       - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
@@ -1166,26 +1332,9 @@ tests:
             exp_annotations:
               summary: "mjolnir answers SNMP but its outlet groups are unread"
               description: >-
-                The outlet-group status or config table came back empty, so
-                UpsOutletGroupOff, ...LoadShedEnabled and ...DelayChanged cannot
-                fire. Read them from the repository checkout with
+                A group or a column is missing from the outlet-group status or
+                config table, so UpsOutletGroupOff, ...LoadShedEnabled or
+                ...DelayChanged cannot fire for it. Read them from the repository
+                checkout with
                 `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
                 and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.
-
-  - interval: 1m
-    input_series:
-      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
-        values: "1x90"
-      - series: 'upsOutletGroupStatusGroupState{job="snmp",instance="10.0.99.10",device="mjolnir",
-                 upsOutletGroupStatusIndex="1",upsOutletGroupStatusName="Outlet Group 1"}'
-        values: "1x90"
-      - series: 'upsOutletGroupConfigPowerOffDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
-                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
-        values: "90x90"
-      - series: 'upsOutletGroupConfigLoadShedControlInOverload{job="snmp",instance="10.0.99.10",device="mjolnir",
-                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
-        values: "1x90"
-    alert_rule_test:
-      - eval_time: 90m
-        alertname: UpsOutletGroupsUnread
-        exp_alerts: []

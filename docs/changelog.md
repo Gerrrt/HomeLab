@@ -55,9 +55,13 @@ docstring gives: it is a record, not a claim about now.
     is left out. Read on 2026-11-24, every group was on, had no load shedding
     of any kind, and had a 90-second turn-off delay and a 0-second turn-on
     delay. `UpsOutletGroupOff` pages when a group is off for five minutes.
-    `UpsOutletGroupLoadShedEnabled` and `UpsOutletGroupDelayChanged` warn when
-    a setting moves, and `UpsOutletGroupsUnread` warns when the tables are
-    missing. `hardware.md` no longer says the settings are unread.
+    In practice that is only group 2. Turning off group 1 (the firewall and
+    the core switch) or group 3 (the MokerLink) cuts the monitoring path
+    first, and the external `Watchdog` heartbeat is what notices.
+    `UpsOutletGroupLoadShedEnabled` and `UpsOutletGroupDelayChanged` warn
+    when a setting moves. `UpsOutletGroupsUnread` warns when any group or
+    column those rules read is missing. `hardware.md` no longer says the
+    settings are unread.
   - **The card's users and SNMPv3 access.** The users are `apc`,
     `prometheus`, and the factory `device` and `readonly`. SNMPv3 is allowed
     from `prometheus` and `morpheus` only. The owner fixed the card's clock,
