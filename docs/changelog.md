@@ -19,6 +19,19 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **`heimdall` runs every step of `build-heimdall.md` and has rebooted onto
+  them.** This completes the entry "An audit of `heimdall` found that its
+  browser never updated by itself", which left the sudo file in place and the
+  Pi not yet rebooted.
+  - **sudo asks for the password.** The operator removed
+    `/etc/sudoers.d/90-cloud-init-users` at the keyboard, and `sudo -k -n true`
+    over SSH now answers `a password is required`.
+  - **A reboot at 21:26 brought everything back.** Wi-Fi came up without
+    the seed files, and Chromium came back on the wall page under
+    `lwrespawn`, at 1080p. The journal kept the previous boot. Only 22 and
+    9100 listened, nothing had failed, and `prometheus` read `up` 1. The
+    first 04:30 reboot is on 2026-11-24.
+
 - **Correction to the 2026-11-24 entry on `gandalf`'s §4 tooling removal: the
   deleted root SSH key was Proxmox's own node key, not a dedicated github credential, and
   removing it broke root self-SSH.** The key at `/root/.ssh/id_rsa` carried the
