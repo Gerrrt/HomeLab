@@ -176,26 +176,29 @@ bootloader only when the one on the chip is older than a floor Raspberry Pi
 sets for critical fixes. Anything newer than that floor stays as it is. On
 2026-11-24 the chip held June 2025's bootloader, the package carried October
 2026's, and the first boot after the upgrade logged "Skipping automatic
-bootloader upgrade". Drop the `-s`, so each boot writes the newest default release when
-it is newer than the chip's:
+bootloader upgrade". Drop the `-s`, so each boot stages the newest default
+release when it is newer than the chip's:
 
 ```bash
 sudo mkdir -p /etc/systemd/system/rpi-eeprom-update.service.d
 printf '[Service]\nExecStart=\nExecStart=/usr/bin/rpi-eeprom-update -a\n' \
   | sudo tee /etc/systemd/system/rpi-eeprom-update.service.d/50-always.conf
 sudo systemctl daemon-reload
-sudo systemctl restart rpi-eeprom-update.service    # writes it now
+sudo systemctl restart rpi-eeprom-update.service    # "EEPROM updates pending"
+ls /boot/firmware/pieeprom.upd /boot/firmware/recovery.bin
 sudo reboot
 # after the reboot:
 rpi-eeprom-update | grep -E '^BOOTLOADER|CURRENT'    # up to date
 ```
 
-On a Pi 5 the service writes the chip with `flashrom` while the Pi runs, and
-the new bootloader runs from the next boot. The script verifies what it
-wrote. If the write fails, it leaves the update and `recovery.bin` on the
-boot partition, and the next boot writes the chip from the card instead.
-With the nightly reboot, a release that the package brings in at 06:00 is
-written at the next 04:30 boot and runs from the one after.
+On `heimdall` the update is staged on the card, not written to the chip
+while the Pi runs. The script would use `flashrom`, but Raspberry Pi OS
+exposes no `/dev/spidev*` here, so on 2026-11-24 it logged "SPI device
+/dev/spidev10.0 not found" and copied `pieeprom.upd`, its signature and
+`recovery.bin` to `/boot/firmware`. At the next boot the firmware runs
+`recovery.bin`, which writes the chip from those files and boots on. With the
+nightly reboot, a release the package brings in at 06:00 is staged at the
+next 04:30 boot and written at the one after.
 
 ### A journal that survives a reboot
 
