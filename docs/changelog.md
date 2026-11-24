@@ -298,6 +298,12 @@ docstring gives: it is a record, not a claim about now.
   installs it and checks the signature, and `hardware.md` follows. Nothing
   has been installed yet. Refs #1698.
 
+- **The console cable for `neo` is on hand.** The operator already had the
+  USB-to-RJ45 serial cable the roadmap listed as still to buy since
+  2026-10-16, so its row leaves *Everything still to buy* and it is listed
+  under `hardware.md`'s accessories. The README's count of outstanding
+  purchases goes from 11 to 10.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
