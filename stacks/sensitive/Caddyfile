@@ -276,7 +276,7 @@ start.matrix.elysium {
 #               rewrite, so /api/q/cpu?query=anything still asks the CPU
 #               question. Nothing else under /api/ answers. The reader token
 #               can query and nothing more (ADR-0067); this narrows it again,
-#               to eight answers. The page holds no credential, and neither
+#               to twelve answers. The page holds no credential, and neither
 #               does the Pi.
 #   /api/ha/NAME one Home Assistant entity's state, the same way: each handle
 #               rewrites to /api/states/<one entity> and ends in `?`, which
@@ -369,10 +369,36 @@ wall.matrix.elysium {
 			import wall_prometheus
 		}
 
-		# TCP connect time to 1.1.1.1:443, the internet anchor.
-		#   probe_duration_seconds{job="blackbox-latency",name="cloudflare"}
-		handle /api/q/rtt {
-			rewrite * /api/v1/query?query=probe_duration_seconds%7Bjob%3D%22blackbox-latency%22%2Cname%3D%22cloudflare%22%7D
+		# speedtest-tracker's last result, scraped from its container on
+		# `prometheus` every 30 minutes: download and upload in bits per
+		# second, ping, and the result id. A failed test exports only the id,
+		# with status="failed" (rules/internet.rules.yaml, SpeedtestStale), so
+		# the id is asked too: without it a failure reads as no answer.
+		#   {__name__=~"speedtest_tracker_result_id|speedtest_tracker_download_bits|speedtest_tracker_upload_bits|speedtest_tracker_ping_ms",job="speedtest-tracker"}
+		handle /api/q/speedtest {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22speedtest_tracker_result_id%7Cspeedtest_tracker_download_bits%7Cspeedtest_tracker_upload_bits%7Cspeedtest_tracker_ping_ms%22%2Cjob%3D%22speedtest-tracker%22%7D
+			import wall_prometheus
+		}
+
+		# When that result landed, to within a few minutes: the last minute in
+		# three hours at which the result id changed. A first result has no
+		# change to find, so failing that, the minute the id first appeared,
+		# provided that was inside the window (more than five minutes after its
+		# start) rather than at its edge. Empty when neither holds, which means
+		# no new result in three hours, and the page shows it as stale.
+		#   max_over_time((timestamp(changes(max(speedtest_tracker_result_id{job="speedtest-tracker"})[3m:1m]) > 0))[3h:1m])
+		#   or (min_over_time(timestamp(max(speedtest_tracker_result_id{job="speedtest-tracker"}))[3h:1m]) > time() - 10500)
+		handle /api/q/speedtest_at {
+			rewrite * /api/v1/query?query=max_over_time%28%28timestamp%28changes%28max%28speedtest_tracker_result_id%7Bjob%3D%22speedtest-tracker%22%7D%29%5B3m%3A1m%5D%29%20%3E%200%29%29%5B3h%3A1m%5D%29%20or%20%28min_over_time%28timestamp%28max%28speedtest_tracker_result_id%7Bjob%3D%22speedtest-tracker%22%7D%29%29%5B3h%3A1m%5D%29%20%3E%20time%28%29%20-%2010500%29
+			import wall_prometheus
+		}
+
+		# The eero mesh's tile: each access point's probe, and `up` for every
+		# configured target, so a probe whose scrape failed (no probe_success
+		# at all) still counts against the mesh instead of leaving the total.
+		#   {__name__=~"up|probe_success",job="blackbox-eero"}
+		handle /api/q/eero {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22up%7Cprobe_success%22%2Cjob%3D%22blackbox-eero%22%7D
 			import wall_prometheus
 		}
 
@@ -450,10 +476,11 @@ wall.matrix.elysium {
 			import wall_ha
 		}
 
-		# The office lights, on when any is on, through a template entity in
-		# home-assistant/packages/wall_house.yaml: their own ids name a person.
-		handle /api/ha/office_light {
-			rewrite * /api/states/binary_sensor.wall_office_lights?
+		# On once every tracked phone has left the house
+		# (home-assistant/packages/presence.yaml). One boolean: no person's
+		# name or location.
+		handle /api/ha/house_empty {
+			rewrite * /api/states/input_boolean.house_empty?
 			import wall_ha
 		}
 
@@ -481,7 +508,6 @@ wall.matrix.elysium {
 		#   trash       the next pickup, from three helpers
 		#   deliveries  packages to go and get (17TRACK)
 		#   media       what the players labelled wall_media are playing
-		#   dogs        when the dogs were last walked and fed
 		handle /api/ha/commute {
 			rewrite * /api/states/sensor.wall_commute?
 			import wall_ha
@@ -509,11 +535,6 @@ wall.matrix.elysium {
 
 		handle /api/ha/media {
 			rewrite * /api/states/sensor.wall_media?
-			import wall_ha
-		}
-
-		handle /api/ha/dogs {
-			rewrite * /api/states/sensor.wall_dogs?
 			import wall_ha
 		}
 

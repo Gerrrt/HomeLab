@@ -19,6 +19,27 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The wall page changes after the operator's card-by-card review**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+  `stacks/sensitive/README.md`, *The wall page*). Not yet deployed or seen
+  on the television when this was written.
+  - **Tiles:** ten, five to a row. `gandalf` joins by CPU, as it has been
+    always on since ADR-0125 and already reports to Prometheus, and the eero
+    mesh is one tile, how many access points answer their ping. The lab's
+    guests report to `alexander`'s Prometheus and stay off.
+  - **Internet:** the big figures were the WAN port's traffic at that
+    moment, which read like a speed test and was not one. They are now
+    speedtest-tracker's last result and its age; the traffic is the line and
+    sparkline beneath. The connect time to 1.1.1.1 and `/api/q/rtt` are gone,
+    as the test's ping replaces them.
+  - **Dogs:** the card is gone, and `wall_dogs.yaml` with it, its two
+    buttons and two intervals included. It was not as useful as hoped.
+  - **Home row:** the office lights and `binary_sensor.wall_office_lights`
+    are gone. "House empty" shows while presence has marked it so, the
+    thermostat shows what it is set to, and the Litter-Robot shows always.
+  - **Status bar:** it names only a source that has fallen behind, and
+    otherwise reads "all sources live".
+
 - **`heimdall` runs the new §2 steps, and its bootloader is staged on the
   card, not written by `flashrom`.** This corrects the entry "A re-check of
   `heimdall` found its bootloader never updates, and nothing watching it",

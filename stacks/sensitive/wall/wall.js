@@ -18,17 +18,20 @@
   // without anyone touching the Pi.
   const RELOAD_MS = 6 * 60 * 60 * 1000;
 
-  // The eight tiles, in the order they sit. `cpu` hosts are node_exporter
-  // hosts, keyed by `instance`; `snmp` devices by the `device` label in
-  // prometheus/targets/snmp.yaml.
+  // The ten tiles, five to a row, in the order they sit. `cpu` hosts are
+  // node_exporter hosts, keyed by `instance`; `snmp` devices by the `device`
+  // label in prometheus/targets/snmp.yaml. `eero` is the mesh as one tile:
+  // how many access points answer their ping (targets/blackbox-eero.yaml).
   const HOSTS = [
     { name: "morpheus", src: "snmp", role: "firewall" },
+    { name: "neo", src: "snmp", role: "core switch" },
     { name: "Saruman", src: "cpu", role: "hypervisor" },
+    { name: "gandalf", src: "cpu", role: "range hypervisor" },
     { name: "trinity", src: "cpu", role: "sensitive tier" },
     { name: "prometheus", src: "cpu", role: "monitoring" },
     { name: "oracle", src: "cpu", role: "wiki, off-host jobs" },
     { name: "smaug", src: "cpu", role: "NAS" },
-    { name: "neo", src: "snmp", role: "core switch" },
+    { name: "eero", src: "eero", role: "Wi-Fi mesh" },
     // The UPS's tile carries what the Power card used to: mains or battery,
     // charge and runtime (renderNodes).
     { name: "mjolnir", src: "snmp", role: "UPS" },
@@ -36,8 +39,10 @@
 
   // "backups" and "patches" are the quiet Alerts card's two lines: the
   // backups' proofs, and security updates and reboots waiting (renderLab).
-  const QUESTIONS = ["alerts", "cpu", "snmp", "wan", "wan_hour", "rtt", "ups", "pi_temp",
-    "backups", "patches"];
+  // "speedtest" and "speedtest_at" are speedtest-tracker's last result and
+  // when it landed; "wan" and "wan_hour" are the traffic on the WAN port.
+  const QUESTIONS = ["alerts", "cpu", "snmp", "eero", "wan", "wan_hour", "speedtest", "speedtest_at",
+    "ups", "pi_temp", "backups", "patches"];
   // Home Assistant entities, by the names the Caddyfile gives them.
   const DOORS = [
     ["front_door", "Front"], ["garage_door", "Garage"],
@@ -47,15 +52,16 @@
   // "forecast" is sensor.wall_weather: today's high and low, the next rain and
   // the next sunrise or sunset (home-assistant/packages/wall_weather.yaml).
   // "thermostat" is climate.thermostat itself; "litter" is sensor.wall_litter
-  // (home-assistant/packages/wall_house.yaml).
-  const HOUSE = ["weather", "forecast", "alarm", "office_light", "thermostat", "litter",
+  // (home-assistant/packages/wall_house.yaml); "house_empty" is presence.yaml's
+  // input_boolean.house_empty, on once every tracked phone has left.
+  const HOUSE = ["weather", "forecast", "alarm", "house_empty", "thermostat", "litter",
     ...DOORS.map((d) => d[0]), ...WINDOWS.map((w) => w[0])];
   // "today" is sensor.wall_today: the calendars' events for the next seven
   // days, gathered by home-assistant/packages/wall_calendar.yaml.
   // The context card's sources (wall_commute, wall_shabbat, wall_todo,
   // wall_trash, wall_deliveries, wall_media), each unavailable until it is
   // set up.
-  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries", "dogs", "media"];
+  const CARDS = ["commute", "shabbat", "todo", "trash", "deliveries", "media"];
   const HA = [...HOUSE, "today", ...CARDS];
   const states = {};    // HA name -> the entity's state object
   const answers = {};   // name -> data.result of the last good answer
@@ -345,6 +351,26 @@
         } else {
           val.textContent = state === "down" ? "no data" : "—";
         }
+      } else if (h.src === "eero") {
+        // The total is every configured target, from `up`; an access point
+        // counts as answering only when its probe ran and succeeded. A probe
+        // whose scrape failed has no probe_success at all, and still counts
+        // against the mesh rather than leaving the total. Some silent is a
+        // warning; all silent is down, as the mesh is then gone.
+        const rows = fresh("eero") ? answers.eero || [] : [];
+        const targets = new Set(rows.filter((r) => r.metric.__name__ === "up").map((r) => r.metric.instance));
+        const answered = new Set(rows
+          .filter((r) => r.metric.__name__ === "probe_success" && num(r) === 1)
+          .map((r) => r.metric.instance));
+        const up = [...targets].filter((t) => answered.has(t)).length;
+        if (!targets.size) state = "unknown";
+        else if (up === 0) state = "down";
+        else if (up < targets.size) state = "warning";
+        if (state === "unknown") val.textContent = "—";
+        else {
+          val.textContent = `${up}/${targets.size}`;
+          val.append(el("small", null, "up"));
+        }
       } else {
         if (!fresh("snmp")) state = "unknown";
         else if (snmp.get(h.name) !== 1) state = "down";
@@ -375,16 +401,43 @@
   }
 
   // ---------- internet ----------
+  // The heroes are the last speed test; the line under them is the WAN port's
+  // traffic now. Amber below the bars internet.rules.yaml alerts on (400 down,
+  // 100 up, in Mbit/s), and when the newest test is older than 90 minutes,
+  // SpeedtestStale's mark: the tracker runs every 30.
   const mbps = (bits) => (bits >= 100e6 ? Math.round(bits / 1e6) : (bits / 1e6).toFixed(1));
+  const SLOW = { download: 400e6, upload: 100e6 };
+  const TEST_STALE_S = 90 * 60;
   function renderWan() {
+    const st = fresh("speedtest") ? answers.speedtest || [] : [];
+    const metric = (n) => st.find((r) => r.metric.__name__ === `speedtest_tracker_${n}`);
+    const failed = st.some((r) => r.metric.status && r.metric.status !== "completed");
+    const at = fresh("speedtest_at") ? num((answers.speedtest_at || [])[0]) : NaN;
+    const age = Number.isFinite(at) ? Date.now() / 1000 - at : NaN;
+    const old = !(age <= TEST_STALE_S);
+    const hero = (id, r, slow) => {
+      const e = $(id);
+      e.classList.toggle("warn", Boolean(r) && !failed && (old || (slow !== undefined && num(r) < slow)));
+      if (!r || failed) e.textContent = "—";
+      else e.textContent = slow !== undefined ? mbps(num(r)) : Math.round(num(r));
+    };
+    hero("st-down", metric("download_bits"), SLOW.download);
+    hero("st-up", metric("upload_bits"), SLOW.upload);
+    hero("st-ping", metric("ping_ms"));
+
     const wan = answers.wan || [];
     const dir = (d) => wan.find((r) => r.metric.direction === d);
     const down = dir("receive");
     const up = dir("transmit");
-    $("wan-down").textContent = fresh("wan") && down ? mbps(num(down)) : "—";
-    $("wan-up").textContent = fresh("wan") && up ? mbps(num(up)) : "—";
-    const rtt = (answers.rtt || [])[0];
-    $("wan-rtt").textContent = fresh("rtt") && rtt ? Math.round(num(rtt) * 1000) : "—";
+    const nowLine = $("wan-now");
+    nowLine.replaceChildren();
+    const said = !fresh("speedtest") ? "no speed test answer"
+      : failed ? "last test failed"
+      : Number.isFinite(age) ? `tested ${ago(Math.max(60, age))} ago` : "no test in 3 h";
+    nowLine.append(el("span", !fresh("speedtest") || failed || old ? "warn" : null, said));
+    if (fresh("wan") && down && up) {
+      nowLine.append(el("span", "sep", " · "), document.createTextNode(`now ${mbps(num(down))} down, ${mbps(num(up))} up`));
+    }
 
     const svg = $("wan-spark");
     svg.replaceChildren();
@@ -404,18 +457,21 @@
     svg.append(fill, line);
   }
 
-  // ---------- status bar: how old each answer is ----------
+  // ---------- status bar: only the sources that have fallen behind ----------
+  // Each group is a set of answers; a group whose oldest answer is past
+  // STALE_MS is named, amber, with its age, and red past three times that or
+  // when it never answered. With every group live, one quiet line says so.
   function age(ms) {
     const s = Math.round(ms / 1000);
-    return s < 90 ? `${s}s` : `${Math.round(s / 60)}m`;
+    return s < 90 ? `${s}s` : `${Math.round(s / 60)} min`;
   }
   function renderStatus() {
     const bar = $("status");
     bar.replaceChildren();
     const groups = [
       ["alerts", ["alerts"]],
-      ["hosts", ["cpu", "snmp"]],
-      ["internet", ["wan", "wan_hour", "rtt"]],
+      ["hosts", ["cpu", "snmp", "eero"]],
+      ["internet", ["speedtest", "speedtest_at", "wan", "wan_hour"]],
       ["power", ["ups"]],
       ["house", HOUSE.map((n) => `ha:${n}`)],
       ["calendar", ["ha:today"]],
@@ -433,15 +489,16 @@
         span.textContent = "calendar · unavailable";
       } else if (!oldest) {
         span.classList.add("dead");
-        span.textContent = `${label} · never`;
+        span.textContent = `${label} · no answer yet`;
       } else {
         const ms = Date.now() - oldest;
-        if (ms >= 3 * STALE_MS) span.classList.add("dead");
-        else if (ms >= STALE_MS) span.classList.add("stale");
-        span.textContent = `${label} · ${age(ms)}`;
+        if (ms < STALE_MS) continue;
+        span.classList.add(ms >= 3 * STALE_MS ? "dead" : "stale");
+        span.textContent = `${label} · ${age(ms)} old`;
       }
       bar.append(span);
     }
+    if (!bar.childElementCount) bar.append(el("span", "src", "all sources live"));
     const t = (answers.pi_temp || [])[0];
     bar.append(el("span", "push", `heimdall · ${fresh("pi_temp") && t ? `${num(t).toFixed(0)}°C` : "—"}`));
   }
@@ -526,7 +583,11 @@
       if (!items.length) break;
       items.sort((a, b) => Number(b.dataset.drop) - Number(a.dataset.drop))[0].remove();
     }
-    for (const item of row.querySelectorAll("[data-compact]")) {
+    // Quiet items shorten before warnings, so what is open stays named for
+    // as long as the row allows.
+    const compactable = [...row.querySelectorAll("[data-compact]")]
+      .sort((a, b) => a.classList.contains("warn") - b.classList.contains("warn"));
+    for (const item of compactable) {
       if (!over()) return;
       item.querySelector("b").textContent = item.dataset.compact;
     }
@@ -551,6 +612,13 @@
       row.append(homeItem("Alarm", "—", "unknown"));
     }
 
+    // Only while presence.yaml has marked the house empty. Off, or
+    // unreadable, it says nothing: the alarm's mode is the item that must
+    // never be missing, and it is already there.
+    if (haFresh("house_empty") && states.house_empty.state === "on") {
+      row.append(homeItem("House", "empty"));
+    }
+
     // Doors and windows share one item: all shut is one fact, and the row
     // needs the room. What is open is named, a window as "Left window".
     const doors = openOf(DOORS);
@@ -561,33 +629,44 @@
     else row.append(homeItem("Doors & windows", "closed"));
 
     // The hallway thermostat. Its own alerts are thermostat.yaml's; this is
-    // the reading, with what it is doing when it is doing something.
+    // the reading, then what it is set to: "68° · 45% · heat to 70", or a
+    // range in heat_cool, and "away" while presence.yaml holds it there. A
+    // crowded row falls back to the reading and the target alone.
     if (haFresh("thermostat")) {
       const t = states.thermostat.attributes || {};
+      const mode = states.thermostat.state;
+      const deg = (v) => `${Math.round(Number(v))}°`;
       const bits = [];
-      if (t.current_temperature != null) bits.push(`${Math.round(t.current_temperature)}°`);
+      if (t.current_temperature != null) bits.push(deg(t.current_temperature));
       if (t.current_humidity != null) bits.push(`${Math.round(t.current_humidity)}%`);
-      if (t.hvac_action === "heating" || t.hvac_action === "cooling") bits.push(t.hvac_action);
-      row.append(homeItem("Inside", bits.length ? bits.join(" · ") : "—", bits.length ? "" : "unknown", 2));
+      let target = "";
+      if (mode === "heat_cool" && t.target_temp_low != null && t.target_temp_high != null) {
+        target = `${deg(t.target_temp_low)}–${deg(t.target_temp_high)}`;
+      } else if ((mode === "heat" || mode === "cool") && t.temperature != null) {
+        target = deg(t.temperature);
+      }
+      const doing = t.hvac_action === "heating" ? "heating to" : t.hvac_action === "cooling" ? "cooling to"
+        : mode === "heat" ? "heat to" : mode === "cool" ? "cool to" : "set";
+      if (mode === "off") bits.push("off");
+      else if (target) bits.push(`${doing} ${target}`);
+      if (t.preset_mode === "away") bits.push("away");
+      const compact = [bits[0], target && mode !== "off" ? `→ ${target}` : ""].filter(Boolean).join(" ");
+      row.append(homeItem("Inside", bits.length ? bits.join(" · ") : "—", bits.length ? "" : "unknown",
+        0, bits.length > 1 ? compact : undefined));
     } else {
-      row.append(homeItem("Inside", "—", "unknown", 2));
+      row.append(homeItem("Inside", "—", "unknown"));
     }
 
-    if (haFresh("office_light")) {
-      row.append(homeItem("Office lights", states.office_light.state === "on" ? "on" : "off", "", 3));
-    } else {
-      row.append(homeItem("Office lights", "—", "unknown", 3));
-    }
-
-    // The Litter-Robot when it wants something, in amber, and as "—" when it
-    // cannot be read, so an outage never looks like all is well. Quiet when
-    // it is fine. The "—" is the last quiet item a crowded row drops.
+    // The Litter-Robot, always: "ok", what it wants in amber, or "—" when it
+    // cannot be read, so an outage never looks like all is well.
     if (!haFresh("litter")) {
-      row.append(homeItem("Litter-Robot", "—", "unknown", 1));
+      row.append(homeItem("Litter-Robot", "—", "unknown"));
     } else if (states.litter.state === "attention") {
       const needs = (states.litter.attributes || {}).needs || [];
       row.append(homeItem("Litter-Robot", needs.length ? needs.join(", ") : "needs a look", "warn", 0,
         needs.length > 1 ? `${needs.length} things` : undefined));
+    } else {
+      row.append(homeItem("Litter-Robot", "ok"));
     }
     fitRow(row);
   }
@@ -695,7 +774,7 @@
   // others that are also true are named on its last line, so nothing that
   // matters is hidden without a word. The last entry always applies, so the
   // card is never empty. Later cards (commute, Shabbat, trash, deliveries,
-  // dogs, now playing) slot in above it as their sources arrive.
+  // now playing) slot in above it as their sources arrive.
   const MIN = 60_000;
   const attrs = (name) => (haFresh(name) && states[name].attributes) || {};
   const until = (t) => {
@@ -785,26 +864,6 @@
     if (Number(a.in_transit) > 0) sub(box, `${a.in_transit} on the way`);
   }
 
-  // Dogs: while a walk or a feeding is overdue. A threshold of 0 is not
-  // tracked; one never recorded counts as overdue, so a new setup shows.
-  function dogsDue() {
-    const a = attrs("dogs");
-    return [["Walked", "walk", a.walked, Number(a.walk_hours) || 0], ["Fed", "feed", a.fed, Number(a.feed_hours) || 0]]
-      .filter(([, , , hours]) => hours > 0)
-      .map(([label, verb, at, hours]) => {
-        const t = at ? new Date(at) : null;
-        const age = t && !isNaN(t) ? (Date.now() - t) / 1000 : null;
-        return { label, verb, age, due: age === null || age > hours * 3600 };
-      });
-  }
-  function dogsLive() { return haFresh("dogs") && dogsDue().some((d) => d.due); }
-  function renderDogs(box) {
-    const all = dogsDue();
-    const due = all.filter((d) => d.due).map((d) => d.verb);
-    hero(box, `${due.join(" and ")} the dogs`.replace(/^./, (c) => c.toUpperCase()), "warn");
-    for (const d of all) sub(box, d.age === null ? `${d.label}: not recorded yet` : `${d.label} ${ago(d.age)} ago`);
-  }
-
   // The to-do list, the default when it has anything on it.
   function todoLive() { return haFresh("todo") && Number(states.todo.state) > 0; }
   function renderTodo(box) {
@@ -835,7 +894,6 @@
       short: "shabbat", when: shabbatLive, render: renderShabbat },
     { title: "Trash", short: "trash", when: trashLive, render: renderTrash },
     { title: "Packages", short: "packages", when: deliveriesLive, render: renderDeliveries },
-    { title: "Dogs", short: "dogs", when: dogsLive, render: renderDogs },
     { title: "To-do", short: "to-do", when: todoLive, render: renderTodo },
     { title: "Now playing", short: "playing", when: mediaLive, render: renderMedia },
     { title: "Word of the day", short: "word", when: () => true, render: renderWord },
