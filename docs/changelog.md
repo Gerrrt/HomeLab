@@ -17,6 +17,21 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-24
+
+- **`build-heimdall.md` installs the exporter without apt's recommendations.**
+  `openipmi.service` and `smartmontools.service` had been failed on `heimdall`
+  since its first scrape on 2026-11-17, through the 2026-11-21 reboot.
+  `prometheus-node-exporter` recommends the collectors package, which
+  recommends `ipmitool` and `smartmontools`, and `ipmitool` recommends
+  `openipmi`. The Pi has no management controller and its card reports no
+  SMART data, so both fail at boot. Nothing alerted: `SystemdUnitFailed`
+  reads Alloy's journals, and `heimdall` runs no Alloy. §2 now installs with
+  `--no-install-recommends`, names the collectors package so the apt and
+  reboot metrics stay, checks `systemctl --failed`, and gives the purge for a
+  Pi built the old way. That purge is still to run on `heimdall`, from the
+  Mac, since `prometheus` reaches it only on 9100.
+
 ## 2026-11-23
 
 - **`update-the-ups-firmware.md` is written, for #1698.** Reading the release
