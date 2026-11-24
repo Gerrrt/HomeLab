@@ -2074,6 +2074,46 @@ groups:
             docs/runbooks/replace-the-laptop-cell.md §3 is the only check on a
             hot cell here.
 
+      - alert: HostCpuHot
+        # Nothing watched a CPU's temperature until the prometheus audit of
+        # 2026-11-13 found the laptop peaking at 92 °C (finding 10). A failed
+        # fan or a blocked vent would have shown only as InstanceDown, after
+        # the machine had shut itself off at its critical point.
+        #
+        # THE MARGIN IS MEASURED. coretemp exports its own critical point per
+        # core (105 °C on prometheus, 96 on Saruman, 100 elsewhere), so the
+        # rule reads each host against its own rather than one figure. Over
+        # 29 days of retention, the closest any host's CPU came to critical
+        # and held there for ten minutes was 22 °C, on prometheus during the
+        # audit's own heavy work; its brief peaks came within 13. Ten degrees
+        # for ten minutes is past both, and still before the CPU throttles
+        # hard and shuts down at critical.
+        #
+        # coretemp only. Other chips report a critical point that is not one:
+        # the DIMM sensors on smaug report a critical point of 0 °C, so
+        # every sample of theirs is 28 °C over it. heimdall, a Pi, has no coretemp, and an ARM board throttles
+        # itself well before it is a hazard. One alert per host, the hottest
+        # core, rather than one per core.
+        expr: >-
+          max by (instance, job) (
+            node_hwmon_temp_celsius{chip=~"platform_coretemp_.*"}
+            >= on (instance, job, chip, sensor)
+            node_hwmon_temp_crit_celsius{chip=~"platform_coretemp_.*"} - 10
+          )
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: CPU at {{ $value }} °C, within 10 °C of critical"
+          description: >-
+            A CPU core on {{ $labels.instance }} has been within 10 °C of its
+            own critical temperature for ten minutes. Heavy work alone has not
+            done that on any host here. Check the fan and the vents first, then
+            whatever is using the CPU; at the critical point the machine shuts
+            itself down.
+
       - record: homelab_battery_runtime_seconds
         # Seconds the host has left on its cell at the draw it is presenting
         # right now, and only while it is on that cell. charge_ampere is what
