@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **Two `mjolnir` settings are now read and watched.** The 2026-11-13 audit
+  found nothing would notice either one changing.
+  - **The pack's age.** `generator.yaml` now reads the card's *Last Battery
+    Replacement* (`upsBasicBatteryLastReplaceDate`). That field holds a month
+    and year, and the generator's regex splits it into `...Year` and
+    `...Month`. `UpsBatteryPackAging` warns at three years, the bottom of
+    APC's three-to-five-year rating for the APCRBC115. The pack fitted in
+    August 2026 reaches that in August 2029.
+  - **Input sensitivity.** `upsAdvConfigSensitivity` is read too, and
+    `UpsInputSensitivityChanged` warns if it leaves medium for 30 minutes. A
+    card reset would put it back to high without a word.
+  - **A guard.** `UpsCardReadingMissing` warns when the card answers but
+    either reading is absent. A date in a format the regex doesn't match
+    would otherwise keep both rules quiet for ever.
+  - Both OIDs were read off the card with `snmp-walk.sh` before the
+    generator was changed. `snmp.yaml` gains the two GETs, and `ups.test.yaml`
+    gives each rule a firing case and a quiet one. The alert rules now
+    number 206: 178 in Prometheus and 28 in Loki.
 - **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
   ran on battery for 82 seconds, for distorted input, and nothing paged. The
   rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in

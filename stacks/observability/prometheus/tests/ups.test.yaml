@@ -902,3 +902,120 @@ tests:
                 The probe at the bottom of the rack has read over 30 °C for fifteen
                 minutes. Check the room and the rack's airflow, then the DL360's
                 inlet temperature on the iLO. A hot rack also ages the UPS pack.
+
+  # --- UpsBatteryPackAging, UpsInputSensitivityChanged, UpsCardReadingMissing -
+  #
+  # promtool's clock starts at 1970-01-01, so year() is 1970 and month() is 1
+  # here. A pack dated January 1967 is three years old and fires; one dated
+  # January 1968 is two and does not. The card's own reading, August 2026, is
+  # in the future at this clock and so far below three, which is the quiet case
+  # it really is today.
+  - interval: 1m
+    input_series:
+      - series: 'upsBasicBatteryLastReplaceDateYear{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1967x120"
+      - series: 'upsBasicBatteryLastReplaceDateMonth{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x120"
+      - series: 'upsBasicBatteryLastReplaceDateYear{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "1968x120"
+      - series: 'upsBasicBatteryLastReplaceDateMonth{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "1x120"
+      - series: 'upsBasicBatteryLastReplaceDateYear{job="snmp",instance="10.0.99.12",device="today"}'
+        values: "2026x120"
+      - series: 'upsBasicBatteryLastReplaceDateMonth{job="snmp",instance="10.0.99.12",device="today"}'
+        values: "8x120"
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: UpsBatteryPackAging
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: UpsBatteryPackAging
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/fit-the-ups-battery.md"
+              summary: "UPS mjolnir's battery pack is 3.0 years old"
+              description: >-
+                The card's Last Battery Replacement date is 3.0
+                years ago, and APC rates the pack at three to five. Order an
+                APCRBC115 and fit it with fit-the-ups-battery.md, which ends by
+                setting Last Battery Replacement to the month of the fit; that is
+                what clears this.
+
+  # Sensitivity: high (4) fires after 30m; medium (3), the card today, does not.
+  - interval: 1m
+    input_series:
+      - series: 'upsAdvConfigSensitivity{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "4x60"
+      - series: 'upsAdvConfigSensitivity{job="snmp",instance="10.0.99.11",device="spare"}'
+        values: "3x60"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: UpsInputSensitivityChanged
+        exp_alerts: []
+      - eval_time: 40m
+        alertname: UpsInputSensitivityChanged
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "UPS mjolnir's input sensitivity is no longer medium"
+              description: >-
+                upsAdvConfigSensitivity reads 4 (1 auto, 2 low, 4 high);
+                it was set to medium (3) on 2026-11-24. Set it back under
+                Configuration → Power Settings on the card, or, if the change was
+                deliberate, change this rule and hardware.md with it.
+
+  # UpsCardReadingMissing: a card that answers with no battery date fires after
+  # an hour; with all three readings it does not.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsAdvConfigSensitivity{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "3x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsCardReadingMissing
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir answers SNMP but its battery date or sensitivity is unread"
+              description: >-
+                One of upsBasicBatteryLastReplaceDateYear, ...Month or
+                upsAdvConfigSensitivity is missing, so the pack-age and sensitivity
+                alerts cannot fire. Read both with scripts/snmp-walk.sh --device
+                mjolnir 1.3.6.1.4.1.318.1.1.1.2.1.3 and ...1.5.2.7, and compare the
+                date's format with the regex in generator.yaml.
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsAdvConfigSensitivity{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "3x90"
+      - series: 'upsBasicBatteryLastReplaceDateYear{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "2026x90"
+      - series: 'upsBasicBatteryLastReplaceDateMonth{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "8x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsCardReadingMissing
+        exp_alerts: []
