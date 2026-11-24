@@ -478,6 +478,14 @@ docstring gives: it is a record, not a claim about now.
   and both were done in October. `schedule-maintenance.md` gains the card
   leaf's renewal date, 2029-02-26.
 
+- **#1698 is split.** Its card half is done: 3.6.1.2, installed and verified
+  today. The UPS's own firmware, 09.8 to 15.0, needs the output off, so it
+  waits for a planned outage, and moves to
+  [#1731](https://github.com/Gerrrt/HomeLab/issues/1731).
+  `update-the-ups-firmware.md` and `hardware.md` point Part B there. That
+  closes the `mjolnir` audit: every finding is fixed and verified, decided,
+  or tracked in #1731.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
