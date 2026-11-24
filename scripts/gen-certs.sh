@@ -209,8 +209,13 @@ if [[ -n "${CSR}" ]]; then
   fi
   openssl req -in "${CSR}" -noout -verify >/dev/null 2>&1 \
     || die "${CSR} is not a CSR whose signature verifies"
-elif [[ -s "${KEY}" ]] && ((! FORCE)); then
-  die "${KEY#"${REPO_ROOT}"/} already exists — pass --force to replace it"
+elif ((! FORCE)); then
+  # The certificate as well as the key: a leaf signed from a device's CSR
+  # has no key here, and reissuing it without --csr would replace it with
+  # one for a local key the device cannot import.
+  for f in "${KEY}" "${CRT}"; do
+    [[ -s "${f}" ]] && die "${f#"${REPO_ROOT}"/} already exists — pass --force to replace it"
+  done
 fi
 
 # A certificate with no subjectAltName is rejected outright by every current
