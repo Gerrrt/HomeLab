@@ -187,7 +187,8 @@ the cases that genuinely need the wire, and reads the credential from SOPS.
    [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where it lives.
 5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure,
    then set *Configuration → UPS → Last Battery Replacement* to the month and
-   year of the fit. The field takes no day.
+   year of the fit. The field takes no day. It is what `UpsBatteryPackAging`
+   counts three years from, so setting it is what clears that warning.
 
 ## 3. Delete the silence — immediately, not on expiry
 

@@ -365,7 +365,8 @@ UPS with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-f
 is the procedure for both, tracked in
 [#1698](https://github.com/Gerrrt/HomeLab/issues/1698). The card answers HTTPS and SSH; its HTTP port is closed.
 SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
-medium**, lowered from high by 2026-11-24. The card's event log gives the
+medium**, lowered from high by 2026-11-24, and `UpsInputSensitivityChanged`
+warns if a card reset or anyone else moves it. The card's event log gives the
 reason. It shows three transfers to battery since 2026-10-29, and the UPS
 gave the same cause for all three: distorted input, not a cut. They lasted
 279 seconds on 2026-10-29, 1 second on 2026-11-07 and 82 seconds on
@@ -407,7 +408,9 @@ the runbook rather than backed up.
   the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
   *Last Battery Replacement* takes a month and year only. It holds August
   2026, the month the pack went in, and is the only record of the pack's age.
-  SNMP and NUT show it with a filler day, as `08/15/2026`
+  SNMP and NUT show it with a filler day, as `08/15/2026`. Prometheus reads it,
+  and `UpsBatteryPackAging` warns when the pack reaches three years, in August
+  2029. APC rates the pack at three to five years
 - APC AP9335T temperature probe on the UPS card's universal I/O port, for rack
   ambient at the bottom of the rack. Bought and plugged in by 2026-11-23, read
   over the card's SNMP from then
