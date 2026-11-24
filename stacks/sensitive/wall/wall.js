@@ -352,16 +352,23 @@
           val.textContent = state === "down" ? "no data" : "—";
         }
       } else if (h.src === "eero") {
-        // One probe per access point, 1 when it answered. Some silent is a
+        // The total is every configured target, from `up`; an access point
+        // counts as answering only when its probe ran and succeeded. A probe
+        // whose scrape failed has no probe_success at all, and still counts
+        // against the mesh rather than leaving the total. Some silent is a
         // warning; all silent is down, as the mesh is then gone.
-        const probes = answers.eero || [];
-        if (!fresh("eero") || !probes.length) state = "unknown";
-        const up = probes.filter((r) => num(r) === 1).length;
-        if (state === "ok" && up === 0) state = "down";
-        else if (state === "ok" && up < probes.length) state = "warning";
+        const rows = fresh("eero") ? answers.eero || [] : [];
+        const targets = new Set(rows.filter((r) => r.metric.__name__ === "up").map((r) => r.metric.instance));
+        const answered = new Set(rows
+          .filter((r) => r.metric.__name__ === "probe_success" && num(r) === 1)
+          .map((r) => r.metric.instance));
+        const up = [...targets].filter((t) => answered.has(t)).length;
+        if (!targets.size) state = "unknown";
+        else if (up === 0) state = "down";
+        else if (up < targets.size) state = "warning";
         if (state === "unknown") val.textContent = "—";
         else {
-          val.textContent = `${up}/${probes.length}`;
+          val.textContent = `${up}/${targets.size}`;
           val.append(el("small", null, "up"));
         }
       } else {

@@ -802,13 +802,17 @@ static files.
   whether they answer SNMP (`/api/q/snmp`); `Saruman`, `gandalf`,
   `trinity`, `prometheus`, `oracle` and `smaug` by CPU (`/api/q/cpu`);
   and the eero mesh as one tile, how many of its access points answer their
-  ping (`/api/q/eero`, `targets/blackbox-eero.yaml`), amber when one is
-  silent and red when all are. The lab's guests report to `alexander`'s
+  ping out of every configured target (`/api/q/eero` reads `up` as well as
+  `probe_success`, so a probe whose scrape failed still counts;
+  `targets/blackbox-eero.yaml`), amber when one is silent and red when all
+  are. The lab's guests report to `alexander`'s
   Prometheus, not this one, so they have no tile.
 - **The Internet card is the last speed test.** Download, upload and ping
   from speedtest-tracker, which runs every 30 minutes (`/api/q/speedtest`),
-  and how long ago it landed (`/api/q/speedtest_at`, the last minute in
-  three hours at which its result id changed). A figure is amber under the
+  and how long ago it landed (`/api/q/speedtest_at`: the last minute in
+  three hours at which its result id changed, or for a first result the
+  minute its id appeared). A failed test exports only its result id, which
+  the page reads to say "last test failed". A figure is amber under the
   bars `internet.rules.yaml` alerts on, 400 Mbit/s down and 100 up, and all
   of them are when the test is over 90 minutes old. Under them, the WAN
   port's traffic now (`/api/q/wan`), and the sparkline is its last hour of
