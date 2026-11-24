@@ -599,9 +599,13 @@ Televisions and consoles. Internet only.
   declared it until the audit of `morpheus` on 2026-11-13 found it:** an
   SSH pass on Hicks' interface, `desktop-02` (`10.0.50.90`) →
   `10.0.40.30:22`. It is host-scoped, so `make check-firewall`'s wholesale
-  question cannot see it, and no ADR or issue says why it was made. It is
-  listed here so this count is true. Removing it, or recording why it stays,
-  is the operator's decision.
+  question cannot see it. It stays, by the operator's decision on
+  2026-11-23: `desktop-02` is where `smaug` is administered from by hand, as
+  the administrator `gerrrt`, and `prometheus`'s own pass carries the
+  automation. `gerrrt` logged in by password from 2026-11-13 until
+  2026-11-24, when both TrueNAS settings that allowed it (the user's and the
+  SSH service's *Password Login Groups*) were cleared; `smaug` now offers
+  every user `publickey` alone.
 - **One more from Hicks is specified and not yet created.**
   `Allow 5800 to smaug`, Hicks → `10.0.40.30:5800`, is for MakeMKV's web GUI,
   the disc ripper that runs on `smaug` only while someone is ripping
@@ -652,7 +656,9 @@ Televisions and consoles. Internet only.
   when [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched it on
   for the backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
   decided: key-only, one read-only user, `frodo`, and the rule already scopes
-  it to `10.0.99.20`. The first pull landed on 2026-09-20.
+  it to `10.0.99.20`. The first pull landed on 2026-09-20. A second user, the
+  administrator `gerrrt`, reaches it from `desktop-02` through the Hicks pass
+  above, key-only since 2026-11-24.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)
@@ -893,14 +899,20 @@ Where things get broken on purpose.
   is not a second segment and needs no row in this document's tables. Every
   path `fenrir` needs is intra-segment — its Alloy pushes to `alexander` — so
   it adds no firewall rule.
-- `Saruman` runs an Alloy agent and is the one host on this segment with a path
-  into Winterfell: a single pass, `10.0.30.20 → 10.0.99.20` on 9090 and 3100
-  TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
+- `Saruman` and `gandalf` are the two hosts on this segment with a path into
+  Winterfell. `Saruman` runs an Alloy agent: a single pass,
+  `10.0.30.20 → 10.0.99.20` on 9090 and 3100 TCP, unlogged and above the
+  ADR-0014 tripwire. The hypervisor's own telemetry
   only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
   the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
   host try and the token is what gets it served. The push is TLS under the
   estate CA (#764), so the token is not readable at the firewall that forwards
-  it.
+  it. `gandalf`, the range hypervisor, is the second: its agent is
+  metrics-only, so its pass, `Allow metrics from gandalf`, is
+  `10.0.30.30 → 10.0.99.20` on 9090 alone, in force since 2026-11-23. The
+  ingest proxy wants its own agent token
+  ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
+  [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).
 - **`Saruman` is at `.20`, below the pool, like every other static.** Until
   2026-11-07 it was at `.110`, the one fixed address in the estate inside a
   DHCP pool (ImaginationLAN's runs `.100–.200`). Only Kea's
