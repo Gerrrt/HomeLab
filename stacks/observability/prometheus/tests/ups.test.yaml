@@ -116,7 +116,8 @@ tests:
   # 22 days of samples at 30m so the 21d range is fully covered.
   - interval: 30m
     input_series:
-      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",
+                 upsAdvTestLastDiagnosticsDate="08/28/2026"}'
         values: "1x1056"
       - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
         values: "1x1056"
@@ -153,7 +154,8 @@ tests:
   # case fires.
   - interval: 30m
     input_series:
-      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",
+                 upsAdvTestLastDiagnosticsDate="08/28/2026"}'
         values: "1x96"
       - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
         values: "1x96"
@@ -168,9 +170,11 @@ tests:
   # merely asserting the series exists.
   - interval: 30m
     input_series:
-      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",
+                 upsAdvTestLastDiagnosticsDate="08/28/2026"}'
         values: "1x528"
-      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="09/11/2026"}'
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",
+                 upsAdvTestLastDiagnosticsDate="09/11/2026"}'
         values: "_x528 1x528"
       - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
         values: "1x1056"
@@ -187,7 +191,8 @@ tests:
   # SnmpTargetDown owns that failure; this must stay silent for it.
   - interval: 30m
     input_series:
-      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",upsAdvTestLastDiagnosticsDate="08/28/2026"}'
+      - series: 'upsAdvTestLastDiagnosticsDate{device="mjolnir",instance="10.0.99.10",job="snmp",
+                 upsAdvTestLastDiagnosticsDate="08/28/2026"}'
         values: "1x1056"
       - series: 'up{device="mjolnir",instance="10.0.99.10",job="snmp"}'
         values: "0x1056"
@@ -1019,4 +1024,168 @@ tests:
     alert_rule_test:
       - eval_time: 90m
         alertname: UpsCardReadingMissing
+        exp_alerts: []
+
+  # --- The outlet groups ---------------------------------------------------
+  #
+  # UpsOutletGroupOff: group 3 off (2) fires after 5m; groups 1 and 2 on (1),
+  # the card as read on 2026-11-24, do not.
+  - interval: 1m
+    input_series:
+      - series: 'upsOutletGroupStatusGroupState{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupStatusIndex="1",upsOutletGroupStatusName="Outlet Group 1"}'
+        values: "1x20"
+      - series: 'upsOutletGroupStatusGroupState{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupStatusIndex="2",upsOutletGroupStatusName="Outlet Group 2"}'
+        values: "1x20"
+      - series: 'upsOutletGroupStatusGroupState{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupStatusIndex="3",upsOutletGroupStatusName="Outlet Group 3"}'
+        values: "2x20"
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: UpsOutletGroupOff
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: UpsOutletGroupOff
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              upsOutletGroupStatusIndex: "3"
+              upsOutletGroupStatusName: Outlet Group 3
+              component: power
+              severity: critical
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#if-something-goes-wrong"
+              summary: "Outlet Group 3 on mjolnir is not on"
+              description: >-
+                The card reports Outlet Group 3 as
+                off. Group 1 is
+                the PDU and every host but the laptops, group 2 the laptops'
+                chargers and group 3 the MokerLink. Read the card's event log
+                (Logs → Events → Log) for who turned it off before turning it
+                back on under Control → Outlet Groups.
+
+  # Load shedding and delays: group 1 with the overload shed on and a 30 s off
+  # delay fires both; group 2 as the card holds it (all disabled, 90 s and
+  # 0 s) fires neither.
+  - interval: 1m
+    input_series:
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "1x30"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "1x30"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "2x30"
+      - series: 'upsOutletGroupConfigPowerOffDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "30x30"
+      - series: 'upsOutletGroupConfigPowerOnDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "0x30"
+      - series: 'upsOutletGroupConfigLoadShedControlTimeOnBattery{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="2",upsOutletGroupConfigName="Outlet Group 2"}'
+        values: "1x30"
+      - series: 'upsOutletGroupConfigLoadShedControlRuntimeRemaining{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="2",upsOutletGroupConfigName="Outlet Group 2"}'
+        values: "1x30"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="2",upsOutletGroupConfigName="Outlet Group 2"}'
+        values: "1x30"
+      - series: 'upsOutletGroupConfigPowerOffDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="2",upsOutletGroupConfigName="Outlet Group 2"}'
+        values: "90x30"
+      - series: 'upsOutletGroupConfigPowerOnDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="2",upsOutletGroupConfigName="Outlet Group 2"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: UpsOutletGroupLoadShedEnabled
+        exp_alerts: []
+      - eval_time: 20m
+        alertname: UpsOutletGroupLoadShedEnabled
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              upsOutletGroupConfigIndex: "1"
+              upsOutletGroupConfigName: Outlet Group 1
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#before-you-start"
+              summary: "Outlet Group 1 on mjolnir has load shedding on"
+              description: >-
+                Outlet Group 1 will now be switched off on
+                time on battery, runtime remaining or overload. On group 1 that
+                cuts every host before NUT tells any of them to halt. Turn every
+                shed off under Configuration → Outlet Groups on the card.
+      - eval_time: 20m
+        alertname: UpsOutletGroupDelayChanged
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              upsOutletGroupConfigIndex: "1"
+              upsOutletGroupConfigName: Outlet Group 1
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "Outlet Group 1 on mjolnir has a changed off or on delay"
+              description: >-
+                Read upsOutletGroupConfigPowerOffDelay and ...PowerOnDelay for
+                Outlet Group 1. A shorter off delay can cut
+                morpheus before it has halted. If the change was deliberate,
+                change this rule and hardware.md with it.
+
+  # UpsOutletGroupsUnread: tables absent fires after an hour; present does not.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsOutletGroupsUnread
+        exp_alerts:
+          - exp_labels:
+              job: snmp
+              instance: 10.0.99.10
+              device: mjolnir
+              component: power
+              severity: warning
+              category: power
+            exp_annotations:
+              summary: "mjolnir answers SNMP but its outlet groups are unread"
+              description: >-
+                The outlet-group status or config table came back empty, so
+                UpsOutletGroupOff, ...LoadShedEnabled and ...DelayChanged cannot
+                fire. Read them from the repository checkout with
+                `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
+                and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.
+
+  - interval: 1m
+    input_series:
+      - series: 'up{job="snmp",instance="10.0.99.10",device="mjolnir"}'
+        values: "1x90"
+      - series: 'upsOutletGroupStatusGroupState{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupStatusIndex="1",upsOutletGroupStatusName="Outlet Group 1"}'
+        values: "1x90"
+      - series: 'upsOutletGroupConfigPowerOffDelay{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "90x90"
+      - series: 'upsOutletGroupConfigLoadShedControlInOverload{job="snmp",instance="10.0.99.10",device="mjolnir",
+                 upsOutletGroupConfigIndex="1",upsOutletGroupConfigName="Outlet Group 1"}'
+        values: "1x90"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: UpsOutletGroupsUnread
         exp_alerts: []

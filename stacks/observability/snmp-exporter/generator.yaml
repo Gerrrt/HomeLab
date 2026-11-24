@@ -161,10 +161,40 @@ modules:
       # so neither adds a walk.
       - 1.3.6.1.4.1.318.1.1.1.2.1.3  # PowerNet-MIB::upsBasicBatteryLastReplaceDate
       - 1.3.6.1.4.1.318.1.1.1.5.2.7  # PowerNet-MIB::upsAdvConfigSensitivity
+      # The three switched outlet groups (2026-11-24): the PDU on group 1, the
+      # laptops' chargers on 2, the MokerLink on 3. Until now their settings
+      # were read by hand at the card, once, and nothing would notice a change.
+      # Both tables read off the card first with scripts/snmp-walk.sh: three
+      # rows each, the status walk 19 varbinds and the config walk 43.
+      #
+      #   status .12.1.2.1.3  GroupState   on(1) on all three
+      #   config .12.2.2.1.3  PowerOnDelay   0 s     .4 PowerOffDelay  90 s
+      #          .10 .11 .12  LoadShedControl TimeOnBattery, RuntimeRemaining,
+      #                       InOverload: disable(1) on all three groups
+      #          .13 .14      the shed thresholds, 32767 s and 0 s
+      #
+      # .12.3, the control table, is not walked: it is the one that switches
+      # the groups, and nothing here has any business near it.
+      - 1.3.6.1.4.1.318.1.1.1.12.1  # PowerNet-MIB::upsOutletGroupStatus
+      - 1.3.6.1.4.1.318.1.1.1.12.2  # PowerNet-MIB::upsOutletGroupConfig
     lookups:
       - source_indexes: [uioSensorStatusPortID, uioSensorStatusSensorID]
         lookup: uioSensorStatusSensorName
+      - source_indexes: [upsOutletGroupStatusIndex]
+        lookup: upsOutletGroupStatusName
+      - source_indexes: [upsOutletGroupConfigIndex]
+        lookup: upsOutletGroupConfigName
     overrides:
+      # Names become labels through the lookups above; the bit string repeats
+      # which outlets are in the group, which never changes.
+      upsOutletGroupStatusName:
+        ignore: true
+        type: DisplayString
+      upsOutletGroupConfigName:
+        ignore: true
+        type: DisplayString
+      upsOutletGroupStatusGroupStatus:
+        ignore: true
       upsBasicBatteryLastReplaceDate:
         regex_extracts:
           Year:
