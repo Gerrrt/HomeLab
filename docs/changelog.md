@@ -36,8 +36,10 @@ docstring gives: it is a record, not a claim about now.
     retry change at 02:36 UTC
     ([#1702](https://github.com/Gerrrt/HomeLab/pull/1702)), against 5 to 47 a
     day before it. The operator closed the audit before the full day the
-    change's entry set as its bar; `NutUpsDataStaleFrequent` still warns if the
-    spells come back.
+    change's entry set as its bar. No alert stands in for it:
+    `NutUpsDataStaleFrequent` warns only above 24 spells in a sliding hour,
+    and the worst hour before the change had 12, so a return to the old rate
+    would be silent. Counting `Data stale` lines in Loki is the check.
   - **The NVMe at U15** runs at 64 °C, below its warning threshold, and the
     operator found the tray's airflow fine.
   - **Restore.** The restore onto the spare stands on its rehearsal of
