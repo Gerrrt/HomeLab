@@ -105,7 +105,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | --- | --- | --- |
 | `backup-volumes.sh` | `backup` | Quiesces the observability stack, archives, encrypts and verifies its volumes, and copies them to `oracle` |
 | `restore-volumes.sh` | `restore` | Puts a backup set back |
-| `backup-firewall.sh` | `backup-firewall` | `morpheus`'s pfSense config, encrypted at rest and copied off-host |
+| `backup-firewall.sh` | `backup-firewall`, `backup-switch` | `morpheus`'s pfSense config, and `neo`'s RouterOS export with `BACKUP_DEVICE=switch`, each encrypted at rest and copied off-host |
 | `backup-nas.sh` | `backup-nas` | The media tier's state, pulled from `smaug`'s newest snapshot ([ADR-0045](../docs/adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)) |
 | `backup-wiki.sh` | `backup-wiki` | A dump of the wiki's database, pulled off `oracle` ([ADR-0065](../docs/adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)) |
 | `backup-library.sh` | `backup-library` | Immich's library, archived on `trinity` and copied to `oracle` ([ADR-0064](../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)) |

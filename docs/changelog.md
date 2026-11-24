@@ -154,6 +154,19 @@ docstring gives: it is a record, not a claim about now.
     generator was changed. `snmp.yaml` gains the two GETs, and `ups.test.yaml`
     gives each rule a firing case and a quiet one. The alert rules now
     number 206: 178 in Prometheus and 28 in Loki.
+- **`neo`'s configuration is now backed up nightly.** Until today it lived
+  only on the switch, which a re-check after the switch audit found; a dead
+  `neo` meant rebuilding it by hand from `network.md` and the wiki's port
+  map. `make backup-switch` is `backup-firewall.sh` with
+  `BACKUP_DEVICE=switch`: it logs in as a new user `backup` (group `read,ssh`,
+  from `10.7.7.1` only, `prometheus`'s key) through morpheus, takes
+  `/export`, encrypts it to the firewall export's recipients, verifies it and
+  copies it to `oracle`, keeping thirty a side. `homelab-backup-switch.timer`
+  runs it at 09:45. The export carries no password or key, and the restore in
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) lists the four things
+  to put back by hand. It is not carried on the offsite medium; a fire that
+  takes `prometheus` and `oracle` takes the switch too, and its rebuild is
+  documented.
 - **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
   ran on battery for 82 seconds, for distorted input, and nothing paged. The
   rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in

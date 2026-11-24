@@ -214,6 +214,13 @@ truth for what a box actually does.
     [ADR-0127](adr/0127-relay-neos-log-through-morpheus.md) records why, and
     [`ship-firewall-logs.md`](runbooks/ship-firewall-logs.md) §10 is the
     procedure.
+  - The configuration leaves the switch too. A user `backup`, in a group
+    with `read` and `ssh` and nothing else, limited to `10.7.7.1` and
+    logging in by `prometheus`'s key only, is what `make backup-switch`
+    runs `/export` as, nightly at 09:45, jumped through morpheus. The
+    export is encrypted like the firewall's and copied to `oracle`; it
+    leaves out users, certificates and the SNMPv3 passphrases.
+    [`swap-the-switch.md`](runbooks/swap-the-switch.md) has the restore.
 - DHCP disabled.
 - **`morpheus` pins thirteen reservations in its ARP table, on every
   segment but Skids and Degens.** Each is a Kea reservation with *Create a
@@ -353,7 +360,7 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
   the off-host copies of the firewall export that `make backup-firewall` pushes
-  to it, of the weekly volume sets that `make backup` pushes
+  to it, of `neo`'s export that `make backup-switch` pushes, of the weekly volume sets that `make backup` pushes
   ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), of Jellyfin's
   state that `make backup-nas` pulls off `smaug` and pushes on
   ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), and

@@ -342,6 +342,69 @@ community. Then close
 
 ---
 
+## Restoring neo from its nightly export
+
+`make backup-switch` takes neo's `/export` every night at 09:45, encrypts it to
+the same recipients as the firewall's export, and keeps thirty here and on
+`oracle`. To list them, on both sides:
+
+```bash
+make backup-switch ARGS=--list
+```
+
+If `prometheus` is gone, fetch the newest from `oracle` into a checkout on a
+machine that holds an age key:
+
+```bash
+ssh atropos@10.0.99.30 ls -1r backups/switch
+mkdir -p backups/switch
+scp atropos@10.0.99.30:backups/switch/config-<STAMP>.sops.yaml backups/switch/
+```
+
+Decrypt it to RAM, not to disk, readable by you alone:
+
+```bash
+(umask 077; sops --decrypt --input-type yaml --output-type binary backups/switch/config-<STAMP>.sops.yaml > /dev/shm/neo.rsc)
+```
+
+Bring the switch to the state §1.3 leaves it in: RouterOS 7 long-term and
+`reset-configuration no-defaults=yes`. Import the leaf certificate and its
+key first, under the name `neo.matrix.elysium`, as §1.4 does: the export's
+`www-ssl` and `api-ssl` lines name it, and fail to import without it. Then
+upload `neo.rsc` through WinBox's *Files*, and import it:
+
+```text
+/import file-name=neo.rsc
+```
+
+The import turns VLAN filtering on part-way through, so a WinBox session by MAC
+may drop. The import carries on. Reconnect from the switch LAN at `10.7.7.2`,
+check the import reported `Script file loaded and executed successfully`
+(in `/log/print` if the session dropped),
+then delete `/dev/shm/neo.rsc` on the workstation.
+
+The export leaves out three more things. Put them back by hand:
+
+- **Users.** The groups come back with the import, the users do not. Add
+  `gerrrt` with the address list from [`network.md`](../network.md), and
+  `homeassistant` as
+  [`connect-the-switch-to-home-assistant.md`](connect-the-switch-to-home-assistant.md)
+  §3 sets it. Add `backup` with address `10.7.7.1/32` and `prometheus`'s public
+  key (`/user/ssh-keys/add user=backup key="<~/.ssh/id_ed25519.pub>"`,
+  which RouterOS 7.24 takes; on a release that refuses it, upload the file and
+  use `/user/ssh-keys/import`). The reset brings the default `admin` back,
+  enabled: once `gerrrt` logs in, run `/user/disable admin`.
+- **The SNMPv3 passphrases.** The `prometheus` community comes back without
+  them. Set the values the repository's secrets already hold, the way §1.5
+  and [`rotate-snmp-community.md`](rotate-snmp-community.md) §4 set them, not
+  fresh ones, then run `make snmp-verify`.
+- **Device-mode.** It is not configuration, so it is not in the export. If
+  `/system/device-mode/print` shows the features on, set it again (§1.3). It
+  needs the reset button.
+
+Then run `make backup-switch` once by hand, which proves the `backup` login
+end to end.
+
 ## Also required
 
 - The MokerLink leaves the estate carrying a community that cannot be deleted,
