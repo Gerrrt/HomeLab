@@ -19,6 +19,20 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The hourly converge flaps `ScheduledJobFailed` when the deployment
+  checkout is left on a branch, and `converge-the-host.md` now says so.**
+  `prometheus`'s `robo` tree is both the host's deployment checkout and the
+  tree branches are authored from, and `make converge` fast-forwards `main`
+  only — so a converge that fires mid-branch refuses at the branch check,
+  before any fetch, and its `ScheduledJobFailed` fires with it. Seen today: the
+  tree sat on `gerrrt/hicks-pool-leases`, then `gerrrt/close-morpheus-audit`,
+  across the 18:27 and 19:28 converges, which both exited 2; the 20:27 run
+  found `main` and cleared it. Nothing deployed from either branch — the gate
+  refuses rather than ship a half-finished tree. *When it refuses* gains a
+  subsection: the alert is benign, self-clears on the next converge that finds
+  `main`, and authoring from a `git worktree` keeps the checkout on `main` and
+  the timer quiet.
+
 - **The audit of `morpheus` of 2026-11-13 is closed.** This completes the
   entry "`morpheus` audited, read-only, on 2026-11-13, and re-read on
   2026-11-23". A re-check on 2026-11-24 found every finding fixed on the box,

@@ -387,6 +387,32 @@ To keep it, get it into the repository the normal way — a branch, a pull
 request, CI. To discard it, `git checkout -- .` in that directory, and delete
 any untracked files the status listed.
 
+### The tree is on another branch
+
+```text
+error: the deployment checkout is on 'gerrrt/some-work', not main.
+Convergence only ever fast-forwards main. Someone left this checkout
+somewhere else; put it back deliberately rather than letting a timer do it:
+  git -C /home/robo/code/Gerrrt/HomeLab switch main
+```
+
+This one recurs, because the deployment checkout is also the tree people author
+from — `prometheus`'s `robo` tree moves through dozens of branches in a working
+day — and the hourly timer does not wait for that work to finish. Convergence
+only ever fast-forwards `main`, so a converge that fires while a branch is
+checked out refuses exactly as above, and its `ScheduledJobFailed` fires with
+it.
+
+Nothing was deployed from the branch: the branch check runs before any fetch or
+`make up`, so the refusal is the whole effect, and the gate is doing its job —
+it would rather stop than deploy whatever a half-finished branch happens to
+hold. The alert clears on the next converge that finds the checkout back on
+`main`; put it there with the `git switch` the error prints. If the branch work
+is still in flight it refuses again on the next run, so `ScheduledJobFailed`
+flaps for as long as the tree is left off `main` across a converge — benign,
+but noisy. Authoring from a `git worktree` keeps the deployment checkout on
+`main` while the work goes on, and the timer stays quiet.
+
 ### The tip did not verify
 
 ```text
