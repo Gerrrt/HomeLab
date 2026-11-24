@@ -90,9 +90,16 @@ PROM="${TEXTFILE_DIR}/smart-baselines.prom"
 #           letter is not stable across reboots, and since #745 the row names
 #           the port: the S3520 is on the chipset AHCI's ata6 (hardware.md).
 #           The count, 4, has not changed since 2026-09-16.
+# gandalf   Intel SSDSC2BB960G7, the range pool's SATA SSD, ~49,462 power-on
+#           hours and 8 reallocated sectors when read on 2026-11-24 — stable
+#           since the audit of 2026-11-13, overall assessment passing, ~90%
+#           endurance left. The count surfaced only once gandalf began pushing
+#           metrics (#1651, ADR-0126); its collector emits the slot, so the row
+#           names the port, the S3510 on the chipset AHCI's ata1.
 BASELINES=(
   "oracle   /dev/sda   32   2026-09-07   351"
   "smaug    pci-0000:00:17.0-ata-6    4   2026-09-16   483"
+  "gandalf    pci-0000:00:17.0-ata-1    8   2026-11-24   1651"
 )
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
