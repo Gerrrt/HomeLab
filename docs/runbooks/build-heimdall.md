@@ -172,6 +172,7 @@ sudo mkdir -p /etc/systemd/journald.conf.d
 printf '[Journal]\nStorage=persistent\nSystemMaxUse=64M\n' \
   | sudo tee /etc/systemd/journald.conf.d/50-persistent.conf
 sudo systemctl restart systemd-journald
+sudo journalctl --flush    # moves this boot's entries from /run onto the card
 ```
 
 After §3's reboot, `journalctl --list-boots` lists more than one boot.
