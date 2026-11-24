@@ -426,10 +426,11 @@ O=(-o KexAlgorithms=ecdh-sha2-nistp256 -o HostKeyAlgorithms=ecdsa-sha2-nistp256)
 5. **Check what it serves**, against the CA rather than by eye:
 
    ```bash
-   curl -sS --cacert certificates/ca.pem -o /dev/null -w '%{http_code}\n' https://10.0.99.10/
+   curl -sSL --cacert certificates/ca.pem -o /dev/null -w '%{http_code}\n' https://10.0.99.10/
    ```
 
-   You want `200`. `openssl s_client -verify_return_error` alone isn't enough:
+   You want `200`, after `-L` follows the card's redirect from `/` to
+   `/home.htm`, as the probe does. `openssl s_client -verify_return_error` alone isn't enough:
    it reports `Verify return code: 0 (ok)` from the certificate even when the
    handshake then fails.
 
