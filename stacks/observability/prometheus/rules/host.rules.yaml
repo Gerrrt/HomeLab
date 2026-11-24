@@ -274,6 +274,105 @@ groups:
             older than the installed one until this happens. Pick a window —
             rebooting the monitoring host blinds the estate for its duration.
 
+      # --- The wall display (role="display", `heimdall`, ADR-0119) -----------
+      # InstanceDown leaves the display out, because a dead screen shows itself
+      # to anyone in the office. What it does not show is the Pi's own state:
+      # a browser that stopped updating, a unit that failed, a card running
+      # hot. The 2026-11-24 re-check found that heimdall exported all three
+      # (apt.prom from prometheus-node-exporter-collectors, the systemd and
+      # hwmon collectors) and that no rule read any of them. These four are
+      # warnings: they reach the default channel, or security for updates, and
+      # none of them pages. None needs a host label: the display is scraped
+      # directly, so `instance` names it.
+
+      - alert: DisplayUpdatesStalled
+        # The wall runs Chromium all day on Hicks, and ADR-0119's case for
+        # that rests on the browser taking its updates unattended. The Pi
+        # installs them every morning and reboots onto them at 04:30, so an
+        # upgrade is normally pending for under a day. Three days of the same
+        # origin pending means unattended-upgrades stopped, an upgrade is held,
+        # or the origin fell out of build-heimdall.md §2's allow list, as it was
+        # until 2026-11-23.
+        #
+        # `max_over_time` over 15 minutes, not the bare series, because the
+        # bare series would reset `for` every night. The 04:30 reboot fails a
+        # scrape, which marks the series stale (on 2026-11-24, `up` read 0
+        # there), and a three-day timer that restarts daily never fires. The
+        # window bridges the reboot. When an origin's upgrades go in, the
+        # collector writes no series for it at all, not a 0, so the window
+        # empties 15 minutes later and the timer resets as it should.
+        expr: max_over_time(apt_upgrades_pending{role="display"}[15m]) > 0
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} upgrade(s) from {{ $labels.origin }} pending three days"
+          description: >-
+            unattended-upgrades runs every morning and should have installed
+            these. On the Pi, read /var/log/unattended-upgrades/unattended-upgrades.log
+            and check `apt-config dump | grep Origins-Pattern` still names
+            the origin (build-heimdall.md §2).
+
+      - alert: DisplayUnitFailed
+        # heimdall is the one host here that exports node_systemd_unit_state,
+        # so a failed unit on it is visible to Prometheus and nowhere else: it
+        # ships no journal to Loki, where SystemdUnitFailed would see it.
+        expr: node_systemd_unit_state{role="display", state="failed"} == 1
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} has failed on {{ $labels.instance }}"
+          description: >-
+            `systemctl --failed` and `journalctl -b -u {{ $labels.name }}` on
+            the Pi. The journal is kept across reboots (build-heimdall.md §2),
+            so the cause survives the 04:30 reboot.
+
+      - alert: DisplayHot
+        # The Pi 5 starts throttling its cores at 80 °C. Over a week on the
+        # wall, heimdall's SoC peaked at 58 °C, so 75 °C for a quarter of an
+        # hour means a blocked vent or a dead fan, while there is still time.
+        # The SoC is thermal_zone0. The other chip, RP1's ADC, runs a few
+        # degrees warmer and is not what throttles. Its two sensors read
+        # alike, so `max by` gives one alert, not two.
+        expr: |
+          max by (instance, role) (
+            node_hwmon_temp_celsius{role="display", chip="thermal_thermal_zone0"}
+          ) > 75
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }} has been above 75 °C for 15 minutes"
+          description: >-
+            {{ $value | printf "%.1f" }} °C on the SoC. It throttles at 80 °C.
+            Check the fan and the space around the Pi, and
+            `vcgencmd get_throttled` on it.
+
+      - alert: DisplayDown
+        # InstanceDown leaves the display out, and a dead screen does show
+        # itself, but only to someone in the room. Down overnight or over a
+        # weekend, nobody sees it until the next time they look. The nightly
+        # reboot takes half a minute, and the longest Wi-Fi gap the audit found
+        # was ten minutes, so two hours is neither.
+        expr: up{role="display"} == 0
+        for: 2h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }} has not answered a scrape for two hours"
+          description: >-
+            The wall Pi is off, off Hicks, or its exporter stopped. Look at the
+            wall first, then `ssh` to it from Hicks (build-heimdall.md).
+
       - alert: PatchStateStopped
         # A host that WAS reporting patch state and no longer is.
         #
