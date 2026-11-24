@@ -428,6 +428,16 @@ docstring gives: it is a record, not a claim about now.
   steps, which end by switching its probe to `http_2xx_lab_ca`. The card
   still serves its factory certificate until those steps are run.
 
+- **A CPU near its critical temperature now alerts.** `HostCpuHot`, a
+  warning in `host.rules.yaml`, fires when a host's hottest coretemp core has
+  held within 10 °C of that core's own critical point for ten minutes. Before
+  it, nothing read `node_hwmon_temp_celsius`. The audit of `prometheus` of
+  2026-11-13 watched the laptop peak at 92 °C against 105 (finding 10), and a
+  failed fan would have shown only as `InstanceDown` after the shutdown. The
+  margin is measured: over 29 days, no host held within 22 °C of critical for
+  ten minutes, and prometheus's brief peaks came within 13. Other chips are left
+  out, because smaug's DIMM sensors report a critical point of 0 °C.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
