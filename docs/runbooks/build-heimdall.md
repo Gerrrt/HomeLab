@@ -322,7 +322,7 @@ on day and night (§8).
 `lwrespawn` is the wrapper the desktop's own autostart uses for its panel. It
 starts Chromium again a second after it exits, so a crash costs a second
 instead of the rest of the day. On a Pi whose line was written without it,
-put `/usr/bin/lwrespawn ` in front of `chromium` and reboot.
+put `/usr/bin/lwrespawn` and a space in front of `chromium`, and reboot.
 
 Raspberry Pi OS's Chromium also loads two extensions of its own through
 `/etc/chromium.d/extensions`: h264ify and uBlock Origin Lite. The second
