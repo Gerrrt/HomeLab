@@ -33,25 +33,68 @@ Read the Pi back before changing it. On 2026-11-17 this was:
 | Model and OS | `tr -d '\0' < /proc/device-tree/model; head -1 /etc/os-release` | Raspberry Pi 5 Model B Rev 1.1, Debian 13 (trixie) |
 | Health | `vcgencmd measure_temp; vcgencmd get_throttled` | 47.7 °C, `throttled=0x0` |
 | Desktop | `systemctl get-default; pgrep -a labwc` | `graphical.target`, `labwc -m` |
-| Wi-Fi | `iw dev wlan0 link` | 5 GHz, −45 dBm, 433 Mbit/s |
+| Wi-Fi | `cat /proc/net/wireless; nmcli -f IN-USE,CHAN,RATE dev wifi \| grep '^\*'` | 5 GHz, −45 dBm, 433 Mbit/s |
 | CEC | `ls /dev/cec*` | `/dev/cec0  /dev/cec1` |
 
 `throttled` must read `0x0`. Anything else means the supply is short.
 Use the official 27 W USB-C supply: a television's USB port cannot run a Pi 5.
+Raspberry Pi OS does not ship `iw`. `/proc/net/wireless` gives the level in
+dBm, and `nmcli` gives the channel and the rate of the network in use.
 
 ## 1. SSH by key only
 
 Prove a key login works from a second terminal first. Then:
 
 ```bash
-printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\n' \
+printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nX11Forwarding no\nAllowTcpForwarding no\n' \
   | sudo tee /etc/ssh/sshd_config.d/10-keys-only.conf
 sudo sshd -t && sudo systemctl reload ssh
-sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin|pubkeyauthentication) '
+sudo sshd -T | grep -E '^(passwordauthentication|permitrootlogin|pubkeyauthentication|x11forwarding|allowtcpforwarding) '
+chmod 700 ~/.ssh && chmod 600 ~/.ssh/authorized_keys
+ssh-keygen -lf ~/.ssh/authorized_keys    # every line a key you can name
 ```
 
-Expect `passwordauthentication no`, `permitrootlogin no` and
-`pubkeyauthentication yes`. Open a new session before closing the old one.
+Expect `passwordauthentication no`, `permitrootlogin no`,
+`pubkeyauthentication yes`, `x11forwarding no` and `allowtcpforwarding no`.
+Open a new session before closing the old one. A kiosk forwards nothing, so
+the two Debian defaults that forward X11 and TCP are switched off too.
+
+### sudo asks for the password
+
+The Imager's cloud-init gives the user passwordless sudo, in
+`/etc/sudoers.d/90-cloud-init-users`. That user is logged in on `tty1` and
+on the desktop at all times, so with that file a keyboard plugged into the Pi
+is root, and so is the SSH key. Remove it, with a root shell held open in a
+second session in case the password is not the one you think:
+
+```bash
+sudo -i                                   # second session: leave it open
+sudo rm /etc/sudoers.d/90-cloud-init-users  # first session
+sudo -k; sudo true                        # asks for the Imager's password
+```
+
+If the password is refused, set a new one from the root shell with
+`passwd <user>`. Keep it in your password manager. It is the operator's
+login, not something a page uses, so the Pi still holds no credential of
+the lab's.
+
+### Nothing left on the boot partition
+
+The Imager's settings reach the Pi as cloud-init seed files on the FAT boot
+partition. Any local user can read them, and they are plain text on the card:
+`user-data` holds the password's hash and `network-config` holds the Wi-Fi
+passphrase. They did their job at the first boot. NetworkManager keeps its
+own copy of the Wi-Fi settings at mode 600 under `/etc/netplan`, so the Pi
+still joins Hicks without them. Turn cloud-init off first, so a boot without
+its seed does not run it again:
+
+```bash
+sudo touch /etc/cloud/cloud-init.disabled
+sudo rm /boot/firmware/user-data /boot/firmware/network-config
+```
+
+After §3's reboot, `nmcli -t -f DEVICE,STATE dev | grep '^wlan0'` reads
+`wlan0:connected`.
 
 ## 2. Updates and the exporter
 
@@ -63,7 +106,6 @@ systemctl is-active prometheus-node-exporter    # active
 systemctl --failed --no-legend                  # nothing
 ```
 
-`unattended-upgrades` installs security updates daily, Chromium among them.
 The collectors package adds the textfile metrics for pending upgrades and a
 pending reboot. Without `--no-install-recommends`, apt also brings in what
 it recommends for a server: `ipmitool`, which pulls in `openipmi`, and
@@ -73,9 +115,84 @@ boot. The first build, on 2026-11-17, left both failed. On a Pi built that
 way:
 
 ```bash
-sudo apt purge -y openipmi ipmitool smartmontools
+sudo apt purge -y openipmi ipmitool smartmontools \
+  libopenipmi0t64 libfreeipmi17 freeipmi-common
 sudo systemctl reset-failed openipmi.service smartmontools.service
 systemctl --failed --no-legend                  # nothing
+```
+
+### Raspberry Pi's packages update too
+
+`unattended-upgrades` installs Debian's updates daily, but its default
+origins are Debian's alone. Chromium, the kernel, the firmware and the
+EEPROM come from `archive.raspberrypi.com`, and Raspberry Pi's Chromium
+outranks Debian's by its epoch. So none of them update without this:
+
+```bash
+echo 'Unattended-Upgrade::Origins-Pattern:: "origin=Raspberry Pi Foundation,codename=${distro_codename}";' \
+  | sudo tee /etc/apt/apt.conf.d/52heimdall-unattended-upgrades
+apt-config dump | grep -c 'origin=Raspberry Pi Foundation'    # 1
+```
+
+An upgraded Chromium runs only once Chromium restarts, and a new kernel only
+once the Pi does. Nothing on the Pi does either by itself, and a Chromium
+upgrade leaves no reboot-required flag. So the Pi reboots every night. At
+04:30 it picks up the previous morning's upgrades, while nobody is looking
+at the wall:
+
+```bash
+sudo tee /etc/systemd/system/nightly-reboot.service >/dev/null <<'UNIT'
+[Unit]
+Description=Reboot, so upgraded Chromium, kernel and firmware run
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/systemctl reboot
+UNIT
+sudo tee /etc/systemd/system/nightly-reboot.timer >/dev/null <<'UNIT'
+[Unit]
+Description=Reboot heimdall every night at 04:30
+[Timer]
+OnCalendar=*-*-* 04:30
+[Install]
+WantedBy=timers.target
+UNIT
+sudo systemctl daemon-reload
+sudo systemctl enable --now nightly-reboot.timer
+systemctl list-timers nightly-reboot.timer --no-legend    # next at 04:30
+```
+
+### A journal that survives a reboot
+
+Raspberry Pi OS keeps the journal in memory, to spare the card
+(`/usr/lib/systemd/journald.conf.d/40-rpi-volatile-storage.conf`). That
+loses the reason for any reboot it did not plan. Keep it on the card, capped:
+
+```bash
+sudo mkdir -p /etc/systemd/journald.conf.d
+printf '[Journal]\nStorage=persistent\nSystemMaxUse=64M\n' \
+  | sudo tee /etc/systemd/journald.conf.d/50-persistent.conf
+sudo systemctl restart systemd-journald
+sudo journalctl --flush    # moves this boot's entries from /run onto the card
+```
+
+After §3's reboot, `journalctl --list-boots` lists more than one boot.
+
+### Only 22 and 9100 listen
+
+The desktop brings services a kiosk does not use, and the Pi has no host
+firewall, so anything on Hicks reaches what they publish. rpcbind, from
+`nfs-common`, listens on 111, and avahi on 5353. Bluetooth is on and
+pairable, CUPS listens locally, and three remote-desktop packages are
+installed. The desktop's metapackages depend on `nfs-common` and `cups`, so
+mask those rather than purge them. Nothing depends on the remote-desktop
+packages:
+
+```bash
+sudo systemctl mask --now rpcbind.service rpcbind.socket nfs-blkmap.service \
+  avahi-daemon.service avahi-daemon.socket \
+  cups.service cups.socket cups.path bluetooth.service
+sudo apt purge -y realvnc-vnc-server wayvnc rpi-connect
+sudo ss -tulnH | awk '{print $1, $5}' | sort -u    # tcp 22 and 9100, nothing else
 ```
 
 ## 3. The reservation
@@ -188,7 +305,7 @@ If the fingerprints differ, delete the file and find out what answered on 443.
 
 ```bash
 mkdir -p ~/.config/labwc
-echo 'chromium --kiosk --noerrdialogs --disable-infobars --password-store=basic https://start.matrix.elysium/homelab &' \
+echo '/usr/bin/lwrespawn chromium --kiosk --noerrdialogs --disable-infobars --password-store=basic https://start.matrix.elysium/homelab &' \
   >> ~/.config/labwc/autostart
 sudo raspi-config nonint do_blanking 1
 sudo reboot
@@ -202,6 +319,16 @@ either way is this line's URL and a reboot, nothing else. `--password-store=basi
 asking for a keyring at boot, which would otherwise sit on the screen.
 Blanking off keeps the desktop from turning the screen off. The screen stays
 on day and night (§8).
+
+`lwrespawn` is the wrapper the desktop's own autostart uses for its panel. It
+starts Chromium again a second after it exits, so a crash costs a second
+instead of the rest of the day. On a Pi whose line was written without it,
+put `/usr/bin/lwrespawn` and a space in front of `chromium`, and reboot.
+
+Raspberry Pi OS's Chromium also loads two extensions of its own through
+`/etc/chromium.d/extensions`: h264ify and uBlock Origin Lite. The second
+updates itself from the Chrome Web Store. The wall page needs neither, and
+neither holds anything. They are left as the OS ships them.
 
 **Verify at the wall:** after a reboot, the page fills the screen with no
 address bar, no padlock warning and no keyring prompt.
@@ -247,3 +374,14 @@ the roadmap's *Everything still to buy* and an ADR of its own.
 - **The boot line:** restore `/boot/firmware/cmdline.txt.bak`.
 - **The mode:** restore `~/.config/kanshi/config.bak`. The desktop falls back
   to the television's preferred 1280 × 720.
+- **The nightly reboot:** `sudo systemctl disable --now nightly-reboot.timer`,
+  then delete both `nightly-reboot.*` units from `/etc/systemd/system`.
+- **Raspberry Pi's updates:** delete
+  `/etc/apt/apt.conf.d/52heimdall-unattended-upgrades`.
+- **The journal:** delete `/etc/systemd/journald.conf.d/50-persistent.conf`
+  and restart `systemd-journald`.
+- **The masked services:** `sudo systemctl unmask` the units §2 masked, then
+  `enable --now` them. The purged remote-desktop packages are reinstalled with
+  `apt`.
+- **sudo without a password, and the seed files:** neither comes back. A
+  fresh card from the Imager has both.

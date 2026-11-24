@@ -19,6 +19,49 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **An audit of `heimdall` found that its browser never updated by itself.
+  `build-heimdall.md` now trims it to a kiosk.** It was read-only, from the
+  Mac on Hicks. The same evening every new step was applied to the Pi except
+  removing the passwordless sudo file, which needs the operator's password at
+  the keyboard. After that, only 22 and 9100 listened and `prometheus` still
+  read `up` 1. The Pi had not yet rebooted onto the changes.
+  - **Chromium was never upgraded unattended.** `unattended-upgrades`
+    allowed Debian's origins only. Chromium, the kernel, the firmware and the
+    EEPROM come from Raspberry Pi's archive, and its Chromium outranks
+    Debian's by its epoch. Ten such upgrades were pending, among them Chromium
+    156.0.8078.79 to .108 and a lightdm security fix. The installed Chromium
+    came from the build's own `apt full-upgrade` on 2026-11-17. ADR-0119 and
+    §2 had said the browser took updates unattended.
+    §2 now adds Raspberry Pi's origin, and a reboot every night at 04:30, so
+    that an upgraded Chromium and kernel actually run.
+  - **The kiosk user had root without a password,** from the Imager's
+    cloud-init sudoers file. That user is logged in on `tty1` and the desktop
+    at all times. §1 now removes the file, and turns off sshd's X11 and TCP
+    forwarding.
+  - **The Imager's seed files were still on the boot partition,** readable by
+    any local user: the password's hash and the Wi-Fi passphrase, a second
+    copy beside NetworkManager's. §1 now turns cloud-init off and removes
+    them.
+  - **rpcbind listened on 111 and avahi on 5353,** with no host firewall, and
+    Bluetooth was pairable. §2 now masks them and CUPS, and purges three
+    unused remote-desktop packages.
+  - **Eight reboots after the build day left no cause.** The journal was
+    in memory only. `node_boot_time_seconds` shows them, from 2026-11-18 to
+    2026-11-21. §2 now keeps the journal on the card, capped at 64 MB.
+  - **The kiosk did not come back after a crash.** §7 now starts Chromium
+    under `lwrespawn`.
+  - **The purge ran on 2026-11-23.** This corrects the 2026-11-23 entry
+    "`build-heimdall.md` installs the exporter without apt's
+    recommendations", which said the purge was still to run. It ran at 19:49,
+    and three libraries it left behind went at 19:59. §2's line now names
+    them. `systemctl --failed` is empty.
+  - **§0's Wi-Fi read used `iw`, which Raspberry Pi OS does not ship.** It
+    now reads `/proc/net/wireless` and `nmcli`: −52 dBm on channel 36 at
+    270 Mbit/s.
+  - **What held:** key-only SSH with root login off, the kiosk line and
+    flags, blanking off, the 1080p `kanshi` profile, only the tier's root in
+    Chromium's store, 52 °C with `throttled=0x0`, and no card errors.
+
 - **`gandalf` is now monitored ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
   [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** ADR-0125 keeps
   the range host on, so ADR-0017's reason for giving it no monitoring — off
