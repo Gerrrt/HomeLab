@@ -12,10 +12,11 @@ Tracked in [#1698](https://github.com/Gerrrt/HomeLab/issues/1698).
 
 ## Read this part first
 
-- **What runs today** (read 2026-11-23, recorded in
+- **What runs today** (recorded in
   [`hardware.md`](../hardware.md#management)): the AP9641 card runs AOS
-  2.0.0.6 with Smart-UPS application 2.0.0.5. The Smart-UPS X (ID 20) runs
-  `UPS 09.8`.
+  3.6.1.2 with Smart-UPS application 3.6.1.2, installed by Part A on
+  2026-11-24 from 2.0.0.6. The Smart-UPS X (ID 20) runs `UPS 09.8`. Part A
+  stays as the procedure for the card's next release.
 - **Part A installs 3.6.1.2, by a plain file copy.** Schneider's release notes
   and its FAQ FA156047 say the 3.x line installs only through the Secure NMC
   System (SNS) tool, with a paid subscription. Schneider support said
@@ -122,7 +123,17 @@ scp -O <superuser>@10.0.99.10:config.ini ./config-before.ini
 ```
 
 `-O` forces the legacy SCP protocol, which the card speaks; current OpenSSH
-uses SFTP by default. **Don't print or commit this file.** It can hold
+uses SFTP by default. If `scp` stops at *no matching key exchange method
+found*, the client's SSH configuration allows only curve25519, which the card
+doesn't offer. `prometheus`'s does. Name the card's algorithms for this
+command and A.4's:
+
+```bash
+scp -O -o KexAlgorithms=ecdh-sha2-nistp256 -o HostKeyAlgorithms=ecdsa-sha2-nistp256 \
+  -o Ciphers=aes256-ctr -o MACs=hmac-sha2-256 <superuser>@10.0.99.10:config.ini ./config-before.ini
+```
+
+These four worked on 2.0.0.6 on 2026-11-24; 3.6.1.2 offers them too. **Don't print or commit this file.** It can hold
 credentials. It's there to compare settings against if the upgrade loses any,
 and you delete it in A.5.
 

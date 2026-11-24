@@ -333,6 +333,21 @@ docstring gives: it is a record, not a claim about now.
   under `hardware.md`'s accessories. The README's count of outstanding
   purchases goes from 11 to 10.
 
+- **`mjolnir`'s card runs 3.6.1.2.** Installed by Part A of
+  [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) at
+  about 19:38 UTC: AOS and the Smart-UPS application went from 2.0.0.6 and
+  2.0.0.5 to 3.6.1.2, by a plain `scp` with no Secure NMC subscription. The
+  package also carried boot monitor 2.1.0.3; the installed boot monitor
+  wasn't read. The card was back on SNMPv3 within two minutes. Afterwards
+  Prometheus read the low-battery duration at 16 minutes, sensitivity medium,
+  all three outlet groups on with a 90-second off delay, and the battery date
+  unchanged; the HTTPS probe passed, and NUT on `morpheus` read `OL` with all
+  three clients logged in. The card kept its SSH host key and factory TLS
+  certificate. Its SSH dropped CBC and the SHA-1 group exchange and gained
+  AES-GCM, but still offers no curve25519, so `prometheus`'s SSH client needs
+  the card's algorithms named; the runbook now says how. The UPS's own
+  firmware, Part B, is still waiting for a planned outage. Refs #1698.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
