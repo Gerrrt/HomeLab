@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **Five warnings on `gandalf` were the estate's general host rules firing on the
+  range host's resting state — the exclusions the estate already has were missing
+  from the `#1651` monitoring onboarding.** `HypervisorGuestStopped` paged on the
+  three targets and `ragnarok`, all stopped by design, and `SmartDriveBadSectors`
+  on the range SSD's known 8 reallocated sectors. All four range guests are now
+  tagged `on-demand` ([ADR-0079](adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)),
+  which `HypervisorGuestStopped` excludes — not `disposable`
+  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)),
+  which the targets would outlive, since they are reverted and kept rather than
+  destroyed. `ragnarok`'s tag is declared in `tofu/guests.tf` so an apply keeps
+  it; the targets, not in `tofu/`, are tagged by hand. The SSD's 8 — stable since
+  2026-11-13, overall assessment passing, ~90% endurance left — is recorded in
+  `render-smart-baselines.sh`, so `SmartDriveBadSectors` accepts it and still
+  pages if it grows. `build-the-playground.md`'s *Monitoring the host* now lists
+  both as onboarding steps.
+- **`heimdall` took its first Chromium upgrade unattended.** The first
+  nightly reboot fired at 04:30. At 06:08, unattended-upgrades took Chromium
+  from 156.0.8078.79 to 156.0.8078.108 from Raspberry Pi's archive, the
+  origin `build-heimdall.md` §2 added the evening before. Nothing else was
+  left pending. The kiosk's Chromium had started at 04:30, so it kept running
+  the old code. This is the lag the 04:30 time accepts: an upgrade runs from
+  the next night's reboot. The operator rebooted the Pi at 09:10 to start the
+  new version early, and the kiosk came back on 156.0.8078.108 under
+  `lwrespawn`, with `throttled=0x0` and nothing failed.
 - **The three Hicks pool leases the `morpheus` audit could not name are
   named.** The operator identified them, and `morpheus`'s ARP table placed
   them on 2026-11-24. `.101` is `mobile-02`, whose row moves from `.109`, and

@@ -268,7 +268,7 @@ locals {
     name => merge(g, {
       mac_address    = var.guest_identities[name].mac_address
       smbios_uuid    = var.guest_identities[name].smbios_uuid
-      tags           = ["attack", "range"]
+      tags           = ["attack", "range", "on-demand"]
       extra_networks = [{ bridge = "vmbr1", ipv4_address = "172.30.30.10/24" }]
     })
   }
