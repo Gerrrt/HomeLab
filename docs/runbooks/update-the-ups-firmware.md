@@ -27,7 +27,8 @@ now closed. Part B is tracked in [#1731](https://github.com/Gerrrt/HomeLab/issue
   A.4 does by hand. The 2.5.x packages are no longer downloadable, so 3.6.1.2
   is the only file there is. If the card refuses it, the card keeps running
   what it had and nothing is lost: stop, and take it back to Schneider,
-  citing the support case recorded on #1698.
+  citing the owner's support case from 2026-11-24. Its number is kept with
+  the owner, not in this public repository.
 - **No checksum is published for 3.6.1.2.** Earlier versions had a SHA-256
   on Schneider's community page; this version's notes, there and in the PDF,
   have none. A.1 checks the package's Authenticode signature instead, and the
