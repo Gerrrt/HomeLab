@@ -146,6 +146,20 @@ reconnect with WinBox's *Neighbors* tab, by MAC:
 Then set a unique admin password, from the password manager, and record where it
 lives in [`successor-handover.md`](successor-handover.md) alongside the others.
 
+Switch off the features a switch never uses. Keep `scheduler`, which the log
+heartbeat needs, and name it: device-mode survives
+`/system/reset-configuration`, so a used switch may arrive with it off, and
+the update changes only what it lists:
+
+```text
+/system/device-mode/update scheduler=yes socks=no fetch=no pptp=no l2tp=no bandwidth-test=no sniffer=no ipsec=no romon=no proxy=no hotspot=no smb=no email=no zerotier=no
+```
+
+The command waits for a press of the reset button, within five minutes. Tap it
+with a paperclip and let go; the switch reboots and applies the change. If
+the countdown reaches zero, the change is cancelled and nothing is applied.
+`/system/device-mode/print` then shows each one as `no`.
+
 ### 1.4 The certificate
 
 Issue the leaf from **the estate's CA**, not the sensitive tier's — the tier's

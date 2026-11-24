@@ -110,6 +110,16 @@ docstring gives: it is a record, not a claim about now.
   the cut, up to 45 seconds for it to finish, and up to 60 seconds to the next
   evaluation. The page then goes out with no group wait. The runbook also
   separates a rule that never fired from a page that was never delivered.
+- **`neo`'s device-mode now switches off the RouterOS features a switch
+  never uses.** socks, fetch, pptp, l2tp, bandwidth-test, sniffer, ipsec,
+  romon, proxy, hotspot, smb, email and zerotier are off; `scheduler` stays
+  on for the log heartbeat. It was the last open finding of the switch
+  audit. The first request timed out before the button press reached it and
+  changed nothing; the second applied after one reboot. Home Assistant,
+  SNMP and the log stream were back within two minutes.
+  [`network.md`](network.md) lists it with the switch's other settings, and
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) §1.3 now sets it on a
+  new unit.
 - **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
   card's event log gives the cause, and it is the move into the 32U rack
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
