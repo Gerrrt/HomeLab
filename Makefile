@@ -893,6 +893,14 @@ backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, co
 	@# backup-volumes.sh already owns KEEP there.
 	./scripts/backup-firewall.sh $(ARGS)
 
+.PHONY: backup-switch
+backup-switch: ## Pull neo's RouterOS /export, encrypt it to ./backups/switch/, copy it to oracle
+	@# backup-firewall.sh with BACKUP_DEVICE=switch: the same encrypt, verify,
+	@# copy and retention, for the switch. Its knobs are SW_* (SW_KEEP,
+	@# SW_OFFHOST), never FW_*, so an override meant for the firewall in
+	@# /etc/default/homelab-timers does not move the switch's exports.
+	BACKUP_DEVICE=switch ./scripts/backup-firewall.sh $(ARGS)
+
 .PHONY: backup
 backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to oracle
 	@# Thin on purpose. This target used to BE the implementation, and every

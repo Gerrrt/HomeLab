@@ -1,0 +1,43 @@
+# Daily export of neo's RouterOS configuration.
+#
+# The same script as homelab-backup-firewall.service, with BACKUP_DEVICE=switch:
+# neo's `/export`, encrypted to the same recipients, copied to oracle and kept
+# for SW_KEEP days. Until this existed the switch's configuration lived only on
+# the switch, and a dead neo meant rebuilding it by hand from network.md.
+#
+# It logs in as `backup` (read and ssh policy, from 10.7.7.1 only), jumped
+# through morpheus as admin, because the switch LAN admits SSH from itself
+# alone. Its own lock, not `firewall`: the jump is one short login on morpheus,
+# and the firewall export holding it for five minutes is no reason to wait.
+#
+# See homelab-backup-firewall.service for why each directive below is set.
+[Unit]
+Description=HomeLab: export and encrypt neo's RouterOS configuration
+Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=robo
+Group=robo
+WorkingDirectory=/home/robo/code/Gerrrt/HomeLab
+Environment=STACK=observability
+Environment=SOPS_AGE_KEY_FILE=/home/robo/.config/sops/age/keys.txt
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=/home/robo/code/Gerrrt/HomeLab/scripts/run-scheduled.sh --job backup-switch --lock switch --lock-wait 300 -- /usr/bin/make -C /home/robo/code/Gerrrt/HomeLab backup-switch
+TimeoutStartSec=600
+Restart=no
+Nice=10
+IOSchedulingClass=idle
+IOSchedulingPriority=7
+ProtectHome=false
+ProtectSystem=false
+PrivateTmp=true
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-backup-switch

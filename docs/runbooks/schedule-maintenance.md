@@ -45,17 +45,19 @@ there is one copy of record
 ([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
 [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)).
 
-Two jobs' output leaves this host. `backup-firewall` copies every export to
+Three jobs' output leaves this host. `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
 run, not a partial success. `backup-volumes` does the same with every complete
 set, weekly, after the stack is back up
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)), and `verify-backups`
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)). `backup-switch` is
+`backup-firewall` for `neo`, the same script with `BACKUP_DEVICE=switch`, and
+keeps `SW_KEEP` exports, default thirty. And `verify-backups`
 asks `oracle` to hash what it holds every morning, so a copy that has stopped
-existing is that job's failure within a day. No rule names either job; the
-generic pair above carries both. The same runs bound what accumulates on each
+existing is that job's failure within a day. No rule names any of the three;
+the generic pair above carries them all. The same runs bound what accumulates on each
 side — `FW_KEEP`, default thirty, for the exports; `KEEP`, default seven, for
-the sets, on both sides — so neither job can fill either disk;
+the sets, on both sides — so none of them can fill either disk;
 [`restore-the-firewall.md`](restore-the-firewall.md) §0 and
 [`restore-the-stack.md`](restore-the-stack.md) §0 have the windows and how to
 change them. Both copies ride on one key exchange between the two laptops, in
@@ -102,6 +104,7 @@ the host.
 | `backup-wiki` | `make backup-wiki` | daily 04:45 | 2 days |
 | `verify-backups` | `make verify-backups` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
+| `backup-switch` | `make backup-switch` | daily 09:45 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
 | `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |

@@ -44,6 +44,7 @@ editing units, not installing them.
 | --- | --- | --- |
 | `homelab-converge` | hourly, at :25 | Fetches `main`, checks its signature and CI, deploys it. Installs report-only; see [`converge-the-host.md`](../docs/runbooks/converge-the-host.md) |
 | `homelab-backup-firewall` | daily 04:30 | Exports and encrypts `morpheus`'s pfSense config |
+| `homelab-backup-switch` | daily 09:45 | Exports and encrypts `neo`'s RouterOS config |
 | `homelab-backup-wiki` | daily 04:45 | Pulls a dump of the wiki's database off `oracle` |
 | `homelab-verify-backups` | daily 05:30 | Proves every stored backup set still decrypts |
 | `homelab-backup-nas` | Saturday 03:30 | Pulls the media tier's state off `smaug`'s newest snapshot |
