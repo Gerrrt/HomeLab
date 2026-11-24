@@ -193,6 +193,12 @@ truth for what a box actually does.
     `10.7.7.1`.
   - IPv6 is disabled on the switch (`disable-ipv6=yes`), so it has no
     address of either kind, link-local included.
+  - Device-mode switches off the RouterOS features a switch never uses,
+    since 2026-11-24: socks, fetch, pptp, l2tp, bandwidth-test, sniffer,
+    ipsec, romon, proxy, hotspot, smb, email and zerotier. `scheduler`
+    stays on for `log-heartbeat`. Changing device-mode takes a press of the
+    reset button within five minutes, so it is set at the rack;
+    [`swap-the-switch.md`](runbooks/swap-the-switch.md) §1.3 has the command.
   - Ports kept spare are disabled, so a cable pushed into one joins no VLAN
     until someone enables it.
   - Neighbour discovery (LLDP, CDP, MNDP) and MAC-WinBox are limited to the
