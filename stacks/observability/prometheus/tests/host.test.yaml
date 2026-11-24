@@ -240,18 +240,21 @@ tests:
         exp_alerts: []
 
   # --- DisplayUpdatesStalled: the same origin pending for three days --------
-  # The firing series stays above zero for 80 hours. The quiet one is the
-  # normal day: pending from the morning run until the next one clears it,
-  # then pending again, never three days at a stretch. Samples every 5m, as
-  # scraped: a series unsampled for longer goes stale and resets `for`.
+  # The firing series stays above zero for 80 hours, except that each night's
+  # reboot fails one scrape and marks it stale, as on 2026-11-24. The bare
+  # series would restart `for` at every one; the 15-minute window must not.
+  # The quiet one is the normal day: pending from the morning run until the
+  # next one installs it, when the collector stops writing the series (it
+  # writes no 0), then pending again, never three days at a stretch. Samples
+  # every 5m, as scraped.
   - interval: 5m
     input_series:
       - series: >-
           apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",
           origin="Raspberry Pi Foundation:trixie/stable",arch="arm64"}
-        values: "16x960"
+        values: "16x286 stale 16x286 stale 16x286 stale 16x100"
       - series: 'apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",origin="Debian:trixie/stable",arch="arm64"}'
-        values: "2x252 0x36 3x252 0x36 1x252 0x144"
+        values: "2x252 _x36 3x252 _x36 1x252 _x144"
     alert_rule_test:
       - eval_time: 76h
         alertname: DisplayUpdatesStalled

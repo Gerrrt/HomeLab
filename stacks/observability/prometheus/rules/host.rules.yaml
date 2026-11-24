@@ -293,7 +293,15 @@ groups:
         # origin pending means unattended-upgrades stopped, an upgrade is held,
         # or the origin fell out of build-heimdall.md §2's allow list, as it was
         # until 2026-11-23.
-        expr: apt_upgrades_pending{role="display"} > 0
+        #
+        # `max_over_time` over 15 minutes, not the bare series, because the
+        # bare series would reset `for` every night. The 04:30 reboot fails a
+        # scrape, which marks the series stale (on 2026-11-24, `up` read 0
+        # there), and a three-day timer that restarts daily never fires. The
+        # window bridges the reboot. When an origin's upgrades go in, the
+        # collector writes no series for it at all, not a 0, so the window
+        # empties 15 minutes later and the timer resets as it should.
+        expr: max_over_time(apt_upgrades_pending{role="display"}[15m]) > 0
         for: 3d
         labels:
           component: host
