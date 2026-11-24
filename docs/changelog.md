@@ -27,8 +27,11 @@ docstring gives: it is a record, not a claim about now.
   with no `for`, so any scrape that reads more than 30 seconds on battery
   pages. A transfer that ends inside 30 seconds still does not, like the
   1-second one on 2026-11-07. `ups.test.yaml` replays both.
-  `shut-down-on-the-ups.md` puts the outside limit for the page at two and a
-  half minutes.
+  `shut-down-on-the-ups.md` puts the outside limit for the rule firing at about
+  three and a quarter minutes. That is a scrape starting up to 90 seconds after
+  the cut, up to 45 seconds for it to finish, and up to 60 seconds to the next
+  evaluation. The page then goes out with no group wait. The runbook also
+  separates a rule that never fired from a page that was never delivered.
 - **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
   card's event log gives the cause, and it is the move into the 32U rack
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
