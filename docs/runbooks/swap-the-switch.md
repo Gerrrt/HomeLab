@@ -357,18 +357,21 @@ machine that holds an age key:
 
 ```bash
 ssh atropos@10.0.99.30 ls -1r backups/switch
+mkdir -p backups/switch
 scp atropos@10.0.99.30:backups/switch/config-<STAMP>.sops.yaml backups/switch/
 ```
 
-Decrypt it to RAM, not to disk:
+Decrypt it to RAM, not to disk, readable by you alone:
 
 ```bash
-sops --decrypt --input-type yaml --output-type binary backups/switch/config-<STAMP>.sops.yaml > /dev/shm/neo.rsc
+(umask 077; sops --decrypt --input-type yaml --output-type binary backups/switch/config-<STAMP>.sops.yaml > /dev/shm/neo.rsc)
 ```
 
 Bring the switch to the state §1.3 leaves it in: RouterOS 7 long-term and
-`reset-configuration no-defaults=yes`. Upload `neo.rsc` through WinBox's
-*Files*, then:
+`reset-configuration no-defaults=yes`. Import the leaf certificate and its
+key first, under the name `neo.matrix.elysium`, as §1.4 does: the export's
+`www-ssl` and `api-ssl` lines name it, and fail to import without it. Then
+upload `neo.rsc` through WinBox's *Files*, and import it:
 
 ```text
 /import file-name=neo.rsc
@@ -376,19 +379,21 @@ Bring the switch to the state §1.3 leaves it in: RouterOS 7 long-term and
 
 The import turns VLAN filtering on part-way through, so a WinBox session by MAC
 may drop. The import carries on. Reconnect from the switch LAN at `10.7.7.2`,
+check the import reported `Script file loaded and executed successfully`
+(in `/log/print` if the session dropped),
 then delete `/dev/shm/neo.rsc` on the workstation.
 
-The export leaves out four things. Put them back by hand:
+The export leaves out three more things. Put them back by hand:
 
 - **Users.** The groups come back with the import, the users do not. Add
   `gerrrt` with the address list from [`network.md`](../network.md), and
   `homeassistant` as
   [`connect-the-switch-to-home-assistant.md`](connect-the-switch-to-home-assistant.md)
   §3 sets it. Add `backup` with address `10.7.7.1/32` and `prometheus`'s public
-  key (`/user/ssh-keys/add user=backup key="<~/.ssh/id_ed25519.pub>"`). The
-  default `admin` stays disabled.
-- **The certificate.** Re-import the leaf as §1.4 does. `www-ssl` and
-  `api-ssl` name it, and they serve nothing until it is there.
+  key (`/user/ssh-keys/add user=backup key="<~/.ssh/id_ed25519.pub>"`,
+  which RouterOS 7.24 takes; on a release that refuses it, upload the file and
+  use `/user/ssh-keys/import`). The reset brings the default `admin` back,
+  enabled: once `gerrrt` logs in, run `/user/disable admin`.
 - **The SNMPv3 passphrases.** The `prometheus` community comes back without
   them. Set the values the repository's secrets already hold, the way §1.5
   and [`rotate-snmp-community.md`](rotate-snmp-community.md) §4 set them, not

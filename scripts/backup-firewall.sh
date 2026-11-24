@@ -273,6 +273,12 @@ verify() {
     if [[ -z $ver ]] || ! grep -q '^/interface bridge' <<<"$plain"; then
       red "decrypted $f but it does not look like a RouterOS export of neo"; exit 1
     fi
+    # RouterOS skips a menu it cannot read in time and carries on, leaving a
+    # `#error exporting` line where it was. That is a partial config, and
+    # accepting it would let retention prune a whole one.
+    if grep -q '^#error' <<<"$plain"; then
+      red "decrypted $f but RouterOS left part of it out ($(grep -c '^#error' <<<"$plain") #error line(s))"; exit 1
+    fi
     rules=$(sed -n '/^\/ip firewall filter/,/^\/[a-z]/p' <<<"$plain" | grep -c '^add ' || true)
     green "verified $(basename "$f") — RouterOS ${ver}, ${rules} input filter rules"
     return 0
