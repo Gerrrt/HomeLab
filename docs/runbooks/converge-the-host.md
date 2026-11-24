@@ -387,6 +387,44 @@ To keep it, get it into the repository the normal way — a branch, a pull
 request, CI. To discard it, `git checkout -- .` in that directory, and delete
 any untracked files the status listed.
 
+### The tree is on another branch
+
+```text
+error: the deployment checkout is on 'gerrrt/some-work', not main.
+Convergence only ever fast-forwards main. Someone left this checkout
+somewhere else; put it back deliberately rather than letting a timer do it:
+  git -C /home/robo/code/Gerrrt/HomeLab switch main
+```
+
+This one recurs, because the deployment checkout is also the tree people author
+from — `prometheus`'s `robo` tree moves through dozens of branches in a working
+day — and the hourly timer does not wait for that work to finish. Convergence
+only ever fast-forwards `main`, so a converge that fires while a branch is
+checked out refuses exactly as above, and its `ScheduledJobFailed` fires with
+it.
+
+No branch configuration is deployed — the branch check runs before any fetch or
+`make up`. That is not the same as no effect: `revive_stopped` runs earlier in
+the same pass, so a converge that then refuses may already have restarted a
+stopped stack service, brought back on its last-applied configuration rather
+than the branch's (see *When a service is stopped*). What the gate prevents,
+every time, is shipping a half-finished branch.
+
+`ScheduledJobFailed` reads the job's last exit code, so it clears on the next
+*successful* converge — the checkout on `main` **and** clean, since uncommitted
+edits carried across the switch are their own refusal. Put the tree back with
+the `git switch` the error prints; if the alert outlives a run that should have
+passed, the journal says what the last one refused on:
+
+```bash
+journalctl -u 'homelab-converge*' -n 20 --no-pager | grep homelab-deploy
+```
+
+While branch work is in flight the converge refuses on every run it overlaps,
+so `ScheduledJobFailed` flaps for as long as the tree is left off `main` —
+benign, but noisy. Authoring from a `git worktree` keeps the deployment
+checkout on `main` while the work goes on, and the timer stays quiet.
+
 ### The tip did not verify
 
 ```text

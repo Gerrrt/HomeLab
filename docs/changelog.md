@@ -49,6 +49,22 @@ docstring gives: it is a record, not a claim about now.
   - The new §2 steps need the operator's password at the Pi, so they are
     written here and not yet applied.
 
+- **The hourly converge flaps `ScheduledJobFailed` when the deployment
+  checkout is left on a branch, and `converge-the-host.md` now says so.**
+  `prometheus`'s `robo` tree is both the host's deployment checkout and the
+  tree branches are authored from, and `make converge` fast-forwards `main`
+  only — so a converge that fires mid-branch refuses at the branch check,
+  before any fetch, and its `ScheduledJobFailed` fires with it. Seen today: the
+  tree sat on `gerrrt/hicks-pool-leases`, then `gerrrt/close-morpheus-audit`,
+  across the 18:27 and 19:28 converges, which both exited 2.
+  `ScheduledJobFailed` reads the last exit code, so it clears only on a
+  *successful* converge — the tree on `main` and clean; the 20:27 run was the
+  first to find it so, and cleared it. No branch configuration reached a
+  service (the branch check precedes the fetch), though `revive_stopped` runs
+  before that check, so a refused run can still restart a stopped stack
+  service. *When it refuses* gains a subsection with the detail, and the
+  `git worktree` that keeps the checkout on `main` and the timer quiet.
+
 - **NUT on `morpheus` had no stall spell in the 18 h 20 min after the
   driver's retry change.** This updates the entry "The audit of `morpheus` of
   2026-11-13 is closed", which recorded 16 h 42 min. Read in Loki at 20:56
