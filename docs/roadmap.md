@@ -40,15 +40,6 @@ What an entry here may contain:
 
 Closes when it is empty.
 
-- **[#1651](https://github.com/Gerrrt/HomeLab/issues/1651) Monitor
-  `gandalf` now that it stays on.** Decided by
-  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md): `gandalf` gets
-  `Saruman`'s agent, pushing hypervisor state to `prometheus` over one
-  host-scoped pass, with alerts for the host firewall off, `ragnarok` run past
-  the timer, and the SSD and updates. No gate. Left: the collector install,
-  the `morpheus` pass and the rules. Until it lands, the host firewall on an
-  always-on range host is checked only by `build-the-playground.md` §7's
-  read-back.
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
