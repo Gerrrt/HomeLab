@@ -422,7 +422,7 @@
 
 - targets: ["https://10.0.99.10/"]
   labels:
-    module: http_2xx_self_signed
+    module: http_2xx_lab_ca
     name: ups-ui
     role: ups
     host: mjolnir
