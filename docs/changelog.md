@@ -43,6 +43,15 @@ docstring gives: it is a record, not a claim about now.
   the next night's reboot. The operator rebooted the Pi at 09:10 to start the
   new version early, and the kiosk came back on 156.0.8078.108 under
   `lwrespawn`, with `throttled=0x0` and nothing failed.
+- **The three Hicks pool leases the `morpheus` audit could not name are
+  named.** The operator identified them, and `morpheus`'s ARP table placed
+  them on 2026-11-24. `.101` is `mobile-02`, whose row moves from `.109`, and
+  `.100` is `laptop-02` on Wi-Fi under a private address. `.105` was
+  `desktop-01` on its board's second Ethernet port, one MAC above the reserved
+  one, so its `.20` reservation and static ARP entry did not apply. The
+  operator re-pointed the reservation to that port, `morpheus`'s static entry
+  for `.20` now names it, and the desktop moves there at its next renewal.
+  `mobile-01`'s row, which claimed `.105`, now says pool. Refs #1503.
 
 - **`heimdall` runs every step of `build-heimdall.md` and has rebooted onto
   them.** This completes the entry "An audit of `heimdall` found that its

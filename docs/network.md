@@ -419,8 +419,8 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | laptop-02 | `10.0.50.80` | `4c:ea:41:xx:xx:xx` | Apple MacBook Pro[^MacBook] | macOS 26 | Roaming | Laptop |
 | workstation-01 | `10.0.50.69` | `e8:f6:73:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
 | workstation-02 | `10.0.50.70` | `4c:ea:41:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
-| mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
-| mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
+| mobile-01 | pool | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
+| mobile-02 | `10.0.50.101` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
 | heimdall | `10.0.50.15` | `88:a2:9e:xx:xx:xx` | Raspberry Pi 5 | Raspberry Pi OS 13 | Basement | Wall dashboard |
 
@@ -438,6 +438,16 @@ though not the only one — ImaginationLAN has two host-scoped passes to
   below it, since 2026-11-11.** It held `.114` by lease before that. The
   reservation is on the watch's private Wi-Fi address, so it holds only while
   the watch keeps that address *Fixed* rather than *Rotating* for this network.
+- **Three pool leases the audit of 2026-11-13 could not name were identified on
+  2026-11-24.** `.101` is `mobile-02`, which held `.109` when its row was
+  written. `.100` is `laptop-02` on Wi-Fi, under a private address, so it
+  takes a pool lease while its reservation at `.80` is on the wired MAC.
+  `.105` was `desktop-01` on its board's second Ethernet port, whose MAC is one
+  above the one its reservation at `.20` named, so it took a pool lease. The
+  operator re-pointed the reservation to that port's MAC the same day, and
+  `morpheus`'s static ARP entry for `.20` ([LAN](#lan)'s notes) followed; the
+  desktop moves to `.20` when its lease renews. `mobile-01` held `.105` when its row was
+  written; it was not on the network on 2026-11-24.
 - **What this segment reaches on Winterfell is a list of destinations, not the
   segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:

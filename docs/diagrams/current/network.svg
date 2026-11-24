@@ -395,14 +395,14 @@
 <rect x="450" y="1108" width="322" height="50" rx="8" class="card"/>
 <rect x="450" y="1114" width="4" height="38" rx="2" fill="#db6d28"/>
 <text x="464" y="1130" class="hn">mobile-01</text>
-<text x="760" y="1130" class="ip" text-anchor="end" fill="#db6d28">.105</text>
+<text x="760" y="1130" class="ip" text-anchor="end" fill="#db6d28">pool</text>
 <text x="464" y="1148" class="sub">Apple iPhone</text>
 </g>
 <g class="host" data-host="mobile-02">
 <rect x="450" y="1164" width="322" height="50" rx="8" class="card"/>
 <rect x="450" y="1170" width="4" height="38" rx="2" fill="#db6d28"/>
 <text x="464" y="1186" class="hn">mobile-02</text>
-<text x="760" y="1186" class="ip" text-anchor="end" fill="#db6d28">.109</text>
+<text x="760" y="1186" class="ip" text-anchor="end" fill="#db6d28">.101</text>
 <text x="464" y="1204" class="sub">Google Pixel</text>
 </g>
 <g class="host" data-host="wearable-01">
