@@ -405,19 +405,10 @@ unwatched*: the schedule is set, no rule can see it, and the proof is
 `upsAdvTestLastDiagnosticsDate` advancing on its own around 2026-09-11. #93
 moved into Done in the same pass, because its third step is now satisfied.
 
-**Still to do:**
-
-| File | What changes |
-| --- | --- |
-| `docs/images/ups-power.png` | Re-capture the set with `make screenshots`. The committed image is from 2026-08-22 and shows the original no-battery banner; it needs the decrypted Grafana password, so it is a human step |
-
-And when the shelf is racked, which is a separate visit and separate issue:
-
-| File | What changes |
-| --- | --- |
-| `docs/hardware.md` | The 1U shelf into the rack table at U4, and into Accessories |
-| `docs/network.md` | The TP-Link note — now racked and on UPS power |
-| `docs/roadmap.md` | The #110 entry leaves; the fit goes to `docs/changelog.md` under the date |
+**Since done:** `docs/images/ups-power.png` was re-captured on 2026-10-10
+(#1117) and no longer shows the no-battery banner. The shelf switch was racked
+and #110 closed, and the 32U move then replaced that layout
+([`hardware.md`](../hardware.md)). Nothing from this runbook is left to do.
 
 One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every

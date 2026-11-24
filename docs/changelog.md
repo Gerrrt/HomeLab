@@ -419,6 +419,14 @@ docstring gives: it is a record, not a claim about now.
   the first `E100` on import was. The `ups-ui` probe moves to
   `http_2xx_lab_ca`, and `generate-certificates.md` records the steps that
   worked. This was audit item 11.
+- **A re-check of `mjolnir` found three stale documents.** The UPS dashboard's
+  text panel said runtime still sat on the fabricated `63`, but it moved
+  between 29 and 45 minutes over the past week. It also said nothing watched
+  the self-test schedule, but `UpsSelfTestScheduleOff`, `UpsSelfTestStale`
+  and `UpsSelfTestFailed` do; the last test, on 2026-11-18, passed.
+  `fit-the-ups-battery.md` still listed a screenshot and the shelf as to-do,
+  and both were done in October. `schedule-maintenance.md` gains the card
+  leaf's renewal date, 2029-02-26.
 
 ## 2026-11-23
 
