@@ -1286,9 +1286,22 @@ halt.** Run `journalctl -u nut-monitor -b -1` on `trinity`. A secondary that
 never logged in never saw the flag. Check 4b.5's `upsc -c` listing, and that
 4b.1's pass is above its block.
 
-**`UpsOnBattery` did not fire within a minute in 6.2.** The scrape is every 60
-seconds and the rule waits 30, so two minutes is the outside limit. Past that,
-the card is not reporting the transfer — plug back in and stop.
+**`UpsOnBattery` did not fire within a minute in 6.2.** It fires on the first
+scrape that reads more than 30 seconds on battery. That scrape starts at most
+90 seconds after the cut, because scrapes are 60 seconds apart. It can take up
+to 45 seconds to finish (the `snmp` job's `scrape_timeout`), and the next rule
+evaluation follows within 60 seconds. So the rule fires at most about three
+and a quarter minutes after the cut. Its route (`severity="critical"`,
+`category="power"`) has `group_wait: 0s`, so the page goes out straight away.
+Past that limit, tell the two failures apart before you blame the card:
+
+- **Prometheus at `/alerts` shows `UpsOnBattery` firing, but no page
+  arrived.** The fault is in delivery. Check Alertmanager's `/#/alerts` and
+  `alertmanager_notifications_failed_total`. The card is fine, so carry on.
+- **Prometheus never shows it firing.** Look at `upsSecondsOnBattery` in
+  Prometheus. If it stays 0 while the UPS beeps, the card is not reporting the
+  transfer — plug back in and stop. If `up{device="mjolnir"}` is 0, the
+  scrape is failing instead.
 
 **A real cut later ended with a host stopping uncleanly anyway.** The sequence
 outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you.
