@@ -33,8 +33,9 @@ docstring gives: it is a record, not a claim about now.
   `build-the-playground.md` §7's per-session read-back checked by hand.
   `range.rules.yaml` adds seven alerts over them. Built and deployed across
   #1676, #1679, #1682, #1685 and #1693; verified live on 2026-11-23 — 0 push
-  failures, the `range_scope` tables enforcing with 0 out-of-scope packets, and a
-  full re-audit of the host and `ragnarok` finding every earlier fix in place.
+  failures and the `range_scope` tables enforcing with 0 out-of-scope packets.
+  The §4 tooling removal on `gandalf` (a GitHub-capable root SSH key and a
+  `.claude` footprint) stays the one open item, as `security.md` records.
 - **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
   card's event log gives the cause, and it is the move into the 32U rack
   ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
