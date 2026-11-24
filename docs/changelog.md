@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **`heimdall` runs the new §2 steps, and its bootloader is staged on the
+  card, not written by `flashrom`.** This corrects the entry "A re-check of
+  `heimdall` found its bootloader never updates, and nothing watching it",
+  whose §2 said each boot writes the chip while the Pi runs. Applied at
+  14:12 with the operator's password:
+  - **Updates:** `52heimdall-unattended-upgrades` now also sets
+    `Remove-Unused-Dependencies "true"`.
+  - **Bootloader:** with the drop-in, `rpi-eeprom-update -a` found no
+    `/dev/spidev10.0`, so it could not use `flashrom`. It copied
+    `pieeprom.upd`, its signature and `recovery.bin` to `/boot/firmware`
+    and logged "EEPROM updates pending". The next boot's `recovery.bin`
+    writes the chip, so October 2026's bootloader runs from the next boot.
+    A later release is staged at the first 04:30 boot after the package
+    brings it, and written at the second. §2 now says so.
+  - **Leftovers:** the first try at the purge hit `apt-daily`'s lock, taken
+    by its timer the same minute. Re-run with a lock timeout, it purged
+    `rpi-connect-lite` and autoremoved the five VNC libraries. Nothing is
+    left in dpkg's `rc` state and nothing is autoremovable.
+  - Afterwards only 22 and 9100 listened and no unit had failed.
+
 - **A re-check of `heimdall` found its bootloader never updates, and nothing
   watching it.** It was read-only, from the Mac on Hicks, after the
   2026-11-23 audit's fixes. All twelve findings held on the Pi: only 22 and
