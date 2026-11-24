@@ -97,8 +97,8 @@ docstring gives: it is a record, not a claim about now.
   seconds, so only the two stalls longer than that, 7.1 and 8.2 seconds, became
   spells, each logged the second its stall passed 6 seconds. At 18:36 local
   *Extra Arguments to driver* gained `snmp_timeout = 2` and `snmp_retries = 6`,
-  still inside `upsd`'s 15-second `MAXAGE`. The first hour after had no spell
-  while the card stalled on 10 of the exporter's scrapes, but 13 of the 49 hours
+  about 14 seconds for each unanswered request. The first hour after had no
+  spell while 10 of the exporter's scrapes waited out a stalled request, but 13 of the 49 hours
   before also had none, so a clean day is the bar. Why the card stalls is still
   open. `shut-down-on-the-ups.md` carries the two lines and the reasoning.
 

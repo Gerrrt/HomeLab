@@ -288,8 +288,8 @@ snmp_retries = 6
 block, which is the credential the exporter has already been using against
 this card since 2026-09-21. `mibs=apcc` names NUT's PowerNet MIB; `snmp-ups`
 autodetects it and the line only makes the choice visible. The last two
-lines give the driver about 14 seconds of retries before `upsd` marks the
-data stale; [Why the driver retries for 14 seconds](#why-the-driver-retries-for-14-seconds)
+lines give each unanswered request about 14 seconds of retries before the
+driver gives up on it; [Why the driver retries for 14 seconds](#why-the-driver-retries-for-14-seconds)
 says why.
 
 ### 1.4 Reveal and fill in Advanced settings
@@ -1392,12 +1392,16 @@ nor an error. With the driver's defaults, one-second retries, NUT gives up at
 about 6 seconds, and `upsd` marks the data stale. In the capture only the two
 stalls longer than that, 7.1 and 8.2 seconds, became *data stale* spells, each
 logged the second its stall passed 6 seconds and cleared on the card's next
-answer. The exporter sees the same stalls as scrapes that time out at 5
-seconds.
+answer. The exporter sees the same stalls as scrapes that take 5 seconds or
+more: one of its requests waited out the exporter's default 5-second request
+timeout and was retried. The scrape itself, with a 45-second
+`scrape_timeout`, still succeeds.
 
-`snmp_timeout = 2` with `snmp_retries = 6` waits about 14 seconds, longer than
-any stall measured and still inside `upsd`'s 15-second `MAXAGE`. So a card that
-is really gone is still marked stale, about 8 seconds later than before. Why
+`snmp_timeout = 2` with `snmp_retries = 6` gives one unanswered request about
+14 seconds, longer than any stall measured. That is a budget per request, not
+the time to flag an outage: `upsd`'s 15-second `MAXAGE` counts from the
+driver's last message, and how soon a card that is really gone is now marked
+stale was not measured. Why
 the card stalls at all is not known; it is the card's own behaviour, not the
 network's, since ICMP to it lost nothing during the capture.
 
