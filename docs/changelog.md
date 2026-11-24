@@ -27,7 +27,7 @@ docstring gives: it is a record, not a claim about now.
   trace of root having reached github over SSH, which is what the 2026-11-13 audit
   flagged. Deleting it left `ssh root@localhost` refused with `Permission denied
   (publickey)` — no day-to-day effect on this single, un-clustered node, but not
-  Proxmox's intended state. It was restored the same day with `pvecm updatecerts`,
+  Proxmox's intended state. It was restored on 2026-11-23, minutes later, with `pvecm updatecerts`,
   which regenerated a fresh RSA node key and re-merged `authorized_keys`; the
   stale orphaned `root@gandalf` entry and the github `known_hosts` line were then
   removed by hand, and `ssh root@localhost` succeeds again. The fresh key is not
