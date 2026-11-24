@@ -74,7 +74,7 @@ way:
 
 ```bash
 sudo apt purge -y openipmi ipmitool smartmontools
-sudo systemctl reset-failed
+sudo systemctl reset-failed openipmi.service smartmontools.service
 systemctl --failed --no-legend                  # nothing
 ```
 
