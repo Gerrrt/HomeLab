@@ -17,6 +17,32 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-24
+
+- **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
+  card's event log gives the cause, and it is the move into the 32U rack
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
+  the cause was not established and the log had not been read. The owner read
+  it on 2026-11-24. The card's clock keeps UTC−7, and the times below are
+  UTC.
+  - **2026-10-30 01:34.** All three outlet groups were commanded off,
+    sequenced, and the output was off at 01:36. No web or SSH user was
+    logged in to the card. Everything on the UPS lost power with it, which
+    is the silence Prometheus measured from about 01:40.
+  - **2026-11-04 16:29.** The card cold-started, so the UPS had been
+    unplugged. Its output came back on at 16:43.
+  - **2026-11-05 to 2026-11-06.** The card had an IPv4 lease from 20:56 on
+    2026-11-05 and lost it at 06:56 the next morning. It had a lease again
+    from 20:41, and Prometheus read it from about 22:30.
+  - **Still open.** NUT on `morpheus` logged *Driver not connected* until
+    20:59 on 2026-11-07, about 22 hours after the card answered SNMP again.
+    The card's log does not explain that gap.
+- **Other card settings recorded in `hardware.md`.** The battery date is
+  right: the card stores a month and year only. SSH stays on, input
+  sensitivity is now medium, and group 1's load-shedding values are set so
+  they cannot fire. Group 1's overload shed and every group's delays are
+  still not read.
+
 ## 2026-11-23
 
 - **`update-the-ups-firmware.md` is written, for #1698.** Reading the release
