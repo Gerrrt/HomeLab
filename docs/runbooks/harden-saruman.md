@@ -4,8 +4,8 @@
 in front of a root password, and its apt sources trust vendors that the
 host does not need.**
 
-> **Status — 2026-11-25: §1, §3, §4 and §6 applied and checked; §5 applied,
-> its reboot check owed; §2 not done.** A read-only audit of `Saruman` on
+> **Status — 2026-11-25: §1, §3, §4 and §6 applied and checked; §5 applied
+> and masked, its reboot check owed; §2 not done.** A read-only audit of `Saruman` on
 > 2026-11-13 found each item below. Every section ends with the check that
 > proves it was applied. §2 is the operator's, in the web UI. §5's check
 > waits for the next reboot. `pre-421-s3/` in `/root` is kept until the
@@ -83,7 +83,9 @@ login.
 
 **Check:** log out, and log in again as `root@pam`. It must ask for the
 code. If a phone is lost and the recovery keys with it, a root shell can
-remove the factor: `pveum user tfa delete root@pam`.
+remove the factor. `pveum user tfa list root@pam` prints each factor's ID;
+`pveum user tfa delete root@pam --id <ID>` removes that one, and with no
+`--id` it removes every factor the user has.
 
 ## 3. One API token for `phoenix`, not two
 
@@ -154,10 +156,18 @@ The ISO store is mounted over NFSv4.2
 and NFSv4 needs no portmapper on the client. Proxmox's NFS check queries
 `smaug`'s portmapper, not this host's. `rpcbind` listens on `111` on every
 address anyway. The firewall drops it, but nothing on the host needs it.
+`nfs-common` stays for the mount, so mask the two units as well as disabling
+them: a mask stops another unit's dependency from starting them again, as
+[`build-the-playground.md`](build-the-playground.md) does on `gandalf`.
 
 ```bash
 systemctl disable --now rpcbind.socket rpcbind.service
+systemctl mask rpcbind.socket rpcbind.service
 ```
+
+A fresh NFSv4 mount of the share at a scratch directory proves the mount
+needs neither before the reboot does. If an NFSv3 store is ever added,
+unmask and enable them first.
 
 **Check:** reboot in a maintenance window, then `findmnt -t nfs4` shows the
 ISO share, `pvesm status` shows its storage `active`, and `ss -tlnp | grep

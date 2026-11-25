@@ -35,9 +35,11 @@ docstring gives: it is a record, not a claim about now.
     `security.debian.org`, with `contrib` kept. `apt-get update` warns of
     nothing. `sources.list.d` holds `ceph.sources`, `debian.sources`,
     `hpe-mcp.list` and `proxmox.sources`.
-  - **§5.** `rpcbind.socket` and `rpcbind.service` are disabled and stopped.
-    Nothing listens on `111`, and the ISO store is still mounted over NFSv4.2
-    and `active`. The reboot check is owed.
+  - **§5.** `rpcbind.socket` and `rpcbind.service` are disabled, stopped and
+    masked, so no other unit's dependency can start them. Nothing listens on
+    `111`. The ISO store is still mounted over NFSv4.2 and `active`, and a
+    fresh NFSv4 mount of the share with both masked succeeded. The reboot
+    check is owed.
   - **§6.** The self-made CA, its leaf and chain, the `pveproxy-ssl.*`
     copies and `cluster.fw.new` are deleted from `/root`. None was in use:
     `8006` serves a different certificate, and `cluster.fw.new` matched the
