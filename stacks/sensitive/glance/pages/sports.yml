@@ -1,7 +1,8 @@
 # Sports & Markets. The tickers are GLANCE_MARKETS, shown here
 # in full with their charts. The scoreboards are ESPN's public API, no key,
 # one widget per league sharing the first one's template. Logos are left
-# out: they would be the browser fetching from ESPN's CDN.
+# out: they would be the browser fetching from ESPN's CDN. The TSP fund is
+# not on Yahoo, so it is its own widget, read from a Google Sheet.
 - name: Sports & Markets
   slug: sports
   width: wide
@@ -73,3 +74,64 @@
         - type: markets
           cache: 15m
           markets: ${GLANCE_MARKETS}
+
+        # TSP L 2060: Yahoo has no TSP fund, and the TSP's own price download
+        # refuses a script (403, 2026-11-25). The operator's sheet already
+        # imports a year of daily prices from TSP Talk; a second sheet, shared
+        # by link and holding only the date and this fund's price, is read
+        # through the Sheets API with a key that can read nothing else. Both
+        # are in SOPS: secrets/sensitive.example.yaml has the steps. Rows come
+        # newest first. The sparkline is drawn here as inline SVG, so the
+        # browser fetches nothing for it. TSP prices once a day: 6h is plenty.
+        - type: custom-api
+          title: TSP L 2060
+          cache: 6h
+          url: https://sheets.googleapis.com/v4/spreadsheets/${GLANCE_TSP_SHEET_ID}/values/A1:B400
+          headers:
+            X-Goog-Api-Key: ${GLANCE_GOOGLE_API_KEY}
+          parameters:
+            valueRenderOption: UNFORMATTED_VALUE
+            dateTimeRenderOption: FORMATTED_STRING
+          template: |
+            {{ $rows := .JSON.Array "values" }}
+            {{ $n := len $rows }}
+            {{ if or (ne .Response.StatusCode 200) (lt $n 2) }}
+              <p class="color-negative">No prices: the sheet answered {{ .Response.StatusCode }} with {{ $n }} rows.</p>
+            {{ else }}
+              {{ $p := (index $rows 0).Float "1" }}
+              {{ $q := (index $rows 1).Float "1" }}
+              {{ $y0 := (index $rows (sub $n 1)).Float "1" }}
+              {{ $min := $p }}{{ $max := $p }}
+              {{ range $rows }}
+                {{ $v := .Float "1" }}
+                {{ if lt $v $min }}{{ $min = $v }}{{ end }}
+                {{ if gt $v $max }}{{ $max = $v }}{{ end }}
+              {{ end }}
+              {{ $span := sub $max $min }}{{ if le $span 0.0 }}{{ $span = 1.0 }}{{ end }}
+              {{ $step := div 300.0 (toFloat (sub $n 1)) }}
+              {{ $pts := "" }}
+              {{ range $i, $r := $rows }}
+                {{ $x := sub 300.0 (mul (toFloat $i) $step) }}
+                {{ $y := sub 58.0 (mul (div (sub ($r.Float "1") $min) $span) 56.0) }}
+                {{ $pts = printf "%s %.1f,%.1f" $pts $x $y }}
+              {{ end }}
+              {{ $day := mul (div (sub $p $q) $q) 100.0 }}
+              {{ $year := mul (div (sub $p $y0) $y0) 100.0 }}
+              <div class="flex justify-between items-end">
+                <div>
+                  <div class="size-h3 color-highlight">{{ printf "$%.4f" $p }}</div>
+                  <div class="size-h6">{{ (index $rows 0).String "0" }}</div>
+                </div>
+                <div class="text-right size-h6">
+                  <div class="{{ if lt $day 0.0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ printf "%+.2f" $day }}% day</div>
+                  <div class="{{ if lt $year 0.0 }}color-negative{{ else }}color-positive{{ end }}">
+                    {{ printf "%+.2f" $year }}% over {{ $n }} days</div>
+                </div>
+              </div>
+              <svg viewBox="0 0 300 60" preserveAspectRatio="none" class="margin-top-10"
+                   style="width: 100%; height: 60px;">
+                <polyline fill="none" stroke="var(--color-primary)" stroke-width="1.5"
+                          vector-effect="non-scaling-stroke" points="{{ $pts }}"/>
+              </svg>
+            {{ end }}
