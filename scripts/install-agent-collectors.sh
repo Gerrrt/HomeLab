@@ -70,6 +70,18 @@
 # which lasted exactly as long as it took for the second collector to need
 # shipping.
 #
+# A REQUIREMENT MUST BE SOMETHING ONLY THE INTENDED HOSTS HAVE, not merely
+# something the collector calls. thin-pool-state calls lvs and range-state
+# calls nft, and both were first gated on them. An Ubuntu guest installed
+# from the ISO has both: the installer's LVM layout brings lvm2, and nftables
+# comes with ubuntu-standard and with iptables, which Docker depends on. So a
+# full run against `alexander` would have put Saruman's pool collector and
+# gandalf's range collector on a lab guest (found re-checking the alexander
+# audit on 2026-11-25). thin-pool-state now requires pveversion, as
+# pve-version does, so it lands on the hypervisors only. range-state requires the stop helper it reads its deadline from,
+# /usr/local/sbin/homelab-ragnarok-stop, which only gandalf has. Each unit's
+# ConditionPathExists names the same path.
+#
 # drift-check's requirement is not a binary but the wiki checkout's own guard
 # script, which exists on exactly the host that holds the wiki — oracle — and
 # nowhere else. That is the per-collector check doing its job: every other host
@@ -122,12 +134,12 @@ COLLECTORS=(
   "pve-version scripts/collect-pve-version.sh   pve-version.prom       /usr/bin/pveversion"
   "cert-expiry scripts/collect-cert-expiry.sh   cert-expiry-HOST.prom  /usr/bin/pveproxy"
   "guest-state scripts/collect-guest-state.sh   guest-state.prom       /usr/sbin/qm"
-  "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/sbin/lvs"
+  "thin-pool-state scripts/collect-thin-pool-state.sh thin-pool-state.prom /usr/bin/pveversion"
   "guest-disk-state scripts/collect-guest-disk-state.sh guest-disk-state.prom /usr/sbin/qm"
   "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
   "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
-  "range-state scripts/collect-range-state.sh range-state.prom /usr/sbin/nft"
+  "range-state scripts/collect-range-state.sh range-state.prom /usr/local/sbin/homelab-ragnarok-stop"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"

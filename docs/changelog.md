@@ -61,6 +61,21 @@ docstring gives: it is a record, not a claim about now.
     The `pre449weaknesses` snapshots and the fs-freeze timeouts on `titan`
     and `ramuh` are not part of the runbook and are unchanged.
 
+- **Two agent collectors no longer qualify for every Ubuntu guest.**
+  `install-agent-collectors.sh` installs a row on any host where its
+  requirement exists. `thin-pool-state` required `lvs` and `range-state`
+  required `nft`, and `alexander` has both, from the installer's LVM layout
+  and from `nftables` coming in with `ubuntu-standard` and Docker's
+  `iptables`. A full run there would have installed `Saruman`'s pool
+  collector and `gandalf`'s range collector on a lab guest. Re-checking
+  the audit of `alexander` found it. `thin-pool-state` now requires
+  `pveversion`, and `range-state` requires
+  `/usr/local/sbin/homelab-ragnarok-stop`, the helper it reads its deadline
+  from. Both units' `ConditionPathExists` match. The installed units on
+  `Saruman` and `gandalf` now differ from the committed ones, so `--check`
+  reports them stale until `--only thin-pool-state` and `--only range-state`
+  are re-run there.
+
 - **`neo` is on RouterOS 7.24.7 long-term.** Upgraded from 7.24.6 at
   01:00 UTC under a one-hour silence on `component=~"internet|network"`,
   after a verified `make backup-switch`. The download staged in RAM and left

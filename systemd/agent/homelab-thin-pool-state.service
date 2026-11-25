@@ -21,7 +21,7 @@
 Description=HomeLab: record how full this hypervisor's thin pools are
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
 ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
-ConditionPathExists=/usr/sbin/lvs
+ConditionPathExists=/usr/bin/pveversion
 
 [Service]
 Type=oneshot
