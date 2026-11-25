@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **The operator's Windows PC trusts both roots.** Every lab site warned
+  again after its warning had been accepted, because the PC trusted neither
+  root. A click-through covers one leaf, and Caddy renews the tier's
+  seven-day leaves about every five days. The estate's root and the tier's
+  root are now in the current user's Windows store, checked by fingerprint
+  first. Windows then verified `wall`, `homeassistant`, `start`, `immich`,
+  `vaultwarden`, `lemmiwinks` and Grafana on `:3000` with no warning. The
+  row is in `generate-certificates.md`'s trust table.
+
 - **The `pre449weaknesses` snapshots on 150–153 are deleted.** This
   follows the entry below on `harden-saruman.md`, which left them unchanged
   for the operator to decide. Taken on 2026-10-07 as #449's baseline,
