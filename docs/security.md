@@ -112,19 +112,20 @@ that takes the rack takes every copy
 ([*What backs Immich up*](../stacks/sensitive/README.md#what-backs-immich-up-and-what-does-not-yet)).
 Accepted by the operator.
 
-**The estate's own backup sets leave the house too, and with a key.** Decided
-2026-09-20: the newest firewall export, volume set and NAS set are carried onto
-the offline medium that holds the second age recipient, on its ninety-day
-visit, from that medium's first visit onward ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)). That medium
-is the one place where the estate's ciphertext sits beside a key that opens
-it — the property ADR-0015 refused `oracle`, and still does; the argument there
-turned on a powered, networked host in the same room, and this is an offline
-medium held off the estate by the technical second. **The residual is the
-disclosure delta on losing it**: the key alone already means rotating every
-credential in the repository, and the sets add the firewall's rule bodies and
-WAN address, the device password hashes in the export, and `grafana.db`.
-Accepted, because the alternative is a successor who holds the key and not
-the thing it opens.
+**The estate's own backup sets leave the house too, without a key.** Decided
+2026-09-20 ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md))
+and moved on 2026-11-24
+([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)): the
+newest firewall export, volume set, NAS set and wiki set are carried onto the
+offsite drive, the spare `HOUSEHOLD` drive, which holds no key. **Losing that
+drive discloses ciphertext only.** Until 2026-11-24 the sets rode on the
+offline medium that holds the second age recipient, beside a key that opens
+them. That medium may still hold those older sets until its holder deletes
+them, so **losing the key medium still carries the old disclosure delta**:
+the key alone already means rotating every credential in the repository, and
+those sets add the firewall's rule bodies and WAN address, the device password
+hashes in the export, and `grafana.db`. Accepted. The cost of the move is
+that a successor needs the drive and a key, two things rather than one.
 
 **Intrusion detection has been running** on **Skids (VLAN 20)** since
 2026-08-21 and on **Degens (VLAN 10)** since 2026-09-02, one Suricata process
