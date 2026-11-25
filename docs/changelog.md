@@ -43,6 +43,15 @@ docstring gives: it is a record, not a claim about now.
   steps need the operator's password at the Pi, so they are written here
   and not yet applied.
 
+- **The operator's Windows PC trusts both roots.** Every lab site warned
+  again after its warning had been accepted, because the PC trusted neither
+  root. A click-through covers one leaf, and Caddy renews the tier's
+  seven-day leaves about every five days. The estate's root and the tier's
+  root are now in the current user's Windows store, checked by fingerprint
+  first. Windows then verified `wall`, `homeassistant`, `start`, `immich`,
+  `vaultwarden`, `lemmiwinks` and Grafana on `:3000` with no warning. The
+  row is in `generate-certificates.md`'s trust table.
+
 - **The `pre449weaknesses` snapshots on 150–153 are deleted.** This
   follows the entry below on `harden-saruman.md`, which left them unchanged
   for the operator to decide. Taken on 2026-10-07 as #449's baseline,
@@ -120,6 +129,19 @@ docstring gives: it is a record, not a claim about now.
   running, and a re-check on 2026-11-25 saw one 503 and then 45 of 45 at 200.
   Both comments now name what is watched: the process, through
   `InstanceDown`, and ingest, through `LokiIngestionStalled`.
+
+- **A new technical second replaces `age19mkg76…` on the estate's files.**
+  The medium holding that key's private half, and the CA key's offline copy,
+  is misplaced, not known to be exposed, so nothing it opens is rotated.
+  A new key, `age1egznz…`, was generated straight onto a fresh USB stick
+  (the old installer stick, wiped). `secrets/observability.sops.yaml` and
+  `secrets/tofu.sops.yaml` were re-keyed to the live key and the new one,
+  and `make secrets-verify-backup` proved the new key opens them before
+  `age19mkg76…` was taken off the catch-all rule. `remove-recipient.sh`
+  refused because the key is on three rules, so that rule was edited by hand
+  and both files re-keyed with `sops updatekeys`. `secrets/sensitive.sops.yaml`
+  was re-keyed on trinity, whose key is the only other that opens it, in a
+  temporary directory there, and the new key proved to open it.
 
 ## 2026-11-24
 
