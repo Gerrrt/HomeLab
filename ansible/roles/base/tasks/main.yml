@@ -127,6 +127,31 @@
   ansible.windows.win_timezone:
     timezone: UTC
 
+# C: takes the whole disk tofu gave the clone. The server template's disk is 60
+# GiB (packer/windows.pkr.hcl) and tofu grows titan and ramuh to 80, so those
+# two start with 20 GiB unallocated after their last partition; the DCs and the
+# endpoints get their template's size and have none. Templates built before
+# this change have Setup's
+# recovery partition AFTER C:, which pins C: where it is: on those clones
+# SizeMax equals Size and this changes nothing (titan on 2026-11-25: C: 58.96
+# GB on an 80 GB disk, with the 0.77 GB recovery partition behind it). Templates
+# built since put the recovery partition before C: (autounattend.xml.pkrtpl),
+# so the next rebuild grows C: here. Moving a live recovery partition is not
+# done: that is disk surgery on a running guest, for space nobody is short of.
+- name: "Grow C: into the space behind it"
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param()
+      $Ansible.Changed = $false
+      $p = Get-Partition -DriveLetter C
+      $max = (Get-PartitionSupportedSize -DriveLetter C).SizeMax
+      # 100 MB of slack, so alignment rounding never reads as a change.
+      if ($max - $p.Size -gt 100MB) {
+        $Ansible.Changed = $true
+        if (-not $Ansible.CheckMode) { Resize-Partition -DriveLetter C -Size $max }
+      }
+
 # The template's build password stays valid until this runs (ADR-0074). A DC
 # has no local SAM to rotate; its Administrator is the domain's, and that one
 # was set from this same variable when the forest was made.

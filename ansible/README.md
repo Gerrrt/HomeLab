@@ -82,7 +82,9 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
     group, and the members placed in `Servers`/`Workstations` (#448).
   - `gpos`: the GPOs, ensured on `bahamut` compare-first, so a second run
     writes nothing.
-    - *Deny Tier 0 Logon on Members*, as #414 built it by hand.
+    - *Deny Tier 0 Logon on Members*, as #414 built it by hand, and since
+      ADR-0136 refusing Domain and Enterprise Admins the console and RDP on
+      members too, never network logon.
     - *Lab - Audit File Share*: the member servers' audit policy, the Windows
       default set plus File Share (#1077).
     - *Lab - Audit Domain Controllers*: the DCs' 17 subcategories plus

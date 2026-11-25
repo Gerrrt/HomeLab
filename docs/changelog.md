@@ -37,6 +37,32 @@ docstring gives: it is a record, not a claim about now.
   - **`erebor/apps@auto-2026-09-19_23-00` is deleted**: 1.2 MiB, no holds,
     left by the 23:00 schedule the task no longer runs.
 
+- **The read-only audit of `titan` (2026-11-13, re-checked today) leaves
+  four changes in the repository, and none yet on the guests.** What it found
+  matching: the shares and their ACLs, the decoy, inbound SMB signing off, the
+  agents, Sysmon's config hash, the exporter, `phoenix`'s key alone in
+  `sshd`, and all six ADR-0083 weaknesses absent. What it found wrong, and
+  where each goes:
+  - **`AD\Administrator` could log on to a member's console**, because *Deny
+    Tier 0 Logon on Members* named only `Tier 0 Admins`. ADR-0136 adds Domain
+    and Enterprise Admins to the interactive and RDP denies and leaves
+    network logon, which is how Ansible reaches the guests. `roles/gpos` and
+    `verify.yml` carry it. It takes effect at the next
+    `--tags gpos` run from `phoenix`.
+  - **No Windows patch since the template's baseline (2026-01-14), and five
+    pending.** ADR-0137 makes that the design: the six are refreshed by
+    rebuild before each licence expiry, not patched in place.
+  - **C: is 59 GB on `titan`'s 80 GB disk**, because Setup put the recovery
+    partition after it. The template now creates it before C:, and
+    `roles/base` grows C: into the disk. Neither touches a live guest's
+    partitions, so `titan` and `ramuh` change at their next rebuild.
+  - **`build-the-lab-domain.md` §10 still listed `5985` on the four servers.**
+    `SetupComplete.cmd` disables WinRM on every clone, and `titan` has no
+    listener. The section now says so.
+
+  The nightly VSS freeze failures seen at about 05:05 between 2026-11-07 and
+  2026-11-14 have not recurred. Their cause is not established.
+
 - **`build-the-backup-guest.md` §2 gains a host firewall for `golem`.**
   The audit of 2026-11-13 left the choice open, and the entry below lists it
   as the last thing not done. `golem` can delete every backup the lab has,
