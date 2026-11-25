@@ -106,9 +106,9 @@ docstring gives: it is a record, not a claim about now.
   and `make secrets-verify-backup` proved the new key opens them before
   `age19mkg76…` was taken off the catch-all rule. `remove-recipient.sh`
   refused because the key is on three rules, so that rule was edited by hand
-  and both files re-keyed with `sops updatekeys`. The lab and sensitive rules
-  still name `age19mkg76…`: their files open only on alexander and trinity,
-  and are re-keyed there.
+  and both files re-keyed with `sops updatekeys`. `secrets/sensitive.sops.yaml`
+  was re-keyed on trinity, whose key is the only other that opens it, in a
+  temporary directory there, and the new key proved to open it.
 
 ## 2026-11-24
 

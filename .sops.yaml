@@ -99,7 +99,7 @@ creation_rules:
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
       age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw,
-      age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
+      age1egznz3x988kretsa0pt29ktcrqrevdjkueu6sg5086z269m843yqeerysc
 
   # The SOC guest, for the lab's reason with more force behind it: odin sits
   # on the segment that exists to hold attackers and runs the SIEM those
