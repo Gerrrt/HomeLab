@@ -70,7 +70,7 @@ hand. It was accepted as a residual bounded by the pfSense rule
 that lets only `10.0.99.20` reach UDP/161 on the switch, with the replacement as
 the fix.
 
-The replacement is a MikroTik CRS326-24G-2S+RM on RouterOS 7.24.6, under the
+The replacement is a MikroTik CRS326-24G-2S+RM on RouterOS 7.24.7, under the
 same name and address. It has no enabled v2c community (RouterOS's default
 `public` row cannot be removed, so it is there and disabled): SNMP is v3 authPriv for
 one user, `prometheus` (SHA/AES), and the agent answers only `10.0.99.20`. The
