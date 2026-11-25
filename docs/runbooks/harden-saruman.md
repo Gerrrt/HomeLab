@@ -4,9 +4,12 @@
 in front of a root password, and its apt sources trust vendors that the
 host does not need.**
 
-> **Status — 2026-11-14: written, and nothing applied yet.** A read-only
-> audit of `Saruman` on 2026-11-13 found each item below. Every section ends
-> with the check that proves it was applied.
+> **Status — 2026-11-25: §1, §3, §4 and §6 applied and checked; §5 applied,
+> its reboot check owed; §2 not done.** A read-only audit of `Saruman` on
+> 2026-11-13 found each item below. Every section ends with the check that
+> proves it was applied. §2 is the operator's, in the web UI. §5's check
+> waits for the next reboot. `pre-421-s3/` in `/root` is kept until the
+> operator decides.
 
 `Saruman`'s Proxmox firewall admits `22`, `8006` and `8007` from Hicks and
 `8006` from `phoenix`, and drops everything else

@@ -360,7 +360,7 @@ version component in either table.
 
 | Host | BMC | Address | Notes |
 | --- | --- | --- | --- |
-| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation. Hardened 2026-09-09 per [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md): IPMI-over-LAN, SSH and iLO Federation off; HTTPS, the remote console and SNMP stay on; the account's credential is shared with nothing else; the security log was read for a baseline. Polled over SNMPv3 authPriv (SHA, AES, user `prometheus`) since 2026-09-20 per [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md), with *SNMPv1 Request* off — it answers no community at all |
+| `Saruman` | `shiva` — HPE iLO 4, firmware 2.82 | `10.0.30.10` | iLO Advanced licensed. Dedicated network port. DHCP with a reservation. Hardened 2026-09-09 per [ADR-0033](adr/0033-keep-the-ilo-on-the-lab-segment.md): IPMI-over-LAN, SSH and iLO Federation off; HTTPS, the remote console and SNMP stay on; the account's credential is shared with nothing else; the security log was read for a baseline. **Read again and re-hardened 2026-11-13**: the 2026-09-09 settings had held, and the re-read found what they never covered. Since then, also off: the unauthenticated XML reply (`/xmldata`, which had served the serial number and every NIC's MAC to the segment), SSDP, and Federation's multicast discovery. A second local account with every privilege, older than the retained event log and recorded nowhere, was deleted, so `Administrator` is the only account. The clock comes from SNTP at `10.0.30.1` rather than DHCP, so it no longer restarts at 1970 after a power removal, and every failed login is logged. What stays on: HTTPS, HTTP on `80`, the remote console, virtual media on `17988`, the serial CLI behind a login, and SNMP. It takes its gateway and DNS by DHCP, and `morpheus` blocks it from anything off the segment ([`network.md`](network.md#imaginationlan--vlan-30--lab)). The certificate is HPE's factory self-signed one, to 2031-01-13. Polled over SNMPv3 authPriv (SHA, AES, user `prometheus`) since 2026-09-20 per [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md), with *SNMPv1 Request* off — it answers no community at all |
 
 The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
@@ -1086,8 +1086,9 @@ the runbook rather than backed up.
   new 32U frame at U21 on 2026-10-12, unpowered and uncabled, and **became
   `neo` on 2026-11-05**, in the window of the move into the 32U rack: the
   MokerLink came out and this took over every VLAN. Its SNMP scrape moved to
-  v3 the same week, and it reports `RouterOS CRS326-24G-2S+ 7.24.6
-  (long-term)`, one release past the bench's. **Checked on arrival, not assumed:** which
+  v3 the same week. It was upgraded to 7.24.7 long-term, RouterOS and
+  RouterBOARD firmware both, on 2026-11-25, and reports
+  `RouterOS CRS326-24G-2S+ 7.24.7 (long-term)`. **Checked on arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used

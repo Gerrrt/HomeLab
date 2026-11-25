@@ -641,6 +641,11 @@ Televisions and consoles. Internet only.
   segment, so the *Reaches* column is unchanged. The pass narrows rather than
   opens: before it, *Allow internet* already passed the whole segment to that
   address, and the block is what keeps the televisions off the listener.
+  **Its internet egress also carries TrueNAS Connect**, the vendor's cloud
+  service, registered on `smaug` since its first boot and read as enabled on
+  2026-11-13. [ADR-0133](adr/0133-turn-truenas-connect-off-on-smaug.md)
+  turns it off; [`build-the-nas.md`](runbooks/build-the-nas.md) §6.12 is
+  the procedure, and until that is done the registration stands.
 - **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
@@ -720,7 +725,13 @@ Where things get broken on purpose.
 
 ### Notes
 
-- Reachable from Hicks only; outbound internet permitted.
+- Reachable from Hicks only; outbound internet permitted, except for `shiva`.
+- **`shiva` reaches nothing off the segment.** A block on `igc0.30` from
+  `10.0.30.10` to anything outside `10.0.30.0/24` sits above *Allow
+  internet*, since 2026-11-13. The iLO takes the segment's gateway by DHCP and
+  had the lab's outbound internet until then. Its SNMP replies to the
+  monitoring host still pass, because pf state carries them, as it did for the
+  return-path rule deleted on 2026-09-09.
 - **The block that stops it reaching CasaBonita is *Block access to
   CasaBonita*** on `igc0.30`, one of a run of per-segment blocks (Degens,
   Skids, CasaBonita, Hicks, Winterfell, the untagged LAN) that sit above the

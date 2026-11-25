@@ -158,14 +158,20 @@ The second, `mjolnir`'s card leaf, is watched: the `ups-ui` probe verifies it
 against the CA, and the TLS expiry rules warn at 30 days and page at 7.
 Renewing it reuses the card's RSA key, so skip step 1's key commands.
 
-**`neo`'s next RouterOS upgrade needs a space check first.** The switch has
-16 MiB of flash, and on 2026-11-13 it had about 3 MiB free with a RouterOS
-package of nearly 12 MiB. A long-term upgrade may not fit as a download. Before
-upgrading, read `/system/resource/print` for `free-hdd-space`. If the package
-does not fit, the fallback is Netinstall, which has no macOS build, so decide
-beforehand which machine will run it
+**`neo`'s RouterOS upgrades need a space check first.** The switch has
+16 MiB of flash, about 3 MiB of it free, and a RouterOS package of nearly
+12 MiB. The 7.24.7 upgrade on 2026-11-25 fitted: `/system package update
+download` staged the package in RAM under `downloads/`, flash stayed at
+about 3 MiB free, and the reboot installed it. The first download broke off
+at 9 MiB with `ERROR: connection disconnected`; deleting the partial file
+and downloading again completed it. Two reboots, one for RouterOS and one
+after `/system routerboard upgrade`, took about four minutes and one and a
+half. Device-mode's `routerboard: no` did not block the firmware step. If a
+later package does not fit, the fallback is Netinstall, which has no macOS
+build, so decide beforehand which machine will run it
 ([`swap-the-switch.md`](swap-the-switch.md) has the same caveat). Do it in a
-window that avoids working hours: every VLAN crosses this switch.
+window that avoids working hours: every VLAN crosses this switch, and silence
+`component=~"internet|network"` under the upgrade's issue first.
 
 `dashboards-drift`, `check-versions` and `loki-coverage` are the odd ones out,
 and worth reading as a different kind of job. Every other row here proves that

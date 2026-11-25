@@ -17,6 +17,51 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-25
+
+- **`harden-saruman.md` is applied on `Saruman`, except §2 and §5's
+  reboot check.** It closes what the audit of 2026-11-13 found on the host.
+  - **§1.** A drop-in, `/etc/ssh/sshd_config.d/10-keys-only.conf`, turns off
+    password and keyboard-interactive logins and X11 forwarding, and keeps
+    root to keys. Every SSH login since 2026-09-25 had used a key. `sshd -T`
+    reads `without-password`, `no`, `no`, `no`. A password attempt is offered
+    `publickey` only and refused, and a key login still works.
+  - **§3.** `phoenix@pve!builder2` is removed. `pveproxy`'s access logs held
+    no request from it, against 1,101 from `builder`. `pveum user token list`
+    shows `builder` alone.
+  - **§4.** `1password-cli`, `glow` and `gum` are purged, and the 1Password,
+    charm and debug-symbol sources and their keyrings are gone.
+    `debian.sources` names each suite once, from `deb.debian.org` and
+    `security.debian.org`, with `contrib` kept. `apt-get update` warns of
+    nothing. `sources.list.d` holds `ceph.sources`, `debian.sources`,
+    `hpe-mcp.list` and `proxmox.sources`.
+  - **§5.** `rpcbind.socket` and `rpcbind.service` are disabled and stopped.
+    Nothing listens on `111`, and the ISO store is still mounted over NFSv4.2
+    and `active`. The reboot check is owed.
+  - **§6.** The self-made CA, its leaf and chain, the `pveproxy-ssl.*`
+    copies and `cluster.fw.new` are deleted from `/root`. None was in use:
+    `8006` serves a different certificate, and `cluster.fw.new` matched the
+    live file. `pre-421-s3/` stays until the operator decides.
+    `proxmox-kernel-6.8.12-9-pve-signed` and six `rc` kernel packages are
+    purged. `/boot` and GRUB hold 6.8.12-43, 7.0.14-28 and 7.0.14-30, the
+    three `proxmox-boot-tool kernel list` selects.
+  - **Not done.** §2, a second factor on `root@pam`, is the operator's.
+    The `pre449weaknesses` snapshots and the fs-freeze timeouts on `titan`
+    and `ramuh` are not part of the runbook and are unchanged.
+
+- **`neo` is on RouterOS 7.24.7 long-term.** Upgraded from 7.24.6 at
+  01:00 UTC under a one-hour silence on `component=~"internet|network"`,
+  after a verified `make backup-switch`. The download staged in RAM and left
+  flash at about 3 MiB free, so the space worry of 2026-11-13 did not bite;
+  the first attempt broke off at 9 MiB and a retry finished. RouterOS came
+  back after about four minutes, then the RouterBOARD firmware went to 7.24.7
+  with a second reboot of about a minute and a half. Afterwards the services,
+  users, `mgmt` list, input filter, IPv6 setting, device-mode features, SNMP
+  and remote logging read as before; the only change was device-mode's
+  `allowed-versions`, which the release notes said 7.24.7 updates. The SNMP
+  scrape, `make snmp-verify`, Home Assistant's api-ssl session, `routeros`
+  lines in Loki and a second `make backup-switch` all passed.
+
 ## 2026-11-24
 
 - **An audit of `Saruman`, read-only, found its management plane open to a
@@ -2823,6 +2868,34 @@ docstring gives: it is a record, not a claim about now.
   take ADR-0030's allowance of roughly 15 for every family but the alerts.
 
 ## 2026-11-13
+
+- **`shiva` re-read over Redfish, from `Saruman`.** This was a read-only audit:
+  GET requests only, plus a handshake and a port check. Nothing was installed and
+  nothing was set. The 2026-09-09 hardening holds. SSH (`22`) and IPMI-over-LAN
+  (`623/udp`) are off on the iLO and closed on the wire. Federation management
+  is off. SNMP answers only the `prometheus` v3 user, with SHA and AES and no
+  community. Firmware 2.82 is still HPE's last iLO 4 release (2023-03-02), as
+  ADR-0033 assumed. Health is clean: fans, both supplies, all eight DIMMs, the
+  four drives and the Smart Storage Battery, which reads `Ok` after the
+  August–September failures in the IML. What the hardening never recorded:
+  - a second local account with every privilege, older than the retained event
+    log;
+  - the unauthenticated XML reply (`/xmldata`), SSDP with Federation's
+    multicast discovery, and HTTP on `80`;
+  - a DHCP gateway, so the BMC has the lab's internet egress, which
+    `docs/security.md`'s "its one path out of the segment deleted" overstated;
+  - no NTP server, so the iLO's clock restarts at 1970 after each power
+    removal, and the event log logs only every third failed login.
+
+  All but HTTP were fixed the same day, by hand. On the iLO, the second
+  account was deleted; the XML reply, SSDP and Federation's multicast
+  discovery were turned off; SNTP was set to `10.0.30.1` with DHCP's time
+  settings off; and every failed login is now logged. On `morpheus`, a block
+  on `igc0.30` from `10.0.30.10` to anything off the segment sits above
+  *Allow internet*. A second Redfish read confirmed the iLO side, and the
+  event log holds each change; the `morpheus` rule was not tested from the
+  BMC's side. `docs/hardware.md`, `docs/network.md`, `docs/security.md` and
+  `SECURITY.md` describe the result.
 
 - **[ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
   `Saruman` half is applied.** It was found missing by a read-only audit of
