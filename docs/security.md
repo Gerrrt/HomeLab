@@ -395,12 +395,11 @@ and `erebor/media` is not snapshotted. The library is replaceable (ADR-0008),
 so this is accepted. What limits it is the user: `samwise` is a second SMB
 user, typed on workstations and never stored on a television, so the
 televisions' `bilbo` and the workstations' credential are revoked apart.
-Both can still write the library today, through the preset's `builtin_users`
-Modify entry.
+Only `samwise` can write the library. Since 2026-11-25
 [ADR-0134](adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)
-makes `bilbo` read-only and grants write to `samwise` by name;
-[`build-the-nas.md`](runbooks/build-the-nas.md) §5 *Make `bilbo` read-only*
-is the change, and it is not yet done. The
+has made `bilbo` read-only and granted write to `samwise` by name, by
+[`build-the-nas.md`](runbooks/build-the-nas.md) §5 *Make `bilbo` read-only*.
+The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
 **One more is from ImaginationLAN, and it exists.**
@@ -527,24 +526,24 @@ read-only audit of 2026-11-13 listed it. Each port, and what stands in its
 place of a firewall rule:
 
 - **`22`**: `sshd` offers `publickey` alone, since 2026-11-24.
-- **`80` and `443`**: the web UI, with no allowlist and no redirect until
-  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.13 sets both. Then only
-  Hicks' addresses get the UI. The allowlist is a check on the source
+- **`80` and `443`**: the web UI. Since 2026-11-25
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.13 has set an allowlist
+  and an HTTPS redirect, so only Hicks' addresses get the UI. The allowlist is a check on the source
   address, but a television cannot complete a TCP connection while claiming
   a Hicks address, because the replies route off the segment.
 - **`139` and `445`**: the `media` share, behind an SMB login. The
-  televisions hold `bilbo`'s credential anyway. What it can do is
-  [ADR-0134](adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)'s
-  subject.
+  televisions hold `bilbo`'s credential anyway, and since 2026-11-25 it
+  reads and cannot write
+  ([ADR-0134](adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)).
 - **`111` and `2049`**: NFSv4, whose two exports name `10.0.30.20` and
   `10.0.30.80`. A host on CasaBonita is neither, and cannot claim to be, for
   the same reason as for the UI.
 - **`4533`** is Navidrome, behind its own login, and **`8096`** is Jellyfin,
   which the televisions are there to reach.
-- **NetBIOS, mDNS and WS-Discovery** announce the host, its name `truenas`
-  and its share to the segment until §6.13 turns them off.
+- **NetBIOS, mDNS and WS-Discovery** announced the host, its name `truenas`
+  and its share to the segment until §6.13 turned them off on 2026-11-25.
 
-Accepted while the televisions share the segment, and narrowed by §6.13. The
+Accepted while the televisions share the segment, as §6.13 narrowed it. The
 alternative is a segment of `smaug`'s own, which would put every television
 stream through the firewall.
 

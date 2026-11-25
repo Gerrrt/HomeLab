@@ -230,8 +230,9 @@ this dataset and its children. That is the quota that counts the snapshots,
 not the reference-only one. Without it the datastore can grow into the whole
 of `erebor`, and fill the pool under the media library and `erebor/apps`.
 With it, a runaway PBS fills its own 4 TiB first. `golem`'s `df` then
-reports that 4 TiB as the share's size, so `HostDiskCritical` fires on the
-mount at 10% free rather than at 10% of the pool. Because the quota counts
+reports the quota less what the snapshots hold as the share's size, because
+NFS counts the snapshots as neither used nor free. `HostDiskCritical` fires
+on the mount at 10% of that, not at 10% of the pool. Because the quota counts
 snapshots, space that garbage collection frees comes back only once the
 snapshots holding it age out, up to fourteen days later. Leave room for
 that: in November 2026 the dataset held about 1 TiB, about a quarter of the
@@ -241,10 +242,14 @@ quota. Read it from the console:
 zfs get -H -o value quota erebor/pbs
 ```
 
-It prints `4T`, and on `golem`, `df -h /mnt/datastore/erebor` shows a size
-of `4.0T`.
+It prints `4T`. On `golem`, `df -h /mnt/datastore/erebor` shows a size of
+4 TiB less the snapshots, so under `4.0T`, and its *Used* is the live data
+alone.
 
-> **Not yet done.** Decided 2026-11-24. The dataset had no quota from
+> **Done 2026-11-25**, through `pool.dataset.update` from a session on the
+> box. `zfs get quota` printed `4T`, with `1014G` used, `311G` of it by
+> snapshots. On `golem`, `df -h` showed a size of `3.7T`, `703G` used and
+> `3.1T` available. Decided 2026-11-24; the dataset had no quota from
 > 2026-10-03 until then.
 
 ## 4. The pass on `morpheus`

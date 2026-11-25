@@ -636,6 +636,9 @@ ls -1 /mnt/erebor/apps/.zfs/snapshot/
 > host is still refused on `445`, and the #223 tripwire on `igc0.40` still
 > reads 0 packets. It is the sixth pass that exists, so Audiobookshelf's
 > `13378` will be the seventh.
+>
+> **Since 2026-11-25 `bilbo` reads and no longer writes.** *Make `bilbo`
+> read-only* below replaced the `builtin_users` entry with one for `samwise`.
 
 **Shares → Windows (SMB) → Add**, pointed at `erebor/media`.
 
@@ -722,7 +725,16 @@ on the order of the steps, not on the ACL.
    results. Then change §5's note and `security.md`'s `445` paragraph from
    *decided* to *done*, in one commit.
 
-> **Not yet done.** Decided 2026-11-13.
+> **Done 2026-11-25**, through the API rather than the UI, from a session on
+> the box: `filesystem.setacl` on `/mnt/erebor/media`, recursive, without
+> traversing into other datasets. Step 1 read the five entries it names. The
+> ACL now reads `owner@` Full Control, `group@` Modify, `samwise` (uid
+> `3002`) Modify, `builtin_administrators` Full Control and `everyone@` Basic
+> Read, all Inherit, and a file in `movies/` carries the same five. Step 4,
+> from a Hicks workstation as `bilbo`: reading `movies/BigBuckBunny.mp4`
+> succeeded and the write was refused, *Access to the path … is denied*.
+> Step 5, as `samwise`: the write and the delete both succeeded. Step 6:
+> Jellyfin played, on a television, a title that was in the library before.
 
 ## §5b — The ISO store, for `Saruman`
 
@@ -2342,7 +2354,16 @@ the registries its pulls come from. All of it was decided 2026-11-24.
    `security.md`'s CasaBonita paragraph, which names this section, into the
    past tense in the same commit.
 
-> **Not yet done.** Decided 2026-11-24.
+> **Done 2026-11-25**, through `midclt` from a session on the box rather than
+> the UI. Step 1: no television opens the share over SMB; they play through
+> Jellyfin. The only SMB session open beforehand was `samwise`'s, from a
+> Hicks workstation. Step 5 printed `['10.0.50.0/24'] True False`,
+> `{'netbios': False, 'mdns': False, 'wsd': False}` and `False`. Step 6: from
+> a Hicks workstation the `samwise` mount wrote and deleted a file and the UI
+> answered `200` over HTTPS; on the box, Jellyfin, Navidrome and
+> Audiobookshelf answered their health endpoints; `up{instance="smaug"}` read
+> `1`. From Hicks, `80` times out: no Hicks pass names it, so HTTPS is the
+> only way to the UI from there.
 
 ## §7 — Verify
 
@@ -2437,8 +2458,7 @@ the registries its pulls come from. All of it was decided 2026-11-24.
   snapshot task keeping fourteen. **Done 2026-10-03**: all three exist, and
   `golem` has made its datastore on the share
   ([`build-the-backup-guest.md`](build-the-backup-guest.md)). **A 4 TiB quota
-  on it was decided 2026-11-24** and is not yet set. That runbook's §3 is the
-  step.
+  on it**, decided 2026-11-24, was set 2026-11-25 by that runbook's §3.
 - **Offsite** — owned, since 2026-09-20. §6.2 gets the media tier's state off
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume
