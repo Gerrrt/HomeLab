@@ -6,6 +6,13 @@ and a second SMB user to the share
 [`build-the-nas.md`](../runbooks/build-the-nas.md) §5 created; decides
 [#523](https://github.com/Gerrrt/HomeLab/issues/523)
 
+> [!NOTE]
+> **The deferral in decision 3 is decided, 2026-11.**
+> [ADR-0133](0133-make-the-televisions-smb-user-read-only-on-the-media-share.md)
+> makes `bilbo` read-only: the share's ACL grants Modify to `samwise` by name
+> instead of to `builtin_users`. The text below is left as written, per
+> ADR-0001.
+
 ## Context
 
 `erebor/media` has been shared as `media` since 2026-09-18, with one SMB user,

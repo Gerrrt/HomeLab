@@ -642,9 +642,11 @@ Have a Hicks workstation and a shell on `morpheus` ready.
 
 1. **The user.** **Credentials → Users → Add**: `samwise`, with SMB on and
    TrueNAS access, shell, SSH and sudo all off, the same shape as `bilbo`. It
-   joins `builtin_users` on creation, and the share's ACL already grants that
-   group Modify, so no ACL edit is needed. Its password is typed on
-   workstations only; it never goes into a television. Do not reuse `bilbo`'s.
+   joins `builtin_users` on creation, and the share's preset ACL grants that
+   group Modify. *Make `bilbo` read-only* below replaces that grant with one
+   to `samwise` by name; on a rebuild, do it right after this step. Its
+   password is typed on workstations only; it never goes into a television.
+   Do not reuse `bilbo`'s.
 
 2. **SMB1 is off.** **System → Services → SMB → Edit**: *Enable SMB1 support*
    must be clear. Every client here speaks SMB 2 or 3, and `445` is the only
@@ -668,6 +670,37 @@ Have a Hicks workstation and a shell on `morpheus` ready.
    rule's position as `pfctl` printed it, and the mount. Then update the pass
    counts in `network.md`, `security.md` and `stacks/media/README.md` from
    *specified* to *created*, in one commit, the way `4533` was.
+
+### Make `bilbo` read-only
+
+[ADR-0133](../adr/0133-make-the-televisions-smb-user-read-only-on-the-media-share.md).
+The televisions' credential reads the library and writes nothing; write is
+granted to `samwise` by name. Have a Hicks workstation, and a television or
+any machine that can mount the share as `bilbo`.
+
+1. **Read the ACL first.** **Datasets → `erebor/media` → Permissions → Edit**.
+   It should list the five entries §5's note records: `owner@`, `group@`,
+   `builtin_users` Modify, `builtin_administrators` Full Control, and
+   `everyone@` Basic Read with inheritance. If it does not, stop and record
+   what it does list.
+2. **Change two entries.** Add a **User** entry for `samwise`: Allow, Basic
+   **Modify**, flags Basic **Inherit**. Then delete the `builtin_users` entry.
+   Leave `everyone@` exactly as it is; it is `bilbo`'s read and Jellyfin's.
+3. **Apply it recursively.** Tick *Apply permissions recursively* and save,
+   so every file already in the library carries the new entries and not the
+   old inherited ones.
+4. **`bilbo` is refused a write and still reads.** Mount
+   `\\10.0.40.30\media` as `bilbo`, open a file, then try to copy a small
+   file in. The open succeeds and the copy is refused.
+5. **`samwise` writes and deletes.** From the Hicks workstation, mount as
+   `samwise`, copy the same small file in, then delete it. Both succeed.
+6. **Jellyfin still plays**, on a television, a title that was in the
+   library before step 3.
+7. **Record it here**: the date, the ACL as it now reads, and the three
+   results. Then change §5's note and `security.md`'s `445` paragraph from
+   *decided* to *done*, in one commit.
+
+> **Not yet done.** Decided 2026-11-13.
 
 ## §5b — The ISO store, for `Saruman`
 
@@ -2191,6 +2224,34 @@ measured.
    still **zero**. Then change this section, §0.5's row and the current-state
    documents from *specified* to *created*, in one commit, the way `4533`
    was.
+
+### §6.12 — Turn TrueNAS Connect off
+
+[ADR-0132](../adr/0132-turn-truenas-connect-off-on-smaug.md). TrueNAS
+Connect was on from the first boot, and nothing in this repository set it up
+or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
+`ZpoolNotOnline` and the `SmartDrive*` rules, from §6.4 and §6.8.
+
+1. **Prove the paging path first.** On the monitoring host, `up` for
+   `instance="smaug"` is `1`, and `homelab_zpool_vdev_state` and
+   `homelab_smart_healthy` have samples from the last hour. If either does
+   not, fix that before turning off the other channel.
+2. **Turn it off in the UI.** Open TrueNAS Connect's settings in the web
+   UI, disable the service and remove the registration. Then, in the
+   vendor's TrueNAS Connect portal, remove `smaug` from the account.
+3. **Read it from the console shell**:
+
+   ```bash
+   midclt call tn_connect.config | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["enabled"],d["status"])'
+   ```
+
+   It prints `False` and a status that is not `CONFIGURED`.
+4. **The certificate goes.** **Credentials → Certificates**: no
+   `truenas_connect_*` entry is left. If one is, delete it. The UI's own
+   certificate, under System → General → GUI, is unchanged.
+5. **Record it here**: the date and the two readings.
+
+> **Not yet done.** Decided 2026-11-13.
 
 ## §7 — Verify
 

@@ -392,7 +392,13 @@ carries: a workstation holding the password can delete or encrypt the library,
 and `erebor/media` is not snapshotted. The library is replaceable (ADR-0008),
 so this is accepted. What limits it is the user: `samwise` is a second SMB
 user, typed on workstations and never stored on a television, so the
-televisions' `bilbo` and the workstations' credential are revoked apart. The
+televisions' `bilbo` and the workstations' credential are revoked apart.
+Both can still write the library today, through the preset's `builtin_users`
+Modify entry.
+[ADR-0133](adr/0133-make-the-televisions-smb-user-read-only-on-the-media-share.md)
+makes `bilbo` read-only and grants write to `samwise` by name;
+[`build-the-nas.md`](runbooks/build-the-nas.md) §5 *Make `bilbo` read-only*
+is the change, and it is not yet done. The
 same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
 **One more is from ImaginationLAN, and it exists.**

@@ -20,6 +20,11 @@
 > ([`build-the-nas.md`](../runbooks/build-the-nas.md) §6.8). Its staleness
 > rule is its own, `ZpoolVdevStateStale` at ten minutes, because
 > `SmartStateStale`'s two days would blind a five-minute signal for two days.
+>
+> **Decision 4's open question is decided, 2026-11.**
+> [ADR-0132](0132-turn-truenas-connect-off-on-smaug.md) turns TrueNAS Connect
+> off on `smaug`, so the second, informational channel decision 4 describes
+> goes away, and TrueNAS's own alerts stay in the web UI.
 
 ## Context
 
