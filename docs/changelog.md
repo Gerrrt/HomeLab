@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **The operator's Windows PC trusts both roots.** Every lab site warned
+  again after its warning had been accepted, because the PC trusted neither
+  root. A click-through covers one leaf, and Caddy renews the tier's
+  seven-day leaves about every five days. The estate's root and the tier's
+  root are now in the current user's Windows store, checked by fingerprint
+  first. Windows then verified `wall`, `homeassistant`, `start`, `immich`,
+  `vaultwarden`, `lemmiwinks` and Grafana on `:3000` with no warning. The
+  row is in `generate-certificates.md`'s trust table.
 - **`harden-saruman.md` is applied on `Saruman`, except §2 and §5's
   reboot check.** It closes what the audit of 2026-11-13 found on the host.
   - **§1.** A drop-in, `/etc/ssh/sshd_config.d/10-keys-only.conf`, turns off
