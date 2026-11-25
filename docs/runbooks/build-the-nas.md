@@ -644,7 +644,9 @@ Have a Hicks workstation and a shell on `morpheus` ready.
    TrueNAS access, shell, SSH and sudo all off, the same shape as `bilbo`. It
    joins `builtin_users` on creation, and the share's preset ACL grants that
    group Modify. *Make `bilbo` read-only* below replaces that grant with one
-   to `samwise` by name; on a rebuild, do it right after this step. Its
+   to `samwise` by name. On a rebuild, do its steps 1–3, the ACL change,
+   right after this step. Its tests wait for what they test, as that section
+   says. Its
    password is typed on workstations only; it never goes into a television.
    Do not reuse `bilbo`'s.
 
@@ -677,6 +679,17 @@ Have a Hicks workstation and a shell on `morpheus` ready.
 The televisions' credential reads the library and writes nothing; write is
 granted to `samwise` by name. Have a Hicks workstation, and a television or
 any machine that can mount the share as `bilbo`.
+
+Steps 4–6 test the change. On a running host, run them now. On a rebuild,
+each waits for what it depends on:
+
+- Step 4 needs a mount as `bilbo`. A device on CasaBonita can do it at once.
+  A Hicks workstation needs the `445` pass from *Workstations* step 3.
+- Step 5 needs that pass.
+- Step 6 needs Jellyfin, which §6 brings up.
+
+Run each when its dependency exists. A test that fails before then has failed
+on the order of the steps, not on the ACL.
 
 1. **Read the ACL first.** **Datasets → `erebor/media` → Permissions → Edit**.
    It should list the five entries §5's note records: `owner@`, `group@`,
@@ -2232,10 +2245,26 @@ Connect was on from the first boot, and nothing in this repository set it up
 or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
 `ZpoolNotOnline` and the `SmartDrive*` rules, from §6.4 and §6.8.
 
-1. **Prove the paging path first.** On the monitoring host, `up` for
-   `instance="smaug"` is `1`, and `homelab_zpool_vdev_state` and
-   `homelab_smart_healthy` have samples from the last hour. If either does
-   not, fix that before turning off the other channel.
+1. **Prove the paging path first, for this host and as far as the phone.**
+   A sample proves less than it looks: node_exporter re-serves a textfile's
+   last contents after its cron job stops, so a series can be present and
+   stale. On the monitoring host's Prometheus:
+   - **Coverage.** `up{instance="smaug"}` is `1`.
+     `count(homelab_smart_healthy{host="smaug"})` is `3`: both Exos and the
+     boot SSD. `homelab_zpool_vdev_state{host="smaug",pool="erebor"}` names
+     both of the mirror's leaves.
+   - **Freshness.** Run
+     `time() - node_textfile_mtime_seconds{instance="smaug",file=~".*(smart|zpool)-state-.*"}`.
+     The `smart-state` file must be under `172800` (two days) and the
+     `zpool-state` file under `600` (ten minutes). Neither `SmartStateStale`
+     nor `ZpoolVdevStateStale` may be firing. Those two rules are what make
+     a quiet collector loud.
+   - **Delivery.** The `Watchdog`'s daily notification has reached the phone
+     in the last day. If it has not, or the external heartbeat check has
+     never been seen to go red, run *Confirming it actually works* in
+     [`verify-the-alert-path.md`](verify-the-alert-path.md) first.
+
+   If any of these fails, fix it before turning off the other channel.
 2. **Turn it off in the UI.** Open TrueNAS Connect's settings in the web
    UI, disable the service and remove the registration. Then, in the
    vendor's TrueNAS Connect portal, remove `smaug` from the account.
