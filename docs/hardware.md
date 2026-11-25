@@ -1256,12 +1256,11 @@ the runbook rather than backed up.
   required and
   [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
   built. It reads as `WDC WD50NDZW-11BCSS0`, 4.5 TiB, one GPT partition,
-  exFAT, labelled `HOUSEHOLD`, and held only a rehearsal. **No longer used
-  for this, and spare.**
+  exFAT, labelled `HOUSEHOLD`, and held only a rehearsal.
   [ADR-0122](adr/0122-drop-the-household-copy.md) dropped the household copy
-  on 2026-11-21. It is not the estate's offsite medium either: that is the
-  second age recipient's
-  ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)).
+  on 2026-11-21. **Since 2026-11-24 it is the estate's offsite medium**
+  ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)): the newest backup set of each kind, and no key. It is kept
+  outside the house between visits, and still carries that rehearsal.
   Its cable is USB 3.0 Micro-B at the drive end, and stays with it.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
