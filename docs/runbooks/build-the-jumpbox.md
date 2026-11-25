@@ -441,7 +441,9 @@ another VLAN and this one is not.
 ## 6a. Close the way in
 
 [ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
-`sshd` takes keys only, and inbound is default-deny. Nothing converges this
+`sshd` takes keys only, and inbound is default-deny.
+[ADR-0135](../adr/0135-turn-forwarding-off-on-phoenixs-sshd-and-remove-cloud-inits-file.md):
+nothing tunnels through it. Nothing converges this
 host, so this section is how it gets there, on a rebuild as on the first
 build.
 
@@ -463,7 +465,11 @@ password, and prints `key-ok` without testing a key. Every machine prints
 `phoenix` until the end of this section.
 
 **Then `sshd`.** On `phoenix`. The `10-` prefix sorts ahead of the installer's
-`50-cloud-init.conf`, and `sshd` keeps the first value it reads:
+`50-cloud-init.conf`, and `sshd` keeps the first value it reads. The drop-in
+would win anyway, but the installer's file is then removed. It reads
+`PasswordAuthentication yes`, and an audit without `sudo` would read that as
+the host's policy. cloud-init writes it once per instance, so it stays gone,
+as on `fenrir`:
 
 ```bash
 sudo tee /etc/ssh/sshd_config.d/10-phoenix.conf >/dev/null <<'EOF'
@@ -472,12 +478,29 @@ PasswordAuthentication no
 KbdInteractiveAuthentication no
 PermitRootLogin no
 X11Forwarding no
+# ADR-0135: not a jump host. Covers TCP, Unix-socket, agent and X11 at once.
+DisableForwarding yes
 EOF
+sudo rm -f /etc/ssh/sshd_config.d/50-cloud-init.conf
 sudo sshd -t && sudo systemctl reload ssh
-sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding|disableforwarding) '
+ls /etc/ssh/sshd_config.d/
 ```
 
-All four lines read `no`. A fresh login from a second terminal, with the
+The first four lines read `no`, `disableforwarding` reads `yes`, and `ls`
+lists only `10-phoenix.conf`. `sshd -T` still prints the separate
+`allow*forwarding` options as `yes`, because `DisableForwarding` overrides
+them without changing what they report. Prove it from a workstation instead:
+`ssh -o ControlMaster=no -o ControlPath=none -N -L 18006:127.0.0.1:22 <user>@10.0.30.70`
+logs in, and a connection to `localhost:18006` fails, with `sshd` refusing
+the channel as administratively prohibited.
+
+If you reach `phoenix` with a remote tool, such as a Claude Code remote session
+or an editor's remote mode, open a fresh session with it now, before closing
+the old one. The Claude Code session runs over the channel's stdio and does
+not need forwarding. An editor that tunnels a port does, and the fix then is
+to remove the `DisableForwarding` line and reload, from the session that is
+still open. A fresh login from a second terminal, with the
 first still open, is the check that the reload did not shut you out: the
 same command as above, with its `ControlMaster=no` and `ControlPath=none`.
 
