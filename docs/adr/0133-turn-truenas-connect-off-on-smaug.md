@@ -1,4 +1,4 @@
-# ADR-0132: Turn TrueNAS Connect off on `smaug`
+# ADR-0133: Turn TrueNAS Connect off on `smaug`
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0047](0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),

@@ -1,4 +1,4 @@
-# ADR-0133: Make the televisions' SMB user read-only on the media share
+# ADR-0134: Make the televisions' SMB user read-only on the media share
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0051](0051-let-hicks-workstations-mount-the-media-share-as-a-user-of-their-own.md),

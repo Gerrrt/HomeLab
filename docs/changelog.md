@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The wall page's files are served with `Cache-Control: no-cache`.** The
+  card-by-card review's changes, below, reached `trinity` at `c5374a15`,
+  but `heimdall`'s kiosk kept running the old `wall.js` through a Chromium
+  restart: it fetched neither the page nor the script, and asked for the
+  removed `/api/q/rtt`, `/api/ha/office_light` and `/api/ha/dogs`, each a
+  404. Caddy sent no caching header, so Chromium kept its copy on a
+  freshness it guessed from the files' age. Deleting its `Cache_Data` and
+  restarting it loaded the new page, which then asked only for routes that
+  answer. Without the header, the page's six-hourly reload would not have
+  brought in a change either.
 - **`heimdall` runs October 2026's bootloader.** This completes the entry
   "`heimdall` runs the new §2 steps, and its bootloader is staged on the
   card, not written by `flashrom`". The operator rebooted it, and it was up
@@ -518,6 +528,16 @@ docstring gives: it is a record, not a claim about now.
   `update-the-ups-firmware.md` and `hardware.md` point Part B there. That
   closes the `mjolnir` audit: every finding is fixed and verified, decided,
   or tracked in #1731.
+
+- **The offsite copy moved to the spare drive
+  ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)).** The
+  5 TB WD drive labelled `HOUSEHOLD`, spare since ADR-0122, now carries the
+  newest backup set of each kind in place of the second age recipient's
+  medium. It holds no key, so the sets and a key that opens them are no
+  longer on one medium. The first copy to it ran on 2026-11-24 and proved
+  every set: observability `20261122T033021Z`, NAS `20261123T200914Z`, wiki
+  `20261124T044752Z` and firewall `config-20261124T044012Z`. That reset
+  `offsite-copy`, which was 62 days old.
 
 ## 2026-11-23
 

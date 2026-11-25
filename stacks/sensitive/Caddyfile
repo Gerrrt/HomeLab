@@ -559,7 +559,14 @@ wall.matrix.elysium {
 			respond "no such question" 404
 		}
 
+		# The page, its script and its stylesheet. `no-cache` makes the
+		# browser ask before reusing its copy (a 304 when nothing changed).
+		# Without it Chromium guesses a freshness from Last-Modified, which
+		# for files weeks old is days: on 2026-11-24 heimdall's kiosk kept
+		# running the old wall.js through a restart, and only a cleared cache
+		# brought the new one. wall.js's six-hourly reload depends on this.
 		handle {
+			header Cache-Control no-cache
 			root * /srv/wall
 			file_server
 		}

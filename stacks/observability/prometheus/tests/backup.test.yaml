@@ -337,10 +337,11 @@ tests:
               description: >-
                 Nothing else here proves the firewall export, the volume sets
                 and the NAS set exist anywhere a fire in the rack would not
-                reach — oracle is on the same shelf. Mount the second
-                recipient's medium and run `make backup-offsite DEST=<path>`;
-                it re-verifies what is there, copies the newest of each kind
-                and proves the copy: docs/runbooks/copy-the-backups-offsite.md.
+                reach — oracle is on the same shelf. Bring the offsite drive
+                back, the spare HOUSEHOLD drive (ADR-0132), mount it and run
+                `make backup-offsite DEST=<path>`; it re-verifies what is
+                there, copies the newest of each kind and proves the copy:
+                docs/runbooks/copy-the-backups-offsite.md.
       - eval_time: 2h30m
         alertname: ScheduledJobStale
         exp_alerts: []

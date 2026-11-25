@@ -673,7 +673,7 @@ Have a Hicks workstation and a shell on `morpheus` ready.
 
 ### Make `bilbo` read-only
 
-[ADR-0133](../adr/0133-make-the-televisions-smb-user-read-only-on-the-media-share.md).
+[ADR-0134](../adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md).
 The televisions' credential reads the library and writes nothing; write is
 granted to `samwise` by name. Have a Hicks workstation, and a television or
 any machine that can mount the share as `bilbo`.
@@ -2227,7 +2227,7 @@ measured.
 
 ### §6.12 — Turn TrueNAS Connect off
 
-[ADR-0132](../adr/0132-turn-truenas-connect-off-on-smaug.md). TrueNAS
+[ADR-0133](../adr/0133-turn-truenas-connect-off-on-smaug.md). TrueNAS
 Connect was on from the first boot, and nothing in this repository set it up
 or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
 `ZpoolNotOnline` and the `SmartDrive*` rules, from §6.4 and §6.8.
@@ -2350,9 +2350,9 @@ or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume
   sets and the firewall export are in. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
-  sends the newest of each beyond it, on the second age recipient's medium,
-  by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
-  the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
+  sends the newest of each beyond it, on the offsite drive since
+  [ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md), by
+  [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md).
 - **SMART runs**, since §6.4 was done on 2026-09-21; and
   **patch state is decided and will not run**, by
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),

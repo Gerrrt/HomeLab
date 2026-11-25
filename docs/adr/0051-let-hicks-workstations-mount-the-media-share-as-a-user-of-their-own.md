@@ -8,7 +8,7 @@ and a second SMB user to the share
 
 > [!NOTE]
 > **The deferral in decision 3 is decided, 2026-11.**
-> [ADR-0133](0133-make-the-televisions-smb-user-read-only-on-the-media-share.md)
+> [ADR-0134](0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)
 > makes `bilbo` read-only: the share's ACL grants Modify to `samwise` by name
 > instead of to `builtin_users`. The text below is left as written, per
 > ADR-0001.

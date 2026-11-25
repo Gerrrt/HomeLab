@@ -643,7 +643,7 @@ Televisions and consoles. Internet only.
   address, and the block is what keeps the televisions off the listener.
   **Its internet egress also carries TrueNAS Connect**, the vendor's cloud
   service, registered on `smaug` since its first boot and read as enabled on
-  2026-11-13. [ADR-0132](adr/0132-turn-truenas-connect-off-on-smaug.md)
+  2026-11-13. [ADR-0133](adr/0133-turn-truenas-connect-off-on-smaug.md)
   turns it off; [`build-the-nas.md`](runbooks/build-the-nas.md) §6.12 is
   the procedure, and until that is done the registration stands.
 - **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**

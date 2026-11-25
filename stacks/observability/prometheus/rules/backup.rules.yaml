@@ -26,7 +26,7 @@
 # the one exception, and they name the jobs that are not timers: the human
 # proofs — verify-ca-key-backup, whose deadline is applied to the CA key's
 # current fingerprint (#496), offsite-copy, the newest set of each kind carried
-# onto the second recipient's medium (ADR-0048).
+# onto the offsite drive (ADR-0048, ADR-0132).
 #
 # The age-key proof is no longer one of them. ADR-0120 dropped its deadline:
 # verify-key-backup and verify-key-backup-sensitive are not declared any more,
@@ -325,7 +325,8 @@ groups:
           description: >-
             Nothing else here proves the firewall export, the volume sets and
             the NAS set exist anywhere a fire in the rack would not reach —
-            oracle is on the same shelf. Mount the second recipient's medium
-            and run `make backup-offsite DEST=<path>`; it re-verifies what is
-            there, copies the newest of each kind and proves the copy:
+            oracle is on the same shelf. Bring the offsite drive back, the
+            spare HOUSEHOLD drive (ADR-0132), mount it and run
+            `make backup-offsite DEST=<path>`; it re-verifies what is there,
+            copies the newest of each kind and proves the copy:
             docs/runbooks/copy-the-backups-offsite.md.
