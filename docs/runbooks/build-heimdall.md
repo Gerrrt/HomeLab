@@ -218,8 +218,8 @@ After §3's reboot, `journalctl --list-boots` lists more than one boot.
 
 ### Only 22 and 9100 listen
 
-The desktop brings services a kiosk does not use, and the Pi has no host
-firewall, so anything on Hicks reaches what they publish. rpcbind, from
+The desktop brings services a kiosk does not use, and until the firewall
+below, anything on Hicks reached what they publish. rpcbind, from
 `nfs-common`, listens on 111, and avahi on 5353. Bluetooth is on and
 pairable, CUPS listens locally, and three remote-desktop packages are
 installed. The desktop's metapackages depend on `nfs-common` and `cups`, so
@@ -233,6 +233,85 @@ sudo systemctl mask --now rpcbind.service rpcbind.socket nfs-blkmap.service \
 sudo apt purge -y realvnc-vnc-server wayvnc rpi-connect rpi-connect-lite
 sudo apt autoremove --purge -y    # the libraries they leave behind
 sudo ss -tulnH | awk '{print $1, $5}' | sort -u    # tcp 22 and 9100, nothing else
+```
+
+### No radio and no unused desktop apps
+
+Masking `bluetooth.service` leaves the radio itself on. The overlay turns it
+off at boot. Firefox and VLC come with the desktop, and the kiosk uses
+neither. They are most of the Pi's updates: on 2026-11-24, 16 of its 18
+pending upgrades were VLC's. The desktop's `rpd-applications` only
+recommends them, so purging them removes nothing else the Pi uses.
+`--autoremove` takes their libraries with them, about 40 packages:
+
+```bash
+sudo cp /boot/firmware/config.txt /boot/firmware/config.txt.bak
+printf '\ndtoverlay=disable-bt\n' | sudo tee -a /boot/firmware/config.txt    # last section is [all]
+sudo apt purge -y --autoremove firefox vlc
+```
+
+After §3's reboot, `ls /sys/class/bluetooth` prints nothing.
+
+### Nothing at the console but a login
+
+The Imager's desktop autologin also logs the user into a text shell on
+`tty1`. The kiosk only needs the desktop's autologin, which is lightdm's on
+`vt7`. With the shell, a keyboard at the Pi and Ctrl+Alt+F1 is a logged-in
+shell. Without it, `tty1` asks for the password. The serial console on
+`ttyAMA10`, the Pi 5's debug UART, asks for it already. Nothing uses it, so
+mask that too:
+
+```bash
+sudo rm /etc/systemd/system/getty@tty1.service.d/autologin.conf
+sudo systemctl daemon-reload
+sudo systemctl restart getty@tty1.service    # ends the tty1 shell, not the desktop
+sudo systemctl mask --now serial-getty@ttyAMA10.service
+loginctl list-sessions --no-legend    # no session on tty1; lightdm's is still there
+```
+
+### A firewall that admits only those two
+
+Only 22 and 9100 listen, but nothing holds it there: a service that starts
+listening later is open to all of Hicks. `nftables` is installed and empty.
+This ruleset admits SSH, the scrape from `prometheus` alone, and what the
+Pi's own traffic needs to come back:
+
+```bash
+sudo tee /etc/nftables.conf >/dev/null <<'NFT'
+#!/usr/sbin/nft -f
+flush ruleset
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+        iif lo accept
+        ct state established,related accept
+        ct state invalid drop
+        meta l4proto { icmp, ipv6-icmp } accept
+        udp sport 67 udp dport 68 accept     # DHCPv4 replies
+        udp sport 547 udp dport 546 accept   # DHCPv6 replies
+        tcp dport 22 accept
+        ip saddr 10.0.99.20 tcp dport 9100 accept
+    }
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+    chain output {
+        type filter hook output priority filter;
+    }
+}
+NFT
+sudo nft -c -f /etc/nftables.conf    # parses, changes nothing
+sudo nft -f /etc/nftables.conf       # live, but not yet at boot
+```
+
+Keep this session open, and from the Mac open a new one with
+`ssh -o ControlPath=none <user>@10.0.50.15`. From `prometheus`,
+`curl -s 10.0.50.15:9100/metrics | grep -c ^node_` is more than 0. If either
+fails, power-cycle the Pi: the ruleset is not loaded at boot yet, so it comes
+back open. Once both work:
+
+```bash
+sudo systemctl enable nftables.service
 ```
 
 ## 3. The reservation
@@ -433,5 +512,12 @@ the roadmap's *Everything still to buy* and an ADR of its own.
 - **The masked services:** `sudo systemctl unmask` the units §2 masked, then
   `enable --now` them. The purged remote-desktop packages are reinstalled with
   `apt`.
+- **The firewall:** `sudo systemctl disable --now nftables.service`, then
+  `sudo nft flush ruleset`.
+- **The console:** `sudo systemctl unmask --now serial-getty@ttyAMA10.service`.
+  `sudo raspi-config nonint do_boot_behaviour B4` writes the `tty1`
+  autologin back, along with the desktop's.
+- **The radio and the apps:** restore `/boot/firmware/config.txt.bak`, and
+  `sudo apt install firefox vlc`.
 - **sudo without a password, and the seed files:** neither comes back. A
   fresh card from the Imager has both.
