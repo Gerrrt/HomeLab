@@ -505,6 +505,15 @@ The boot disk is **not** part of this pool and must not be added to it. TrueNAS
 keeps its boot pool separate by design, which is the arrangement the S3520 in
 the optical bay exists for.
 
+**The scrub is TrueNAS's default task, kept.** Creating the pool created it:
+*Data Protection → Scrub Tasks*, `erebor`, Sundays at 00:00, threshold
+**35 days**. The threshold means a Sunday run starts only when the last scrub
+is at least 35 days old, so `erebor` is scrubbed about every five weeks, not
+weekly. Read on 2026-11-24 with `midclt call pool.scrub.query`; the last
+scrub before that finished on 2026-11-08. No Prometheus rule watches scrub
+age, so a scrub that stops running shows only in TrueNAS's own alerts, the
+gap [ADR-0133](../adr/0133-turn-truenas-connect-off-on-smaug.md) names.
+
 ## §4 — Datasets
 
 > **Done 2026-09-18.** `erebor/media` on the **SMB** preset — case-insensitive
@@ -2282,6 +2291,59 @@ or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
 
 > **Not yet done.** Decided 2026-11-13.
 
+### §6.13 — Close the web UI, the announcements and the vendor checks
+
+The firewall keeps other segments off everything but the passes in
+[`network.md`](../network.md). It cannot keep CasaBonita off, because the
+televisions and consoles share `smaug`'s broadcast domain
+([`security.md`](../security.md)). The read-only audit of 2026-11-13 found
+the web UI on `0.0.0.0` with no allowlist and plain HTTP on `80` with no
+redirect, and `smaug` announcing itself to the segment by NetBIOS (as
+`truenas`), mDNS and WS-Discovery. Hicks mounts the share by address (§5),
+because discovery does not cross segments, so those announcements reach only
+the televisions and consoles. It also found two vendor contacts on:
+TrueNAS's usage collection, and Docker's image-update check. The image pins
+are digests and Dependabot tracks them in this repository, so the check can
+only ever offer a hand-update that would drift from `compose.yaml`. With
+§6.12 and this section done, ADR-0133's sentence holds: `smaug` starts no
+connection but to its gateway's NUT server, its time and name servers, and
+the registries its pulls come from. All of it was decided 2026-11-24.
+
+1. **Check the televisions first.** If a television opens the `media` share
+   over SMB, rather than playing through Jellyfin, point it at the address,
+   `smb://10.0.40.30/media` or `\\10.0.40.30\media`, and play one file
+   from it. After step 3 it can no longer find the share by browsing.
+2. **The web UI.** *System → General Settings → GUI → Settings*: add
+   `10.0.50.0/24`, Hicks, to the allowed IP addresses, and turn on the HTTP
+   to HTTPS redirect. Save from a Hicks workstation, then reload the UI from
+   that workstation: it must still load. If the allowlist shuts the UI out,
+   undo it over SSH from `desktop-02`, which the allowlist does not govern:
+   `midclt call system.general.update '{"ui_allowlist": []}'`.
+3. **The announcements.** *Network → Global Configuration → Service
+   Announcement*: clear **NetBIOS-NS**, **mDNS** and **WS-Discovery**.
+4. **The vendor checks.** In the same GUI settings as step 2, clear
+   **Usage Collection**. In the Apps settings, turn off the check for Docker
+   image updates.
+5. **Read it from the console shell:**
+
+   ```bash
+   midclt call system.general.config | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["ui_allowlist"],d["ui_httpsredirect"],d["usage_collection"])'
+   midclt call network.configuration.config | python3 -c 'import sys,json;print(json.load(sys.stdin)["service_announcement"])'
+   midclt call docker.config | python3 -c 'import sys,json;print(json.load(sys.stdin)["enable_image_updates"])'
+   ```
+
+   They print `['10.0.50.0/24'] True False`, all three announcements
+   `False`, and `False`.
+6. **The share and the services still answer.** From a Hicks workstation,
+   §5's `samwise` mount still opens, and Jellyfin, Navidrome and
+   Audiobookshelf still load. On the monitoring host, `up` for
+   `instance="smaug"` is still `1`.
+7. **Record it here** with the date and the readings. Then turn
+   `security.md`'s CasaBonita paragraph, which names this section, into the
+   past tense in the same commit.
+
+> **Not yet done.** Decided 2026-11-24.
+
 ## §7 — Verify
 
 > **As of 2026-09-19:** the monitoring-host line holds in both halves, the
@@ -2374,7 +2436,9 @@ or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
   uid and gid 34, an NFSv4 share to `10.0.30.80` alone, and a daily
   snapshot task keeping fourteen. **Done 2026-10-03**: all three exist, and
   `golem` has made its datastore on the share
-  ([`build-the-backup-guest.md`](build-the-backup-guest.md)).
+  ([`build-the-backup-guest.md`](build-the-backup-guest.md)). **A 4 TiB quota
+  on it was decided 2026-11-24** and is not yet set. That runbook's §3 is the
+  step.
 - **Offsite** — owned, since 2026-09-20. §6.2 gets the media tier's state off
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume

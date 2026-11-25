@@ -166,6 +166,28 @@ the copy PBS cannot prune: a snapshot is read-only to an NFS client, so root
 on `Saruman` or on `golem` can delete backups from the datastore and not
 from the last fortnight of snapshots.
 
+**The quota.** *Datasets → `erebor/pbs` → Edit → Quotas*: **4 TiB** for
+this dataset and its children. That is the quota that counts the snapshots,
+not the reference-only one. Without it the datastore can grow into the whole
+of `erebor`, and fill the pool under the media library and `erebor/apps`.
+With it, a runaway PBS fills its own 4 TiB first. `golem`'s `df` then
+reports that 4 TiB as the share's size, so `HostDiskCritical` fires on the
+mount at 10% free rather than at 10% of the pool. Because the quota counts
+snapshots, space that garbage collection frees comes back only once the
+snapshots holding it age out, up to fourteen days later. Leave room for
+that: in November 2026 the dataset held about 1 TiB, about a quarter of the
+quota. Read it from the console:
+
+```bash
+zfs get -H -o value quota erebor/pbs
+```
+
+It prints `4T`, and on `golem`, `df -h /mnt/datastore/erebor` shows a size
+of `4.0T`.
+
+> **Not yet done.** Decided 2026-11-24. The dataset had no quota from
+> 2026-10-03 until then.
+
 ## 4. The pass on `morpheus`
 
 One rule, on the **ImaginationLAN (30)** interface in the pfSense UI:

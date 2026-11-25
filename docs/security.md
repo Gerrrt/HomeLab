@@ -519,6 +519,32 @@ unauthenticated ports the observability stack publishes. Audiobookshelf's
 `13378` is reachable the same way and is not the same residual: everything
 there but its health and status endpoints wants a login.
 
+The same broadcast domain reaches everything else `smaug` listens on, and the
+read-only audit of 2026-11-13 listed it. Each port, and what stands in its
+place of a firewall rule:
+
+- **`22`**: `sshd` offers `publickey` alone, since 2026-11-24.
+- **`80` and `443`**: the web UI, with no allowlist and no redirect until
+  [`build-the-nas.md`](runbooks/build-the-nas.md) §6.13 sets both. Then only
+  Hicks' addresses get the UI. The allowlist is a check on the source
+  address, but a television cannot complete a TCP connection while claiming
+  a Hicks address, because the replies route off the segment.
+- **`139` and `445`**: the `media` share, behind an SMB login. The
+  televisions hold `bilbo`'s credential anyway. What it can do is
+  [ADR-0134](adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)'s
+  subject.
+- **`111` and `2049`**: NFSv4, whose two exports name `10.0.30.20` and
+  `10.0.30.80`. A host on CasaBonita is neither, and cannot claim to be, for
+  the same reason as for the UI.
+- **`4533`** is Navidrome, behind its own login, and **`8096`** is Jellyfin,
+  which the televisions are there to reach.
+- **NetBIOS, mDNS and WS-Discovery** announce the host, its name `truenas`
+  and its share to the segment until §6.13 turns them off.
+
+Accepted while the televisions share the segment, and narrowed by §6.13. The
+alternative is a segment of `smaug`'s own, which would put every television
+stream through the firewall.
+
 The row ADR-0008 wrote as `99 → 20` is narrower than it read: one host,
 `trinity`, to the Hue bridge on two ports and, since 2026-10-21, to the
 HomePods on ADR-0099's three rows, with every other device on Skids still

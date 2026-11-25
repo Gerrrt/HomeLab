@@ -645,7 +645,9 @@ Televisions and consoles. Internet only.
   service, registered on `smaug` since its first boot and read as enabled on
   2026-11-13. [ADR-0133](adr/0133-turn-truenas-connect-off-on-smaug.md)
   turns it off; [`build-the-nas.md`](runbooks/build-the-nas.md) §6.12 is
-  the procedure, and until that is done the registration stands.
+  the procedure, and until that is done the registration stands. **So do two
+  smaller vendor contacts**, TrueNAS's usage collection and Docker's
+  image-update check. Both are on, and §6.13 turns them off.
 - **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
