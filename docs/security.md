@@ -399,8 +399,7 @@ Only `samwise` can write the library. Since 2026-11-25
 [ADR-0134](adr/0134-make-the-televisions-smb-user-read-only-on-the-media-share.md)
 has made `bilbo` read-only and granted write to `samwise` by name, by
 [`build-the-nas.md`](runbooks/build-the-nas.md) §5 *Make `bilbo` read-only*.
-The
-same pass puts an SMB login prompt in front of everything on Hicks, the
+The same pass puts an SMB login prompt in front of everything on Hicks, the
 corporate laptop included, as `443` already puts the TrueNAS one.
 **One more is from ImaginationLAN, and it exists.**
 `10.0.30.20 → 10.0.40.30:2049`, `Allow NFS from Saruman to smaug`, lets the
@@ -528,9 +527,10 @@ place of a firewall rule:
 - **`22`**: `sshd` offers `publickey` alone, since 2026-11-24.
 - **`80` and `443`**: the web UI. Since 2026-11-25
   [`build-the-nas.md`](runbooks/build-the-nas.md) §6.13 has set an allowlist
-  and an HTTPS redirect, so only Hicks' addresses get the UI. The allowlist is a check on the source
-  address, but a television cannot complete a TCP connection while claiming
-  a Hicks address, because the replies route off the segment.
+  and an HTTPS redirect, so only Hicks' addresses get the UI. The allowlist
+  is a check on the source address, but a television cannot complete a TCP
+  connection while claiming a Hicks address, because the replies route off
+  the segment.
 - **`139` and `445`**: the `media` share, behind an SMB login. The
   televisions hold `bilbo`'s credential anyway, and since 2026-11-25 it
   reads and cannot write
