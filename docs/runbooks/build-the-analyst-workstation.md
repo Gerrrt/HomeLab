@@ -823,11 +823,14 @@ facts make that so:
   update by its origin's security pocket, so
   `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0.
   `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind.
-- Nothing alerts on either number, or on a pending reboot. `garuda`'s Alloy
-  writes only to the lab's Prometheus on `alexander`
-  (`stacks/analyst/compose.yaml`), which has no apt or reboot rules and no
-  Alertmanager (ADR-0020). `SecurityUpdatesPending` and `RebootRequired` live
-  in `stacks/observability` and never see `garuda`.
+- Nothing tells you about either number, or about a pending reboot. `garuda`'s
+  Alloy writes only to the lab's Prometheus on `alexander`
+  (`stacks/analyst/compose.yaml`). Since [#1544](https://github.com/Gerrrt/HomeLab/pull/1544) that Prometheus has its own
+  `SecurityUpdatesPending` and `RebootRequired`, which read `garuda`, but the
+  first never fires on a count that is always 0, nothing alerts on
+  `homelab_apt_upgrades_pending`, and the lab has no Alertmanager (ADR-0020).
+  A reboot pending for three days shows only on the lab's `/alerts` page. The
+  estate's rules in `stacks/observability` never see `garuda`.
 
 So the upgrade is a person's job. **Monthly**, on `garuda`:
 

@@ -402,8 +402,10 @@ origin only** — a package named `security-misc` would otherwise count itself.
 **On Kali the security count is always 0, and that means "cannot tell".**
 Kali Rolling has no security pocket, so the fallback finds none. `garuda` is
 outside these rules in any case: it reports only to the lab's Prometheus on
-`alexander`, which has no apt or reboot rules and no Alertmanager (ADR-0020),
-so neither `SecurityUpdatesPending` nor `RebootRequired` sees it. Kali's packages also do not
+`alexander`. That Prometheus has its own `SecurityUpdatesPending` and
+`RebootRequired` since [#1544](https://github.com/Gerrrt/HomeLab/pull/1544), and they do read `garuda`, but the first never
+fires on a count that is always 0, and the lab has no Alertmanager (ADR-0020),
+so a pending reboot shows only on the lab's `/alerts` page. Kali's packages also do not
 match the Debian origins `unattended-upgrades` allows, so nothing applies them
 on their own. [`build-the-analyst-workstation.md`](build-the-analyst-workstation.md)
 §15 makes the upgrade a monthly manual step.
