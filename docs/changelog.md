@@ -19,6 +19,61 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`golem`'s §2 is whole, and the first nightly on the new release
+  backed up clean.** This closes most of the *not done* list in the entry
+  below.
+  - **Second factor.** `root@pam` has a TOTP entry, enrolled by the operator
+    in the web UI.
+  - **Alloy.** The operator redeployed it from the Mac by
+    `deploy-agent.sh --runtime native --monitoring-host 10.0.30.40`, and its
+    arrival check passed. `CUSTOM_ARGS` now carries `--disable-reporting`,
+    and the agent logged no error and no usage report in the half hour after.
+  - **`zfs-zed`.** It is disabled and stopped. `zpool list` said *no pools
+    available* first. §2 now does the same, so a rebuild repeats it.
+  - **The nightly.** The 21:00 PST job backed up all eight guests, 150–155,
+    160 and 162. Each task ended OK, in 2 to 11 minutes, much as on earlier
+    nights. The collector, run afterwards, counted 0 unencrypted snapshots,
+    and its newest snapshot was `garuda`'s from that run.
+  - **Still open.** There is no host-firewall decision for `golem`, and no
+    test restore recorded since 2026-10-03.
+- **`build-the-backup-guest.md` §2 is applied on `golem`, except the second
+  factor, and its pending updates are installed.** It closes most of what the
+  audit of 2026-11-13 found on the box. Until today that audit had changed the
+  runbook and nothing on `golem`.
+  - **`sshd`.** `/etc/ssh/sshd_config.d/10-golem.conf`, as §2 writes it.
+    Every login in the fourteen days before used a key, except two password
+    logins from `desktop-02` on 2026-11-13, a minute before its key was copied
+    in, so every host that logs in had a key first. `sshd -T` reads
+    `without-password`, `no`, `no`, and a password login is refused with
+    `Permission denied (publickey)`.
+  - **`rpcbind`.** `rpcbind.socket`, `rpcbind.service` and
+    `nfs-blkmap.service` are disabled and stopped. Nothing listens on `111`.
+    `22` and `8007` are the only ports on an address other than loopback.
+  - **Updates.** `apt full-upgrade` installed the 60 pending updates, 20 of
+    them from `trixie-security`, and the new kernel they pulled in. PBS moved
+    up a point release. No configuration file was replaced, and the drop-in
+    and the disabled units survived the upgrade.
+  - **Reboot.** `golem` rebooted onto the new kernel with no PBS task running,
+    two hours before the nightly job. Afterwards there were no failed units.
+    The datastore was mounted and readable, and `sshd` and `111` read as
+    above. The collector, run by hand, reported verify, prune and garbage
+    collection OK and no unencrypted snapshot. Alloy had logged no error.
+  - **Not done.**
+    - `root@pam` has no second factor, so the UI on `8007` still takes its
+      password alone. Enrolling TOTP needs the operator's authenticator.
+    - `golem`'s Alloy is older than `main`. Its config dates from 2026-11-12
+      and lacks `--disable-reporting`, and it logged five failed usage
+      reports in the 24 hours before. The redeploy is from the Mac, by
+      `deploy-merged-changes.md`.
+    - `zfs-zed` still runs, with no pool to watch.
+    - No host firewall, and nothing decides either way for `golem`, as
+      ADR-0128 does for `prometheus`.
+    - The first nightly backup on the new release had not run when this was
+      written.
+  - **Corrects the 2026-11-15 entry on `alexander`'s `sshd`.** It says the
+    same weakness was "closed on `golem` by the audit of 2026-11-13". The
+    audit closed it in the runbook only. On the box it stayed open until this
+    entry.
 - **`build-heimdall.md` closes what a second audit of `heimdall` could
   still raise.** A full re-check on 2026-11-24 at 21:25 found every
   finding of the first audit still fixed, and five hardening gaps nobody
