@@ -20,7 +20,7 @@ docstring gives: it is a record, not a claim about now.
 ## 2026-11-25
 
 - **`golem`'s §2 is whole, and the first nightly on the new release
-  verified clean.** This closes most of the *not done* list in the entry
+  backed up clean.** This closes most of the *not done* list in the entry
   below.
   - **Second factor.** `root@pam` has a TOTP entry, enrolled by the operator
     in the web UI.
@@ -74,6 +74,15 @@ docstring gives: it is a record, not a claim about now.
     same weakness was "closed on `golem` by the audit of 2026-11-13". The
     audit closed it in the runbook only. On the box it stayed open until this
     entry.
+- **The `pre449weaknesses` snapshots on 150–153 are deleted.** This
+  follows the entry below on `harden-saruman.md`, which left them unchanged
+  for the operator to decide. Taken on 2026-10-07 as #449's baseline,
+  disk-only, they were still there seven weeks later, where rolling back a
+  domain controller would roll back the domain's update sequence numbers.
+  On the operator's word, `qm delsnapshot` ran on each guest in turn with
+  the guest running. No `pre449weaknesses` volume or config entry is left,
+  all four guest agents answer, and `large_data` went from 62.7 % to 56.3 %
+  used.
 
 - **`harden-saruman.md` is applied on `Saruman`, except §2 and §5's
   reboot check.** It closes what the audit of 2026-11-13 found on the host.
@@ -107,6 +116,21 @@ docstring gives: it is a record, not a claim about now.
     The `pre449weaknesses` snapshots and the fs-freeze timeouts on `titan`
     and `ramuh` are not part of the runbook and are unchanged.
 
+- **Two agent collectors no longer qualify for every Ubuntu guest.**
+  `install-agent-collectors.sh` installs a row on any host where its
+  requirement exists. `thin-pool-state` required `lvs` and `range-state`
+  required `nft`, and `alexander` has both, from the installer's LVM layout
+  and from `nftables` coming in with `ubuntu-standard` and Docker's
+  `iptables`. A full run there would have installed `Saruman`'s pool
+  collector and `gandalf`'s range collector on a lab guest. Re-checking
+  the audit of `alexander` found it. `thin-pool-state` now requires
+  `pveversion`, and `range-state` requires
+  `/usr/local/sbin/homelab-ragnarok-stop`, the helper it reads its deadline
+  from. Both units' `ConditionPathExists` match. The installed units on
+  `Saruman` and `gandalf` now differ from the committed ones, so `--check`
+  reports them stale until `--only thin-pool-state` and `--only range-state`
+  are re-run there.
+
 - **`neo` is on RouterOS 7.24.7 long-term.** Upgraded from 7.24.6 at
   01:00 UTC under a one-hour silence on `component=~"internet|network"`,
   after a verified `make backup-switch`. The download staged in RAM and left
@@ -119,6 +143,27 @@ docstring gives: it is a record, not a claim about now.
   `allowed-versions`, which the release notes said 7.24.7 updates. The SNMP
   scrape, `make snmp-verify`, Home Assistant's api-ssl session, `routeros`
   lines in Loki and a second `make backup-switch` all passed.
+
+- **The lab no longer claims to watch Loki's readiness.** `stacks/lab/compose.yaml`
+  and `prometheus.yaml` both said the `loki` scrape job observes readiness. It
+  reads `/metrics`, which answers while `/ready` returns 503. The audit of
+  `alexander` on 2026-11-13 found `/ready` at 503 for four days with ingest
+  running, and a re-check on 2026-11-25 saw one 503 and then 45 of 45 at 200.
+  Both comments now name what is watched: the process, through
+  `InstanceDown`, and ingest, through `LokiIngestionStalled`.
+
+- **A new technical second replaces `age19mkg76…` on the estate's files.**
+  The medium holding that key's private half, and the CA key's offline copy,
+  is misplaced, not known to be exposed, so nothing it opens is rotated.
+  A new key, `age1egznz…`, was generated straight onto a fresh USB stick
+  (the old installer stick, wiped). `secrets/observability.sops.yaml` and
+  `secrets/tofu.sops.yaml` were re-keyed to the live key and the new one,
+  and `make secrets-verify-backup` proved the new key opens them before
+  `age19mkg76…` was taken off the catch-all rule. `remove-recipient.sh`
+  refused because the key is on three rules, so that rule was edited by hand
+  and both files re-keyed with `sops updatekeys`. `secrets/sensitive.sops.yaml`
+  was re-keyed on trinity, whose key is the only other that opens it, in a
+  temporary directory there, and the new key proved to open it.
 
 ## 2026-11-24
 
