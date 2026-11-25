@@ -143,6 +143,14 @@ docstring gives: it is a record, not a claim about now.
   was re-keyed on trinity, whose key is the only other that opens it, in a
   temporary directory there, and the new key proved to open it.
 
+- **The lab is off `age19mkg76…` too, so that key now opens nothing.**
+  This follows the entry above on the new technical second. The sensitive
+  tier went with it in #1744, re-keyed on trinity. `secrets/lab.sops.yaml`
+  could be re-keyed only on alexander, which prometheus cannot reach, so it
+  was re-keyed there in a temporary directory, carried over from the
+  operator's Mac. The new key opens it, and `age19mkg76…` is in no rule
+  and no secrets file.
+
 ## 2026-11-24
 
 - **An audit of `Saruman`, read-only, found its management plane open to a
