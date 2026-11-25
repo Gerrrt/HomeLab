@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-24
 
+- **The wall page's files are served with `Cache-Control: no-cache`.** The
+  card-by-card review's changes, below, reached `trinity` at `c5374a15`,
+  but `heimdall`'s kiosk kept running the old `wall.js` through a Chromium
+  restart: it fetched neither the page nor the script, and asked for the
+  removed `/api/q/rtt`, `/api/ha/office_light` and `/api/ha/dogs`, each a
+  404. Caddy sent no caching header, so Chromium kept its copy on a
+  freshness it guessed from the files' age. Deleting its `Cache_Data` and
+  restarting it loaded the new page, which then asked only for routes that
+  answer. Without the header, the page's six-hourly reload would not have
+  brought in a change either.
 - **`heimdall` runs October 2026's bootloader.** This completes the entry
   "`heimdall` runs the new §2 steps, and its bootloader is staged on the
   card, not written by `flashrom`". The operator rebooted it, and it was up
