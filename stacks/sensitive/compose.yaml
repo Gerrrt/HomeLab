@@ -1741,13 +1741,14 @@ services:
   # and Miniflux's Fever endpoint each refused a placeholder key over
   # verified TLS.
   #
-  # The four credentials come from SOPS and Glance substitutes them into
+  # The five credentials come from SOPS and Glance substitutes them into
   # the config as ${…}, each able to read and nothing else: the Prometheus
   # reader token (query only), the Fever key of Miniflux's `glance` user
-  # (which follows nothing but public feeds), and, for the Household page's
+  # (which follows nothing but public feeds), for the Household page's
   # two numbers, an Immich key with `server.statistics` alone and the token of
-  # Paperless's view-only `homepage` user. secrets/sensitive.example.yaml has
-  # the steps for each.
+  # Paperless's view-only `homepage` user, and a Google API key restricted to
+  # the Sheets API, which reads only sheets shared by link.
+  # secrets/sensitive.example.yaml has the steps for each.
   #
   # No depends_on, for Vaultwarden's reason.
   glance:
@@ -1767,6 +1768,11 @@ services:
       GLANCE_MINIFLUX_FEVER_KEY: ${GLANCE_MINIFLUX_FEVER_KEY:?set in secrets/sensitive.sops.yaml}
       GLANCE_IMMICH_API_KEY: ${GLANCE_IMMICH_API_KEY:?set in secrets/sensitive.sops.yaml}
       GLANCE_PAPERLESS_TOKEN: ${GLANCE_PAPERLESS_TOKEN:?set in secrets/sensitive.sops.yaml}
+      # The TSP widget on Sports & Markets: a Google API key restricted to the
+      # Sheets API, and the id of the link-shared sheet of public prices it
+      # reads. The id is in SOPS because the sheet is the operator's.
+      GLANCE_GOOGLE_API_KEY: ${GLANCE_GOOGLE_API_KEY:?set in secrets/sensitive.sops.yaml}
+      GLANCE_TSP_SHEET_ID: ${GLANCE_TSP_SHEET_ID:?set in secrets/sensitive.sops.yaml}
       # The operator's own lists, one-line JSON that Glance substitutes into
       # pages/home.yml (ADR-0100). Not credentials: in SOPS because this
       # repository is public and they describe a person.
