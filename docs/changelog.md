@@ -19,6 +19,38 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`harden-saruman.md` is applied on `Saruman`, except §2 and §5's
+  reboot check.** It closes what the audit of 2026-11-13 found on the host.
+  - **§1.** A drop-in, `/etc/ssh/sshd_config.d/10-keys-only.conf`, turns off
+    password and keyboard-interactive logins and X11 forwarding, and keeps
+    root to keys. Every SSH login since 2026-09-25 had used a key. `sshd -T`
+    reads `without-password`, `no`, `no`, `no`. A password attempt is offered
+    `publickey` only and refused, and a key login still works.
+  - **§3.** `phoenix@pve!builder2` is removed. `pveproxy`'s access logs held
+    no request from it, against 1,101 from `builder`. `pveum user token list`
+    shows `builder` alone.
+  - **§4.** `1password-cli`, `glow` and `gum` are purged, and the 1Password,
+    charm and debug-symbol sources and their keyrings are gone.
+    `debian.sources` names each suite once, from `deb.debian.org` and
+    `security.debian.org`, with `contrib` kept. `apt-get update` warns of
+    nothing. `sources.list.d` holds `ceph.sources`, `debian.sources`,
+    `hpe-mcp.list` and `proxmox.sources`.
+  - **§5.** `rpcbind.socket` and `rpcbind.service` are disabled, stopped and
+    masked, so no other unit's dependency can start them. Nothing listens on
+    `111`. The ISO store is still mounted over NFSv4.2 and `active`, and a
+    fresh NFSv4 mount of the share with both masked succeeded. The reboot
+    check is owed.
+  - **§6.** The self-made CA, its leaf and chain, the `pveproxy-ssl.*`
+    copies and `cluster.fw.new` are deleted from `/root`. None was in use:
+    `8006` serves a different certificate, and `cluster.fw.new` matched the
+    live file. `pre-421-s3/` stays until the operator decides.
+    `proxmox-kernel-6.8.12-9-pve-signed` and six `rc` kernel packages are
+    purged. `/boot` and GRUB hold 6.8.12-43, 7.0.14-28 and 7.0.14-30, the
+    three `proxmox-boot-tool kernel list` selects.
+  - **Not done.** §2, a second factor on `root@pam`, is the operator's.
+    The `pre449weaknesses` snapshots and the fs-freeze timeouts on `titan`
+    and `ramuh` are not part of the runbook and are unchanged.
+
 - **`neo` is on RouterOS 7.24.7 long-term.** Upgraded from 7.24.6 at
   01:00 UTC under a one-hour silence on `component=~"internet|network"`,
   after a verified `make backup-switch`. The download staged in RAM and left
@@ -33,6 +65,53 @@ docstring gives: it is a record, not a claim about now.
   lines in Loki and a second `make backup-switch` all passed.
 
 ## 2026-11-24
+
+- **An audit of `Saruman`, read-only, found its management plane open to a
+  password behind the firewall, an undeclared API token, and two snapshots
+  that could roll back the domain.** It was read on the box on 2026-11-13,
+  against this repository at `2276e75`.
+  It is filed on 2026-11-24, when it merged. A read of the box that day
+  found every item below as described, except ADR-0107.
+  [`harden-saruman.md`](runbooks/harden-saruman.md) is new and holds the
+  fixes, none of them applied yet.
+  - **What matched.** 21 guests with the VMIDs and names in `network.md`
+    and `tofu/`, and the `on-demand` tag on exactly the guests that should
+    carry it. Templates 901 and 903–912 are present, and 902 is on `gandalf`.
+    `golem-nightly` holds exactly the `backup`-tagged guests. Both firewall
+    levels are on with `policy_in: DROP`, `local_network` is `10.0.30.20`,
+    and `management` holds only that address. The Zeek mirror runs on 14 of
+    14 ports. There is no Docker. No updates were pending, and the newest
+    kernel was running. The array, the cache battery, ECC and the SSDs' SMART
+    all read OK, and all 12 collectors were fresh. The fans, PSUs and
+    temperatures were read through `shiva` the same day and are OK.
+  - **What did not.**
+    - [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
+      `Saruman` half was not applied. It was applied the same day, in its
+      own change.
+    - `sshd` took root's password and allowed X11 forwarding, and
+      `root@pam` had no second factor on `8006`.
+    - A second token, `phoenix@pve!builder2`, has no expiry and privilege
+      separation off. Nothing in this repository names it, and its access
+      logs show no request from 2026-10-12 on.
+    - The `pre449weaknesses` snapshot from 2026-10-07 is still on 150–153.
+      Rolling back a domain controller five weeks would roll back the
+      domain's update sequence numbers.
+    - The nightly backup's fs-freeze times out on `titan` (152) and `ramuh`
+      (153). The 2026-11-07 run failed for `garuda` with a write timeout to
+      `golem`.
+    - The 1Password, charm and Proxmox debug-symbol apt sources are
+      configured, and Debian is listed twice. An old self-made CA with its
+      key, and copies of `pveproxy`'s certificate, sit in `/root`.
+    - `rpcbind` listens on `111`. One spindle reads a reallocated sector of
+      1, which only the iLO watches.
+  - **Corrected here.** `security.md` said the firewall admits `8006` and
+    `22` from Hicks. It admits `8007` too, as ADR-0014 decided and
+    `network.md` says, and nothing listens there. The audit also listed the
+    Ceph source and `ceph-common` and `ceph-fuse` as unneeded.
+    `libpve-storage-perl` and `pve-qemu-kvm` depend on both, so they stay,
+    and the runbook says so.
+  - **Not decided here.** Deleting the snapshots and the freeze on the
+    two Windows servers are left to the operator. Neither is a host setting.
 
 - **The wall page's files are served with `Cache-Control: no-cache`.** The
   card-by-card review's changes, below, reached `trinity` at `c5374a15`,
