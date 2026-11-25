@@ -74,6 +74,14 @@ docstring gives: it is a record, not a claim about now.
   scrape, `make snmp-verify`, Home Assistant's api-ssl session, `routeros`
   lines in Loki and a second `make backup-switch` all passed.
 
+- **The lab no longer claims to watch Loki's readiness.** `stacks/lab/compose.yaml`
+  and `prometheus.yaml` both said the `loki` scrape job observes readiness. It
+  reads `/metrics`, which answers while `/ready` returns 503. The audit of
+  `alexander` on 2026-11-13 found `/ready` at 503 for four days with ingest
+  running, and a re-check on 2026-11-25 saw one 503 and then 45 of 45 at 200.
+  Both comments now name what is watched: the process, through
+  `InstanceDown`, and ingest, through `LokiIngestionStalled`.
+
 ## 2026-11-24
 
 - **An audit of `Saruman`, read-only, found its management plane open to a

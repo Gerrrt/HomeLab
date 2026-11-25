@@ -40,9 +40,11 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  # This is also loki's readiness check. The image is distroless and can carry
-  # no compose healthcheck, so `up{job="loki"}` is the only thing that observes
-  # it — the same arrangement, and the same reasoning, as the estate's.
+  # Not a readiness check. This reads
+  # /metrics, which answers while /ready returns 503, so `up{job="loki"}` says
+  # the process is serving and nothing more. The image is distroless and can
+  # carry no compose healthcheck, so the process (InstanceDown) and ingest
+  # (LokiIngestionStalled) are what is watched; compose.yaml has the detail.
   - job_name: loki
     static_configs:
       - targets: ["loki:3100"]
