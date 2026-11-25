@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **The `pre449weaknesses` snapshots on 150–153 are deleted.** This
+  follows the entry below on `harden-saruman.md`, which left them unchanged
+  for the operator to decide. Taken on 2026-10-07 as #449's baseline,
+  disk-only, they were still there seven weeks later, where rolling back a
+  domain controller would roll back the domain's update sequence numbers.
+  On the operator's word, `qm delsnapshot` ran on each guest in turn with
+  the guest running. No `pre449weaknesses` volume or config entry is left,
+  all four guest agents answer, and `large_data` went from 62.7 % to 56.3 %
+  used.
+
 - **`harden-saruman.md` is applied on `Saruman`, except §2 and §5's
   reboot check.** It closes what the audit of 2026-11-13 found on the host.
   - **§1.** A drop-in, `/etc/ssh/sshd_config.d/10-keys-only.conf`, turns off
