@@ -1,6 +1,8 @@
 These SVGs are from homarr-labs/dashboard-icons
 (https://github.com/homarr-labs/dashboard-icons), licensed Apache-2.0,
 copied on 2026-10-21 with only their line endings normalised to LF.
+The nine google*.svg other than google-calendar.svg were copied the same
+way on 2026-11-25.
 LICENSE beside this file is upstream's copy of that licence, verbatim, as
 section 4(a) asks. The marks they depict belong to their owners.
 They are served by Glance from assets-path so the browser fetches no icon
