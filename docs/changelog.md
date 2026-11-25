@@ -19,6 +19,18 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`build-the-backup-guest.md` §2 gains a host firewall for `golem`.**
+  The audit of 2026-11-13 left the choice open, and the entry below lists it
+  as the last thing not done. `golem` can delete every backup the lab has,
+  and its `sshd` and PBS's UI answered all of VLAN 30. In the fourteen days
+  before, only `Saruman` (`10.0.30.20`) and Hicks addresses reached `8007`
+  or logged in on `22`, apart from `Saruman`'s old address, last seen on
+  2026-11-07. The `nftables` ruleset admits `22` and `8007` from those two,
+  and replies to what `golem` starts itself, which covers the NFS mount and
+  Alloy's push. It is loaded live first, and enabled at boot only after a new
+  SSH login from the Mac and `Saruman`'s request to `8007` both work.
+  §11 gains a row for a source left out of the set. `security.md`'s `golem`
+  row says the firewall is written and not yet applied.
 - **`golem`'s §2 is whole, and the first nightly on the new release
   backed up clean.** This closes most of the *not done* list in the entry
   below.
