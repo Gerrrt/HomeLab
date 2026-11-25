@@ -97,6 +97,19 @@ docstring gives: it is a record, not a claim about now.
   Both comments now name what is watched: the process, through
   `InstanceDown`, and ingest, through `LokiIngestionStalled`.
 
+- **A new technical second replaces `age19mkg76…` on the estate's files.**
+  The medium holding that key's private half, and the CA key's offline copy,
+  is misplaced, not known to be exposed, so nothing it opens is rotated.
+  A new key, `age1egznz…`, was generated straight onto a fresh USB stick
+  (the old installer stick, wiped). `secrets/observability.sops.yaml` and
+  `secrets/tofu.sops.yaml` were re-keyed to the live key and the new one,
+  and `make secrets-verify-backup` proved the new key opens them before
+  `age19mkg76…` was taken off the catch-all rule. `remove-recipient.sh`
+  refused because the key is on three rules, so that rule was edited by hand
+  and both files re-keyed with `sops updatekeys`. The lab and sensitive rules
+  still name `age19mkg76…`: their files open only on alexander and trinity,
+  and are re-keyed there.
+
 ## 2026-11-24
 
 - **An audit of `Saruman`, read-only, found its management plane open to a
