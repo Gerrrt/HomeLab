@@ -507,6 +507,16 @@ docstring gives: it is a record, not a claim about now.
   closes the `mjolnir` audit: every finding is fixed and verified, decided,
   or tracked in #1731.
 
+- **The offsite copy moved to the spare drive
+  ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)).** The
+  5 TB WD drive labelled `HOUSEHOLD`, spare since ADR-0122, now carries the
+  newest backup set of each kind in place of the second age recipient's
+  medium. It holds no key, so the sets and a key that opens them are no
+  longer on one medium. The first copy to it ran on 2026-11-24 and proved
+  every set: observability `20261122T033021Z`, NAS `20261123T200914Z`, wiki
+  `20261124T044752Z` and firewall `config-20261124T044012Z`. That reset
+  `offsite-copy`, which was 62 days old.
+
 ## 2026-11-23
 
 - **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data

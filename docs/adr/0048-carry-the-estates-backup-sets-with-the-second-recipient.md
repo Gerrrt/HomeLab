@@ -19,6 +19,11 @@
 > that are provably not media; the last step is the operator's, and
 > [`copy-the-backups-offsite.md`](../runbooks/copy-the-backups-offsite.md)
 > says so where the reader is standing.
+>
+> [!NOTE]
+> [ADR-0132](0132-carry-the-offsite-copy-on-the-spare-drive.md) superseded
+> decision 1's medium on 2026-11-24: the copy of record is now the spare
+> `HOUSEHOLD` drive, which holds no key. The rest of this ADR stands.
 
 ## Context
 

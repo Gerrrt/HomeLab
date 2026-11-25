@@ -997,9 +997,8 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 backup-offsite: ## Copy the newest set of each kind to the offline medium and prove it (DEST=/path/to/the/medium)
 	@# The third human job with a deadline and no timer, after
 	@# secrets-verify-backup and certs-verify-backup, and for the same reason:
-	@# the destination is the medium that holds the second age recipient
-	@# (ADR-0048), which is off-estate by construction and visits this host
-	@# every ninety days to prove that key. No timer can mount it. What a
+	@# the destination is the offsite drive (ADR-0048, ADR-0132), kept outside
+	@# the house and brought back every ninety days. No timer can mount it. What a
 	@# timer CAN do is notice that nobody has: a successful run records
 	@# offsite-copy, and OffsiteCopyStale fires when that passes ninety days.
 	@#

@@ -1030,7 +1030,7 @@ that cannot be automated, because each needs a human to mount removable media:
 [ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md), and since
 [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) `backup-offsite`
 for the sets themselves, which carries the newest of each kind onto the
-second recipient's medium and hashes it there. `OffsiteCopyStale` nags at
+offsite drive and hashes it there ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)). `OffsiteCopyStale` nags at
 ninety days instead. `trinity` has no such job: its household copy and
 `HouseholdCopyStale` went with
 [ADR-0122](adr/0122-drop-the-household-copy.md). Three outputs leave: `backup-firewall` copies each export

@@ -35,14 +35,14 @@ key's fingerprint so a re-minted CA starts at never rather than inheriting the
 old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
 
 The third of that shape is not a key. `make backup-offsite DEST=…` carries
-the newest firewall export, volume set and NAS set onto the same medium that
-holds the second age recipient, on the same visit — it refuses a destination
+the newest firewall export, volume set and NAS set onto the offsite drive,
+which holds no key ([ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)) — it refuses a destination
 on this host's own filesystem, on RAM, or under the trees this host clears on
 boot, then re-verifies what the medium already holds,
 copies, and hashes the copy — and records `offsite-copy`; `OffsiteCopyStale`
 is the nag, the same ninety days, read straight off the job series because
 there is one copy of record
-([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
+([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md),
 [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)).
 
 Three jobs' output leaves this host. `backup-firewall` copies every export to
