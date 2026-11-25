@@ -15,7 +15,7 @@
 Description=HomeLab: record the range host's own controls (ADR-0126)
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
 ConditionPathIsDirectory=/var/lib/node_exporter/textfile_collector
-ConditionPathExists=/usr/sbin/nft
+ConditionPathExists=/usr/local/sbin/homelab-ragnarok-stop
 
 [Service]
 Type=oneshot
