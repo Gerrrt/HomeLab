@@ -271,7 +271,7 @@ build, preview one stage at a time and apply it before previewing the next:
 | `population` | §5 | The people in [`population.yaml`](../../ansible/population/population.yaml): an OU per department under `OU=People`, their groups under `OU=Groups`, and the users, `authgen` among them, with passwords derived from `LAB_POPULATION_SEED` |
 | `authgen` | §6 | The batch-logon right and the `Lab-AuthGenerator` task on both endpoints, as `authgen` |
 | `tiers` | §5 | The five tier OUs, the three tier admins, the `Tier 0 Admins` group, and the members placed in `Servers`/`Workstations` |
-| `gpos` | §5 | *Deny Tier 0 Logon on Members*, and the two audit policies: the member servers' (Windows defaults plus File Share) and the DCs' (their 17 subcategories plus Directory Service Changes), #1077 |
+| `gpos` | §5 | *Deny Tier 0 Logon on Members* (with Domain and Enterprise Admins refused the console and RDP, ADR-0136), and the two audit policies: the member servers' (Windows defaults plus File Share) and the DCs' (their 17 subcategories plus Directory Service Changes), #1077 |
 | `audit` | §5 | Inherited audit entries on the domain head, so SPN and delegation writes on users and computers log a 5136 (#1077) |
 | `shares` | §5 | `titan`'s `Public` and `Finance` shares, with the decoy |
 | `soc` | §11 | Wazuh and Velociraptor installed on all six, in place of the deploy GPOs |
@@ -834,6 +834,16 @@ ordinary users, and one service account with an SPN on a real service on
 > detection if the tiers exist. Build the GPO that denies Tier 0 interactive and
 > network logon anywhere but the two DCs, and then know that you have built the
 > thing the alert will key on.
+>
+> **The domain's own admins are Tier 0 too.** `AD\Administrator` is in Domain,
+> Enterprise and Schema Admins and not in `Tier 0 Admins`, so a GPO naming only
+> that group lets it log on anywhere. Since
+> [ADR-0136](../adr/0136-deny-the-domains-own-admins-the-console-on-members.md)
+> the same GPO also refuses Domain and Enterprise Admins the console and RDP
+> on members. It does not refuse them network logon, because that is how
+> `phoenix` gets in: Ansible connects as `AD\Administrator` over SSH, and a key
+> logon is a network logon. At a member's console, log on as its local
+> `Administrator`.
 
 `titan` gets the shares — including one obviously-interesting decoy, because a
 share nobody would open is not a share anyone will be caught opening. And check
@@ -1244,9 +1254,14 @@ Firewall. The prose this table replaces was wrong in three places:
 - **RDP is answered by none of the six**, not all six. It is off as Windows
   ships it: `fDenyTSConnections` is `1` and the *Remote Desktop* firewall rules
   are disabled. Read on `bahamut` and `carbuncle`.
-- **WinRM (`5985`) is open on the four servers**, as Server 2025 ships it,
-  and closed on the endpoints, as Windows 11 ships it. The old list did not
-  mention it.
+- **WinRM (`5985`) was open on the four servers** on 2026-10-02, as Server
+  2025 ships it, and closed on the endpoints, as Windows 11 ships it. **It is
+  closed on all six since the #448 rebuild:** every clone of the templates runs
+  `SetupComplete.cmd`, which disables and stops WinRM
+  (`packer/windows/scripts/SetupComplete.cmd`), so the `5985` in the table
+  above is no longer answered. Read on `titan` on 2026-11-25: the service is
+  disabled and nothing listens on `5985`. The other three servers follow from
+  the same script and have not been rescanned from Hicks.
 - **`ramuh` serves no SMB.** Only `titan` has shares, so only `titan` opens
   `445`.
 

@@ -7,6 +7,15 @@
 # Deny Tier 0's privilege rights name the Tier 0 Admins group by SID. A rebuild
 # is a new forest with a new SID, so `__TIER0SID__` is a token the role fills
 # from the live group at apply time, never a SID baked into the repo.
+# `__DASID__` and `__EASID__` are Domain Admins and Enterprise Admins, filled
+# the same way from the domain SID (RIDs 512 and 519).
+#
+# ADR-0136: the domain's own admins are refused the console and RDP on members,
+# as Tier 0 Admins always were, because AD\Administrator is in neither Tier 0
+# Admins nor anything else this GPO named, and the 2026-11 titan audit found it
+# logged on interactively there. They keep NETWORK logon: phoenix's Ansible
+# connects as AD\Administrator over SSH, and sshd's key logon is a network
+# (S4U) logon (ADR-0077). The console on a member is the local Administrator's.
 #
 # `cse` is gPCMachineExtensionNames, the client-side-extension GUIDs that tell a
 # member which engines to run for this GPO; without it the file in SYSVOL is
@@ -24,8 +33,9 @@ gpos_defs:
       signature="$CHICAGO$"
       Revision=1
       [Privilege Rights]
-      SeDenyInteractiveLogonRight = *__TIER0SID__
+      SeDenyInteractiveLogonRight = *__TIER0SID__,*__DASID__,*__EASID__
       SeDenyNetworkLogonRight = *__TIER0SID__
+      SeDenyRemoteInteractiveLogonRight = *__TIER0SID__,*__DASID__,*__EASID__
   # #1077: the member servers' advanced audit policy. #414 built it with the
   # File Share line alone, and an advanced policy replaces the basic one
   # outright, so titan and ramuh audited file shares and NOTHING else: no

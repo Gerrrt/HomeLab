@@ -57,8 +57,19 @@
               <Type>MSR</Type>
               <Size>16</Size>
             </CreatePartition>
+            <!-- The recovery partition goes BEFORE Windows, not after it.
+                 Without one here, Setup carves WinRE's out of the end of the
+                 disk, behind C:, and on a clone that tofu grows (titan and
+                 ramuh to 80 GiB) that pins C: at the template's size: the
+                 2026-11 titan audit found C: at 59 GB of 80. With it first,
+                 roles/base grows C: into whatever the clone was given. -->
             <CreatePartition wcm:action="add">
               <Order>3</Order>
+              <Type>Primary</Type>
+              <Size>1024</Size>
+            </CreatePartition>
+            <CreatePartition wcm:action="add">
+              <Order>4</Order>
               <Type>Primary</Type>
               <Extend>true</Extend>
             </CreatePartition>
@@ -78,6 +89,13 @@
               <Order>3</Order>
               <PartitionID>3</PartitionID>
               <Format>NTFS</Format>
+              <Label>Recovery</Label>
+              <TypeID>DE94BBA4-06D1-4D40-A16A-BFD50179D6AC</TypeID>
+            </ModifyPartition>
+            <ModifyPartition wcm:action="add">
+              <Order>4</Order>
+              <PartitionID>4</PartitionID>
+              <Format>NTFS</Format>
               <Label>Windows</Label>
               <Letter>C</Letter>
             </ModifyPartition>
@@ -94,7 +112,7 @@
           </InstallFrom>
           <InstallTo>
             <DiskID>0</DiskID>
-            <PartitionID>3</PartitionID>
+            <PartitionID>4</PartitionID>
           </InstallTo>
         </OSImage>
       </ImageInstall>

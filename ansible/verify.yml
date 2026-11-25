@@ -228,6 +228,20 @@
                 -not ((Get-GPInheritance -Target "OU=$_,$($base)").GpoLinks | Where-Object DisplayName -eq $lk.g)
               })
             }
+            # ADR-0136: Deny Tier 0 refuses Domain Admins the console and RDP on
+            # members, and leaves them network logon, which phoenix's SSH is.
+            $deny = Get-GPO -Name 'Deny Tier 0 Logon on Members' -ErrorAction SilentlyContinue
+            $inf = if ($deny) { Join-Path $env:SystemRoot `
+              "SYSVOL\domain\Policies\{$($deny.Id)}\Machine\Microsoft\Windows NT\SecEdit\GptTmpl.inf" }
+            $denyLines = if ($inf -and (Test-Path -LiteralPath $inf)) {
+              [IO.File]::ReadAllText($inf, [Text.Encoding]::Unicode) -split "`r?`n" } else { @() }
+            $daSid = [regex]::Escape("*$((Get-ADDomain).DomainSID.Value)-512")
+            $names = { param($right) ($denyLines | Where-Object { $_ -match "^\s*$right\s*=" }) -join '' }
+            foreach ($right in 'SeDenyInteractiveLogonRight', 'SeDenyRemoteInteractiveLogonRight') {
+              $r["Deny Tier 0 refuses Domain Admins $right"] = ((& $names $right) -match "$daSid(,|\s*$)")
+            }
+            $r['Deny Tier 0 leaves Domain Admins network logon'] =
+              -not ((& $names 'SeDenyNetworkLogonRight') -match "$daSid(,|\s*$)")
           }
 
           # --- #1077: what each guest audits, as auditpol reads it -------------

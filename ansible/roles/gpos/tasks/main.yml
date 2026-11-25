@@ -28,7 +28,11 @@
         $want = $g.content
         if ($g.name -eq 'Deny Tier 0 Logon on Members') {
           if (-not $tier0) { throw 'Tier 0 Admins group not found; run the tiers role first' }
+          # ADR-0136: Domain Admins (512) and Enterprise Admins (519), from
+          # the domain SID; a one-domain forest, so the root's is this one.
+          $domSid = (Get-ADDomain).DomainSID.Value
           $want = $want.Replace('__TIER0SID__', $tier0)
+          $want = $want.Replace('__DASID__', "$domSid-512").Replace('__EASID__', "$domSid-519")
         }
 
         $gpo = Get-GPO -Name $g.name -ErrorAction SilentlyContinue
