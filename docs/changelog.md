@@ -74,6 +74,39 @@ docstring gives: it is a record, not a claim about now.
     same weakness was "closed on `golem` by the audit of 2026-11-13". The
     audit closed it in the runbook only. On the box it stayed open until this
     entry.
+- **`build-heimdall.md` closes what a second audit of `heimdall` could
+  still raise.** A full re-check on 2026-11-24 at 21:25 found every
+  finding of the first audit still fixed, and five hardening gaps nobody
+  had raised. None is reachable from the network today. §2 now:
+  - **Adds a host firewall.** `nftables` was installed with an empty
+    ruleset, so only the absence of other listeners kept the Pi at 22 and
+    9100. The ruleset drops everything but SSH, the scrape from
+    `10.0.99.20` alone, ICMP and DHCP replies. It is loaded live first, and
+    enabled at boot only after a new SSH login and the scrape both work.
+  - **Ends the `tty1` shell.** The Imager's desktop autologin also logged
+    the user into a text shell on `tty1`. Since 2026-11-23 sudo asks for a
+    password, so a keyboard gave the user and not root, but the kiosk only
+    needs lightdm's autologin on `vt7`.
+  - **Masks the serial console** on `ttyAMA10`, the debug UART, which
+    nothing uses.
+  - **Turns the radio off** with `dtoverlay=disable-bt`. Masking
+    `bluetooth.service` had left `hci0` up.
+  - **Purges Firefox and VLC.** On 2026-11-24, 16 of the Pi's 18 pending
+    upgrades were VLC's. About 40 packages go with them.
+
+  `security.md`'s paragraph on the Hicks pass now names the firewall. The
+  steps need the operator's password at the Pi, so they are written here
+  and not yet applied.
+
+- **The operator's Windows PC trusts both roots.** Every lab site warned
+  again after its warning had been accepted, because the PC trusted neither
+  root. A click-through covers one leaf, and Caddy renews the tier's
+  seven-day leaves about every five days. The estate's root and the tier's
+  root are now in the current user's Windows store, checked by fingerprint
+  first. Windows then verified `wall`, `homeassistant`, `start`, `immich`,
+  `vaultwarden`, `lemmiwinks` and Grafana on `:3000` with no warning. The
+  row is in `generate-certificates.md`'s trust table.
+
 - **The `pre449weaknesses` snapshots on 150–153 are deleted.** This
   follows the entry below on `harden-saruman.md`, which left them unchanged
   for the operator to decide. Taken on 2026-10-07 as #449's baseline,
@@ -164,6 +197,14 @@ docstring gives: it is a record, not a claim about now.
   and both files re-keyed with `sops updatekeys`. `secrets/sensitive.sops.yaml`
   was re-keyed on trinity, whose key is the only other that opens it, in a
   temporary directory there, and the new key proved to open it.
+
+- **The lab is off `age19mkg76…` too, so that key now opens nothing.**
+  This follows the entry above on the new technical second. The sensitive
+  tier went with it in #1744, re-keyed on trinity. `secrets/lab.sops.yaml`
+  could be re-keyed only on alexander, which prometheus cannot reach, so it
+  was re-keyed there in a temporary directory, carried over from the
+  operator's Mac. The new key opens it, and `age19mkg76…` is in no rule
+  and no secrets file.
 
 ## 2026-11-24
 

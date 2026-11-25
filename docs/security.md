@@ -503,9 +503,12 @@ unprivileged datagram socket, not a raw one.
 ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)):
 `prometheus` to `heimdall`, the office wall dashboard, at
 `10.0.50.15:9100/tcp`, for `node_exporter`. It carries the same residual as
-`smaug`'s below. The endpoint is unauthenticated, so anything on Hicks can
-read the Pi's own counters. The Pi itself holds no credentials: the pages it
-shows are served by `trinity`, and their tokens are added there.
+`smaug`'s below. The endpoint is unauthenticated, but the Pi's own
+`nftables` admits 9100 from `10.0.99.20` alone, and drops everything but SSH
+besides (`build-heimdall.md` §2), once that step is applied. Until then,
+anything on Hicks can read the Pi's own counters. The Pi itself holds no
+credentials: the pages it shows are served by `trinity`, and their tokens are
+added there.
 
 One of CasaBonita's passes is a monitoring pass, and it carries a residual worth
 naming. `10.0.99.20 → 10.0.40.30:9100` lets Prometheus scrape `node_exporter`

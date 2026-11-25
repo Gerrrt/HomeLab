@@ -625,7 +625,8 @@ everything:
   and trending repositories.
 - **Watch** (`watch.yml`): the YouTube tabs at full width, as a grid.
 - **Sports & Markets** (`sports.yml`): NBA, NFL, MLB and NHL scores from
-  ESPN, and the full ticker list with charts.
+  ESPN, the full ticker list with charts, and the TSP L 2060 fund with a
+  year's sparkline.
 - **Homelab** (`homelab.yml`): a headline strip, the Estate panel, uptime
   badges, hosts, every console by category, the household monitor and
   Saruman's VMs.
@@ -681,6 +682,14 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
   `make secrets-edit STACK=sensitive`, edit the line, keep it on one line
   with no single quote inside, then `make up STACK=sensitive`.
   `secrets/sensitive.example.yaml` shows the shape of each.
+- **The TSP fund comes from a Google Sheet.** Yahoo has no TSP fund, the
+  TSP's own price download refused a script with a 403, and Glance reads
+  JSON, not a web page. So the operator's sheet, which already imports a year
+  of daily prices from TSP Talk, feeds a second sheet holding only the date
+  and the L 2060 price. That one is shared by link, and Glance reads it from
+  `trinity` through the Sheets API with a key restricted to that API. The
+  portfolio sheet itself stays private. `GLANCE_TSP_SHEET_ID` and
+  `GLANCE_GOOGLE_API_KEY` are in SOPS, and the example file has the steps.
 - **What is in the files is what anyone running this estate would see:** the
   consoles and addresses `docs/network.md` already lists, the weather
   (Bellevue, rounded to a city), Hacker News,

@@ -84,7 +84,7 @@ creation_rules:
   - path_regex: secrets/lab(\..+)?\.sops\.ya?ml$
     age: >-
       age1fwtswt22kljrgmnzah8twwnkzha07l3vlg30n30pahczh0dfvq8s22jdge,
-      age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j
+      age1egznz3x988kretsa0pt29ktcrqrevdjkueu6sg5086z269m843yqeerysc
 
   # The sensitive tier, for the opposite reason to the lab's: not because the
   # host is less trusted than the estate, but because it has no use for the
