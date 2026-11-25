@@ -2,6 +2,12 @@
 
 **Status:** Accepted · 2026-11 · amends [ADR-0043](0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
 
+> [!NOTE]
+> Amended by [ADR-0135](0135-turn-forwarding-off-on-phoenixs-sshd-and-remove-cloud-inits-file.md):
+> `10-phoenix.conf` also sets `DisableForwarding yes`, and cloud-init's
+> `50-cloud-init.conf` is removed instead of being left in place. The text
+> here is left as written, per ADR-0001 and ADR-0115.
+
 ## Context
 
 [ADR-0043](0043-keep-the-ca-on-prometheus-and-build-phoenix-as-the-deployment-host.md)
