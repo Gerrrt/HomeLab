@@ -778,6 +778,11 @@ static files.
 - **It loads nothing from anywhere else.** The site's Content-Security-Policy
   allows only itself. There are no web fonts; the stacks fall back to the
   Pi's DejaVu.
+- **A change reaches the screen by itself.** The page reloads every six
+  hours, and its files are served with `Cache-Control: no-cache`, so each
+  load asks Caddy whether they changed instead of trusting the browser's
+  copy. To see a change sooner, stop Chromium on `heimdall`; `lwrespawn`
+  starts it again a second later on a fresh load.
 - **Only what notifies counts.** The verdict and the alert list take
   `critical` and `warning` alerts only, as those are what Alertmanager
   delivers, the same rule the Glance *Estate* panel keeps. An `info` alert is
