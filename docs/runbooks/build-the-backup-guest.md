@@ -123,6 +123,57 @@ pool: its disk is ext4 on LVM, and the datastore is NFS. `zpool list` must say
 systemctl disable --now zfs-zed.service
 ```
 
+**Then a host firewall.** With those off, only `22` and `8007` listen on an
+address other than loopback, but nothing holds it there, and both answer all
+of VLAN 30: the domain, the range's targets and every lab guest. Only two
+places need them. `Saruman` stores to `8007` and runs §10's collector
+installer over `22`. Hicks is where the operator logs in and opens the UI.
+`nftables` ships with PBS, installed and empty. This ruleset admits those
+two, and the replies to what `golem` starts itself. That covers the NFS
+mount, because NFSv4.1 and later carry the server's callbacks on the
+client's own connection, and Alloy's push to `alexander`:
+
+```bash
+cat > /etc/nftables.conf <<'NFT'
+#!/usr/sbin/nft -f
+flush ruleset
+table inet filter {
+    set admin {
+        type ipv4_addr; flags interval;
+        elements = { 10.0.30.20, 10.0.50.0/24 }    # Saruman, Hicks
+    }
+    chain input {
+        type filter hook input priority filter; policy drop;
+        iif lo accept
+        ct state established,related accept
+        ct state invalid drop
+        meta l4proto { icmp, ipv6-icmp } accept
+        ip saddr @admin tcp dport { 22, 8007 } accept
+    }
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+    }
+    chain output {
+        type filter hook output priority filter;
+    }
+}
+NFT
+nft -c -f /etc/nftables.conf    # parses, changes nothing
+nft -f /etc/nftables.conf       # live, but not yet at boot
+```
+
+Keep this session open, and check three things. From the Mac, open a new
+session with `ssh -o ControlPath=none root@10.0.30.80`. From `Saruman`,
+`curl -sk -m 5 -o /dev/null -w '%{http_code}\n' https://10.0.30.80:8007/` prints
+`200`. From `alexander`, which is on the segment and is neither, the same
+`curl` times out. If either of the first two fails, reboot `golem` from
+`Saruman` (`qm reboot 180`). The ruleset is not loaded at boot yet, so it
+comes back open. Once all three hold:
+
+```bash
+systemctl enable nftables.service
+```
+
 After §5's mount exists, reboot once and check that `findmnt
 /mnt/datastore/erebor` still shows the share. And give `root@pam` a second
 factor in the web UI, *Configuration → Access Control → Two Factor
@@ -491,6 +542,7 @@ nothing behind it. Two pieces:
 | PBS writes to the OS disk and `/` fills | The share was not mounted | Cannot happen with §5's `chattr +i`. If `/mnt/datastore/erebor` is writable while unmounted, the attribute is missing |
 | Backups succeed, restore fails to decrypt | The key on `Saruman` is not the one the backups were made with | Restore `golem.enc` from `secrets/lab.sops.yaml` or the paper key, to `/etc/pve/priv/storage/golem.enc` |
 | The verify job fails with `manifest load error … index.json.blob … No such file` | A backup broke mid-run, and its cleanup failed with `Directory not empty` because NFS had renamed a still-open file to `.nfs*`. The snapshot directory was left without a manifest | Once no `.nfs*` file remains in it, remove that snapshot directory as root on `golem`. Then `proxmox-backup-manager verify-job run weekly`, so the job's last state, and `PbsJobFailed`, clear before Sunday |
+| `Saruman`'s backups, or `pvesm status` for `golem`, time out, and the UI does not load from a Hicks address that used to work | The source is not in §2's `admin` set. `Saruman` moved from `.110` to `.20` on 2026-11-07, and a move like that again would do it | Add the new address to the set in `/etc/nftables.conf` from VM 180's console in `Saruman`'s web UI, then `nft -f /etc/nftables.conf`. `systemctl disable --now nftables.service && nft flush ruleset` takes the firewall off while you look |
 | Garbage collection deletes chunks a backup needs, and verify reports missing chunks | `atime` was off when garbage collection ran | Roll `erebor/pbs` back to the newest TrueNAS snapshot from before that run, then fix `atime` |
 
 ## 12. Write it down
