@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`heimdall` runs the hardening `build-heimdall.md` §2 added today.** This
+  completes the entry "`build-heimdall.md` closes what a second audit of
+  `heimdall` could still raise", which said the steps were not yet applied.
+  The operator gave the password at the Pi; the steps ran from the Mac.
+  - **Purged:** Firefox and VLC, 41 packages with their dependencies.
+  - **Consoles:** the `tty1` autologin drop-in is gone and `tty1` shows a
+    login prompt; `serial-getty@ttyAMA10` is masked. The only sessions left
+    are lightdm's on `seat0` and SSH.
+  - **Firewall:** the §2 ruleset was loaded live first. A new SSH login
+    (without a shared connection) and the scrape from `prometheus` both
+    worked under it, 1639 `node_` series and `up` 1, before
+    `nftables.service` was enabled at boot. Only 22 and 9100 listen.
+  - **Radio:** `dtoverlay=disable-bt` is in `config.txt`. It takes effect
+    at the next boot, the nightly one at 04:30.
+
+  No unit was failed afterwards, and Chromium kept running throughout.
+
 - **`golem`'s §2 is whole, and the first nightly on the new release
   backed up clean.** This closes most of the *not done* list in the entry
   below.
