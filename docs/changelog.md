@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`golem`'s §2 is whole, and the first nightly on the new release
+  verified clean.** This closes most of the *not done* list in the entry
+  below.
+  - **Second factor.** `root@pam` has a TOTP entry, enrolled by the operator
+    in the web UI.
+  - **Alloy.** The operator redeployed it from the Mac by
+    `deploy-agent.sh --runtime native --monitoring-host 10.0.30.40`, and its
+    arrival check passed. `CUSTOM_ARGS` now carries `--disable-reporting`,
+    and the agent logged no error and no usage report in the half hour after.
+  - **`zfs-zed`.** It is disabled and stopped. `zpool list` said *no pools
+    available* first. §2 now does the same, so a rebuild repeats it.
+  - **The nightly.** The 21:00 PST job backed up all eight guests, 150–155,
+    160 and 162. Each task ended OK, in 2 to 11 minutes, much as on earlier
+    nights. The collector, run afterwards, counted 0 unencrypted snapshots,
+    and its newest snapshot was `garuda`'s from that run.
+  - **Still open.** There is no host-firewall decision for `golem`, and no
+    test restore recorded since 2026-10-03.
 - **`build-the-backup-guest.md` §2 is applied on `golem`, except the second
   factor, and its pending updates are installed.** It closes most of what the
   audit of 2026-11-13 found on the box. Until today that audit had changed the

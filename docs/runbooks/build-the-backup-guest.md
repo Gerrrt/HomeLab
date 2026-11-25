@@ -115,6 +115,14 @@ printf 'PermitRootLogin prohibit-password\nPasswordAuthentication no\nX11Forward
 systemctl disable --now rpcbind.socket rpcbind.service nfs-blkmap.service
 ```
 
+The installer also leaves ZFS's event daemon running, and `golem` has no
+pool: its disk is ext4 on LVM, and the datastore is NFS. `zpool list` must say
+*no pools available* first:
+
+```bash
+systemctl disable --now zfs-zed.service
+```
+
 After §5's mount exists, reboot once and check that `findmnt
 /mnt/datastore/erebor` still shows the share. And give `root@pam` a second
 factor in the web UI, *Configuration → Access Control → Two Factor
