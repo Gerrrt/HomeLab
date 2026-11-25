@@ -1,0 +1,24 @@
+[Unit]
+Description=HomeLab: stop the attack VM ragnarok at its deadline (ADR-0125)
+Documentation=https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/build-the-playground.md
+
+[Timer]
+Unit=homelab-ragnarok-stop.service
+# Every minute from a minute after boot. The script decides; the timer only
+# asks. The period has to sit well inside the five-minute warning window.
+# At five minutes, a run that came a little late could land past the
+# deadline having skipped the window, and stop the VM with no last warning
+# (review on #1649). A minute is also about how far the stop lags the
+# deadline. A run while ragnarok is stopped reads one PID file and exits.
+#
+# AccuracySec is tight for the same reason. systemd's default of a minute
+# would let a run slip by a whole period.
+#
+# No Persistent=: the deadline is counted from the VM's start, so a missed
+# run has nothing to catch up on.
+OnBootSec=1min
+OnUnitActiveSec=1min
+AccuracySec=5s
+
+[Install]
+WantedBy=timers.target

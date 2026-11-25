@@ -6,8 +6,10 @@ groups:
       - alert: InstanceDown
         # speedtest-tracker is excluded: a measurement tool being unreachable
         # is not worth a page. SpeedtestTrackerDown in internet.rules.yaml is
-        # the same condition at warning (#914).
-        expr: up{job!="speedtest-tracker"} == 0
+        # the same condition at warning (#914). So is role="display",
+        # `heimdall`, the office wall dashboard (ADR-0119): a dead screen
+        # shows itself to anyone in the room, and nothing depends on it.
+        expr: up{job!="speedtest-tracker", role!="display"} == 0
         for: 5m
         labels:
           component: host
@@ -272,6 +274,105 @@ groups:
             older than the installed one until this happens. Pick a window —
             rebooting the monitoring host blinds the estate for its duration.
 
+      # --- The wall display (role="display", `heimdall`, ADR-0119) -----------
+      # InstanceDown leaves the display out, because a dead screen shows itself
+      # to anyone in the office. What it does not show is the Pi's own state:
+      # a browser that stopped updating, a unit that failed, a card running
+      # hot. The 2026-11-24 re-check found that heimdall exported all three
+      # (apt.prom from prometheus-node-exporter-collectors, the systemd and
+      # hwmon collectors) and that no rule read any of them. These four are
+      # warnings: they reach the default channel, or security for updates, and
+      # none of them pages. None needs a host label: the display is scraped
+      # directly, so `instance` names it.
+
+      - alert: DisplayUpdatesStalled
+        # The wall runs Chromium all day on Hicks, and ADR-0119's case for
+        # that rests on the browser taking its updates unattended. The Pi
+        # installs them every morning and reboots onto them at 04:30, so an
+        # upgrade is normally pending for under a day. Three days of the same
+        # origin pending means unattended-upgrades stopped, an upgrade is held,
+        # or the origin fell out of build-heimdall.md §2's allow list, as it was
+        # until 2026-11-23.
+        #
+        # `max_over_time` over 15 minutes, not the bare series, because the
+        # bare series would reset `for` every night. The 04:30 reboot fails a
+        # scrape, which marks the series stale (on 2026-11-24, `up` read 0
+        # there), and a three-day timer that restarts daily never fires. The
+        # window bridges the reboot. When an origin's upgrades go in, the
+        # collector writes no series for it at all, not a 0, so the window
+        # empties 15 minutes later and the timer resets as it should.
+        expr: max_over_time(apt_upgrades_pending{role="display"}[15m]) > 0
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.instance }}: {{ $value }} upgrade(s) from {{ $labels.origin }} pending three days"
+          description: >-
+            unattended-upgrades runs every morning and should have installed
+            these. On the Pi, read /var/log/unattended-upgrades/unattended-upgrades.log
+            and check `apt-config dump | grep Origins-Pattern` still names
+            the origin (build-heimdall.md §2).
+
+      - alert: DisplayUnitFailed
+        # heimdall is the one host here that exports node_systemd_unit_state,
+        # so a failed unit on it is visible to Prometheus and nowhere else: it
+        # ships no journal to Loki, where SystemdUnitFailed would see it.
+        expr: node_systemd_unit_state{role="display", state="failed"} == 1
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.name }} has failed on {{ $labels.instance }}"
+          description: >-
+            `systemctl --failed` and `journalctl -b -u {{ $labels.name }}` on
+            the Pi. The journal is kept across reboots (build-heimdall.md §2),
+            so the cause survives the 04:30 reboot.
+
+      - alert: DisplayHot
+        # The Pi 5 starts throttling its cores at 80 °C. Over a week on the
+        # wall, heimdall's SoC peaked at 58 °C, so 75 °C for a quarter of an
+        # hour means a blocked vent or a dead fan, while there is still time.
+        # The SoC is thermal_zone0. The other chip, RP1's ADC, runs a few
+        # degrees warmer and is not what throttles. Its two sensors read
+        # alike, so `max by` gives one alert, not two.
+        expr: |
+          max by (instance, role) (
+            node_hwmon_temp_celsius{role="display", chip="thermal_thermal_zone0"}
+          ) > 75
+        for: 15m
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }} has been above 75 °C for 15 minutes"
+          description: >-
+            {{ $value | printf "%.1f" }} °C on the SoC. It throttles at 80 °C.
+            Check the fan and the space around the Pi, and
+            `vcgencmd get_throttled` on it.
+
+      - alert: DisplayDown
+        # InstanceDown leaves the display out, and a dead screen does show
+        # itself, but only to someone in the room. Down overnight or over a
+        # weekend, nobody sees it until the next time they look. The nightly
+        # reboot takes half a minute, and the longest Wi-Fi gap the audit found
+        # was ten minutes, so two hours is neither.
+        expr: up{role="display"} == 0
+        for: 2h
+        labels:
+          component: host
+          severity: warning
+          category: availability
+        annotations:
+          summary: "{{ $labels.instance }} has not answered a scrape for two hours"
+          description: >-
+            The wall Pi is off, off Hicks, or its exporter stopped. Look at the
+            wall first, then `ssh` to it from Hicks (build-heimdall.md).
+
       - alert: PatchStateStopped
         # A host that WAS reporting patch state and no longer is.
         #
@@ -300,10 +401,45 @@ groups:
         # continuously and not once a day. Six hours survives a Prometheus
         # restart and a host rebooting, which is the same window
         # deploy.rules.yaml and backup.rules.yaml settled on.
+        #
+        # FOURTEEN DAYS OF MEMORY, NOT ONE. With [1d] the left side empties
+        # about 30h after the last sample, and the alert cleared itself with
+        # nothing recovered: a host down for a long weekend came back to no
+        # record that it had gone quiet. Found in review of the lab's
+        # ApplianceStateStopped (#1580), which had copied this form. Fourteen
+        # days sits inside both Prometheuses' retention (30d here, 15d in the
+        # lab), so the alert holds for two weeks or until the host reports
+        # again. A host retired on purpose fires for those two weeks; silence
+        # it when it goes. The cost is a 14d range per host each evaluation,
+        # one series per host, which this estate's handful of hosts can carry.
+        #
+        # TWO WAYS TO STOP, SO TWO BRANCHES. Everything above is the first:
+        # the series vanished, because Alloy or the textfile directory went.
+        # The second is a timer that stops and leaves its file. The file stays
+        # in the textfile directory and node_exporter re-serves its last
+        # values on every scrape, so the series never goes absent and the
+        # first branch cannot see it; only the file's mtime stops moving. Two
+        # days against the daily 08:00 timer, the window the lab's copy of
+        # this rule settled on (#1544), covers one missed run and its fifteen
+        # minutes of jitter and not two. The mtime series carries `instance`,
+        # which Alloy sets to the same hostname the collector writes into
+        # `host`, so label_replace copies one into the other and both branches
+        # alert under one label set. A host that is down loses its mtime
+        # series with everything else, so this branch stays quiet and
+        # InstanceDown speaks.
         expr: >-
-          count by (host) (present_over_time(homelab_apt_upgrades_pending[1d] offset 6h))
-          unless
-          count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+          (
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
+            unless
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*apt-patch-state\\.prom"} > 2 * 86400,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
         for: 30m
         labels:
           component: host
@@ -312,9 +448,11 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting patch state"
           description: >-
-            It reported within the last day and has not in six hours, so
-            SecurityUpdatesPending and RebootRequired are both blind to this host
-            until it comes back. Check homelab-patch-state.timer on the host —
+            Either its patch state reported within the last two weeks and has
+            not in six hours, or apt-patch-state.prom has not been rewritten in
+            two days, so SecurityUpdatesPending and RebootRequired are reading
+            no data or stale data for this host until the collector runs again.
+            Check homelab-patch-state.timer on the host —
             `systemctl status homelab-patch-state.timer` — and that
             /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
             being written and is world-readable. A 0600 file is invisible to the
@@ -353,6 +491,41 @@ groups:
             maintainer's user, so a missing checkout at
             /home/atropos/code/Gerrrt/Lemmiwinks or an expired gh login is the
             usual cause.
+      - alert: DriftCheckFailing
+        # The wiki's drift check on oracle runs but cannot do its job (#1531).
+        #
+        # DriftCheckStopped above reads only the timestamp, and the collector
+        # writes that whatever the run found, so a check that runs every day and
+        # fails every day stays quiet under it. On 2026-11-15 the wiki fetch
+        # failed with exit 128, the checker never started, and the journal was
+        # the only record.
+        #
+        # TWO AND UP, NOT ONE. Exit 1 is drift or a missing anchor, and the
+        # checker already reports that itself, as an issue on the wiki. Exit 2
+        # is a claim it could not read (#312's shape: two weeks of UNREADABLE
+        # rows after the ingest proxy took a token). Anything above 2 means the
+        # checker did not run: a fetch, a login or the checkout failed under it.
+        # Neither of those files an issue.
+        #
+        # The gauge holds its value until the next daily run, so `for: 30m`
+        # waits out nothing but the scrape. A failure clears on the next run
+        # that exits 0 or 1.
+        expr: homelab_drift_check_last_exit_code >= 2
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}'s wiki drift check ran and could not finish (exit {{ $value }})"
+          description: >-
+            Exit 2 means a claim could not be read, so part of the wiki is
+            unchecked. A higher exit means the checker never started. Its last
+            run is in Loki under unit="homelab-drift-check.service". At 2,
+            the usual cause is a missing or expired ~/.ingest-reader-token for
+            atropos. Above 2, it is the wiki fetch or the gh login in
+            /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+            the next run, at 06:30 UTC.
       # --- SMART, for the disks the iLO cannot see (#351) -------------------
       #
       # #151 already covers Saruman's array: cpqDaPhyDrvSmartStatus arrives over
@@ -964,10 +1137,29 @@ groups:
         #
         # Stopped, not missing: a hypervisor that never had the collector
         # installed must stay quiet, or every host without it alerts forever.
+        # Fourteen days of memory, for PatchStateStopped's reason: with [1d]
+        # the alert cleared itself about 30h after the series went.
+        #
+        # And PatchStateStopped's second branch, for a timer that stops and
+        # leaves guest-state.prom in place to be re-served. An hour, not two
+        # days: this timer runs every ten minutes, so an hour is six missed
+        # runs, which a reboot does not reach — ThinPoolStateStale's and
+        # GuestDiskStateStale's window for their ten-minute timers. It is also
+        # HypervisorGuestStopped's own hour, so a frozen file is caught no
+        # later than the guest it hides would have been.
         expr: >-
-          count by (host) (present_over_time(homelab_guests_total[1d] offset 6h))
-          unless
-          count by (host) (present_over_time(homelab_guests_total[6h]))
+          (
+            count by (host) (present_over_time(homelab_guests_total[14d] offset 6h))
+            unless
+            count by (host) (present_over_time(homelab_guests_total[6h]))
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*guest-state\\.prom"} > 3600,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
         for: 30m
         labels:
           component: host
@@ -976,9 +1168,12 @@ groups:
         annotations:
           summary: "{{ $labels.host }} has stopped reporting its guests"
           description: >-
-            It reported within the last day and has not in six hours, so
-            HypervisorGuestStopped is blind to this hypervisor until it comes
-            back. Check homelab-guest-state.timer on the host and that
+            Either its guests reported within the last two weeks and have not
+            in six hours, or guest-state.prom has not been rewritten in an
+            hour, so HypervisorGuestStopped is reading no data or stale data
+            for this hypervisor until the collector runs again. Check
+            homelab-guest-state.timer on the host, its last run in the journal
+            (`journalctl -u homelab-guest-state`), and that
             /var/lib/node_exporter/textfile_collector/guest-state.prom is being
             written and is world-readable.
 
@@ -1978,6 +2173,46 @@ groups:
             docs/runbooks/replace-the-laptop-cell.md §3 is the only check on a
             hot cell here.
 
+      - alert: HostCpuHot
+        # Nothing watched a CPU's temperature until the prometheus audit of
+        # 2026-11-13 found the laptop peaking at 92 °C (finding 10). A failed
+        # fan or a blocked vent would have shown only as InstanceDown, after
+        # the machine had shut itself off at its critical point.
+        #
+        # THE MARGIN IS MEASURED. coretemp exports its own critical point per
+        # core (105 °C on prometheus, 96 on Saruman, 100 elsewhere), so the
+        # rule reads each host against its own rather than one figure. Over
+        # 29 days of retention, the closest any host's CPU came to critical
+        # and held there for ten minutes was 22 °C, on prometheus during the
+        # audit's own heavy work; its brief peaks came within 13. Ten degrees
+        # for ten minutes is past both, and still before the CPU throttles
+        # hard and shuts down at critical.
+        #
+        # coretemp only. Other chips report a critical point that is not one:
+        # the DIMM sensors on smaug report a critical point of 0 °C, so
+        # every sample of theirs is 28 °C over it. heimdall, a Pi, has no coretemp, and an ARM board throttles
+        # itself well before it is a hazard. One alert per host, the hottest
+        # core, rather than one per core.
+        expr: >-
+          max by (instance, job) (
+            node_hwmon_temp_celsius{chip=~"platform_coretemp_.*"}
+            >= on (instance, job, chip, sensor)
+            node_hwmon_temp_crit_celsius{chip=~"platform_coretemp_.*"} - 10
+          )
+        for: 10m
+        labels:
+          component: host
+          severity: warning
+          category: hardware
+        annotations:
+          summary: "{{ $labels.instance }}: CPU at {{ $value }} °C, within 10 °C of critical"
+          description: >-
+            A CPU core on {{ $labels.instance }} has been within 10 °C of its
+            own critical temperature for ten minutes. Heavy work alone has not
+            done that on any host here. Check the fan and the vents first, then
+            whatever is using the CPU; at the critical point the machine shuts
+            itself down.
+
       - record: homelab_battery_runtime_seconds
         # Seconds the host has left on its cell at the draw it is presenting
         # right now, and only while it is on that cell. charge_ampere is what
@@ -2042,7 +2277,7 @@ groups:
       - alert: ManagementCertificateExpiringSoon
         expr: >-
           min by (endpoint, host)
-            (homelab_cert_expiry_timestamp_seconds - time())
+            (homelab_cert_expiry_timestamp_seconds{endpoint!~"syslog-.*"} - time())
           / 86400 < 30
         for: 1h
         labels:
@@ -2065,7 +2300,7 @@ groups:
       - alert: ManagementCertificateExpiryImminent
         expr: >-
           min by (endpoint, host)
-            (homelab_cert_expiry_timestamp_seconds - time())
+            (homelab_cert_expiry_timestamp_seconds{endpoint!~"syslog-.*"} - time())
           / 86400 < 7
         for: 10m
         labels:
@@ -2082,6 +2317,36 @@ groups:
             console keeps answering, but browsers start refusing it, and this
             is the console someone reaches for when something else is already
             wrong. Reissue it now from the runbook.
+
+      # The two syslog TLS leaves (#1049): the listener's on the monitoring
+      # host, and morpheus's client leaf, which the listener pins exactly. Both
+      # come from scripts/gen-certs.sh, which issues 825 days, so they lapse
+      # together and rarely enough to be forgotten. Not the console rules:
+      # neither is reissued from a UI, and the day either lapses nothing breaks
+      # visibly, morpheus's logs just stop (FirewallLogsStopped). One tier,
+      # because the fix is the same at 30 days as at 7.
+      - alert: SyslogTlsCertificateExpiringSoon
+        expr: >-
+          min by (endpoint, host)
+            (homelab_cert_expiry_timestamp_seconds{endpoint=~"syslog-.*"} - time())
+          / 86400 < 30
+        for: 1h
+        labels:
+          component: logs
+          severity: warning
+          category: availability
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/ship-firewall-logs.md#1-issue-both-certificates-before-the-receiver-is-deployed"
+          summary: >-
+            {{ $labels.endpoint }} ({{ $labels.host }}) has a certificate
+            with {{ $value | printf "%.0f" }} days left
+          description: >-
+            One of the syslog TLS leaves is close to expiry. Reissue both with
+            scripts/gen-certs.sh on the monitoring host
+            (ship-firewall-logs.md §1), copy morpheus's new client leaf and key
+            to pfSense (§3), and restart Alloy, which reads the pinned leaf
+            only at start. Until then the firewall's logs keep arriving; after
+            the date, FirewallLogsStopped.
 
       # The reader could not complete a handshake. Kept apart from the expiry
       # rules on purpose (the homelab_ddns_record_checked pattern): an unread

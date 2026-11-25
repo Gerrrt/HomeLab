@@ -64,7 +64,7 @@ services:
   # layout; that file's comment has why.
   # ---------------------------------------------------------------------------
   app-db:
-    image: postgres:18.6@sha256:e3d24f6906d0760bf4da0dae872415391ededefad23fd471c47dc53b0ddf3c42
+    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
     container_name: bloodhound-app-db
     restart: unless-stopped
     logging: *default-logging
@@ -144,7 +144,7 @@ services:
   # export them if they ever matter.
   # ---------------------------------------------------------------------------
   bloodhound:
-    image: specterops/bloodhound:9.9.2@sha256:47a21323d05185b284fff799c2b96bcc1d110f06f45b190f7ad83e69ef5e0d68
+    image: specterops/bloodhound:9.10.1@sha256:75c3b4c2c9213981d13e36520db4a2d66a9a290abd9ad93db29dd3564a70deac
     container_name: bloodhound-app
     restart: unless-stopped
     logging: *default-logging
@@ -210,7 +210,7 @@ services:
   # the weak domain included, refused.
   # ---------------------------------------------------------------------------
   caddy:
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: bloodhound-ui-proxy
     restart: unless-stopped
     logging: *default-logging
@@ -309,7 +309,7 @@ services:
   # the API paths queried, not the query results.
   # ---------------------------------------------------------------------------
   alloy:
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: bloodhound-alloy
     restart: unless-stopped
     logging: *default-logging
@@ -347,6 +347,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - ./alloy/bloodhound.alloy:/etc/alloy/bloodhound.alloy:ro

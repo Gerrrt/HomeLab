@@ -48,7 +48,18 @@ order in the running set from the firewall's shell:
 pfctl -sr | grep -n -e 'Allow HA API to LAN Switch' -e 'Block access to the untagged LAN'
 ```
 
-The pass's line number is the smaller one. Nothing listens on `8729` yet,
+The pass's line number is the smaller one.
+
+The switch has its own input filter, and it admits only the sources
+[`network.md`](../network.md) lists. Admit `trinity` there too, from a
+terminal on the switch (`ssh -J admin@10.0.99.1 gerrrt@10.7.7.2`, or WinBox's
+terminal):
+
+```text
+/ip/firewall/filter/add chain=input action=accept protocol=tcp dst-port=8729 src-address=10.0.99.40 comment="Home Assistant api-ssl" place-before=[find comment="everything else"]
+```
+
+Nothing listens on `8729` yet,
 so from `trinity` a connection should now be refused by the switch. If it
 times out instead, the switch has an input filter dropping it, or the pass is
 missing. Look at the firewall's log for the block before you assume the
@@ -102,7 +113,7 @@ Turn `api-ssl` on with the leaf `www-ssl` already serves, for `trinity` only.
 Plain `api` stays off:
 
 ```text
-/ip/service/set api-ssl certificate=neo.matrix.elysium available-from=10.0.99.40/32 disabled=no
+/ip/service/set api-ssl certificate=neo.matrix.elysium available-from=10.0.99.40/32 tls-version=only-1.2 disabled=no
 /ip/service/print where name~"api"
 ```
 

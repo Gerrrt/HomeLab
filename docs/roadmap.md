@@ -9,7 +9,7 @@ how a checkbox stops being true, and for a month this file was the second
 place — [#577](https://github.com/Gerrrt/HomeLab/issues/577) moved the history
 out.
 
-The order is the five open
+The order is the four open
 [milestones](https://github.com/Gerrrt/HomeLab/milestones), each of which
 states what closes it. This file adds what a milestone cannot say: the order
 between them, and inside each the order and the gate where an issue cannot
@@ -31,32 +31,15 @@ What an entry here may contain:
 
 1. [**Nothing blocks these**](https://github.com/Gerrrt/HomeLab/milestone/1)
    — first because nothing gates them; most wait on an upstream release.
-2. [**trinity**](https://github.com/Gerrrt/HomeLab/milestone/2) — the host
-   is built and serving; what is left is its gates, and the off-estate copy.
-3. [**Saruman: the domain, then the SOC**](https://github.com/Gerrrt/HomeLab/milestone/3)
-   — one proof left, the lab's second key.
-4. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
+2. [**exercises**](https://github.com/Gerrrt/HomeLab/milestone/5) — the
    pipeline is built; what is left is using it, one exercise per weakness.
-5. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
+3. [**last**](https://github.com/Gerrrt/HomeLab/milestone/6) — gated on the
    domain, on a household observation, or on something to publish.
 
 ## Nothing blocks these
 
 Closes when it is empty.
 
-- **[#574](https://github.com/Gerrrt/HomeLab/issues/574) Shut down on the
-  UPS's signal.** Decided by
-  [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md).
-  Steps 0–4 were built on 2026-09-23: NUT on `morpheus`, its rules, and
-  `Saruman` and `smaug` subscribed. The sequence is armed and not proved.
-  Since the rack move,
-  [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
-  adds `trinity` as a third subscriber and caps `Saruman`'s ordered guests at
-  `down=90`, and neither is applied yet. The gate is a rack visit. It reads
-  the outlet groups, applies step 4b and steps 3.6 to 3.8, proves the order
-  with `upsmon -c fsd`, and pulls the mains once to replace the card's
-  47-minute claim with a number.
-  → [runbook](runbooks/shut-down-on-the-ups.md)
 - **[#1226](https://github.com/Gerrrt/HomeLab/issues/1226) The HomePods in
   Home Assistant, for control.** Decided by
   [ADR-0099](adr/0099-control-the-homepods-from-home-assistant-and-leave-their-audio-out.md).
@@ -89,81 +72,19 @@ Closes when it is empty.
   ([postlund/pyatv#2930](https://github.com/postlund/pyatv/pull/2930) or an
   equivalent). The component and its package go then. The mount stays while
   `ring_push_guard` does.
-- **[#922](https://github.com/Gerrrt/HomeLab/issues/922) Decide: a 2.5 Gbit
-  WAN, or a cheaper plan.** The decision was due around 2026-11-03, on four
-  weeks of `WanLinkSaturated`. If it implies a purchase, the purchase enters
-  through *Everything still to buy* in the same PR that decides it.
-- **[#1439](https://github.com/Gerrrt/HomeLab/issues/1439) Bring the SOC's
-  agents up to its servers.** The Wazuh agent pin in
-  `ansible/roles/soc_agents` trails the manager, and the Velociraptor client
-  trails the server. Bump each with its product code and checksum, then
-  re-run the role.
+- **[#1691](https://github.com/Gerrrt/HomeLab/issues/1691) Move the WAN
+  off `em0`, through `neo`'s SFP+ cages at 2.5G.** Decided by
+  [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md);
+  the procedure is
+  [`move-the-wan-onto-neo.md`](runbooks/move-the-wan-onto-neo.md). Gate: the
+  two S+RJ10s, bought and tracked on the issue until they arrive. Until it is built, the remedy for
+  `WanReceiveErrors` is rebooting `morpheus`.
 - **[#1454](https://github.com/Gerrrt/HomeLab/issues/1454) Deploy MakeMKV on
   `smaug`.** Decided by
   [ADR-0114](adr/0114-rip-discs-on-smaug-with-makemkv-started-only-to-rip.md):
   deploy it, measure what capabilities it needs, and create the `5800` pass.
 
-The rest of the milestone has no order between its issues.
-
-## trinity
-
-Closes when #404 and #132 close, and #455 has its holder.
-
-- **[#404](https://github.com/Gerrrt/HomeLab/issues/404) Build the tier's
-  host.** **Built and deployed 2026-09-28**
-  ([ADR-0034](adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md),
-  → [runbook](runbooks/build-the-sensitive-tier-host.md)). What is left:
-  - the DNS failure test, which proves `AdGuardNotAnswering` pages. #135
-    closed on 2026-09-28 without a record of it, so it is owed here
-    (→ [runbook](runbooks/forward-dns-to-adguard.md#4-stop-adguard-on-purpose-and-time-the-page));
-  - the step 10 gate: the second age recipient, the off-estate copy
-    (#455), ADR-0022's identity-provider record and ADR-0023's
-    *Independent* test. Until #455 exists, the originals' only copy beyond
-    the USB disk is the nightly one to `oracle`, in the same room
-    ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)).
-- **[#132](https://github.com/Gerrrt/HomeLab/issues/132) Immich**, the one of
-  ADR-0008's nine still open; the issue says what is left. Its restore is
-  rehearsed (→ [runbook](runbooks/restore-the-sensitive-tier.md#restore-immich)).
-- **[#455](https://github.com/Gerrrt/HomeLab/issues/455) The off-estate copy.**
-  **The drive is here.** It was bought 2026-09-22 and arrived 2026-09-29
-  ([`hardware.md`](hardware.md)). **The key is decided**: on 2026-10-01
-  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
-  settled the first of
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)'s
-  two conditions. The copy is encrypted to the household holder's key, with
-  [ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)'s
-  second recipient as a fallback. The keys are kept in
-  `stacks/sensitive/household.recipients` and not in a sops rule. The drive
-  holds age archives on exFAT. **The copy is built**: `make household-copy`
-  carries it, `HouseholdCopyStale` watches it, and the holder's page is
-  [`open-the-household-copy.md`](runbooks/open-the-household-copy.md).
-  The drive was formatted and rehearsed on 2026-10-01.
-  **What is left is a person**: choosing the
-  holder, and the holder opening the copy once **from their own device,
-  without the operator present**. Both were meant to come before the tier
-  held real data, and they did not.
-  [ADR-0022](adr/0022-expire-the-sso-deferral-when-the-tier-holds-real-data.md)'s
-  first trigger, the first real photo, fired on 2026-09-28. Until this lands,
-  [ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)'s
-  nightly copy to `oracle` stands in for the library, off-host and not
-  off-estate. When this lands, it supersedes ADR-0064. **It does not carry
-  Memos yet.** `make household-copy` writes Immich's library and a
-  Paperless export; `memos-data`, which holds real notes since 2026-10-22,
-  has only the nightly volume set on `oracle`. Adding it to the copy is
-  part of this, and Memos' *Durable* row is not met before it is.
-
-## Saruman: the domain, then the SOC
-
-Closes when it is empty. Both things its name names are done. The domain was
-built by hand on 2026-09-24 and 25, and
-[#414](https://github.com/Gerrrt/HomeLab/issues/414) closed on 2026-10-02 with
-its authentication generator running and §10 read from Hicks. The SOC followed:
-Wazuh and Velociraptor reported the six agents in on 2026-09-27.
-
-- **[#671](https://github.com/Gerrrt/HomeLab/issues/671) Prove the lab's
-  second key.** `secrets/lab.sops.yaml` is encrypted to the offline technical
-  second as well as `alexander`'s key since 2026-10-07. What remains is
-  `make secrets-verify-backup STACK=lab KEY=…` with the offline copy.
+The milestone has no order between its issues.
 
 ## exercises
 
@@ -185,23 +106,6 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
 
 Gated on the domain, on a household observation, or on something to publish.
 
-- **[#421](https://github.com/Gerrrt/HomeLab/issues/421) Build the range on
-  `gandalf`.** Gated on #414 and the SOC: an attack VM pointed at an
-  uninstrumented estate teaches nothing. Both are met. The runbook's §1–§5
-  are behind it: the host, its bridges, `Saruman` at `.20`, the closed
-  management plane, and the attack VM `ragnarok` on template 902. So are §8
-  and §9, which ran before any target, because the leak proof must run
-  before any vulnerable image is on the machine, and then §6, the targets.
-  Next, Sliver goes on `ragnarok` before the first exercise:
-  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481).
-  The name is
-  [ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)'s.
-  → [runbook](runbooks/build-the-playground.md)
-- **[#1443](https://github.com/Gerrrt/HomeLab/issues/1443) Bring `eden` into
-  `tofu/`.** `ragnarok` is in, and `eden` is declared but still the hand-built
-  guest: importing it plans a replace, which rebuilds it and its key
-  ([`build-the-bloodhound-guest.md`](runbooks/build-the-bloodhound-guest.md)).
-  Until then every plan and apply keeps `-target`.
 - **[#1176](https://github.com/Gerrrt/HomeLab/issues/1176) Move the SOC to
   Wazuh 5.0.** Gated on a stable 5.0 release. It retires filebeat and the
   certificate generator, and it is the only path that closes the CVE issues
@@ -250,8 +154,9 @@ fitted and read back from the installed host
 ([#421](https://github.com/Gerrrt/HomeLab/issues/421)). So did the factory
 patch cable for the WAN, fitted on 2026-11-01
 ([#923](https://github.com/Gerrrt/HomeLab/issues/923)); it fixed the
-hand-crimped plug, and the rest of that fault was the XB7's 2.5G port,
-recorded in the [changelog](changelog.md). On 2026-10-13 the move
+hand-crimped plug. The rest of that fault was blamed on the XB7's 2.5G port
+and turned out on 2026-11-22 to be `em0` itself, recorded in the
+[changelog](changelog.md). On 2026-10-13 the move
 into the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)) put
 its parts here, which had been listed only in its runbook's §0.1, and
 `Saruman`'s memory joined them. The six rows the move needed (`smaug`'s
@@ -262,9 +167,7 @@ move and stay until they are bought or dropped.
 
 | Item | For | Decided by | When it is needed |
 | --- | --- | --- | --- |
-| APC AP9335T temperature probe, for the UPS's AP9641 card | Rack ambient at U1–U2, where the heavy iron is; the existing SNMP job polls the card, so a generator change follows the purchase | The operator, 2026-10-16 | Any time |
 | Switched, SNMP-managed 1U PDU, eight outlets or more: APC AP7900B class | Remote power-cycling for the four hosts without a BMC: `morpheus`, `trinity`, `gandalf`, `smaug`. It replaces the strip at U4; the screen's brick and the KVM move to the UPS's own outlets, so eight outlets suffice | The operator, 2026-10-16. **Its segment and hardening are an ADR before it is cabled**, as [ADR-0036](adr/0036-poll-the-ilo-and-the-ups-card-over-snmpv3-and-keep-the-firewall-on-bsnmpd.md) was for the iLO and the UPS card | Now that the #919 move is done: a management-plane device, not a move part |
-| USB-to-RJ45 serial console cable | The CRS326's console port: the way back in when its UI is unreachable, which is the swap runbook's rollback case | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Label maker with flag tape, or self-laminating wrap labels | Both ends of every lead, and the panel and switch ports: the physical half of the port map the swap runbook captures | The operator, 2026-10-16 | Any time; the #919 move is done |
 | Stick-on LED rack light, USB or battery | The top of the frame, lighting the bottom where the UPS, the DL360 and `smaug` sit | The operator, 2026-10-16 | Any time |
 | Bonding strap, frame to the UPS's ground | The frame's grounding screw; it shipped without a strap | The operator, 2026-10-16 | Any time; the #919 move is done |

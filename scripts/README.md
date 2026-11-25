@@ -35,7 +35,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt` — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt`, and a check for merge-conflict markers in tracked files — the one list all three callers share |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
@@ -49,6 +49,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_detection_config.sh` | — | Wazuh's rules, `ossec.conf` and `agent.conf` parse, and the rule ids are unique and in range; the indexer JSON parses; and in their pinned images, `wazuh-analysisd -t` and `zeek --parse-only` accept the configs odin and fenrir run |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_shared_blocks.py` | — | Every copy of a `# shared-block:` (code copied because a collector installs as one file) matches the others, so a fix cannot land in one copy only |
+| `check_compose_vars.py` | `check-compose-vars` | Every SOPS value a `compose.yaml` guards with `${VAR:?}` is in `render-config.sh`'s `COMPOSE_VARS` and has a stand-in in `seed-validation-env.sh`, and every `COMPOSE_VARS` entry is a SOPS key (#1570) |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext, now and (`--history`) in every past revision |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
 | `gitleaks-history.sh` | — | The full-history secret scan CI and `validate.sh` both run, which fails a scan of zero commits because gitleaks exits 0 when git cannot read the repository; its fixtures run in `self-tests.sh` |
@@ -104,13 +105,12 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | --- | --- | --- |
 | `backup-volumes.sh` | `backup` | Quiesces the observability stack, archives, encrypts and verifies its volumes, and copies them to `oracle` |
 | `restore-volumes.sh` | `restore` | Puts a backup set back |
-| `backup-firewall.sh` | `backup-firewall` | `morpheus`'s pfSense config, encrypted at rest and copied off-host |
+| `backup-firewall.sh` | `backup-firewall`, `backup-switch` | `morpheus`'s pfSense config, and `neo`'s RouterOS export with `BACKUP_DEVICE=switch`, each encrypted at rest and copied off-host |
 | `backup-nas.sh` | `backup-nas` | The media tier's state, pulled from `smaug`'s newest snapshot ([ADR-0045](../docs/adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)) |
 | `backup-wiki.sh` | `backup-wiki` | A dump of the wiki's database, pulled off `oracle` ([ADR-0065](../docs/adr/0065-pull-the-wikis-database-to-prometheus-as-a-dump.md)) |
 | `backup-library.sh` | `backup-library` | Immich's library, archived on `trinity` and copied to `oracle` ([ADR-0064](../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)) |
 | `backup-offsite.sh` | `backup-offsite` | The newest set of each kind onto the medium that leaves the estate ([ADR-0048](../docs/adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)) |
-| `carry-household-copy.sh`, `household-recipients.sh` | `household-copy`, `household-proof` | The household's photos and documents onto the holder's drive, and who can open it ([ADR-0073](../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
-| `medium.sh` | — | Sourced by both of the above: the refusals that stop a "medium" being this host in disguise |
+| `medium.sh` | — | Sourced by `backup-offsite.sh`: the refusals that stop a "medium" being this host in disguise |
 
 ## Collectors: state as metrics
 
@@ -126,17 +126,20 @@ they describe. The rest are installed on the host they describe by
 | `collect-smart-state.sh`, `render-smart-baselines.sh` | SMART health for disks the iLO cannot see, and the known reallocated-sector baselines ([ADR-0046](../docs/adr/0046-record-a-known-static-smart-count-as-a-baseline-not-a-silence.md)) |
 | `collect-zpool-state.sh`, `collect-truenas-version.sh` | `smaug`'s pool leaves and TrueNAS version |
 | `collect-gateway-state.sh` | The firewall's view of its uplinks and its DDNS record |
-| `collect-cert-expiry.sh` | When the management consoles' certificates expire, read off a handshake inside each console's segment ([ADR-0084](../docs/adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)) |
+| `collect-nut-state.sh` | Whether NUT on the firewall can read the UPS, asked with `upsc` the way a secondary does |
+| `collect-cert-expiry.sh` | When the management consoles' certificates expire, read off a handshake inside each console's segment ([ADR-0084](../docs/adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)); and the syslog TLS leaves, the client one from its pinned file with `--file` |
 | `collect_silences.py` | Alertmanager's silences, one series each, so a silence is watched rather than remembered |
 | `collect-container-state.sh` | Whether each container of a compose project is running |
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
 | `collect-wazuh-manager-state.sh` | The Wazuh manager's agent counts, analysisd queues and dropped events, for the lab's Prometheus ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
 | `collect-guest-service-state.sh` | Whether the lab Prometheus, Zeek, the Wazuh manager and Velociraptor are healthy, read through the guest agent ([ADR-0088](../docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)) |
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
+| `collect-range-state.sh` | `gandalf`'s own range controls: the `vmbr1_host_in` ingress barrier, `vmbr0` and `sshd` forwarding, and the `ragnarok` stop timer and its deadline ([ADR-0126](../docs/adr/0126-monitor-gandalf-now-that-it-stays-on.md)) |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |
 | `collect-zeek-mirror-state.sh`, `zeek-mirror.sh` | The `tc` mirror to the Zeek sensor: build it, and whether it carries packets ([ADR-0068](../docs/adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)) |
 | `collect-pbs-task-state.py` | What `golem`'s Proxmox Backup Server last did: verify, prune and garbage-collection outcomes, and its snapshots by verify state and encryption ([ADR-0053](../docs/adr/0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)) |
 | `collect-drift-check.sh` | The wiki's drift check and what it found |
+| `collect-appliance-state.sh` | Whether `fenrir` is still the appliance its runbook leaves, one pass-or-fail per check ([#1577](https://github.com/Gerrrt/HomeLab/issues/1577)) |
 | `mark-clean-shutdown.sh` | Clean stops by kind, so a disk-fault page can tell a power cut from a shutdown |
 
 ## Live-host checks
@@ -145,7 +148,7 @@ They need the running estate, so CI cannot run them. Timers do.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
-| `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset |
+| `check_firewall_claims.py` | `check-firewall` | [`docs/firewall-claims.yaml`](../docs/firewall-claims.yaml) against the live pfSense ruleset: what each segment's catch-all reaches, and which of the firewall's own addresses it reaches on ssh, http and https |
 | `check_loki_coverage.py` | `check-loki-coverage` | No Loki rule is blind to a host whose logs it would match |
 | `check_versions.py` | `check-versions` | The OS versions the documents claim against what the hosts report |
 | `qga-resync.py` | `qga-resync` | Resets a guest agent's parser and proves it with a ping, when `qm agent` says it is not running but the guest is fine — on `Saruman`, as root |
@@ -161,6 +164,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `capture-screenshots.sh` | `screenshots` | Renders the dashboards into [`docs/images/`](../docs/images/README.md) |
 | `packer-smoke.sh` | — | Clones a Packer template, boots it, checks it and destroys it ([`packer/`](../packer/README.md)) |
 | `finish-attack-vm.sh` | — | Finishes the range's attack VM, `ragnarok`, after `tofu/` makes it on `gandalf` from 902 ([ADR-0116](../docs/adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md)): writes `99-no-forward.conf` and ADR-0014's outbound scope as an nftables policy, at the IP stack and at `eth0`'s egress for raw Ethernet, and proves it neither forwards, NATs nor reaches past `10.0.30.0/24` and the range, over SSH checked against a host key read through the guest agent ([`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §5) |
+| `ragnarok-stop.sh` | — | Stops the attack VM `ragnarok` on `gandalf` at a deadline, six hours after it started or what the last `range-extend` set for that run (1 to 12 hours ahead), checked every minute under one lock, warning every shell on the host and in the VM at 30 and 5 minutes, and never while `dpkg` holds its lock inside the VM ([ADR-0125](../docs/adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)). Installed with [`systemd/range/`](../systemd/range) by [`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §7. Its `--self-test` is the only test of the deadline logic: a real run stops the attack VM |
 | `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs, and the two Debian packages `garuda` installs, into `${SOC_DATA_DIR}/agent-msi` on `odin`, which the SOC stack's Caddy serves. The vendor packages are checked against their pins; the Velociraptor `.deb` is built by the server and its hash printed ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)) |
 | `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |

@@ -82,18 +82,19 @@ modules:
       tls_config:
         ca_file: /etc/blackbox_exporter/tls/tier-ca.pem
 
-  # An HTTPS endpoint whose certificate nothing issued — the management
-  # interfaces on the APC card, the iLO and pfSense each present a certificate
-  # they generated for themselves. insecure_skip_verify is not a shortcut
+  # An HTTPS endpoint whose certificate nothing issued: the iLO's management
+  # interface presents one it generated for itself. The disabled pfSense
+  # target is written against this module too, though the GUI has served a
+  # leaf from the estate CA since 2026-11-23. The APC card did until
+  # 2026-11-24, when its probe moved to http_2xx_lab_ca. insecure_skip_verify is not a shortcut
   # here: there is no chain to verify, and a module that demanded one would be
   # permanently red for a reason unrelated to whether the device answers. This
   # repository has already learned what a permanently-red check becomes —
   # something the operator scrolls past.
   #
-  # Expiry is still measured. Self-signed does not mean immortal: the APC card
-  # expires in 2035, and pfSense's default GUI certificate is issued for 398
-  # days, which is exactly the kind of date a browser warning used to be the
-  # first notice of.
+  # Expiry is still measured. Self-signed does not mean immortal: pfSense's
+  # default GUI certificate is issued for 398 days, which is exactly the kind
+  # of date a browser warning used to be the first notice of.
   http_2xx_self_signed:
     prober: http
     timeout: 10s

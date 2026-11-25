@@ -19,21 +19,14 @@ that is on that machine, against the disk that is in it.
 spin up next month, and it cannot prove anything at all about a fire or a
 theft. A green dashboard here is a narrower claim than it looks.
 
-The one job that genuinely proves off-host recoverability is
-`make secrets-verify-backup`, and it is exactly the job that **cannot** be put on
-a timer: [`verify-key-backup.sh`](../../scripts/verify-key-backup.sh) refuses the
-live key by device and inode, precisely so that what gets tested is a copy on
-removable media. No timer can mount that. So it is enforced from the other end —
-a successful run records its timestamp against the recipient it proved, and
-`SecretsKeyBackupUnproven` fires when that proof passes ninety days old. The
-`recipient-state` timer is what makes that series exist at all: it writes one
-row per recipient every day, carrying proofs forward and setting none, because
-a host that had proved its key before the per-recipient series existed had
-nothing else that would ever write it, and the nag was silent for as long as
-that lasted ([#400](https://github.com/Gerrrt/HomeLab/issues/400)).
-`SecretsKeyRecipientsUnrecorded` fires if the file is missing anyway.
+`make secrets-verify-backup` checks that an offline copy of an age key still
+opens the secrets. It is optional and has no deadline
+([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md)): run it when you
+want to know, and nothing alerts if you never do. A run records its timestamp
+against the recipient it checked, and the `recipient-state` timer keeps that
+per-recipient list (`key-recipients.prom`) current every day.
 
-The estate CA's private key has the same arrangement since
+The estate CA's private key does have a deadline, since
 [#496](https://github.com/Gerrrt/HomeLab/issues/496): `make certs-verify-backup`
 is the human proof — a comparison of public keys against a copy on the same
 offline medium, no timer, ninety days — `CaKeyBackupUnproven` is the nag, and
@@ -42,27 +35,29 @@ key's fingerprint so a re-minted CA starts at never rather than inheriting the
 old key's proof ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)).
 
 The third of that shape is not a key. `make backup-offsite DEST=…` carries
-the newest firewall export, volume set and NAS set onto the same medium that
-holds the second age recipient, on the same visit — it refuses a destination
+the newest firewall export, volume set and NAS set onto the offsite drive,
+which holds no key ([ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)) — it refuses a destination
 on this host's own filesystem, on RAM, or under the trees this host clears on
 boot, then re-verifies what the medium already holds,
 copies, and hashes the copy — and records `offsite-copy`; `OffsiteCopyStale`
 is the nag, the same ninety days, read straight off the job series because
 there is one copy of record
-([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
+([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md),
 [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)).
 
-Two jobs' output leaves this host. `backup-firewall` copies every export to
+Three jobs' output leaves this host. `backup-firewall` copies every export to
 `oracle` and **fails if it cannot**, so its `ScheduledJobFailed` also means "the
 config has stopped leaving `prometheus`" — a file that never left is a failed
 run, not a partial success. `backup-volumes` does the same with every complete
 set, weekly, after the stack is back up
-([#535](https://github.com/Gerrrt/HomeLab/issues/535)), and `verify-backups`
+([#535](https://github.com/Gerrrt/HomeLab/issues/535)). `backup-switch` is
+`backup-firewall` for `neo`, the same script with `BACKUP_DEVICE=switch`, and
+keeps `SW_KEEP` exports, default thirty. And `verify-backups`
 asks `oracle` to hash what it holds every morning, so a copy that has stopped
-existing is that job's failure within a day. No rule names either job; the
-generic pair above carries both. The same runs bound what accumulates on each
+existing is that job's failure within a day. No rule names any of the three;
+the generic pair above carries them all. The same runs bound what accumulates on each
 side — `FW_KEEP`, default thirty, for the exports; `KEEP`, default seven, for
-the sets, on both sides — so neither job can fill either disk;
+the sets, on both sides — so none of them can fill either disk;
 [`restore-the-firewall.md`](restore-the-firewall.md) §0 and
 [`restore-the-stack.md`](restore-the-stack.md) §0 have the windows and how to
 change them. Both copies ride on one key exchange between the two laptops, in
@@ -109,6 +104,7 @@ the host.
 | `backup-wiki` | `make backup-wiki` | daily 04:45 | 2 days |
 | `verify-backups` | `make verify-backups` | daily 05:30 | 3 days |
 | `backup-firewall` | `make backup-firewall` | daily 04:30 | 3 days |
+| `backup-switch` | `make backup-switch` | daily 09:45 | 3 days |
 | `snmp-verify` | `make snmp-verify` | Wednesdays 06:30 | 14 days |
 | `check-versions` | `make check-versions` | Wednesdays 06:45 | 14 days |
 | `dashboards-drift` | `make dashboards-export ARGS=--check` | daily 07:30 | 2 days |
@@ -123,10 +119,10 @@ the host.
 | `gateway-state` | `make gateway-state` | every 15 minutes | 90 minutes |
 | `silence-state` | `make silence-state` | every 15 minutes | 90 minutes |
 | `prune-images` | `make prune-images` | Mondays 04:00 | 14 days |
-| `verify-key-backup` | **you**, `make secrets-verify-backup KEY=…` | no timer | 90 days |
 | `verify-ca-key-backup` | **you**, `make certs-verify-backup KEY=…` | no timer | 90 days |
 | `offsite-copy` | **you**, `make backup-offsite DEST=…` | no timer | 90 days |
 | `neo`'s HTTPS leaf | **you**, `make certs ARGS="--host neo.matrix.elysium --ip 10.7.7.2 --force"`, then import it on the switch | no timer; once, before **2029-01-06** | **nothing alerts** |
+| `mjolnir`'s card HTTPS leaf | **you**, [`generate-certificates.md`](generate-certificates.md) *The APC card's leaf*, steps 1 to 5 | no timer; once, before **2029-02-26** | `TlsCertificateExpiringSoon` at 30 days, `TlsCertificateExpiryImminent` at 7 |
 
 Thresholds are roughly twice the period, never once: a threshold equal to the
 period fires on every run that slips past its jitter window, whereas twice
@@ -135,8 +131,9 @@ times, because it shares the `backups` lock and a run that queues behind the
 weekly archive can legitimately spend its full 900-second wait and then be an
 hour late. Being late for a reason is not the finding.
 
-**The last row is a date, not a job.** The switch's `www-ssl` leaf was issued
-from the estate CA on 2026-10-05 and expires at 2029-01-06 23:51 UTC (read off the switch on 2026-11-06), and
+**The last two rows are dates, not jobs.** The first is the switch's
+`www-ssl` leaf, issued
+from the estate CA on 2026-10-05 and expiring at 2029-01-06 23:51 UTC (read off the switch on 2026-11-06), and
 the switch cannot renew it
 ([ADR-0041](../adr/0041-run-the-crs326-on-routeros-and-keep-neo-and-its-switch-lan.md)).
 Nothing here watches it: there is no probe of the switch UI, by decision — the
@@ -156,6 +153,10 @@ lapsed leaf and nothing would say so. Then rerun
 §5, which does verify it. The CA does not change, so nothing needs
 re-trusting. The same date is in
 [`successor-handover.md`](successor-handover.md#what-fails-soonest-if-nobody-touches-anything).
+
+The second, `mjolnir`'s card leaf, is watched: the `ups-ui` probe verifies it
+against the CA, and the TLS expiry rules warn at 30 days and page at 7.
+Renewing it reuses the card's RSA key, so skip step 1's key commands.
 
 **`neo`'s next RouterOS upgrade needs a space check first.** The switch has
 16 MiB of flash, and on 2026-11-13 it had about 3 MiB free with a RouterOS
@@ -185,15 +186,16 @@ it has no log store ([#327](https://github.com/Gerrrt/HomeLab/issues/327)).
 happened OR that nothing diverged — it collects a fact the estate did not
 previously have, which is how far behind this host's packages are
 ([#152](https://github.com/Gerrrt/HomeLab/issues/152)). It needs no root, and it
-covers **this host only**: `oracle` and `Saruman` would need it shipped to them
-and `morpheus` is FreeBSD with no apt at all.
+covers **this host** from this table. An agent host with apt, `oracle` among
+them, gets it from the installer below, and `morpheus` is FreeBSD with no apt
+at all.
 
 **Agent hosts run these collectors too, and not through this table.** A host that
 runs Alloy but has no checkout of this repository — `oracle` — gets the
 collectors and their own timers installed directly, by `make
 install-agent-collectors AGENT=user@host`. It ships every collector the script's
 `COLLECTORS` table names — `patch-state`, `smart-state`, `pve-version`, `cert-expiry`,
-`guest-state`, `thin-pool-state`, `guest-disk-state`, `guest-service-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state` and `drift-check`, plus the two
+`guest-state`, `thin-pool-state`, `guest-disk-state`, `guest-service-state`, `pve-firewall-state`, `iso-store-state`, `zeek-mirror-state`, `pbs-task-state`, `drift-check` and `appliance-state`, plus the two
 rows that collect nothing, `zeek-mirror` and `prune-images`, and one scheduled job, `zeek-archive-prune` — and checks each host's requirements **per
 collector**, so a host without apt still gets SMART and the one it cannot have
 is reported rather than skipped silently. `ARGS='--only smart-state'` narrows
@@ -213,15 +215,17 @@ disabling the first proves the second, which is
 so they install on the hypervisor and nowhere else.
 
 **`prune-images` is the agent hosts' copy of the `prune-images` row above.** It
-runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does,
+runs `docker image prune -a` on Mondays at 04:00, as the monitoring host's does.
+Unlike the monitoring host's, it leaves anonymous volumes alone. Those come from
+`make validate` and scratch runs, which happen on the monitoring host. It runs
 from `systemd/agent/homelab-prune-images.timer`. Nothing removed superseded
 images on an agent host before it, and on 2026-10-01 `odin`'s 30 GB root was at
 98%, 7.8 GB of it images no container used. It requires `/usr/bin/docker`, so
-it installs on `oracle`, `trinity`, `alexander` and `odin`, and `Saruman`
-reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
+it installs on `oracle`, `trinity`, `alexander`, `odin` and `fenrir`, and
+`Saruman` reports it as one it cannot run. Like `zeek-mirror` it writes no `.prom`. An
 agent host has no `homelab_job_*` metrics, so a failed run shows only in
 `journalctl -u homelab-prune-images`. What would show it is the disk: on the
-two lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
+lab guests, the estate's `GuestDiskWillFillIn24h` and `GuestDiskCritical`,
 which page (below).
 
 **`zeek-archive-prune` is the one agent row with `homelab_job_*` metrics.** It
@@ -274,7 +278,10 @@ login, via `runuser -l` from a root unit that exists only to write the textfile
 directory — reads the checker off the wiki's `origin/main`, and records
 `homelab_drift_check_last_run_timestamp_seconds`, the exit code and the four
 claim counts. `DriftCheckStopped` fires when the timestamp is more than a day
-old ([#470](https://github.com/Gerrrt/HomeLab/issues/470)). Its requirement is
+old ([#470](https://github.com/Gerrrt/HomeLab/issues/470)), and `DriftCheckFailing`
+when the last run exited 2 or higher: a claim it could not read, or a checker
+that never started. Exit 1, drift, files its own wiki issue
+([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). Its requirement is
 the wiki checkout's guard script, so every other host correctly reports that it
 cannot run this one. It replaced a crontab entry that nothing watched.
 
@@ -385,6 +392,15 @@ entirely and `apt-config-auto-update` replaces it with an apt.conf snippet
 rather than the tool. So the collector falls back to counting the `Inst` lines
 of `apt-get -s upgrade`, matching the security pocket **inside the parenthesised
 origin only** — a package named `security-misc` would otherwise count itself.
+
+**On Kali the security count is always 0, and that means "cannot tell".**
+Kali Rolling has no security pocket, so the fallback finds none. `garuda` is
+outside these rules in any case: it reports only to the lab's Prometheus on
+`alexander`, which has no apt or reboot rules and no Alertmanager (ADR-0020),
+so neither `SecurityUpdatesPending` nor `RebootRequired` sees it. Kali's packages also do not
+match the Debian origins `unattended-upgrades` allows, so nothing applies them
+on their own. [`build-the-analyst-workstation.md`](build-the-analyst-workstation.md)
+§15 makes the upgrade a monthly manual step.
 
 `homelab_apt_check_method{host,method}` publishes which path produced the
 numbers, because the fallback is the weaker one: `apt-check` knows about phased
@@ -737,9 +753,7 @@ checkout ([#404](https://github.com/Gerrrt/HomeLab/issues/404) step 9):
 | `backup-library` | `make backup-library` | daily 05:15 | 2 days |
 | `converge-sensitive` | `make converge` with `STACK=sensitive` | hourly at :25 | 3 hours |
 | `verify-backups-sensitive` | `make verify-backups` with `STACK=sensitive` | daily 06:30 | 2 days |
-| `household-copy` | **you**, `make household-copy DEST=…` | no timer | 90 days |
-| `household-proof` | **you** and the holder, `make household-proof CODE=…` | no timer | 1 year |
-| `verify-key-backup-sensitive` | **you**, `make secrets-verify-backup KEY=… STACK=sensitive` | no timer | 90 days |
+| `smart-state-sensitive` | `make smart-state-sensitive`, as **root** | daily 08:30 | 2 days |
 
 It runs daily, not weekly like the estate's backup, because it holds the
 password vault. Each run also copies the set to `oracle`, the same way the
@@ -762,6 +776,18 @@ MANIFEST. That is where `oracle`'s copies are verified, without a key on
 `oracle`. It stops nothing, and it shares the `backups` lock so a prune never
 deletes a set it is reading.
 
+`smart-state-sensitive` is the monitoring host's local `smart-state` for
+`trinity`'s own disks. In practice that is the boot NVMe: the USB photo disk
+at `/srv/immich` sits in an enclosure that passes no SMART through
+([`hardware.md`](../hardware.md)).
+It runs as root for the same reason, and writes `smart-state-trinity.prom`,
+which `SmartStateStale` and the drive rules read like any other host's. It is
+not `make smart-state`, because that target also renders the baseline table
+that `SmartDriveBadSectors` joins `on(host, slot)`, and a second copy from
+`trinity` would put two series on every key. `make smart-state-sensitive` runs
+the collector alone, and has no `SKIP`: a `trinity` without `smartmontools`
+fails the job and pages `ScheduledJobFailed`.
+
 `converge-sensitive` is the monitoring host's `converge` for the tier
 ([#533](https://github.com/Gerrrt/HomeLab/issues/533)). It shares the
 `backups` lock too, so it never runs `make up` under a quiesced tier. **Before
@@ -776,16 +802,14 @@ make install-timers PROFILE=sensitive
 ```
 
 That writes a `homelab-jobs.prom` on `trinity` that declares only these
-seven. `household-copy` and `household-proof` are the household's copy
-([ADR-0073](../adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md),
-[`carry-the-household-copy.md`](carry-the-household-copy.md)). They have no
-timer, and `HouseholdCopyStale` reads them. `verify-key-backup-sensitive` is
-the estate's `verify-key-backup` for the tier's own age recipients: no timer,
-the same ninety days, and `SecretsKeyBackupUnproven` holds every recipient in
-`trinity`'s `key-recipients.prom` to it
-([`back-up-the-age-key.md`](back-up-the-age-key.md#on-trinity)). The alert rules join on the job name alone, so a name may appear in only
-one table, and `--check` enforces that. The installer primes `backup-library`,
-`converge-sensitive` and `verify-backups-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
+five. Every one has a timer: `household-copy` and `household-proof` were
+the two human rows until
+[ADR-0122](../adr/0122-drop-the-household-copy.md) dropped the household
+copy, and the stale-job rules skip both names so a `homelab-jobs.prom`
+written before that stays quiet until this rewrites it. The alert rules join
+on the job name alone, so a name may appear in only one table, and `--check`
+enforces that. The installer primes `backup-library`,
+`converge-sensitive`, `verify-backups-sensitive` and `smart-state-sensitive`, which stop nothing, and not `backup-sensitive`, which stops the tier. `make check-timers` checks both
 profiles, and `make validate` on `trinity` fails until the backup and converge timers are
 installed.
 
@@ -909,11 +933,10 @@ expected rather than a second fault.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
-| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-key-backup` and `verify-ca-key-backup` until you first verify each key (on `trinity`, `verify-key-backup-sensitive`), for `offsite-copy` until the first visit makes the copy, and on `trinity` for `household-copy` and `household-proof` until there is a household holder and the holder has opened it. For anything else, `systemctl start homelab-<job>.service` and read the journal |
+| `ScheduledJobNeverRan` right after install | The job has a threshold declared and has never reported a result | Expected for `verify-ca-key-backup` until you first verify the CA key, and for `offsite-copy` until the first visit makes the copy. For anything else, `systemctl start homelab-<job>.service` and read the journal |
 | `ScheduledJobStaleCritical` | A job has gone three of its own periods without a success — one and a half of the allowance in the `JOBS` table, which is twice the period; a weekly backup three weeks stale, a nightly one three nights, and never under a day for the hourly collectors — and the `ScheduledJobStale` warning for it has been repeating on the in-house channel unanswered | The same first look as the warning: `systemctl list-timers 'homelab-*'`, then `journalctl -u homelab-<job>.service`. The rows below name the usual cause per job. The page holds the warning back while it is up, so a job that recovers clears both at once |
-| `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the second recipient's medium and proved there | Mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
+| `OffsiteCopyStale` | Ninety days since the newest sets were last copied to the offsite drive, the spare `HOUSEHOLD` drive ([ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)), and proved there | Bring it back, mount it and run `make backup-offsite DEST=…` — [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md). `--list`, `--verify-only` and `--prune` do not clear it, on purpose |
 | `CaKeyBackupUnproven` | No offline copy of `certificates/ca-key.pem` has been proved in ninety days — or ever, or not since the CA was re-minted, which the fingerprint label tells apart | Mount the medium and `make certs-verify-backup KEY=…` ([`back-up-the-ca-key.md`](back-up-the-ca-key.md)). After a re-mint, copy the new key there first; the old copy is refused |
-| `SecretsKeyRecipientsUnrecorded` | The ninety-day deadline is declared and no recipient has a proof series, so `SecretsKeyBackupUnproven` cannot fire however stale the proof is | `systemctl start homelab-recipient-state.service`. If that unit does not exist the timers predate [#400](https://github.com/Gerrrt/HomeLab/issues/400): `make install-timers` adds it and primes it. On a host with one recipient the first write inherits the old `verify-key-backup` proof rather than starting from never |
 | `ScheduledJobMetricsAbsent` | Nothing from the textfile directory has reached Prometheus in six hours | This is the whole directory, not one file — check Alloy is up and the directory still exists. A single malformed file shows as `node_textfile_scrape_error 1` and costs only that file |
 | One job's series missing, `node_textfile_scrape_error` is 1 | That job's `.prom` failed to parse — a truncated write, or something wrote it without the temp-then-rename | The other files are unaffected. Re-run the job; if it recurs, something is writing the file directly instead of through `run-scheduled.sh` |
 | Every `homelab_job_*` series missing, no scrape error | The `textfile` block in `config.alloy` is not reading the right path | It must carry the `ALLOY_ROOTFS` prefix (`/rootfs` in the container). `rootfs_path` does **not** apply to that argument, and a wrong path reports an empty directory rather than an error |
@@ -931,7 +954,7 @@ expected rather than a second fault.
 | `smart-state-remote` exits 1 | `morpheus` could not be read over SSH | The warning line carries ssh's own message — `Permission denied (publickey)` means the key or the user is wrong, `No route to host` means the firewall is unreachable. This job runs as `robo` and uses the same key as `backup-firewall`, so if that job is also failing the cause is shared |
 | `pkg-state` exits 1 | `morpheus` could not be read, or its catalogue fetch failed | The message carries ssh's or pkg's own words. A catalogue fetch needs the firewall to reach its update servers, so a WAN outage looks exactly like this and is not a fault in the collector — check `BlackboxProbeFailed` for the gateway before investigating. It runs as `robo` with the same key as `backup-firewall`, so if that is failing too the cause is shared |
 | `silence-state` exits 1 | Alertmanager could not be read on loopback, or answered something that is not a silence list | The previous `alertmanager-silences.prom` is left in place, so the last known silences stay served and a silence deleted during the outage looks alive until the next successful run — by design, because an empty file would read as "no silences". `docker ps` for the container, then `make silence-state` by hand |
-| `prune-images` exits non-zero | `docker image prune` failed, or the `backups` lock was held for the whole 900s wait | The journal line says which. A lock timeout means a backup or converge ran long, and the next week's run catches up. Anything else, run `make prune-images` by hand and read Docker's error. Until it runs, unused images accumulate at a few gigabytes a week, and `HostDiskWillFillIn24h` and `HostDiskCritical` are the backstop |
+| `prune-images` exits non-zero | `docker image prune` or `docker volume prune` failed, or the `backups` lock was held for the whole 900s wait | The journal line says which. A lock timeout means a backup or converge ran long, and the next week's run catches up. Anything else, run `make prune-images` by hand and read Docker's error. Until it runs, unused images accumulate at a few gigabytes a week, and `HostDiskWillFillIn24h` and `HostDiskCritical` are the backstop |
 | `check-versions` exits 1 | A document names an OS version the host is not running | Not an outage — nothing is broken. Read the FAIL lines: each names the document, the cell and what the host reports. Correct the document; the box is the source of truth. A `SKIP` for `morpheus` instead means `sysDescr` is not reaching Prometheus, which is a collection fault rather than a clean bill of health |
 | `docker info` fails only under systemd | The unit is missing `SupplementaryGroups=docker` | A login shell picks the group up from `/etc/group` and a unit does not, which is why this never reproduces by hand |
 | Timers exist but never fire | `WantedBy=timers.target` missing, or the timers were never enabled | `systemctl list-timers 'homelab-*'` shows nothing; re-run `make install-timers` |

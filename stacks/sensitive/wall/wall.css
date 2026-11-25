@@ -1,0 +1,305 @@
+/*
+ * The Elysian Wall (ADR-0119). Tokyo Night colours, sized for a 40" 1080p
+ * screen read from about seven feet: body text at least 28px, labels at
+ * least 20px, hero numbers at least 64px. One pixel on that panel is about
+ * 0.46mm, so 28px is a 13mm line, about 21 arcmin from the desk.
+ *
+ * Quiet when healthy: neutral colours, no motion. Colour and the pulse are
+ * kept for a warning or worse, so a change is what catches the eye.
+ *
+ * No web fonts. The CSP allows nothing but this site, and the Pi has DejaVu,
+ * so the stacks below fall back to it.
+ */
+:root {
+  --bg: #1a1b26;
+  --bg-deep: #16161e;
+  --panel: #1f2335;
+  --panel-2: #24283b;
+  --line: #2b3049;
+  --fg: #c0caf5;
+  --fg-dim: #a9b1d6;
+  --mute: #737aa2;
+  --blue: #7aa2f7;
+  --cyan: #7dcfff;
+  --purple: #bb9af7;
+  --green: #9ece6a;
+  --yellow: #e0af68;
+  --red: #f7768e;
+  --mono: "JetBrains Mono", "DejaVu Sans Mono", ui-monospace, monospace;
+  --sans: "Sora", "Inter", "DejaVu Sans", system-ui, sans-serif;
+  color-scheme: dark;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg-deep);
+  color: var(--fg);
+  font-family: var(--sans);
+  overflow: hidden;
+  cursor: none;
+}
+
+#viewport { position: relative; width: 100%; height: 100%; overflow: hidden; }
+
+#stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1920px;
+  height: 1080px;
+  box-sizing: border-box;
+  padding: 36px 44px 24px;
+  transform-origin: 0 0;
+  background: var(--bg);
+  display: grid;
+  grid-template-columns: 620px 1fr 1fr;
+  grid-template-rows: 112px 1fr 300px 64px 40px;
+  grid-template-areas:
+    "top  top   top"
+    "left nodes nodes"
+    "left wan   context"
+    "house  house house"
+    "status status status";
+  gap: 22px;
+}
+
+/* ---------- header ---------- */
+.top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--line);
+}
+.clock {
+  font: 700 76px/1 var(--mono);
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+.ampm { font: 500 24px/1 var(--mono); color: var(--mute); margin-left: 14px; letter-spacing: 0; }
+.date { font: 300 24px/1.2 var(--sans); color: var(--fg-dim); margin-top: 4px; }
+
+.verdict {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font: 600 26px/1.1 var(--sans);
+  padding: 10px 20px;
+  border-radius: 18px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+}
+.verdict { white-space: nowrap; flex: none; }
+.verdict .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--mute); flex: none; }
+.verdict[data-state="ok"] .dot { background: var(--green); }
+.verdict[data-state="warning"] { color: var(--yellow); }
+.verdict[data-state="warning"] .dot { background: var(--yellow); }
+.verdict[data-state="critical"], .verdict[data-state="broken"] { color: var(--red); }
+.verdict[data-state="critical"] .dot, .verdict[data-state="broken"] .dot { background: var(--red); }
+
+/* ---------- cards ---------- */
+.card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 20px 26px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.card h2 {
+  margin: 0 0 14px;
+  font: 500 22px/1 var(--mono);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--mute);
+}
+/* The left column: alerts on top, sized to what is firing, and the day's
+   events in what is left. Alerts come first, but only up to half the column:
+   at most four rows and a "+N more", so the calendar always keeps room for
+   about four events. */
+.left { grid-area: left; display: flex; flex-direction: column; gap: 22px; min-height: 0; }
+.alerts { flex: 0 0 auto; max-height: 50%; box-sizing: border-box; }
+.today { flex: 1 1 0; min-height: 300px; }
+.nodes { grid-area: nodes; }
+.wan { grid-area: wan; }
+.context { grid-area: context; }
+.household { grid-area: house; flex-direction: row; align-items: center; gap: 30px; }
+.household h2 { margin: 0; }
+
+/* ---------- alerts ---------- */
+.alerts-body { display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden; }
+.quiet { font: 600 38px/1.15 var(--sans); color: var(--fg-dim); margin-top: 20px; }
+.quiet small { display: block; font: 400 28px/1.4 var(--sans); color: var(--mute); margin-top: 12px; }
+.quiet small.lab { font-size: 24px; margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.quiet small.lab:first-of-type { margin-top: 14px; }
+.quiet .lab .warn { color: var(--yellow); }
+.al { display: flex; gap: 16px; align-items: stretch; }
+.al .sev { width: 8px; border-radius: 4px; flex: none; background: var(--blue); }
+.al.warning .sev { background: var(--yellow); }
+.al.critical .sev { background: var(--red); }
+.al .m { font: 600 30px/1.2 var(--sans); min-width: 0; overflow-wrap: anywhere; }
+.al .m small { display: block; font: 400 22px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
+.al.critical .m { color: var(--red); }
+.more { font: 400 24px/1.3 var(--mono); color: var(--mute); }
+.broken { font: 600 30px/1.2 var(--sans); color: var(--red); }
+.broken small { display: block; font: 400 26px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; }
+
+/* ---------- nodes ---------- */
+.node-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-height: 0;
+}
+.node {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px 16px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto 1fr;
+  column-gap: 14px;
+  row-gap: 4px;
+  align-items: center;
+  min-height: 0;
+}
+.node .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--green); }
+.node .name { font: 600 24px/1.1 var(--mono); overflow: hidden; text-overflow: ellipsis; }
+.node .role { grid-column: 1 / 3; font: 400 22px/1.3 var(--sans); color: var(--mute); align-self: start; }
+.node .val { grid-column: 1 / 3; align-self: end; font: 500 28px/1 var(--mono); color: var(--fg-dim); font-variant-numeric: tabular-nums; }
+.node .val small { font-size: 22px; color: var(--mute); margin-left: 8px; }
+.node.warning .dot { background: var(--yellow); color: var(--yellow); }
+.node.warning .val { color: var(--yellow); }
+.node.down .dot { background: var(--red); color: var(--red); }
+.node.down .name, .node.down .val { color: var(--red); }
+.node.unknown .dot { background: var(--line); }
+.node.unknown .val { color: var(--mute); }
+
+/* ---------- wan and power ---------- */
+.pair { display: flex; gap: 40px; align-items: flex-end; }
+.hero { font: 500 44px/1 var(--mono); color: var(--cyan); font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.hero.dim { color: var(--fg-dim); font-size: 40px; }
+.unit { font: 400 22px/1.4 var(--sans); color: var(--mute); margin-top: 6px; }
+.hero.warn { color: var(--yellow); }
+.wan-now { font: 400 22px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wan-now .warn { color: var(--yellow); }
+.wan-now .sep { color: var(--mute); }
+.spark { flex: 1; width: 100%; min-height: 0; margin-top: 14px; }
+.spark path.line { fill: none; stroke: var(--green); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.spark path.fill { fill: var(--green); fill-opacity: 0.12; stroke: none; }
+
+/* The UPS, in its node tile: red and pulsing on battery. */
+.node.battery .dot { background: var(--red); color: var(--red); }
+.node.battery .role, .node.battery .val { color: var(--red); }
+
+.kv { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
+.kv div { display: flex; font: 400 28px/1.2 var(--sans); color: var(--fg-dim); }
+.kv b { margin-left: auto; font: 500 30px/1 var(--mono); color: var(--fg); font-variant-numeric: tabular-nums; }
+
+/* ---------- home row: one line, quiet unless something is open ---------- */
+.home { display: flex; gap: 48px; align-items: baseline; flex: 1; min-width: 0; }
+.home .item { font: 400 28px/1.2 var(--sans); color: var(--fg-dim); white-space: nowrap; }
+.home .item b { font-weight: 600; color: var(--fg); margin-left: 10px; }
+.home .item.warn b { color: var(--yellow); }
+.home .item.alert b { color: var(--red); }
+.home .item.unknown b { color: var(--mute); }
+
+/* ---------- today: the calendar ---------- */
+.agenda { flex: 1; display: flex; flex-direction: column; gap: 14px; min-height: 0; overflow: hidden; }
+.ev { display: grid; grid-template-columns: 8px 150px 1fr; column-gap: 16px; align-items: start; }
+.ev .bar { grid-row: 1 / 3; align-self: stretch; border-radius: 4px; background: var(--blue); }
+.ev .t { font: 500 28px/1.2 var(--mono); color: var(--fg-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.ev .what { font: 600 28px/1.2 var(--sans); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev .where { grid-column: 3; font: 400 22px/1.3 var(--sans); color: var(--mute); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev.now .t { color: var(--cyan); }
+.ev.c1 .bar { background: var(--purple); }
+.ev.c2 .bar { background: var(--green); }
+.ev.c3 .bar { background: var(--cyan); }
+.ev.c4 .bar { background: var(--fg-dim); }
+.ev.c5 .bar { background: var(--mute); }
+.day { font: 500 20px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); margin-top: 6px; }
+.agenda .none { font: 400 28px/1.3 var(--sans); color: var(--fg-dim); }
+/* Past tomorrow, the week is one line per event and dimmer: it is there to
+   be glanced at, not read. */
+.ev.later .t, .ev.later .what { color: var(--mute); font-weight: 400; }
+.ev.later .where { display: none; }
+
+/* ---------- up next, in the header ---------- */
+.next { display: flex; align-items: center; gap: 20px; max-width: 470px; min-width: 0; margin-left: 40px; }
+.next .ring { width: 52px; height: 52px; flex: none; }
+.next .ring circle { fill: none; stroke-width: 7; }
+.next .ring .track { stroke: var(--line); }
+.next .ring .arc { stroke: var(--blue); stroke-linecap: round; stroke-dasharray: 188.5; }
+.next[data-state="soon"] .ring .arc { stroke: var(--yellow); }
+.next[data-state="soon"] .next-when { color: var(--yellow); }
+.next-text { min-width: 0; }
+.lbl { font: 500 20px/1 var(--mono); letter-spacing: 0.14em; text-transform: uppercase; color: var(--mute); }
+.next-what { font: 600 26px/1.2 var(--sans); margin-top: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.next-when { font: 400 24px/1.3 var(--mono); color: var(--fg-dim); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.next[data-state="none"] .next-what { color: var(--mute); font-weight: 400; }
+
+/* ---------- context: one card, whichever matters now ---------- */
+.context-body { flex: 1; display: flex; flex-direction: column; justify-content: center; min-height: 0; overflow: hidden; }
+.context-also { font: 400 22px/1.3 var(--mono); color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.word { font: 600 44px/1.15 var(--sans); color: var(--purple); align-self: flex-start; }
+.word-sub { font: 400 28px/1.4 var(--sans); color: var(--fg-dim); margin-top: 10px; }
+.word-sub b { font-weight: 600; color: var(--fg); }
+.ctx-hero { font: 600 38px/1.15 var(--sans); color: var(--fg); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctx-hero.media { font-size: 32px; white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.ctx-hero.warn { color: var(--yellow); }
+.ctx-hero.alert { color: var(--red); }
+.ctx-sub { font: 400 28px/1.35 var(--sans); color: var(--fg-dim); margin-top: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.todo-list { display: flex; flex-direction: column; gap: 10px; min-height: 0; max-height: 100%; overflow: hidden; align-self: stretch; }
+.todo-item { display: flex; align-items: center; gap: 16px; font: 400 30px/1.25 var(--sans); color: var(--fg); }
+.todo-item i { width: 20px; height: 20px; border: 2px solid var(--mute); border-radius: 5px; flex: none; }
+.todo-item span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- weather, in the header ---------- */
+.wx { display: flex; align-items: center; gap: 22px; margin-left: auto; margin-right: 36px; }
+.wx-temp { font: 500 52px/1 var(--mono); color: var(--cyan); letter-spacing: -0.04em; font-variant-numeric: tabular-nums; }
+.wx-desc { font: 600 26px/1.2 var(--sans); }
+.wx-sub { font: 400 22px/1.3 var(--mono); color: var(--mute); margin-top: 4px; }
+
+/* ---------- status bar ---------- */
+.status {
+  grid-area: status;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  font: 500 20px/1 var(--mono);
+  color: var(--mute);
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.status .src::before {
+  content: "";
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 10px;
+  background: var(--green);
+}
+.status .src.stale { color: var(--yellow); }
+.status .src.stale::before { background: var(--yellow); }
+.status .src.dead { color: var(--red); }
+.status .src.dead::before { background: var(--red); }
+.status .push { margin-left: auto; }
+
+/* The only motion: a pulse on what needs looking at. */
+@media (prefers-reduced-motion: no-preference) {
+  .node.warning .dot, .node.down .dot, .node.battery .dot, .verdict[data-state="critical"] .dot,
+  .verdict[data-state="broken"] .dot { animation: pulse 1.6s ease-out infinite; }
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 currentColor; }
+  70% { box-shadow: 0 0 0 14px transparent; }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}

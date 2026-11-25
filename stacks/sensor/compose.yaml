@@ -82,10 +82,18 @@ services:
     read_only: true
     tmpfs:
       - /tmp
-    # A bound, not a measurement: re-derive from container_memory_rss in the
-    # lab's Prometheus after a fortnight, as stacks/soc says of its own.
-    mem_limit: 4096m
-    memswap_limit: 4096m
+    # Measured on fenrir, not in the lab's Prometheus: its cAdvisor series
+    # are the root cgroup only. Zeek's VmHWM was 286 MiB (103 MiB anonymous,
+    # the rest the mapped binary and scripts) over the 25 h since the reboot
+    # of 2026-11-17; the audit of 2026-11-13 read 144 MiB. Earlier days are
+    # hidden in the guest's whole-host RSS, which the workstation tooling
+    # then on it pushed to 1 GiB and more. 2048m is about 7x, not the
+    # estate's ~3.5x (#114), because a day is thin, none of it held an attack
+    # exercise, and Zeek's state grows with connections: a scan is what it
+    # is here for. An OOM-kill only restarts it, and nothing alerts on that.
+    # Tighten once a fortnight of VmHWM includes an exercise.
+    mem_limit: 2048m
+    memswap_limit: 2048m
     working_dir: /zeek/logs
     command:
       - zeek
@@ -199,19 +207,19 @@ services:
   # typed by hand still labels the host correctly.
   # ---------------------------------------------------------------------------
   alloy:
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: sensor-alloy
     restart: unless-stopped
     logging: *default-logging
     init: true
     pids_limit: 1024
-    # A bound, not a measurement: re-derive from process_resident_memory_bytes
-    # {job="fenrir-alloy"} in the lab's Prometheus after a fortnight, as zeek's
-    # says. (Per-container container_memory_rss is not kept there: the lab's
-    # cAdvisor series are the root cgroup only.) 293 MiB was the peak over
-    # the 6.2 days fenrir had run on 2026-10-07, median 280 — flat, with no
-    # excursion yet — and 1024m is the estate's ~3.5x on top (#114).
-    # The neighbour is zeek's 4096m on an 8 GiB guest (#845).
+    # Measured: process_resident_memory_bytes{job="fenrir-alloy"} in the
+    # lab's Prometheus peaked at 297 MiB over the 12 days to 2026-11-18,
+    # median 286, as flat as the 293 and 280 of the 6.2 days to 2026-10-07.
+    # (Per-container container_memory_rss is not kept there: the lab's
+    # cAdvisor series are the root cgroup only.) 1024m is the estate's ~3.5x
+    # on top (#114), so the bound stands. The neighbour is zeek's 2048m on
+    # an 8 GiB guest (#845).
     mem_limit: 1024m
     memswap_limit: 1024m
     networks: [sensor]
@@ -249,6 +257,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - ./alloy/zeek.alloy:/etc/alloy/zeek.alloy:ro

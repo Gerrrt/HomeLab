@@ -406,6 +406,40 @@ else
   fail "editorconfig-checker: git listed no files to check"
 fi
 
+# Merge-conflict markers. Two reached main in two days, both in
+# docs/changelog.md, which check_docs.py does not read (#1524's, removed by
+# #1535; #1544's). Both were the base line of a zdiff3 hunk, `||||||| <sha>`: a
+# resolution that removes <<<<<<<, ======= and >>>>>>> and keeps the middle
+# section ships it. No linter above looks for these.
+#
+# git grep on the host, so it reads tracked files only, for the reason
+# editorconfig-checker's list is built here, and it needs no image or pipx: it
+# can never be the check that skips. A marker is the seven characters at the
+# start of a line followed by a space (git writes the branch or sha there) or by
+# nothing. ======= is not matched: alone on a line it is also a Markdown setext
+# underline, and a hunk cannot be resolved halfway without leaving one of the
+# other three behind.
+#
+# --text, not -I: -I goes by attributes, not content, so it also skips
+# snmp-exporter/snmp.yaml, which .gitattributes marks -diff and which is text
+# git can merge. The only binaries tracked are PNGs; one matching would fail
+# loudly, where -I fails silently. git grep exits 1 for no match and above 1 for
+# an error, which must not read as a pass.
+if have git; then
+  grep_rc=0
+  markers="$(git grep -n --text -E '^(<<<<<<<|\|\|\|\|\|\|\||>>>>>>>)( |$)')" || grep_rc=$?
+  if ((grep_rc > 1)); then
+    fail "merge-conflict markers: git grep failed (exit ${grep_rc})"
+  elif [[ -n "${markers}" ]]; then
+    printf '%s\n' "${markers}" | sed 's/^/        /'
+    fail "merge-conflict markers in tracked files"
+  else
+    pass "no merge-conflict markers"
+  fi
+else
+  fail "merge-conflict markers: git is not available to list the files"
+fi
+
 # ---------------------------------------------------------------------------
 # Self-check: the three callers must actually be callers
 # ---------------------------------------------------------------------------

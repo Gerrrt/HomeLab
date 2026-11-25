@@ -44,6 +44,14 @@
 #                   morpheus's, for TLS syslog to Alloy (#1049), whose
 #                   listener pins that exact certificate rather than
 #                   trusting every client leaf this CA signs.
+#   --csr <file>    sign a certificate signing request made ELSEWHERE, so the
+#                   private key never leaves the device that made it. No key
+#                   is written here. The CSR supplies only its public key:
+#                   the subject is /CN=<host>/O=matrix.elysium and the SANs
+#                   are the ones given here, whatever the CSR asked for. The
+#                   first is the APC card on mjolnir, which can make a key and
+#                   a CSR but has nowhere to import a key from this host
+#                   except a Security Wizard .p15.
 #   --days <n>      leaf lifetime, default 825
 #   --force         overwrite an existing CA or leaf
 #
@@ -79,6 +87,7 @@ IPS=()
 DNS=()
 FORCE=0
 CLIENT=0
+CSR=""
 
 while (($#)); do
   case "$1" in
@@ -90,6 +99,7 @@ while (($#)); do
     --days)  LEAF_DAYS="${2:?--days needs a number}"; shift 2 ;;
     --force) FORCE=1; shift ;;
     --client) CLIENT=1; shift ;;
+    --csr)   CSR="${2:?--csr needs a file}"; shift 2 ;;
     # Printed straight from the comment block above rather than kept as a
     # second copy that drifts. Bounded by where the comments stop, not by a
     # line number: the literal 2,32p this replaced had already slipped and was
@@ -99,6 +109,7 @@ while (($#)); do
   esac
 done
 
+[[ -z "${CSR}" || "${MODE}" == "leaf" ]] || die "--csr signs a leaf: give it with --host <fqdn>"
 [[ -n "${MODE}" ]] || die "nothing to do — try --ca, --host <fqdn>, or --list (see --help)"
 command -v openssl >/dev/null 2>&1 || die "openssl not found"
 
@@ -188,8 +199,23 @@ fi
 KEY="${CERT_DIR}/${HOST}-key.pem"
 CRT="${CERT_DIR}/${HOST}.pem"
 
-if [[ -s "${KEY}" ]] && ((! FORCE)); then
-  die "${KEY#"${REPO_ROOT}"/} already exists — pass --force to replace it"
+if [[ -n "${CSR}" ]]; then
+  # The key is the device's. Guard the certificate instead, and refuse a CSR
+  # whose own signature does not verify: that is a request nobody holding the
+  # matching key made.
+  [[ -s "${CSR}" ]] || die "no CSR at ${CSR}"
+  if [[ -s "${CRT}" ]] && ((! FORCE)); then
+    die "${CRT#"${REPO_ROOT}"/} already exists — pass --force to replace it"
+  fi
+  openssl req -in "${CSR}" -noout -verify >/dev/null 2>&1 \
+    || die "${CSR} is not a CSR whose signature verifies"
+elif ((! FORCE)); then
+  # The certificate as well as the key: a leaf signed from a device's CSR
+  # has no key here, and reissuing it without --csr would replace it with
+  # one for a local key the device cannot import.
+  for f in "${KEY}" "${CRT}"; do
+    [[ -s "${f}" ]] && die "${f#"${REPO_ROOT}"/} already exists — pass --force to replace it"
+  done
 fi
 
 # A certificate with no subjectAltName is rejected outright by every current
@@ -223,11 +249,19 @@ info "SANs: ${SAN}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT INT TERM
 
-openssl req -newkey rsa:2048 -sha256 -nodes \
-  -keyout "${KEY}" -out "${TMP}/csr.pem" \
-  -subj "/CN=${HOST}/O=matrix.elysium" 2>/dev/null
+if [[ -n "${CSR}" ]]; then
+  cp "${CSR}" "${TMP}/csr.pem"
+else
+  openssl req -newkey rsa:2048 -sha256 -nodes \
+    -keyout "${KEY}" -out "${TMP}/csr.pem" \
+    -subj "/CN=${HOST}/O=matrix.elysium" 2>/dev/null
+fi
 
+# -subj overrides the request's subject, and -extfile is the only source of
+# extensions: x509 -req copies none from the CSR. So a CSR from a device says
+# nothing about the names this CA vouches for.
 openssl x509 -req -in "${TMP}/csr.pem" -sha256 \
+  -subj "/CN=${HOST}/O=matrix.elysium" \
   -CA "${CA_CRT}" -CAkey "${CA_KEY}" -CAcreateserial \
   -CAserial "${CERT_DIR}/ca.srl" \
   -out "${CRT}" -days "${LEAF_DAYS}" \
@@ -238,7 +272,7 @@ openssl x509 -req -in "${TMP}/csr.pem" -sha256 \
 # service is given the operator's gid as a supplementary group instead of the
 # key being made world-readable. This costs nothing: certificates/ is 0700, so
 # no other local user can traverse to the file whatever its own mode says.
-chmod 640 "${KEY}"
+[[ -n "${CSR}" ]] || chmod 640 "${KEY}"
 chmod 644 "${CRT}"
 
 # Prove it verifies against the CA now, rather than discovering at deploy time
@@ -247,7 +281,11 @@ openssl verify -CAfile "${CA_CRT}" -purpose "$( ((CLIENT)) && echo sslclient || 
   || die "the issued certificate does not verify against the CA — refusing to report success"
 
 ok "issued ${CRT#"${REPO_ROOT}"/}"
-printf '  key  %s\n' "${KEY#"${REPO_ROOT}"/}"
+if [[ -n "${CSR}" ]]; then
+  printf '  key  on the device that made %s; none here\n' "${CSR}"
+else
+  printf '  key  %s\n' "${KEY#"${REPO_ROOT}"/}"
+fi
 printf '  SANs %s\n' "${SAN}"
 printf '  EKU  %s\n' "${EKU}"
 printf '  verified against %s\n\n' "${CA_CRT#"${REPO_ROOT}"/}"

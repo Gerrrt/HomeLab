@@ -59,16 +59,22 @@ prometheus/
   prometheus.yaml          six scrape jobs — this stack's four, the domain's
                            windows_exporter and odin's Velociraptor; no
                            alerting block, no file_sd
-  rules/lab.rules.yaml     9 rules — four for this stack watching itself,
+  rules/lab.rules.yaml     25 rules — four for this stack watching itself,
+                           one for its agents dropping log lines (#1552),
                            two for the guests' disks, three for the domain
-                           ADR-0029 sized
-  rules/soc.rules.yaml     12 rules — the SOC's indexer on odin, whose health is
+                           ADR-0029 sized, seven for golem's backups
+                           (ADR-0053), three for fenrir's Zeek archive
+                           prune (#850), three for the guests' patch
+                           state and two for whether fenrir is still an
+                           appliance (#1577)
+  rules/soc.rules.yaml     13 rules — the SOC's indexer on odin, whose health is
                            pushed here by stacks/soc's Alloy (ADR-0030); the
                            manager's agents, queues and drops, from odin's
                            wazuh-manager-state collector; and Zeek's conn
                            stream, from fenrir's Alloy (#1038)
-  tests/lab.test.yaml      promtool unit tests; all nineteen rules, firing + quiet
-  tests/soc.test.yaml      the same for the twelve
+  tests/lab.test.yaml      promtool unit tests; every rule in lab.rules.yaml,
+                           firing + quiet
+  tests/soc.test.yaml      the same for soc.rules.yaml
 loki/loki-config.yaml      single-binary, filesystem, 15-day retention, no ruler
 grafana/
   provisioning/            two datasources + dashboard provider
@@ -100,9 +106,9 @@ delete API, and any query without the reader token.
 token early loses nothing. A proxy that goes up before its clients refuses
 their pushes until each one catches up.
 
-1. **On `alexander`**, generate six tokens with `openssl rand -hex 32` and add
+1. **On `alexander`**, generate seven tokens with `openssl rand -hex 32` and add
    them with `make secrets-edit STACK=lab`. The keys are `INGEST_TOKEN_ODIN`,
-   `_PHOENIX`, `_FENRIR`, `_GOLEM`, `_EDEN` and `_READER`, and
+   `_PHOENIX`, `_FENRIR`, `_GOLEM`, `_EDEN`, `_GARUDA` and `_READER`, and
    [`secrets/lab.example.yaml`](../../secrets/lab.example.yaml) says where each
    one goes. Do not `make up` yet.
 2. **On `odin`**, set `INGEST_TOKEN` to `INGEST_TOKEN_ODIN` with `make
@@ -133,8 +139,10 @@ curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ing
 curl -s -o /dev/null -w '%{http_code}\n' --cacert stacks/observability/alloy/ingest-ca.pem -X POST https://10.0.30.40:9443/api/v1/write
 ```
 
-The three clients must still deliver. In the lab's Grafana, `up` and the
-newest log line for `odin`, `phoenix` and `fenrir` should be minutes old.
+The six clients must still deliver. In the lab's Grafana, `up` and the
+newest log line for `odin`, `phoenix`, `fenrir`, `golem`, `eden` and `garuda`
+should be minutes old. `eden` is off between sessions, so its newest data is
+from its last session.
 `docker logs lab-ingest-proxy` lists any refused request, with the client its
 token mapped to. A client still on its old config shows there as `-`.
 

@@ -262,7 +262,7 @@ services:
   #      node after a scan: **91 MiB**; **119 MiB** with a transcode running.
   audiobookshelf:
     <<: *service-defaults
-    image: ghcr.io/advplyr/audiobookshelf:2.37.2@sha256:b897c33f05972fb1bf484f7487bc878fa91ec8691335c1db6e2929c3a7658efa
+    image: ghcr.io/advplyr/audiobookshelf:2.38.0@sha256:60064c23f32fd9099fd39e82c5132c51701d1221135bbca04cd099b589e1edc3
     container_name: media-audiobookshelf
     # See MEASURED (4).
     init: false
@@ -606,7 +606,7 @@ services:
   #   5. Idle RSS: **3.4 MiB**, rising to 5.3 MiB once it has served a scrape.
   node-exporter:
     <<: *service-defaults
-    image: prom/node-exporter:v1.12.1@sha256:1b4e4438faca4dd7e001dd445d161a4a2091b0fededa84093b3a8dfeae1f1be0
+    image: prom/node-exporter:v1.13.1@sha256:7296504d4ada44b7d7ab4431e27e9f9900d8488f8d55842f4b12ae2704e16dfe
     container_name: media-node-exporter
     user: "65534:65534"
     command:

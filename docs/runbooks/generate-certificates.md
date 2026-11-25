@@ -181,6 +181,7 @@ the certificate somewhere and not recording it is how it goes stale
 | Prometheus and the ingest proxy on `alexander` (the lab guest) | `ca_file` on Prometheus, the copy carried there with the lab leaf by [`build-the-lab-guest.md`](build-the-lab-guest.md) §5. The proxy serves that leaf on the lab's TLS ingest ports (#1430) | Reissue the lab leaf and carry both files through the Mac again — `99 → 30` is closed. The six lab agents above then verify the new leaf against the new root |
 | The operator's Mac — system keychain | **Not imported.** Confirmed on the device 2026-09-20: not present in Keychain Access, and an import attempt that day was refused with an "invalid key" error. ADR-0037's "the Mac's system store, at least" was wrong; Safari and Chrome do not trust the estate's CA | Nothing |
 | The operator's Mac — Firefox | **Not imported.** Confirmed on the device 2026-09-20: not under Authorities. So no browser on the Mac trusts the estate's CA, and Grafana over `https` there warns until one does — which is a choice, not a defect, and importing it is the row you add here | Nothing |
+| pfSense's certificate manager on `morpheus` | Imported 2026-11-23 as *Matrix Elysium Internal CA (estate)*, the CA of the GUI's leaf, so the GUI serves the chain. pfSense does not use it to verify anything | Import the new `ca.pem` there, then reissue the GUI leaf as in *The pfSense GUI's leaf* |
 | The monitoring host's own OS store | **Not imported.** Checked 2026-09-19: nothing under `/usr/local/share/ca-certificates/` and no match in the system bundle | Nothing |
 | The Grafana image renderer | **Does not trust it** and cannot — Chromium reads NSS, not `SSL_CERT_FILE`; it ignores certificate errors instead ([`compose.yaml`](../../stacks/observability/compose.yaml), the renderer's `BROWSER_FLAGS`) | Nothing |
 | Household devices, phones | **Only those that read the wiki, and none yet.** Until 2026-10-07 this row said *never*: the estate's CA was the operator's alone. [ADR-0082](../adr/0082-serve-the-wiki-over-tls-and-deploy-it-from-a-verified-checkout.md) put the wiki behind a leaf from it, so a phone that reads the wiki trusts this root as well as the tier's. Add a row per device when it is installed; none had been on the day this was written | Re-install the profile on every phone listed, and on iOS re-enable full trust |
@@ -205,8 +206,9 @@ against `ca.pem`, and reads the expiry off the handshake — so what is watched
 is the certificate actually being served, not a file on disk.
 `TlsCertificateExpiringSoon` fires at 30 days and `TlsCertificateExpiryImminent`
 at 7, one alert per certificate however many URLs serve it
-([#91](https://github.com/Gerrrt/HomeLab/issues/91)). The same two rules read
-the APC card's self-signed certificate, which is not trusted but does expire.
+([#91](https://github.com/Gerrrt/HomeLab/issues/91)). The APC card's leaf
+is read and verified the same way since 2026-11-24 (*The APC card's leaf*
+below); it can't be renewed with the `make certs` line that follows.
 
 ```bash
 make certs ARGS="--host grafana.matrix.elysium --ip 10.0.99.20 --dns grafana --force"
@@ -223,8 +225,10 @@ verifies the same chain on its scrape.
 
 ## Management console certificates
 
-Four consoles serve self-signed certificates that this CA never issued, and
-the blackbox probes above cannot reach any of them: each answers Hicks only.
+Four consoles serve certificates the blackbox probes above cannot reach: each
+answers Hicks only. Three are self-signed. The pfSense GUI's has been a leaf
+from this CA since 2026-11-23, `morpheus-ui.matrix.elysium` (see *The pfSense
+GUI's leaf* below).
 `scripts/collect-cert-expiry.sh` reads each one's expiry off a handshake made
 inside its own segment and writes `homelab_cert_expiry_timestamp_seconds`;
 `ManagementCertificateExpiringSoon` warns at 30 days and
@@ -234,7 +238,7 @@ inside its own segment and writes `homelab_cert_expiry_timestamp_seconds`;
 
 | `endpoint` | Console | Read by | Reissue |
 | --- | --- | --- | --- |
-| `pfsense-ui` | pfSense GUI on `morpheus` | `make gateway-state` on the monitoring host, over its ssh, every 15 minutes | `pfSsh.php playback generateguicert` in the firewall's shell. That is how the 2026-09-28 regeneration was done, and it gives 398 days, so the 2027-04-16 expiry recurs |
+| `pfsense-ui` | pfSense GUI on `morpheus` | `make gateway-state` on the monitoring host, over its ssh, every 15 minutes | A leaf from this CA, 825 days, due 2029-02-25: *The pfSense GUI's leaf* below. Until 2026-11-23 it was pfSense's own self-signed certificate, 398 days, regenerated with `pfSsh.php playback generateguicert` |
 | `pve-ui` | Proxmox UI on `Saruman`, `:8006` | `homelab-cert-expiry.timer` on Saruman, daily | `pvecm updatecerts --force`, then `systemctl restart pveproxy`, at Saruman's console |
 | `ilo-ui` | iLO on `shiva`, `10.0.30.10` | the same timer on Saruman, which shares its segment | The iLO's own UI: **Administration → Security → SSL Certificate** |
 | `truenas-ui` | TrueNAS UI on `smaug` | a root cron job on smaug ([`build-the-nas.md`](build-the-nas.md) §6.10), daily | **Credentials → Certificates**, then select it under **System → General → GUI** |
@@ -244,9 +248,201 @@ is within 15 minutes. For the others it is the next day, or sooner if the
 collector is run by hand: `systemctl start homelab-cert-expiry` on Saruman, or
 the cron job's **Run Now** on smaug.
 
+The two syslog TLS leaves are read the same way, from the same job
+([#1049](https://github.com/Gerrrt/HomeLab/issues/1049)): `syslog-listener` off
+the handshake on `10.0.99.20:6514`, and `syslog-client`, `morpheus`'s client
+leaf, from the copy the listener pins in `certificates/`, because a client
+certificate has no handshake to read. Both are this CA's, 825 days, due
+2029-01-09. They raise `SyslogTlsCertificateExpiringSoon` at 30 days, not the
+console pair, and are reissued by
+[`ship-firewall-logs.md`](ship-firewall-logs.md) §1 and §3.
+
 A console whose certificate cannot be read raises
 `ManagementCertificateUnchecked` after six hours rather than going silent. Run
 the collector with `--print` to see which probe failed.
+
+### The pfSense GUI's leaf
+
+The GUI serves `morpheus-ui.matrix.elysium`, with SANs for
+`morpheus.matrix.elysium`, `10.0.99.1` (Hicks) and `10.7.7.1` (the LAN's
+anti-lockout way in). It has its own name because `morpheus.matrix.elysium`
+is already taken: that file is the syslog client leaf, and reissuing over it
+would break log shipping. pfSense keeps the leaf and its key in `config.xml`,
+beside the estate CA it imported as *Matrix Elysium Internal CA (estate)*, so a
+config restore brings both back. Browsers on the Mac still warn, because
+nothing there trusts this CA (§4).
+
+To reissue, from the main checkout on the monitoring host:
+
+```bash
+make certs ARGS="--host morpheus-ui.matrix.elysium --dns morpheus.matrix.elysium --ip 10.0.99.1 --ip 10.7.7.1 --force"
+ssh root@10.0.99.1 'install -d -m 700 /root/guicert'
+scp certificates/ca.pem certificates/morpheus-ui.matrix.elysium.pem \
+  certificates/morpheus-ui.matrix.elysium-key.pem root@10.0.99.1:/root/guicert/
+```
+
+Then import it and point the GUI at it, in the firewall's shell. The script
+reads the files and prints only reference ids, so the key never reaches a
+screen:
+
+```bash
+ssh root@10.0.99.1 'cat > /root/guicert/import.php' <<'EOF'
+<?php
+require_once("config.inc");
+require_once("certs.inc");
+$d = "/root/guicert/";
+$cert = array("refid" => uniqid(), "descr" => "morpheus GUI (estate CA leaf) " . date("Y-m-d"));
+cert_import($cert, file_get_contents($d . "morpheus-ui.matrix.elysium.pem"),
+            file_get_contents($d . "morpheus-ui.matrix.elysium-key.pem"));
+$certs = config_get_path("cert", []);
+$certs[] = $cert;
+config_set_path("cert", $certs);
+config_set_path("system/webgui/ssl-certref", $cert["refid"]);
+write_config("GUI certificate: reissued estate-CA leaf");
+echo "cert ", $cert["refid"], "  caref=", ($cert["caref"] ?? "-"), "\n";
+EOF
+ssh root@10.0.99.1 'php -f /root/guicert/import.php && /etc/rc.restart_webgui'
+```
+
+`caref` should name the CA entry. If it prints `-`, the CA in the manager is
+not the one that signed the leaf: import `ca.pem` first with `ca_import()`,
+which is what the first install did. The previous leaf stays in the manager;
+delete it in **System → Certificates** once the new one is served.
+
+Then delete the staged copies, and check what is served from the firewall
+itself, since the GUI is closed to the monitoring host:
+
+```bash
+ssh root@10.0.99.1 'rm /root/guicert/* && rmdir /root/guicert'
+```
+
+This deletes; it does not overwrite. `rm -P` has been a no-op since FreeBSD
+13, and `morpheus`'s root is ZFS, which is copy-on-write, so no overwrite
+would reach the old blocks anyway. That leaves no exposure the firewall does
+not already carry: pfSense stores the same key in `config.xml` on the same
+disk, which is what the root-only directory and the encrypted backups are
+for.
+
+```bash
+ssh root@10.0.99.1 'echo | openssl s_client -connect 10.0.99.1:443 2>/dev/null | openssl x509 -noout -issuer -enddate'
+```
+
+The first install, on 2026-11-23, ran the same script with a `ca_import()`
+of `ca.pem` ahead of it. The self-signed *GUI default* is still in the
+certificate manager, as the rollback: select it under **System → Advanced → Admin Access → SSL/TLS
+Certificate**.
+
+### The APC card's leaf
+
+`mjolnir`'s AP9641 card serves `mjolnir.matrix.elysium`, with an IP SAN for
+`10.0.99.10`, since 2026-11-24. The name doesn't resolve, so the address is
+what the probe and a browser use. The card makes its own key and a
+certificate signing request, and imports a signed certificate, all from its
+command line. Its key never leaves the card: `gen-certs.sh --csr` signs the
+request and writes only the certificate. The leaf is good for 825 days, until
+2029-02-26. The `ups-ui` probe verifies it against `ca.pem`, and
+`TlsCertificateExpiringSoon` and `TlsCertificateExpiryImminent` read its
+expiry.
+
+**The card's key must be RSA.** The card's factory key is ECDSA P-256, and the
+first leaf, on 2026-11-24, was signed for it. The card imported that leaf and
+then dropped every TLS handshake at the point where it signs, on TLS 1.3 and
+1.2 alike, before and after a reboot. Its TLS code appears to choose how to
+sign from the certificate's signature algorithm, here this CA's
+`sha256WithRSA`, not from its own key. An RSA 2048 key made on the card, under
+the same CA, works. An ECDSA key would need an ECDSA-signed certificate, which
+this CA can't issue.
+
+Everything below runs from the main checkout on the monitoring host, as the
+card's super user `apc`, whose password you type. The card offers no
+curve25519, which `prometheus`'s SSH client is limited to, so each command
+names the card's key exchange and host key. Silence the card and NUT first,
+as in
+[`update-the-ups-firmware.md`](update-the-ups-firmware.md) A.2: step 4
+restarts the card.
+
+```bash
+cd ~/code/Gerrrt/HomeLab
+O=(-o KexAlgorithms=ecdh-sha2-nistp256 -o HostKeyAlgorithms=ecdsa-sha2-nistp256)
+```
+
+1. **Make the request on the card, and copy it off.** For a renewal, skip
+   `ssl key -d` and `ssl key -rsa 2048` and keep the key the card already has;
+   `ssl cert -s` shows whether it's RSA. Otherwise, in one session at the
+   card's prompt (`ssh "${O[@]}" apc@10.0.99.10`):
+
+   ```text
+   ssl key -d
+   ssl key -rsa 2048
+   ssl csr -q
+   exit
+   ```
+
+   `-q` builds the request from the card's key and settings. Its subject and
+   SANs don't matter, because the CA sets its own. Then:
+
+   ```bash
+   scp -O "${O[@]}" apc@10.0.99.10:ssl/nmc.csr ./certificates/mjolnir-nmc.csr
+   openssl req -in certificates/mjolnir-nmc.csr -noout -text | grep 'Public Key Algorithm'
+   ```
+
+   You want `rsaEncryption`.
+
+2. **Sign it.** `--force` when a leaf already exists:
+
+   ```bash
+   make certs ARGS="--host mjolnir.matrix.elysium --ip 10.0.99.10 --csr certificates/mjolnir-nmc.csr --force"
+   ```
+
+3. **Copy the certificate to the card and import it.** The card's `scp`
+   writes an upload to its root directory whatever path you give, so name it
+   there, and import it from there. An import of a path that holds nothing
+   answers only `E100: Command Failed`:
+
+   ```bash
+   scp -O "${O[@]}" certificates/mjolnir.matrix.elysium.pem apc@10.0.99.10:nmc.crt
+   ```
+
+   Then at the card's prompt:
+
+   ```text
+   ssl cert -i nmc.crt
+   ssl cert -s
+   ```
+
+   The card refuses a certificate that doesn't match its key, and then keeps
+   serving the one it had. `ssl cert -s` should show the CA as issuer and
+   `RSA (2048 bit)`.
+
+4. **Restart the card's management interface**, at the same prompt. This
+   restarts the network card only, not the UPS or its outlets, and SNMP is
+   gone for about a minute. Until it's done, the card may serve the new
+   certificate and still fail every handshake:
+
+   ```text
+   reboot -Y
+   ```
+
+5. **Check what it serves**, against the CA rather than by eye:
+
+   ```bash
+   curl -sSL --cacert certificates/ca.pem -o /dev/null -w '%{http_code}\n' https://10.0.99.10/
+   ```
+
+   You want `200`, after `-L` follows the card's redirect from `/` to
+   `/home.htm`, as the probe does. `openssl s_client -verify_return_error` alone isn't enough:
+   it reports `Verify return code: 0 (ok)` from the certificate even when the
+   handshake then fails.
+
+Delete `certificates/mjolnir-nmc.csr` and the silences afterwards. The request
+isn't secret, but `certificates/` is for what this CA issues.
+
+A factory reset of the card, or a downgrade below 2.4, which formats it,
+brings back a self-signed certificate. That fails the `ups-ui` probe, and
+`EndpointUnreachable` fires. Re-run steps 1 to 5 to recover. To go back to a
+self-signed certificate on purpose: `ssl key -d`, then `reboot -Y`, and the
+card makes a new key and certificate for itself. Set the probe's module back to
+`http_2xx_self_signed` in the same change.
 
 ## If something goes wrong
 

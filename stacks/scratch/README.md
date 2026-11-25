@@ -42,7 +42,7 @@ changes when an investigation starts or ends.
 
 | Service | Image | Port | Purpose |
 | --- | --- | --- | --- |
-| `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch: the store. The same 2 GiB heap and shard ceiling as `odin`, and no delete policy |
+| `wazuh.indexer` | `wazuh/wazuh-indexer` | *internal* (9200) | OpenSearch: the store. A 2 GiB heap, the one `odin` had until ADR-0118, and no delete policy |
 | `wazuh.manager` | `wazuh/wazuh-manager` | 1514, 1515 | For the agents of whatever is under investigation. Enrolment still needs a password, this guest's own |
 | `wazuh.dashboard` | `wazuh/wazuh-dashboard` | *internal*, through caddy's 443 | Query it hard |
 | `velociraptor` | `ghcr.io/velocidex/velociraptor-server` | 8000; 8889 through caddy | Collection from the endpoints involved, with a CA that dies with the guest |

@@ -164,8 +164,9 @@ ISO share, `pvesm status` shows its storage `active`, and `ss -tlnp | grep
 
 The audit found these in `/root`, none of them in use:
 
-- `ca.pem`, `ca-key.pem`, `cert.pem` and `cert-key.pem` from 2025-09-14: a
-  self-made CA and its leaf. `pveproxy` serves the Proxmox CA's certificate.
+- `ca.pem`, `ca-key.pem`, `cert.pem`, `cert-key.pem` and `fullchain.pem`
+  from 2025-09-14: a self-made CA, its leaf and the chain of the two.
+  `pveproxy` serves the Proxmox CA's certificate.
 - The `pveproxy-ssl.*` copies that
   [`build-the-lab-templates.md`](build-the-lab-templates.md) makes.
 - `cluster.fw.new`, which is identical to the live firewall file.
@@ -173,9 +174,12 @@ The audit found these in `/root`, none of them in use:
 Read each one before you delete it. Keep `pre-421-s3/` only if it is still
 wanted.
 
-Five removed kernels left `rc` packages behind. One more,
+Removed kernels left `rc` packages behind: six on 2026-11-24. One more,
 `proxmox-kernel-6.8.12-9-pve-signed`, is still installed, and
-`proxmox-boot-tool kernel list` does not select it:
+`proxmox-boot-tool kernel list` does not select it. Leave
+`proxmox-kernel-6.8` and the 6.8 kernel it pulls in, 6.8.12-43 on
+2026-11-24. `proxmox-boot-tool kernel list` selects it, so it is the way
+back if a 7.0 kernel will not boot.
 
 ```bash
 apt-get purge proxmox-kernel-6.8.12-9-pve-signed

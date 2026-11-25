@@ -1,0 +1,52 @@
+---
+# Candle lighting, havdalah, the week's parsha and the Hebrew date, as one
+# sensor the office wall can read (ADR-0119). The wall shows them in its
+# context card from six hours before candle lighting until havdalah.
+#
+# The source is the core `jewish_calendar` integration, added in the UI
+# (diaspora, candle-lighting minutes and havdalah set there). Its entities are
+# found by what their ids end with, among that integration's own entities,
+# so a different entry title or a rename does not break this:
+#
+#   upcoming_candle_lighting  the current or next Shabbat's or Yom Tov's
+#   upcoming_havdalah         its end; both stay on the current one until it ends
+#   parshat_hashavua / weekly_torah_portion, date, holiday
+#
+# Unavailable until the integration is added, and the wall's card stays
+# hidden.
+
+template:
+  - sensor:
+      - name: Wall Shabbat
+        unique_id: wall_shabbat
+        icon: mdi:candle
+        device_class: timestamp
+        # The state is the candle lighting, as the integration gives it.
+        state: >-
+          {% set e = integration_entities('jewish_calendar')
+               | select('search', 'upcoming_candle_lighting$') | first | default('') %}
+          {{ states(e) if e else none }}
+        availability: >-
+          {% set c = integration_entities('jewish_calendar')
+               | select('search', 'upcoming_candle_lighting$') | first | default('') %}
+          {% set h = integration_entities('jewish_calendar')
+               | select('search', 'upcoming_havdalah$') | first | default('') %}
+          {{ c != '' and h != '' and has_value(c) and has_value(h) }}
+        attributes:
+          havdalah: >-
+            {% set e = integration_entities('jewish_calendar')
+                 | select('search', 'upcoming_havdalah$') | first | default('') %}
+            {{ states(e) if e else '' }}
+          parsha: >-
+            {% set e = integration_entities('jewish_calendar')
+                 | select('search', '(parshat_hashavua|torah_portion)$') | first | default('') %}
+            {{ states(e) if e and has_value(e) else '' }}
+          hebrew_date: >-
+            {% set e = integration_entities('jewish_calendar')
+                 | select('search', '_date$') | first | default('') %}
+            {{ states(e) if e and has_value(e) else '' }}
+          # A Yom Tov's name, or '' on a plain Shabbat.
+          holiday: >-
+            {% set e = integration_entities('jewish_calendar')
+                 | select('search', '_holiday$') | first | default('') %}
+            {{ states(e) if e and has_value(e) else '' }}

@@ -111,7 +111,7 @@ services:
   # render-config.sh writes both anyway.
   # ---------------------------------------------------------------------------
   alloy:
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: analyst-alloy
     restart: unless-stopped
     logging: *default-logging
@@ -158,6 +158,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - alloy-data:/var/lib/alloy/data

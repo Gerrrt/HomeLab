@@ -46,6 +46,11 @@ and every part on the shopping list in [§0.1](#01-the-parts)
 > step in §6.1 was wrong: the XB7's striped 2.5G port corrupted about one inbound
 > frame in ten on `em0`, so the WAN patch now uses one of the XB7's gigabit
 > ports. §6.1 says so.
+>
+> **2026-11-22: the WAN step corrected again.** The XB7 is gone: a Hitron
+> CODA56 replaced it, and the errors blamed on the XB7's ports were `em0`'s
+> own, cleared by rebooting `morpheus`
+> ([`network.md`](../network.md)). §6.1 says so.
 
 **Do the sections in order. Each step says what to do, what you should see,
 and what to do if you see something else.** The reasoning is at the end,
@@ -114,11 +119,11 @@ The current shelf for the TP-Link, `morpheus`'s tray, the KVM, the PDU, the
 patch panel, the DL360's rails and the CRS326 all move over. The UPS's
 present rails do not: they sag under it, and the 2U pair above replaces
 them. The short patch leads in the VLAN colours and the spare cage nuts are
-already on hand. The accessories decided on 2026-10-16 (a console cable for
-the CRS326, labels, a rack light, a bonding strap, a cable tester,
-power-side cable management, levelling feet and a keyboard that fits the
-drawer) are in the roadmap's table: fit whichever have arrived, and none of
-them gates the window.
+already on hand, and so is the CRS326's serial console cable. The other
+accessories decided on 2026-10-16 (labels, a rack light, a bonding strap, a
+cable tester, power-side cable management, levelling feet and a keyboard
+that fits the drawer) are in the roadmap's table: fit whichever have
+arrived, and none of them gates the window.
 
 ### 0.2 Checklist
 
@@ -269,12 +274,13 @@ The PDU has ten outlets. Write down what will plug into it:
 | CRS326 (DC adapter) | 1 |
 | N1700W (12 V brick) | 1 |
 | `smaug` (racked at U5–U9; the long cord is retired) | 1 |
+| Cable modem, the CODA56 (12 V brick; outlet 5 since 2026-11-22) | 1 |
 | Both laptops' chargers | 0: on the UPS's own outlets, beside the TP-Link |
 
-That is **8–9 of 10**, by the outlet map in
+That is **9–10 of 10**, by the outlet map in
 [`hardware.md`](../hardware.md#console-and-power-maps). The laptops'
 chargers go on the UPS's own outlets in either case: with two DL360
-supplies the PDU would be at eleven, and the laptops carry their own
+supplies the PDU is full, it would be at twelve with them, and the laptops carry their own
 batteries, so they need its outlets least. Do not daisy-chain a power strip
 off the PDU.
 
@@ -421,14 +427,12 @@ units (§1.2), then the next one up.
 - **`trinity`'s 2 TB USB photo disk goes on `trinity`'s tray**, beside it,
   strapped down with velcro so it cannot slide off or hang by its cable. Plug
   it back in before `trinity` powers up in §7: it holds Immich's originals.
-- **The XB7 to `morpheus`'s `em0`:** a factory cable, seated until the latch
-  clicks, in one of the XB7's **gigabit** ports, **not** the striped 2.5 Gbit
-  one. On 2026-11-07 the 2.5G port delivered about 10 % of inbound frames
-  to `em0` corrupt (`sysctl dev.em.0.mac_stats` showed CRC and length errors,
-  with zero symbol errors). That held downloads near 20 Mbit/s. A gigabit
-  port gave zero errors and about 630 Mbit/s. `em0` is a 1 Gbit I219, so
-  the 2.5G port never had anything to give it. After moving it,
-  `netstat -I em0 -w 5` should show `errs` at 0.
+- **The modem to `morpheus`'s `em0`:** Cat6, seated until the latch clicks,
+  in the CODA56's one Ethernet port. `em0` is a 1 Gbit I219 and meets the
+  port at 1000baseT. Afterwards `netstat -I em0 -w 5` should show `errs` at
+  0. If `errs` climbs with `sysctl dev.em.0.mac_stats` showing CRC and length
+  errors and zero symbol errors, reboot `morpheus`: on 2026-11-22 that
+  cleared it when a new modem, a re-plug and a different cable did not.
 - KVM: one lead set each, **by the port map in
   [`hardware.md`](../hardware.md#console-and-power-maps)**: `morpheus` on 1,
   `trinity` on 2, `Saruman` on 3, `smaug` on 4 if the TS150's rear VGA is

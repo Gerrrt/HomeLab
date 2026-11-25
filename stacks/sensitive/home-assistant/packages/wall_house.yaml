@@ -1,0 +1,59 @@
+---
+# The alarm's mode and the Litter-Robot, as entities the office wall can read
+# by a fixed id (ADR-0119).
+#
+# The wall reads Home Assistant through fixed `GET /api/states/<entity>`
+# handles in the Caddyfile. The Ring Alarm's own entity id names the city, and
+# docs/security.md keeps that out of the repository. So the Caddyfile names
+# this template entity instead, and it finds the real one without naming it:
+# the house's one `alarm_control_panel`. A second panel would be ignored, and
+# the first, sorted by id, kept. It reads unavailable, not "disarmed", when
+# nothing matches or what matches is unavailable, so the wall shows "—"
+# rather than a wrong all-clear.
+#
+# The office lights had a template here too until 2026-11-24, when the wall
+# stopped showing them.
+
+template:
+  - sensor:
+      - name: Wall alarm
+        unique_id: wall_alarm
+        icon: mdi:shield-home
+        state: >-
+          {% set panel = states.alarm_control_panel | map(attribute='entity_id') | sort | first %}
+          {{ states(panel) if panel else 'unavailable' }}
+        availability: >-
+          {% set panel = states.alarm_control_panel | map(attribute='entity_id') | sort | first %}
+          {{ panel is not none and has_value(panel) }}
+
+  # The Litter-Robot, for the wall's Home row: `ok`, or `attention` with
+  # what, in `needs`. The
+  # thresholds are litter_robot.yaml's reminder's (drawer at 90%, litter
+  # under 30%) and its weight sensors', so the wall and the phones agree.
+  # Its own sensors' ids are already in that file and name no person; this
+  # one exists so the thresholds live here, not in the page.
+  - sensor:
+      - name: Wall litter
+        unique_id: wall_litter
+        icon: mdi:cat
+        state: >-
+          {% set drawer = states('sensor.litter_robot_4_waste_drawer') | float(0) %}
+          {% set litter = states('sensor.litter_robot_4_litter_level') | float(100) %}
+          {% set cats = states.binary_sensor | selectattr('entity_id', 'search', '_weight_dropping$')
+               | selectattr('state', 'eq', 'on') | list | count %}
+          {{ 'attention' if drawer >= 90 or litter < 30 or cats > 0 else 'ok' }}
+        availability: >-
+          {{ has_value('sensor.litter_robot_4_waste_drawer')
+             and has_value('sensor.litter_robot_4_litter_level') }}
+        attributes:
+          # Short phrases, in the order the wall shows them.
+          needs: >-
+            {% set drawer = states('sensor.litter_robot_4_waste_drawer') | float(0) %}
+            {% set litter = states('sensor.litter_robot_4_litter_level') | float(100) %}
+            {% set cats = states.binary_sensor | selectattr('entity_id', 'search', '_weight_dropping$')
+                 | selectattr('state', 'eq', 'on') | list | count %}
+            {% set n = namespace(items=[]) %}
+            {% if drawer >= 90 %}{% set n.items = n.items + ['drawer full'] %}{% endif %}
+            {% if litter < 30 %}{% set n.items = n.items + ['litter low'] %}{% endif %}
+            {% if cats > 0 %}{% set n.items = n.items + ['cat weight'] %}{% endif %}
+            {{ n.items }}

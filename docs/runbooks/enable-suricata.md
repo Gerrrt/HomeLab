@@ -667,6 +667,33 @@ it is the stream engine's view of Wi-Fi or the Skids devices.
 
 ---
 
+## Updating the package
+
+pfSense lists a newer Suricata under **System → Package Manager → Installed
+Packages**. Update it there, or from a root shell on `morpheus`:
+
+```bash
+pfSense-upgrade -y -i pfSense-pkg-suricata
+```
+
+Either way it is the package's own install path, never a bare `pkg upgrade`.
+The install stops both instances, rebuilds their configuration from the saved
+settings, and **does not start them again**. On 2026-11-23 the log read
+*Package post-installation tasks completed* and no `suricata` process was
+left. Start them straight after:
+
+```bash
+/usr/local/etc/rc.d/suricata.sh start
+```
+
+or **Status → Services → Start** on each. Left alone, `SuricataStopped` fires
+for both ten minutes later. Rule compilation takes about 35 seconds on this
+box; each interface's `suricata.log` ends with *Engine started* when it is
+ready. That log is rewritten on every start, so read the *rules failed* count
+before an update if you mean to compare it: nine failed on 2026-11-23, five
+PostgreSQL rules (the `pgsql` parser is off) and ET Open rules that need JA3
+(also off).
+
 ## Rollback
 
 **Services → Suricata → Interfaces**, untick Enable on the interface in

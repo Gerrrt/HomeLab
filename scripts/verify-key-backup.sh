@@ -310,8 +310,8 @@ fi
 # homelab_job="verify-key-backup" whichever key was mounted, so with more than
 # one recipient it answers "a key was proved" to the question "was THIS key
 # proved" — and proving one silences the ninety-day deadline for all of them.
-# key-recipients.sh keeps a series per recipient, which is what
-# SecretsKeyBackupUnproven actually reads.
+# key-recipients.sh keeps a series per recipient. No alert reads it since
+# ADR-0120; it is the record of which copy was checked and when.
 #
 # Before the ok line and allowed to be fatal, deliberately. An unrecorded proof
 # is the failure #77 is about: the job ran, nothing can see that it ran, and the
@@ -322,15 +322,10 @@ printf '\033[0;32mok\033[0m — %s decrypts secrets/%s.sops.yaml (%d/%d keys)\n'
   "$(basename "${BACKUP}")" "${STACK}" "${found}" "${#REQUIRED[@]}"
 printf '   Proven: this key, on its own, recovers every secret in the repo.\n'
 
-# The line the single-series metric could never say. Proving one recipient used
-# to read as proving the backup; with more than one it proves exactly one of
-# them, and the other copies are still only as good as the last time somebody
-# went and got them out.
+# With more than one recipient, a run proves exactly one of them.
 if ((${#RECIPIENTS[@]} > 1)); then
-  printf '   Not proven: the other %d recipient(s) of this file. Each needs its own\n' \
+  printf '   Not checked by this run: the other %d recipient(s) of this file.\n' \
     "$((${#RECIPIENTS[@]} - 1))"
-  printf '   run against its own copy — SecretsKeyBackupUnproven names any that go\n'
-  printf '   ninety days without one.\n'
 fi
 
 printf '   Not proven: that where you keep it will still exist after a fire,\n'

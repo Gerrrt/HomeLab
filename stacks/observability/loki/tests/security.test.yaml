@@ -664,6 +664,73 @@ tests:
               shmem-rss:0kB, UID:1000 pgtables:1200kB oom_score_adj:0
     expect: []
 
+  # --- SystemdUnitFailed ------------------------------------------------------
+  # The 2026-11-23 re-audit: logrotate failed every night on prometheus and
+  # oracle and nothing fired. The lines are the shape journalctl shows there.
+  # The rule looks back 48h, past the runner's gap, and three 48h windows
+  # would overrun what Loki accepts. So, like the new-device rules' MACs, each
+  # case uses unit names no other case in this file does.
+  # For the same reason the lines are hours old, not days: the 48h edge is
+  # Loki's range arithmetic, not this rule's, and is not tested here.
+  - alert: SystemdUnitFailed
+    name: a unit that fails twice in 48h fires, named from the line
+    isolated_by: failed_unit
+    streams:
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "logrotate.service: Failed with result 'exit-code'."
+          - before: 1h
+            line: "logrotate.service: Failed with result 'exit-code'."
+    expect:
+      - {host: prometheus, failed_unit: logrotate.service}
+
+  - alert: SystemdUnitFailed
+    name: one failure, as at a shutdown, does not
+    isolated_by: failed_unit
+    streams:
+      - labels: {log_type: journal, host: trinity, unit: init.scope, transport: journal}
+        entries:
+          - before: 2h
+            line: "finalrd.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "systemd-cryptsetup@immich.service: Failed with result 'exit-code'."
+    expect: []
+
+  - alert: SystemdUnitFailed
+    name: scheduled jobs, OOM kills and other sources do not
+    isolated_by: failed_unit
+    streams:
+      # ScheduledJobFailed's.
+      - labels: {log_type: journal, host: prometheus, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "homelab-silence-state.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "homelab-silence-state.service: Failed with result 'exit-code'."
+      # UnitOomKilled's.
+      - labels: {log_type: journal, host: oracle, unit: init.scope, transport: journal}
+        entries:
+          - before: 3h
+            line: "suricata.service: Failed with result 'oom-kill'."
+          - before: 2h
+            line: "suricata.service: Failed with result 'oom-kill'."
+      # `logger` from a login shell.
+      - labels: {log_type: journal, host: trinity, unit: session-4.scope, transport: syslog}
+        entries:
+          - before: 3h
+            line: "nut-monitor.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "nut-monitor.service: Failed with result 'exit-code'."
+      # A user's manager: system units only.
+      - labels: {log_type: journal, host: trinity, unit: user@1000.service, transport: journal}
+        entries:
+          - before: 3h
+            line: "run-p1.service: Failed with result 'exit-code'."
+          - before: 2h
+            line: "run-p1.service: Failed with result 'exit-code'."
+    expect: []
+
   # --- IoTAttemptedLateralMovement: more than 20 blocked IoT->internal in 10m -
   - alert: IoTAttemptedLateralMovement
     name: 21 blocked attempts from IoT to management fire
@@ -703,7 +770,7 @@ tests:
     window: 30m
     streams: []
     expect:
-      - {app: filterlog}
+      - {host: morpheus, app: filterlog}
 
   - alert: FirewallLogsStopped
     name: one line twenty minutes ago is enough
@@ -762,7 +829,7 @@ tests:
     window: 2h
     streams: []
     expect:
-      - {app: kea-dhcp4}
+      - {host: morpheus, app: kea-dhcp4}
 
   - alert: DhcpLeaseLogsStopped
     name: one lease ninety minutes ago is enough
@@ -828,7 +895,7 @@ tests:
     window: 9h
     streams: []
     expect:
-      - {app: suricata}
+      - {host: morpheus, app: suricata}
 
   - alert: SuricataLogsStopped
     name: one alert eight hours ago is enough
@@ -842,4 +909,91 @@ tests:
               [1:2027390:4] ET INFO User-Agent (python-requests) Inbound to
               Webserver [Classification: Misc activity] [Priority: 3] {TCP}
               10.0.20.15:51544 -> 10.0.99.20:443
+    expect: []
+
+  # ===========================================================================
+  # ADR-0127: neo's log on the same listener. A line on that path is stored as
+  # host="neo" with app="routeros" (syslog.alloy); these cases check the second
+  # guard, that the firewall's rules read host="morpheus" only, by giving a neo
+  # line the firewall's app outright.
+  - alert: FirewallLogsStopped
+    name: a filterlog-tagged line from neo does not keep it quiet
+    window: 30m
+    streams:
+      - labels: {host: neo, app: filterlog, action: pass, direction: in,
+                 reason: match, interface: igc0.50}
+        entries:
+          - before: 20m
+            line: "70,,,1000102400,igc0.50,match,pass,in,4,0x0,,64,40200,0,DF,6,tcp,60,\
+              10.0.50.12,93.184.215.14,40200,443,0,S,1200040001,,64240,,mss;sackOK;TS;nop;wscale"
+    expect:
+      - {host: morpheus, app: filterlog}
+
+  - alert: SuricataHighPriorityAlert
+    name: a priority-1 line from neo does not fire
+    streams:
+      - labels: {app: suricata, host: neo, interface: igc0.20,
+                 priority: "1", classification: A Network Trojan was detected}
+        entries:
+          - before: 4m
+            line: >-
+              [1:2027758:3] ET MALWARE Observed Malicious SSL Cert
+              [Classification: A Network Trojan was detected] [Priority: 1]
+              {TCP} 10.0.20.15:51544 -> 198.51.100.23:443
+    expect: []
+
+  # --- SwitchLoginFromUnexpectedSource: a login to neo from elsewhere --------
+  - alert: SwitchLoginFromUnexpectedSource
+    name: an admin login from Winterfell fires
+    streams:
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
+        entries:
+          - before: 3m
+            line: "system,info,account user gerrrt logged in from 10.0.99.20 via ssh"
+    expect:
+      - {user: gerrrt, login_from: 10.0.99.20, via: ssh}
+
+  - alert: SwitchLoginFromUnexpectedSource
+    name: another user from Home Assistant's address fires
+    streams:
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
+        entries:
+          - before: 3m
+            line: "system,info,account user gerrrt logged in from 10.0.99.40 via api"
+    expect:
+      - {user: gerrrt, login_from: 10.0.99.40, via: api}
+
+  - alert: SwitchLoginFromUnexpectedSource
+    name: the expected sources and ordinary lines do not
+    streams:
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
+        entries:
+          - before: 5m
+            line: "system,info,account user homeassistant logged in from 10.0.99.40 via api"
+          - before: 4m
+            line: "system,info,account user gerrrt logged in from 10.7.7.1 via ssh"
+          - before: 3m
+            line: "system,info,account user gerrrt logged in from 10.0.50.90 via winbox"
+          - before: 2m
+            line: "system,info,account user homeassistant logged out from 10.0.99.40 via api"
+          - before: 1m
+            line: "interface,info ether4 link up (speed 1G, full duplex)"
+    expect: []
+
+  # --- SwitchLogsStopped: no line from neo for 30 minutes --------------------
+  - alert: SwitchLogsStopped
+    name: thirty minutes without a line fires
+    window: 30m
+    streams: []
+    expect:
+      - {host: neo}
+
+  - alert: SwitchLogsStopped
+    name: one heartbeat twenty minutes ago is enough
+    window: 30m
+    streams:
+      - labels: {log_type: syslog, source: network, host: neo, app: routeros, level: info}
+        entries:
+          - before: 20m
+            line: "script,info log heartbeat"
     expect: []

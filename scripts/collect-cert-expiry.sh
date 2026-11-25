@@ -44,8 +44,16 @@
 # expired, and a reader that has quietly stopped working must not look like
 # good news.
 #
+# A CLIENT CERTIFICATE HAS NO HANDSHAKE TO READ. morpheus's syslog leaf
+# (#1049) is presented only when morpheus connects out, and the listener on the
+# monitoring host pins that exact certificate. So --file reads a certificate
+# file on THIS host, the pinned copy, which is the one that has to match: the
+# day it expires, morpheus's logs stop arriving and FirewallLogsStopped is the
+# first word. A certificate file holds no key; a key file is refused.
+#
 # Usage: scripts/collect-cert-expiry.sh [--ssh USER@HOST] [--host NAME] [--print]
 #                                       --probe ENDPOINT=HOST=ADDR:PORT [...]
+#                                       --file ENDPOINT=HOST=PATH [...]
 #        scripts/collect-cert-expiry.sh --self-test
 #
 #   --probe    endpoint name, the host label the series carries (`-` for this
@@ -53,6 +61,8 @@
 #   --host     names the output file, cert-expiry-<NAME>.prom; defaults to
 #              this host's hostname
 #   --ssh      run the probes on that host instead of here
+#   --file     endpoint name, host label, and a PEM certificate on this host;
+#              always read here, never over --ssh
 set -uo pipefail
 
 TEXTFILE_DIR="${TEXTFILE_DIR:-/var/lib/node_exporter/textfile_collector}"
@@ -60,6 +70,7 @@ PRINT_ONLY=0
 SSH_TARGET=""
 FILE_HOST=""
 PROBES=()
+FILES=()
 
 die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 
@@ -67,6 +78,11 @@ die() { printf '\033[0;31merror:\033[0m %s\n' "$*" >&2; exit 1; }
 # so each part is checked for shape before it gets there.
 valid_probe() {
   [[ "$1" =~ ^[a-z0-9][a-z0-9-]*=([A-Za-z0-9][A-Za-z0-9._-]*|-)=[A-Za-z0-9][A-Za-z0-9.-]*:[0-9]{1,5}$ ]]
+}
+
+valid_file() {
+  [[ "$1" =~ ^[a-z0-9][a-z0-9-]*=([A-Za-z0-9][A-Za-z0-9._-]*|-)=[A-Za-z0-9._/][A-Za-z0-9._/-]*$ ]] \
+    && [[ "$1" != *key.pem && "$1" != *-key* ]]
 }
 
 # The script that does the handshakes. Takes "ENDPOINT ADDR:PORT" pairs and
@@ -131,6 +147,22 @@ if [[ "${1:-}" == "--self-test" ]]; then
   same "an unread endpoint is checked 0" \
     "$(grep '^homelab_cert_checked{endpoint="ilo-ui"' <<<"$out")" 'homelab_cert_checked{endpoint="ilo-ui",host="shiva"} 0'
 
+  p='syslog-client=morpheus=certificates/morpheus.matrix.elysium.pem'
+  if valid_file "$p"; then ok "accepts --file $p"; else bad "accepts --file $p"; fi
+  # shellcheck disable=SC2016  # the $(id) is the injection being refused
+  for p in 'k=h=certificates/syslog.matrix.elysium-key.pem' 'a=h=x.pem;id' 'a=h=$(id)' 'a=h=a b.pem'; do
+    if valid_file "$p"; then bad "rejects --file ${p}"; else ok "rejects --file ${p}"; fi
+  done
+  cert_tmp="$(mktemp -d)"
+  if openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes -days 3 \
+       -subj /CN=self-test -keyout "${cert_tmp}/k" -out "${cert_tmp}/c.pem" >/dev/null 2>&1; then
+    got="$(to_epoch "$(openssl x509 -noout -enddate -in "${cert_tmp}/c.pem")")"
+    same "a certificate file's date to epoch" "$(( (got - $(date +%s) + 3600) / 86400 ))" 3
+  else
+    bad "openssl could not make a test certificate"
+  fi
+  rm -rf "${cert_tmp}"
+
   for p in 'pfsense-ui=morpheus=127.0.0.1:443' 'pve-ui=-=127.0.0.1:8006' 'ilo-ui=shiva=10.0.30.10:443'; do
     if valid_probe "$p"; then ok "accepts $p"; else bad "accepts $p"; fi
   done
@@ -141,7 +173,7 @@ if [[ "${1:-}" == "--self-test" ]]; then
 
   # Arguments, through the real parser. timeout turns the old endless loop on
   # a trailing flag into 124, which is a FAIL here rather than a hung suite.
-  for flag in --probe --ssh --host; do
+  for flag in --probe --ssh --host --file; do
     timeout 5 "${BASH_SOURCE[0]}" "${flag}" >/dev/null 2>&1; rc=$?
     if ((rc != 0 && rc != 124)); then ok "a trailing ${flag} with no value is refused"
     else bad "a trailing ${flag} with no value is refused (exit ${rc})"; fi
@@ -173,10 +205,11 @@ while (($#)); do
     --ssh)   need_value "${2:-}" $# "$1"; SSH_TARGET="$2"; shift 2 ;;
     --host)  need_value "${2:-}" $# "$1"; FILE_HOST="$2"; shift 2 ;;
     --probe) need_value "${2:-}" $# "$1"; PROBES+=("$2"); shift 2 ;;
+    --file)  need_value "${2:-}" $# "$1"; FILES+=("$2"); shift 2 ;;
     *) die "unknown argument $1" ;;
   esac
 done
-((${#PROBES[@]})) || die "at least one --probe ENDPOINT=HOST=ADDR:PORT is required"
+((${#PROBES[@]} + ${#FILES[@]})) || die "at least one --probe ENDPOINT=HOST=ADDR:PORT or --file ENDPOINT=HOST=PATH is required"
 [[ -n "$FILE_HOST" ]] || FILE_HOST="$(hostname)"
 [[ "$FILE_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || die "--host ${FILE_HOST@Q} is not a host name"
 
@@ -188,26 +221,38 @@ for p in "${PROBES[@]}"; do
   pairs+=("${endpoint} ${addr}"); labels+=("${endpoint} ${hostlabel}")
 done
 
-STDERR_FILE="$(mktemp)"; trap 'rm -f "${STDERR_FILE}"' EXIT
-if [[ -n "$SSH_TARGET" ]]; then
-  raw="$(probe_script "${pairs[@]}" \
-    | ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" 'sh -s' 2>"${STDERR_FILE}")"
-else
-  raw="$(probe_script "${pairs[@]}" | sh -s 2>"${STDERR_FILE}")"
-fi
-# No line at all means the probes never ran — ssh failed, or there is no
-# openssl. That is the job failing, not every certificate being unreadable, so
-# it exits non-zero and leaves the previous file for the staleness rules.
-if [[ -z "$raw" ]]; then
-  detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
-  die "the probes did not run${SSH_TARGET:+ on ${SSH_TARGET}}${detail:+ — ${detail}}"
+results=""
+if ((${#PROBES[@]})); then
+  STDERR_FILE="$(mktemp)"; trap 'rm -f "${STDERR_FILE}"' EXIT
+  if [[ -n "$SSH_TARGET" ]]; then
+    raw="$(probe_script "${pairs[@]}" \
+      | ssh -o BatchMode=yes -o ConnectTimeout=10 "$SSH_TARGET" 'sh -s' 2>"${STDERR_FILE}")"
+  else
+    raw="$(probe_script "${pairs[@]}" | sh -s 2>"${STDERR_FILE}")"
+  fi
+  # No line at all means the probes never ran — ssh failed, or there is no
+  # openssl. That is the job failing, not every certificate being unreadable, so
+  # it exits non-zero and leaves the previous file for the staleness rules.
+  if [[ -z "$raw" ]]; then
+    detail="$(tr -d '\r' < "${STDERR_FILE}" | grep -v '^$' | tail -2 | paste -sd'; ' -)"
+    die "the probes did not run${SSH_TARGET:+ on ${SSH_TARGET}}${detail:+ — ${detail}}"
+  fi
+
+  for l in "${labels[@]}"; do
+    endpoint="${l%% *}"; hostlabel="${l#* }"
+    line="$(grep -m1 "^${endpoint} " <<<"$raw")"
+    epoch="$(to_epoch "${line#* }")"
+    results+="${endpoint} ${hostlabel} ${epoch}"$'\n'
+  done
 fi
 
-results=""
-for l in "${labels[@]}"; do
-  endpoint="${l%% *}"; hostlabel="${l#* }"
-  line="$(grep -m1 "^${endpoint} " <<<"$raw")"
-  epoch="$(to_epoch "${line#* }")"
+# Files are read here even with --ssh: they are this host's copies. One that is
+# missing or unparseable is checked 0, like a handshake that failed.
+for f in "${FILES[@]}"; do
+  valid_file "$f" || die "--file ${f@Q} is not ENDPOINT=HOST=PATH to a certificate (not a key)"
+  endpoint="${f%%=*}"; rest="${f#*=}"; hostlabel="${rest%%=*}"; path="${rest#*=}"
+  [[ "$hostlabel" == - ]] && hostlabel="$(hostname)"
+  epoch="$(to_epoch "$(openssl x509 -noout -enddate -in "$path" 2>/dev/null)")"
   results+="${endpoint} ${hostlabel} ${epoch}"$'\n'
 done
 

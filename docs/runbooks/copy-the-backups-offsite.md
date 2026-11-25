@@ -2,16 +2,13 @@
 
 **Target:** the newest firewall export, volume set, NAS set and wiki set
 under `backups/` on the monitoring host (10.0.99.20)
-**Time:** ten minutes every ninety days, on the visit that proves the second
-age recipient; a few minutes longer the first time
-**You will need:** the offline medium that holds the second age recipient's
-private key ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md),
-[#294](https://github.com/Gerrrt/HomeLab/issues/294)), mounted on the
-monitoring host, with a few gigabytes free
+**Time:** ten minutes every ninety days; a few minutes longer the first time
+**You will need:** the offsite drive, the 5 TB WD labelled `HOUSEHOLD`
+([ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md), [`hardware.md`](../hardware.md)), brought back to
+the monitoring host and mounted, with a few gigabytes free
 
-This is the third of the ninety-day proofs, and the first that is not a key.
-Read [`back-up-the-age-key.md`](back-up-the-age-key.md) first if you have not:
-the visit this runbook rides on is that one.
+This is the third of the ninety-day proofs, and the only one that is not a
+key.
 
 ## Why
 
@@ -21,17 +18,16 @@ Three things leave this host on their own — `make backup-firewall` nightly,
 laptops share a shelf, a switch, a circuit and a roof, and `verify-backups`
 proving every morning that `oracle` still holds every byte says nothing about
 the room. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
-sends one copy of each beyond it, on the medium that already leaves the estate
-and already visits: the newest complete set of each kind, encrypted exactly as
-it is here, carried in a pocket.
+sends one copy of each beyond it: the newest complete set of each kind,
+encrypted exactly as it is here, on a drive kept outside the house.
 
-**Why this medium.** Its holder is the technical second named on the
-break-glass card — the person who would restore from these sets on the day
-they matter — and a successor holding it has the key, the sets and the public
-repository in one hand. The cost that comes with that is stated in the ADR and
-accepted: this medium is now the one place where the estate's ciphertext sits
-beside a key that opens it. Keep it out of the house, and treat losing it as
-losing the key, because it is.
+**Why this medium.** Since [ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md) it is the spare
+`HOUSEHOLD` drive, and it holds no key. Until 2026-11-24 the copy rode on the
+second age recipient's medium, which put the ciphertext beside a key that
+opens it. Now the drive alone opens nothing: a restore needs the drive and
+one of the two age keys, the second recipient's medium or the offline copy
+of the first. Losing the drive loses only ciphertext. Keep it out of the
+house between visits.
 
 **One copy of record.** The proof below records one timestamp. If the sets are
 ever copied to a second medium as well, nothing here can see that copy, and
@@ -107,25 +103,20 @@ start of the *next* visit is for; and that anyone but the holder knows where
 it is. Those parts are judgement, not a check, and the medium's location is
 not written down in this repository, for the same reason the key's is not.
 
-Then, while the medium is mounted, do the other thing it is here for:
-
-```bash
-make secrets-verify-backup KEY=/path/to/the/medium/keys.txt
-```
-
-That clears `SecretsKeyBackupUnproven` for the second recipient; this runbook
-clears `OffsiteCopyStale`. Neither clears the other.
+The drive holds no key, so there is no key to check on this visit. Each
+key's own proof is optional and has no deadline
+([ADR-0120](../adr/0120-drop-the-age-key-proof-deadline.md),
+[`back-up-the-age-key.md`](back-up-the-age-key.md)).
 
 ## 3. The ninety-day deadline
 
-Like the two key proofs, this cannot be put on a timer — it needs a human to
+Like the CA key proof, this cannot be put on a timer — it needs a human to
 mount a medium — so it is enforced from the other end. A successful run of the
 copy records `offsite-copy` through `run-scheduled.sh`, and `OffsiteCopyStale`
 fires when that success passes ninety days old, routed to the normal alert
 channel like any other warning. The threshold is the `offsite-copy` row in
 the `JOBS` table in [`install-timers.sh`](../../scripts/install-timers.sh),
-beside `verify-key-backup` and `verify-ca-key-backup`, so one number governs
-the whole visit.
+beside `verify-ca-key-backup`, so one number governs the whole visit.
 
 `ARGS=--list`, `ARGS=--verify-only` and `ARGS=--prune` run outside the wrapper
 on purpose: looking at the medium, or tidying it, is not refreshing it and
@@ -165,8 +156,8 @@ Then [`restore-the-stack.md`](restore-the-stack.md) (`make restore
 ARGS="--from <STAMP>"`), [`restore-the-firewall.md`](restore-the-firewall.md),
 [`build-the-nas.md`](build-the-nas.md) §6 and
 [`stacks/wiki/README.md`](../../stacks/wiki/README.md) § Restore as written.
-None of it decrypts without the age key, which is on the same medium — that is the point of this
-medium, and the cost of it.
+None of it decrypts without an age key, and the drive holds none: bring the
+second recipient's medium, or the offline copy of the first key, as well.
 
 ## If something goes wrong
 
@@ -176,14 +167,14 @@ medium, and the cost of it.
 | `the destination is on the same filesystem as the sets it would copy` | `DEST` is a directory on this host's disk, or a symlink or bind mount into it | Point it at the mounted medium. This is the check working |
 | `the destination is a tmpfs filesystem, which is not a medium` | `DEST` is `/dev/shm` or another in-memory filesystem | Point it at the mounted medium. A copy in RAM is gone on the next reboot, and the recorded success would have vouched for it for ninety days |
 | `the destination is under /…, which this host clears or recreates` | `DEST` is under `/tmp`, `/run`, `/dev`, `/proc` or `/sys` | The same. Whatever is mounted there, it does not leave the house |
-| `… does not report as removable media` (a warning, the run continues) | The destination is a fixed disk or a network mount | Only you can say whether it leaves the house. If it does not, stop and mount the medium |
+| `… does not report as removable media` (a warning, the run continues) | The destination is a fixed disk or a network mount. The offsite drive reports as fixed, so this prints on every visit | Expected for the offsite drive. For anything else, only you can say whether it leaves the house. If it does not, stop and mount the drive |
 | `the destination is inside this repository` | `DEST` is under the working tree | This tree is published. Use the medium |
 | `not enough room on the medium` | A volume set is about 1.7 GB and the medium is small or full of something else | `ARGS=--prune` if an older set of the estate's is what fills it; otherwise a larger medium. Nothing was written |
 | `differs from its MANIFEST entry` or `differs from its recorded sha256` | A byte on the medium changed since it was written — media do fade | Remove *that one* set directory (or that export and its `.sha256`) from the medium, then run the copy again. The script names it and never deletes it for you |
 | `refusing to check a set with an unexpected name` | A directory holding a `MANIFEST` sits beside the sets under a name that is not a stamp — copied there by hand, or renamed | Move it off the medium or delete it, then run again. A `<stamp>.part` left by a copy that died is not this: the next run removes it on its own and says so (`removing … — a copy that did not finish`) |
-| `NOT held: … is not encrypted to age1…, so that key cannot open it` | The newest set or export of that kind was encrypted before that key became a recipient, or, for a firewall export made before 2026-09-23, by `backup-firewall.sh` encrypting to the first key of the rule only. It hashes perfectly and the key on the medium cannot open it. That is what the first visit carried (#573) | Make a fresh one with the command the line names (`make backup`, `make backup-nas` or `make backup-firewall`), then run the copy again. It replaces the unfit one and records the proof. After any recipient change, the next visit needs sets made after it |
+| `NOT held: … is not encrypted to age1…, so that key cannot open it` | The newest set or export of that kind was encrypted before that key became a recipient, or, for a firewall export made before 2026-09-23, by `backup-firewall.sh` encrypting to the first key of the rule only. It hashes perfectly and that key cannot open it. That is what the first visit carried (#573) | Make a fresh one with the command the line names (`make backup`, `make backup-nas` or `make backup-firewall`), then run the copy again. It replaces the unfit one and records the proof. After any recipient change, the next visit needs sets made after it |
 | `records no recipients, so which keys open it is unknown` | The set's MANIFEST has no `recipient` line: it predates that line, or was not written by the backup scripts | The same: a fresh set of that kind, then the copy again |
-| `on the medium, <kind>: … is not encrypted to …` from `--verify-only` | The medium's newest set of that kind is one its key cannot open, carried before this check existed | Run the copy with a fit set; the warning on a copy run is expected, and the copy replaces it |
+| `on the medium, <kind>: … is not encrypted to …` from `--verify-only` | The medium's newest set of that kind is one an estate key cannot open, carried before this check existed | Run the copy with a fit set; the warning on a copy run is expected, and the copy replaces it |
 | `nothing to verify on the medium` from `--verify-only` | The medium holds no complete set | Not a proof of anything. Run the copy |
 | `OffsiteCopyStale` | Ninety days since the last proved copy | This runbook, on the next visit |
 | `ScheduledJobNeverRan` for `offsite-copy` | The deadline is declared and no copy has ever been made | Expected until the first visit. Make it |

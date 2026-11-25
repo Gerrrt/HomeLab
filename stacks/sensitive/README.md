@@ -30,8 +30,9 @@ under [#404]. It was authored ahead of the hardware, the way `stacks/lab` was, a
 the first start found five things that the file could not show; the sections
 below carry each of them. **It holds real data since 2026-09-28** — Immich's
 first 615 photographs, which arrived before the off-estate copy that #404 step
-10 gates them on; [*What backs Immich up*](#what-backs-immich-up-and-what-does-not-yet)
-says what that leaves exposed.
+10 then gated them on. [ADR-0122] has since dropped that copy;
+[*What backs Immich up*](#what-backs-immich-up-and-what-does-not-yet) says
+what that leaves exposed.
 
 ```bash
 make up STACK=sensitive
@@ -142,6 +143,8 @@ adguard/AdGuardHome.yaml   AdGuard Home's whole configuration, blocklists includ
 glance/                    Glance's configuration: glance.yml and pages/, each
                            mounted read-only, and assets/icons; validated in CI
                            by its own binary
+wall/                      the office wall dashboard (ADR-0119): static HTML,
+                           CSS and JS, served by Caddy at wall.matrix.elysium
 ntfy/server.yml            ntfy's settings; its users and access list come from SOPS
 ntfy/templates/            message templates, mounted read-only
 stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endpoint;
@@ -149,8 +152,6 @@ stirling-pdf/smoke.sh      proves the PDF engine works, not just its status endp
 mosquitto/                 the broker's config and ACL, mounted read-only, and a
                            smoke.sh that signs in as both users (ADR-0104)
 ring-mqtt/smoke.sh         proves ring-mqtt reads its config under its hardening
-household.recipients       the age public keys that can open the household's copies
-household-age.sha256       checksums of the age release the household copy is opened with
 consume/                   untracked: drop a scan here and Paperless-ngx imports
                            and deletes it. Created by render-config.sh
 export/                    untracked: where document_exporter writes. Likewise
@@ -367,7 +368,12 @@ time and lives in Caddy's `/data` volume, never on disk here.
   image-only: a peak of 1716 MiB, no OOM kill, 3.0 cores at the busiest
   minute and 0.2 s throttled in total, 3 min 54 s for the 50 pages, and
   Vaultwarden through Caddy never slower than 19 ms meanwhile. Both limits
-  stand. Re-derive from `container_memory_rss` once `trinity` has run a month.
+  stood. **Re-derived on 2026-11-21** from `container_memory_rss` over the
+  TSDB's whole thirty days (2026-10-22 to 11-21), #114's way: Home Assistant
+  peaked at 816 MiB, 80 % of its 1g, and went to 1536m. Every other service
+  peaked at or under two-thirds of its limit (Immich's server 2046 of 3072,
+  AdGuard 954 of 1536, the rest lower), and they stand; `compose.yaml` keeps
+  the numbers beside each.
 - **Caddy joins the operator's group.** `gen-certs.sh` writes the leaf's key
   `0640`, owned by whoever ran it, and root inside a container that has dropped
   `CAP_DAC_OVERRIDE` is bound by that mode like any other uid — measured: the
@@ -451,19 +457,15 @@ The version-portable form is the exporter — `docker compose exec paperless
 document_exporter ../export`, into `export/` — which writes every document with
 a `manifest.json` that a fresh install of the *same* version re-imports.
 Upstream is explicit that an export does not cross versions, so it is the
-form to send off-estate rather than the form to rely on across an upgrade.
+form to keep for a move between installs rather than the form to rely on
+across an upgrade.
 
 One thing this does **not** do, stated rather than implied. It is
 scheduled: `homelab-backup-sensitive` runs it nightly on `trinity` and copies
-each set to `oracle` ([#404] step 9). But **nothing here is the off-estate copy**
-[ADR-0023] requires before the first real document — encrypted, keyed to a
-second holder, with visible freshness. That copy is now built: `make
-household-copy` runs the exporter above, archives `export/` into a standard
-set encrypted to [`household.recipients`](household.recipients) as well, and
-carries it to the household drive ([ADR-0073],
-[`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)).
-It refuses a copy of record until there is a household holder, so the
-precondition on the data arriving is still open.
+each set to `oracle` ([#404] step 9). But **nothing here is a copy outside the
+house**, and none is planned: [ADR-0122] dropped the household copy that
+[ADR-0023] required and [ADR-0073] built. A loss of the house loses the
+documents.
 
 ## Vaultwarden
 
@@ -524,6 +526,16 @@ around it is here.
      device without the operator present. The recommendation there is that the
      family's vault is hosted Bitwarden and this one keeps the operator's.
 
+  All three are met. Immich's restore was rehearsed on the host on
+  2026-09-28 and 09-29; Vaultwarden's was rehearsed with a seeded account on
+  the monitoring host on 2026-09-09, not on `trinity` (the restore runbook's
+  *What is proven, and what is not*). ADR-0022's record is
+  [ADR-0075](../../docs/adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md),
+  and the *Independent* test passed by 2026-11-21 on the recommended route:
+  the household's credentials are in hosted Bitwarden, and the other person
+  opened them from their own device and account without the operator. That
+  closed [#404].
+
 ## Memos
 
 The household's notes, and the second *Tier extras* service —
@@ -557,14 +569,12 @@ The household's notes, and the second *Tier extras* service —
   `memos_prod.db` is a 4 KB header and everything else is in the `-wal`, which
   a clean stop checkpoints back — and attachments are files under `./assets`.
   The backup names all three.
-- **Durable, under [ADR-0023], and running ahead of it.** The class
-  requires an off-estate copy before real notes, for the same reason as
-  Paperless-ngx. It holds real notes since 2026-10-22 anyway, by the
-  operator's accepted exception: the household's shared plan, which also
-  lives outside the estate, so this is not its only copy. What backs it up
-  today is the nightly volume set on `oracle`, age ciphertext, off-host and
-  not off-estate. `make household-copy` does not carry `memos-data`, and
-  until [#455] does, the class's condition is still owed.
+- **Durable, under [ADR-0023].** The class required an off-estate copy
+  before real notes, until [ADR-0122] dropped that requirement. It holds real
+  notes since 2026-10-22, the household's shared plan, which also lives
+  outside the estate, so this is not its only copy. What backs it up
+  is the nightly volume set on `oracle`, age ciphertext, off-host and not
+  off-estate, and [ADR-0122] says that is all there will be.
 - **Two admins, and the settings that came with the first real notes**
   (2026-10-22), all in the database and none in this file: public access
   off, so a signed-out visitor gets nothing; the content length limit at
@@ -737,6 +747,162 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
      after the pinned exporter image with the `http_2xx_tier_ca` module and
      the tier CA probed it from `trinity` (`probe_success 1`). It is live once
      `prometheus` pulls the merge; `probe_success{name="glance"}` then reads 1.
+
+## The wall page
+
+The office wall dashboard, at `https://wall.matrix.elysium`, shown full-screen
+by `heimdall`'s kiosk
+([ADR-0119](../../docs/adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+[`build-heimdall.md`](../../docs/runbooks/build-heimdall.md)). It shows about
+eight things at a size read from across the room: the time, the firing
+alerts, ten tiles of hosts and devices, the internet, the UPS, and any source
+whose answer is late. No container of its own: Caddy serves `wall/` as
+static files.
+
+- **The page chooses the question, never the query.** Each `/api/q/NAME` is a
+  `handle` in the Caddyfile that rewrites to one PromQL query written there,
+  and Caddy adds the reader token on the way to the ingest proxy on
+  `prometheus`. A client's own query string is replaced, so
+  `/api/q/cpu?query=…` still asks the CPU question. Anything else under
+  `/api/` is 404. Only GET and HEAD reach a handle: Prometheus reads a POST
+  body's `query=` ahead of the URL's, so the method gate runs first, inside a
+  `route` that keeps it there. Measured against the pinned Caddy with a
+  stand-in upstream on 2026-11-17: the question rewritten, `?query=up`
+  ignored, POST and DELETE 405 without reaching upstream, `/api/v1/query`
+  404, the client's cookie stripped and the token added.
+- **No credential in the page or on the Pi.** The token is
+  `GLANCE_PROMETHEUS_TOKEN`, the estate's reader that Glance and Home
+  Assistant already share, given to the caddy service. Its upstream's leaf
+  is the estate CA's, so Caddy trusts the committed
+  `stacks/observability/alloy/ingest-ca.pem` for that one transport.
+- **It loads nothing from anywhere else.** The site's Content-Security-Policy
+  allows only itself. There are no web fonts; the stacks fall back to the
+  Pi's DejaVu.
+- **A change reaches the screen by itself.** The page reloads every six
+  hours, and its files are served with `Cache-Control: no-cache`, so each
+  load asks Caddy whether they changed instead of trusting the browser's
+  copy. To see a change sooner, stop Chromium on `heimdall`; `lwrespawn`
+  starts it again a second later on a fresh load.
+- **Only what notifies counts.** The verdict and the alert list take
+  `critical` and `warning` alerts only, as those are what Alertmanager
+  delivers, the same rule the Glance *Estate* panel keeps. An `info` alert is
+  recorded, never notified, and some fire for good
+  (`HostBatteryTempNotMeasured`), so they leave "All quiet" standing and are
+  counted on one muted line under it ("2 info recorded"). `/api/q/alerts`
+  still returns every firing alert, so the page sees Watchdog.
+- **It says when it does not know.** No answer from Prometheus, or a
+  Watchdog that is not firing, is shown in red as exactly that, never as
+  "All quiet". Under a real "All quiet", two lines say how the lab stands:
+  the backups, the restore test and the off-site copy, each by its most
+  overdue job against its own allowance (`/api/q/backups`), and the security
+  updates and reboots waiting (`/api/q/patches`). Overdue, failed, never
+  succeeded or waiting is amber. What no host reports is left out rather
+  than shown as none, and with neither line, "Nothing is firing." stays
+  ("Nothing that notifies is firing." while an info alert is). A host that stops reporting reads *no data*. The status bar
+  names only a source that has fallen behind, with its age, amber from two
+  and a half minutes and red from seven and a half or when it has never
+  answered; with none behind it reads "all sources live". `heimdall`'s own
+  temperature sits at its right end.
+- **The tiles.** Ten, five to a row: `morpheus`, `neo` and `mjolnir` by
+  whether they answer SNMP (`/api/q/snmp`); `Saruman`, `gandalf`,
+  `trinity`, `prometheus`, `oracle` and `smaug` by CPU (`/api/q/cpu`);
+  and the eero mesh as one tile, how many of its access points answer their
+  ping out of every configured target (`/api/q/eero` reads `up` as well as
+  `probe_success`, so a probe whose scrape failed still counts;
+  `targets/blackbox-eero.yaml`), amber when one is silent and red when all
+  are. The lab's guests report to `alexander`'s
+  Prometheus, not this one, so they have no tile.
+- **The Internet card is the last speed test.** Download, upload and ping
+  from speedtest-tracker, which runs every 30 minutes (`/api/q/speedtest`),
+  and how long ago it landed (`/api/q/speedtest_at`: the last minute in
+  three hours at which its result id changed, or for a first result the
+  minute its id appeared). A failed test exports only its result id, which
+  the page reads to say "last test failed". A figure is amber under the
+  bars `internet.rules.yaml` alerts on, 400 Mbit/s down and 100 up, and all
+  of them are when the test is over 90 minutes old. Under them, the WAN
+  port's traffic now (`/api/q/wan`), and the sparkline is its last hour of
+  download (`/api/q/wan_hour`).
+- **The household half comes from Home Assistant, the same way.** Each
+  `/api/ha/NAME` rewrites to `GET /api/states/<one entity>`. The rewrite ends
+  in `?`, so the client's query string is dropped. Caddy adds
+  `WALL_HA_TOKEN`, the token of HA's non-admin `wall` user. The entities are
+  `weather.forecast_home`, the front, garage, garden and patio door contacts,
+  the two window contacts, `input_boolean.house_empty` from
+  `home-assistant/packages/presence.yaml` at `/api/ha/house_empty`, and
+  `sensor.wall_alarm` from `home-assistant/packages/wall_house.yaml`, the
+  house's one alarm panel.
+  The page shows them as the header's weather and a one-line Home row: the
+  alarm's mode; "House empty" while presence has marked it so, and nothing
+  otherwise; any open door or window in amber; the hallway thermostat's
+  temperature and humidity, then what it is set to and whether it is
+  heating or cooling ("68° · 45% · heating to 70", a range in heat_cool,
+  "away" while presence holds it there; read from `climate.thermostat` at
+  `/api/ha/thermostat`); and the Litter-Robot, always: `ok`, what it wants in
+  amber, or `—` when it cannot be read (`sensor.wall_litter` at
+  `/api/ha/litter`, from `wall_house.yaml`). A row too long for the screen
+  shortens the thermostat to its reading and target ("68° → 70"); if the
+  warnings are still too wide, each says how many instead of which
+  ("6 doors & windows").
+  The header's high and low, the next rain and the next sunrise or sunset
+  are `sensor.wall_weather` at `/api/ha/forecast`, from
+  `home-assistant/packages/wall_weather.yaml`, which asks
+  `weather.get_forecasts` every fifteen minutes.
+  The calendar is `sensor.wall_today` at `/api/ha/today`: the package
+  `home-assistant/packages/wall_calendar.yaml` asks `calendar.get_events`
+  every five minutes for the next seven days, from the calendars labelled
+  `wall_calendar` in HA's UI, or from every calendar when none is labelled.
+  It keeps each event's title, start, end, location and a calendar number for
+  its colour. The page shows today and tomorrow in the Today panel under the
+  alerts, the rest of the week below them while there is room, and a
+  countdown to the next timed event in the header. The cell beside Internet
+  is a context card that shows one thing at a time, whichever matters now
+  (`CONTEXT` in `wall.js`), in this order of precedence: the drive to the
+  next event with an address, from an hour before it is time to leave
+  (`/api/ha/commute`); Shabbat or Yom Tov, from six hours before candle
+  lighting to havdalah (`/api/ha/shabbat`); the bins, from 16:00 the evening
+  before pickup to noon on the day (`/api/ha/trash`); packages to go and
+  get (`/api/ha/deliveries`); the open to-do items (`/api/ha/todo`); what is
+  playing on the players labelled `wall_media` (`/api/ha/media`); and
+  otherwise a Hebrew word of the day from a static list in the page. The
+  others that also apply are named on the card's last line. Each source is a
+  `wall_*.yaml` package and stays unavailable, its card hidden, until what
+  it reads is set up in HA's UI: the Waze Travel Time integration (origin
+  `Home`, region US, any destination, its polling off) and the label
+  `wall_commute` on each calendar to route from, the Jewish Calendar
+  integration, a to-do list labelled `wall_todo`, the trash helpers'
+  pickup day, the 17TRACK integration with the household's account, and the label
+  `wall_media` on each player to show. The
+  commute card sends the next labelled event's location to Waze. The UPS's mains or battery,
+  charge and runtime are in its node tile, `mjolnir`. Booted on
+  Home Assistant 2026.11.1 against its demo calendars on 2026-11-18: the
+  sensor held both events, and with no calendar it read unavailable, which
+  the page shows as `calendar · unavailable`. The alarm's real id names the city,
+  so the package finds it and only its own id is written here. Booted on
+  Home Assistant 2026.11.1 with a stand-in alarm, it followed the real one
+  from disarmed to armed. HA has no read-only role, so the narrowing in
+  Caddy is the read-only part (`docs/security.md`). Measured against the
+  pinned Caddy with a stand-in HA on 2026-11-18: each handle reached only
+  its entity with the token, `?x=1` was dropped, POST was refused with 405,
+  and `/api/states/…` directly was 404.
+- **Adding it to the running tier.** On `trinity`:
+  1. Add `wall` to `trinity`'s *Additional Names for this Host* on `morpheus`
+     ([`add-a-host-override.md`](../../docs/runbooks/add-a-host-override.md)),
+     then check that `wall.matrix.elysium` answers `10.0.99.40`. **Done
+     2026-11-17.**
+  2. `make up STACK=sensitive` (or wait for the converge timer). Caddy is
+     recreated for its alias, its mounts and the site block, and step-ca
+     issues the name's leaf on the first request. **Done 2026-11-17.**
+  3. `curl -s https://wall.matrix.elysium/api/q/alerts | head -c 200` from a
+     Hicks host that trusts the tier's root: a JSON answer with
+     `"status":"success"`. **Done 2026-11-17.**
+  4. On `heimdall`, change the URL in `~/.config/labwc/autostart` to
+     `https://wall.matrix.elysium/` and reboot (`build-heimdall.md` §7).
+     **Done 2026-11-17.**
+  5. The `wall` probe in
+     `stacks/observability/prometheus/targets/blackbox.yaml`, committed
+     commented out with the page, was enabled once step 3 answered.
+     **Done 2026-11-17.** It is live once `prometheus` pulls the merge;
+     `probe_success{name="wall"}` then reads 1.
 
 ## ntfy
 
@@ -1190,9 +1356,9 @@ the night it was written fails the next morning, as `verify-backups-sensitive`.
 The units and their installer are in
 [`schedule-maintenance.md`](../../docs/runbooks/schedule-maintenance.md#on-trinity-the-sensitive-profile).
 What this does **not** give is a copy off the estate. `oracle` is in the same
-room and on the same power, and [ADR-0023] requires that copy before Immich or
-Paperless-ngx hold a real file. It is step 10's, and [ADR-0073]'s:
-built, and waiting on a holder.
+room and on the same power. [ADR-0023] required that copy before Immich or
+Paperless-ngx held a real file, and [ADR-0122] dropped the requirement: there
+is no copy outside the house.
 And the volumes are not the photographs: the library is a bind mount, and
 no volume set contains it. Its own sets are the next section's.
 
@@ -1203,24 +1369,23 @@ The photographs are the household data most likely to be irreplaceable, and
 and an off-estate copy whose staleness is visible was to exist before the
 first real photo arrived. It did not; the warning below is the record. Three
 things hold the data. Each is copied off the host now, and none is copied
-off the estate: the copy [ADR-0023] requires, the one that covers the first
-two rows, still does not exist.
+off the estate. [ADR-0122] dropped that copy, so none will be: a loss of the
+house loses the photographs.
 
 > [!WARNING]
 > **The first real photographs arrived before that copy did.** Two accounts
 > uploaded 615 assets between 16:59 and 17:01 UTC on 2026-09-28 — the day the
-> host was built, with [#455] undelivered and [ADR-0022]'s record and
-> [ADR-0023]'s *Independent* test still open. For their first day the USB disk
-> was the only copy of the originals anywhere. Since 2026-09-29 a nightly set
-> goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them. That
-> copy is in the same room and on the same power. Since 2026-10-01 it is
-> encrypted to [`household.recipients`](household.recipients) as well as to
-> `trinity`'s key ([ADR-0073]). It does not satisfy [ADR-0023], and this
-> warning stands until [#455] exists.
+> host was built, with the off-estate copy undelivered and [ADR-0022]'s record
+> and [ADR-0023]'s *Independent* test still open. For their first day the USB
+> disk was the only copy of the originals anywhere. Since 2026-09-29 a nightly
+> set goes to `oracle` ([ADR-0064]), so losing the disk no longer loses them.
+> That copy is in the same room and on the same power. [ADR-0122] dropped the
+> off-estate copy on 2026-11-21, so `oracle`'s is the only other copy there
+> will be.
 
 | What | Where | Protected by |
 | --- | --- | --- |
-| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host, interim:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients and to [`household.recipients`](household.recipients) ([ADR-0073]). **Off-estate: built, waiting on a holder.** `make household-copy` carries the newest set to the household drive, a WD Elements 5 TB under [#455], every ninety days ([ADR-0073], [`carry-the-household-copy.md`](../../docs/runbooks/carry-the-household-copy.md)). It refuses a copy of record until [`household.recipients`](household.recipients) has a household key |
+| The originals | `IMMICH_UPLOAD_LOCATION` — the USB disk | **Off-host:** `make backup-library`, nightly at 05:15 ([ADR-0064]). One encrypted archive of `upload/`, `library/`, `profile/` and `backups/`, two sets kept on `trinity`'s SSD and two on `oracle`, and `ARGS=--prove` hashes each original against `immich-db`. Each set is encrypted to the sensitive rule's recipients. **Off-estate: none**, by [ADR-0122] |
 | Thumbnails and transcodes | The same disk, `thumbs/` and `encoded-video/` | Nothing, on purpose. They are derived from the originals, and a restore regenerates them from Immich's *Jobs* page. Only their `.immich` markers are archived, because the server will not start without them |
 | Immich's own nightly database dump | `IMMICH_UPLOAD_LOCATION/backups/`, `.sql.gz`, fourteen kept, 02:00 by default | It sits on the same disk on purpose, so a copy of the disk is also a copy of the metadata. It rides in every library set, three hours old at most, so each set is a restore unit on its own |
 | The live database | The `immich-db` named volume, on the SSD | `make backup STACK=sensitive`, since [#131] closed [#428]: sentinel `PG_VERSION`, owner `999`, encrypted to `trinity`'s own recipients, and copied to `oracle` by the same run. Immich's dump on the USB disk is the second route to the same metadata |
@@ -1332,6 +1497,7 @@ it matters:
 [ADR-0104]: ../../docs/adr/0104-bring-the-ring-alarm-into-home-assistant-through-ring-mqtt.md
 [ADR-0064]: ../../docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
 [ADR-0073]: ../../docs/adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md
+[ADR-0122]: ../../docs/adr/0122-drop-the-household-copy.md
 [#129]: https://github.com/Gerrrt/HomeLab/issues/129
 [#130]: https://github.com/Gerrrt/HomeLab/issues/130
 [#131]: https://github.com/Gerrrt/HomeLab/issues/131
@@ -1351,7 +1517,6 @@ it matters:
 [ADR-0035]: ../../docs/adr/0035-scope-the-99-to-20-rule-to-the-hue-bridge.md
 [#404]: https://github.com/Gerrrt/HomeLab/issues/404
 [#428]: https://github.com/Gerrrt/HomeLab/issues/428
-[#455]: https://github.com/Gerrrt/HomeLab/issues/455
 [#533]: https://github.com/Gerrrt/HomeLab/issues/533
 [#535]: https://github.com/Gerrrt/HomeLab/issues/535
 [#970]: https://github.com/Gerrrt/HomeLab/issues/970

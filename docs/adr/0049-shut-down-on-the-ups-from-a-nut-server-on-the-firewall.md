@@ -6,6 +6,11 @@ power source [#413](https://github.com/Gerrrt/HomeLab/issues/413) owed
 `hardware.md`
 
 > [!NOTE]
+> **No live test, 2026-11-21.**
+> [ADR-0121](0121-accept-the-ups-shutdown-without-a-live-test.md) accepts the
+> sequence as configured. The runbook's forced-shutdown proof and mains pull
+> will not be run, and #574 closes on the applied steps.
+>
 > **Renumbered to 0049 on 2026-09-21.** This landed as ADR-0048 in
 > [#586](https://github.com/Gerrrt/HomeLab/pull/586) and
 > [#588](https://github.com/Gerrrt/HomeLab/pull/588) took the same number

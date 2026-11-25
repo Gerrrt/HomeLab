@@ -89,7 +89,7 @@ and apply the same `chattr +i` guard on the empty mountpoint. Run the same
 make the Velociraptor config directory root's:
 
 ```bash
-sudo chown root:root ~/HomeLab/stacks/scratch/velociraptor/etc
+sudo chown root:root ~/code/Gerrrt/HomeLab/stacks/scratch/velociraptor/etc
 ```
 
 ## 3. Its own age key, which is never committed
@@ -97,7 +97,7 @@ sudo chown root:root ~/HomeLab/stacks/scratch/velociraptor/etc
 Run this on `diabolos`:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=scratch
 ```
 
@@ -160,9 +160,9 @@ Apply the one-shard, zero-replica template from soc's directory, because the
 reason for it (a single node) is the same:
 
 ```bash
-AUTH='--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem'
+AUTH=(--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem)
 docker compose -f stacks/scratch/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_template/wazuh-alerts-homelab \
   --data-binary @- < stacks/soc/wazuh/indexer/template-wazuh-alerts.json
 ```

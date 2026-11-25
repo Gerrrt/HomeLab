@@ -3,7 +3,9 @@
 # Deploy, or redeploy, the Alloy agent on a monitored host.
 #
 #   ./scripts/deploy-agent.sh [--runtime docker|native] [--monitoring-host IP]
-#                             [--no-verify] <user@host>
+#                             [--no-verify] [--metrics-only] <user@host>
+#   --metrics-only ships config.alloy without logs.alloy — metrics, no logs,
+#   for the range host gandalf (#1651); it cannot be a docker host.
 #
 # One command, two runtimes, same result: the agent on the target runs the
 # Alloy version compose.yaml pins, with the hardening compose.yaml applies, on
@@ -109,13 +111,14 @@ warn()  { printf '\033[0;33m!\033[0m %s\n' "$*" >&2; }
 die()   { printf '\033[0;31m✗\033[0m %s\n' "$*" >&2; exit 1; }
 
 usage() {
-  sed -n '3,6p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+  sed -n '3,7p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
   exit "${1:-1}"
 }
 
 RUNTIME=""
 MON="10.0.99.20"
 VERIFY=1
+METRICS_ONLY=0
 TARGET=""
 
 while (($#)); do
@@ -123,6 +126,7 @@ while (($#)); do
     --runtime)          RUNTIME="${2:-}"; shift 2 ;;
     --monitoring-host)  MON="${2:-}"; shift 2 ;;
     --no-verify)        VERIFY=0; shift ;;
+    --metrics-only)     METRICS_ONLY=1; shift ;;
     -h|--help)          usage 0 ;;
     -*)                 die "unknown flag: $1" ;;
     *)                  [[ -z "$TARGET" ]] || die "one target only (got '$TARGET' and '$1')"
@@ -190,9 +194,18 @@ if [[ -z "$RUNTIME" ]]; then
   info "runtime not given; ${HOST} has $([[ $RUNTIME == docker ]] && echo "a Docker socket" || echo "no docker binary") → ${RUNTIME}"
 fi
 
-# Which files this host gets. Never syslog.alloy — see the header.
+# Which files this host gets. config.alloy is the metrics pipeline; logs.alloy
+# is the log pipeline (#1651), deployed with it everywhere EXCEPT a
+# --metrics-only host, which ships metrics and no logs. docker.alloy's
+# components forward to logs.alloy's log_processor and loki.write, so it cannot
+# ride a metrics-only deploy. Never syslog.alloy — see the header.
 FILES=(config.alloy)
-[[ "$RUNTIME" == docker ]] && FILES+=(docker.alloy)
+if ((METRICS_ONLY)); then
+  [[ "$RUNTIME" != docker ]] || die "--metrics-only cannot ship docker.alloy, whose log components need the logs.alloy pipeline this mode leaves off"
+else
+  FILES+=(logs.alloy)
+  [[ "$RUNTIME" == docker ]] && FILES+=(docker.alloy)
+fi
 # The estate's CA, at the path the agent will read it from: /etc/alloy is the
 # config directory on both runtimes, and Alloy loads only *.alloy from it
 # (measured on the pinned image with a .pem beside the config).
@@ -224,17 +237,32 @@ if [[ "${MON}" != "${ESTATE_MON}" ]]; then
   [[ -n "${INGEST_TOKEN:-}" ]] \
     || die "no agent token for ${HOST}: ${MON} is not the estate's stack, so nothing is decrypted here. Export INGEST_TOKEN from secrets/lab.sops.yaml on alexander (${TOKEN_KEY}), and INGEST_TOKEN_READER for the arrival check (#834)"
 elif [[ -z "${INGEST_TOKEN:-}" || -z "${INGEST_TOKEN_READER:-}" ]]; then
-  if command -v sops >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/secrets/observability.sops.yaml" ]]; then
+  # Why nothing was decrypted, if nothing was. Without it, a checkout with no
+  # sops or no age key got the "add the token" message for a token that was
+  # already in the file.
+  no_decrypt=""
+  if ! command -v sops >/dev/null 2>&1; then
+    no_decrypt="sops is not installed on this machine"
+  elif [[ ! -f "${REPO_ROOT}/${TOKEN_FILE}" ]]; then
+    no_decrypt="${TOKEN_FILE} is not in this checkout"
+  else
+    # The first line says whether load_secrets succeeded, so a failed decrypt
+    # is told apart from a file that decrypts but has no key for this host.
     decrypted="$(
       # shellcheck source=scripts/secrets-env.sh
-      source "${REPO_ROOT}/scripts/secrets-env.sh" || exit 0
-      load_secrets observability >/dev/null || exit 0
-      printf '%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
+      source "${REPO_ROOT}/scripts/secrets-env.sh" || { echo failed; exit 0; }
+      load_secrets observability >/dev/null || { echo failed; exit 0; }
+      printf 'ok\n%s\n%s\n' "${!TOKEN_KEY:-}" "${INGEST_TOKEN_READER:-}"
     )" || true
-    { read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    { read -r dec_status; read -r dec_agent; read -r dec_reader; } <<< "${decrypted}" || true
+    [[ "${dec_status:-}" == ok ]] \
+      || no_decrypt="this checkout could not decrypt ${TOKEN_FILE} (the error above says why)"
     INGEST_TOKEN="${INGEST_TOKEN:-${dec_agent:-}}"
     INGEST_TOKEN_READER="${INGEST_TOKEN_READER:-${dec_reader:-}}"
-    unset decrypted dec_agent dec_reader
+    unset decrypted dec_status dec_agent dec_reader
+  fi
+  if [[ -z "${INGEST_TOKEN:-}" && -n "${no_decrypt}" ]]; then
+    die "no agent token for ${HOST}: ${no_decrypt}. Run this from a checkout that holds the SOPS key (the monitoring host), or export INGEST_TOKEN (${TOKEN_KEY}) and INGEST_TOKEN_READER from the password manager (docs/runbooks/add-monitored-device.md)"
   fi
 fi
 [[ -n "${INGEST_TOKEN:-}" ]] \
@@ -621,17 +649,26 @@ if ((VERIFY)); then
     # The marker. logger(1) is util-linux, present on every target this ships
     # to, and needs no root. If it is missing anyway, fall back to asking for
     # any line newer than the deploy, and say that a quiet host can fail that.
+    # A --metrics-only host ships no logs (#1651), so there is nothing to look
+    # for in Loki: in_loki starts satisfied and no marker is sent.
     loki_query="${marker_logql}"; loki_since=$((ARRIVED_AFTER - 600)); loki_what="the deploy's marker line"
     loki_until=$((ARRIVED_AFTER + 180 + 600))   # the 3-minute wait, plus the skew allowance
-    marker_sent=1
-    if ! "${SSH[@]}" "logger -t homelab-deploy-check '${MARKER}'" 2>/dev/null; then
-      warn "could not run logger on ${HOST}; looking for any line newer than the deploy instead, which an idle host can fail"
-      loki_query="${logql}"; loki_since="${ARRIVED_AFTER}"; loki_what="a line newer than the deploy"
-      marker_sent=0
+    marker_sent=0
+    in_loki=0
+    if ((METRICS_ONLY)); then
+      in_loki=1
+      info "waiting for metrics newer than the deploy from ${HOST} in Prometheus at ${MON} (up to 3 min); metrics only, no logs"
+    else
+      marker_sent=1
+      if ! "${SSH[@]}" "logger -t homelab-deploy-check '${MARKER}'" 2>/dev/null; then
+        warn "could not run logger on ${HOST}; looking for any line newer than the deploy instead, which an idle host can fail"
+        loki_query="${logql}"; loki_since="${ARRIVED_AFTER}"; loki_what="a line newer than the deploy"
+        marker_sent=0
+      fi
+      info "waiting for data newer than the deploy from ${HOST} in Prometheus, and ${loki_what} in Loki, at ${MON} (up to 3 min)"
     fi
-    info "waiting for data newer than the deploy from ${HOST} in Prometheus, and ${loki_what} in Loki, at ${MON} (up to 3 min)"
     fresh_promql="count by (job) (timestamp(${promql}) > ${ARRIVED_AFTER})"
-    deadline=$((SECONDS + 180)); jobs=0; in_loki=0
+    deadline=$((SECONDS + 180)); jobs=0
     while ((SECONDS < deadline)); do
       # `|| true`, and it matters: until the first fresh sample lands, grep
       # matches nothing and exits 1, pipefail makes that the pipeline's
@@ -640,7 +677,7 @@ if ((VERIFY)); then
       jobs="$(mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" --data-urlencode "query=${fresh_promql}" 2>/dev/null \
               | grep -o '"job":"[^"]*"' | sort -u | wc -l | tr -d ' ' || true)"
       jobs="${jobs:-0}"
-      if mon_curl -G "${MON_URL}:${LOKI_PORT}/loki/api/v1/query_range" \
+      if ((!METRICS_ONLY)) && mon_curl -G "${MON_URL}:${LOKI_PORT}/loki/api/v1/query_range" \
            --data-urlencode "query=${loki_query}" --data-urlencode "start=${loki_since}000000000" \
            --data-urlencode "end=${loki_until}000000000" \
            --data-urlencode "limit=1" --data-urlencode "direction=forward" 2>/dev/null \
@@ -656,22 +693,26 @@ if ((VERIFY)); then
       warn "Prometheus has samples newer than the deploy from ${jobs} job(s) for instance=\"${HOST}\" (expected ${expected}). A refused token looks exactly like this: check the agent's log for 401, then ${TOKEN_KEY} in ${TOKEN_FILE} and its line in ${PROXY_FILE}. On another VLAN, check the pass to ${MON}:${PROM_PORT}."
       arrival_failed=1
     fi
-    if ((in_loki)); then
-      pass "Loki has ${loki_what} for host=\"${HOST}\""
+    if ((METRICS_ONLY)); then
+      pass "metrics only — no logs expected from ${HOST} (#1651)"
     else
-      if ((marker_sent)); then
-        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}. The marker was logged on ${HOST} as: ${MARKER}"
+      if ((in_loki)); then
+        pass "Loki has ${loki_what} for host=\"${HOST}\""
       else
-        warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}."
+        if ((marker_sent)); then
+          warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}. The marker was logged on ${HOST} as: ${MARKER}"
+        else
+          warn "Loki has not received ${loki_what} for host=\"${HOST}\". Same suspects as above, on ${MON}:${LOKI_PORT}."
+        fi
+        arrival_failed=1
       fi
-      arrival_failed=1
-    fi
-    dropped="$(mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" \
-                 --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
-               | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
-    if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then
-      warn "the agent has dropped ~${dropped} log entries in the last 5 min — see LogEntriesDropped; a 401 from the proxy is counted here"
-      arrival_failed=1
+      dropped="$(mon_curl "${MON_URL}:${PROM_PORT}/api/v1/query" \
+                   --data-urlencode "query=sum(increase(loki_write_dropped_entries_total{job=\"${HOST}-alloy\"}[5m]))" 2>/dev/null \
+                 | grep -o '"value":\[[^]]*\]' | grep -o '"[0-9.e+-]*"\]' | tr -d '"]' || true)"
+      if [[ -n "${dropped}" ]] && awk -v d="${dropped}" 'BEGIN { exit !(d > 0) }'; then
+        warn "the agent has dropped ~${dropped} log entries in the last 5 min — see LogEntriesDropped; a 401 from the proxy is counted here"
+        arrival_failed=1
+      fi
     fi
   fi
 fi

@@ -11,8 +11,8 @@
 #
 # It shares the `backups` lock with backup-sensitive, so a volume backup still
 # running at 05:15 is waited for rather than raced — the two copies to oracle
-# never share its link. The copy off the ESTATE is not this unit's: that is
-# #455, and until it exists this is off-host only.
+# never share its link. This copy is off-host and still in the house, and
+# there is no other (ADR-0122).
 [Unit]
 Description=HomeLab: archive Immich's library and copy it to oracle
 Documentation=file://@DEPLOY_ROOT@/docs/adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md
@@ -29,8 +29,8 @@ EnvironmentFile=-/etc/default/homelab-timers
 ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job backup-library --lock backups --lock-wait 900 -- /usr/bin/make -C @DEPLOY_ROOT@ backup-library
 # An hour, not half of one: the whole library is read, encrypted and sent
 # every night, and it grows. At oracle's 100 Mb/s a 20 GB set is about half
-# an hour on the wire. A run that needs longer is the moment ADR-0064 names
-# for #455 to have landed.
+# an hour on the wire. A run that needs longer is the moment to look again at
+# where the library is copied.
 TimeoutStartSec=3600
 Restart=no
 Nice=10

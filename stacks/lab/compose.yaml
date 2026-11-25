@@ -188,7 +188,7 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
     container_name: lab-loki
     user: "10001:10001"
     # The estate's block, as on prometheus above (#845), including the /tmp
@@ -243,7 +243,7 @@ services:
   # ---------------------------------------------------------------------------
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: lab-ingest-proxy
     user: "65534:65534"
     mem_limit: 64m
@@ -304,7 +304,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
     container_name: lab-grafana
     # The estate's block, as on prometheus above (#845), including the one
     # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
@@ -457,7 +457,7 @@ services:
 
   alloy:
     <<: *service-defaults
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: lab-alloy
     pids_limit: 1024
     cap_drop: [ALL]
@@ -490,6 +490,7 @@ services:
       - /etc/alloy
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - alloy-data:/var/lib/alloy/data
       - /var/log:/var/log:ro

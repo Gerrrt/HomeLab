@@ -283,7 +283,7 @@ Set-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStat
 # Windows' own Remote Desktop rules admit any address; keep them off.
 Get-NetFirewallRule -Group '@FirewallAPI.dll,-28752' | Disable-NetFirewallRule
 # The Hicks workstations only: laptop-02 (wired and Wi-Fi) and desktop-02.
-$from = '10.0.50.80', '10.0.50.90', '10.0.50.102'
+$from = '10.0.50.80', '10.0.50.90', '10.0.50.100'
 New-NetFirewallRule -Name 'dotfiles-rdp-tcp' -DisplayName 'dotfiles: RDP from Hicks workstations (TCP)' -Direction Inbound -Protocol TCP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
 New-NetFirewallRule -Name 'dotfiles-rdp-udp' -DisplayName 'dotfiles: RDP from Hicks workstations (UDP)' -Direction Inbound -Protocol UDP -LocalPort 3389 -RemoteAddress $from -Action Allow -Profile Any | Out-Null
 Add-LocalGroupMember -Group 'Remote Desktop Users' -Member tester
@@ -291,9 +291,11 @@ Restart-Service TermService -Force
 ```
 
 pfSense already passes Hicks to the lab VLAN over TCP (ADR-0031), so nothing
-changes there. `10.0.50.102` is a DHCP lease, not a reservation. If RDP from
-that machine stops working, its address has moved: reserve it, or change
-`$from` and the bake. Check from `Saruman` that 3389 is refused
+changes there. `10.0.50.100` is `laptop-02`'s Wi-Fi lease, read on
+2026-11-24, not a reservation; the bake of 2026-10-09 used `.102`, its lease
+then, so a `clean` snapshot taken before this change still admits `.102` and
+needs this step re-run. If RDP from that machine stops working, its address
+has moved: reserve it, or change `$from` and the bake. Check from `Saruman` that 3389 is refused
 (`timeout 5 bash -c '</dev/tcp/10.0.30.98/3389'` fails). Then sign in from a
 workstation, set `tester`'s password to a random one nobody keeps, shut down
 and take `clean`.

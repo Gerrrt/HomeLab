@@ -23,6 +23,9 @@
 #   collect-pve-version.sh    pveversion's format, for a host this repo cannot
 #                             reach; one fixture stops the kernel being read as
 #                             the PVE version (#311)
+#   collect-range-state.sh    gandalf's range controls (ADR-0126): the ingress
+#                             barrier, forwarding and sshd parses, and the keys
+#                             read back from the stop timer's deadline-epoch
 #   collect-guest-state.sh    qm list, same unreachable host; a stopped guest has
 #                             no PID column and a guest name can contain a space
 #   record-applied.sh         what `make up` applied, kept apart from HEAD; the
@@ -39,6 +42,8 @@
 #                             agent_control JSON; a removed state file (both
 #                             say they will be deprecated) cannot be staged
 #   collect-gateway-state.sh  the gateway parse, for morpheus
+#   collect-nut-state.sh      upsc's answer, readable or not; a driver that is
+#                             down cannot be staged on the firewall on demand
 #   collect-smart-state.sh    the collector that shipped WITHOUT fixtures and then
 #                             produced a real defect (#483); two fixtures are what
 #                             was read off smaug at the console on 2026-09-21
@@ -55,6 +60,10 @@
 #                             tree. /dev/shm is a refusal FIXTURE here, not a
 #                             destination: a different filesystem that is still
 #                             this host's RAM, which is the #596 regression (#610)
+#   check_firewall_claims.py  what reaches the firewall's own addresses, which is
+#                             a pf evaluation of a ruleset CI may never hold
+#                             (ADR-0026); the shape that left every segment
+#                             reaching the WAN address is a fixture (ADR-0129)
 #   gitleaks-history.sh       gitleaks's log text, which decides a pass; CI's full
 #                             clone never shows the zero-commit scan that the
 #                             fixture for the worktree regression stages
@@ -75,6 +84,10 @@
 #                             tree, a non-fast-forward, red CI. None can be
 #                             staged on a deployment host, and each was tested
 #                             only by never having fired (#854)
+#   ragnarok-stop.sh          the deadline, the two warnings, the dpkg wait and
+#                             the per-run extension; a real run stops the attack
+#                             VM, so the fixtures are the only way to see each
+#                             branch before it fires
 #   backup-volumes.sh         a real backup of a throwaway volume with real age:
 #                             the set opens with either recipient's key and not
 #                             a third's (#835), and the refusals refuse (#854)

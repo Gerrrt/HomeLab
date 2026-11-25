@@ -77,19 +77,19 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.10@sha256:e56f85ed9e79f113c0f2d2a7965171cd8e063262ec88e110086acdb1f69f2240
+    image: wazuh/wazuh-indexer:4.14.10@sha256:1d2aeadb9de88c6d17ce12030606425deca5a210cdf5c87008843da38eb629ea
     container_name: soc-wazuh-indexer
     hostname: wazuh.indexer
     # DIFFERENCE 2: OpenSearch's bootstrap checks want the process able to
     # create at least 4096 threads, and 512 would fail that check on start.
     pids_limit: 4096
-    # 2 GiB of heap (below) plus the off-heap the JVM and the security plugin
-    # take. 3.5 GiB is under Wazuh's stated 4 GiB minimum by the margin the
-    # guest's 8 GiB has to give the other four services; if the container is
+    # 3 GiB of heap (below) plus the off-heap the JVM and the security plugin
+    # take: 2.74 GiB in use with a 2 GiB heap on 2026-11-16, so about 0.75
+    # off-heap, and 4.5 GiB keeps that margin (ADR-0118). If the container is
     # OOM-killed, this is the number to raise and the guest is the thing to
     # grow with it.
-    mem_limit: 3584m
-    memswap_limit: 3584m
+    mem_limit: 4608m
+    memswap_limit: 4608m
     # DIFFERENCE 5: every capability dropped and no-new-privileges, which
     # upstream's compose sets on none of the three (#845). Measured on odin
     # on 2026-10-07: this image runs as wazuh-indexer (uid 1000), and every
@@ -114,14 +114,13 @@ services:
         soft: 65536
         hard: 65536
     environment:
-      # DIFFERENCE from upstream: 2 GiB, not the shipped 1 GiB. ADR-0030's
-      # arithmetic — 25 shards per GiB of heap, one primary shard per daily
-      # index, ~15 shards taken by the monitoring/statistics/states families —
-      # makes 1 GiB a budget spent inside a month. -Xms equal to -Xmx by Wazuh's
-      # own tuning guidance. Half of system RAM (4 GiB) was considered and
-      # declined: it buys shard budget a six-agent estate does not need and
-      # takes page cache from a spinning pair that does.
-      OPENSEARCH_JAVA_OPTS: "-Xms2g -Xmx2g"
+      # DIFFERENCE from upstream: 3 GiB, not the shipped 1 GiB. The budget is
+      # 25 shards per GiB of heap, one primary shard per daily index (ADR-0030),
+      # and the states, monitoring, statistics and system indices take about
+      # 30 of it, so thirty days of alerts need about 60 shards. 2 GiB bought
+      # 50; 3 GiB buys about 75 (ADR-0118). -Xms equal to -Xmx by Wazuh's own
+      # tuning guidance.
+      OPENSEARCH_JAVA_OPTS: "-Xms3g -Xmx3g"
     volumes:
       - indexer-data:/var/lib/wazuh-indexer
       # Issued on odin by the `certs` profile at the foot of this file; the
@@ -171,7 +170,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.10@sha256:dcda4869e2f792e92f03bce93f85b4bdf103756ea61cfca8ba9f3eabeb05365b
+    image: wazuh/wazuh-manager:4.14.10@sha256:eabfa7ee4e63acb51c2130fa0583e30f843d030b091cf45a4fbd93d78fa21517
     container_name: soc-wazuh-manager
     hostname: wazuh.manager
     # DIFFERENCE 3: no docker-init in front of this one. The image's entrypoint
@@ -294,7 +293,9 @@ services:
       # on 1515 needs authd.pass (above) and issues each agent its own key, and
       # 1514 carries only traffic encrypted to a key enrolment issued. Those
       # are what stand between the segment and the manager, as the token does
-      # for the lab's stores. BIND_ADDR narrows it to odin's own address.
+      # for the lab's stores. BIND_ADDR can narrow it to odin's own address;
+      # .env.example leaves 0.0.0.0, which on this single-homed guest is the
+      # same segment (the reason is there).
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_AGENT_PORT:-1514}:1514"
       - "${BIND_ADDR:-0.0.0.0}:${WAZUH_ENROL_PORT:-1515}:1515"
     # 55000 is the API: the dashboard reaches it on this network and nothing
@@ -328,7 +329,7 @@ services:
   # ---------------------------------------------------------------------------
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.10@sha256:0eebab19802342b841a258f56d6fa0fb085cdae08ab5eb2e45f9455c906d719a
+    image: wazuh/wazuh-dashboard:4.14.10@sha256:4d48be7210a291c00a2bd148cbd8bd61a25876e947b81790fd03f7d2aabda95a
     container_name: soc-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
@@ -420,12 +421,12 @@ services:
   # A container and not the native binary, because this repository's whole
   # verification apparatus applies to images (ADR-0030). The ADR flagged the
   # one thing to check: whether the registry publishes a versioned tag. It does
-  # — 0.77.2 is pinned below by tag and digest like every other image here —
+  # — the image below is pinned by tag and digest like every other image here —
   # so the paragraph the ADR said to supersede if not stands.
   # ---------------------------------------------------------------------------
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:6ffb1bd412bad0e280715da19f48491e7ce57068a9840433aaeed8831c2c9ae1
+    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:cc6b012eadea16d21b9e3ab9cc13dad81396f66be4e344aad3fe8efd53b20756
     container_name: soc-velociraptor
     pids_limit: 1024
     # A single Go binary; ADR-0030 sizes it at "a few hundred megabytes of
@@ -524,7 +525,7 @@ services:
   # ---------------------------------------------------------------------------
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: soc-agent-msi
     # 1000, not 65534, since #1139: the browser-facing leaf is the dashboard's
     # own from the Wazuh generator, which writes its key 0400 owned by 1000,
@@ -652,7 +653,7 @@ services:
   # ---------------------------------------------------------------------------
   alloy:
     <<: *service-defaults
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: soc-alloy
     pids_limit: 1024
     # A bound, not a measurement: re-derive from process_resident_memory_bytes
@@ -712,6 +713,7 @@ services:
     # alexander.
     volumes:
       - ../observability/alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ../observability/alloy/logs.alloy:/etc/alloy/logs.alloy:ro
       - ../observability/alloy/ingest-ca.pem:/etc/alloy/ingest-ca.pem:ro
       - ../observability/alloy/docker.alloy:/etc/alloy/docker.alloy:ro
       - ./alloy/opensearch.alloy:/etc/alloy/opensearch.alloy:ro

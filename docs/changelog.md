@@ -17,12 +17,14 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
-## 2026-11-14
+## 2026-11-24
 
 - **An audit of `Saruman`, read-only, found its management plane open to a
   password behind the firewall, an undeclared API token, and two snapshots
   that could roll back the domain.** It was read on the box on 2026-11-13,
   against this repository at `2276e75`.
+  It is filed on 2026-11-24, when it merged. A read of the box that day
+  found every item below as described, except ADR-0107.
   [`harden-saruman.md`](runbooks/harden-saruman.md) is new and holds the
   fixes, none of them applied yet.
   - **What matched.** 21 guests with the VMIDs and names in `network.md`
@@ -64,6 +66,2696 @@ docstring gives: it is a record, not a claim about now.
   - **Not decided here.** Deleting the snapshots and the freeze on the
     two Windows servers are left to the operator. Neither is a host setting.
 
+- **The wall page's files are served with `Cache-Control: no-cache`.** The
+  card-by-card review's changes, below, reached `trinity` at `c5374a15`,
+  but `heimdall`'s kiosk kept running the old `wall.js` through a Chromium
+  restart: it fetched neither the page nor the script, and asked for the
+  removed `/api/q/rtt`, `/api/ha/office_light` and `/api/ha/dogs`, each a
+  404. Caddy sent no caching header, so Chromium kept its copy on a
+  freshness it guessed from the files' age. Deleting its `Cache_Data` and
+  restarting it loaded the new page, which then asked only for routes that
+  answer. Without the header, the page's six-hourly reload would not have
+  brought in a change either.
+- **`heimdall` runs October 2026's bootloader.** This completes the entry
+  "`heimdall` runs the new §2 steps, and its bootloader is staged on the
+  card, not written by `flashrom`". The operator rebooted it, and it was up
+  again at 15:39:52. `rpi-eeprom-update` then read "up to date", CURRENT
+  2026-10-30 where it had read 2025-06-13. `pieeprom.upd` and
+  `recovery.bin` were gone from `/boot/firmware`, so the recovery boot
+  wrote the chip and cleaned up after itself. The kiosk came back on the
+  wall page at 1920 × 1080, Wi-Fi without the seed files, and only 22 and
+  9100 listened. No unit had failed, `throttled=0x0` at 54.3 °C, and
+  `prometheus` read `up` 1. The journal kept the previous boot, which ended
+  cleanly at 15:39:27.
+
+- **The wall page changes after the operator's card-by-card review**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+  `stacks/sensitive/README.md`, *The wall page*). Not yet deployed or seen
+  on the television when this was written.
+  - **Tiles:** ten, five to a row. `gandalf` joins by CPU, as it has been
+    always on since ADR-0125 and already reports to Prometheus, and the eero
+    mesh is one tile, how many access points answer their ping. The lab's
+    guests report to `alexander`'s Prometheus and stay off.
+  - **Internet:** the big figures were the WAN port's traffic at that
+    moment, which read like a speed test and was not one. They are now
+    speedtest-tracker's last result and its age; the traffic is the line and
+    sparkline beneath. The connect time to 1.1.1.1 and `/api/q/rtt` are gone,
+    as the test's ping replaces them.
+  - **Dogs:** the card is gone, and `wall_dogs.yaml` with it, its two
+    buttons and two intervals included. It was not as useful as hoped.
+  - **Home row:** the office lights and `binary_sensor.wall_office_lights`
+    are gone. "House empty" shows while presence has marked it so, the
+    thermostat shows what it is set to, and the Litter-Robot shows always.
+  - **Status bar:** it names only a source that has fallen behind, and
+    otherwise reads "all sources live".
+
+- **`heimdall` runs the new §2 steps, and its bootloader is staged on the
+  card, not written by `flashrom`.** This corrects the entry "A re-check of
+  `heimdall` found its bootloader never updates, and nothing watching it",
+  whose §2 said each boot writes the chip while the Pi runs. Applied at
+  14:12 with the operator's password:
+  - **Updates:** `52heimdall-unattended-upgrades` now also sets
+    `Remove-Unused-Dependencies "true"`.
+  - **Bootloader:** with the drop-in, `rpi-eeprom-update -a` found no
+    `/dev/spidev10.0`, so it could not use `flashrom`. It copied
+    `pieeprom.upd`, its signature and `recovery.bin` to `/boot/firmware`
+    and logged "EEPROM updates pending". The next boot's `recovery.bin`
+    writes the chip, so October 2026's bootloader runs from the next boot.
+    A later release is staged at the first 04:30 boot after the package
+    brings it, and written at the second. §2 now says so.
+  - **Leftovers:** the first try at the purge hit `apt-daily`'s lock, taken
+    by its timer the same minute. Re-run with a lock timeout, it purged
+    `rpi-connect-lite` and autoremoved the five VNC libraries. Nothing is
+    left in dpkg's `rc` state and nothing is autoremovable.
+  - Afterwards only 22 and 9100 listened and no unit had failed.
+
+- **A re-check of `heimdall` found its bootloader never updates, and nothing
+  watching it.** It was read-only, from the Mac on Hicks, after the
+  2026-11-23 audit's fixes. All twelve findings held on the Pi: only 22 and
+  9100 listened, sudo asked for the password, the seed files were gone,
+  Chromium ran under `lwrespawn`, and the journal kept four boots, each with
+  its cause. Two things a new audit would still find:
+  - **The bootloader stayed at June 2025.** The `rpi-eeprom` package went
+    to 28.38 unattended at 06:09, carrying October 2026's bootloader.
+    `rpi-eeprom-update.service` runs with `-s` at boot, and writes only when
+    the chip is older than Raspberry Pi's floor for critical fixes. The 09:10
+    boot logged "Skipping automatic bootloader upgrade". `build-heimdall.md`
+    §2 said the nightly reboot made upgraded firmware run, which was true of
+    the boot partition's firmware and not of the bootloader.
+    `build-heimdall.md` §2 now drops the `-s` with a drop-in, so each boot
+    writes the newest default release.
+  - **No rule read what `heimdall` exports.** `InstanceDown` leaves it out
+    by design, and the nightly `HostRebooted` is `info`, which is never sent.
+    `apt_upgrades_pending`, `node_systemd_unit_state` and the SoC's
+    temperature reached Prometheus and stopped there. Four warnings now read
+    them, selected by `role="display"`: `DisplayUpdatesStalled`,
+    `DisplayUnitFailed`, `DisplayHot` and `DisplayDown`. None pages. The
+    `node.yaml` comment that the scrape was for the throttle state is
+    corrected: `node_exporter` does not report it.
+  - **What the VNC purge left.** Five libraries were autoremovable, and
+    `rpi-connect-lite` was removed but not purged. §2 now purges it, runs
+    `apt autoremove --purge`, and sets unattended-upgrades to remove unused
+    dependencies from then on.
+  - The new §2 steps need the operator's password at the Pi, so they are
+    written here and not yet applied.
+
+- **The hourly converge flaps `ScheduledJobFailed` when the deployment
+  checkout is left on a branch, and `converge-the-host.md` now says so.**
+  `prometheus`'s `robo` tree is both the host's deployment checkout and the
+  tree branches are authored from, and `make converge` fast-forwards `main`
+  only — so a converge that fires mid-branch refuses at the branch check,
+  before any fetch, and its `ScheduledJobFailed` fires with it. Seen today: the
+  tree sat on `gerrrt/hicks-pool-leases`, then `gerrrt/close-morpheus-audit`,
+  across the 18:27 and 19:28 converges, which both exited 2.
+  `ScheduledJobFailed` reads the last exit code, so it clears only on a
+  *successful* converge — the tree on `main` and clean; the 20:27 run was the
+  first to find it so, and cleared it. No branch configuration reached a
+  service (the branch check precedes the fetch), though `revive_stopped` runs
+  before that check, so a refused run can still restart a stopped stack
+  service. *When it refuses* gains a subsection with the detail, and the
+  `git worktree` that keeps the checkout on `main` and the timer quiet.
+
+- **NUT on `morpheus` had no stall spell in the 18 h 20 min after the
+  driver's retry change.** This updates the entry "The audit of `morpheus` of
+  2026-11-13 is closed", which recorded 16 h 42 min. Read in Loki at 20:56
+  UTC, counting from the change at 02:36 UTC. The one spell in that window,
+  19:37:21 to 19:38:56, lasted 95 seconds and was the card restarting into
+  firmware 3.6.1.2 (entry "`mjolnir`'s card runs 3.6.1.2"); the stalls the
+  change answers lasted 2 to 8 seconds. Afterwards `upsc` read `OL` at 100 %
+  charge and no NUT alert was firing. The stalls came from the card, and the
+  new firmware had run about 1 h 15 min, so these hours do not say whether
+  3.6.1.2 still stalls. The 14-second retry budget rides out every stall
+  measured either way.
+
+- **The audit of `morpheus` of 2026-11-13 is closed.** This completes the
+  entry "`morpheus` audited, read-only, on 2026-11-13, and re-read on
+  2026-11-23". A re-check on 2026-11-24 found every finding fixed on the box,
+  recorded, or decided:
+  - **Firewall and SSH.** `make check-firewall` passes 35 of 35. The admin UI
+    and `sshd` time out from Winterfell on the WAN address, and `sshd` takes
+    keys only ([#1503](https://github.com/Gerrrt/HomeLab/pull/1503)).
+  - **Passes.** `network.md` gives the Hicks SSH pass into `smaug` its reason
+    and names `gandalf`'s pass into Winterfell. `smaug` takes keys only for
+    both its SSH users ([#1707](https://github.com/Gerrrt/HomeLab/pull/1707)).
+  - **Hicks leases.** All three unnamed pool leases are identified, and
+    `desktop-01` holds its `.20` reservation again
+    ([#1716](https://github.com/Gerrrt/HomeLab/pull/1716)).
+  - **NUT.** No *data stale* spell in Loki for 16 h 42 min after the driver's
+    retry change at 02:36 UTC
+    ([#1702](https://github.com/Gerrrt/HomeLab/pull/1702)), against 5 to 47 a
+    day before it. The operator closed the audit before the full day the
+    change's entry set as its bar. No alert stands in for it:
+    `NutUpsDataStaleFrequent` warns only above 24 spells in a sliding hour,
+    and the worst hour before the change had 12, so a return to the old rate
+    would be silent. Counting `Data stale` lines in Loki is the check.
+  - **The NVMe at U15** runs at 64 °C, below its warning threshold, and the
+    operator found the tray's airflow fine.
+  - **Restore.** The restore onto the spare stands on its rehearsal of
+    2026-09-27 (`restore-the-firewall.md`).
+
+  What remains is upkeep, not findings: pfSense's 37 pending base packages
+  wait for the next release, and `SystemUpdateAvailable` says when.
+
+- **Five warnings on `gandalf` were the estate's general host rules firing on the
+  range host's resting state — the exclusions the estate already has were missing
+  from the `#1651` monitoring onboarding.** `HypervisorGuestStopped` paged on the
+  three targets and `ragnarok`, all stopped by design, and `SmartDriveBadSectors`
+  on the range SSD's known 8 reallocated sectors. All four range guests are now
+  tagged `on-demand` ([ADR-0079](adr/0079-tag-on-demand-guests-and-leave-them-out-of-the-stopped-guest-alert.md)),
+  which `HypervisorGuestStopped` excludes — not `disposable`
+  ([ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)),
+  which the targets would outlive, since they are reverted and kept rather than
+  destroyed. `ragnarok`'s tag is declared in `tofu/guests.tf` so an apply keeps
+  it; the targets, not in `tofu/`, are tagged by hand. The SSD's 8 — stable since
+  2026-11-13, overall assessment passing, ~90% endurance left — is recorded in
+  `render-smart-baselines.sh`, so `SmartDriveBadSectors` accepts it and still
+  pages if it grows. `build-the-playground.md`'s *Monitoring the host* now lists
+  both as onboarding steps.
+- **`heimdall` took its first Chromium upgrade unattended.** The first
+  nightly reboot fired at 04:30. At 06:08, unattended-upgrades took Chromium
+  from 156.0.8078.79 to 156.0.8078.108 from Raspberry Pi's archive, the
+  origin `build-heimdall.md` §2 added the evening before. Nothing else was
+  left pending. The kiosk's Chromium had started at 04:30, so it kept running
+  the old code. This is the lag the 04:30 time accepts: an upgrade runs from
+  the next night's reboot. The operator rebooted the Pi at 09:10 to start the
+  new version early, and the kiosk came back on 156.0.8078.108 under
+  `lwrespawn`, with `throttled=0x0` and nothing failed.
+- **The three Hicks pool leases the `morpheus` audit could not name are
+  named.** The operator identified them, and `morpheus`'s ARP table placed
+  them on 2026-11-24. `.101` is `mobile-02`, whose row moves from `.109`, and
+  `.100` is `laptop-02` on Wi-Fi under a private address. `.105` was
+  `desktop-01` on its board's second Ethernet port, one MAC above the reserved
+  one, so its `.20` reservation and static ARP entry did not apply. The
+  operator re-pointed the reservation to that port, `morpheus`'s static entry
+  for `.20` now names it, and the desktop moves there at its next renewal.
+  `mobile-01`'s row, which claimed `.105`, now says pool. Refs #1503.
+
+- **`heimdall` runs every step of `build-heimdall.md` and has rebooted onto
+  them.** This completes the entry "An audit of `heimdall` found that its
+  browser never updated by itself", which left the sudo file in place and the
+  Pi not yet rebooted.
+  - **sudo asks for the password.** The operator removed
+    `/etc/sudoers.d/90-cloud-init-users` at the keyboard, and `sudo -k -n true`
+    over SSH now answers `a password is required`.
+  - **A reboot at 21:26 brought everything back.** Wi-Fi came up without
+    the seed files, and Chromium came back on the wall page under
+    `lwrespawn`, at 1080p. The journal kept the previous boot. Only 22 and
+    9100 listened, nothing had failed, and `prometheus` read `up` 1. The
+    first 04:30 reboot is on 2026-11-24.
+
+- **Correction to the 2026-11-24 entry on `gandalf`'s §4 tooling removal: the
+  deleted root SSH key was Proxmox's own node key, not a dedicated github credential, and
+  removing it broke root self-SSH.** The key at `/root/.ssh/id_rsa` carried the
+  comment `root@gandalf` and its public half was the node's own line in
+  `/etc/pve/priv/authorized_keys`; the `github.com` in root's `known_hosts` was a
+  trace of root having reached github over SSH, which is what the 2026-11-13 audit
+  flagged. Deleting it left `ssh root@localhost` refused with `Permission denied
+  (publickey)` — no day-to-day effect on this single, un-clustered node, but not
+  Proxmox's intended state. It was restored on 2026-11-23, minutes later, with `pvecm updatecerts`,
+  which regenerated a fresh RSA node key and re-merged `authorized_keys`; the
+  stale orphaned `root@gandalf` entry and the github `known_hosts` line were then
+  removed by hand, and `ssh root@localhost` succeeds again. The fresh key is not
+  registered with github, so no credential on the host reaches the repository;
+  revoking the old key on github, if it was ever added there as a deploy key, is
+  off-host and the owner's. The `.claude` removal stands.
+
+- **`mjolnir`'s outlet groups are polled, and the card's last settings are
+  recorded.**
+  - **Outlet groups.** The card's outlet-group status and config tables are
+    now in `generator.yaml`. The control table, which switches the groups,
+    is left out. Read on 2026-11-24, every group was on, had no load shedding
+    of any kind, and had a 90-second turn-off delay and a 0-second turn-on
+    delay. `UpsOutletGroupOff` pages when a group is off for five minutes.
+    In practice that is only group 2. Turning off group 1 (the firewall and
+    the core switch) or group 3 (the MokerLink) cuts the monitoring path
+    first, and the external `Watchdog` heartbeat is what notices.
+    `UpsOutletGroupLoadShedEnabled` and `UpsOutletGroupDelayChanged` warn
+    when a setting moves. `UpsOutletGroupsUnread` warns when any group or
+    column those rules read is missing. `hardware.md` no longer says the
+    settings are unread.
+  - **The card's users and SNMPv3 access.** The users are `apc`,
+    `prometheus`, and the factory `device` and `readonly`. SNMPv3 is allowed
+    from `prometheus` and `morpheus` only. The owner fixed the card's clock,
+    and the 2026-11-13 SSH login from `prometheus` was the owner's.
+  - **`Saruman`'s half of ADR-0107 checked on the box.** All four ordered
+    guests have `down=90`. Each config file also shows a copy of the setting
+    without `down=90`, which is a snapshot's saved settings. NUT is 2.8.1,
+    with `SHUTDOWNEXIT no`, and `nut-monitor` is ordered before
+    `pve-guests` and active.
+  - Alert rules: 210 in all, 182 in Prometheus.
+- **An audit of `heimdall` found that its browser never updated by itself.
+  `build-heimdall.md` now trims it to a kiosk.** It was read-only, from the
+  Mac on Hicks. The same evening every new step was applied to the Pi except
+  removing the passwordless sudo file, which needs the operator's password at
+  the keyboard. After that, only 22 and 9100 listened and `prometheus` still
+  read `up` 1. The Pi had not yet rebooted onto the changes.
+  - **Chromium was never upgraded unattended.** `unattended-upgrades`
+    allowed Debian's origins only. Chromium, the kernel, the firmware and the
+    EEPROM come from Raspberry Pi's archive, and its Chromium outranks
+    Debian's by its epoch. Ten such upgrades were pending, among them Chromium
+    156.0.8078.79 to .108 and a lightdm security fix. The installed Chromium
+    came from the build's own `apt full-upgrade` on 2026-11-17. ADR-0119 and
+    §2 had said the browser took updates unattended.
+    §2 now adds Raspberry Pi's origin, and a reboot every night at 04:30, so
+    that an upgraded Chromium and kernel actually run.
+  - **The kiosk user had root without a password,** from the Imager's
+    cloud-init sudoers file. That user is logged in on `tty1` and the desktop
+    at all times. §1 now removes the file, and turns off sshd's X11 and TCP
+    forwarding.
+  - **The Imager's seed files were still on the boot partition,** readable by
+    any local user: the password's hash and the Wi-Fi passphrase, a second
+    copy beside NetworkManager's. §1 now turns cloud-init off and removes
+    them.
+  - **rpcbind listened on 111 and avahi on 5353,** with no host firewall, and
+    Bluetooth was pairable. §2 now masks them and CUPS, and purges three
+    unused remote-desktop packages.
+  - **Eight reboots after the build day left no cause.** The journal was
+    in memory only. `node_boot_time_seconds` shows them, from 2026-11-18 to
+    2026-11-21. §2 now keeps the journal on the card, capped at 64 MB.
+  - **The kiosk did not come back after a crash.** §7 now starts Chromium
+    under `lwrespawn`.
+  - **The purge ran on 2026-11-23.** This corrects the 2026-11-23 entry
+    "`build-heimdall.md` installs the exporter without apt's
+    recommendations", which said the purge was still to run. It ran at 19:49,
+    and three libraries it left behind went at 19:59. §2's line now names
+    them. `systemctl --failed` is empty.
+  - **§0's Wi-Fi read used `iw`, which Raspberry Pi OS does not ship.** It
+    now reads `/proc/net/wireless` and `nmcli`: −52 dBm on channel 36 at
+    270 Mbit/s.
+  - **What held:** key-only SSH with root login off, the kiosk line and
+    flags, blanking off, the 1080p `kanshi` profile, only the tier's root in
+    Chromium's store, 52 °C with `throttled=0x0`, and no card errors.
+
+- **`gandalf` is now monitored ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** ADR-0125 keeps
+  the range host on, so ADR-0017's reason for giving it no monitoring — off
+  between sessions — is gone. `gandalf` now runs `Saruman`'s Grafana Alloy agent
+  in metrics-only mode: node metrics and two host collectors push to `prometheus`
+  over `morpheus`'s ingest proxy on one host-scoped bearer token, and no logs
+  leave the range host (its journal can carry the attacker's segment, so
+  `deploy-agent.sh --metrics-only` ships `config.alloy` without `logs.alloy`). The
+  `pve-firewall-state` and new `range-state` collectors record the host firewall,
+  the `vmbr1_host_in` ingress table, `vmbr0`/`sshd` forwarding, and the
+  `homelab-ragnarok-stop.timer`'s state and deadline — the barriers
+  `build-the-playground.md` §7's per-session read-back checked by hand.
+  `range.rules.yaml` adds seven alerts over them. Built and deployed across
+  #1676, #1679, #1682, #1685 and #1693; verified live on 2026-11-23 — 0 push
+  failures and the `range_scope` tables enforcing with 0 out-of-scope packets.
+  The §4 tooling removal on `gandalf` was applied the same day: the
+  GitHub-capable root SSH key (`/root/.ssh/id_rsa`) and the `.claude` footprint
+  were removed and verified gone, with nothing on the host or in the repo using
+  or re-provisioning the key, so the host now matches §4's *Nothing else on
+  `gandalf`*.
+
+- **Two `mjolnir` settings are now read and watched.** The 2026-11-13 audit
+  found nothing would notice either one changing.
+  - **The pack's age.** `generator.yaml` now reads the card's *Last Battery
+    Replacement* (`upsBasicBatteryLastReplaceDate`). That field holds a month
+    and year, and the generator's regex splits it into `...Year` and
+    `...Month`. `UpsBatteryPackAging` warns at three years, the bottom of
+    APC's three-to-five-year rating for the APCRBC115. The pack fitted in
+    August 2026 reaches that in August 2029.
+  - **Input sensitivity.** `upsAdvConfigSensitivity` is read too, and
+    `UpsInputSensitivityChanged` warns if it leaves medium for 30 minutes. A
+    card reset would put it back to high without a word.
+  - **A guard.** `UpsCardReadingMissing` warns when the card answers but
+    either reading is absent. A date in a format the regex doesn't match
+    would otherwise keep both rules quiet for ever.
+  - Both OIDs were read off the card with `snmp-walk.sh` before the
+    generator was changed. `snmp.yaml` gains the two GETs, and `ups.test.yaml`
+    gives each rule a firing case and a quiet one. The alert rules now
+    number 206: 178 in Prometheus and 28 in Loki.
+- **`neo`'s configuration is now backed up nightly.** Until today it lived
+  only on the switch, which a re-check after the switch audit found; a dead
+  `neo` meant rebuilding it by hand from `network.md` and the wiki's port
+  map. `make backup-switch` is `backup-firewall.sh` with
+  `BACKUP_DEVICE=switch`: it logs in as a new user `backup` (group `read,ssh`,
+  from `10.7.7.1` only, `prometheus`'s key) through morpheus, takes
+  `/export`, encrypts it to the firewall export's recipients, verifies it and
+  copies it to `oracle`, keeping thirty a side. `homelab-backup-switch.timer`
+  runs it at 09:45. The export carries no password or key, and the restore in
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) lists the four things
+  to put back by hand. It is not carried on the offsite medium; a fire that
+  takes `prometheus` and `oracle` takes the switch too, and its rebuild is
+  documented.
+- **`UpsOnBattery` now pages on a short transfer.** On 2026-11-21 the UPS
+  ran on battery for 82 seconds, for distorted input, and nothing paged. The
+  rule was `upsSecondsOnBattery > 0` for 30 seconds, which needs two scrapes in
+  a row a minute apart. One scrape read 42 seconds, the alert went pending, and
+  the next read 0. It is now `max_over_time(upsSecondsOnBattery[2m]) > 30`
+  with no `for`, so any scrape that reads more than 30 seconds on battery
+  pages. A transfer that ends inside 30 seconds still does not, like the
+  1-second one on 2026-11-07. `ups.test.yaml` replays both.
+  `shut-down-on-the-ups.md` puts the outside limit for the rule firing at about
+  three and a quarter minutes. That is a scrape starting up to 90 seconds after
+  the cut, up to 45 seconds for it to finish, and up to 60 seconds to the next
+  evaluation. The page then goes out with no group wait. The runbook also
+  separates a rule that never fired from a page that was never delivered.
+- **`neo`'s device-mode now switches off the RouterOS features a switch
+  never uses.** socks, fetch, pptp, l2tp, bandwidth-test, sniffer, ipsec,
+  romon, proxy, hotspot, smb, email and zerotier are off; `scheduler` stays
+  on for the log heartbeat. It was the last open finding of the switch
+  audit. The first request timed out before the button press reached it and
+  changed nothing; the second applied after one reboot. Home Assistant,
+  SNMP and the log stream were back within two minutes.
+  [`network.md`](network.md) lists it with the switch's other settings, and
+  [`swap-the-switch.md`](runbooks/swap-the-switch.md) §1.3 now sets it on a
+  new unit.
+- **Correction to the 2026-11-23 entry on `mjolnir`'s eight silent days: the
+  card's event log gives the cause, and it is the move into the 32U rack
+  ([#919](https://github.com/Gerrrt/HomeLab/issues/919)).** That entry said
+  the cause was not established and the log had not been read. The owner read
+  it on 2026-11-24. The card's clock keeps UTC−7, and the times below are
+  UTC.
+  - **2026-10-30 01:34.** All three outlet groups were commanded off,
+    sequenced, and the output was off at 01:36. No web or SSH user was
+    logged in to the card. Everything on the UPS lost power with it, which
+    is the silence Prometheus measured from about 01:40.
+  - **2026-11-04 16:29.** The card cold-started, so the UPS had been
+    unplugged. Its output came back on at 16:43.
+  - **2026-11-05 to 2026-11-06.** The card had an IPv4 lease from 20:56 on
+    2026-11-05 and lost it at 06:56 the next morning. It had a lease again
+    from 20:41, and Prometheus read it from about 22:30.
+  - **Still open.** NUT on `morpheus` logged *Driver not connected* until
+    20:59 on 2026-11-07, about 22 hours after the card answered SNMP again.
+    The card's log does not explain that gap.
+- **Other card settings recorded in `hardware.md`.** The battery date is
+  right: the card stores a month and year only. SSH stays on, input
+  sensitivity is now medium, and group 1's load-shedding values are set so
+  they cannot fire. Group 1's overload shed and every group's delays are
+  still not read.
+- **`build-heimdall.md` installs the exporter without apt's recommendations.**
+  `openipmi.service` and `smartmontools.service` had been failed on `heimdall`
+  since its first scrape on 2026-11-17, through the 2026-11-21 reboot.
+  `prometheus-node-exporter` recommends the collectors package, which
+  recommends `ipmitool` and `smartmontools`, and `ipmitool` recommends
+  `openipmi`. The Pi has no management controller and its card reports no
+  SMART data, so both fail at boot. Nothing alerted: `SystemdUnitFailed`
+  reads Alloy's journals, and `heimdall` runs no Alloy. §2 now installs with
+  `--no-install-recommends`, names the collectors package so the apt and
+  reboot metrics stay, checks `systemctl --failed`, and gives the purge for a
+  Pi built the old way. That purge is still to run on `heimdall`, from the
+  Mac, since `prometheus` reaches it only on 9100.
+- **`successor-handover.md` and `build-the-tier-ca.md` name the alerts on
+  the sensitive tier's certificates.** Both still said nothing paged on them
+  until #426 landed, and the handover said a dead step-ca would be found by a
+  browser a week late. #718 added `TlsAcmeRenewalStalled` (36 hours,
+  critical) and #426 the warning, `TlsAcmeRenewalLate` (48 hours), for every
+  `renewal: acme` target. The handover's outage budget is corrected too:
+  ADR-0037 gives two to seven days after step-ca stops answering, usually
+  about five, not seven. Found re-checking the `prometheus` audit.
+
+- **`network.md` declares two passes into other segments, `smaug` stops
+  taking passwords, and the diagram catches up.** The audit of `morpheus` left the Hicks SSH pass into `smaug`
+  (`desktop-02` → `10.0.40.30:22`) declared but unexplained. It stays: on
+  2026-11-23 the operator recorded it as where `smaug` is administered from by
+  hand. Review then found what that path is: since 2026-11-13 the
+  administrator `gerrrt` had logged in through it **by password**, allowed
+  twice over, on the user and in the SSH service's *Password Login Groups*,
+  while `network.md` and `build-the-nas.md` said `smaug`'s SSH answered
+  `frodo` alone, key-only. Both settings were cleared on 2026-11-24, and
+  `smaug` now offers every user `publickey` alone. A re-check of the box on 2026-11-24 found `Allow metrics from gandalf`
+  (`10.0.30.30 → 10.0.99.20:9090`, #1651) in force while `network.md` still
+  called `Saruman` the one ImaginationLAN host with a path into Winterfell;
+  it now names both. The network diagram's foot for VLAN 30 lists the
+  gandalf pass, and the rack row no longer calls `gandalf` off (ADR-0125
+  keeps it on). `build-the-playground.md` stops saying the range is not
+  monitored.
+
+- **`mjolnir`'s factory `device` and `readonly` accounts are disabled.** The
+  owner read the card's user list. That settles the last account question
+  the audit left open, and [`hardware.md`](hardware.md) now says so.
+
+- **`mjolnir`'s card update moves to 3.6.1.2.** Schneider has taken the 2.5.x
+  NMC3 packages off its site, and its support said that 3.6.1.2 installs with
+  the free update utility, without the Secure NMC subscription its own notes
+  ask for, and directly over 2.0.0.6. The package downloaded today is signed
+  by Schneider Electric USA; Schneider publishes no checksum for it. Part A of
+  [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) now
+  installs it and checks the signature, and `hardware.md` follows. Nothing
+  has been installed yet. Refs #1698.
+
+- **The console cable for `neo` is on hand.** The operator already had the
+  USB-to-RJ45 serial cable the roadmap listed as still to buy since
+  2026-10-16, so its row leaves *Everything still to buy* and it is listed
+  under `hardware.md`'s accessories. The README's count of outstanding
+  purchases goes from 11 to 10.
+
+- **`mjolnir`'s card runs 3.6.1.2.** Installed by Part A of
+  [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md) at
+  about 19:38 UTC: AOS and the Smart-UPS application went from 2.0.0.6 and
+  2.0.0.5 to 3.6.1.2, by a plain `scp` with no Secure NMC subscription. The
+  package also carried boot monitor 2.1.0.3; the installed boot monitor
+  wasn't read. The card was back on SNMPv3 within two minutes. Afterwards
+  Prometheus read the low-battery duration at 16 minutes, sensitivity medium,
+  all three outlet groups on with a 90-second off delay, and the battery date
+  unchanged; the HTTPS probe passed, and NUT on `morpheus` read `OL` with all
+  three clients logged in. The card kept its SSH host key and factory TLS
+  certificate. Its SSH dropped CBC and the SHA-1 group exchange and gained
+  AES-GCM, but still offers no curve25519, so `prometheus`'s SSH client needs
+  the card's algorithms named; the runbook now says how. The UPS's own
+  firmware, Part B, is still waiting for a planned outage. Refs #1698.
+
+- **The two S+RJ10 modules for `neo` are ordered.** Two genuine MikroTik
+  S+RJ10, Amazon item B07YJ38TPG, ordered on 2026-11-24 and due between 15
+  and 27 December. A 10Gtek pair was considered and passed over: the variant
+  offered runs at 10G only, which has no rate in common with the CODA56's
+  2.5G port or `igc0`, and it is not the module
+  [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
+  chose. Bought, so their row leaves *Everything still to buy* and the
+  README's count goes from 10 to 9; delivery is tracked on
+  [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), and they join
+  `hardware.md` when they are in hand.
+
+- **`mjolnir`'s card runs boot monitor 2.1.0.3**, read by the owner on its
+  *About → Network* page. That's the version the 3.6.1.2 package carried, so
+  the entry above that left it unread is settled.
+- **`gen-certs.sh --csr` signs a request made on another device.** The key
+  stays on the device and no key is written here. The CA sets the subject
+  and SANs whatever the request asked for, and refuses a request whose own
+  signature doesn't verify. It's for the APC card, which can make a key and
+  a request on its command line. `generate-certificates.md` has the card's
+  steps, which end by switching its probe to `http_2xx_lab_ca`. The card
+  still serves its factory certificate until those steps are run.
+
+- **A CPU near its critical temperature now alerts.** `HostCpuHot`, a
+  warning in `host.rules.yaml`, fires when a host's hottest coretemp core has
+  held within 10 °C of that core's own critical point for ten minutes. Before
+  it, nothing read `node_hwmon_temp_celsius`. The audit of `prometheus` of
+  2026-11-13 watched the laptop peak at 92 °C against 105 (finding 10), and a
+  failed fan would have shown only as `InstanceDown` after the shutdown. The
+  margin is measured: over 29 days, no host held within 22 °C of critical for
+  ten minutes, and prometheus's brief peaks came within 13. Other chips are left
+  out, because smaug's DIMM sensors report a critical point of 0 °C.
+
+- **`mjolnir`'s card serves a leaf from the estate CA, and its probe verifies
+  it.** `mjolnir.matrix.elysium` with `10.0.99.10`, until 2029-02-26, signed
+  from a request the card made, so its key never left it. The first attempt
+  used the card's factory ECDSA P-256 key. The card imported that leaf, then
+  dropped every TLS handshake for about 25 minutes, through one reboot, until
+  it was given an RSA 2048 key and a leaf for that. SNMP, NUT and the shutdown
+  path were unaffected, and the card and NUT alerts were silenced throughout.
+  Its `scp` writes uploads to its root whatever path is named, which is what
+  the first `E100` on import was. The `ups-ui` probe moves to
+  `http_2xx_lab_ca`, and `generate-certificates.md` records the steps that
+  worked. This was audit item 11.
+- **A re-check of `mjolnir` found three stale documents.** The UPS dashboard's
+  text panel said runtime still sat on the fabricated `63`, but it moved
+  between 29 and 45 minutes over the past week. It also said nothing watched
+  the self-test schedule, but `UpsSelfTestScheduleOff`, `UpsSelfTestStale`
+  and `UpsSelfTestFailed` do; the last test, on 2026-11-18, passed.
+  `fit-the-ups-battery.md` still listed a screenshot and the shelf as to-do,
+  and both were done in October. `schedule-maintenance.md` gains the card
+  leaf's renewal date, 2029-02-26.
+
+- **#1698 is split.** Its card half is done: 3.6.1.2, installed and verified
+  today. The UPS's own firmware, 09.8 to 15.0, needs the output off, so it
+  waits for a planned outage, and moves to
+  [#1731](https://github.com/Gerrrt/HomeLab/issues/1731).
+  `update-the-ups-firmware.md` and `hardware.md` point Part B there. That
+  closes the `mjolnir` audit: every finding is fixed and verified, decided,
+  or tracked in #1731.
+
+- **The offsite copy moved to the spare drive
+  ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)).** The
+  5 TB WD drive labelled `HOUSEHOLD`, spare since ADR-0122, now carries the
+  newest backup set of each kind in place of the second age recipient's
+  medium. It holds no key, so the sets and a key that opens them are no
+  longer on one medium. The first copy to it ran on 2026-11-24 and proved
+  every set: observability `20261122T033021Z`, NAS `20261123T200914Z`, wiki
+  `20261124T044752Z` and firewall `config-20261124T044012Z`. That reset
+  `offsite-copy`, which was 62 days old.
+
+## 2026-11-23
+
+- **NUT's driver on `morpheus` retries for 14 seconds, not 6.** The *data
+  stale* spells come from the UPS card, not the network. A 45-minute capture
+  counted 93 stalls in which the card answered nothing for 2 to 8 seconds, about
+  twice a minute; ICMP to it lost nothing. NUT's defaults give up at about 6
+  seconds, so only the two stalls longer than that, 7.1 and 8.2 seconds, became
+  spells, each logged the second its stall passed 6 seconds. At 18:36 local
+  *Extra Arguments to driver* gained `snmp_timeout = 2` and `snmp_retries = 6`,
+  about 14 seconds for each unanswered request. The first hour after had no
+  spell while 10 of the exporter's scrapes waited out a stalled request, but 13 of the 49 hours
+  before also had none, so a clean day is the bar. Why the card stalls is still
+  open. `shut-down-on-the-ups.md` carries the two lines and the reasoning.
+
+- **`update-the-ups-firmware.md` is written, for #1698.** Reading the release
+  notes changed the plan for both updates. The card's current firmware, 3.6.1.2,
+  installs only through Schneider's Windows SNS tool and with a paid Secure NMC
+  subscription, so the runbook takes the card to the last free line, 2.5.x,
+  by SCP from `prometheus`, with no outage. APC's table says the Smart-UPS X
+  (ID 20) can't load firmware with its output on, so the UPS's move from 09.8
+  to 15.0 shuts down everything `mjolnir` powers. The runbook keeps it for an
+  outage already planned for something else, with the Mac cabled straight to
+  the card, since `neo` is dark too.
+- **The weekly digest check is green on its tool pins again.** It had been red since
+  2026-10-19. The Velociraptor digest it also flagged already landed in #1662, the
+  first bump Dependabot's grouped shared-config entry carried to `soc` and `scratch`
+  together. Three tool pins moved:
+  - `ansible.windows` 3.8.0 → 3.9.2. The changelog's one breaking change is to `dsc3`,
+    and nothing here uses it, nor `win_dns_record`, `win_template` or `win_updates`,
+    the other modules it changed.
+  - The Alpine cloud image, 3.24.2-r2 → 3.24.4-r0.
+  - The Gentoo cloud image, 20261004T164559Z → 20261122T164601Z. The old build had
+    been pruned upstream, so the check could not even ask about it.
+
+  Both images were re-pinned by the rule in `import-cloud-template.sh`: each was
+  downloaded, its `.asc` verified against the key that script names, and its SHA-256
+  taken from the verified file. Neither is proven where it runs yet: the import and
+  Packer build on Saruman, and the playbooks against the Windows lab from phoenix,
+  are the operator's.
+
+- **Alertmanager has its own DNS fallback
+  ([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)).** With
+  AdGuard on `trinity` as `morpheus`'s only forwarder (ADR-0055), a `trinity`
+  outage left the ntfy.sh copy of every urgent page, and the healthchecks.io
+  heartbeat, unable to resolve. The only page was healthchecks.io calling
+  Alertmanager dead. That happened on 2026-11-13, and the audit of
+  `prometheus` recorded it as finding 4. Alertmanager's compose service now
+  lists `10.0.99.1`, `1.1.1.1` and `9.9.9.9`. A scratch container measured
+  that Docker's embedded resolver moves to the next server when `morpheus`
+  answers `SERVFAIL`, and still takes the `matrix.elysium` overrides from
+  `morpheus`. The house's DNS is unchanged.
+- **The last of `morpheus`'s audit leftovers are tidied.** After a fresh
+  `make backup-firewall`, in one config write:
+  - Winterfell's catch-all now has a description, *Allow internet*, as most
+    segments' catch-alls do.
+  - The `LAN_DHCP` gateway is gone. The LAN's address is static, and nothing
+    referred to that gateway or monitored it.
+  - `Saruman`'s reservation no longer says it is "inside the DHCP pool":
+    `10.0.30.20` is below ImaginationLAN's pool, `.100` to `.200`.
+  - A DynDNS cache file from 2026-09-21 that matched no configured entry was
+    deleted; the live one is untouched.
+
+  `make check-firewall` still passed 35/35, and both gateway monitors kept
+  running. Still open from the audit: the two Hicks devices nobody has
+  identified (`.105` is back), the cause of NUT's brief stale spells, and the
+  NVMe's temperature (64 °C).
+
+- **The firewall no longer passes Hicks to `mjolnir`'s card on HTTP, and its
+  firmware was found behind.** The last two items of the 2026-11-13 audit
+  that needed no visit to the card. *Allow HTTP to Mjolnir*, a pass on Hicks
+  to `10.0.99.10:80`, was deleted from `morpheus`: the card keeps 80 closed,
+  and the rule had matched no packet since the firewall's last boot.
+  *Allow HTTPS to Mjolnir* stays, and the segment-wide SSH pass still reaches
+  the card's `22`, which the operator has yet to decide on. Eleven passes to
+  Winterfell remain above the block. The firmware was read against APC's site:
+  the card's AOS 2.0.0.6 against 3.6.1.2, and the UPS's 09.8 against 15.0;
+  `hardware.md` records both. Updating them is left to the operator.
+
+- **`neo`'s remaining audit findings, applied.** From the 2026-11-13 audit:
+  the switch's own input filter and its `ssh`, `winbox` and `www-ssl`
+  services, and the admin user's address, are narrowed from all of
+  `10.0.99.0/24` to the switch LAN and desktop-02, with SNMP from
+  `prometheus` and `api-ssl` from `trinity` as named rules of their own.
+  `api-ssl` takes TLS 1.2 only, IPv6 is disabled on the switch, and the
+  unused ports are disabled. Applied under a five-minute automatic revert,
+  cancelled once SSH, the SNMP scrape and a fresh TLS 1.2 handshake from
+  `trinity` were proven. device-mode, which needs a button press, is not done.
+
+- **#922 closed: the 2000/250 plan stays, and the WAN moves off `em0`
+  through `neo`'s SFP+ cages at 2.5G
+  ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)).**
+  #922's own data, 2026-10-10 to 2026-11-09, said the 2.5G path bought no
+  throughput and pointed to a downgrade. What changed the answer is
+  2026-11-22's finding that `em0` itself is the WAN's fault. Every design
+  that takes the WAN off `em0` ends it, and #922's sketch is one of them,
+  with the CODA56's 2.5G port now trusted where the XB7's was not. The free
+  alternative, VLAN 2 on the existing gigabit trunk with the modem on a
+  copper port, was recommended and fixes `em0` as well. The operator chose
+  the two-module build, so that the plan's 2000 is usable in aggregate and
+  the trunk goes to 2.5G. MikroTik's S+RJ10 guidance warns against two
+  modules side by side on a passive switch, which is this design, so the
+  runbook reads an hour of idle temperatures and puts an alert on them before
+  the cutover, and the copper-port VLAN stays the fallback. The two S+RJ10s
+  entered *Everything still to buy*. The build is
+  [#1691](https://github.com/Gerrrt/HomeLab/issues/1691), by
+  [`move-the-wan-onto-neo.md`](runbooks/move-the-wan-onto-neo.md). Until then
+  the remedy for `WanReceiveErrors` is still rebooting `morpheus`.
+- **`morpheus`'s GUI serves a leaf from the estate CA.** It was pfSense's
+  default self-signed certificate, 398 days, due 2027-04-16, which the
+  2026-11-13 audit listed. The new leaf is `morpheus-ui.matrix.elysium`, 825
+  days, due 2029-02-25, with SANs for `morpheus.matrix.elysium`, `10.0.99.1`
+  and `10.7.7.1`. It has its own name because `morpheus.matrix.elysium` is the
+  syslog client leaf. The CA and the leaf were imported into pfSense's
+  certificate manager from the firewall's shell, after a fresh
+  `make backup-firewall`, so the key never reached a screen, and the staged
+  copies were deleted afterwards. The handshake on both addresses verifies
+  against `ca.pem`, and `pfsense-ui`'s expiry reads 2029-02-25. The
+  self-signed certificate stays in the manager as the rollback. Browsers on
+  the Mac still warn, since nothing there trusts this CA.
+  `generate-certificates.md` has the reissue steps and a trust-table row.
+
+- **`morpheus`'s three add-ons are updated: Suricata, net-snmp and System
+  Patches.** Each was installed with `pfSense-upgrade -y -i`, the path Package
+  Manager uses, after a fresh `make backup-firewall`; four packages in all,
+  Suricata's engine among them. That is four of the 41 pending updates the
+  2026-11-13 audit found. The other 37 are packages pfSense itself is built
+  on (PHP, Unbound, OpenVPN, strongSwan and others). `pfSense-upgrade -c`
+  reports the system up to date, so they wait for pfSense's next release
+  rather than a raw `pkg upgrade`, which can break the web UI and its
+  configuration scripts. The Suricata install stopped both instances and did
+  not start them again; they were started by hand within a minute, before
+  `SuricataStopped` could fire. `enable-suricata.md` now has an *Updating the
+  package* section that says so. Afterwards both interfaces were running
+  and reaching Loki, `make check-firewall` passed
+  35/35, and no new alert fired.
+- **`morpheus`'s console menu asks for a password.** The 2026-11-13 audit
+  found a root session sitting at the console menu on `ttyv0`. It was not a
+  session anyone had left open: with *Password protect the console menu* off,
+  pfSense's `getty` logs root in automatically at every boot, so the menu,
+  and its shell, were open to anyone at the rack. Sunday's reboot had ended
+  the audit's session and started another. *Password protect the console
+  menu* is now on (System → Advanced → Admin Access), `ttyv0`'s `getty` runs
+  without autologin, and no console session is open. The console is still
+  the way back when the UI is unreachable; it now takes `admin` and the web
+  UI's password first, which `close-the-firewall-to-its-segments.md` and
+  `restore-the-firewall.md` now say.
+
+- **The monitoring host's weekly prune also removes anonymous volumes that
+  no container uses.** The 2026-11-13 audit of `prometheus` found 69 of them,
+  and there were 99 by today, left behind by validation and scratch runs.
+  They were pruned by hand today (121.5 MB reclaimed), and the three
+  `prometheus_` volumes from the 2025 compose project were removed with them.
+  `make prune-images` now runs `docker volume prune` after the image prune,
+  filtered to volumes labelled `com.docker.volume.anonymous`, so a named
+  volume survives even while its stack is down. The filter is explicit
+  because prune's own anonymous-only default depends on the request's API
+  version, and a request below 1.42 takes named volumes too. A probe on the
+  host proved it both ways, including with `DOCKER_API_VERSION=1.41`: a
+  dangling anonymous volume went, and a dangling named one stayed. The
+  agent hosts' copy is unchanged. The unit's
+  description changed, so the next `sudo make install-timers` on
+  `prometheus` is what brings the installed unit back in line.
+
+- **The firewall's own addresses are closed to every segment, and its `sshd`
+  takes keys only
+  ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).**
+  A read-only audit of `morpheus` on 2026-11-13 found every segment reaching
+  the admin UI and `sshd` on the WAN address: each interface's *Block … to
+  pfSense* rows named only that interface's own address. From `prometheus`,
+  https there answered 200 and port 22 gave a banner, though `network.md` said
+  Winterfell was blocked from the UI. Hicks also reached both on the lab's
+  gateway, through *Allow Hicks access to ImaginationLAN*. `sshd` accepted
+  passwords; `admin` had logged in by password from Hicks and from `oracle`
+  that week. The blocks now name *This Firewall (self)*, Winterfell gains
+  *Allow SSH to pfSense from prometheus*, and *SSHd Key Only* is *Public Key
+  Only*, by
+  [`close-the-firewall-to-its-segments.md`](runbooks/close-the-firewall-to-its-segments.md).
+  `make check-firewall` was blind to it, because the WAN address is in no
+  segment. It now also asks which of the firewall's addresses each segment
+  reaches on ssh, http and https, with fixtures in CI.
+  Applied the same day, with the three administering keys proved first.
+  `make check-firewall` passed all 35 checks, where it had failed 21. From
+  `prometheus`, the WAN address answered neither https nor ssh, `sshd -T`
+  read `passwordauthentication no` and `kbdinteractiveauthentication no`, and
+  a password login was refused. The dead *Allow SSH from Mac to WSL* rule,
+  whose two ends are both on Hicks, was deleted at the same time. The Hicks
+  desktop's SSH pass into `smaug` stays, as `network.md` declares it.
+- **The rack's temperature has fixed limits.** The probe's first reading, at
+  15:26 UTC after the deploy, was 22 °C: the card reports whole degrees in
+  `uioSensorStatusTemperatureDegC`, not the tenths PowerNet-MIB describes. That
+  settles what the probe entry below this one left open, and
+  `RackAmbientTemperatureHigh` (warning, over 30 °C for fifteen minutes) and
+  `RackAmbientTemperatureCritical` (critical, over 35 °C for ten) are added.
+  35 °C is the top of ASHRAE class A2, the DL360's rated inlet limit.
+
+- **`neo`'s log leaves the switch
+  ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md), accepted).**
+  The core switch kept its log in RAM, 1,000 lines deep. It now sends
+  `info`, `warning`, `error` and `critical` over UDP to syslog-ng on
+  `morpheus`'s switch-LAN address, which relays them over the existing pinned
+  TLS connection as `host="neo"`. One new pass on `igc0`, *Allow Neo syslog to
+  Firewall*, to `10.7.7.1:5514` and nothing else. Lines on that path get a fixed
+  `app="routeros"` in Alloy, and the firewall's Loki rules now require
+  `host="morpheus"`, so neither guard alone lets a `neo` line raise or silence
+  a firewall alert. Two new rules, `SwitchLoginFromUnexpectedSource` and
+  `SwitchLogsStopped`, take the Loki count to 28. Three findings on the way:
+  - The ADR assumed both syslog-ng sources on `morpheus` set
+    `flags(no-hostname)`. The live one is generated by the package and cannot,
+    and `ship-firewall-logs.md` §3 described a `network()` source that was
+    never what ran. pfSense's path now gets a rewrite that sets `morpheus`
+    instead, and §3 describes what is on the box.
+  - Home Assistant's API session logged in once in four hours, so it was no
+    heartbeat for an absence rule. `neo` now logs one line every five minutes
+    from a scheduler entry, `log-heartbeat`.
+  - `ether4`, `mjolnir`'s card, had 48,057 link-downs in 16 days of uptime,
+    about one every seven seconds by the afternoon: 987 of the 1,000 lines in
+    the buffer. Nothing saw it, because nothing read the switch's log. Not
+    fixed here.
+
+- **The agent's log pipeline is its own file, so the range host can ship
+  metrics and no logs ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+  [ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md)).** `config.alloy`
+  mixed the metrics and log pipelines, and `gandalf`'s journal and auth logs
+  can carry what happens on the attacker's segment. The log sources, the level
+  normaliser and `loki.write` move to a new `logs.alloy`, deployed with
+  `config.alloy` everywhere but a metrics-only host. `deploy-agent.sh` gains
+  `--metrics-only`: it omits `logs.alloy` (and refuses a docker host, whose
+  `docker.alloy` needs the log pipeline) and verifies metrics alone. The five
+  stacks that mount `config.alloy` individually now mount `logs.alloy` beside
+  it; the observability stack mounts the whole directory, so it picks it up.
+  `build-the-playground.md` §7 gives `gandalf`'s deploy command. The split was
+  checked with `alloy validate` on the whole directory and on `config.alloy`
+  alone (the metrics-only case), both clean, so every cross-file reference
+  resolves and the metrics-only config has no dangling one.
+
+- **`prometheus` will take SSH keys only, and stays without a host firewall
+  ([ADR-0128](adr/0128-give-prometheus-a-key-only-sshd-and-no-host-firewall.md)).**
+  The root-only reads that finished the 2026-11-13 audit were taken today.
+  `sshd -T` read `passwordauthentication yes` and `x11forwarding yes`, from
+  cloud-init's drop-in, and `ufw` was inactive, on the host that holds the CA
+  key and the age key that opens every backup set. `restore-the-stack.md`
+  gains *Make `sshd` key-only*, the same drop-in `trinity` and `phoenix` use,
+  and §3 of a rebuild runs it first. No host firewall, as on `trinity`:
+  Docker's rules run ahead of `ufw`'s for the published ports, so a policy
+  would cover `22` alone. A new `security.md` row records both. The step was
+  applied the same evening. `sshd -T` read `no` for all four settings, a
+  password login and a keyboard-interactive login were refused, and a key
+  login from Hicks succeeded after the reload. The same reads found the SSD reports only
+  `Wear_Leveling_Count`, normalised 178 against a threshold of 100, so it has
+  no wear percent and no `homelab_smart_percentage_used` series, which is
+  correct.
+  The rest of the audit's finding 8 was applied too. `ModemManager`,
+  `udisks2`, `multipathd` and `bolt` are masked, and `b43`, which loaded
+  without firmware for the unused BCM4331 Wi-Fi on every boot, is
+  blacklisted with its two buses. After that, no unit had failed, no target
+  was down, and the USB NIC stayed up. `restore-the-stack.md` gains *Trim what
+  the laptop does not use*, so a rebuild does the same.
+- **The range monitoring of ADR-0126 is built in the repository, not yet
+  deployed ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).** A new
+  collector, `scripts/collect-range-state.sh`, reads `gandalf`'s own controls
+  — the `vmbr1_host_in` ingress barrier, `vmbr0` and `sshd` forwarding, and the
+  `ragnarok` stop timer with the deadline it set. The deadline comes from one
+  place: `ragnarok-stop.sh` gains a `deadline-epoch` subcommand so the monitor
+  reads the timer's own effective deadline rather than a second copy of its
+  logic. `stacks/observability/prometheus/rules/range.rules.yaml` adds seven
+  alerts — `PveFirewallZeroRules` (the firewall on with no host rules, which
+  the collector measured but nothing read), the ingress barrier down,
+  `vmbr0`/`sshd` forwarding on, the stop timer failing
+  (`RagnarokStopTimerInactive`, `RagnarokPastDeadline`, which excludes a dpkg
+  wait so a protected install is not mistaken for a failed timer), and
+  `RangeStateStale` for the collector itself stopping — each with a firing and
+  a quiet promtool test. Host uptime is deliberately not alerted: an always-on
+  host has no "up too long" fault. `install-agent-collectors.sh` gains the
+  `range-state` row and `systemd/agent/` its unit pair, and
+  `build-the-playground.md` §7 gains the install steps, host-only (no
+  `guest-disk-state`, which reads inside a guest) and upgrading the stop helper
+  first.
+  - Still to deploy, needing the lab and the firewall: the `morpheus` pass
+    (`10.0.30.30 → 10.0.99.20:9090`, metrics only), a **metrics-only** Alloy
+    config and deploy check so the range host ships no logs, and installing
+    the collectors on `gandalf` plus a converge. The runbook marks these *not
+    yet deployed*.
+- **The range host will be monitored now that it stays on
+  ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
+  [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).** ADR-0125 made
+  `gandalf` always-on, so ADR-0017's reason for *No monitoring* — a host off
+  by design — is gone, and ADR-0126 supersedes that clause. `gandalf` gets the
+  Alloy agent and the `pve-firewall-state` and guest-state collectors
+  `Saruman` already runs, pushing hypervisor state (the ADR-0028 class, not
+  guest telemetry) outbound to `prometheus` over one new host-scoped pass on
+  `morpheus`. The alerts are three: the host firewall off or `ACCEPT` (the §7
+  read-back as a rule, the main gap), `ragnarok` still running when its
+  timer should have stopped it (a backstop to the ADR-0125 timer), and the
+  SSD's SMART and pending
+  Proxmox updates. Not host uptime: an always-on host has no "up too long"
+  fault, which would be the permanently-firing rule ADR-0017 warned of. The
+  script, the pass and the rules are built under #1651; this is the decision.
+- **The UPS card's temperature probe is bought, plugged in, and read.** The
+  APC AP9335T decided on 2026-10-16 leaves *Everything still to buy*; the
+  operator reported it in the card's universal I/O port on 2026-11-23. The
+  `apc_ups` module now walks `uioSensorStatusTable`, where an NMC3 reports a
+  probe on that port, and three rules watch it: `UpsTemperatureProbeMissing`
+  if the table comes back empty while the card answers, which is also the
+  check that the right table was chosen; `UpsTemperatureProbeCommsLost`; and
+  `RackAmbientTemperatureAlarm` on the card's own alarm. No fixed temperature
+  limit yet: PowerNet-MIB says the Celsius column is in tenths of a degree,
+  APC's cards have been seen to report whole degrees there, and the first
+  readings settle which.
+- **NUT is watched from its own logs.** The 2026-11-13 audit of `mjolnir`
+  found that nothing watched the shutdown path itself, which is how the
+  driver could stay down until 2026-11-07 with only the generic card-silence
+  alerts firing. Every `upsmon` but `smaug`'s was already in Loki: `morpheus`'s
+  through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+  `loki/rules/nut.rules.yaml` adds `NutDriverNotConnected` and
+  `NutCommunicationsLost`, both critical, and `NutMonitorFailedToStart`. They
+  were evaluated against the 48 hours to 2026-11-23 and would not have fired.
+  The brief *data stale* spells, about a hundred a day, are left alone: their
+  cause is not established, and they do not line up with the Prometheus
+  scrape of the card.
+- **`mjolnir`'s card was silent for eight days, and the UPS shutdown was
+  disarmed for at least two of them.** This records what the 2026-11-13
+  read-only audit of `mjolnir` found and no entry had written down.
+  - **The card.** It answered no SNMP from about 01:40 UTC on 2026-10-30 to
+    about 22:30 on 2026-11-06 (`up{device="mjolnir"}` 0 throughout, measured
+    at five-minute steps). `InstanceDown`, `SnmpTargetUnreachable` and
+    `EndpointUnreachable` fired the whole time, and nothing acted on them.
+  - **NUT.** `morpheus`'s own log keeps about a week. It began on 2026-11-05
+    with `upsmon` logging *Poll UPS [mjolnir] failed - Driver not connected*,
+    and went on doing so until 20:59 on 2026-11-07, 23,048 times. Its NUT
+    configuration files were rewritten at 12:56 on 2026-11-08. For as long as
+    the driver was down, a mains cut would have halted nothing in order, and
+    every host would have dropped when the pack ran out.
+  - **The cause is not established.** The card came back during the move into
+    the 32U rack ([#919](https://github.com/Gerrrt/HomeLab/issues/919)), but
+    it went silent a week before that started, and the card's event log, which
+    would say, has not been read.
+  - **What no rule could see.** The card-silence alerts are generic, and
+    nothing watches NUT itself: a driver that stays down while the card
+    answers SNMP would raise nothing at all. On 2026-11-22 `morpheus` still
+    logged 190 to 320 *data stale* or *communications lost* lines a day, each
+    spell lasting one to ten seconds.
+- **The low battery duration is under *Configuration → Shutdown*.**
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §0.2 had sent
+  the operator to *Configuration → UPS → General*, which does not have it.
+  §3.8 and §6.5 send you back to 0.2, so the one fix corrects all three.
+- **`morpheus` audited, read-only, on 2026-11-13, and re-read on 2026-11-23.**
+  Segmentation held: `make check-firewall` passed, NAT had one `rdr`, and the
+  VLANs, Hicks' passes, the resolver and Suricata matched the repository. Two
+  findings were worse than anything else, and
+  [#1503](https://github.com/Gerrrt/HomeLab/pull/1503) carries them: every
+  segment reached the admin UI and `sshd` on the firewall's WAN address, and
+  `sshd` accepted passwords. On 2026-11-23 both were still so on the box. The
+  rest, as they stood on 2026-11-23:
+  - **Fixed here.** `network.md` now declares the undeclared Hicks SSH pass
+    into `smaug` (the count is ten), the eighth Skids reservation at `.24`,
+    and the thirteen reservations `morpheus` pins in its ARP table.
+    `hardware.md` no longer says nothing collects pfSense's release:
+    `check_versions.py` does, from SNMP.
+  - **Alerts added.** NUT on `morpheus` marked the UPS's data stale 1,363
+    times in the fortnight to 2026-11-23, never for more than 5.2 seconds and
+    never more than 12 times in a sliding hour. `NutUpsDataStaleFrequent`,
+    added to #1673's `loki/rules/nut.rules.yaml`, warns when an hour has more
+    than 24; a spell that lasts is that file's `NutCommunicationsLost`.
+    `NutUpsUnreadable` asks `upsc` on the firewall every 15 minutes from
+    `make gateway-state` (`scripts/collect-nut-state.sh`) and pages at 30
+    minutes, which needs no log line at all: Loki holds no `upsmon` or `upsd`
+    line from `morpheus` for 2026-11-06, the middle of the driver outage. The
+    cause of the stale gaps is not found. The two syslog TLS
+    leaves, due 2029-01-09, had no expiry alert. `make gateway-state` now
+    reads them, morpheus's client leaf from the pinned file through a new
+    `--file` in `collect-cert-expiry.sh`, and
+    `SyslogTlsCertificateExpiringSoon` warns at 30 days.
+  - **Done elsewhere.** `trinity` subscribes to NUT
+    ([#1596](https://github.com/Gerrrt/HomeLab/pull/1596)). The `netstat`
+    left running on `em0` since 2026-11-07 is gone.
+  - **Left for the operator, on the box.** The dead *Allow SSH from Mac to
+    WSL* rule, whose two ends are both on Hicks, is still loaded. The 41
+    pending package updates are still pending; the base system is current.
+    The GUI still serves pfSense's default self-signed certificate, due
+    2027-04-16 and watched by `ManagementCertificateExpiringSoon`. A root
+    console session is still open on `ttyv0`. Two Hicks leases with no row
+    in `network.md`, one with an Amazon prefix, had expired by 2026-11-23,
+    so they were not identified. The NVMe read 61 °C, against 64 on the 13th.
+
+- **The SSD wear fix of 2026-11-13 did not fix it.** This corrects that day's
+  entry for the `prometheus` audit, which said a raw value outside 0–100 now
+  falls back to the normalised column. That change was deployed, and on
+  2026-11-22 the collector still rendered `-78` for the Apple SSD SM256E. Its
+  figure therefore comes from `Wear_Leveling_Count` or
+  `Media_Wearout_Indicator`, whose normalised column was not range-checked
+  either. All three ATA wear spellings now drop a life-left value outside
+  0–100. Which attribute the drive reports was not read, because `smartctl`
+  needs root. Until it is, the drive has no wear series and
+  `SmartDriveWearHigh` cannot fire for it. NVMe's `percentage_used` keeps its
+  meaning, which can exceed 100.
+- **`SystemdUnitFailed`: a system unit failing twice in 48 hours now
+  warns.** A re-audit of `prometheus` found `logrotate` failing every night
+  since 2026-10-16 on both `prometheus` and `oracle`, seen by nothing. The
+  `cloud-init` and `cloud-init-base` packages each ship a rotation for the
+  same log. The audit of 2026-11-13 had read `systemctl --failed` as empty
+  minutes after a reboot, which clears that state. The rule reads PID 1's own
+  journal line, like `UnitOomKilled`. Run against the live store, it returned
+  exactly those two units. The duplicate config itself is fixed on each host,
+  not here.
+
+## 2026-11-22
+
+- **The range on `gandalf` is built
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421) closed).** The whole of
+  [`build-the-playground.md`](runbooks/build-the-playground.md) has run: the
+  host and its two bridges (§1–§2), `Saruman` at `.20` and the closed
+  management plane (§3–§4), the attack VM `ragnarok` on template 902 (§5), the
+  three targets (§6), the four-property and leak proofs that ran before any
+  vulnerable image (§8–§9), and now the C2, Sliver (§5, #1481). Gated on #414
+  and the SOC, both long met. What is left on the range is the exercises, each
+  its own issue in the `last` milestone. Its roadmap entry leaves with this.
+- **Sliver is the range C2, installed on `ragnarok`, and a target beaconed
+  back ([ADR-0095](adr/0095-run-sliver-as-the-range-c2-on-the-attack-vm.md),
+  [#1481](https://github.com/Gerrrt/HomeLab/issues/1481)).** `build-the-playground.md`
+  §5 gains *The C2*. The server (v1.7.9, signature verified against Sliver's
+  own minisign key) runs as a `sliver` systemd daemon, operator console on
+  `31337/tcp` on the lease, added to §5's reachability list. The install
+  lifted the outbound scope and `systemctl restart nftables` put it back, with
+  forwarding still `0` — the thing #1481 names, because installing Docker would
+  have turned it on. An mTLS listener on `172.30.30.10:8443` and a Linux beacon
+  run on `ms3-ub1404` (VMID 101) produced a call-back from `172.30.30.101`,
+  with the scope on — a range-local reachability proof on `vmbr1`, which Zeek
+  does not see, not a SOC-visibility one (that is a later exercise with a
+  domain host on VLAN 30). The scope restore was the lightweight reload; the
+  full `finish-attack-vm.sh` re-prove (§8 check three, the raw-Ethernet path)
+  needs `phoenix`'s credentials and is left for the next session. The target
+  was reverted to `clean`. The install is on the running
+  VM, not the template, so a `tofu` rebuild of `ragnarok` reruns §5's steps,
+  as the targets are redone — Sliver is VM state (ADR-0095). The install left
+  one stale test-beacon record on the server, which Sliver prunes an hour
+  after its last check-in. This is the last piece of
+  [#421](https://github.com/Gerrrt/HomeLab/issues/421)'s build.
+- **`gandalf`'s two audit leftovers are cleared
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** This corrects the
+  audit-fixes entry below, which recorded both as still open.
+  `build-the-lab-templates.md` deletes the `PhoenixIsoCleanup` role that the
+  2026-11-09 revoke had left defined with no ACL, and `build-the-playground.md`
+  §1 removes the empty `local-lvm` thin pool, since nothing of the range goes
+  on the M.2; its 141 GiB stays free in the `pve` volume group. Both ran on
+  `gandalf` that night.
+- **`gandalf` stays on, and the attack VM stops on a timer instead
+  ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md),
+  [#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** ADR-0125
+  supersedes ADR-0124 the day it was accepted. The host power-off timer was
+  installed at 17:44 and removed at 19:26, never having fired. The exposure
+  ADR-0124 bounded is `ragnarok` on VLAN 30, and a host that turns itself off
+  makes every session start at the rack. `scripts/range-poweroff.sh` becomes
+  `scripts/ragnarok-stop.sh`. The deadline is six hours after the VM starts,
+  and an extension is stored with the QEMU process's PID, so it never carries
+  into the next start. The warnings also go inside the VM through the guest
+  agent. The `dpkg` wait asks the agent about the VM's lock, and the stop is
+  `qm shutdown` with a forced stop after three minutes. `build-the-playground.md`
+  §7 now installs it and removes the old timer, and §1's *After Power Loss*
+  stays at *Power Off*, with ADR-0125's reason.
+  - The `--self-test` has 27 fixtures. Three deliberate breaks each failed
+    at least one: an extension that ignores the PID, a stopped VM that keeps
+    its extension, and a stop without the PID read again.
+  - Review on the PR caught three things:
+    - The check now reads the PID again just before `qm shutdown`, so a VM
+      restarted during the guest-agent calls is not stopped by the old run's
+      deadline.
+    - The default deadline comes from the QEMU process's start in
+      `/proc/<pid>/stat`, not `now` minus `ps -o etimes`. The old way could
+      move by a second between runs and repeat a warning.
+    - §7 now enables the timer last, after `status` and a chance to extend.
+  - Installed on `gandalf` at 19:26, and proved at 19:32 with a deadline
+    written a few minutes out. The timer sent the 5-minute warning, then shut
+    `ragnarok` down with ACPI in 2 seconds and cleared its state, and
+    `range-extend` refused afterwards. A `wall` reaching a shell inside the VM
+    was sent but not seen, because none was open. The run logged every line
+    twice, which ADR-0124's script also did, so `say` no longer calls
+    `logger` under systemd.
+  - Monitoring the host is [#1651](https://github.com/Gerrrt/HomeLab/issues/1651),
+    opened the same day. ADR-0017's reason for none, a host that is off by
+    design, no longer holds.
+  - This corrects the entry below on the timer being built: what it built is
+    replaced, not proved.
+- **The 2026-11-22 audit's fixes are applied on `gandalf`
+  ([#421](https://github.com/Gerrrt/HomeLab/issues/421)).** These are the
+  steps the audit entry below wrote into `build-the-playground.md`, each then
+  marked *Not yet applied*.
+  - **§2** at 19:19: `ip-forward off` and `ip6-forward off` on `vmbr0`, and
+    the `vmbr1_host_in` table. A reboot at 19:21 proved them: both forwarding
+    flags `0`, the table loaded, `vmbr1` without an address.
+  - **§4** at 19:19: the SSH drop-in with both forwardings off, checked with a
+    password login refused and a key login accepted. The first password test
+    "passed" through this workstation's shared SSH connection, which never
+    re-authenticates, so the runbook's tests now carry `-o ControlPath=none`.
+  - **§4, *Nothing else on `gandalf`*,** at 19:20: root's shell is bash, the
+    1Password and Charm repositories and 14 packages are gone, and so is the
+    dotfiles install. The runbook's `rm` missed about a third of it (atuin's
+    user unit, Go's and npm's caches, mise, tmux and zsh files), so a second
+    `rm` was added. About 5 GB came off the root disk.
+  - **§8 check four** at 19:25, from a throwaway clone of `tpl-kali` at `.199`:
+    no route, the host unreachable with the `dropped` counter rising, and
+    `ragnarok` still reaching the target. The clone had no DHCP stanza, which
+    proves #1341 on the template rebuilt that day.
+  - The audit's last finding, leftovers with no runbook step, is still open
+    for two of them: the `PhoenixIsoCleanup` role, revoked from the token but
+    never deleted, and an empty `local-lvm`. The Kali installer ISO the audit
+    also listed is not a leftover. `packer/kali.pkr.hcl` builds template 902
+    from it (`kali_iso_file`). `/root/.claude/remote` went with the dotfiles.
+- **`gandalf`'s power-off timer is built, not installed
+  ([#1647](https://github.com/Gerrrt/HomeLab/issues/1647)).** This builds
+  ADR-0124 in the repository. `scripts/range-poweroff.sh` holds the deadline
+  under `/run`, sends the 30- and 5-minute `wall` warnings, waits while `dpkg`
+  holds its lock, and powers off. Linked as `range-extend`, it sets the
+  deadline 1 to 12 hours from now. `systemd/range/` runs it every
+  minute. `check` and `extend` hold one lock, so a check never acts on a
+  deadline an extension has just replaced. Review on the PR caught both: a
+  five-minute timer could skip the last warning, and the unlocked version
+  could act on a replaced deadline. `build-the-playground.md` §7 gains *The
+  power-off timer*, which installs it from Hicks with a `range-extend 6`
+  first, so an install on a box already up six hours does not power it off a
+  minute later. The read-back checks the timer is enabled and active.
+  - The `--self-test` has 21 fixtures, and `self-tests.sh` runs it in CI.
+    The two lock interleavings skip where there is no `flock`, as on macOS.
+  - Four deliberate breaks each failed at least one fixture: no `dpkg` wait,
+    no extension cap, no 5-minute warning, and no lock.
+  - It passed under `gandalf`'s own bash, run from standard input without
+    installing anything.
+  - `systemd-analyze verify` on `gandalf` reported only that the script was
+    not installed yet.
+
+  It was installed on `gandalf` the same evening at 17:44, from this
+  branch, by §7's commands: `self-test-ok`, a deadline of 23:44, and a run
+  by hand ending `Result=success`. The timer read `enabled` and `active`.
+  The every-minute timer and the lock were reinstalled the same way after
+  review.
+  The one-power-off proof in §7 has not been run.
+
+- **`gandalf` will power itself off on a timer
+  ([ADR-0124](adr/0124-power-gandalf-off-on-a-timer.md)).** Both audits of
+  `gandalf` found it left on for days, `ragnarok` included, against the
+  "off between sessions" that ADR-0017's "no monitoring" rests on. The ADR
+  chooses a timer on the host over a collector and an "on too long" alert.
+  The host powers off at a deadline: six hours after boot by default, or
+  what the last `range-extend` set, 1 to 12 hours ahead. It warns 30 and 5
+  minutes before.
+  It never powers off while `dpkg` holds its lock. ADR-0017 gains a note,
+  and `build-the-playground.md` §7 says the timer is decided and not built.
+  [#1647](https://github.com/Gerrrt/HomeLab/issues/1647) builds it.
+
+- **A second read-only audit of `gandalf` finds containment holding, and
+  writes four fixes into the runbook.** It was run from Hicks after a power-on
+  and a full upgrade. Holding:
+  - `vmbr1` had no port and no address after a cold boot;
+  - the host and `ragnarok` had no NAT, and only `ragnarok` was dual-homed;
+  - all three targets had `clean`;
+  - the firewall read back as §4 writes it, and `morpheus` saw 22, 8006 and
+    the six AMT ports closed;
+  - `ragnarok` was started for the read and shut down after. Its
+    `range_scope` tables were loaded at boot as `finish-attack-vm.sh` writes
+    them, and a send to `1.1.1.1` was refused with `EPERM`.
+
+  Of the 2026-11-13 findings, these were found fixed:
+  - keys-only SSH and the NFS services;
+  - template 902, rebuilt that day after #1341;
+  - the old kernel;
+  - the GitHub token, the Claude Code credentials and the HomeLab checkout,
+    removed from `root` before this audit. No entry had recorded that.
+
+  New, and written into `build-the-playground.md`:
+  - `vmbr0` read IPv4 and IPv6 `forwarding = 1` while the global flag was
+    `0`. Nothing in `sysctl.d` sets it, so it is most likely ifupdown2's
+    default for an interface that carries an address. §2 adds `ip-forward off` and `ip6-forward off`.
+  - Nothing but the host firewall stopped a rooted target from reaching the
+    host: Linux answered ARP for `10.0.30.30` on `vmbr1`. §2 adds a netdev
+    `ingress` table on `vmbr1`, and §8 check four proves it.
+  - `sshd` still allowed X11 and TCP forwarding. §4's drop-in turns both off.
+  - `root` carried a dotfiles install, `1password-cli`, `gh`, Go and the
+    1Password and Charm apt repositories. §4's new *Nothing else on
+    `gandalf`* removes them. `security.md` adds the row.
+
+  §7's read-back checks all four. None is applied on `gandalf` yet.
+
+  The audit also found that the box had not been powered off between
+  sessions. `ragnarok` ran from 2026-11-12 to 2026-11-22, and the host was up
+  from 2026-11-07, nine days past the audit that reported it. ADR-0017's
+  "no monitoring" rests on that discipline, and what replaces it is left to
+  its own decision.
+
+- **`vmbr1`'s `post-up` holds across a boot.** This completes the entry below
+  that moved the line to `post-up`, which left the proof outstanding. The line
+  was applied on `gandalf`, and the box rebooted at 15:53. After the boot,
+  `net.ipv6.conf.vmbr1.disable_ipv6` read `1`, `vmbr1` had no address in
+  either family, and the networking log had no failed `sysctl`.
+  `build-the-playground.md` §2 records it.
+
+- **`vmbr1`'s IPv6 off moves to `post-up`, because `pre-up` failed at boot.**
+  The `gandalf` audit follow-up
+  rebooted the box into a new kernel. `vmbr1` then had an `fe80::` address and
+  `accept_ra` at `1`. Since 2026-11-07, `build-the-playground.md` §2 had
+  disabled IPv6 there with a `pre-up sysctl`. At boot that runs before
+  `ifupdown2` creates the bridge, so it failed, and the boot log says so. It
+  had only been proved with `ifreload -a`, with the bridge already up. Neither
+  family had an address on the range from then until this reboot, the first
+  since. The line is now `post-up`. §2 records why, and §7's per-session
+  read-back checks that `vmbr1` has no address. The Proxmox firewall held
+  throughout: no SSH or `8006` over IPv6, and the host had no global IPv6
+  address or IPv6 default route. Not yet applied on `gandalf`, and the
+  reboot that proves the new line holds has not been run.
+
+- **`finish-attack-vm.sh` tests `ragnarok`'s scope with a send that reports
+  its refusal.** Its first run against `ragnarok` stopped with "a send to
+  `1.1.1.1` was not refused", but the scope itself held:
+  - Both tables were loaded as written, and the raw-frame check passed.
+  - Python's sends to `1.1.1.1` (ICMP, raw ICMP and UDP) each raised
+    `Operation not permitted`.
+  - `eth0` transmitted nothing during the tests.
+
+  The check was the fault. It grepped `ping`'s output for that error, and
+  Kali's iputils (20250605) reports a refused send as plain packet loss
+  instead. The script and `build-the-playground.md` §8 now make the send
+  from Python, which raises the kernel's `EPERM`. This corrects the
+  2026-11-13 entry on `ragnarok`'s outbound scope, which said the script
+  fails unless `ping` is refused.
+
+- **`gandalf`'s AMT does not answer on the network.** The 2026-11-13 audit
+  of `gandalf` found AMT's state unproven. The ME is present (`/dev/mei0`),
+  and the OS cannot read whether it is provisioned. `build-the-playground.md`
+  §1 now has a per-port TCP probe from `morpheus`. It is framed as a
+  reachability check that backs up the firmware's *Intel Manageability:
+  Disabled* setting, not as proof of it.
+  - The first run put all six ports on one FreeBSD `nc` line, which `nc`
+    does not accept, and review on the PR caught it.
+  - The per-port rerun timed out on all six: 16992–16995, 623 and 664.
+  - `hardware.md` states the result.
+
+- **The Hitron CODA56 is in, and the WAN's receive errors were `em0`'s, not
+  the XB7's ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)).** This
+  corrects 2026-11-21's "A tripped breaker set off the WAN's receive errors a
+  fourth time, and another of the XB7's ports cleared them", and with it the
+  XB7 diagnosis in the 2026-11-19, 2026-11-08 and 2026-11-07 entries. The
+  CODA56 bought on 2026-11-20 replaced the XB7 at about 18:00 PST. `em0`,
+  whose counter had been flat all afternoon, began counting receive errors
+  as soon as it went in: about 10,000 in the first fifteen minutes. Downloads
+  fell to 20–48 Mbit/s. `ifconfig em0` read `1000baseT <full-duplex>` and
+  `mac_stats` read the old signature: CRC errors (1,152,752) and fragment and
+  length errors (1,374,571 each), with alignment, symbol and collision
+  errors all zero. A re-plug at `em0` did not stop it, and nor did a
+  different cable (1,200 more errors in four minutes after the swap). A
+  reboot of `morpheus` did: the counter restarted at 0 and held there, with
+  243 Mbit/s down from Hetzner Ashburn and OVH and 940 from the scheduled
+  test. So the fault is `em0`, the onboard I219, getting into a state a link
+  reset does not always clear. The earlier "fixes" by moving XB7 ports were
+  re-plugs that happened to reset it. The factory cable was never at fault.
+  `WanReceiveErrors`' description now says to reboot `morpheus`, and
+  `network.md`, the rack runbook's §6.1, the roadmap's #923 note and the
+  network diagram name the CODA56 and `em0`. Taking the WAN off `em0`, onto
+  a VLAN through `neo` to `igc0` or onto a NIC of its own, is the durable
+  fix and is not decided. The XB7 goes back to Comcast.
+
+- **The office wall stops counting `info` alerts.** Its verdict took every
+  firing alert but Watchdog, so the two `HostBatteryTempNotMeasured` alerts
+  (on `oracle` and `prometheus`), which are `info` by design and resolve only
+  when a pack with a working thermistor is fitted, held it at "2 alerts
+  firing" in amber, and "All quiet" could not show. The alert is right; the
+  wall was wrong to treat `info` as something to act on. `wall.js` now counts
+  only `critical` and `warning`, as Alertmanager delivers and the Glance
+  *Estate* panel already counts, and shows any `info` alerts as one muted
+  line under "All quiet". Watchdog, the broken states and Caddy's
+  `/api/q/alerts` are unchanged.
+
+## 2026-11-21
+
+- **#404 closed: `trinity`'s last gate, ADR-0023's *Independent* test,
+  passed.** The household's credentials live in hosted Bitwarden, ADR-0023's
+  recommended route, and this Vaultwarden keeps the operator's. The other
+  person in the household opened them from their own device, signed in to
+  their own account, without the operator present. It was the one item left in
+  the build runbook's §13 and on the roadmap. The second recipient
+  (2026-10-03), ADR-0022's record (ADR-0075) and the Immich restore
+  rehearsal on the host (2026-09-28 and 09-29) were already done, and
+  ADR-0122 had dropped the off-estate copy. The roadmap's *trinity* section and its place in *The
+  order* go with it; the milestone has no other issue.
+
+- **`trinity`'s memory limits re-derived from a month of RSS; Home
+  Assistant's goes to 1536m.** The stack README asked for it once the host had
+  run a month. Peak and median `container_memory_rss` over 2026-10-22 to 11-21,
+  the TSDB's whole retention, against each limit: Home Assistant peaked at 816
+  MiB of 1024 (median 536), the only service above two-thirds of its limit, so
+  it went to 1536m. Immich's server 2046 of 3072, AdGuard 954 of 1536,
+  Stirling-PDF 868 and Paperless-ngx 692 of 3072 (their load tests' 1454 and
+  1716 still set them), Immich's machine learning 708 of 4096, and everything
+  else under 350 MiB. Those stand.
+
+- **A tripped breaker set off the WAN's receive errors a fourth time, and
+  another of the XB7's ports cleared them.** A breaker tripped and the XB7 lost
+  power; `morpheus` stayed up, since `em0`'s error counter carried on from
+  where 2026-11-19 left it rather than resetting. `em0` counted nothing all day
+  until about 17:50 PST, then 900 to 124,000 receive errors per fifteen
+  minutes, and `WanReceiveErrors` and `InternetDownloadSlow` fired; the last
+  scheduled test read 2.3 Mbit/s down. This was the third gigabit port, the one
+  2026-11-19 moved to, so the XB7 now had no port that had not failed. The
+  factory cable went back to one that had, and the counter held at 2,295,494
+  across three readings a minute apart, with 252 and 190 Mbit/s down from
+  Hetzner Ashburn and OVH. So a port that fails does not stay failed, and
+  this time the fault started soon after the XB7 power-cycled; restarting
+  the XB7 did not clear it. The
+  Hitron CODA56 bought on 2026-11-20
+  ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)) is still the fix.
+
+- **`trinity` re-checked after its audit, and what the re-check found.**
+  Every finding of 2026-11-13 was read again on the host and holds: key-only
+  `sshd`, three keys, the UPS client on line, USB boot off, the development
+  tooling gone and SMART collected. The re-check found what the fixes had
+  missed. `homelab-patch-state` was never installed on `trinity`: only
+  `prune-images` was, on 2026-10-07, so `RebootRequired` and the pending-update
+  alerts could not see the host. The build runbook's §9 now installs the
+  collectors by name, because the bare form would also install the agent
+  `smart-state`, which writes the same file as `smart-state-sensitive`.
+  [ADR-0123](adr/0123-keep-agent-sessions-on-trinity.md) records that Claude
+  Code stays on `trinity` while the development tooling left it, and what that
+  costs. `security.md`'s `trinity` login row still said the `sshd` step was
+  not applied; it was, on 2026-11-20. The roadmap's #404 list named the second
+  age recipient and ADR-0022's record as left, though both were done (on
+  2026-10-03 and by ADR-0075); only ADR-0023's *Independent* test is left.
+  #132 closes: it stayed open on #455, which ADR-0122 closed, and its restore
+  was rehearsed on 2026-09-28. Its roadmap entry leaves.
+
+- **The wall's big type is smaller, so its panels have room.** With the
+  context card, the week and the Home row added, the wall had begun to look
+  crowded. Nothing was taken off it. The largest type shrank by about a
+  third: the clock from 120 to 76 px, the temperature from 84 to 52, the
+  internet numbers and the context card's heading from 72 and 56 to 44 and 38,
+  and the host tiles' numbers from 40 to 28. The header row went from 140 to
+  112 px and the Home row from 84 to 64, and the panels below took the space.
+  Body text stays at 28 px, readable from the chair. Checked against the live
+  wall's own data before the change shipped, with the date still clear of the
+  header's divider.
+
+- **The household copy is dropped, and so is the requirement for it.**
+  [ADR-0122](adr/0122-drop-the-household-copy.md) supersedes ADR-0073 and
+  amends ADR-0023, ADR-0024 and ADR-0064. The operator said: "I don't want
+  it and I want the requirement removed." No household holder was ever
+  chosen, so the copy never had a copy of record: the WD Elements drive
+  bought for it on 2026-09-22 held one rehearsal, written on 2026-10-01, and
+  `household-copy` and `household-proof` sat in `ScheduledJobNeverRan` from
+  the day they were declared. Removed: `carry-household-copy.sh`,
+  `household-recipients.sh`, `household.recipients`, `household-age.sha256`,
+  the two make targets, `carry-the-household-copy.md`,
+  `open-the-household-copy.md`, both `SENSITIVE_JOBS` rows,
+  `HouseholdCopyStale` and its tests, and `check_sops_rules.py`'s household
+  check. The stale-job rules, `ScheduledJobNeverRan` and `ScheduledJobFailed`
+  skip both job names, so a `trinity` whose `homelab-jobs.prom` predates this
+  stays quiet until `make install-timers PROFILE=sensitive` rewrites it.
+  Library sets are now encrypted to the sensitive rule's recipients only, and
+  `paperless-documents` leaves `backup-volumes.sh`'s sentinel tables. ADR-0064's
+  nightly copy to `oracle` stays and is no longer interim. The photographs,
+  documents and budget have no copy outside the house, and a loss of the house
+  loses them. The drive is spare. #455's roadmap entry leaves, and #404's
+  step 10 gate no longer waits on an off-estate copy.
+
+- **The UPS shutdown sequence is accepted without a live test, and the DNS
+  failure test is recorded as done.**
+  [ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md): the
+  operator will not run `shut-down-on-the-ups.md` steps 5 and 6, the forced
+  halt with `upsmon -c fsd` and the mains pull that measures the pack. Steps 0
+  to 4b are applied, #574 closes on them, and its roadmap entry leaves.
+  Separately, the operator confirmed that they stopped AdGuard on purpose and
+  `AdGuardNotAnswering` paged. The day was not written down, so the runbook's
+  table records it as before 2026-11-21, and the test leaves #404's list.
+
+- **`trinity`'s photo disk passes no SMART through, and the lock-directory
+  change is reverted.** The first run of `smart-state-sensitive` read the NVMe
+  and the HOUSEHOLD drive and returned nothing for the photo disk. Its Seagate
+  enclosure (`0bc2:ab18`, `uas`) failed "Read Device Identity" under
+  `-d sat`, `-d sat,12` and `-T permissive`. Dropping the disk off `uas`
+  was judged not worth a reboot and slower transfers, so the gap is recorded
+  in `hardware.md` and the docs that promised a row for it. Separately,
+  #1597 merged with a commit that moved the job's lock into the textfile
+  directory, to get around `ProtectSystem=strict` making `/run/lock`
+  read-only. That left a lock file beside the metrics. The lock goes back to
+  `/run/lock`, and the unit names `/run/lock` in `ReadWritePaths`, which grants
+  nothing new because the directory is world-writable. The monitoring host's
+  `homelab-smart-state.service`, sandboxed the same way without it, exits 0
+  daily, so whether strict blocks `/run/lock` there is not settled.
+
+- **`trinity` reads SMART from its own disks.** It was the one host with a
+  checkout and Alloy that collected none, so a failing NVMe under the password
+  vault, or a failing photo disk, would have shown first as I/O errors. A new
+  sensitive-profile timer, `homelab-smart-state-sensitive`, runs the existing
+  collector as root daily at 08:30. It goes through a new make target,
+  `smart-state-sensitive`, and not `smart-state`, so the baseline table that
+  `SmartDriveBadSectors` joins stays rendered on the monitoring host alone.
+  The build runbook's step 4 now installs `smartmontools`. Found by the trinity
+  audit of 2026-11-13, which the repo had neither recorded nor decided.
+
+## 2026-11-20
+
+- **`trinity` subscribes to the UPS, and the shutdown window is widened to
+  fit `Saruman`'s guests.** ADR-0107's remaining half was applied: the
+  runbook's step 4b (two Winterfell rules, the `10.0.99.1` listener, and
+  `nut-client` on `trinity` as a third secondary), `HOSTSYNC 600` on
+  `morpheus` (§3.7), and the card's low-battery duration from 8 to 16
+  minutes (§3.8). `trinity` reads `ups.status` `OL` from `10.0.99.1`, and
+  `battery.runtime.low` reads `960`. The sequence is armed and still not
+  watched; step 5 ([#574](https://github.com/Gerrrt/HomeLab/issues/574)) is
+  the proof. This closes finding 1 of the trinity audit of 2026-11-13.
+
+- **`trinity`'s `sshd` gets a keys-only step, and "no host firewall" is
+  written down as a decision.** The trinity audit of 2026-11-13 found `sshd`
+  taking passwords, with X11 forwarding on and 17 GitHub-imported keys
+  authorized; the build runbook never hardened it.
+  [`build-the-sensitive-tier-host.md`](runbooks/build-the-sensitive-tier-host.md)
+  §3 now writes `10-trinity.conf`, the same four lines as `alexander`'s and
+  `phoenix`'s, keeps `authorized_keys` to `prometheus` and Hicks, and proves
+  both halves. A new `security.md` row records why `trinity` does not follow
+  `phoenix`'s `ufw` policy (ADR-0117): Docker's rules run ahead of `ufw`'s for
+  `443` and `53`, so a policy would cover `22` alone, and the spare firewall is
+  better without one. The step is not yet applied on the host. The same audit
+  found two prose slips, fixed here: `hardware.md` read ADR-0107's UPS
+  subscription as present tense, and `converge-the-host.md` counted ten deploy
+  gauges where `converge.sh` writes eleven.
+
+- **A Hitron CODA56 is bought to replace the rented XB7**
+  ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). Three of the
+  XB7's Ethernet ports have sent `em0` corrupted frames in three weeks; see
+  the 2026-11-19 entry below. The operator chose it from Xfinity's
+  compatible-device list for the house's plan. Every non-voice model there
+  lists more upload than the plan's ~300 Mbit/s, and the house has no
+  Xfinity phone service, so it needs no voice port. The CODA56 cost about
+  half as much as the others. It was decided and bought the same day, so
+  it never entered *Everything still to buy*, and README's count stays at
+  11. It is in transit, and #1594 tracks it. The XB7 goes back only after
+  the CODA56 is in and `em0` counts no errors.
+- **The age-key proof has no deadline and no alert.**
+  [ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md) amends ADR-0024 part
+  3. `SecretsKeyBackupUnproven` and `SecretsKeyRecipientsUnrecorded` are
+  removed with their tests, which takes the Prometheus rules from 164 to 162.
+  `verify-key-backup` and `verify-key-backup-sensitive` leave `install-timers.sh`'s
+  tables, and the Glance maintenance page stops listing them.
+  - **Optional.** `make secrets-verify-backup` still checks a copy and records
+    which recipient it checked.
+  - **Kept.** `recipient-state` still writes `key-recipients.prom` daily, for
+    `remove-recipient.sh`.
+  - **Old declarations stay quiet.** The stale-job rules,
+    `ScheduledJobNeverRan` and `ScheduledJobFailed` skip both names. A host whose `homelab-jobs.prom`
+    predates this change is therefore quiet until `make install-timers`
+    rewrites the file.
+  - **Unchanged.** The CA key, off-site and household deadlines.
+  - **#671 closes.** Its remaining step was proving the lab key's second
+    recipient. Its section, *Saruman: the domain, then the SOC*, leaves the
+    roadmap empty.
+  - **This reverses part of the 2026-11-14 entry.** That entry added
+    `verify-key-backup-sensitive` (#1501). The row is gone again.
+
+## 2026-11-19
+
+- **`phoenix`'s own way in is closed: `sshd` takes keys only, and `ufw` is
+  default-deny inbound.** This applies
+  [ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)
+  with [`build-the-jumpbox.md`](runbooks/build-the-jumpbox.md) §6a. Before it,
+  `sshd -T` read `passwordauthentication yes`, `x11forwarding yes` and
+  `permitrootlogin prohibit-password`, with only cloud-init's drop-in, and
+  `ufw` was inactive, so `22` answered all of VLAN 30.
+  - **Who would have been shut out.** Thirty days of `sshd`'s journal showed
+    logins from Hicks only: the MacBook, wired and on Wi-Fi, by key, and
+    `desktop-02` by password, 22 times. `desktop-02` got a key and logged in
+    with it before passwords were turned off. `authorized_keys` now holds two
+    keys.
+  - **`sshd`.** `10-phoenix.conf` is in place. `sshd -T` reads `no` for
+    password, keyboard-interactive and root login and for X11 forwarding. A
+    fresh key login succeeds, and a client offering only a password gets
+    `Permission denied (publickey)`.
+  - **`ufw`.** The runbook's rules: `22` from `10.0.50.0/24`, `22` in on
+    `wg0` from the tunnel's subnet, the tunnel's port, and the one `route`
+    rule from `wg0` to `ens18`. The listen port was read from `wg` on the
+    host and is not written down here. Nothing else listened, and Alloy only
+    connects outward, so default-deny took nothing away.
+  - **Checked.** A fresh key login from Hicks succeeds.
+    `nc -zv -w 3 10.0.30.70 22` from `alexander` times out, and its three
+    SYNs are logged as `UFW BLOCK`. §4's `curl` lists 34 guests.
+    `phoenix-metrics` and `phoenix-alloy` stay `up`, with samples under a
+    minute old, and the logs keep arriving. One stray ACK on Alloy's
+    connection to `alexander` was blocked at the moment `ufw` came up. The
+    connection carried on.
+  - **Checked from the tunnel,** with the MacBook on a phone's hotspot and
+    the route table showing `10.0.30.70` through the tunnel. A key login to
+    `phoenix` succeeds and arrives from `172.31.0.2`. `ping 10.0.30.40`
+    answers at `ttl=62`, not the 63 the runbooks expected: a capture on
+    `phoenix` shows the request forwarded straight to `alexander` and the
+    reply coming back from `morpheus`, because `alexander` answers the tunnel
+    subnet through its default gateway, as ADR-0042's routed design has it.
+    Both runbooks now expect 62. With the client's `AllowedIPs` widened for
+    [`open-the-remote-path.md`](runbooks/open-the-remote-path.md) §8,
+    ten pings each to Winterfell, Hicks and CasaBonita all failed, while
+    `alexander` still answered. `morpheus`'s filterlog shows ten blocks from
+    `172.31.0.2` to each and no passes outside the lab. `AllowedIPs` went
+    back to the lab alone afterwards.
+  - **The tunnel's one peer is the MacBook, not the HP laptop.** This
+    corrects the 2026-09-22 entry "#442 The estate has a remote path, and it
+    reaches the lab and nothing else", which named the peer `laptop-01`.
+    That is the name of the WireGuard app's tunnel profile on the MacBook
+    (`laptop-02` in [`network.md`](network.md)), and it collides with the HP
+    Pavilion that `network.md` calls `laptop-01`. The MacBook's key is
+    already on `phoenix`, so no key was added for the tunnel.
+
+- **`phoenix`, `alexander` and `odin` no longer run the Ubuntu template's
+  unused services.** All three were cloned from template 901 before
+  `prune.sh` existed, and still carried all eight services that it purges:
+  `open-vm-tools`, `modemmanager`, `snapd`, `thermald`, `multipath-tools`,
+  `open-iscsi`, `kdump-tools` and `udisks2`. Each kernel held 512 MiB for a
+  crash kernel that nothing in this repository collects. This completes two
+  entries filed under 2026-11-16. *`eden` no longer runs the Ubuntu
+  template's unused services* said a clone needs the same purge until the
+  template is rebuilt. *Template 901 purges the services `eden` had removed
+  by hand* left the clones made before it as they were.
+  - **What was run, in #1582's order, on `phoenix`, `alexander`, then
+    `odin`.** `packer/ubuntu/prune.sh` was copied to each guest and run as
+    root, and exited 0. `apt-get autoremove --purge` was previewed before it
+    ran. It took 51 packages on `phoenix` and `odin`, and 52 on `alexander`,
+    all of them pulled in by the eight: `kexec-tools`, `makedumpfile` and
+    `crash` for kdump, `libblockdev` and `upower` for udisks2, `libmbim` and
+    `libqmi` for ModemManager, and the multipath and iSCSI libraries.
+    `alexander`'s extra one was `libgpgme45`, needed only by udisks2's
+    `libvolume-key1`. `sudo`, `apparmor` and `unattended-upgrades` stayed
+    installed on all three.
+  - **Checked after each reboot.** `/sys/kernel/kexec_crash_size` reads 0,
+    `/proc/cmdline` has no `crashkernel=`, none of the eight is installed,
+    and no unit has failed. `ssh`, the guest agent and unattended upgrades
+    are active, and `qm agent` pings for VMIDs 140, 160 and 170 answered on
+    `Saruman`. Usable memory is now 3,910 MiB on `phoenix`, 7,935 on
+    `alexander` and 15,987 on `odin`.
+    - On `alexander`, all six lab containers came back. The five with a
+      healthcheck are healthy; `lab-loki` has none. Every target of the
+      lab's Prometheus reads `up`.
+    - On `odin`, all seven SOC containers are healthy, and the indexer is
+      green. All seven Wazuh agents active before the reboot were active
+      again after it. `WazuhIndexerUnreachable` went pending during the
+      reboot and cleared without firing.
+  - **Also recorded here: the 2026-11-18 removal of the `hwctl` snap, and of
+    the first user from `lxd`, on all three by hand.** No PR had recorded
+    it. On each guest, the `lxd` group is now empty and `snap` is gone with
+    `snapd`. `lxd-installer` stays: its socket is `root:lxd 0660`, and no one
+    is in that group.
+  - Refs [#1582](https://github.com/Gerrrt/HomeLab/issues/1582).
+
+- **The WAN's receive errors came back a third time, and the XB7's third
+  gigabit port cleared them.** `em0` counted no input errors for days, then
+  started at about 01:05 PST on 2026-11-18 with nobody at the rack, and
+  logged no link change. `WanReceiveErrors` fired at 01:06 PST and
+  `InternetDownloadSlow` at 02:04. Scheduled tests fell from about 940
+  Mbit/s down to 2–40, with two outliers at 818 and 914, while upload held
+  at about 298. Pings to `1.1.1.1` and `8.8.8.8` from a Hicks desktop stayed
+  at about 11 ms with no loss, idle and under load, and WAN use was about
+  5 Mbit/s. `dev.em.0.mac_stats` read 1,003,641 CRC and 1,346,161 length
+  errors with zero symbol and alignment errors, the 2026-11-07 shape.
+  `dev.em.0.eee_control` was already 1, so Energy-Efficient Ethernet is off
+  and was not the cause.
+  - **Fixed:** the factory cable moved from the XB7's second gigabit port to
+    its third at about 12:31 PST. The `ifInErrors` counter for `em0` held at
+    2,009,194 over the three samples after it, through about 200 MB of test
+    download, and distant servers ran at 211 and 271 Mbit/s from the Hicks
+    desktop. That is minutes of evidence, not a day of it.
+  - **This corrects "The WAN's receive errors came back on the XB7's gigabit
+    port", filed under 2026-11-08,** which named the patch cable as the next
+    thing to replace if this recurred. The link is a factory cable, the same
+    one that ran clean on the second port from 2026-11-07 to 2026-11-18, and
+    each of three faults was cleared by a different XB7 port. The XB7 is the
+    suspect. `WanReceiveErrors`' description now sends you to another XB7
+    port first.
+
+- **`eden` reports its patch state again, and the lab's `PatchStateStopped`
+  leaves it out while it is off.** Redeploying the lab after #1585 put the
+  alert in pending for `eden`: it reported from 2026-11-08 until 23:04 UTC on
+  2026-11-12 and not since its rebuild the next morning. The old guest's timer
+  had been installed by hand, `build-the-bloodhound-guest.md` had no such
+  step, and the `[1d]` window had cleared the alert by 2026-11-14. §6 now
+  installs it, and it was installed on `eden`. `eden` is `on-demand` and off
+  between sessions, so the rule's vanished-series branch leaves it out while
+  none of its node metrics have arrived in an hour: ADR-0079's decision for
+  `HypervisorGuestStopped`, brought to the lab, which cannot read `Saruman`'s
+  tags and names the guest instead. Two promtool cases: an `eden` that is
+  shut down is quiet at 3 d and 10 d, and an `eden` that is running without
+  its collector fires.
+- **`PatchStateStopped` and `GuestStateStopped` now also fire for a
+  collector that stops and leaves its file.** The entry below left this open:
+  a stopped timer leaves its `.prom` file in the textfile directory,
+  node_exporter re-serves its last values on every scrape, and the series
+  never goes absent, so the rules saw nothing. Raised by Copilot in review of
+  #1585. Each rule now has a second branch, `or`'d to the first, on
+  `node_textfile_mtime_seconds` for its own file, as the lab's
+  `PatchStateStopped` has had since #1544: `apt-patch-state.prom` older than
+  two days against its daily timer, `guest-state.prom` older than an hour
+  against its ten-minute one. The mtime series carries `instance`, which
+  Alloy sets to the same hostname the collectors write into `host`, so
+  `label_replace` copies one into the other and both branches alert under
+  one label set. New promtool cases fire with the series present and the
+  file frozen, and stay quiet with the file rewritten and an old file of
+  another collector beside it. With the second branch removed the firing
+  cases fail; with the regex loosened to `.*state\.prom` the quiet ones do.
+- **`PatchStateStopped` and `GuestStateStopped` no longer clear themselves a
+  day after a host's series disappears.** Both asked "did this host report in the day
+  before the last six hours", so about 30 h after the last sample the left
+  side emptied and the alert resolved with nothing recovered. Review of the
+  lab's `ApplianceStateStopped` (#1580) found it in that rule, which had
+  copied the form. Both now look back fourteen days, inside both
+  Prometheuses' retention (30 d on the estate, 15 d in the lab), so they hold
+  for two weeks or until the host reports again, and a host that never had
+  the collector still stays quiet. A host retired on purpose now fires for
+  those two weeks. New promtool cases fire at 3 d and 10 d and are quiet at
+  16 d; with `[1d]` put back, the 3 d and 10 d cases fail. This covers a
+  series that vanishes, not a timer that stops: a stopped timer leaves its
+  `.prom` file, which is re-served on every scrape, so the series stays. The
+  lab's `PatchStateStopped` has a second branch on the file's age for that;
+  the two estate rules do not yet.
+- **`SecurityUpdatesPending` went pending for `alexander`, and it is Ubuntu's
+  phasing.** Three security updates appeared at the 08:01 UTC collection:
+  `cloud-init`, `cloud-init-base` and `libgstreamer1.0-0`. `apt` lists all
+  three, with Docker's and others, as "deferred due to phasing":
+  `alexander` is outside the share of machines the rollout has reached, so
+  unattended-upgrades leaves them, as it should. Nothing was forced. The rule
+  fires only if they are still pending a week later.
+- **`fenrir`'s cloud-init `sshd` drop-in is removed.**
+  `50-cloud-init.conf`, 27 bytes reading `PasswordAuthentication yes`, had
+  been overridden since 2026-11-17 by the `10-homelab.conf` drop-in, which
+  `sshd` reads first. It was still what an audit without sudo would see, so
+  `build-the-sensor-guest.md` §3 now removes it and checks that only the
+  `10-` drop-in is left. cloud-init writes it once per instance; on `fenrir`
+  it had kept its install date across four reboots.
+- **The wall says when the dogs are due.** The last of the wall's five
+  steps.
+  - `wall_dogs.yaml` makes `sensor.wall_dogs`: when the dogs were last
+    walked and fed, and how many hours each may go. No device knows this, so
+    it is recorded by hand: two dashboard buttons, `Dogs walked` and
+    `Dogs fed`, or an NFC tag labelled `wall_dog_walk` or `wall_dog_feed`
+    and tapped with a phone. The newest of the two counts.
+  - The context card *Dogs* shows while either is overdue, after packages
+    and before the to-do list, in amber with how long ago each happened.
+  - Both intervals start at 0, which means not tracked, so the card stays
+    hidden until they are set in the UI. An Alexa routine was in the plan;
+    this house does not expose Home Assistant to Alexa, so it is left out.
+
+  Previewed at 1920x1080 against stubbed answers; it has not run against
+  the real Home Assistant.
+
+- **The wall shows what is playing, and how the backups stand.** The fourth
+  of the wall's five steps.
+  - `wall_media.yaml` makes `sensor.wall_media`: the title, artist and app of
+    the first playing media player labelled `wall_media`. It is a context
+    card, *Now playing*, after the to-do list and before the Hebrew word. No
+    player is labelled yet, so it stays hidden.
+  - Under "All quiet", the Alerts card now gives two lines from Prometheus
+    in place of "Nothing is firing.". The first is the backups, the restore
+    test and the off-site copy, each by its most overdue job against the
+    allowance `install-timers.sh` gives it (`/api/q/backups`). The second
+    is the security updates and reboots waiting (`/api/q/patches`). Both
+    read series that already exist.
+  - SSH failures and the IDS's findings are left out. They are Loki rules
+    whose alerts go to Alertmanager, not to Prometheus's `ALERTS`, so the
+    wall has no query that can read them. The same is true of every Loki
+    alert: the wall's Alerts card shows Prometheus's alerts only.
+
+  I previewed both at 1920x1080 against stubbed answers; neither has run
+  against the real Prometheus or Home Assistant.
+
+## 2026-11-18
+
+- **The wall's context card gets its sources.** The third of the wall's
+  five steps. Five new packages, each a `sensor.wall_*` behind its own
+  `/api/ha/` handle, fill the card by precedence:
+  - `wall_commute.yaml`: the live drive from home to the next event within
+    three hours whose location looks like a place, through
+    `waze_travel_time.get_travel_times`. It shows from an hour before it is
+    time to leave, with five minutes to get out of the door. There is no fixed
+    commute, so the calendar is the destination: only calendars labelled
+    `wall_commute`, and none until one is. This is the first time the wall
+    sends anything out of the house: that one location, to Waze.
+  - `wall_shabbat.yaml`: candles, havdalah, parsha and Hebrew date from the
+    Jewish Calendar integration, from six hours before candle lighting.
+  - `wall_trash.yaml`: the next pickup from three helpers, from 16:00 the
+    evening before. It needs no integration.
+  - `wall_deliveries.yaml`: 17TRACK packages delivered today, ready for
+    pickup or undelivered, by their labels, never their numbers.
+  - `wall_todo.yaml`: the open items of the lists labelled `wall_todo`, the
+    card's default before the Hebrew word.
+
+  Each stays unavailable, and its card hidden, until its integration or
+  helper is set up in the UI; none of them is yet. `docs/security.md` had
+  said the wall shows two days of the schedule. It has shown seven since the
+  first step, and now says so. I previewed each card at 1920x1080 against
+  stubbed answers, alone and all at once. None of them has been run against
+  the real Home Assistant.
+- **`fenrir`'s leftover tool images are gone, and its runbook installs the
+  weekly image prune.** "`fenrir`'s re-check with sudo finds nothing the audit
+  could not see", below, left seven lint and validate images, about 928 MB,
+  for the prune of 2026-11-23. They were removed today by image ID, after
+  checking that no container used them; Docker now holds only the three
+  images the sensor runs, with nothing reclaimable. A re-check of the
+  runbook against the box found that `homelab-prune-images` was on `fenrir`
+  only because a full installer run had once put it there: §4 installed the
+  archive prune and patch state by name, and not it. §4 now installs it too,
+  and `schedule-maintenance.md` names `fenrir` among the hosts it runs on.
+- **`fenrir` checks hourly that it is still an appliance, the last of its
+  audit's next steps.** "`fenrir` sheds the last of its audit's leftovers",
+  below, left a drift check as the one step open. Now
+  `homelab-appliance-state` reads, as root, what `build-the-sensor-guest.md`
+  leaves, and writes one 0-or-1 per check, eleven in all, to the lab's
+  Prometheus. The lab's `ApplianceCheckFailed` names a check that has failed
+  on two hourly runs, and `ApplianceStateStopped` covers a collector that
+  stops, for as long as it stays stopped.
+  - **Measured first.** The allowlists are what `fenrir` held on the day:
+    `sshd` and resolved and chrony on loopback, the sensor's Alloy on
+    `127.0.0.1:12345`, `core24` and `snapd`, and Docker's and Ubuntu's apt
+    sources. Listeners are exact pairs, loopback included, because the tools
+    the audit found would most likely have listened on localhost only. The
+    allowed keys' fingerprints stay on the guest, in
+    `/etc/homelab/appliance-key-fingerprints`.
+  - **A trap found while measuring.** An SSH session to `fenrir` still listed
+    `atreus` in `lxd`, though `/etc/group` did not, because a process keeps
+    the groups it started with. The groups check reads `id -nG atreus`,
+    which asks the database.
+  - **Proven.** Installed with `install-agent-collectors --only
+    appliance-state`, the first run read 1 for all eleven. A throwaway key
+    appended to `authorized_keys` was read at the next hourly run as
+    `FAILED: keys`, and `keys` read 0 in the lab's Prometheus; the key was
+    then removed. The two rules load on `alexander` at the next
+    `make up STACK=lab`.
+  - **What it does not do.** Whoever has root on `fenrir` can make every
+    check read 1, and the lab's Prometheus pages no one (ADR-0020). It
+    catches drift by accident, the kind the audit found. Letting one bit of
+    it cross to the estate, as ADR-0088 lets a service's health cross, was
+    not decided here.
+
+  With this, every next step of `fenrir`'s audit of 2026-11-13 is done.
+- **The wall's Home row reads the thermostat and the Litter-Robot.** The
+  second of the wall's five steps. The row gains the hallway thermostat's
+  temperature and humidity, and "heating" or "cooling" while it is, read
+  from `climate.thermostat` at `/api/ha/thermostat`. The Litter-Robot
+  appears in amber only when it wants something: a new `sensor.wall_litter`
+  in `wall_house.yaml` says which, by `litter_robot.yaml`'s own thresholds.
+  An unreadable Litter-Robot shows as `—`, not as nothing. Doors and windows
+  share one item when all are shut, and a row too long for the screen drops
+  the office lights, then the thermostat, never an amber item; warnings
+  still too wide say how many instead of which. The mockup's front-door lock is left out: the house has no smart
+  lock for it to read. Previewed at 1920x1080 against stubbed answers,
+  quiet and with two openings and the Litter-Robot at once. Not yet run
+  against the real Home Assistant.
+- **The wall gets a week, a countdown and a context card.** The first of
+  five steps that take the useful ideas from a denser mockup of the office
+  wall without shrinking its text below what reads from the chair.
+  `wall_calendar.yaml` now asks for seven days: today and tomorrow stay in
+  full, the rest of the week shows below them in grey while the box has
+  room, and the header counts down to the next timed event on a ring that
+  turns amber inside fifteen minutes. A new `wall_weather.yaml` gives the
+  header today's high and low, the next rain within six hours and the next
+  sunrise or sunset, at `/api/ha/forecast`. The Power card's cell becomes a
+  context card that shows one thing at a time by precedence, a Hebrew word
+  of the day until its other sources arrive; the UPS's mains or battery,
+  charge and runtime moved into `mjolnir`'s tile, which turns red on
+  battery. Previewed at 1920x1080 in a browser against stubbed answers,
+  including on battery with an alert firing. Not yet run against the real
+  Home Assistant.
+- **`fenrir` sheds the last of its audit's leftovers.** The audit of
+  2026-11-13 listed, as its finding 10, `atreus` in `lxd` with no LXD
+  installed, an idle `docker0` and the `hwctl` snap, and called them
+  optional. "The sensor stack's memory limits are measured", below, left
+  them open. Today `atreus` left `lxd`, and `hwctl` was removed with
+  `--purge`; its socket, `snap.hwctl.hwctl-daemon.hwctl-socket`, had been
+  listening as root. `snap list` now shows only `core24` and `snapd`.
+  `docker0` stays, because the Docker daemon recreates it at every start.
+  `build-the-sensor-guest.md` §3 now takes both out, so a rebuilt sensor does
+  not carry them. Of the audit's next steps, a drift check for `fenrir` is the
+  one left.
+- **The sensor stack's memory limits are measured, and Zeek's halves to
+  2048m.** The audit of 2026-11-13 asked for the bounds its compose comments
+  said to re-derive after a fortnight. The lab's Prometheus keeps only the
+  root cgroup for `fenrir`, so Zeek was read on the box.
+  - **Alloy:** `process_resident_memory_bytes{job="fenrir-alloy"}` peaked at
+    297 MiB over the 12 days of history, median 286. Its 1024m stays, now as
+    a measurement.
+  - **Zeek:** `VmHWM` was 286 MiB over the 25 h since the reboot of
+    2026-11-17, 103 MiB of it anonymous. The days before are hidden in the
+    guest's whole-host RSS, which the workstation tooling then on it held at
+    about 1 GiB with spikes to 1.4. 2048m is about 7x rather than the estate's
+    3.5x, because a day is thin, it held no attack exercise, and an OOM-kill
+    only restarts Zeek with nothing alerting on it. The compose comment says
+    to tighten it once a fortnight that includes an exercise has been read.
+
+  Of the audit's next steps, this leaves a drift check for `fenrir`, and its
+  finding 10's leftovers.
+- **`fenrir`'s re-check with sudo finds nothing the audit could not see.**
+  The audit of 2026-11-13 left a list "not checked without sudo, so these are
+  skipped, not passed", and "`fenrir`'s audit of 2026-11-13 is closed on the
+  box", filed under 2026-11-17, re-read only `sshd -T` from it. Read today:
+  - **sudoers** is the distribution's own file, and `/etc/sudoers.d` holds
+    only its `README`: no `NOPASSWD` rule, so sudo asks for `atreus`'s
+    password.
+  - **root's `authorized_keys`** is empty, 0 bytes. With `sshd` refusing root,
+    root has no key path in.
+  - **`/etc/shadow`**: `atreus` is the only account with a usable password,
+    and none has an empty one.
+  - **The firewall** is as the audit found it: `INPUT` accepts on IPv4 and
+    IPv6, and the nft ruleset is Docker's own chains. `security.md`'s row for
+    logging in to the sensor already says the source address stays open.
+  - **Docker's disk** holds ten images, three in use. The other seven are the
+    lint and validate tool images (markdownlint-cli2, OpenTofu, zizmor,
+    Packer, editorconfig-checker, actionlint and ShellCheck), about 928 MB.
+    They outlived the weekly prune of 2026-11-16 04:01 UTC, so the validation
+    suite most likely ran on `fenrir` after it: workstation use the cleanup of
+    2026-11-17 did not reach. The next weekly prune, on 2026-11-23, removes
+    them.
+  - **Without sudo**, the two other checks the audit skipped: `fenrir`'s three
+    scrape jobs read `up` in the lab's Prometheus, and
+    `scripts/vendor-ja4.sh --check` found the vendored tree byte for byte at
+    its upstream commit.
+
+  Still open from the audit: its finding 10's leftovers, `atreus` in `lxd`
+  with no LXD installed, an idle `docker0` and the `hwctl` snap, which it
+  called optional; and two of its next steps, a drift check or converge for
+  `fenrir`, which today has neither, and re-deriving the sensor stack's memory
+  bounds, which `stacks/sensor/compose.yaml` still marks as bounds rather than
+  measurements.
+- **`make up` now restarts Home Assistant, and the wall's alerts can no longer
+  crowd out its calendar.**
+  - **Home Assistant:** after the wall's house-and-calendar change deployed,
+    `sensor.wall_today`, `sensor.wall_alarm` and
+    `binary_sensor.wall_office_lights` did not exist until Home Assistant was
+    restarted by hand. Its `packages/` directory is mounted whole, so a changed
+    file is inside the container at once, and Home Assistant reads it only at
+    start. `scripts/reload-config.sh` now restarts it on every `make up` of a
+    stack that declares it, on the terms it already restarts Alloy.
+  - **The wall's left column:** with 12 alerts firing, the Alerts panel took
+    most of the column, its last row was cut in half, and Today showed two
+    events. Alerts now take at most half the column and four rows, worst
+    first, with "+N more". Both panels keep only the rows that fit. A
+    `.more` line height of 1 overhung its box by 3 px, which read as overflow
+    and emptied a panel; that is fixed too. Rendered against the pinned Caddy
+    with 12, 2 and 0 alerts, Today held at least four events each time.
+
+- **CI now checks that a guarded SOPS value is one render writes.**
+  [#1566](https://github.com/Gerrrt/HomeLab/issues/1566) added the
+  `${WALL_HA_TOKEN:?}` guard to `stacks/sensitive/compose.yaml` and a
+  stand-in to `scripts/seed-validation-env.sh`, and
+  [#1563](https://github.com/Gerrrt/HomeLab/issues/1563) added the key to
+  `secrets/sensitive.sops.yaml`, but nothing added it to `COMPOSE_VARS` in
+  `scripts/render-config.sh`. CI passed, because it validates against the
+  seed's stand-ins and never runs render, and `make up STACK=sensitive` on
+  `trinity` then stopped on "required variable WALL_HA_TOKEN is missing a
+  value". [#1570](https://github.com/Gerrrt/HomeLab/issues/1570) added the
+  line; its entry follows.
+  - **The check:** `scripts/check_compose_vars.py` reads the guards from every
+    `stacks/*/compose.yaml`, the top-level key names from every
+    `secrets/*.sops.yaml` (plaintext in the encrypted file, so nothing is
+    decrypted), `COMPOSE_VARS` and the seed's stand-ins. It fails on a guarded
+    or seeded SOPS key missing from `COMPOSE_VARS`, a guarded SOPS key with no
+    stand-in, and a `COMPOSE_VARS` entry that is no SOPS key. It runs in CI,
+    `make validate` and `make check-compose-vars`, and its fixtures run in
+    `scripts/self-tests.sh`.
+  - **Proved on both sides of the fix:** on `main` at #1566 it fails and
+    names `WALL_HA_TOKEN`; on #1570's head it passes, with 51 guarded SOPS
+    values all rendered and seeded.
+
+- **`make up STACK=sensitive` failed on `trinity` after the wall's house and
+  calendar change: `required variable WALL_HA_TOKEN is missing a value`.**
+  This corrects "The wall page reads the house and the family calendar from
+  Home Assistant", below, which shipped without it. The token was in
+  `secrets/sensitive.sops.yaml` (#1563), but `scripts/render-config.sh`
+  writes to `.env` only the names in its `COMPOSE_VARS` list, and
+  `WALL_HA_TOKEN` was not added there. CI did not catch it, because it
+  validates against `seed-validation-env.sh`'s stand-in values rather than a
+  render. It is now in the list. Every other `${VAR:?}` guard in a
+  `compose.yaml` that names a SOPS key was checked against the list, and none
+  is missing.
+
+- **The wall page reads the house and the family calendar from Home
+  Assistant.** Its header now shows the weather; a Today panel under the
+  alerts lists today's and tomorrow's events; and its bottom row reads the
+  Ring Alarm's mode, the four door contacts, the two window contacts and the
+  office lights.
+  - **How it reads them:** ten fixed `/api/ha/NAME` handles in the
+    Caddyfile, each one `GET /api/states/<entity>`, with the token of HA's
+    new non-admin `wall` user (`WALL_HA_TOKEN`, added by #1563).
+  - **The calendar** is Google Calendar, added to HA through its own
+    integration. A new package, `wall_calendar.yaml`, gathers today's and
+    tomorrow's events into `sensor.wall_today` every five minutes. It reads
+    the calendars labelled `wall_calendar`, or all of them when none is, so no
+    calendar is named in the repository. Booted on Home Assistant 2026.11.1
+    with its demo calendars: the sensor held both events, and with no
+    calendar it read unavailable.
+  - **Read-only by narrowing.** HA has no read-only role, so the narrowing
+    in Caddy is the read-only part. `security.md` names the residual, which
+    now includes the two-day schedule.
+  - **No renames.** The alarm's and the office lights' own ids name the city
+    and a person, so a second package, `wall_house.yaml`, finds them (the
+    one alarm panel; any light whose id contains `office`) and the Caddyfile
+    names only its two template entities.
+
+- **`heimdall` drives the office television at 1080p, and the television
+  stays on.** This completes the 2026-11-17 `heimdall` entry, which said
+  the HDMI output, the kiosk and CEC were not yet verified.
+  - **First light:** HDMI-A-1 `connected`, the wall page full-screen, the
+    Pi at 49.9 °C with `throttled=0x0`.
+  - **The mode came up at 1280 × 720.** The Changhong's EDID is a generic
+    one ("DMTF", `CHHWJT*`, serial 1) that prefers 720p and also lists
+    1080p. The `video=` boot line sets only the console; labwc takes its
+    mode from `kanshi`, whose config was empty. A one-output profile now
+    sets 1920 × 1080 at 60 Hz. It is sharp, nothing is cut off, and it
+    survived a reboot (`build-heimdall.md` §5).
+  - **The set has no HDMI-CEC.** Its manual never mentions it, and the
+    Pi's probe allocated no logical address and found no topology. So
+    neither path in ADR-0119 decision 5 works on this television:
+    - CEC cannot reach it.
+    - Turning the Pi's output off would leave it in standby, because the
+      set switches itself off without a signal and nothing could wake it.
+
+    It stays on day and night, which needs its Auto Sleep and Sleep timers Off.
+    A smart plug or an infrared LED would be a purchase and an ADR of its
+    own (`build-heimdall.md` §8).
+
+- **Template `901` is rebuilt without networking in its initramfs, and its
+  clones take no lease while they boot.** This completes "`eden` no longer
+  asks for an address while it boots", below, which said `901` had not been
+  rebuilt. `packer build -force -only='ubuntu.*'` on `phoenix` took 24 min
+  31 s. The upgrade's autoremove took out the installer's `7.0.0-30` kernel
+  first, so `no-initramfs-network.sh` rebuilt one image, `7.0.0-43`, and its
+  `lsinitrd` check passed; the `dracut[E]` line for `dyn-netconf` came as
+  expected. `scripts/packer-smoke.sh 901` then passed every check, `no DHCP
+  before switch-root` among them. The clone's `.103` came from its own
+  cloud-init DHCP after the switch, which the smoke test asks for.
+  - **The build user:** the last provisioner's `userdel -f -r packer` printed
+    "user packer is currently used by process 1392". With `-f` that is a
+    warning, and the mail-spool line after it shows the delete went on, but
+    `|| true` would have hidden a failure and nothing checked. The smoke test
+    now fails a Linux clone that still has a `packer` user.
+  - **Not changed:** guests cloned from the old `901` keep their old image.
+    `eden`, the clone today's lease check found, already has its §2 step.
+- **`eden` no longer asks for an address while it boots, and template `901`
+  stops making guests that do.** `eden` was off when "Every 26.04 lab guest
+  asked the lab's DHCP server for an address while it booted", below, was
+  written. Read when it next started, its initramfs had leased `.106` from
+  the pool on both boots of 2026-11-16 and `.101` at 05:10 UTC today. `eden`
+  is not an ISO install but a clone of Packer template `901`, so the cause is
+  in the template, and every later clone would have done the same.
+  - **The template:** `packer/ubuntu/no-initramfs-network.sh` now runs after
+    the upgrade. It writes the drop-in the hand-installed guests carry,
+    rebuilds every initramfs, and fails the build if one still has
+    networking. `901` has not been rebuilt with it yet.
+  - **The smoke test:** `scripts/packer-smoke.sh` now fails a Linux clone whose
+    journal shows DHCP before switch-root. Run against `eden` before the fix,
+    its check read 2.
+  - **`eden` itself:** `build-the-bloodhound-guest.md` §2 carries the step for
+    a clone of an older `901`. Applied at 05:15 UTC, the reboot at 05:16
+    showed no DHCP or networkd before switch-root, and `eth0` held only `.41`.
+    `/srv/bloodhound-data` was mounted, all five BloodHound containers came
+    back, and the rollback copy is deleted.
+- **`alexander`, `odin` and `phoenix` no longer ask for an address while
+  they boot.** This completes "Every 26.04 lab guest asked the lab's DHCP
+  server for an address while it booted", below, which said the runbooks'
+  step was not yet applied on any of the three. Each got §2's drop-in and a
+  rebuilt initramfs, then one reboot. That also cleared a pending `libc6`
+  reboot on `alexander`, waiting since 2026-11-13, and on `phoenix`:
+
+  | Guest | Booted | Before switch-root | `ens18` | After |
+  | --- | --- | --- | --- | --- |
+  | `alexander` | 04:45 UTC | no DHCP, no networkd | `.40` only | the lab stack back, Loki ingesting, no target down |
+  | `odin` | 04:51 UTC | no DHCP, no networkd | `.60` only | `/srv/soc-data` mounted, all seven SOC containers healthy |
+  | `phoenix` | 04:58 UTC | no DHCP, no networkd | `.70` only | Alloy active, no failed units |
+
+  The initramfs shrank from 63 MB to 36 MB on `alexander` and `odin` and to
+  39 MB on `phoenix`. On `phoenix`, the one whose run was read here,
+  `update-initramfs` printed a `dracut[E]` line for `dyn-netconf`, a module
+  from `cloud-initramfs-dyn-netconf`, which all four 26.04 guests have from
+  the ISO, `fenrir` included. It only configures the initramfs
+  network, so the error is the omit working; the four runbooks now say so.
+  All three rollback copies are deleted. Each guest keeps one older kernel,
+  7.0.0-38 on `alexander` and `odin` and 7.0.0-42 on `phoenix`, whose
+  initramfs still has networking. It boots only if chosen from GRUB's
+  advanced menu, and it goes when that kernel is removed.
+
+- **`fenrir`'s login from `10.0.30.110` was `Saruman`, on the evening it
+  moved.** This answers what "`fenrir`'s audit of 2026-11-13 is closed on the
+  box", filed under 2026-11-17, left open. `fenrir`'s journal records
+  `Accepted publickey for atreus from 10.0.30.110` at 2026-11-08 03:06:31 UTC,
+  with key `SHA256:7ai4…`. That is the ED25519 key in `Saruman`'s
+  `/root/.ssh`. 03:06 UTC is the evening of 2026-11-07 in local time, the day
+  "`Saruman` moved from `10.0.30.110` to `10.0.30.20`" is filed under. Every
+  guest rebooted between 03:23 and 03:36 UTC, so `Saruman` still held `.110`
+  at the time. The key is not among the two now in `fenrir`'s
+  `authorized_keys`, so `Saruman`'s root no longer logs in there.
+
+- **The socket proxy's fix holds on `prometheus` too.** Converge deployed
+  #1560 there at 03:30 UTC, at `3da97bd`, and the running proxy carried both
+  lines. Before it, Alloy logged `could not transfer logs` a steady 10 times
+  an hour; from 03:31 to 04:08 it logged it 0 times. `alertmanager`,
+  `prometheus` and `snmp-exporter` wrote nothing after 03:30, so their
+  follows outlasted the old ten-minute limit three times over. The 20 errors
+  at 03:30 were the restart cutting the old streams. Every
+  `loki_write_dropped_entries_total` series read 0. This was the estate host
+  the entry below said was not checked.
+
+- **The socket proxy's log-follow fix holds on `fenrir`, and #1552 is
+  closed.** This completes "The socket proxy closed quiet log follows every
+  ten minutes", filed under 2026-11-17, which said the fix was not yet
+  deployed or verified on `fenrir`. `make up STACK=sensor` ran from `main` at
+  00:05 UTC, and the running proxy carried both #1560 lines. In the hour
+  before, Alloy logged `could not transfer logs` 10 times. From 00:07 to
+  00:31 it logged it 0 times, while `sensor-zeek`, silent since 2026-11-17
+  22:33, held its follow open past the old ten-minute limit more than twice.
+  Every `loki_write_dropped_entries_total` series read 0. The proxy logs
+  `missing timeouts for backend 'docker-events'`, which is upstream's own
+  `timeout server 0` on that backend, already in the config before #1560. The
+  watch was 24 minutes, not the hour #1552 proposed, and no estate host was
+  checked.
+
+- **Every 26.04 lab guest asked the lab's DHCP server for an address while it
+  booted, and their runbooks now stop it.** This answers the question left
+  open by "`fenrir`'s capture NIC speaks while it boots", filed under
+  2026-11-17: whether the `ens18` lease `fenrir`'s initramfs took happens on
+  every 26.04 guest built from the ISO. It does. Each guest's own journal, read
+  for its last four boots:
+  - **`alexander`** leased `.100` three times and then `.101` from the
+    `.100–.200` pool.
+  - **`odin`** leased `.101`, `.101`, `.102` and `.115` from the pool.
+  - **`phoenix`** was answered with `.70` every time. That is its own address,
+    from the reservation `build-the-jumpbox.md` §3 maps to its MAC, so it took
+    no pool address, but it still asked.
+  - **`eden`** was off and was not read.
+
+  All three run dracut 110 with no `dracut.conf.d` file, so dracut's
+  catch-all `zzzz-dracut-default.network` ran DHCP on `ens18` in the
+  initramfs. Each lease lasted until switch-root, about seven seconds; now
+  each guest holds only its static address. `build-the-lab-guest.md`,
+  `build-the-soc-guest.md` and `build-the-jumpbox.md` §2 each now leave
+  networking out of the initramfs, with the drop-in `fenrir` already has. The
+  proof is a boot whose journal shows no DHCP before switch-root; the check
+  reads 2 on `alexander` today. Not yet applied on any of the three.
+
+## 2026-11-17
+
+- **The wall page is live on `heimdall`.** `morpheus` has the `wall` host
+  override and `trinity` serves `wall.matrix.elysium`. `/api/q/alerts`
+  answered from Hicks, and the kiosk now opens the wall page instead of
+  Glance's Homelab page. The `wall` blackbox probe, committed commented out
+  with the page, is enabled.
+
+- **`fenrir`'s audit of 2026-11-13 is closed on the box.** This completes
+  three entries of the same day, "`fenrir` is an appliance", "`fenrir`'s
+  capture NIC speaks while it boots" and "`fenrir` never reported its patch
+  state", each of which said the step was not yet applied there. All of them
+  were applied on 2026-11-17:
+  - **`sshd`.** `build-the-sensor-guest.md` §3's drop-in, `10-homelab.conf`,
+    is in place, and `sshd -T` read `no` for password, keyboard-interactive,
+    root login and X11 forwarding, with `allowusers atreus`.
+    `authorized_keys` went from 20 lines, 18 of them imported from GitHub, to
+    the two keys that had logged in.
+  - **The libc6 reboot**, pending since the audit. `reboot-required` is gone.
+  - **The silent capture NIC.** The reboot ran under `tcpdump -Q in` on
+    `tap190i1` from `Saruman`, which captured nothing. Afterwards `ens19`'s
+    `tx_packets` read 0 and its `disable_ipv6` 1.
+  - **The collectors** were re-run, and `apt-patch-state.prom` is written. A
+    `thin-pool-state` collector installed by mistake in the same run was
+    removed; it belongs on `Saruman`.
+  - **The workstation tooling** went: the dotfiles, the `gh` login, mise with
+    Go and node, atuin, zsh, the 1Password and charm apt sources, and Claude
+    Code. A Claude Code session started at the reboot outlived its deleted
+    files, still running its npm MCP servers with connections to the
+    internet, until it was ended by hand. After that the desktop app's saved
+    SSH connection for `fenrir` redeployed its remote server three times in
+    seven minutes, until the connection was deleted. The read that evening
+    found no user service beyond the distribution's, no TCP connection on
+    the host's own sockets but inbound SSH from Hicks (the sensor's Alloy,
+    in its container's namespace, still pushes to `alexander` as designed),
+    and 180 MB in `$HOME`, down from 4.8 GB, nearly all of it
+    the checkout, which is at `main`.
+
+  `security.md`'s two rows for the sensor now read closed. Still open from
+  the audit: the source of its login from `10.0.30.110` on 2026-11-08, which
+  was not identified; the socket proxy's fix for Alloy re-sending a quiet
+  container's last line, entered below, which is not yet deployed or
+  verified on `fenrir` ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)); and
+  whether the other 26.04 lab guests take a pool lease at boot, as `fenrir`
+  did.
+
+- **The socket proxy closed quiet log follows every ten minutes, and the lab
+  now alerts when an agent drops log lines.** `loki.source.docker` follows
+  each container's `/logs?follow=1` through docker-socket-proxy, and the
+  repository's `haproxy.cfg` inherited upstream's `timeout client 10m` and
+  `timeout server 10m`. A container that wrote nothing for ten minutes had its
+  follow closed. Alloy reconnected from its saved position, got the last line
+  again and shipped it again. On `fenrir` that was `sensor-zeek`'s last line,
+  from 2026-11-09 06:26:34. From 2026-11-16 it was seven days old, and Loki
+  refused every copy: 1363 entries in
+  `loki_write_dropped_entries_total{reason="ingester_error"}`, with no alert,
+  because the lab's Prometheus had no rule on that counter
+  ([#1552](https://github.com/Gerrrt/HomeLab/issues/1552)).
+  - **The fix lifts both timeouts for the log path only.** The pinned image
+    runs HAProxy 3.4.2, which has `http-request set-timeout client`, but its
+    manual says the value "must be non-null". So the client side gets `24d`,
+    just under HAProxy's longest timer, not 0. `set-timeout server` needs a
+    section with backend capabilities, and the frontend has none, so the path
+    is routed to upstream's `docker-events` backend, whose only difference is
+    `timeout server 0`. The routing is a second `homelab` block, and
+    `check_socket_proxy.sh`'s drift check now expects two.
+  - **`check_socket_proxy.sh` proves it** on a copy of the config with the
+    idle timeouts cut to 5 seconds: a follow on a quiet container must still
+    be open after 20, and without the two lines the same follow must close.
+  - **`LogEntriesDropped` is in `lab.rules.yaml`**, with the estate's
+    expression and `for: 1h`, and a firing test of `fenrir`'s shape.
+
+  Not yet deployed or verified on `fenrir`: that needs `make up STACK=sensor`
+  and an hour with no recurring `could not transfer logs` for a quiet
+  container and a flat dropped counter. Recreating a container clears one
+  instance of this; it does not fix the cause.
+
+- **The office wall page is in the sensitive stack**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)).
+  `stacks/sensitive/wall/` holds static HTML, CSS and JS in the Tokyo Night
+  look of the operator's mockup, trimmed from about 18 cards to six panels
+  and sized for the office television at seven feet.
+  - **Behind it:** Caddy serves the page at `wall.matrix.elysium` and answers
+    eight fixed Prometheus questions with the reader token added
+    server-side. The page picks a name, never a query, and only GET and HEAD
+    pass. That was checked against the pinned Caddy and a stand-in upstream:
+    `?query=up` ignored, POST 405 before upstream, `/api/v1/query` 404.
+  - **When it does not know, it says so:** with Prometheus unreachable or
+    Watchdog silent it shows that in red instead of "All quiet", and each
+    source's age is in the status bar.
+  - **The household half** (calendar, weather, the house) comes through Home
+    Assistant in a later change.
+  - **Not live yet:** the name needs a host override on `morpheus`, and the
+    blackbox probe is committed commented out until it answers.
+- **`security.md` and `firewall-claims.yaml` no longer say that #353 owns
+  whether IPv6 is carried.** #353 closed on 2026-09-07 with that question
+  settled: pfSense carries no IPv6 inside, as `security.md` already records.
+  Both now say it was settled. The open v6 question, the eeros' Thread
+  advertisements on Hicks, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
+- **`heimdall`, the office wall dashboard, is on Hicks at `10.0.50.15`**
+  ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+  [`build-heimdall.md`](runbooks/build-heimdall.md)). A Raspberry Pi 5 drives
+  the 40" television mounted in the office on 2026-10-31. It holds no
+  credentials and shows pages served by `trinity`: Glance's Homelab page until
+  the wall page is built.
+  - **Read from the Pi first:** Raspberry Pi OS 13 with its own desktop,
+    47.7 °C at idle with no throttling, and −45 dBm on 5 GHz through the
+    basement eero.
+  - **SSH accepted passwords as shipped.** It is key-only now, with root
+    login off, and unattended-upgrades is installed.
+  - **A Kea reservation and a second Winterfell pass into Hicks,**
+    `10.0.99.20 → 10.0.50.15:9100/tcp`, after ADR-0112's echo pass to the
+    eeros. `curl` from `prometheus` read the exporter the same day, and
+    `targets/node.yaml` scrapes it as `role: display`.
+  - **`InstanceDown` does not page for it.** The rule now excludes
+    `role="display"`, with a unit test for the quiet case. A dead screen shows
+    itself to anyone in the room.
+  - **The name was free.** ADR-0102 gave `heimdall` to a Pi on Skids that
+    ADR-0109 dropped and that was never bought.
+  - **Not yet verified:** the HDMI output, the kiosk on the screen, and
+    whether the television obeys HDMI-CEC. The cable had not arrived.
+  - **Seen on the way:** the Pi took an IPv6 address on Hicks from a router
+    advertisement. That was the eeros acting as Thread border routers, as the
+    entry below records. The decision is
+    [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
+- **Hicks hosts were being offered IPv6, by the eeros and not by pfSense.**
+  `security.md` said that nothing inside the estate is offered IPv6. The
+  measurement behind that ([#353](https://github.com/Gerrrt/HomeLab/issues/353),
+  2026-09-07) was of `morpheus` only, and for `morpheus` it still holds. A
+  Raspberry Pi 5 on Hicks held a SLAAC address in a ULA /64. `rdisc6` traced it
+  to the three eero Pro 6Es on Hicks (OUIs `9c:57:bc`, `fc:3f:a6`), acting as
+  Thread border routers. Each advertises the on-link ULA prefix, a
+  route-information option for its Thread mesh's ULA prefix, and router
+  lifetime 0, so no v6 default route. The Pi ignored the route option (Linux
+  default); macOS, iOS and Windows hosts install it. Nothing crosses the
+  firewall. `security.md` and `network.md`'s Hicks notes now say so.
+  Whether the eeros keep doing it, and whether their Thread mesh is shared
+  with Skids, is
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554).
+
+- **`fenrir`'s capture NIC speaks while it boots, and its runbook now
+  silences it.** This corrects "`fenrir`'s 8% capture loss was GRO
+  reordering", filed under 2026-10-01. That entry put the nine packets
+  `ens19` had sent down to an IPv6 link-local address in the initramfs. A
+  capture on `tap190i1` from `Saruman`, across a reboot, found more than that:
+  - **In the initramfs**, dracut's catch-all `zzzz-dracut-default.network`
+    sent a DHCPv4 Discover from `ens19`, carrying its MAC and the hostname
+    `fenrir`, plus IPv6 duplicate-address detection and multicast listener
+    reports. The same file took a lease for `ens18`, `10.0.30.116`, from the
+    lab pool, before the static `.90` applied.
+  - **Just after switch-root**, networkd brought `ens19` up and it gained an
+    IPv6 link-local address for a moment, sending three more listener
+    reports before netplan's `link-local: []` removed it.
+
+  Nine frames in all, the same count the NIC showed before this reboot. They
+  reach nothing, because `vmbr1` has no other port and no address.
+  `build-the-sensor-guest.md` §3 now leaves networking out of the initramfs
+  and sets `disable_ipv6` on `ens19` through `sysctl.d`, and proves it with
+  the same capture and `tx_packets` at 0. Not yet applied on `fenrir`. The
+  `ens18` lease probably happens on every 26.04 guest built from the ISO,
+  which has not been checked.
+
+- **`fenrir` never reported its patch state, and its runbook now installs
+  the collector.** `build-the-sensor-guest.md` §4 installed only the archive
+  prune, so `apt-patch-state.prom` was never written there. The lab's
+  `RebootRequired` and `SecurityUpdatesPending` therefore could not see the
+  sensor, and `PatchStateStopped` fires only for a guest that was reporting.
+  A libc6 upgrade has wanted a reboot since 2026-11-13, found by that day's
+  audit and by nothing else. §4 now runs `--only patch-state` after the
+  prune. The collector is not yet installed on `fenrir`.
+
+- **`fenrir` is an appliance.** The audit of 2026-11-13 found the sensor also
+  used as a workstation: dotfiles, a stored Claude Code login with npm MCP
+  servers holding internet connections, a `gh` token that no longer worked,
+  the 1Password CLI, Go, `build-essential` and about 30 hand-installed tools,
+  4.8 GB in `$HOME`. The repository named none of it. The decision is that it
+  goes: the guest sees every frame on `Saruman`'s lab bridge, and taking it
+  should yield that traffic and nothing more. `build-the-sensor-guest.md` §0
+  and `docs/security.md`'s threat model now say so. Removing the tooling from
+  `fenrir` has not happened yet; until it has, the threat model's row says the
+  running state is the old one.
+
+## 2026-11-16
+
+- **The six domain guests run Wazuh 4.14.10 and Velociraptor 0.77.3,
+  matching `odin`'s servers.** This completes the entry below that pinned
+  them ([#1545](https://github.com/Gerrrt/HomeLab/pull/1545)), which
+  recorded the pins, not the deploy. `ansible-playbook lab-domain.yml --tags
+  soc` ran from `phoenix` on a `main` with #1545 merged.
+  - **Wazuh.** Afterwards `agent_control -i` on the manager reported
+    `Wazuh v4.14.10` for all seven agents: the six and `garuda`.
+  - **Velociraptor.** The server's client index then showed 0.77.3 for
+    four of the six, and for `garuda`. `bahamut` and `leviathan` still
+    showed 0.77.2, although each had the new product code installed, a
+    0.77.3 `Velociraptor.exe` and the service running. The index had not caught
+    up with the upgrade. Restarting their Velociraptor service brought both
+    to 0.77.3, and all seven clients now report it.
+  - **A lesson for the next bump.** Read the server's client index after an
+    upgrade. Where it lags, check the installed binary before reinstalling.
+
+- **A leftover Velociraptor administrator on `odin` is removed.** The user
+  `claude-cleanup`, with the `administrator` role, had been created on
+  2026-10-10. Nothing in this repository named it, and no server collection
+  had been run by it. It was deleted through the running server with
+  `user_delete()`, using a temporary API client that deleted itself in the
+  same query. Both ACL files were then removed. Velociraptor now has the
+  users `admin` and `gerrrt`, and the server's own identity.
+
+- **The six domain guests' SOC agents are pinned to the servers' versions,
+  and `odin` serves the new MSIs ([#1439](https://github.com/Gerrrt/HomeLab/issues/1439)).**
+  `roles/soc_agents` moves Wazuh from 4.14.7 to 4.14.10, the manager's
+  version. Velociraptor moves from 0.77.2 to 0.77.3, the server's. Each
+  version moved with its product code and sha256.
+  - **Wazuh.** The MSI from `packages.wazuh.com` matched the vendor's
+    published sha512 before its sha256 was pinned.
+  - **Velociraptor.** The 0.77.3 server repacked its client with
+    *Server.Utils.CreateMSI* (flow `F.DBTN9J4BJ6R3M`). The base MSI it
+    downloaded matched the sha256 digest GitHub publishes for the
+    `v0.77.3` release, and the repack's own hash is the pin.
+  - **ProductCodes.** Each was read with `msiinfo` (msitools). The same read
+    of the 0.77.2 MSI gave the code already pinned, which checks the method.
+  - **Running CreateMSI without the GUI.** It needed a temporary
+    `administrator,api` API client inside `soc-velociraptor`, called over its
+    loopback API. That client was then removed with `user_delete()`, and its
+    ACL file deleted.
+  - **Staging.** `stage-agent-msis.sh` ran as root in a throwaway container
+    holding the docker socket, because `barnabas` has no passwordless sudo.
+    It passed all four checks. Port 8448 now serves
+    `wazuh-agent-4.14.10.msi` and `velociraptor-client-0.77.3.msi` in place
+    of the old pair.
+  - **Not yet on the six.** They still run the old agents until
+    `--tags soc` runs from `phoenix`. The role reads each new product code
+    as not installed, and installs the new MSI over the old one.
+  - **A stale comment.** `stacks/soc/compose.yaml` said the Velociraptor
+    image was 0.77.2. It now names no version.
+
+- **`odin`'s system journal has a gap from 2026-11-14 00:45 to 2026-11-16
+  20:58 UTC, and the audit caused it.** During the 2026-11-13 audit of
+  `odin`, a full `make validate` pulled every stack's images (about 23 GB) and
+  filled the 46 GB root disk to 100% at 00:45 on 2026-11-14. The images were
+  pruned within the hour, but journald stopped writing
+  `/var/log/journal` at the failed write and did not resume. What it held in
+  memory after that was lost at the reboot on 2026-11-16 20:58. rsyslog
+  recovered on its own, so `/var/log/syslog` and `/var/log/auth.log` cover the
+  window, and Alloy shipped them to Loki. Wazuh's alerts were unaffected: the
+  manager logged no write errors. CLAUDE.md has since said to check
+  `df -h /` before a full `make validate`, after the same thing happened on
+  `eden`. After a disk fills, check `journalctl --header` for an ONLINE
+  `system.journal`; `systemctl restart systemd-journald` brings back a journal
+  that stopped.
+- **The lab now alerts on its guests' patch state.** `odin`'s
+  `homelab-patch-state` timer writes `homelab_reboot_required` and
+  `homelab_apt_security_upgrades_pending`, and Alloy ships them to `alexander`.
+  But `RebootRequired`, `SecurityUpdatesPending` and `PatchStateStopped`
+  existed only in `stacks/observability`, whose Prometheus never sees a lab
+  guest. So `odin` carried a libc6 reboot from 2026-11-13 with nothing saying
+  so, and the audit found it by hand. `lab.rules.yaml` gains the three rules,
+  with the estate's names and windows (22 rules now), and
+  `lab.test.yaml` gains a firing and a quiet case for each. `PatchStateStopped`
+  also fires when `apt-patch-state.prom` has not been rewritten in two days,
+  because a dead collector leaves the file and Alloy keeps serving it, so
+  the series alone never goes absent (raised in review). The estate's copy
+  of the rule in `host.rules.yaml` has the same blind spot. They show in the
+  lab's Grafana, as everything there does; nothing pages (ADR-0020). Live on
+  `alexander` once it next runs `make up STACK=lab`.
+
+- **#1542 is deployed on `odin`: the indexer runs with 3 GiB of heap.** This
+  completes the entry below, *ADR-0118: the Wazuh indexer gets 3 GiB of heap*,
+  which records the change, not the deploy. `make up STACK=soc` ran at 19:16
+  UTC from a `main` at #1542 and recreated only the indexer; the mounted-config
+  and container-health checks passed for all seven services. Afterwards
+  `_nodes/stats/jvm` read a heap maximum of 3 GiB at 15% used, and the
+  container used 3.44 of its 4.5 GiB. The cluster was green at 40 shards with
+  none unassigned, today's alert index took 28 documents in a minute, and all
+  seven agents were active in Wazuh and connected to Velociraptor. The new
+  alert line of 68 is not live yet: `alexander` evaluates the rules from its
+  own checkout, and still fires above 45 until it next runs `make up
+  STACK=lab`.
+- **`odin`'s SSH keys and Velociraptor datastore tidied.** Finishing the
+  2026-11-13 audit, `barnabas`'s `authorized_keys` on `odin` went from 18 lines
+  to the 3 keys that had logged in since the build: one used from Hicks and
+  `laptop-02`, one from `desktop-02`, and the hypervisor's. Fourteen imported GitHub keys had never been used, and
+  one line was a duplicate. `odin`'s own key pair, which nothing used, was
+  deleted. In Velociraptor, eight client directories left over from enrolment
+  on 2026-09-27 and 2026-10-07, which were in no client index and invisible in
+  the GUI, were removed. Seven clients stayed connected.
+
+- **ADR-0118: the Wazuh indexer gets 3 GiB of heap.** The audit of `odin`
+  re-derived ADR-0030's shard budget. The non-alert families take about 30
+  shards, not 15, so thirty days of alerts need about 60 against a budget of
+  about 50 and an alert line of 45. The heap goes from 2 to 3 GiB, which buys
+  about 75 shards. The indexer's `mem_limit` goes from 3.5 to 4.5 GiB, and
+  `WazuhIndexerShardBudgetNearlySpent` from above 45 to above 68. ADR-0030
+  gains a note, and `stacks/scratch` keeps 2 GiB. `promtool test rules` passed
+  in the lab's pinned Prometheus image. This records the change, not the
+  deploy: `odin`'s indexer still runs with 2 GiB.
+
+- **`stacks/soc` and its runbook agree with `odin` again.** Six things the
+  2026-11-13 audit of `odin` found written down wrong are corrected:
+  - the stack README said the guest has 8 GiB; it has 16, as
+    `build-the-soc-guest.md` §0 decides;
+  - the README said nothing here had been deployed;
+  - the README counted seven rules; `soc.rules.yaml` holds twelve for Wazuh;
+  - the runbook booted the 24.04 ISO; `odin` was installed from 26.04.1;
+  - the runbook cloned into `~/HomeLab`; `odin`, like `alexander`, uses
+    `~/code/Gerrrt/HomeLab`;
+  - `compose.yaml` said `BIND_ADDR` narrows the published ports to `odin`'s
+    address, but `.env.example` leaves it at `0.0.0.0`, which on a
+    single-homed guest is the same segment.
+
+  §9's indexer commands, and the scratch investigation's copy of one, now
+  pass the admin certificate as an array, so they also run in `zsh`. That
+  shell had refused them during the 2026-11-16 deploy. And the unused Docker
+  network `soc_default`, left over from the first `up` on 2026-09-27, was
+  removed from `odin`.
+
+- **#1539 is applied on `odin`: its `sshd` takes keys only.** This completes
+  the entry below, *`odin`'s sshd is written down as keys only*, which
+  records the change, not the deploy. At 17:57 UTC `build-the-soc-guest.md`
+  §2 wrote `/etc/ssh/sshd_config.d/10-homelab.conf`, `sshd -t` passed and
+  `ssh` reloaded. `sshd -T` then read `no` for `passwordauthentication`,
+  `kbdinteractiveauthentication`, `permitrootlogin` and `x11forwarding`. A
+  probe offering no credentials, which before had been answered with
+  `publickey,password`, was answered with `publickey` alone. §2's two probes
+  were then run from Hicks: at 17:59 the password login was refused with
+  `Permission denied (publickey)`, and the key login was accepted.
+  `security.md`'s row now reads closed.
+
+- **`odin`'s sshd is written down as keys only.** The 2026-11-13 audit of
+  `odin` found `sshd` offering passwords, and `sshd -T` with sudo on
+  2026-11-15 read `passwordauthentication yes` and `x11forwarding yes`.
+  Both are what the installer's OpenSSH ships, and nothing in this
+  repository said otherwise for `odin`. `build-the-soc-guest.md` §2 now
+  writes `10-homelab.conf`, as `alexander`'s §2 does, with password,
+  keyboard-interactive and root logins off and X11 forwarding off. §10 checks
+  it, and `security.md` has a row for it. Every SSH login to `odin` in its
+  journal since the build was by key. This records the change, not the
+  deploy: the step has not run on `odin`.
+
+- **`eden`'s first collection, and how it was really done.** The rebuilt
+  guest held an empty graph (1 node, 0 edges) until a SharpHound run was
+  ingested on 2026-11-16: 370 nodes and 3,914 edges — 48 users, 73 groups,
+  the 6 domain computers, 14 OUs, 5 GPOs and the domain. `build-the-bloodhound-guest.md`
+  §7 now records the three things the run hit, none of which the old three-line
+  step mentioned:
+  - **Collected from `carbuncle` as `AD\acooper`**, a population user
+    (#449) whose password `population-credentials.yml` prints on `phoenix`,
+    signed in at the console because a plain user is not in *Remote Desktop
+    Users*.
+  - **Defender quarantines SharpHound through AMSI**, as the assembly loads,
+    so a folder exclusion does not help; a process exclusion or turning
+    real-time protection off for the run in the Windows Security UI does. The
+    detection was left in place: SharpHound caught on a workstation, logged
+    against the user, is the SOC event #266 is built to raise.
+  - **The network collectors cannot work here.** `bloodhound-ce-python` and
+    `netexec` both authenticate as `acooper`, but the DCs enforce LDAP signing
+    and have no LDAPS certificate (the lab runs no AD CS): signing refuses
+    plain LDAP and `636` has no cert, so neither collects. SharpHound on a
+    domain host is the only path, because the Windows LDAP client signs and
+    seals over `389`. The zip was carried to a Hicks workstation to upload,
+    since the UI answers Hicks alone.
+
+- **No clone of template 901 puts its user in `lxd`.** A second live
+  re-check of `eden` found `garnet` in the `lxd` group, from the default
+  user groups in Ubuntu's `/etc/cloud/cloud.cfg`. LXD is not installed on
+  any clone, so it granted nothing, but it was not chosen. `garnet` was taken
+  out of the group on `eden`, and `eden`'s `cloud.cfg` edited to match. The
+  Ubuntu build now removes `lxd` from those groups after its upgrade and
+  fails if it is still there. `cloud.cfg` is a conffile, so unattended
+  upgrades keep the change; a hand-run `apt full-upgrade` asks before
+  replacing it. Not built yet: 901 has it from its next Ubuntu build. The
+  same check found 915 MB of linter images, pulled to `eden` by this day's
+  `lint.sh` runs through its Docker fallback, and two empty anonymous Postgres
+  volumes from the 2026-11-14 `make validate`. Both were removed. Every
+  audit finding held on the box after the 09:36 reboot.
+
+- **Template 901 is rebuilt without `autoinstall` on its kernel line.** This
+  completes *Template 901 takes `autoinstall` off the kernel line* below,
+  which left it not built. The Ubuntu build ran from `phoenix` on main after
+  #1534, in 18 min 42 s. `prune.sh` purged the eight services again, and its
+  checks for them, for `crashkernel=` and for `autoinstall` in `grub.cfg` all
+  passed. Four upgrades were deferred by Ubuntu's phasing and are left to
+  each clone's unattended upgrades. `scripts/packer-smoke.sh 901` passed. A
+  clone of 901 now needs none of `eden`'s by-hand fixes. `eden` was rebooted
+  at 09:36 UTC the same day: `/proc/cmdline` ends in `ro`, with neither
+  `autoinstall` nor `crashkernel=`, no unit failed, and all five containers
+  came back, `app-db` and `ui-proxy` healthy.
+
+- **`eden` is in OpenTofu's state, and #1443 is done.** The first
+  untargeted `tofu -chdir=tofu plan` on `phoenix` since the 2026-11-12
+  rebuild refreshed every guest, `eden` (141) and `ragnarok` (130) among
+  them, and said *No changes*. So the replace that rebuilt `eden` went through
+  the pipeline, and plans no longer need `-target` to step around it.
+  `ragnarok`'s half was done on 2026-11-12 under #1464, and proved by
+  `finish-attack-vm.sh`. The roadmap entry and the one-time step in
+  `deploy-merged-changes.md` leave. `build-the-bloodhound-guest.md` §1 now
+  rebuilds `eden` with `-replace` instead of the import, which has been
+  done. A rebuild still loses the graph and the key, as ADR-0081 accepts.
+
+- **Correction: `eden`'s admin password was not changed until 08:43 UTC on
+  2026-11-16, and is now.** This corrects the entry below, *`eden`'s admin
+  password changed, and X11 forwarding turned off by hand*, which said it had
+  been changed in the UI. A live check found the `admin` row of
+  `auth_secrets` still as created at 03:28 on 2026-11-13, and BloodHound's
+  audit log showing no password change and no activity at all after
+  05:25 on 2026-11-15. The change was made again and checked in the database:
+  `UpdateAuthSecret` succeeded at 08:43:33, and the new secret expires on
+  2027-02-14. BloodHound expires a password after 90 days, so the next change
+  is due by then. Checking the database, not the UI, is what tells.
+
+- **Template 901 takes `autoinstall` off the kernel line.** Subiquity copies
+  what follows `---` in the boot command into `GRUB_CMDLINE_LINUX_DEFAULT`, so
+  every clone, `eden` included, booted with `autoinstall`. It does nothing on
+  an installed system. `packer/ubuntu/prune.sh` now clears it before
+  regenerating GRUB, and fails the build if it is still in `grub.cfg`. On
+  `eden` it was cleared by hand the same way; it takes effect at the next
+  boot, as does the crash-kernel reservation the purge below dropped, since
+  `eden` had not rebooted since 2026-11-12. Not built yet: the 901 rebuilt
+  earlier today still carries it.
+
+- **A wiki drift check that cannot run now alerts**
+  ([#1531](https://github.com/Gerrrt/HomeLab/issues/1531)). On 2026-11-15
+  the run on `oracle` failed at the wiki fetch, exit 128. The checker never
+  started, and nothing alerted: `DriftCheckStopped` reads only the timestamp,
+  and the collector writes it whatever the run found. The next run, at 06:40
+  UTC on 2026-11-16, passed all 16 claims, and the cause is not known.
+  `DriftCheckFailing` fires on an exit of 2 or higher, an unreadable claim or
+  a checker that did not start. Exit 1 is left out: drift files its own wiki
+  issue. It is the 164th Prometheus rule, with three promtool tests.
+  - **Four stale current-state lines, from the same audit of `oracle`.**
+    `fit-the-ups-battery.md` and `security.md` still had `oracle`'s cell as
+    the original at 72 % with its runtime never measured. It was replaced and
+    measured on 2026-09-29. `schedule-maintenance.md` said `patch-state` would
+    need shipping to `oracle`, which the agent installer already does.
+    `deploy-merged-changes.md` §6 ran `oracle`'s agent deploy from the Mac,
+    which cannot decrypt its token. It now runs from `prometheus`.
+  - **`observability.md` said forty-one rules in `host.rules.yaml`.** There
+    were sixty and are now sixty-one. `check_docs.py` checks the totals, not
+    that number.
+
+- **Template 901 is rebuilt with both of `eden`'s fixes.** The Ubuntu build
+  of `build-the-lab-templates.md` §4 ran from `phoenix` on main after #1525,
+  in 19 min 40 s. `prune.sh` purged all eight services, and the
+  `ubuntu-server` and `ubuntu-server-minimal` metapackages with them, and its
+  own checks passed. The `autoremove` after the upgrade then took only what
+  the eight had pulled in, among them `kexec-tools`, `makedumpfile`, `upower`
+  and `usbmuxd`, and the installer's 7.0.0-30 kernel. So the template ships
+  one kernel, 7.0.0-43. The X11 drop-in was written in the same build.
+  `scripts/packer-smoke.sh 901` passed: a full clone took cloud-init's user,
+  key and DHCP address, reported it through the agent and accepted
+  `phoenix`'s key, and was destroyed. The smoke test reads neither the
+  package list nor `sshd -T` on the clone: the purge rests on `prune.sh`'s
+  own check, and the X11 drop-in is written by the build but checked by
+  nothing yet. `eden` was not re-cloned and keeps its by-hand fixes. This completes
+  three entries below that left the rebuild to come: *Template 901 purges
+  the services `eden` had removed by hand*, *`eden`'s admin password
+  changed, and X11 forwarding turned off by hand*, and *`eden` no longer
+  runs the Ubuntu template's unused services*. A new clone of 901 needs
+  neither fix by hand.
+
+- **`deploy-agent.sh` says why it could not decrypt a host's token.**
+  From a checkout with no `sops` on the path, or with no age key, it used to
+  report `no agent token for <host>: add INGEST_TOKEN_<HOST> to
+  secrets/observability.sops.yaml`, even when the token was already there.
+  That sent the 2026-11-16 redeploy of `oracle`'s agent from a workstation
+  looking for a missing token. It now says that `sops` is missing, or that
+  the file would not decrypt (below the decrypt error from `secrets-env.sh`),
+  and points to the monitoring host's checkout or to exported tokens. The
+  "add the token" message is kept for a file that decrypts and has no key
+  for that host. `oracle`'s agent was redeployed from `prometheus` the same
+  day and is on the version in `stacks/observability/compose.yaml`; Prometheus
+  and Loki both had its data after the deploy.
+
+- **Template 901 purges the services `eden` had removed by hand.**
+  `packer/ubuntu/prune.sh` runs first in the Ubuntu build and purges
+  `open-vm-tools`, `modemmanager`, `snapd`, `thermald`, `multipath-tools`,
+  `open-iscsi`, `kdump-tools` and `udisks2`, after marking the
+  `ubuntu-server` metapackages' other dependencies manual so a later
+  `apt autoremove` cannot take them. It regenerates GRUB without the
+  crash-kernel reservation and fails the build if any of the eight, or
+  `crashkernel=`, is left. This completes the entry below, *`eden` no longer
+  runs the Ubuntu template's unused services*, which left the template as it
+  was. Not built yet: 901 has both fixes once `build-the-lab-templates.md`
+  §4's Ubuntu build runs from `phoenix`. Tested on `eden`, where it found
+  nothing left to purge and passed its own checks.
+
+- **`oracle`'s untracked layer is cleared, and its root volume is grown.**
+  These are the host-side follow-ups to the 2026-11-13 audit, run by hand.
+  - **The disk.** The root LV went from 100 GB to 250 GB with
+    `lvextend -r`, which gives 176 GB free. The audit had found 36 GB free,
+    about ten weeks before ADR-0064's 15 GiB guard would stop the library
+    copy.
+  - **Purged.** Suricata had been enabled since 2026-08-12 but listened on an
+    `eth0` the host does not have. Its logrotate postrotate script failed
+    every night. dma, with its stored mail credentials, and snapd's leftover
+    configuration were purged too. The stale `snap-*` units were removed, as
+    was the snap-confine AppArmor profile that failed `apparmor.service` at
+    boot. `systemctl --failed` is empty. The snapd purge also removed two
+    snaps that nothing recorded, `canonical-livepatch` and a `prometheus`
+    (revision 86). Neither had run since snapd was removed in 2025-11, and
+    nothing listened on `9090`.
+  - **UFW, read for the first time.** It is active, denies inbound by
+    default, and allowed `22/tcp`, `80/tcp` and `443` from anywhere. So the
+    finding stands: `morpheus`'s rules decide who reaches the wiki. At 01:20
+    UTC `22` was narrowed to `10.0.99.20`, `10.0.99.40` and `10.0.50.0/24`,
+    the same sources as the key pins. A Hicks login was accepted afterwards,
+    and UFW logged no block on `22`.
+  - **Hygiene.** ModemManager is disabled. The sleep, suspend and hibernate
+    targets are masked. `/opt/wiki/.env` is `0640`, and its stale
+    `.env.bak-20261007` is removed.
+  - **The key pins held.** The first logins under the `from=` pins of
+    2026-11-14, from `prometheus` and from `trinity`, were accepted, and no
+    key has been refused since.
+
+- **`eden`'s admin password changed, and X11 forwarding turned off by
+  hand.** This completes two items the 2026-11-13 entry *`eden` audited after
+  its #1443 rebuild* left open. The `admin` login was still the first-start
+  `BLOODHOUND_ADMIN_PASSWORD`; it was changed in the UI on 2026-11-16, and
+  `build-the-bloodhound-guest.md` §7 now makes that change part of the
+  build, since the SOPS value stays readable in `.env` and the container's
+  environment. That entry also said `eden` keeps X11 forwarding until it is
+  next cloned from a rebuilt 901. Instead, the template's
+  `/etc/ssh/sshd_config.d/10-no-x11.conf` was written on `eden` by hand and
+  `sshd` reloaded; `sshd -T` reads `x11forwarding no`. A clone from today's
+  901 still needs it until the template is rebuilt.
+
+- **`eden` no longer runs the Ubuntu template's unused services.** The
+  2026-11-13 audit found eight packages on `eden` that nothing in this
+  repository uses, on a KVM guest with no modem, SAN, laptop or desktop:
+  `open-vm-tools`, `modemmanager`, `snapd` and its snaps, `thermald`,
+  `multipath-tools`, `open-iscsi`, `kdump-tools` and `udisks2`. They were
+  purged on 2026-11-16, with their now-unused dependencies. That also purged
+  the `ubuntu-server` metapackages, so the 43 packages they had pulled in
+  were first marked as manually installed: `apt autoremove` cannot take
+  `sudo`, `unattended-upgrades` or `apparmor` later. The kernel's
+  `crashkernel=` reservation, about 512 MB on this guest, goes at the next
+  boot. `ssh`, Docker, the guest agent, unattended upgrades and all five
+  containers were checked after. Template 901 still installs them; a clone
+  needs the same purge until the template is rebuilt.
+
+- **#1507 is deployed on `odin`, and its indexer is green.** This completes
+  the 2026-11-14 entry *`odin`'s indexer is set up to return to green*, which
+  records the change merged, not deployed. `odin`'s checkout was pulled to
+  `main` at 01:13 UTC and the indexer restarted at 01:14. The node then
+  reported ISM history off, and §9 of `build-the-soc-guest.md` was run:
+  - `wazuh-weekly-30d` was loaded and attached to all 16 `wazuh-monitoring-*`
+    and `wazuh-statistics-*` indices.
+  - The loop attached `wazuh-alerts-30d` to `wazuh-alerts-4.x-2026.09.27`,
+    the one alert index without it. The other twelve already held it.
+  - The replicas of `.opendistro-job-scheduler-lock` and of the ten ISM
+    history indices were set to zero, and the history indices were then
+    deleted.
+
+  Before, the cluster was yellow, with 61 active shards and 11 unassigned.
+  After, it was green, with 51 active and 0 unassigned. Every SOC container
+  stayed healthy, and today's alert index kept growing (1,140 to 1,147
+  documents in 45 seconds). `WazuhIndexerShardBudgetNearlySpent` still
+  fires, because 51 is above its 45. Fourteen of the 51 are the
+  `wazuh-states-*` indices, so getting under the line takes a decision
+  that has not been made. The §9 commands run only under `bash`: in `zsh`,
+  `$AUTH` reaches `curl` as one argument and is rejected before anything is
+  sent.
+
+- **The sensor was blind for the same eighteen days.** The 2026-11-14
+  correction to the #919 entry records `Saruman` powered down for the rack
+  move from 2026-10-19 to 2026-11-06, from `odin`'s journal. A read-only audit
+  of `fenrir` on 2026-11-13 found the same span from the sensor's side. Its
+  boot before last ends at 2026-10-19 00:00:00 with
+  `qemu-ga: guest-shutdown called`, which is `Saruman` stopping its guests
+  on the way down. The next boot is 2026-11-06 22:24. Zeek captured nothing in
+  between, and its archive starts on 2026-11-06. The same audit led to two
+  small docs changes:
+  - `local.zeek` and `build-the-sensor-guest.md` §4 now say that the
+    `Failed to open GeoIP location database` line in `reporter.log` is
+    expected: Zeek's stock site policy loads `protocols/ssh/geo-data`, and the
+    image ships no GeoLite database;
+  - §4 names the checkout path `fenrir` uses, `~/code/Gerrrt/HomeLab`, in
+    place of `~/HomeLab`.
+
+- **#1518 is deployed on `eden` and measured there.** This completes the
+  2026-11-15 entry *Container logs stop shipping the socket proxy's own
+  polls*, which records the change merged, not deployed. `make up
+  STACK=bloodhound` ran at 00:17 UTC from a `main` at #1518, and its
+  mounted-config check passed for `docker.alloy`. Before, the proxy wrote
+  about 58 lines a minute and Alloy shipped all of them. In the first 4½
+  minutes after, it wrote 292, all 2xx, and Alloy's
+  `loki_process_dropped_lines_total` for `dockerlogs_filter` read 307. That
+  counter is shared by the filter's three drop stages, so it was attributed
+  from the containers' own logs. In that window no line from any other
+  container matched the other two stages (`GET /metrics`, `healthcheck`), so
+  all 307 were the proxy's: the 292, and 15 of the 46 2xx GETs it wrote in
+  the restart gap, which Alloy read back from its saved position. The 17
+  HAProxy stop and start notices in the gap were not 2xx GETs, and were kept.
+  The other containers' lines still shipped. Alloy logged errors only in the seconds it and the proxy
+  restarted together, and none from 00:18. Two things are not checked yet.
+  The `instance` label needs a query on `alexander`'s Loki, which `eden`
+  cannot reach. And every other Docker host runs the old filter until its
+  next `make up` or `deploy-agent.sh`.
+
+## 2026-11-15
+
+- **Follow-ups to the `oracle` audit of 2026-11-13.**
+  - **`pgdata` is gone.** This was
+    [#1398](https://github.com/Gerrrt/HomeLab/issues/1398)'s hand step. 2.x's
+    volume (73.6 MB, mounted by nothing) was removed with three orphaned
+    anonymous volumes from 2026-11-08. The wiki answered `/healthz` 200
+    afterwards. The last 2.x set is still kept in `backups/wiki-2x-final/` on
+    `prometheus`.
+  - **`bootstrap-guard` stops leaving volumes behind.** The postgres image
+    declares a VOLUME at its data directory. The guard mounted nothing there,
+    so Docker made a fresh anonymous volume on every run, against the
+    compose file's own header. A 1 MB tmpfs now covers that path.
+  - **The docs name every copy `oracle` holds.** `network.md` and
+    `architecture.md` listed the firewall, volume and NAS copies, but left
+    out `trinity`'s sensitive-tier sets and ADR-0064's Immich library copy.
+  - **Written down: UFW does not guard the wiki.** `oracle`'s UFW is enabled.
+    Docker publishes `80` and `443` past it, so ADR-0011 rests on
+    `morpheus`'s rules alone.
+  - **ADR-0015's size is out of date.** ADR-0015 sized a volume set at
+    867 MB. The audit found sets of 2.2 to 3.3 GB, up to 3.6 times that.
+    The ADR stands as written. This entry is the correction.
+
+- **Container logs stop shipping the socket proxy's own polls, and gain
+  `instance`.** An audit of `eden` (#1443) found three things in
+  `alloy/docker.alloy`, which every Docker host runs. First, each stack's
+  `docker-socket-proxy` logs one HAProxy line per Docker API call, and the
+  callers are the same agent's cAdvisor and discovery. On `eden`, 24 hours
+  of `bloodhound-docker-socket-proxy` held 84,309 lines, every one a 200
+  GET. The other four containers together had 1,086. `dockerlogs_filter`
+  now drops the proxy's 2xx GET and HEAD lines and keeps its 403 refusals,
+  its errors and anything else. `homelab.logs=off` was not used, because it
+  would also drop the refusals and exempt the proxy from `ContainerGone`.
+  Second, container streams had no `instance` label, unlike journal,
+  auth.log, /var/log and syslog, so `{instance="eden"}` matched no container
+  line. They had `host` all along, from `loki.write`, and every dashboard
+  and Loki rule keys on `host`. They now carry `instance` as well, with the
+  same value, so no streams are added. Third, a `stage.drop` on the line
+  text `container=(grafana|alloy)`, left over from before #88, matched
+  nothing in those 24 hours. It is removed rather than made a real drop,
+  because Alloy's own logs are small (320 lines in a day) and worth having.
+  Each host picks this up at its next `make up` or `deploy-agent.sh`.
+
+- **`alexander`'s `sshd` is key-only now, applied and checked.** This
+  corrects the entry below, *`alexander` still takes passwords over SSH*,
+  which said the step was not yet applied. The operator applied
+  `build-the-lab-guest.md` §2 on `alexander` the same day, with Hicks's key
+  and `phoenix`'s in `garnet`'s `authorized_keys`, and §7's `sshd -T` read
+  `no` for `passwordauthentication`, `kbdinteractiveauthentication`,
+  `permitrootlogin` and `x11forwarding`. `docs/security.md`'s `alexander` row
+  now reads *closed at `sshd`*.
+- **`alexander` still takes passwords over SSH; the step that stops it now
+  installs `phoenix`'s key too.** A read-only audit of `eden` after its
+  rebuild ([#1443](https://github.com/Gerrrt/HomeLab/issues/1443)) queried
+  `alexander`'s Prometheus and Loki over SSH from `phoenix`, and found two
+  things. `sudo sshd -T` on `alexander` reports `passwordauthentication yes`
+  (`permitrootlogin prohibit-password`, `pubkeyauthentication yes`), so the
+  keys-only drop-in that #1491 added to `build-the-lab-guest.md` §2 on
+  2026-11-14 has not been applied there. And `ssh garnet@10.0.30.40` from
+  `phoenix` asked for a password, so `phoenix`'s key is not in `garnet`'s
+  `authorized_keys`. Applying the drop-in alone would have locked `phoenix`
+  out. §2 now puts both keys in place first, Hicks's and `phoenix`'s, as
+  `garuda` and `eden` have, and proves the key login from both. `docs/security.md`
+  gains an `alexander` row in the *authored, and live only once applied* form
+  `fenrir`'s uses. It is not applied yet: the change on `alexander` is the
+  operator's to make, by §2, and §7's `sshd -T` is the check. This follows the
+  same weakness closed on `golem` by the audit of 2026-11-13.
+- **`stacks/lab/README.md`'s rule counts are checked now.** The audit of
+  `alexander` on 2026-11-13 found its layout block saying "9 rules" and
+  "12 rules" against files holding 19 and 13, and its ingest section naming
+  three clients and six tokens when there are six clients and seven tokens.
+  Every global count in `check_docs.py` passed throughout, because those are
+  totals across all rule files. A fourteenth assertion now reads each stack
+  README's per-file count against its rule file.
+- **`garuda` is patched by hand, monthly, because nothing else patches it.**
+  After the audit of 2026-11-13 closed, a re-check of the box found a gap that
+  audit missed. `unattended-upgrades` runs daily on `garuda` and applies
+  nothing, because its allowed origins are Debian's and Kali's packages are
+  not. Kali Rolling has no security pocket, so `patch-state`'s security count
+  is always 0. No rule would see it anyway: `garuda` reports only to the lab's
+  Prometheus, which has no apt or reboot rules and no Alertmanager, so neither
+  a missed upgrade nor a missed reboot alerts. Left alone, `garuda` would fall
+  behind silently. `build-the-analyst-workstation.md`
+  gains §15, *Keep it patched*: a monthly `full-upgrade`, the reboot,
+  OpenVAS's post-upgrade step before the next scan, and what the pins need.
+  `schedule-maintenance.md` says what a 0 means on Kali. The same re-check
+  found the analyst stack's Alloy still running without
+  `--disable-reporting`: the 2026-11-13 change reached `compose.yaml`, but a
+  reboot does not apply it. `make up STACK=analyst` did, on 2026-11-15.
+
+## 2026-11-14
+
+- **`garuda`'s hardening is applied and checked, and the audit of 2026-11-13
+  is closed on the box.** This entry follows the 2026-11-13 entry on that
+  audit, which said the box would change only when §4 ran on it. On 2026-11-14
+  and 15:
+  - `build-the-analyst-workstation.md` §4's step ran. `10-garuda.conf` is in
+    `sshd_config.d`, and `sudo -n true` says a password is required, so
+    cloud-init's grant is gone.
+  - §7's credential removal ran. `gh auth status` says not logged in, `~/.ssh`
+    holds no private key, and the account's published keys no longer include
+    the one that was on `garuda`.
+  - §12's upgrade put `wazuh-agent` 4.14.10-1 on it, level with the manager.
+    It reconnected to `odin` on 1514, and Velociraptor on 8000.
+  - `qm reboot 162` booted the 7.2.15 kernel the audit found pending. Both
+    agents came back `active` and both containers `healthy`. The 7.1.5 and
+    6.19.14 kernels and the `rc` packages were purged.
+  - `analyst` left `lxd`, the five services below were disabled, `~/cases/`
+    was made, and the build leftovers in `/root` and `~` were deleted.
+  - GVM would not start: Kali had moved `gvmd` to 26.41.0, whose database
+    revision is 281, and the database was still at 273. gvmd retried every 90
+    s for hours. `scan-the-lab-with-openvas.md` §5's sync, check and
+    `gvmd --migrate` fixed it. The `admin` password was then changed in the
+    UI, and `/root/gvm-install.log`, which held the generated one, deleted.
+  - §3's first checks re-proved the fence after that upgrade: `ospd-openvas`
+    was in `gvmscan`, an `arping` to `.40` got no reply (the egress drop
+    surfaces to the sender as `No buffer space available`), and `.50`
+    answered. The scanner-path check (§3 step 2) was not re-run.
+
+  Checked from Hicks, since `garuda` cannot reach them:
+  `up{job="garuda-alloy"}` is 1 in `alexander`'s Prometheus, `golem`'s newest
+  backup of 162 is from 2026-11-13 21:47, and the GitHub CLI's authorisation is
+  revoked on the account.
+
+  The audit's smaller findings go into the build here:
+  - `build-the-analyst-workstation.md` §4 takes `analyst` out of `lxd`, §5
+    disables ModemManager, smartmontools, `cups.path`, `stunnel.target` and
+    `phpsessionclean.timer`, §7 makes `~/cases/`, and §9 checks all three;
+  - `scan-the-lab-with-openvas.md` §4's *Stop* now stops `gvm-scan-netns` as
+    §6 does, on its own line, because `gvm-stop` exiting non-zero skipped a
+    command joined to it by `&&`.
+
+  `security.md`'s row for `garuda` says closed again, and `architecture.md`
+  says what is now true.
+
 - **`trinity`'s age-key deadline is declared, as
   `verify-key-backup-sensitive`, and a sensitive key copy can now be proved.**
   A read-only audit of `trinity` on 2026-11-13 found both recipients in its
@@ -102,7 +2794,47 @@ docstring gives: it is a record, not a claim about now.
   are the first real logins under the pins. `command=` is not set, because
   the pull runs `docker exec` and the copies run shell commands.
 
+- **Correction to the 2026-11-06 entry for
+  [#919](https://github.com/Gerrrt/HomeLab/issues/919): `Saruman` was off for
+  eighteen days, not one window.** The operator powered it down for the move
+  into the 32U rack on 2026-10-19, and `odin`'s journal shows a clean shutdown
+  at 00:00:18 that day and its next boot at 2026-11-06 22:24. Every guest on
+  `Saruman` was down with it, `alexander` and `odin` included. Nothing paged
+  because the alerting was down too. The SOC has no record of the lab for
+  that span: no `wazuh-alerts-*` index exists for 2026-10-19 to 2026-11-05.
+  Found by an audit of `odin` on 2026-11-13.
+- **`odin`'s indexer is set up to return to green and to stop keeping its
+  weekly indices for ever.** The same audit found the cluster yellow with 59
+  active shards against `WazuhIndexerShardBudgetNearlySpent`'s 45. Three causes
+  were found, and this change addresses each:
+  - ISM's daily history indices each carried a replica a single node cannot
+    place, and they accounted for ten of the eleven unassigned shards.
+    `opensearch.yml` now turns them off, and §9 zeroes the replicas of any
+    that already exist and then deletes them, since nothing else will.
+  - `.opendistro-job-scheduler-lock` carried the eleventh. `build-the-soc-guest.md`
+    §9 now zeroes its replica alongside `.opendistro-ism-config`'s.
+  - `wazuh-monitoring-*` and `wazuh-statistics-*` had no retention. The new
+    `ism-wazuh-weekly.json` deletes them at thirty days.
+
+  The build's first alert index, `wazuh-alerts-4.x-2026.09.27`, predated the
+  policy and was never attached to it. §9 now attaches both policies to
+  indices that already exist. It was not deployed when this was written.
+  Even deployed, the arithmetic does not reach 45: the fourteen `wazuh-states-*` indices alone
+  take ADR-0030's allowance of roughly 15 for every family but the alerts.
+
 ## 2026-11-13
+
+- **[ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)'s
+  `Saruman` half is applied.** It was found missing by a read-only audit of
+  `Saruman` the same day. Per
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §3.6, the four
+  ordered lab-domain guests (150–153) now read `order=1..4,up=120,down=90`.
+  Per §3.7, `upsmon.conf` has `SHUTDOWNEXIT no` (NUT 2.8.1), and a drop-in
+  orders `nut-monitor` `Before=pve-guests.service`. All of §3.7's checks
+  passed, and `upsc` still reads `OL`. Still not applied: `HOSTSYNC 600` on
+  `morpheus`, §3.8's 16-minute threshold on the card, and `trinity`'s
+  step 4b. Nothing is proved until step 5
+  ([#574](https://github.com/Gerrrt/HomeLab/issues/574)).
 
 - **`gandalf` runs only the services the range uses.** The `gandalf` audit
   found
@@ -3011,7 +5743,7 @@ docstring gives: it is a record, not a claim about now.
   verification, on purpose** ([#942](https://github.com/Gerrrt/HomeLab/issues/942)).
   #856 left `backups/paperless-documents/` as the one kind of set on `trinity`
   that is never re-read. It stays that way, and
-  [`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md) §4
+  [`carry-the-household-copy.md`](https://github.com/Gerrrt/HomeLab/blob/19f6d4c89a70d7b9ed64f35173fc0265b34e7f14/docs/runbooks/carry-the-household-copy.md) §4
   says why. Each household visit exports Paperless again and prunes the old
   set. A restore reads the drive, not `trinity`. The documents themselves are
   in the volume sets that `verify-backups-sensitive` re-reads nightly.
@@ -4569,7 +7301,7 @@ docstring gives: it is a record, not a claim about now.
     and `metadata.json`, written as the operator into `export/`.
   - **Not yet done.** The WD Elements has not been formatted or rehearsed on.
     That needs `sudo` and the drive at `trinity`
-    ([`carry-the-household-copy.md`](runbooks/carry-the-household-copy.md)
+    ([`carry-the-household-copy.md`](https://github.com/Gerrrt/HomeLab/blob/19f6d4c89a70d7b9ed64f35173fc0265b34e7f14/docs/runbooks/carry-the-household-copy.md)
     §1–2). A holder, and their proof, are still #455's.
 
 - **The lab's VM templates are written for Packer, and not yet built**

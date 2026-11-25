@@ -438,6 +438,19 @@ smart-state: ## Collect SMART health from THIS host's disks (needs root) and ren
 		./scripts/collect-smart-state.sh; \
 	fi
 
+.PHONY: smart-state-sensitive
+smart-state-sensitive: ## Collect SMART health from trinity's own disks (needs root), without the baselines
+	@# trinity's half of `smart-state`, run by homelab-smart-state-sensitive.timer.
+	@# The collector alone: the baseline table is rendered once, on the
+	@# monitoring host, and SmartDriveBadSectors joins it on(host, slot), so a
+	@# second copy from here would break the join for every drive.
+	@#
+	@# No SKIP for a missing smartctl or a missing root here, unlike
+	@# `smart-state`: this target exists for the timer, which runs as root, and
+	@# a host built without smartmontools should fail the job and page
+	@# ScheduledJobFailed rather than report a clean run that read nothing.
+	./scripts/collect-smart-state.sh
+
 .PHONY: gateway-state
 gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GUI certificate (#353, #604, #857)
 	@# Two measurements per family: what pfSense reports, and whether traffic of
@@ -457,6 +470,17 @@ gateway-state: ## Collect the firewall's view of its uplinks, DDNS record and GU
 	@# it needs no new timer; a failure fails the job like any other.
 	./scripts/collect-cert-expiry.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus \
 		--probe pfsense-ui=morpheus=127.0.0.1:443
+	@#
+	@# And the two syslog TLS leaves (#1049): the listener's, off its handshake
+	@# here, and morpheus's client leaf, from the copy the listener pins. Both
+	@# were issued for 825 days; the day either lapses, morpheus's logs stop.
+	./scripts/collect-cert-expiry.sh --host syslog-tls \
+		--probe syslog-listener=prometheus=10.0.99.20:6514 \
+		--file syslog-client=morpheus=certificates/morpheus.matrix.elysium.pem
+	@#
+	@# And whether NUT on the firewall can read the UPS, asked the way a
+	@# secondary asks (#1656's eight days): NutUpsUnreadable reads it.
+	./scripts/collect-nut-state.sh --ssh $(FW_USER)@$(FW_HOST) --host morpheus
 
 .PHONY: silence-state
 silence-state: ## Collect Alertmanager's silences as metrics (#575)
@@ -477,14 +501,25 @@ port-state: ## Collect whether each container holds the ports and networks it wa
 	$(PYTHON) scripts/collect-port-state.py
 
 .PHONY: prune-images
-prune-images: ## Remove Docker images no container uses (weekly on the monitoring host)
+prune-images: ## Remove Docker images and anonymous volumes no container uses (weekly on the monitoring host)
 	@# The unit says why: nothing else removes superseded digests, and they
 	@# filled `/` once (#136's cutover found it, 2026-09-29). Only images no
 	@# container references, running or stopped. The before and after are
 	@# printed so the journal records what each run reclaimed.
-	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	@#
+	@# Then anonymous volumes no container references. Validation and scratch
+	@# runs leave them behind: the 2026-11-13 audit found 69, and 99 by
+	@# 2026-11-23. The filter selects only volumes carrying
+	@# `com.docker.volume.anonymous`, so a named volume is never removed and a
+	@# stack that is down keeps its data. The filter is explicit on purpose:
+	@# prune's own default of anonymous-only depends on the request's API
+	@# version, and a request below 1.42 (an old client, or
+	@# DOCKER_API_VERSION) prunes named volumes too. Proved on prometheus: an
+	@# API 1.41 request with this filter kept a dangling named volume.
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 	docker image prune -a -f
-	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep '^Images'
+	docker volume prune -f --filter label=com.docker.volume.anonymous
+	@docker system df --format '{{.Type}}: {{.Size}} ({{.Reclaimable}} reclaimable)' | grep -E '^(Images|Local Volumes)'
 
 .PHONY: pkg-state
 pkg-state: ## Collect package state from morpheus over SSH (FreeBSD, runs as robo)
@@ -503,9 +538,9 @@ recipient-state: ## Record which age recipients can open the secrets, and when e
 	@# Reads the recipient list out of the encrypted file's own metadata and
 	@# writes one series per recipient into the textfile dir, carrying every
 	@# existing proof timestamp forward and setting none. Needs no key: the
-	@# `sops:` block is plaintext. This is what SecretsKeyBackupUnproven reads;
-	@# without it a host that proved its key before ADR-0024 has no series and
-	@# the ninety-day nag is silent. secrets-verify-backup is what sets a proof.
+	@# `sops:` block is plaintext. No alert reads it since ADR-0120; it is the
+	@# recipient list remove-recipient.sh checks against. secrets-verify-backup
+	@# is what sets a proof.
 	./scripts/key-recipients.sh --record --stack $(STACK)
 
 .PHONY: ca-key-state
@@ -595,6 +630,10 @@ check-dashboard-roundtrip: ## Boot the pinned Grafana and verify the dashboards 
 .PHONY: check-image-pins
 check-image-pins: ## Verify every docker image comes from compose.yaml
 	$(PYTHON) scripts/check_image_pins.py
+
+.PHONY: check-compose-vars
+check-compose-vars: ## Verify every guarded SOPS value is rendered into .env
+	$(PYTHON) scripts/check_compose_vars.py
 
 .PHONY: check-timers
 check-timers: ## Verify the schedule and its staleness thresholds agree
@@ -737,15 +776,11 @@ secrets-verify-backup: ## Check a backup age key decrypts the secrets (KEY=/path
 		printf 'See docs/runbooks/back-up-the-age-key.md\n' >&2; \
 		exit 2; \
 	}
-	@# Wrapped, even though a human runs it, and that is the whole point of #77.
-	@# This is the one job that cannot be put on a timer — verify-key-backup.sh
-	@# refuses the live key by device:inode precisely so that what gets tested is
-	@# a copy on removable media, and no timer can mount that. So the schedule is
-	@# enforced from the other end: a successful run records its timestamp, and
-	@# SecretsKeyBackupUnproven fires when that proof passes ninety days old.
-	@# Nagging is not as good as running it, but it beats remembering.
-	@# STACK=sensitive records verify-key-backup-sensitive, trinity's row in
-	@# install-timers.sh: a job name may be declared on one host only.
+	@# Optional since ADR-0120: run it when you want to know a copy of the key
+	@# still opens the secrets. Nothing waits for it and no alert fires if it
+	@# is never run. verify-key-backup.sh refuses the live key by device:inode,
+	@# so what gets tested is a copy. Wrapped so the run is still recorded;
+	@# STACK=sensitive records it as verify-key-backup-sensitive.
 	./scripts/run-scheduled.sh --job verify-key-backup$(if $(filter sensitive,$(STACK)),-sensitive) --lock keys \
 		-- ./scripts/verify-key-backup.sh "$(KEY)" $(STACK)
 
@@ -858,6 +893,14 @@ backup-firewall: ## Pull morpheus's pfSense config, encrypt it to ./backups/, co
 	@# backup-volumes.sh already owns KEEP there.
 	./scripts/backup-firewall.sh $(ARGS)
 
+.PHONY: backup-switch
+backup-switch: ## Pull neo's RouterOS /export, encrypt it to ./backups/switch/, copy it to oracle
+	@# backup-firewall.sh with BACKUP_DEVICE=switch: the same encrypt, verify,
+	@# copy and retention, for the switch. Its knobs are SW_* (SW_KEEP,
+	@# SW_OFFHOST), never FW_*, so an override meant for the firewall in
+	@# /etc/default/homelab-timers does not move the switch's exports.
+	BACKUP_DEVICE=switch ./scripts/backup-firewall.sh $(ARGS)
+
 .PHONY: backup
 backup: ## Quiesce the stack, archive its volumes to ./backups/, verify, copy to oracle
 	@# Thin on purpose. This target used to BE the implementation, and every
@@ -918,7 +961,7 @@ backup-library: ## On trinity: archive Immich's library off its USB disk, encryp
 	@# backup-firewall gives for FW_KEEP; two, because every set is the whole
 	@# library and oracle's root volume is the limit. ARGS=--prove hashes
 	@# every original in the newest set against immich-db's checksums.
-	@# Off-host, NOT off-estate: ADR-0064 is the interim, #455 the answer.
+	@# Off-host, NOT off-house: ADR-0064, and ADR-0122 says there is no other.
 	./scripts/backup-library.sh $(ARGS)
 
 .PHONY: verify-backups
@@ -937,9 +980,7 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 	@# STACK=sensitive is trinity's half, and what
 	@# homelab-verify-backups-sensitive.timer runs (#856): the tier's volume
 	@# sets and Immich's library sets (ADR-0064), and no NAS or wiki set,
-	@# which trinity never holds. Not backups/paperless-documents/ either:
-	@# household-copy re-makes that set on every visit and nothing else reads
-	@# it (#942, carry-the-household-copy.md §4). Both scripts' --verify-only also has oracle
+	@# which trinity never holds. Both scripts' --verify-only also has oracle
 	@# hash every archive it holds against the MANIFEST here, so oracle's
 	@# copies are re-verified by the same run, and nothing is decrypted there.
 	@rc=0; \
@@ -956,9 +997,8 @@ verify-backups: ## Re-verify every retained set of every kind: volume, NAS and w
 backup-offsite: ## Copy the newest set of each kind to the offline medium and prove it (DEST=/path/to/the/medium)
 	@# The third human job with a deadline and no timer, after
 	@# secrets-verify-backup and certs-verify-backup, and for the same reason:
-	@# the destination is the medium that holds the second age recipient
-	@# (ADR-0048), which is off-estate by construction and visits this host
-	@# every ninety days to prove that key. No timer can mount it. What a
+	@# the destination is the offsite drive (ADR-0048, ADR-0132), kept outside
+	@# the house and brought back every ninety days. No timer can mount it. What a
 	@# timer CAN do is notice that nobody has: a successful run records
 	@# offsite-copy, and OffsiteCopyStale fires when that passes ninety days.
 	@#
@@ -983,50 +1023,6 @@ backup-offsite: ## Copy the newest set of each kind to the offline medium and pr
 		STACK=$(STACK) ./scripts/run-scheduled.sh --job offsite-copy --lock backups \
 			-- ./scripts/backup-offsite.sh "$(DEST)"; \
 	fi
-
-.PHONY: household-copy
-household-copy: ## On trinity: carry the household's photographs and documents to the holder's drive (DEST=/path/to/the/drive)
-	@# ADR-0073: the copy ADR-0023 requires, on the drive the household holder
-	@# keeps at their own address. backup-offsite's shape for the same reason:
-	@# a deadline and no timer, recorded as household-copy only for a copy of
-	@# record, with HouseholdCopyStale at ninety days. Two guards before the
-	@# wrapper, so that neither a forgotten DEST nor a recipients file with no
-	@# household key is recorded as a FAILED copy: the first is a typo and the
-	@# second is a decision nobody has taken yet. ARGS=--rehearse writes the
-	@# same copy without a holder and records nothing; --list, --verify-only and
-	@# --prune look at or tidy the drive without resetting the deadline.
-	@[[ -n "$(DEST)" ]] || { \
-		printf '\033[0;31merror:\033[0m DEST is required\n' >&2; \
-		printf 'Mount the drive, then:  make household-copy DEST=/path/to/the/drive\n' >&2; \
-		printf 'See docs/runbooks/carry-the-household-copy.md\n' >&2; \
-		exit 2; \
-	}
-	@if [[ -n "$(ARGS)" ]]; then \
-		./scripts/carry-household-copy.sh "$(DEST)" $(ARGS); \
-	else \
-		./scripts/household-recipients.sh --has-holder || { \
-			printf '\033[0;31merror:\033[0m stacks/sensitive/household.recipients has no household key yet\n' >&2; \
-			printf 'The copy of record needs the holder (ADR-0073). Rehearse instead:  make household-copy DEST=$(DEST) ARGS=--rehearse\n' >&2; \
-			exit 2; \
-		}; \
-		./scripts/run-scheduled.sh --job household-copy --lock backups \
-			-- ./scripts/carry-household-copy.sh "$(DEST)"; \
-	fi
-
-.PHONY: household-proof
-household-proof: ## On trinity: record the holder's own proof, from the code they read out (CODE=1234-5678-9012)
-	@# ADR-0023's second condition, made checkable: the holder opened
-	@# PROOF/proof.txt.age on their own device, with their own key and without
-	@# the operator, and read the code back. Checked unwrapped first, so a
-	@# misheard digit is a retry and not a FAILED household-proof; recorded
-	@# only on a match. Due yearly, beside ADR-0011's drill.
-	@[[ -n "$(CODE)" ]] || { \
-		printf '\033[0;31merror:\033[0m CODE is required: the twelve digits the holder read from PROOF/proof.txt.age\n' >&2; \
-		printf 'See docs/runbooks/open-the-household-copy.md\n' >&2; \
-		exit 2; \
-	}
-	@./scripts/carry-household-copy.sh --check-code "$(CODE)"
-	@./scripts/run-scheduled.sh --job household-proof -- ./scripts/carry-household-copy.sh --prove-code "$(CODE)"
 
 .PHONY: restore
 restore: ## Restore the stack's volumes from a backup set (ARGS="--from <stamp>")

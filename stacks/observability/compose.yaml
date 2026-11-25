@@ -349,6 +349,16 @@ services:
       - no-new-privileges:true
     # No tmpfs needed; see prometheus above for how that was established.
     read_only: true
+    # ADR-0130. morpheus first, so the matrix.elysium overrides (the in-house
+    # ntfy) still answer from it. The public two are asked only when morpheus
+    # fails: Docker's embedded resolver moves to the next server on SERVFAIL,
+    # which is what morpheus answers while AdGuard on trinity is down
+    # (ADR-0055). Without them, the ntfy.sh copy and the heartbeat cannot
+    # resolve during the outage they should be reporting.
+    dns:
+      - 10.0.99.1
+      - 1.1.1.1
+      - 9.9.9.9
     command:
       - --config.file=/etc/alertmanager/alertmanager.yaml
       - --storage.path=/alertmanager
@@ -391,7 +401,7 @@ services:
   # ---------------------------------------------------------------------------
   loki:
     <<: *service-defaults
-    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
     container_name: loki
     user: "10001:10001"
     # 1.5x the 1015 MiB peak — the tightest ratio and the largest number, which
@@ -507,7 +517,7 @@ services:
   # client still speaks http.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: ingest-proxy
     user: "65534:65534"
     group_add:
@@ -527,6 +537,7 @@ services:
       INGEST_TOKEN_ORACLE: ${INGEST_TOKEN_ORACLE:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_TRINITY: ${INGEST_TOKEN_TRINITY:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_SARUMAN: ${INGEST_TOKEN_SARUMAN:?set in secrets/observability.sops.yaml}
+      INGEST_TOKEN_GANDALF: ${INGEST_TOKEN_GANDALF:?set in secrets/observability.sops.yaml}
       INGEST_TOKEN_READER: ${INGEST_TOKEN_READER:?set in secrets/observability.sops.yaml}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
@@ -711,7 +722,7 @@ services:
   # ---------------------------------------------------------------------------
   speedtest-tracker:
     <<: *service-defaults
-    image: lscr.io/linuxserver/speedtest-tracker:1.15.1@sha256:3851956ddff5b230a096c5414bfdf005e91aff3af48da9bcb4327dc41eff49e4
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.1@sha256:132d35a355474be17822e2ff3df4866407187ca978a768935fea06f52ae24493
     container_name: speedtest-tracker
     # No docker-init. The linuxserver image is built on s6-overlay, whose
     # suexec refuses to start anywhere but PID 1 — "s6-overlay-suexec: fatal:
@@ -797,7 +808,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.3.0@sha256:488984b716c0862639f91a698adbe2862677a5a07bad42da5f03f3030883b205
+    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
     container_name: grafana
     # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 139
     # MiB median, and three excursions past 350 MiB RSS in fourteen days (540,
@@ -1084,7 +1095,7 @@ services:
     # record for `prometheus` aimed at this container, and remote_write started
     # dialling Alloy instead of Prometheus. config.alloy reads ALLOY_HOSTNAME
     # from the environment instead; the header of that file has the whole story.
-    image: grafana/alloy:v1.21.3@sha256:8ab871206bd2d8f89277f53abffee5f452a293980788d52f85fa183a87a505a4
+    image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: alloy
     # 1024 rather than the shared 512: this is the one service that walks
     # cgroups, tails the journal and talks to the Docker socket, so it has more
@@ -1336,7 +1347,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.10@sha256:a7970b826f6e477461e02bf5463d92634e9ad27d525e4e50296978a2e592d2d7
+    image: grafana/grafana-image-renderer:v5.12.11@sha256:cfa6c8f63e6d626f90208f2880f15bd5facc279daec1b9bb642af07aa850d95e
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
@@ -1531,7 +1542,7 @@ services:
   # leaving the token in .git/config. Its entrypoint IS zizmor.
   zizmor:
     profiles: ["lint"]
-    image: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+    image: ghcr.io/zizmorcore/zizmor:1.33.1@sha256:ecd3ffe6158de1322e05a044ed43749bee12b1dccb7e1a7859bc6ac4b2a1c516
     command: ["--version"]
 
   # markdownlint-cli2 and shellcheck (#848). They ran from `npx --yes` and the
@@ -1541,7 +1552,7 @@ services:
   # Both entrypoints ARE the linter.
   markdownlint-cli2:
     profiles: ["lint"]
-    image: davidanson/markdownlint-cli2:v0.24.0@sha256:70ead7c0352d22d04bbe612cd96b54ec591538d8f4626cafe391bb2ecf3639ca
+    image: davidanson/markdownlint-cli2:v0.24.1@sha256:caf0698eaea0268bcf35b5e2d7ba946b5899d323e765bc2862054405658cd948
     command: ["--help"]
 
   shellcheck:

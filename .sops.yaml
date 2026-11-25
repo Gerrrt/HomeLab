@@ -2,9 +2,10 @@
 # SOPS encryption policy.
 #
 # Everything under secrets/ matching *.sops.yaml is encrypted with the age
-# recipient below, and so is every firewall backup under backups/firewall/.
+# recipient below, and so is every firewall backup under backups/firewall/
+# and every switch backup under backups/switch/.
 #
-# Those two live in one rule rather than two so the recipient is written once.
+# They live in one rule rather than several so the recipient is written once.
 # A second rule would be a second copy of the key, and rotating one and not the
 # other is the kind of drift this repository keeps finding.
 #
@@ -95,11 +96,6 @@ creation_rules:
   # second's recipient (ADR-0024, #294) was added by #835, after the tier had
   # held real data on one key for days. scripts/check_sops_rules.py now fails
   # if this file, or any whose key guards data, opens with fewer than two.
-  #
-  # The household holder's key never goes here (ADR-0073): it would open the
-  # tier's passwords as well as the household's copy. It goes in
-  # stacks/sensitive/household.recipients, and scripts/check_sops_rules.py
-  # fails if it ever appears in any rule.
   - path_regex: secrets/sensitive(\..+)?\.sops\.ya?ml$
     age: >-
       age1cpdxl6p4synccrwaaeh308n4g8rww9tv9znv32laprnk3kdpm95satjtsw,
@@ -176,7 +172,7 @@ creation_rules:
   # fenrir a token, so its rule went in, with a placeholder for fenrir's key,
   # before secrets/sensor.sops.yaml could exist.
 
-  - path_regex: (secrets/.*|backups/firewall/.*)\.sops\.ya?ml$
+  - path_regex: (secrets/.*|backups/firewall/.*|backups/switch/.*)\.sops\.ya?ml$
     age: >-
       age1yrdu996u5mhdh0qf93l7s8zz8stneqnqxpncrcarrmgxvsy264rqmkcs6x,
       age19mkg76v0x70wkqwuykxxqpdwrq8mhgklpjw44j6xw73psnhwyvcqa9995j

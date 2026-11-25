@@ -159,7 +159,10 @@ groups:
         # received packets as CRC errors during a download. That is a physical
         # fault on the cable between the XB7 and morpheus — the cable, the
         # modem's port, or the NIC's — and nothing upstream of the modem can
-        # cause it. Reseating the plug in the XB7 cleared it. TCP cannot
+        # cause it. Reseating the plug in the XB7 cleared it. (On 2026-11-22
+        # it was narrowed to the NIC: the errors carried on across a new
+        # modem and a different cable, and a reboot of morpheus cleared
+        # them. Each reseat had been resetting em0's link.) TCP cannot
         # outrun 0.6% loss at ~14ms, so it looks exactly like "the internet is
         # slow". ifInErrors is the generic receive-error counter, not CRC
         # alone, which is why the description names the driver's breakdown.
@@ -183,10 +186,11 @@ groups:
             minutes; a healthy wired link counts none. ifInErrors is the
             generic counter, so name the cause before acting on it:
             `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
-            'crc|align|symbol|jabber|fragment'`. If crc_errs is what is
-            climbing, it is the physical link: reseat the plug in the XB7
-            (#914), then re-terminate or replace that cable, then try another
-            XB7 port, then suspect the I219's port.
+            'crc|align|symbol|jabber|fragment'`. If crc_errs climbs with
+            symbol_errors at 0, the signal decodes cleanly and the frames
+            arrive bad: reboot morpheus, which cleared it on 2026-11-22
+            when a new modem, a re-plug and a different cable did not.
+            If symbol_errors climb too, suspect the plug's seating.
 
       - alert: SpeedtestStale
         # No completed test for over 90 minutes, in either of two shapes:

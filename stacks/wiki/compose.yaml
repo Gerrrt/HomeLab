@@ -110,7 +110,7 @@ services:
   #      which the postgres image below ships.
   app:
     <<: *service-defaults
-    image: ghcr.io/requarks/wiki:3.3.1@sha256:2bdfa19d02d3f0ce18020648cc38ca138c5467fe1cfc4765d4b5f2a59c8efcad
+    image: ghcr.io/requarks/wiki:3.6.0@sha256:85be143b4f550bc616c25137e5ceaf4070a2ce64cb4bb3c575e2c9eddeeb0d1d
     container_name: wiki-app
     user: "1000:1000"
     mem_limit: 512m
@@ -189,7 +189,7 @@ services:
   #      --max-redirect, so it checks 443 rather than the redirect on 80.
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: wiki-caddy
     # Its own name, on the stack's network, for the healthcheck below: the
     # handshake is chosen by SNI, and busybox wget sends the URL's host as it.
@@ -331,6 +331,12 @@ services:
       ADMIN_PASS: ${WIKI_ADMIN_BOOTSTRAP_PASSWORD:-}
     volumes:
       - wiki-pgsocket:/var/run/postgresql
+    # The postgres image declares a VOLUME at its data directory. Without a
+    # mount there, Docker makes a fresh anonymous volume on every run, and
+    # each one is left behind. The guard writes nothing, so a tiny tmpfs
+    # satisfies the declaration.
+    tmpfs:
+      - /var/lib/postgresql/data:size=1m,uid=999,gid=999,mode=0700
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |

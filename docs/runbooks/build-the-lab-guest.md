@@ -189,9 +189,26 @@ than on most hosts. `sshd` answers on all of VLAN 30,
 which holds the deliberately weak domain and expects ARP spoofing, and this
 guest holds the lab's age key (§4).
 
-First put your public key in `~/.ssh/authorized_keys` and log in with it from
-Hicks. Keep that session open while you do the rest, so a mistake cannot lock
-you out:
+First put two public keys in `garnet`'s `~/.ssh/authorized_keys`, one line
+each: Hicks's, and `phoenix`'s (`~/.ssh/id_ed25519.pub` there, made by
+[`build-the-jumpbox.md`](build-the-jumpbox.md)). Those are the two machines
+that administer the lab guests, as on `garuda` and `eden`; no other key
+belongs in the file. From Hicks, which can still use a password at this
+point:
+
+```bash
+ssh-copy-id garnet@10.0.30.40
+```
+
+Then append `phoenix`'s line on `alexander`, pasting it from `cat
+~/.ssh/id_ed25519.pub` on `phoenix`:
+
+```bash
+echo '<phoenix line>' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys
+```
+
+Log in with the key from Hicks and keep that session open while you do the
+rest, so a mistake cannot lock you out:
 
 ```bash
 sudo tee /etc/ssh/sshd_config.d/10-homelab.conf > /dev/null <<'EOF'
@@ -218,7 +235,62 @@ ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthent
 ```
 
 The first must fail with `Permission denied (publickey)`, and the second must
-succeed.
+succeed. Run the second from `phoenix` too: it must succeed there without a
+password prompt.
+
+### No network in the initramfs
+
+Ubuntu 26.04's initramfs is dracut's. It carries systemd-networkd and a
+catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface,
+so `ens18` asks the lab's DHCP server for an address before netplan's static
+`10.0.30.40` applies. On `alexander`'s four boots before 2026-11-18 that was a lease from the pool, `.100` three times and then `.101`, read from its own journal. The address is dropped at switch-root,
+seconds later, but the request has crossed the segment with the guest's MAC
+and, as `fenrir`'s capture showed for its own, its hostname. The root disk is
+local, so the initramfs needs no network at all. Leave it out, as `fenrir`
+does ([`build-the-sensor-guest.md`](build-the-sensor-guest.md) §3) and as
+dracut's own `no-network` profile does:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# alexander: no networking in the initramfs (build-the-lab-guest.md §2).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs ens18 before netplan's static address applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and
+checked is the one the next boot uses. On 26.04, `update-initramfs` is
+dracut's wrapper, and every later kernel is built with the file in place.
+
+`update-initramfs` prints `dracut[E]: Module 'dyn-netconf' depends on module
+'systemd-networkd', which can't be installed`, here and at every later
+kernel. That is the omit working, not a failure. `dyn-netconf` comes with
+`cloud-initramfs-dyn-netconf`, which the ISO installs, and all it does is
+configure the network in the initramfs. The `lsinitrd` line is the check.
+
+The copy is the way back. If the new image does not boot, open VM 140's
+console in the Proxmox web UI (*Saruman → 140 → Console*). Reset the VM and
+hold Esc to show GRUB's menu, which Ubuntu hides by default. Press `e` on the
+first entry, add `.pre-no-network` to the end of the file name on the `initrd`
+line, and boot with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again.
+
+Reboot, and check that nothing before switch-root asked for an address:
+
+```bash
+sudo journalctl -b -o short-iso | awk '/Switching root/{exit} {print}' | grep -cE 'DHCPv4|zzzz-dracut-default'   # 0
+ip -4 -o addr show ens18 | awk '{print $4}'   # 10.0.30.40/24
+```
+
+Then delete the copy.
 
 ## 3. Docker, the agent, and the repository
 

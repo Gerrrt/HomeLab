@@ -35,7 +35,9 @@ above CasaBonita, which the spectrum does not. Reasoning in
     LAN to any* until 2026-09-02, when six logged blocks — one per VLAN — were
     placed above an egress rule renamed *Allow internet*, leaving DNS and NTP to
     the gateway as the only passes above them
-    ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). Inbound, nothing on
+    ([#229](https://github.com/Gerrrt/HomeLab/issues/229)). A third joined
+    them on 2026-11-23: `neo`'s syslog to the gateway's own `10.7.7.1:5514/udp`
+    ([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)). Inbound, nothing on
     Winterfell can reach it since 2026-09-06: `Gerrrt/Lemmiwinks#177` added a
     logged block from `10.0.99.0/24`, leaving SNMP as the one pass above that.
     One residual, in both directions: the stock *Default allow LAN IPv6 to any*
@@ -81,14 +83,28 @@ truth for what a box actually does.
 
 ### Notes
 
-- Cat6 from the ISP gateway[^modem] to the WAN interface of the ProDesk[^ProDesk]
-  (`em0`): a factory patch since 2026-11-01
-  ([#923](https://github.com/Gerrrt/HomeLab/issues/923)), in one of the
-  gateway's **gigabit** ports since 2026-11-07. The striped 2.5G port
-  corrupted about one inbound frame in ten on the 1 Gbit `em0`. That shows up
-  as `errs` in `netstat -I em0 -w 5`, and as `WanReceiveErrors`.
-- The gateway runs in bridge mode; its own Wi-Fi radio stays operational but is
-  unused. All wireless is handled by eero units on tagged VLANs.
+- Cat6 from the cable modem[^modem] to the WAN interface of the ProDesk[^ProDesk]
+  (`em0`), in the modem's one Ethernet port, a 2.5G port that `em0`, a
+  1 Gbit I219, meets at 1000baseT. The modem is a Hitron CODA56, owned, since
+  2026-11-22 ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)); it
+  replaced a rented Xfinity XB7.
+- **`em0` itself is the known fault on this link.** From time to time it
+  starts taking inbound frames as CRC and fragment (length) errors, with
+  zero symbol, alignment and collision errors on a clean 1000baseT
+  full-duplex link, and downloads fall to a few Mbit/s while upload and
+  latency look normal. That shows up as `errs` in `netstat -I em0 -w 5`, and
+  as `WanReceiveErrors`. On 2026-11-22 it carried on across a new modem, a
+  re-plug at `em0` and a different cable, and stopped when `morpheus` was
+  rebooted. So **the remedy is rebooting `morpheus`**, not the modem or the
+  cable. The earlier incidents blamed on the XB7's ports (2026-11-01, 11-07,
+  11-18, 11-21) were cleared by re-plugging, which also reset `em0`'s link.
+  Taking the WAN off `em0` is the durable fix.
+  [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)
+  decided it on 2026-11-23: VLAN 2 through `neo`'s SFP+ cages to `igc0` at
+  2.5G. It is not built yet ([#1691](https://github.com/Gerrrt/HomeLab/issues/1691)),
+  so this link is still `em0`, and rebooting is still the remedy.
+- The modem is a modem only: no router and no Wi-Fi radio. All wireless is
+  handled by eero units on tagged VLANs.
 - **One inbound pass, and one only** — the WireGuard endpoint decided by
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md): a
   UDP `rdr` to the lab jumpbox, terminating on ImaginationLAN and reaching the
@@ -106,7 +122,7 @@ truth for what a box actually does.
   what arrives through it is a keyed peer or nothing, and how far a peer
   reaches is decided on the ImaginationLAN interface, not here.
 
-[^modem]: [Xfinity Gateway (XB7)](https://www.xfinity.com/support/articles/broadband-gateways-userguides)
+[^modem]: [Hitron CODA56](https://us.hitrontech.com/products/consumers/coda56/)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
 
 ---
@@ -151,7 +167,8 @@ truth for what a box actually does.
   2026-11-11.**
   [ADR-0111](adr/0111-read-the-switch-from-home-assistant-over-api-ssl.md)
   turned `api-ssl` on at `8729` for Home Assistant on `trinity` alone, with
-  the same leaf as the UI and `available-from=10.0.99.40/32`. The user is
+  the same leaf as the UI, `tls-version=only-1.2` since 2026-11-23, and
+  `available-from=10.0.99.40/32`. The user is
   `homeassistant`, in a group with `read,api,test` and nothing else, and it
   is also limited to `10.0.99.40`. Plain `api` is off. The integration
   does not verify the certificate, and ADR-0111 records why that is
@@ -164,15 +181,61 @@ truth for what a box actually does.
     PVID 7, and tagged to the bridge's own interface, which admits tagged
     frames only. The number is arbitrary. Any VID unused elsewhere works, but
     port 1's PVID and the management interface must agree.
-  - The switch has its own small input filter that accepts management from a
-    named address list and drops the rest. The morpheus rules above are the
-    outer gate, and this is the inner one.
+  - The switch has its own input filter, narrowed on 2026-11-23 to the same
+    sources the morpheus rules above admit. It accepts replies and ICMP,
+    admin from the address list `mgmt` (`10.7.7.0/24` and desktop-02 at
+    `10.0.50.90`), SNMP from `10.0.99.20` and `api-ssl` from `10.0.99.40`,
+    and drops the rest. `ssh`, `winbox` and `www-ssl` are available from the
+    same two `mgmt` entries, and so is the admin user `gerrrt`. The morpheus
+    rules are the outer gate, and this is the inner one. From `prometheus`,
+    SSH reaches the switch only jumped through morpheus
+    (`ssh -J admin@10.0.99.1 gerrrt@10.7.7.2`), which arrives from
+    `10.7.7.1`.
+  - IPv6 is disabled on the switch (`disable-ipv6=yes`), so it has no
+    address of either kind, link-local included.
+  - Device-mode switches off the RouterOS features a switch never uses,
+    since 2026-11-24: socks, fetch, pptp, l2tp, bandwidth-test, sniffer,
+    ipsec, romon, proxy, hotspot, smb, email and zerotier. `scheduler`
+    stays on for `log-heartbeat`. Changing device-mode takes a press of the
+    reset button within five minutes, so it is set at the rack;
+    [`swap-the-switch.md`](runbooks/swap-the-switch.md) §1.3 has the command.
+  - Ports kept spare are disabled, so a cable pushed into one joins no VLAN
+    until someone enables it.
   - Neighbour discovery (LLDP, CDP, MNDP) and MAC-WinBox are limited to the
     switch-LAN interface; MAC-Telnet is off. MAC-WinBox is how you reach the
     switch by MAC after a reset, as
     [`swap-the-switch.md`](runbooks/swap-the-switch.md) does.
   - NTP comes from `10.7.7.1`. The default `admin` user is disabled.
+  - The log leaves the switch. Topics `info`, `warning`, `error` and
+    `critical` go to syslog-ng on `10.7.7.1:5514` over UDP, from
+    `10.7.7.2`, and morpheus relays them to Loki as `host="neo"`. A
+    scheduler entry, `log-heartbeat`, logs a line every five minutes so that
+    silence means the path broke. The `memory` rules stay.
+    [ADR-0127](adr/0127-relay-neos-log-through-morpheus.md) records why, and
+    [`ship-firewall-logs.md`](runbooks/ship-firewall-logs.md) §10 is the
+    procedure.
+  - The configuration leaves the switch too. A user `backup`, in a group
+    with `read` and `ssh` and nothing else, limited to `10.7.7.1` and
+    logging in by `prometheus`'s key only, is what `make backup-switch`
+    runs `/export` as, nightly at 09:45, jumped through morpheus. The
+    export is encrypted like the firewall's and copied to `oracle`; it
+    leaves out users, certificates and the SNMPv3 passphrases.
+    [`swap-the-switch.md`](runbooks/swap-the-switch.md) has the restore.
 - DHCP disabled.
+- **`morpheus` pins thirteen reservations in its ARP table, on every
+  segment but Skids and Degens.** Each is a Kea reservation with *Create a
+  static ARP table entry* set: `mjolnir`, `prometheus` and `oracle` on
+  Winterfell; `laptop-01`, `desktop-01`, `workstation-01`, `workstation-02`,
+  `laptop-02` and `desktop-02` on Hicks; `nibelheim`, `hyrule` and `mediatv`
+  on CasaBonita; and `shiva`'s iLO on ImaginationLAN. `arp -an` shows 21
+  permanent entries, these thirteen and the firewall's own eight interface
+  addresses. Read on 2026-11-23 for the audit of 2026-11-13. Only `mediatv`'s
+  has a recorded reason, the wake across the VLAN (CasaBonita, below). The
+  cost of the others: a host whose NIC or MAC changes keeps its address in
+  DHCP and is still unreachable through the firewall until the reservation's
+  MAC is edited, because the pinned entry never ages out. Check this list
+  first when a replaced or re-imaged machine answers on its own segment and
+  nowhere else.
 
 > [!CAUTION]
 > Do not re-enable DHCP on this interface. It races the DHCP servers on every
@@ -216,9 +279,21 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   from `10.0.99.40` on the WAN graphs is that and not something to chase. It
   leaves by Winterfell's existing egress rule, and its fetcher refuses every
   private address, this segment's included ([ADR-0057](adr/0057-add-miniflux-to-the-sensitive-tier-with-its-fetcher-kept-off-winterfell.md)).
-- pfSense's admin UI is reachable on this interface from Hicks only, by a
-  named pass to `10.0.99.1:443`. Winterfell itself is blocked from it: the 99
-  interface drops HTTP and HTTPS to `10.0.99.1` above its egress rule.
+- **The firewall answers on its own addresses to two places, since
+  2026-11-23:** its admin UI to Hicks, at `10.0.99.1:443`, and `sshd` to Hicks
+  and `prometheus`, at `10.0.99.1:22`. Every interface blocks ssh, http and
+  https to *This Firewall (self)*, every address the firewall holds, the WAN's
+  included. The blocks sit above everything but three named passes: Hicks'
+  *Allow HTTPS to pfSense on its management address* and *Allow SSH to
+  Winterfell*, and Winterfell's *Allow SSH to pfSense from prometheus*,
+  `10.0.99.20 → 10.0.99.1:22`, for the collectors, the nightly export and
+  `make check-firewall`. Nothing else on Winterfell reaches either. Until then
+  each interface's blocks named only its own address, so every segment
+  reached both on the WAN address; the 2026-11-13 audit proved it from
+  `prometheus`. `sshd` takes keys only.
+  [ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)
+  records the decision, and `docs/firewall-claims.yaml`'s `firewall` entries
+  are what `make check-firewall` holds the ruleset to.
 - **One pass into Skids, in force since 2026-09-28:**
   `10.0.99.40 → 10.0.20.20` on `80,443/tcp` — `trinity`'s Home Assistant to
   `bifrost`, the Hue bridge, and nothing else on 20 — **above** *Block access
@@ -257,6 +332,15 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
   [#1228](https://github.com/Gerrrt/HomeLab/issues/1228), and `ping -c3` from
   `prometheus` got an answer from an eero on each of the three segments the
   same day, before the job's targets were enabled.
+- **A second row into Hicks, in force since 2026-11-17:** `10.0.99.20 →
+  10.0.50.15:9100/tcp`, above the *Block access to …* rows, so `prometheus`
+  scrapes `node_exporter` on `heimdall`, the office wall dashboard. It is
+  host- and port-scoped like the `eeros` row above, so Winterfell's catch-all
+  still reaches no segment.
+  [ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)
+  records the decision, and
+  [`build-heimdall.md`](runbooks/build-heimdall.md) §4 created it. `curl` from
+  `prometheus` read the exporter the same day.
 - **Three rules into CasaBonita for the TV, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40` on `3001/tcp` and `9/udp` (pass) and `3000/tcp`
   (reject), above *Block access to CasaBonita*. They let Home Assistant drive
@@ -276,19 +360,38 @@ listed under [Hicks](#hicks--vlan-50--trusted), and nothing else.
 - `oracle` runs the Lemmiwinks wiki and its Postgres — it has since 2025-11-12,
   and [ADR-0011](adr/0011-keep-the-wiki-internal.md) depends on it — and holds
   the off-host copies of the firewall export that `make backup-firewall` pushes
-  to it, of the weekly volume sets that `make backup` pushes
-  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)) and of Jellyfin's
+  to it, of `neo`'s export that `make backup-switch` pushes, of the weekly volume sets that `make backup` pushes
+  ([#535](https://github.com/Gerrrt/HomeLab/issues/535)), of Jellyfin's
   state that `make backup-nas` pulls off `smaug` and pushes on
-  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), as
-  ciphertext with no key. Its role is the estate's small off-host
+  ([ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)), and
+  of `trinity`'s nightly sensitive-tier volume sets and Immich's library
+  ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md)),
+  as ciphertext with no key. Its role is the estate's small off-host
   jobs: [ADR-0015](adr/0015-give-oracle-the-off-host-jobs.md). Its NIC
   supports 10/100 only, so that link runs at 100 Mb/s — measured 2026-09-03 —
   and no cable will lift it. `prometheus` links at a gigabit through the same
-  switch. Its sshd takes keys only, since 2026-11-14
+  switch. Its sshd takes keys only, since 2026-11-23
   ([#1500](https://github.com/Gerrrt/HomeLab/issues/1500)). Nothing deploys
   that, so a rebuilt `oracle` needs the step in
   [`stacks/wiki/README.md`](../stacks/wiki/README.md#the-hosts-ssh-once)
-  again.
+  again. UFW is enabled on `oracle`, but it does not guard the wiki. Docker
+  publishes `80` and `443` through its own chains, ahead of UFW's. UFW does
+  limit `22` to `prometheus`, `trinity` and Hicks. What keeps the wiki
+  internal
+  ([ADR-0011](adr/0011-keep-the-wiki-internal.md)) is this firewall's rules
+  alone.
+- **One pair lets `trinity` reach its own gateway for NUT, and nothing else
+  on the segment does, in force since 2026-11-20.** `Allow NUT from trinity`,
+  `10.0.99.40 → 10.0.99.1:3493`, sits above `Block NUT to pfSense`,
+  Winterfell net → `10.0.99.1:3493`, and both sit with *Block HTTPS to
+  pfSense*, above Winterfell's egress rule. They were created by
+  [`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §4b.1,
+  before §4b.2 added the `10.0.99.1` listener, so that `trinity` can
+  subscribe to the firewall's NUT server
+  ([ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
+  The destination is the firewall's address on this segment, so the
+  *Reaches* column is unchanged. The block is what keeps `prometheus`,
+  `oracle` and the UPS card off the listener.
 
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^MacBookPro]: [Apple MacBook Pro (2012)](https://support.apple.com/en-us/111958)
@@ -316,29 +419,56 @@ though not the only one — ImaginationLAN has two host-scoped passes to
 | laptop-02 | `10.0.50.80` | `4c:ea:41:xx:xx:xx` | Apple MacBook Pro[^MacBook] | macOS 26 | Roaming | Laptop |
 | workstation-01 | `10.0.50.69` | `e8:f6:73:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
 | workstation-02 | `10.0.50.70` | `4c:ea:41:xx:xx:xx` | Microsoft Surface Laptop 6[^Surface] | Windows 11 | Roaming | Corporate |
-| mobile-01 | `10.0.50.105` | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
-| mobile-02 | `10.0.50.109` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
+| mobile-01 | pool | `fe:ee:aa:xx:xx:xx` | Apple iPhone[^iPhone16] | iOS 26 | Roaming | Phone |
+| mobile-02 | `10.0.50.101` | `fa:cc:aa:xx:xx:xx` | Google Pixel[^Pixel] | Android 13 | Roaming | Phone |
 | wearable-01 | `10.0.50.14` | `f6:b8:72:xx:xx:xx` | Apple Watch[^Watch10] | watchOS 26 | Roaming | Watch |
+| heimdall | `10.0.50.15` | `88:a2:9e:xx:xx:xx` | Raspberry Pi 5 | Raspberry Pi OS 13 | Basement | Wall dashboard |
 
 ### Notes
 
 - Desktops are wired Cat6; one eero is wired as backhaul, the other two mesh.
+- **The three eeros advertise IPv6 on this segment, and pfSense does not.**
+  Measured 2026-11-17: as Thread border routers, they send router
+  advertisements with a ULA on-link prefix (hosts SLAAC an address from it), a
+  route to their Thread mesh's ULA prefix, and router lifetime 0, so no v6
+  default route. None of it reaches `morpheus`
+  ([`security.md`](security.md#segmentation);
+  [#1554](https://github.com/Gerrrt/HomeLab/issues/1554) holds the decision).
 - **The pool is `.100–.200`, and `wearable-01` is a Kea reservation at `.14`,
   below it, since 2026-11-11.** It held `.114` by lease before that. The
   reservation is on the watch's private Wi-Fi address, so it holds only while
   the watch keeps that address *Fixed* rather than *Rotating* for this network.
+- **Three pool leases the audit of 2026-11-13 could not name were identified on
+  2026-11-24.** `.101` is `mobile-02`, which held `.109` when its row was
+  written. `.100` is `laptop-02` on Wi-Fi, under a private address, so it
+  takes a pool lease while its reservation at `.80` is on the wired MAC.
+  `.105` was `desktop-01` on its board's second Ethernet port, whose MAC is one
+  above the one its reservation at `.20` named, so it took a pool lease. The
+  operator re-pointed the reservation to that port's MAC the same day, and
+  `morpheus`'s static ARP entry for `.20` ([LAN](#lan)'s notes) followed; the
+  desktop moves to `.20` when its lease renews. `mobile-01` held `.105` when its row was
+  written; it was not on the network on 2026-11-24.
 - **What this segment reaches on Winterfell is a list of destinations, not the
-  segment.** Twelve passes sit above a logged *Block access to Winterfell*, and
+  segment.** Eleven passes sit above a logged *Block access to Winterfell*, and
   everything else from 50 to 99 is dropped:
 
   | Destination | Ports |
   | --- | --- |
   | `10.0.99.0/24` — the segment | `22/tcp`, ICMP echo |
   | `10.0.99.1` — `morpheus` | `443/tcp` admin UI, `53/tcp+udp` resolver, `123/udp` NTP |
-  | `10.0.99.10` — `mjolnir` | `80,443/tcp` UPS card |
+  | `10.0.99.10` — `mjolnir` | `443/tcp` UPS card, and `22/tcp` through the segment's row above. `80/tcp` was passed too until 2026-11-23, to a port the card keeps closed |
   | `10.0.99.20` — `prometheus` | `3000/tcp` Grafana, `8443/tcp` speedtest-tracker's UI (since 2026-10-06, [#914](https://github.com/Gerrrt/HomeLab/issues/914)) |
   | `10.0.99.30` — `oracle` | `443/tcp` the wiki, served by its Caddy since [#847](https://github.com/Gerrrt/HomeLab/issues/847)'s cutover on 2026-10-07, and `80/tcp`, which only redirects to it ([`stacks/wiki/README.md`](../stacks/wiki/README.md#tls)). 443 had been dropped on 2026-09-30, when nothing listened on it ([#251](https://github.com/Gerrrt/HomeLab/issues/251)) |
   | `10.0.99.40` — `trinity` | `443/tcp` the sensitive tier, since 2026-09-28 |
+
+  **The firewall itself answers Hicks at `10.0.99.1` and nowhere else.** The
+  three *Block … to pfSense* rows name *This Firewall (self)* and sit directly
+  under the `22` and admin-UI passes, above *Allow Hicks access to
+  ImaginationLAN*. That rule passes TCP to all of `10.0.30.0/24`, the lab's
+  gateway included, and until 2026-11-23 it was a second way to the UI and
+  `sshd` ([ADR-0129](adr/0129-close-the-firewalls-own-addresses-and-take-passwords-off-its-ssh.md)).
+  `sshd` takes keys only, so the `22` pass gets a corporate laptop a prompt it
+  cannot answer.
 
   **The source is the segment, not named hosts.** Every one of those passes is
   `vlan50 → …`, so any device on Hicks may use any of them. This note used to
@@ -482,7 +612,17 @@ Televisions and consoles. Internet only.
   [#485](https://github.com/Gerrrt/HomeLab/issues/485)). It was created on
   2026-10-03 by [`build-the-backup-guest.md`](runbooks/build-the-backup-guest.md)
   §4, directly above the same block. `golem` has mounted the share through
-  it, and `alexander` is refused.
+  it, and `alexander` is refused. **A tenth is in force, and no document
+  declared it until the audit of `morpheus` on 2026-11-13 found it:** an
+  SSH pass on Hicks' interface, `desktop-02` (`10.0.50.90`) →
+  `10.0.40.30:22`. It is host-scoped, so `make check-firewall`'s wholesale
+  question cannot see it. It stays, by the operator's decision on
+  2026-11-23: `desktop-02` is where `smaug` is administered from by hand, as
+  the administrator `gerrrt`, and `prometheus`'s own pass carries the
+  automation. `gerrrt` logged in by password from 2026-11-13 until
+  2026-11-24, when both TrueNAS settings that allowed it (the user's and the
+  SSH service's *Password Login Groups*) were cleared; `smaug` now offers
+  every user `publickey` alone.
 - **One more from Hicks is specified and not yet created.**
   `Allow 5800 to smaug`, Hicks → `10.0.40.30:5800`, is for MakeMKV's web GUI,
   the disc ripper that runs on `smaug` only while someone is ripping
@@ -533,7 +673,9 @@ Televisions and consoles. Internet only.
   when [`build-the-nas.md`](runbooks/build-the-nas.md) §6.2 switched it on
   for the backup pull [ADR-0045](adr/0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md)
   decided: key-only, one read-only user, `frodo`, and the rule already scopes
-  it to `10.0.99.20`. The first pull landed on 2026-09-20.
+  it to `10.0.99.20`. The first pull landed on 2026-09-20. A second user, the
+  administrator `gerrrt`, reaches it from `desktop-02` through the Hicks pass
+  above, key-only since 2026-11-24.
 
 [^OLEDTV]: [LG OLED TV](https://www.lg.com/us/tvs/oled)
 [^PS5]: [PlayStation 5](https://www.playstation.com/en-us/ps5/)
@@ -553,7 +695,7 @@ Where things get broken on purpose.
 | morpheus | `10.0.30.1` | `02:26:26:xx:xx:xx` | HP ProDesk 600 G4 Mini | FreeBSD 16.0 | Rack U15 | Firewall |
 | shiva | `10.0.30.10` | `94:57:a5:xx:xx:xx` | HPE iLO 4 (DL360 Gen9 BMC)[^Shiva] | iLO 2.82 | Rack U3 | Out-of-band management |
 | Saruman | `10.0.30.20` | `14:02:ec:xx:xx:xx` | HPE ProLiant DL360 Gen9[^Shiva] | Proxmox VE 9 | Rack U3 | Hypervisor |
-| gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, off between sessions. Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
+| gandalf | `10.0.30.30` | `90:2e:16:xx:xx:xx` | Lenovo ThinkCentre M80q | Proxmox VE 9 | Rack U18 | Range hypervisor, always on; its attack VM stops on a timer ([ADR-0125](adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)). Its Intel AMT, the name `ifrit`, is disabled ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)) |
 | alexander | `10.0.30.40` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Lab observability |
 | phoenix | `10.0.30.70` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Ubuntu 26.04 LTS | Rack U3 | Deployment host |
 | golem | `10.0.30.80` | `bc:24:11:xx:xx:xx` | KVM guest on `Saruman` | Proxmox Backup Server 4 | Rack U3 | Backups (PBS) |
@@ -734,7 +876,12 @@ Where things get broken on purpose.
   [ADR-0042](adr/0042-terminate-the-remote-path-on-the-lab-and-route-it.md)'s
   WireGuard tunnel terminates, built 2026-09-22
   ([#442](https://github.com/Gerrrt/HomeLab/issues/442)); the peers reach the
-  lab through it and nothing else. Its Alloy pushes to
+  lab through it and nothing else. Its inbound policy is
+  [ADR-0117](adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)'s,
+  applied 2026-11-19 ([#1496](https://github.com/Gerrrt/HomeLab/issues/1496)):
+  `ufw` is default-deny, with `22` admitting Hicks and the peers and nothing
+  else on this segment, the tunnel's port open, and `8800` open to the segment
+  only while a Debian or Kali template builds. Its Alloy pushes to
   `alexander` and
   not to Winterfell, and it gets no pass out of this segment: a rule from it
   into 99 would make it the bastion ADR-0002 and ADR-0012 declined. Everything
@@ -769,14 +916,20 @@ Where things get broken on purpose.
   is not a second segment and needs no row in this document's tables. Every
   path `fenrir` needs is intra-segment — its Alloy pushes to `alexander` — so
   it adds no firewall rule.
-- `Saruman` runs an Alloy agent and is the one host on this segment with a path
-  into Winterfell: a single pass, `10.0.30.20 → 10.0.99.20` on 9090 and 3100
-  TCP, unlogged and above the ADR-0014 tripwire. The hypervisor's own telemetry
+- `Saruman` and `gandalf` are the two hosts on this segment with a path into
+  Winterfell. `Saruman` runs an Alloy agent: a single pass,
+  `10.0.30.20 → 10.0.99.20` on 9090 and 3100 TCP, unlogged and above the
+  ADR-0014 tripwire. The hypervisor's own telemetry
   only; guests get no such rule (ADR-0007, as amended by #88). Past the rule,
   the ingest proxy wants `Saruman`'s agent token (#182), so the pass lets the
   host try and the token is what gets it served. The push is TLS under the
   estate CA (#764), so the token is not readable at the firewall that forwards
-  it.
+  it. `gandalf`, the range hypervisor, is the second: its agent is
+  metrics-only, so its pass, `Allow metrics from gandalf`, is
+  `10.0.30.30 → 10.0.99.20` on 9090 alone, in force since 2026-11-23. The
+  ingest proxy wants its own agent token
+  ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md),
+  [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)).
 - **`Saruman` is at `.20`, below the pool, like every other static.** Until
   2026-11-07 it was at `.110`, the one fixed address in the estate inside a
   DHCP pool (ImaginationLAN's runs `.100–.200`). Only Kea's
@@ -875,12 +1028,13 @@ the least trusted.
   on ADR-0099's three rows since 2026-10-21. The HomePod rows are in force
   and reach the devices. Adding the HomePods in Home Assistant is a separate
   matter, waiting on pyatv.
-- **Seven addresses here are reserved, all below the `.100–.200` pool:**
+- **Eight addresses here are reserved, all below the `.100–.200` pool:**
   `bifrost` at `10.0.20.20` since 2026-09-28, the three eeros at
   `.11`–`.13` since 2026-10-20
-  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), and three
+  ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228)), three
   HomePods at `.21`–`.23` since 2026-10-21
-  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)). Every other
+  ([#1226](https://github.com/Gerrrt/HomeLab/issues/1226)), and the fourth
+  HomePod's reservation at `.24`, which the audit of 2026-11-13 found. Every other
   device above sits inside the pool by lease, so its row is what it had when
   it was read, not what it will have. The build proved why the rule's destination could not be one of
   those: between 2026-09-09 and 2026-09-28 the bridge moved from `.104` to
@@ -890,8 +1044,10 @@ the least trusted.
   Assistant can control the HomePods (play, pause, volume, what's playing)
   and not stream audio to them. Three are reserved at `.21`–`.23`, beside
   `bifrost`, since 2026-10-21. They were reset and set up again that day,
-  and the fourth has not been set up again yet. `.24` is kept for it, and the
-  rows cover it already.
+  and the fourth is reserved at `.24`, which the rows cover already. It
+  held a lease there when `morpheus` was audited on 2026-11-13 and none on
+  2026-11-23, so whether it is set up again, and whether discovery from
+  `trinity` finds it, is not settled.
   Traffic matching them is translated on its way out of the Skids interface,
   from `10.0.99.40` to `10.0.20.1`, because the HomePods ignore mDNS queries
   from another subnet. With that, discovery from `trinity` finds all three.

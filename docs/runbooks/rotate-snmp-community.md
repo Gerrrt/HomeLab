@@ -424,7 +424,7 @@ the field names against the screen and corrects the table if they differ:
 | Device | Where | Users | Auth | Priv | Passphrases | Turn v1 off with |
 | --- | --- | --- | --- | --- | --- | --- |
 | `shiva`, iLO 4 2.82 | **Administration → Management → SNMP Settings** | three | MD5, **SHA** | DES, **AES** | 8–49 characters | *SNMPv1 Request*: Disabled |
-| `mjolnir`, AP9641 (NMC3, AOS 2.0.0.6) | **Configuration → Network → SNMPv3** | four profiles | MD5, **SHA** | DES, **AES** | 15–32 ASCII | **Configuration → Network → SNMPv1 → Access**: disabled |
+| `mjolnir`, AP9641 (NMC3, AOS 3.6.1.2) | **Configuration → Network → SNMPv3** | four profiles | MD5, **SHA** | DES, **AES** | 15–32 ASCII | **Configuration → Network → SNMPv1 → Access**: disabled |
 
 Bold is what to pick. `make gen-secret` at its default 24 characters fits both.
 

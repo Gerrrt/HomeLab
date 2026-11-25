@@ -3,6 +3,30 @@
 **Status:** Accepted · 2026-09
 
 > [!NOTE]
+> **The host stays on; the attack VM is what stops.**
+> [ADR-0125](0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md), which
+> supersedes ADR-0124, keeps `gandalf` on and stops `ragnarok` at a deadline:
+> six hours after it starts, or what a session's last extension set, up to
+> twelve hours ahead. "Off between sessions" no longer holds for the host,
+> so *No monitoring*'s reason is gone.
+> [ADR-0126](0126-monitor-gandalf-now-that-it-stays-on.md) supersedes the *No
+> monitoring* clause: `gandalf` gets `Saruman`'s agent and the range gains a
+> firewall alert ([#1651](https://github.com/Gerrrt/HomeLab/issues/1651)). The
+> rest of this ADR stands. The note below about ADR-0124 is superseded with
+> it — ADR-0125 replaced the host power-off, so that note's "*No monitoring*
+> stands" no longer holds — but is left as written, per ADR-0001. The text
+> below is left as written too.
+>
+> [!NOTE]
+> **"Off between sessions" is enforced by a timer.** Two audits found the
+> range host left on for days, against the discipline that *No monitoring*
+> and the second Consequence below rest on.
+> [ADR-0124](0124-power-gandalf-off-on-a-timer.md) has the host power itself
+> off at a deadline: six hours after boot, or what a session's last
+> extension set, up to twelve hours ahead. *No
+> monitoring* stands. The text below is left as written, per ADR-0001.
+>
+> [!NOTE]
 > **The host's name.** The machine this ADR calls `ifrit` is named
 > **`gandalf`** since 2026-11-07
 > ([ADR-0106](0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).

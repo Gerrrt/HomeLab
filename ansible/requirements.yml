@@ -6,7 +6,7 @@
 # weekly in digests.yml, says when a newer collection exists (#848).
 collections:
   - name: ansible.windows
-    version: "3.8.0"
+    version: "3.9.2"
   - name: community.windows
     version: "3.3.0"
   - name: microsoft.ad

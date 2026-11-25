@@ -23,8 +23,8 @@ below.
 | U25–U32 | ViewSonic N1700W on an 8U VESA rack mount | PDU outlet 9, by its 12 V brick | The very top. The console's height frees the middle of the rack for air between machines. Light, so high is fine |
 | U24 | 1U sliding keyboard and mouse shelf[^Drawer] | — | Directly under the screen, about 112 cm up. Front-mounted, 10.8" deep. It wobbles on its ear screws alone, so the KVM's shelf below it is mounted upside down with its flat top pressed against the drawer's underside, in place of the support rails the plan had |
 | U23 | MT-VIKI 8-port KVM[^KVM], on a 1U vented shelf | PDU outlet 10 | Beside the console, so its console cables are short. Its lead sets reach the DL360 20 units down. The shelf is because the KVM is sold as a half-U device: its ears take two of a unit's three holes, unevenly spaced, so it sits off centre whichever pair is used. The shelf takes all three |
-| U22 | Vented blank | — | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) if the 2.5G WAN work goes ahead |
-| U21 | MikroTik CRS326-24G-2S+RM[^CRS326] (`neo`) | PDU outlet 4 | Core switching, in place of the MokerLink[^MokerLink] that was at U9 of the 9U frame ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). SFP+ 1–2 are the 2.5G path, if built |
+| U22 | Vented blank | — | Air over the CRS326. It is passive, and two S+RJ10s side by side need "additional cooling" ([MikroTik's guidance](https://help.mikrotik.com/docs/spaces/ROS/pages/240156916/S+RJ10+general+guidance)) when the 2.5G WAN is built ([ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md)). The two modules' temperatures are scraped and alerted on before the cutover |
+| U21 | MikroTik CRS326-24G-2S+RM[^CRS326] (`neo`) | PDU outlet 4 | Core switching, in place of the MokerLink[^MokerLink] that was at U9 of the 9U frame ([#444](https://github.com/Gerrrt/HomeLab/issues/444)). SFP+ 1–2 are the 2.5G path decided by [ADR-0131](adr/0131-carry-the-wan-through-neos-sfp-cages-at-2-5g.md), empty until its two S+RJ10s are bought ([#1691](https://github.com/Gerrrt/HomeLab/issues/1691)) |
 | U20 | 1U horizontal cable manager | — | Strain relief between switch and panel. A tugged hand-crimped WAN plug was the slow internet #914 traced (#923) |
 | U19 | Jadol 24-port patch panel[^Panel] | — | Next to the switch, so its patch cords stay short. The house's in-wall runs reach it |
 | U18 | Lenovo ThinkCentre M80q on a 1U Tiny mount[^Tinymount] (`gandalf`) | PDU outlet 8, by its brick | The offensive range (ADR-0007, ADR-0017), beside the other two 1-litre boxes. Proxmox VE 9 since 2026-11-07, on `neo`'s `ether20`, and off between range sessions. Front-mounted, 6.6" deep, on support rails under its rear like the drawer |
@@ -54,16 +54,18 @@ UPS's model is read off the card as `upsIdentModel` and was in no document
 before then either. Who acts on the pack running out — and who does not — is
 [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md),
 and the runtime the pack actually gives at this load is **not measured**: the
-card claimed 47 minutes at 21 % load on 2026-09-20, and the one mains pull
-that turns that estimate into a number is
-[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) §6. Since the
+card claimed 47 minutes at 21 % load on 2026-09-20, and that estimate stands
+([ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md)). Since the
 move, `trinity`, `gandalf` and the console are on the PDU too, and `smaug` is on
 it directly rather than by the long cord to the media room it had until
 2026-11-06.
 [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
-makes `trinity` a third host that halts on the signal. `gandalf`, the console
-and the KVM do not. That subscription is the runbook's step 4b, and it is
-not built yet.
+makes `trinity` a third host that halts on the signal: the runbook's step
+4b, applied on 2026-11-20. The card's low-battery duration was raised to 16
+minutes the same day, to cover `Saruman`'s bounded guest stop. The sequence
+is accepted as configured, without a live test
+([ADR-0121](adr/0121-accept-the-ups-shutdown-without-a-live-test.md)). `gandalf`, the console and the KVM are left to
+the pack by decision.
 
 Off-rack: only the eero Pro 6E units, distributed through the house.
 Both laptops ride a mains cut out on their own cells, so each cell is a
@@ -139,7 +141,7 @@ power-on, which is empty: select 8 first.
 | 7 | `trinity`, U16 | Second up; where the passphrase prompt appears if the TPM does not unseal |
 | 6 | `Saruman`, U3 | Third up; the iLO is the usual path and the KVM the fallback |
 | 5 | `smaug`, U5–U9 | Racked, it lost the monitor it had in the media room; cabled from the TS150's rear VGA |
-| 4 | `gandalf`, U18 | Off between range sessions |
+| 4 | `gandalf`, U18 | The range host; always on, with only its attack VM stopped between sessions (ADR-0125) |
 | 1–3 | spare | |
 
 **The PDU follows the rack from the bottom up, bricks at the far end.** It
@@ -153,7 +155,7 @@ neighbours, so they sit together at the high-numbered end.
 | 2 | DL360, supply 2 if fitted, else spare |
 | 3 | `smaug` |
 | 4 | CRS326 |
-| 5 | spare |
+| 5 | The CODA56's 12 V brick (the modem, outside the rack; [WAN](#wan)) |
 | 6 | `morpheus`'s brick |
 | 7 | `trinity`'s brick |
 | 8 | `gandalf`'s brick |
@@ -165,25 +167,45 @@ that feeds them**, not on the PDU. The runbook's §1.7 counts them as PDU
 loads and says to move them to the UPS if the count reaches eleven; with
 two DL360 supplies it does, and the laptops carry their own cells, so they
 need the PDU's outlets least. Putting them there in either case keeps the
-map the same whatever the DL360 turns out to have, and outlet 5 stays
-spare.
+map the same whatever the DL360 turns out to have. Outlet 5, the spare that
+left, went to the cable modem on 2026-11-22.
 
 **The UPS's outlet groups, read at the rack on 2026-11-07:** the PDU is on
 group 1, both laptops' chargers on group 2, and the MokerLink on group 3. The
 Smart-UPS X's card can switch and sequence each group separately, so the PDU
-— and with it every host but the laptops — is one group. **Each group's
-turn-off, turn-on and load-shedding settings are not read yet**: check them
-against the shutdown in
-[ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md)
-and the power-up order in the move runbook's §7, and write them here.
-[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) reads them
-under *Before you start*, because shedding on group 1 would cut the PDU
+— and with it every host but the laptops — is one group. **All three groups'
+settings were read on 2026-11-24**, at the card and over SNMP:
+
+- **No load shedding on any group.** Shedding on time on battery, on runtime
+  remaining and on overload is disabled outright. The two thresholds sit at
+  32767 seconds and 0 seconds, the far ends of their ranges.
+- **A 90-second turn-off delay and a 0-second turn-on delay on each group.**
+  The turn-off delay is how long `morpheus` has to halt after it tells the
+  UPS to turn off. On 2026-10-29 the groups went off 90 seconds after the
+  command.
+
+Prometheus reads both tables from the card. `UpsOutletGroupLoadShedEnabled`
+and `UpsOutletGroupDelayChanged` warn if a setting moves from the values
+above. `UpsOutletGroupsUnread` warns if any of the three groups, or any column
+those rules read, stops arriving. `UpsOutletGroupOff` pages if a group goes
+off, **but in practice only for group 2.** Group 1 carries the firewall and
+the core switch, and group 3 the MokerLink that is `prometheus`'s and
+`oracle`'s only network. Either one off cuts the scrape or the way out before
+the page can leave. For those two the warning is the external heartbeat going
+quiet: `Watchdog`'s pings stop, and the cron-monitor alerts from outside
+([`observability.md`](observability.md)).
+[`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md) still reads
+them under *Before you start*, because shedding on group 1 would cut the PDU
 before any host is told to halt.
 
-**Two more decisions of 2026-10-16, both on the purchase table.** The UPS's
-AP9641 card gets an APC AP9335T temperature probe, for rack ambient at the
-bottom where the DL360 and the UPS sit; the SNMP job that already polls the
-card picks it up once the generator names it. And the strip gives way to a
+**Two more decisions of 2026-10-16.** The UPS's AP9641 card gets an APC
+AP9335T temperature probe, for rack ambient at the bottom where the DL360 and
+the UPS sit. **It is bought and plugged into the card's universal I/O port**,
+recorded 2026-11-23, and the `apc_ups` module walks the card's
+`uioSensorStatusTable` for it, so it is read on the SNMP job that already polls
+the card; `ups.rules.yaml` raises an alert if that table comes back empty, warns over
+30 °C and pages over 35 °C. It read 22 °C on its first scrape. The
+second decision is still on the purchase table: the strip gives way to a
 **switched, SNMP-managed PDU**, so the four hosts without a BMC (`morpheus`,
 `trinity`, `gandalf`, `smaug`) can be power-cycled without a walk to the rack.
 The outlet map above is the strip's and is redrawn when that PDU is placed;
@@ -211,6 +233,11 @@ ThinkCentre M80q Micro i7-10700T 2GHz 8GB 256GB SSD", refurbished. It is a
 installed on 2026-11-07 as the node `gandalf`. The box's Intel AMT, the name
 `ifrit`, was unconfigured and left disabled at the same sitting
 ([ADR-0106](adr/0106-name-the-range-host-gandalf-and-leave-ifrit-to-its-disabled-amt.md)).
+A reachability probe from `morpheus` on 2026-11-22 found nothing answering
+on AMT's TCP ports at `10.0.30.30`
+([`build-the-playground.md`](runbooks/build-the-playground.md) §1). That
+backs up the firmware setting, which remains the evidence that AMT is
+disabled.
 The Windows it shipped with was never set up. Its fitted parts, read from the
 running host on 2026-11-07 (machine type 11DN, BIOS `M2WKT5AA`):
 
@@ -298,10 +325,14 @@ hardware depends on —
 recorded as a USB NIC in four documents until 2026-09-09, when the box was
 read directly: `pciconf` shows it on a PCIe root port, and the only USB device
 is the Wi-Fi module's Bluetooth half. The table records the release line
-only, as [`check_docs.py`](../scripts/check_docs.py) requires, and unlike the
-Linux hosts nothing collects the running release from pfSense — so it is
-written here with its date: **pfSense CE 2.9.0-RELEASE**, build
-`20260817-1836`, from `/etc/version` on 2026-09-09. Restoring the config
+only, as [`check_docs.py`](../scripts/check_docs.py) requires. The running
+release is collected, but not into this table: the SNMP scrape carries
+pfSense's `sysDescr`, and [`check_versions.py`](../scripts/check_versions.py)
+compares it every Wednesday with the one prose claim of it, in
+[`enable-suricata.md`](runbooks/enable-suricata.md). The build is not
+collected, so it is written here with its date: **pfSense CE 2.9.0-RELEASE**,
+build `20260817-1836`, from `/etc/version` on 2026-09-09 and the same on
+2026-11-23. Restoring the config
 needs a release at least that new
 ([`restore-the-firewall.md`](runbooks/restore-the-firewall.md) §3).
 
@@ -309,6 +340,11 @@ needs a release at least that new
 It is not: it is a dual-core AMD A6-9200 with 4 GB and a 5400 rpm disk. The
 older entry described a machine that does not exist, which is worth stating
 plainly because it was load-bearing in planning.
+
+Its disk is one LVM volume group on a 462.7 GB partition. The root volume was
+grown from 100 GB to 250 GB on 2026-11-15, because the off-host copies had
+left about ten weeks of space. The rest of the group is unallocated, kept for
+the next time the copies grow.
 
 The OS column names the release line and not the point release. Both laptops
 were recorded here as 24.04.3 while both were running 24.04.4, and
@@ -330,6 +366,66 @@ The BMC and the host it manages carry different names and different addresses:
 `shiva` is the iLO, `Saruman` is the hypervisor at `10.0.30.20`. Earlier
 revisions of this repository treated `shiva` as the hypervisor itself.
 
+**`mjolnir`'s card is an AP9641 at `10.0.99.10`, on current firmware; the
+UPS's own firmware is well behind APC's.** The card runs AOS 3.6.1.2 with the
+Smart-UPS application 3.6.1.2 and boot monitor 2.1.0.3, installed on
+2026-11-24 from AOS 2.0.0.6. Schneider's notes put the 3.x line behind a paid
+Secure NMC subscription, but its support said 3.6.1.2 installs without one,
+and the card took it by a plain file copy. The card kept its settings, its
+SSH host key and its factory TLS certificate. Its SSH offers only
+`ecdh-sha2-nistp256` and the finite-field group exchanges, with an
+`ecdsa-sha2-nistp256` host key, so a client restricted to curve25519 needs
+those named for the one command. The UPS runs `UPS 09.8 (ID20)`, against 15.0
+for that ID. The UPS releases since 09.8 improve its handling of very weak
+batteries and its replace-battery indicator (09.9), and add a setting that
+locks firmware updates to chosen ports (15.0). This model can't update the UPS
+with its output on. [`update-the-ups-firmware.md`](runbooks/update-the-ups-firmware.md)
+is the procedure for both. The card's update was
+[#1698](https://github.com/Gerrrt/HomeLab/issues/1698), done; the UPS's is
+[#1731](https://github.com/Gerrrt/HomeLab/issues/1731). The card answers HTTPS and SSH; its HTTP port is closed. Since 2026-11-24
+its HTTPS serves a leaf from the estate CA, for an RSA key made on the card,
+and the `ups-ui` probe verifies it ([`generate-certificates.md`](runbooks/generate-certificates.md), *The APC card's leaf*).
+SSH stays on by the owner's decision of 2026-11-23. **Input sensitivity is
+medium**, lowered from high by 2026-11-24, and `UpsInputSensitivityChanged`
+warns if a card reset or anyone else moves it. The card's event log gives the
+reason. It shows three transfers to battery since 2026-10-29, and the UPS
+gave the same cause for all three: distorted input, not a cut. They lasted
+279 seconds on 2026-10-29, 1 second on 2026-11-07 and 82 seconds on
+2026-11-21. Until 2026-11-24 the card's clock kept UTC−7 all year, so from
+2026-11-01 its log read an hour ahead of local time. The owner corrected it on
+2026-11-24. **Its local users are `apc`, the administrator, `prometheus`, the
+SNMPv3 user, and the factory `device` and `readonly` accounts.** Both
+factory accounts are disabled, read by the owner on 2026-11-24.
+`prometheus` is the one enabled read-only local user, which the card's login
+banner counts, and stays enabled by the owner's decision of 2026-11-24. The
+`prometheus` SNMPv3 user is allowed from two addresses only: `10.0.99.20`, `prometheus`, and `10.0.99.1`, NUT on
+`morpheus`.
+
+## WAN
+
+The link to the internet, outside the rack.
+
+| Part | What | Notes |
+| --- | --- | --- |
+| Modem | Hitron CODA56, DOCSIS 3.1, owned[^modem] | Installed 2026-11-22 in place of a rented Xfinity XB7 ([#1594](https://github.com/Gerrrt/HomeLab/issues/1594)). A modem only: no router, no Wi-Fi. One 2.5G Ethernet port, to `morpheus`'s `em0` at 1000baseT ([`network.md`](network.md)) |
+| Power | The CODA56's 12 V brick | PDU outlet 5, so on the UPS's group 1 with every host but the laptops ([the power map](#console-and-power-maps)). The XB7 was not on the UPS: a tripped breaker on 2026-11-21 cut it while `morpheus` stayed up |
+
+## Wall display
+
+The office's dashboard, outside the rack
+([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md),
+[`build-heimdall.md`](runbooks/build-heimdall.md)).
+
+| Part | What | Notes |
+| --- | --- | --- |
+| Screen | Changhong 40" 1080p LED television (2014) | On a SANUS single-stud tilt mount on the office's front wall, above the desk's monitors, since 2026-10-31. About seven feet from the chair. Driven at 1920 × 1080 by a `kanshi` profile, because its generic EDID prefers 1280 × 720. **No HDMI-CEC**, so it stays on, and its Auto Sleep and Sleep timers must be Off (`build-heimdall.md` §5, §8) |
+| `heimdall` | Raspberry Pi 5, 2 GB, 64 GB microSD | Behind the screen, on Hicks over Wi-Fi. Raspberry Pi OS 13 with its own desktop, Chromium in kiosk mode. Arrived 2026-11-16 |
+| Power | Official 27 W USB-C supply for the Pi; the screen's own cord | Neither is on the UPS. Which outlet they reach is not yet settled: the office's right wall and alcove have none |
+
+The Pi is driven from its HDMI port nearest the USB-C power port and forced to
+1080p at boot (`build-heimdall.md` §5). It keeps no state and is rebuilt from
+the runbook rather than backed up.
+
 ## Accessories
 
 - 1U rackmount tray for the ProDesk Mini[^ProDeskRackmount]
@@ -338,8 +434,17 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 - APCRBC115 replacement battery cartridge for the APC, fitted 2026-08-28,
   proven by a passing self-test the same day and under a biweekly schedule on
   the card ([#93](https://github.com/Gerrrt/HomeLab/issues/93)). The card's
-  `upsBasicBatteryLastReplaceDate` still reads `08/15/2026` and wants resetting
-  to the fit date — it is the only record of the pack's age
+  *Last Battery Replacement* takes a month and year only. It holds August
+  2026, the month the pack went in, and is the only record of the pack's age.
+  SNMP and NUT show it with a filler day, as `08/15/2026`. Prometheus reads it,
+  and `UpsBatteryPackAging` warns when the pack reaches three years, in August
+  2029. APC rates the pack at three to five years
+- USB-to-RJ45 serial console cable for the CRS326's console port, on hand by
+  2026-11-24: the way into `neo` when its UI and SSH are unreachable, which
+  is the rollback case in [`swap-the-switch.md`](runbooks/swap-the-switch.md)
+- APC AP9335T temperature probe on the UPS card's universal I/O port, for rack
+  ambient at the bottom of the rack. Bought and plugged in by 2026-11-23, read
+  over the card's SNMP from then
 - 1U vented rack shelf, 4-post with square-hole mounting — in the 9U frame's
   U4 from 2026-09-08 and in the 32U rack's U14 since 2026-11-06, carrying the
   unmanaged switch that feeds `prometheus` and `oracle`
@@ -449,11 +554,16 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   2026-09-28 as LUKS2 with `ext4` inside, opened at boot by a keyfile on the
   encrypted root, with a recovery passphrase in a second keyslot
   ([ADR-0054](adr/0054-encrypt-trinitys-disks-and-seal-the-root-key-to-the-tpm.md)).
-  It reports itself as a *PS4 Game Drive*.
-  One consumer spinning disk with no mirror, so the off-estate copy
-  [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  requires is what protects it — the same as would have been true of a bought
-  drive, which this replaces.
+  It reports itself as a *PS4 Game Drive*. Its enclosure (Seagate
+  `0bc2:ab18`, on the `uas` driver) passes no SMART through: `smartctl`
+  with `-d sat`, `-d sat,12` and `-T permissive` all fail to read its
+  identity (2026-11-21). So no rule can warn of its failure in advance, and a
+  dying disk shows first as I/O errors and failed backup jobs.
+  One consumer spinning disk with no mirror, so the nightly encrypted copy
+  of the library on `oracle`
+  ([ADR-0064](adr/0064-copy-immichs-library-to-oracle-until-the-off-estate-copy-exists.md))
+  is what protects it. There is no copy outside the house
+  ([ADR-0122](adr/0122-drop-the-household-copy.md)).
 - Lenovo ThinkServer TS150 — Xeon E3-1225 v6 (4 cores, 3.3 GHz, Intel HD P630
   with Quick Sync), 8 GB ECC, four 3.5" bays, no drives, no OS — bought
   2026-09-09, **in hand since 2026-09-15**. The NAS `smaug` of
@@ -1139,43 +1249,19 @@ revisions of this repository treated `shiva` as the hypervisor itself.
   `PC4-2133P-EE1-11` off the installed module, `EE` being ECC unbuffered, and
   this listing naming `PC4-17000P-E` for the same thing.
 - WD Elements Portable 5 TB, `WDBU6Y0050BBK-WESN`[^Elements] — 2.5" USB 3.2
-  Gen 1, bus-powered, no power brick — **bought 2026-09-22**, under
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455). The drive
+  Gen 1, bus-powered, no power brick, shingled — **bought 2026-09-22**,
+  arrived 2026-09-29, **$236.70**. Bought for the household copy of the
+  photographs and documents that
   [ADR-0023](adr/0023-keep-the-household-recovery-path-outside-the-estate.md)
-  was waiting on: the off-estate copy of the household's photographs and
-  documents, kept at another address. **Not the estate's backup sets** —
-  those ride with the second age recipient
-  ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
-  [`copy-the-backups-offsite.md`](runbooks/copy-the-backups-offsite.md)) and
-  this drive is not that medium. 5 TB against a 2 TB source — Immich's
-  originals on `trinity`'s USB disk, plus Paperless's documents — so the
-  capacity question does not come back. **$236.70**, against the ~$150 #455
-  estimated when it was filed.
-  **Delayed in transit, then arrived 2026-09-29.** Amazon moved the delivery
-  estimate on 2026-09-22 and refunded the delivery fee. On 2026-09-26 the
-  delay went to Amazon customer service. It landed on 2026-09-29.
-  **It has no vendor encryption and that is why it qualifies**: ADR-0023
-  requires a key that is not the one only the operator holds, and a drive
-  password is a single-holder secret behind a vendor utility, which is the
-  failure that ADR exists to prevent moved one shelf further away. The
-  encryption is the estate's own. Whose key it is and which filesystem were
-  settled on 2026-10-01 by
-  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md):
-  age archives on **exFAT**, which any holder's computer reads, encrypted to
-  the household holder with the technical second as a fallback. The proof
-  from the other person's device is still
-  [#455](https://github.com/Gerrrt/HomeLab/issues/455)'s. Three things the fit
-  checks rather than assumes: it ships formatted for Windows (NTFS,
-  `Elements`); its cable is USB 3.0 Micro-B at the drive end, so **the cable
-  travels with the drive** or the drive is a brick at the other address; and
-  a 5 TB 2.5" drive of this class is shingled, which is fine for an archive
-  written in one pass and not fine as a live target.
-  **Formatted and rehearsed on 2026-10-01**, on `trinity`. It reads as
-  `WDC WD50NDZW-11BCSS0`, serial `WD-WXD2D3684F6U`, 4.5 TiB. It now holds one
-  GPT partition, exFAT, labelled `HOUSEHOLD`. It does not report as removable
-  media, so the carry's warning about that is expected on every visit. The
-  first rehearsal wrote 1.7 GB. It holds a rehearsal, not the household's
-  copy, until there is a holder.
+  required and
+  [ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)
+  built. It reads as `WDC WD50NDZW-11BCSS0`, 4.5 TiB, one GPT partition,
+  exFAT, labelled `HOUSEHOLD`, and held only a rehearsal.
+  [ADR-0122](adr/0122-drop-the-household-copy.md) dropped the household copy
+  on 2026-11-21. **Since 2026-11-24 it is the estate's offsite medium**
+  ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)): the newest backup set of each kind, and no key. It is kept
+  outside the house between visits, and still carries that rehearsal.
+  Its cable is USB 3.0 Micro-B at the drive end, and stays with it.
 - ViewSonic N1700W LCD, used as a rack console via the KVM
 - RJ45 Cat6 in-line couplers[^Couplers]
 - Cat6 patch cables[^Patchcables]
@@ -1183,6 +1269,7 @@ revisions of this repository treated `shiva` as the hypervisor itself.
 [^UPS]: [APC Smart-UPS](https://www.apc.com/us/en/product-range/61913-smart-ups/)
 [^Shiva]: [HPE ProLiant DL360 Gen9](https://buy.hpe.com/us/en/servers/rack-servers/proliant-dl300-servers/proliant-dl360-server/p/1010026922)
 [^ProDesk]: [HP ProDesk 600 G4 Mini](https://www.microcenter.com/product/692358/)
+[^modem]: [Hitron CODA56](https://us.hitrontech.com/products/consumers/coda56/)
 [^Trinity]: [HP ProDesk 600 G4 Micro, the refurbished unit that is `trinity`](https://www.ebay.com/itm/237046034784)
 [^Exos]: [Seagate Exos X20 18TB SATA 6Gb/s 7200RPM Enterprise HDD ST18000NM003D 0HR Drives](https://www.ebay.com/itm/237056026029)
 [^Exos2]: [Seagate Exos X20 18TB 7200 SATA 6Gb/s 3.5" Enterprise Hard Drive - ST18000NM003D, eBay Refurbished](https://www.ebay.com/itm/155636746868)

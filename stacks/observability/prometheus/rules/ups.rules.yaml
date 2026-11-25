@@ -92,8 +92,13 @@ groups:
     interval: 60s
     rules:
       - alert: UpsOnBattery
-        expr: upsSecondsOnBattery > 0
-        for: 30s
+        # Any scrape that saw more than 30 s on battery pages, with no `for`.
+        # `> 0` for 30s needed two scrapes in a row, a minute apart, so the
+        # 82-second transfer of 2026-11-21 was read once (42 s), went pending
+        # and cleared without paging. The 2m window keeps that one reading
+        # firing for the next evaluation. A transfer that never reaches 30 s
+        # still does not page.
+        expr: max_over_time(upsSecondsOnBattery[2m]) > 30
         labels:
           component: power
           severity: critical
@@ -169,6 +174,34 @@ groups:
           category: power
         annotations:
           summary: "UPS {{ $labels.device }} battery at {{ $value }}°C"
+
+      # NUT on the firewall cannot read the UPS, so no secondary would hear of
+      # a power cut. Everything else in this group reads the card directly
+      # over SNMP and stays green while NUT is blind: from 2026-11-05 to
+      # 2026-11-07 the driver was not connected and nothing said so
+      # (changelog, 2026-11-23). scripts/collect-nut-state.sh asks `upsc` on
+      # morpheus from `make gateway-state`, every 15 minutes; 30 minutes is
+      # three reads. Critical, because while this fires a mains cut halts
+      # nothing in order. The few-second stale gaps that are the baseline never
+      # reach it; NutUpsDataStaleFrequent in Loki watches those. Unlike
+      # NutDriverNotConnected (Loki), this needs no log line to arrive.
+      - alert: NutUpsUnreadable
+        expr: homelab_nut_ups_readable == 0
+        for: 30m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md"
+          summary: "NUT on {{ $labels.host }} cannot read UPS {{ $labels.ups }}"
+          description: >-
+            For half an hour `upsc {{ $labels.ups }}@127.0.0.1` on
+            {{ $labels.host }} has returned an error, not a status, so a power
+            cut would reach none of the NUT secondaries. `make gateway-state`'s
+            output names the error. If the card answers SNMP (the UPS panels
+            read it directly), restart NUT from Status -> Services on pfSense
+            and check the driver's SNMPv3 credentials still match the card.
 
       # The two rules that can actually detect a UPS which cannot carry load.
       # Everything above this point reads a value the management card is willing
@@ -410,3 +443,294 @@ groups:
             has aged, or the low battery duration was raised. Read
             upsOutputPercentLoad and upsEstimatedMinutesRemaining on the UPS &
             Power dashboard before changing anything.
+
+      # --- The AP9335T temperature probe on the card's universal I/O port ----
+      #
+      # Rack ambient at the bottom of the rack, where the DL360 and the UPS
+      # sit (decided 2026-10-16, plugged in by 2026-11-23). generator.yaml says
+      # which table the card reports it in, and why that is a reading to
+      # confirm, not a certainty: UpsTemperatureProbeMissing is that check.
+      #
+      # WHOLE DEGREES. PowerNet-MIB describes uioSensorStatusTemperatureDegC
+      # as tenths of a degree, but this card reports whole degrees there: the
+      # first reading, at 15:26 UTC on 2026-11-23, was 22 with the battery at
+      # 25 °C beside it. RackAmbientTemperatureHigh and ...Critical are the
+      # fixed limits; RackAmbientTemperatureAlarm still carries whatever
+      # limits are set at the card.
+      - alert: UpsTemperatureProbeMissing
+        expr: |
+          up{job="snmp", device="mjolnir"} == 1
+          unless on(device) uioSensorStatusCommStatus{device="mjolnir"}
+        for: 30m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} answers SNMP but reports no temperature probe"
+          description: >-
+            The card answers, and uioSensorStatusTable has no row. Either the
+            AP9335T is unplugged from the card's universal I/O port, or this
+            card reports it in a table generator.yaml does not walk. Check the
+            probe at the card's web interface before changing the generator.
+
+      - alert: UpsTemperatureProbeCommsLost
+        # commsOK is 2. notInstalled (1) and commsLost (3) both mean no reading.
+        expr: uioSensorStatusCommStatus{device="mjolnir"} != 2
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "The temperature probe on {{ $labels.device }} is not talking to the card"
+          description: >-
+            uioSensorStatusCommStatus reads {{ $value }} (1 not installed,
+            3 communication lost) on port {{ $labels.uioSensorStatusPortID }}.
+            Rack ambient is unmeasured until the probe's lead is reseated.
+
+      - alert: RackAmbientTemperatureAlarm
+        # uioWarning is 2 and uioCritical 3, against the limits set on the card.
+        expr: uioSensorStatusAlarmStatus{device="mjolnir"} == 2 or uioSensorStatusAlarmStatus{device="mjolnir"} == 3
+        for: 10m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "Rack ambient at {{ $labels.device }}'s probe is past the card's limit"
+          description: >-
+            The card raises its own alarm for probe
+            {{ $labels.uioSensorStatusSensorName }}: status {{ $value }}
+            (2 warning, 3 critical). Read uioSensorStatusTemperatureDegC and
+            the DL360's inlet temperature before anything else; the probe sits
+            at the bottom of the rack, where the heavy iron is.
+
+      - alert: RackAmbientTemperatureHigh
+        # 30 °C is three above the top of ASHRAE's recommended 18-27 °C inlet
+        # range, with the probe at 22 °C on the day it went in. Fifteen minutes
+        # so a door left open or a sunny afternoon passing through does not.
+        expr: uioSensorStatusTemperatureDegC{device="mjolnir"} > 30
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "Rack ambient at {{ $labels.device }}'s probe is {{ $value }}°C"
+          description: >-
+            The probe at the bottom of the rack has read over 30 °C for fifteen
+            minutes. Check the room and the rack's airflow, then the DL360's
+            inlet temperature on the iLO. A hot rack also ages the UPS pack.
+
+      - alert: RackAmbientTemperatureCritical
+        # 35 °C is the top of ASHRAE class A2, the standard inlet limit HPE
+        # rates the DL360 for. Past it, hardware throttles or trips.
+        expr: uioSensorStatusTemperatureDegC{device="mjolnir"} > 35
+        for: 10m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#if-something-goes-wrong"
+          summary: "Rack ambient at {{ $labels.device }}'s probe is {{ $value }}°C, past 35"
+          description: >-
+            The probe at the bottom of the rack has read over 35 °C for ten
+            minutes, past the DL360's rated inlet limit. Cool the
+            room or open the rack now; if it keeps climbing, shut down the
+            heaviest load (Saruman) before its own thermal trip does.
+
+      # --- Two card settings no other rule reads (2026-11-24) ----------------
+      #
+      # Both came out of the 2026-11-13 audit of mjolnir. generator.yaml has
+      # the OIDs and what the card answered. Neither is an outage, so both are
+      # warnings, and UpsCardReadingMissing is the check that they are read at
+      # all: a rule over a series that never arrives stays quiet for ever.
+
+      - alert: UpsBatteryPackAging
+        # Pack age in years, to the month: the card's *Last Battery
+        # Replacement* holds a month and year only, and generator.yaml's regex
+        # splits it into ...Year and ...Month. APC rates the APCRBC115 at three
+        # to five years, so three is when to plan a pack, not when it fails:
+        # UpsSelfTestFailed and UpsRideThroughShort say that. The pack fitted
+        # in August 2026 reaches three in August 2029.
+        #
+        # scalar(): year() and month() return a series with no labels, which
+        # would match nothing on the card's side of the subtraction.
+        expr: |
+          (scalar(year()) + (scalar(month()) - 1) / 12)
+          - (upsBasicBatteryLastReplaceDateYear + (upsBasicBatteryLastReplaceDateMonth - 1) / 12)
+          >= 3
+        for: 1h
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/fit-the-ups-battery.md"
+          summary: "UPS {{ $labels.device }}'s battery pack is {{ $value | printf \"%.1f\" }} years old"
+          description: >-
+            The card's Last Battery Replacement date is {{ $value | printf "%.1f" }}
+            years ago, and APC rates the pack at three to five. Order an
+            APCRBC115 and fit it with fit-the-ups-battery.md, which ends by
+            setting Last Battery Replacement to the month of the fit; that is
+            what clears this.
+
+      - alert: UpsInputSensitivityChanged
+        # upsAdvConfigSensitivity: auto(1), low(2), medium(3), high(4). Medium
+        # since 2026-11-24: at high the UPS went to battery three times in a
+        # month for distorted input, not a cut. A card reset puts it back to
+        # its default without a word, and no other rule would notice.
+        expr: upsAdvConfigSensitivity != 3
+        for: 30m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "UPS {{ $labels.device }}'s input sensitivity is no longer medium"
+          description: >-
+            upsAdvConfigSensitivity reads {{ $value }} (1 auto, 2 low, 4 high);
+            it was set to medium (3) on 2026-11-24. Set it back under
+            Configuration → Power Settings on the card, or, if the change was
+            deliberate, change this rule and hardware.md with it.
+
+      - alert: UpsCardReadingMissing
+        # The card answers but either reading above is absent: the battery
+        # date in a shape the regex does not take (PowerNet allows mm/dd/yy,
+        # which a card reset may bring back), or a firmware that drops an OID.
+        # Without this, UpsBatteryPackAging and UpsInputSensitivityChanged
+        # would both stay quiet for ever.
+        expr: |
+          up{job="snmp", device="mjolnir"} == 1
+          unless on(device) (
+            upsBasicBatteryLastReplaceDateYear
+            and on(device) upsBasicBatteryLastReplaceDateMonth
+            and on(device) upsAdvConfigSensitivity
+          )
+        for: 1h
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} answers SNMP but its battery date or sensitivity is unread"
+          description: >-
+            One of upsBasicBatteryLastReplaceDateYear, ...Month or
+            upsAdvConfigSensitivity is missing, so the pack-age and sensitivity
+            alerts cannot fire. Read each from the repository checkout with
+            `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.2.1.3`
+            and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.5.2.7`,
+            and compare the date's format with the regex in generator.yaml.
+
+      # --- The three switched outlet groups (2026-11-24) ---------------------
+      #
+      # Group 1 is the PDU and every host but the laptops, group 2 the laptops'
+      # chargers, group 3 the MokerLink. generator.yaml has what the card held
+      # when these were written: every group on, no load shedding of any kind,
+      # 90 s turn-off delay and 0 s turn-on delay. A load shed on group 1 would
+      # cut every host before NUT told any of them to halt.
+
+      - alert: UpsOutletGroupOff
+        # upsOutletGroupStatusGroupState: on(1), off(2), unknown(3). An off
+        # group has cut power to what is plugged into it. During a cut that
+        # ends in a shutdown this fires with UpsOnBattery, which is right.
+        #
+        # ONLY GROUP 2 CAN REALLY PAGE. Group 1 carries the firewall and the
+        # core switch, and group 3 the MokerLink that is prometheus's and
+        # oracle's only network. Either one off cuts the scrape or the way out
+        # before five minutes pass, so this rule cannot deliver for them. What
+        # does is the external heartbeat: Watchdog's pings stop, and the
+        # cron-monitor alerts from outside (observability.md, Watchdog).
+        expr: upsOutletGroupStatusGroupState{device="mjolnir"} != 1
+        for: 5m
+        labels:
+          component: power
+          severity: critical
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#if-something-goes-wrong"
+          summary: "{{ $labels.upsOutletGroupStatusName }} on {{ $labels.device }} is not on"
+          description: >-
+            The card reports {{ $labels.upsOutletGroupStatusName }} as
+            {{ if eq $value 2.0 }}off{{ else }}unknown{{ end }}. Group 1 is
+            the PDU and every host but the laptops, group 2 the laptops'
+            chargers and group 3 the MokerLink. Read the card's event log
+            (Logs → Events → Log) for who turned it off before turning it
+            back on under Control → Outlet Groups.
+
+      - alert: UpsOutletGroupLoadShedEnabled
+        # LoadShedControl...: disable(1), enable(2). Every group read 1 for all
+        # three on 2026-11-24.
+        expr: |
+          max by (job, instance, device, upsOutletGroupConfigIndex, upsOutletGroupConfigName) (
+              upsOutletGroupConfigLoadShedControlTimeOnBattery{device="mjolnir"} == 2
+            or upsOutletGroupConfigLoadShedControlRuntimeRemaining{device="mjolnir"} == 2
+            or upsOutletGroupConfigLoadShedControlInOverload{device="mjolnir"} == 2
+          )
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/shut-down-on-the-ups.md#before-you-start"
+          summary: "{{ $labels.upsOutletGroupConfigName }} on {{ $labels.device }} has load shedding on"
+          description: >-
+            {{ $labels.upsOutletGroupConfigName }} will now be switched off on
+            time on battery, runtime remaining or overload. On group 1 that
+            cuts every host before NUT tells any of them to halt. Turn every
+            shed off under Configuration → Outlet Groups on the card.
+
+      - alert: UpsOutletGroupDelayChanged
+        # 90 s off and 0 s on, all three groups, read 2026-11-24. The off
+        # delay is how long morpheus has to halt after it tells the UPS to
+        # turn off: on 2026-10-29 the groups went off 90 s after the command.
+        expr: |
+          max by (job, instance, device, upsOutletGroupConfigIndex, upsOutletGroupConfigName) (
+              upsOutletGroupConfigPowerOffDelay{device="mjolnir"} != 90
+            or upsOutletGroupConfigPowerOnDelay{device="mjolnir"} != 0
+          )
+        for: 15m
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.upsOutletGroupConfigName }} on {{ $labels.device }} has a changed off or on delay"
+          description: >-
+            Read upsOutletGroupConfigPowerOffDelay and ...PowerOnDelay for
+            {{ $labels.upsOutletGroupConfigName }}. A shorter off delay can cut
+            morpheus before it has halted. If the change was deliberate,
+            change this rule and hardware.md with it.
+
+      - alert: UpsOutletGroupsUnread
+        # Without this the three rules above would sit quiet on nothing. It
+        # needs every column they read, for all three groups: one group's rows
+        # must not hide another's missing row, and a missing column must not
+        # hide behind the ones that are there.
+        expr: |
+          up{job="snmp", device="mjolnir"} == 1
+          unless on(device) (
+                count by (device) (upsOutletGroupStatusGroupState) == 3
+            and on(device) count by (device) (upsOutletGroupConfigPowerOffDelay) == 3
+            and on(device) count by (device) (upsOutletGroupConfigPowerOnDelay) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlTimeOnBattery) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlRuntimeRemaining) == 3
+            and on(device) count by (device) (upsOutletGroupConfigLoadShedControlInOverload) == 3
+          )
+        for: 1h
+        labels:
+          component: power
+          severity: warning
+          category: power
+        annotations:
+          summary: "{{ $labels.device }} answers SNMP but its outlet groups are unread"
+          description: >-
+            A group or a column is missing from the outlet-group status or
+            config table, so UpsOutletGroupOff, ...LoadShedEnabled or
+            ...DelayChanged cannot fire for it. Read them from the repository
+            checkout with
+            `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.1`
+            and `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.12.2`.

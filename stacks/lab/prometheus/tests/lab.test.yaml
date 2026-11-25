@@ -11,7 +11,7 @@
 # input, the second proves it does not produce one for the input production
 # actually supplies.
 #
-# All nineteen rules in lab.rules.yaml are covered here. That is a deliberate
+# All twenty-five rules in lab.rules.yaml are covered here. That is a deliberate
 # difference from the estate's tests, where four of the nine stack rules are
 # syntax-checked only: this file is small enough that "test the ones that were
 # hard" has no advantage over testing all of them, and a new stack has no
@@ -151,6 +151,49 @@ tests:
     alert_rule_test:
       - eval_time: 70m
         alertname: LokiIngestionStalled
+        exp_alerts: []
+
+  # --- LogEntriesDropped: fenrir's shape (#1552) ---------------------------
+  # One re-sent line refused every ten minutes, for as long as the follow kept
+  # reconnecting. Steady loss, so it outlasts the hour and fires.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{instance="fenrir",job="fenrir-alloy",reason="ingester_error"}'
+        values: "0+0.1x180"
+    alert_rule_test:
+      - eval_time: 90m
+        alertname: LogEntriesDropped
+        exp_alerts:
+          - exp_labels:
+              job: fenrir-alloy
+              reason: ingester_error
+              component: lab
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "fenrir-alloy has been losing log lines to ingester_error for an hour"
+              description: >-
+                The lab's Loki has been rejecting these entries for an hour, so
+                this is not the burst an agent restart produces. Ask Loki which
+                limit it is applying with `sum by (reason)
+                (loki_discarded_samples_total)`. An entry older than 168 hours
+                means an agent is re-sending old lines: a Docker log follow
+                that keeps reconnecting does that (#1552).
+
+  # --- LogEntriesDropped: quiet for an agent-restart burst -----------------
+  # A restart replay is one step in the counter and then flat, the shape the
+  # estate measured (#341). rate() over 15m carries it for fifteen minutes, so
+  # `for: 1h` is never met: quiet during the burst and after it.
+  - interval: 1m
+    input_series:
+      - series: 'loki_write_dropped_entries_total{instance="odin",job="odin-alloy",reason="ingester_error"}'
+        values: "0x5 0+6646x5 33231x170"
+    alert_rule_test:
+      - eval_time: 25m
+        alertname: LogEntriesDropped
+        exp_alerts: []
+      - eval_time: 170m
+        alertname: LogEntriesDropped
         exp_alerts: []
 
   # --- InstanceDown, for a guest that is off on purpose ---------------------
@@ -738,3 +781,374 @@ tests:
                 `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
                 (docs/runbooks/build-the-sensor-guest.md §4), and check that
                 /var/lib/node_exporter/textfile_collector exists on fenrir.
+
+  # --- SecurityUpdatesPending: fires after a week ---------------------------
+  # Interval 2m, not daily: the textfile is re-served on every scrape, so the
+  # series is continuous, and a sparse fixture would go stale between samples
+  # and reset `for` (the estate's host.test.yaml found this the hard way).
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="odin"}'
+        values: "1x5300"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has had 1 security update(s) pending for a week"
+              description: >-
+                Unattended-upgrades should have applied these. A week of them
+                sitting there means they are held, phased, or waiting on a reboot.
+                Check with `apt list --upgradable` and
+                `systemctl status unattended-upgrades.service`.
+
+  # --- SecurityUpdatesPending: quiet when applied inside the week ------------
+  - interval: 2m
+    input_series:
+      - series: 'homelab_apt_security_upgrades_pending{host="odin"}'
+        values: "1x1500 0x3800"
+    alert_rule_test:
+      - eval_time: 175h
+        alertname: SecurityUpdatesPending
+        exp_alerts: []
+
+  # --- RebootRequired: fires after three days -------------------------------
+  # odin's own case: libc6 asked on 2026-11-13 and nothing said so.
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{host="odin"}'
+        values: "1x2300"
+    alert_rule_test:
+      - eval_time: 73h
+        alertname: RebootRequired
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has needed a reboot for three days"
+              description: >-
+                /var/run/reboot-required.pkgs names the packages that asked. Pick a
+                window: rebooting odin stops the SIEM for a few minutes, and the
+                agents queue meanwhile. Afterwards check the stack with
+                docs/runbooks/build-the-soc-guest.md §10.
+
+  # --- RebootRequired: quiet for a reboot inside three days ------------------
+  - interval: 2m
+    input_series:
+      - series: 'homelab_reboot_required{host="odin"}'
+        values: "1x1000 0x3000"
+    alert_rule_test:
+      - eval_time: 73h
+        alertname: RebootRequired
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires for a guest whose collector died -------------
+  # 20 hours of reporting, then a real gap (`_`), not a zero.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin"}'
+        values: "3x240 _x120"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: still firing days later, and gone after two weeks -
+  # Review of #1580: with [1d] this cleared itself about 30h after the
+  # collector stopped. Twenty hours of reporting, then 15.5 days of gap.
+  # Still firing at 3d and 10d; quiet at 16d, past the [14d] window and its
+  # offset, which is the documented end.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin"}'
+        values: "3x20 _x380"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+      - eval_time: 10d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+      - eval_time: 16d
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: quiet for an on-demand guest that is off ----------
+  # ADR-0079 for this rule. `eden` reports for 20 hours, then is shut down:
+  # its patch state and its node metrics stop together. Quiet at 3d and 10d.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="eden"}'
+        values: "0x20 _x250"
+      - series: 'node_boot_time_seconds{host="eden"}'
+        values: "1x20 _x250"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts: []
+      - eval_time: 10d
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires for an on-demand guest that is up ------------
+  # The same `eden`, booted again on day 2 with its collector gone: node
+  # metrics arrive and patch state does not. That is a dead collector on a
+  # running guest, and it must fire like any other guest's.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="eden"}'
+        values: "0x20 _x250"
+      - series: 'node_boot_time_seconds{host="eden"}'
+        values: "1x20 _x28 2x220"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: eden
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "eden has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: quiet for a guest that reports zero ----------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin"}'
+        values: "0x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires when the file stops being rewritten ----------
+  # The case review on #1544 named: the collector died, the file stayed, and
+  # Alloy keeps serving its last values, so the samples never stop. Only the
+  # file's mtime stands still (0, the fixture's epoch). At 50h it is more than
+  # two days old, and has been for over the 30m `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x600"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: odin
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "odin has stopped reporting patch state"
+              description: >-
+                Its patch state has gone absent, or apt-patch-state.prom has not
+                been rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading stale or no data for it. Check
+                `systemctl status homelab-patch-state.timer` on the guest, and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable.
+
+  # --- PatchStateStopped: quiet while the daily rewrite keeps happening ------
+  # The same steady samples, with an mtime that moves once a day (every 288
+  # five-minute steps), as the timer's real file does.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="odin",instance="odin"}'
+        values: "0x600"
+      - series: 'node_textfile_mtime_seconds{instance="odin",file="/rootfs/var/lib/node_exporter/textfile_collector/apt-patch-state.prom"}'
+        values: "0x287 86400x287 172800x30"
+    alert_rule_test:
+      - eval_time: 50h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- ApplianceCheckFailed: fires on two failed runs, not before 75m ------
+  # The keys check passing to 2h, then a key added: 0 from 2h05m, through the
+  # next run and beyond. The sshd check beside it keeps passing, so the alert
+  # names only the one. At 3h15m the 0 has held 70m, inside the 75m `for`;
+  # at 3h25m it has held 80m and fires. Review on #1580 asked for the boundary.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="keys"}'
+        values: "1x24 0x30"
+      - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
+        values: "1x54"
+    alert_rule_test:
+      - eval_time: 3h15m
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
+      - eval_time: 3h25m
+        alertname: ApplianceCheckFailed
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              check: keys
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir is no longer the appliance its runbook leaves: keys"
+              description: >-
+                The `keys` check has failed on two hourly runs. Read
+                `journalctl -u homelab-appliance-state -n 20` on the guest, then
+                put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
+                leave it. If the change was meant, change the runbook and
+                scripts/collect-appliance-state.sh in one PR.
+
+  # --- ApplianceCheckFailed: quiet for one bad run at its longest ------------
+  # One failed run exported for 65m, the hour plus the next run's jitter, then
+  # put right. Quiet at its last 0 (3h10m) and after.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="listeners"}'
+        values: "1x24 0x13 1x20"
+    alert_rule_test:
+      - eval_time: 3h10m
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
+      - eval_time: 4h
+        alertname: ApplianceCheckFailed
+        exp_alerts: []
+
+  # --- ApplianceStateStopped: fires for a collector that died, and stays ----
+  # A day of checks, then a real gap. It fires at 30h, and still fires at 52h,
+  # past the ~27h after which a "was it reporting a day ago" form goes quiet
+  # with nothing recovered (review on #1580).
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",check="sshd"}'
+        values: "1x288 _x400"
+    alert_rule_test:
+      - eval_time: 30h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+      - eval_time: 52h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+
+  # --- ApplianceStateStopped: fires when the file stops being rewritten ------
+  # Alloy keeps serving the last 1s, so only the mtime stands still. At 5h it
+  # is more than three hours old, and has been for over the 30m `for`.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",instance="fenrir",check="sshd"}'
+        values: "1x60"
+      - series: 'node_textfile_mtime_seconds{instance="fenrir",file="/rootfs/var/lib/node_exporter/textfile_collector/appliance-state.prom"}'
+        values: "0x60"
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: ApplianceStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: fenrir
+              component: sensor
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "fenrir has stopped reporting its appliance checks"
+              description: >-
+                Its appliance checks have gone absent, or appliance-state.prom has
+                not been rewritten in three hours, so ApplianceCheckFailed is
+                reading stale or no data for it. Check
+                `systemctl status homelab-appliance-state.timer` on the guest. A
+                stopped timer on a guest that was passing is itself worth a look.
+
+  # --- ApplianceStateStopped: quiet while the hourly rewrite happens ---------
+  # The mtime moves every hour (twelve five-minute steps), as the timer's does.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_appliance_check{host="fenrir",instance="fenrir",check="sshd"}'
+        values: "1x60"
+      - series: 'node_textfile_mtime_seconds{instance="fenrir",file="/rootfs/var/lib/node_exporter/textfile_collector/appliance-state.prom"}'
+        values: "0x11 3600x11 7200x11 10800x11 14400x11 18000x5"
+    alert_rule_test:
+      - eval_time: 5h
+        alertname: ApplianceStateStopped
+        exp_alerts: []

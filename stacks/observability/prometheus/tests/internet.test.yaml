@@ -197,10 +197,11 @@ tests:
                 minutes; a healthy wired link counts none. ifInErrors is the
                 generic counter, so name the cause before acting on it:
                 `ssh admin@10.0.99.1 sysctl dev.em.0.mac_stats | grep -E
-                'crc|align|symbol|jabber|fragment'`. If crc_errs is what is
-                climbing, it is the physical link: reseat the plug in the XB7
-                (#914), then re-terminate or replace that cable, then try another
-                XB7 port, then suspect the I219's port.
+                'crc|align|symbol|jabber|fragment'`. If crc_errs climbs with
+                symbol_errors at 0, the signal decodes cleanly and the frames
+                arrive bad: reboot morpheus, which cleared it on 2026-11-22
+                when a new modem, a re-plug and a different cable did not.
+                If symbol_errors climb too, suspect the plug's seating.
 
   # A stray error every two minutes, 7.5 in fifteen: under the line.
   - interval: 1m

@@ -61,9 +61,9 @@ make backup-firewall ARGS=--verify-only   # newest export decrypts here, and is 
 ```
 
 That is off-host, not offsite. Both laptops share a shelf, a mains circuit and
-a roof. The copy beyond them is the newest export on the second age
-recipient's medium, carried there on its ninety-day visit
-([ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
+a roof. The copy beyond them is the newest export on the offsite
+drive, refreshed every ninety days
+([ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md),
 [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)); restoring from it starts by
 copying that one file back into `backups/firewall/`.
 
@@ -266,6 +266,9 @@ worked, not the ones that were expected to.
    encrypted). On the rehearsal the box rebooted **straight to the console
    menu with every interface assigned — no assignment prompt** — WAN on `em0`,
    LAN on `igc0` at `10.7.7.1`, and all six VLANs on `igc0.10` … `igc0.99`.
+   Since 2026-11-23 the config password protects the console menu, so after
+   the restore the console asks for a login first: `admin` and the web UI's
+   password, the one in the backup, not the fresh install's.
    It then tries to reinstall the config's packages in the background, which
    needs the WAN; on a bench with the WAN unplugged it cannot, and a package
    the rules depend on is worth checking once the WAN is back.
@@ -338,6 +341,24 @@ ssh root@10.0.99.1 'pfctl -sr | grep -c "<Tunnel_Peers>"'
 # `pfctl -t Tunnel_Peers -T show` must print the peer
 # subnet rather than an empty table — an alias that survived with no contents
 # makes every rule using it match nothing, which reads as "no leaks".
+```
+
+```bash
+# 7. Are both log streams back? The syslog-ng package and its objects come back
+#    with config.xml, including neo's source and the switch-LAN pass
+#    (ADR-0127), but the TLS files it relays with do not: they sit outside
+#    config.xml. Copy them back first, as ship-firewall-logs.md §3 step 2
+#    says, then restart the service from Status → Services.
+ssh admin@10.0.99.1 'ls /usr/local/etc/syslog-ng/tls/; sockstat -4l | grep syslog-ng'
+# expect ca.pem, morpheus-key.pem and morpheus.pem, and listeners on
+# 127.0.0.1:5140 (pfSense's own log) and 10.7.7.1:5514 (neo's)
+
+# On prometheus, a few minutes later:
+curl -sG http://localhost:3100/loki/api/v1/query \
+  --data-urlencode 'query=sum by (host) (count_over_time({source="network"}[10m]))' \
+  | jq -r '.data.result[] | "\(.metric.host)\t\(.value[1])"'
+# expect a count for both morpheus and neo. Missing both: the TLS files or
+# syslog-ng. Missing only neo: the pass on igc0 or the s_neo source.
 ```
 
 > [!NOTE]

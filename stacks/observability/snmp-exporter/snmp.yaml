@@ -34,7 +34,13 @@ modules:
   apc_ups:
     walk:
     - 1.3.6.1.2.1.33.1
+    - 1.3.6.1.4.1.318.1.1.1.12.1
+    - 1.3.6.1.4.1.318.1.1.1.12.2
     - 1.3.6.1.4.1.318.1.1.1.7.2
+    - 1.3.6.1.4.1.318.1.1.25.1.2
+    get:
+    - 1.3.6.1.4.1.318.1.1.1.2.1.3.0
+    - 1.3.6.1.4.1.318.1.1.1.5.2.7.0
     metrics:
     - name: upsIdentManufacturer
       oid: 1.3.6.1.2.1.33.1.1.1
@@ -385,6 +391,300 @@ modules:
       type: gauge
       help: The maximum line voltage allowed before the UPS system transfers to battery
         backup. - 1.3.6.1.2.1.33.1.9.10
+    - name: upsOutletGroupStatusTableSize
+      oid: 1.3.6.1.4.1.318.1.1.1.12.1.1
+      type: gauge
+      help: The number of outlet groups for the UPS. - 1.3.6.1.4.1.318.1.1.1.12.1.1
+    - name: upsOutletGroupStatusIndex
+      oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.1
+      type: gauge
+      help: The index to the outlet group entry. - 1.3.6.1.4.1.318.1.1.1.12.1.2.1.1
+      indexes:
+      - labelname: upsOutletGroupStatusIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupStatusIndex
+        labelname: upsOutletGroupStatusName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupStatusGroupState
+      oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.3
+      type: gauge
+      help: Getting this variable will return the outlet group state - 1.3.6.1.4.1.318.1.1.1.12.1.2.1.3
+      indexes:
+      - labelname: upsOutletGroupStatusIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupStatusIndex
+        labelname: upsOutletGroupStatusName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupStatusOn
+        2: upsOutletGroupStatusOff
+        3: upsOutletGroupStatusUnknown
+    - name: upsOutletGroupStatusCommandPending
+      oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.4
+      type: gauge
+      help: Getting this variable will return the command pending state of the outlet
+        group - 1.3.6.1.4.1.318.1.1.1.12.1.2.1.4
+      indexes:
+      - labelname: upsOutletGroupStatusIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupStatusIndex
+        labelname: upsOutletGroupStatusName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupCommandPending
+        2: upsOutletGroupNoCommandPending
+    - name: upsOutletGroupStatusOutletType
+      oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.5
+      type: gauge
+      help: Getting this variable will return the type of outlet group - 1.3.6.1.4.1.318.1.1.1.12.1.2.1.5
+      indexes:
+      - labelname: upsOutletGroupStatusIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupStatusIndex
+        labelname: upsOutletGroupStatusName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.1.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsSwitchedOutletGroup
+        2: upsMainOutletGroup
+    - name: upsOutletGroupConfigTableSize
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.1
+      type: gauge
+      help: The number of outlet groups for the UPS. - 1.3.6.1.4.1.318.1.1.1.12.2.1
+    - name: upsOutletGroupConfigIndex
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.1
+      type: gauge
+      help: The index to the outlet group entry. - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.1
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigPowerOnDelay
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.3
+      type: gauge
+      help: The amount of time (seconds) the outlet group will delay powering on when
+        the delayed on, reboot, or shutdown command is applied - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.3
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigPowerOffDelay
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.4
+      type: gauge
+      help: The amount of time (seconds) the outlet group will delay powering off
+        when the delayed off, reboot, or shutdown command is applied - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.4
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigRebootDuration
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.5
+      type: gauge
+      help: During a reboot sequence, power is turned off and then back on - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.5
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigMinReturnRuntime
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.6
+      type: gauge
+      help: In an Outlet Group shutdown sequence, the Outlet Group cycles power off
+        then on - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.6
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigOutletType
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.7
+      type: gauge
+      help: Getting this variable will return the type of outlet group - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.7
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsSwitchedOutletGroup
+        2: upsMainOutletGroup
+    - name: upsOutletGroupConfigLoadShedControlSkipOffDelay
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.8
+      type: gauge
+      help: Configures whether the outlet group's off delay setting (upsOutletGroupConfigPowerOffDelay)
+        will be used in a load shedding situation, where applicable. - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.8
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupConfigSkipOffDelay
+        2: upsOutletGroupConfigUseOffDelay
+    - name: upsOutletGroupConfigLoadShedControlAutoRestart
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.9
+      type: gauge
+      help: Configures whether the outlet group will automatically restart after a
+        load shedding situation, where applicable. - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.9
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupConfigAutoRestart
+        2: upsOutletGroupConfigManualRestart
+    - name: upsOutletGroupConfigLoadShedControlTimeOnBattery
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.10
+      type: gauge
+      help: Configures whether the outlet group will load shed (turn off) after the
+        UPS's time on battery has exceeded the upsOutletGroupConfigLoadShedTimeOnBattery
+        OID setting - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.10
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupConfigDisableTimeOnBatteryLoadShed
+        2: upsOutletGroupConfigEnableTimeOnBatteryLoadShed
+    - name: upsOutletGroupConfigLoadShedControlRuntimeRemaining
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.11
+      type: gauge
+      help: Configures whether the outlet group will load shed (turn off) when the
+        UPS is on battery and the remaining runtime is less than the upsOutletGroupConfigLoadShedRuntimeRemaining
+        OID setting - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.11
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupConfigDisableRuntimeRemainingLoadShed
+        2: upsOutletGroupConfigEnableRuntimeRemainingLoadShed
+    - name: upsOutletGroupConfigLoadShedControlInOverload
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.12
+      type: gauge
+      help: Configures whether the outlet group will load shed (turn off) when the
+        UPS is in an overload condition - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.12
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+      enum_values:
+        1: upsOutletGroupConfigDisableInOverloadLoadShed
+        2: upsOutletGroupConfigEnableInOverloadLoadShed
+    - name: upsOutletGroupConfigLoadShedTimeOnBattery
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.13
+      type: gauge
+      help: When the UPS has been on battery for more time than this value, the outlet
+        group will turn off if this condition is enabled by the upsOutletGroupConfigLoadShedControlTimeOnBattery
+        OID - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.13
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsOutletGroupConfigLoadShedRuntimeRemaining
+      oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.14
+      type: gauge
+      help: When the runtime remaining is less than this value, the outlet group will
+        turn off if this condition is enabled by the upsOutletGroupConfigLoadShedControlRuntimeRemaining
+        OID - 1.3.6.1.4.1.318.1.1.1.12.2.2.1.14
+      indexes:
+      - labelname: upsOutletGroupConfigIndex
+        type: gauge
+      lookups:
+      - labels:
+        - upsOutletGroupConfigIndex
+        labelname: upsOutletGroupConfigName
+        oid: 1.3.6.1.4.1.318.1.1.1.12.2.2.1.2
+        type: DisplayString
+    - name: upsBasicBatteryLastReplaceDate
+      oid: 1.3.6.1.4.1.318.1.1.1.2.1.3
+      type: DisplayString
+      help: The date when the UPS system's batteries were last replaced in mm/dd/yy
+        (or yyyy) format - 1.3.6.1.4.1.318.1.1.1.2.1.3
+      regex_extracts:
+        Month:
+        - value: $1
+          regex: ^(?:^(\d{2})/\d{2}/\d{4}$)$
+        Year:
+        - value: $1
+          regex: ^(?:^\d{2}/\d{2}/(\d{4})$)$
+    - name: upsAdvConfigSensitivity
+      oid: 1.3.6.1.4.1.318.1.1.1.5.2.7
+      type: gauge
+      help: The sensitivity of the UPS to utility line abnormalities or noises. -
+        1.3.6.1.4.1.318.1.1.1.5.2.7
+      enum_values:
+        1: auto
+        2: low
+        3: medium
+        4: high
     - name: upsAdvTestDiagnosticSchedule
       oid: 1.3.6.1.4.1.318.1.1.1.7.2.1
       type: gauge
@@ -462,6 +762,80 @@ modules:
         5: friday
         6: saturday
         7: sunday
+    - name: uioSensorStatusTemperatureDegC
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.6
+      type: gauge
+      help: The sensor's current temperature reading in tenths of degrees Celsius.
+        - 1.3.6.1.4.1.318.1.1.25.1.2.1.6
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+    - name: uioSensorStatusViolationStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.8
+      type: gauge
+      help: The violation status of the sensor - 1.3.6.1.4.1.318.1.1.25.1.2.1.8
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+    - name: uioSensorStatusAlarmStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.9
+      type: gauge
+      help: The alarm status of the sensor. - 1.3.6.1.4.1.318.1.1.25.1.2.1.9
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+      enum_values:
+        1: uioNormal
+        2: uioWarning
+        3: uioCritical
+        4: sensorStatusNotApplicable
+    - name: uioSensorStatusCommStatus
+      oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.10
+      type: gauge
+      help: The communications status of the sensor. - 1.3.6.1.4.1.318.1.1.25.1.2.1.10
+      indexes:
+      - labelname: uioSensorStatusPortID
+        type: gauge
+      - labelname: uioSensorStatusSensorID
+        type: gauge
+      lookups:
+      - labels:
+        - uioSensorStatusPortID
+        - uioSensorStatusSensorID
+        labelname: uioSensorStatusSensorName
+        oid: 1.3.6.1.4.1.318.1.1.25.1.2.1.3
+        type: DisplayString
+      enum_values:
+        1: notInstalled
+        2: commsOK
+        3: commsLost
   crs326:
     walk:
     - 1.3.6.1.2.1.17.1.4.1.2

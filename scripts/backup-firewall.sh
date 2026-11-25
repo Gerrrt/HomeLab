@@ -104,13 +104,54 @@
 #                the dir relative to that user's home unless absolute. The
 #                nightly unit can override it in /etc/default/homelab-timers.
 #   FW_KEEP      default 30              exports to retain, here and there
+#
+# THE SWITCH, THROUGH THE SAME SCRIPT
+#
+# BACKUP_DEVICE=switch (`make backup-switch`) takes neo's RouterOS `/export`
+# instead, with everything after the pull unchanged: encrypt, verify, copy to
+# oracle, retention. The switch's export holds no password or key (RouterOS
+# leaves users, certificates and SNMP passphrases out of it), but it does hold
+# the rule bodies docs/security.md keeps unpublished, so it is handled exactly
+# like config.xml. It goes to backups/switch/ here and on oracle.
+#
+# Its knobs are SW_*, never FW_*. Both units read /etc/default/homelab-timers,
+# and an FW_OFFHOST set there for the firewall must not redirect the switch.
+#   SW_HOST      default 10.7.7.2
+#   SW_USER      default backup          read and ssh policy only, address 10.7.7.1/32
+#   SW_JUMP      default admin@10.0.99.1 the switch LAN admits SSH from itself
+#                only, so the login arrives from morpheus's 10.7.7.1
+#   SW_OFFHOST   default atropos@10.0.99.30:backups/switch
+#   SW_KEEP      default 30
 set -euo pipefail
 
-FW_HOST="${FW_HOST:-10.0.99.1}"
-FW_USER="${FW_USER:-root}"
-FW_PATH="${FW_PATH:-/cf/conf/config.xml}"
-FW_OFFHOST="${FW_OFFHOST:-atropos@10.0.99.30:backups/firewall}"
-FW_KEEP="${FW_KEEP:-30}"
+BACKUP_DEVICE="${BACKUP_DEVICE:-firewall}"
+case $BACKUP_DEVICE in
+  firewall)
+    FW_HOST="${FW_HOST:-10.0.99.1}"
+    FW_USER="${FW_USER:-root}"
+    FW_PATH="${FW_PATH:-/cf/conf/config.xml}"
+    FW_OFFHOST="${FW_OFFHOST:-atropos@10.0.99.30:backups/firewall}"
+    FW_KEEP="${FW_KEEP:-30}"
+    KEEP_VAR=FW_KEEP
+    PULL_CMD="cat $FW_PATH"
+    PULL_JUMP=()
+    RUNBOOK=docs/runbooks/restore-the-firewall.md
+    ;;
+  switch)
+    FW_HOST="${SW_HOST:-10.7.7.2}"
+    FW_USER="${SW_USER:-backup}"
+    FW_PATH="/export"
+    FW_OFFHOST="${SW_OFFHOST:-atropos@10.0.99.30:backups/switch}"
+    FW_KEEP="${SW_KEEP:-30}"
+    KEEP_VAR=SW_KEEP
+    PULL_CMD="/export"
+    PULL_JUMP=(-J "${SW_JUMP:-admin@10.0.99.1}")
+    RUNBOOK=docs/runbooks/swap-the-switch.md
+    ;;
+  *)
+    printf '\033[0;31mBACKUP_DEVICE must be firewall or switch, got %s\033[0m\n' "$BACKUP_DEVICE" >&2
+    exit 1 ;;
+esac
 
 # Anchored to the repository, not to the working directory, and that is not
 # cosmetic (#611). These shipped relative, and agreed with where
@@ -121,7 +162,7 @@ FW_KEEP="${FW_KEEP:-30}"
 # backup-volumes.sh:158 and backup-nas.sh:155 were already absolute; this is
 # the odd one out being brought into line.
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-OUT_DIR="${REPO_ROOT}/backups/firewall"
+OUT_DIR="${REPO_ROOT}/backups/${BACKUP_DEVICE}"
 SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 
 # Nightly, so 30 is a month of history — long enough to reach back past a bad
@@ -132,7 +173,7 @@ SOPS_POLICY="${REPO_ROOT}/.sops.yaml"
 # Rejected rather than clamped: a mistyped FW_KEEP in an environment file is
 # not a request to delete every backup of the firewall.
 if ! [[ $FW_KEEP =~ ^[0-9]+$ ]] || ((FW_KEEP < 1)); then
-  printf '\033[0;31mFW_KEEP must be a positive integer, got %s\033[0m\n' "$FW_KEEP" >&2
+  printf '\033[0;31m%s must be a positive integer, got %s\033[0m\n' "$KEEP_VAR" "$FW_KEEP" >&2
   exit 1
 fi
 
@@ -178,10 +219,10 @@ need() { command -v "$1" >/dev/null 2>&1 || { red "missing dependency: $1"; exit
 # The length floor is RLENGTH, not an interval expression: mawk 1.3.4-20240123
 # (Debian and Ubuntu's default awk) reads /x{50,}/ as exactly 50 and cut every
 # key to its first 54 characters (found 2026-09-26, #92).
-recipients() {  # [policy file, default .sops.yaml]
-  awk '
+recipients() {  # [policy file, default .sops.yaml] [device, default $BACKUP_DEVICE]
+  awk -v want="backups/${2:-$BACKUP_DEVICE}/" '
     /^[[:space:]]*#/ { next }
-    /path_regex:/ { if (inrule) exit; if ($0 ~ /backups\/firewall/) inrule = 1; next }
+    /path_regex:/ { if (inrule) exit; if (index($0, want)) inrule = 1; next }
     inrule {
       line = $0
       while (match(line, /age1[0-9a-z]+/)) {
@@ -224,9 +265,26 @@ verify() {
   # are the config XML.
   plain="$(env -i "PATH=$PATH" "HOME=$HOME" sops --decrypt --input-type yaml --output-type binary "$f" 2>/dev/null)" \
     || { red "FAILED to decrypt $f"; exit 1; }
+  local rules ver
+  if [[ $BACKUP_DEVICE == switch ]]; then
+    # The export's first line names the release, and a switch config without
+    # a bridge is not this switch's.
+    ver=$(sed -n '1s/.* by RouterOS \([^[:space:]]*\).*/\1/p' <<<"$plain" | tr -d '\r')
+    if [[ -z $ver ]] || ! grep -q '^/interface bridge' <<<"$plain"; then
+      red "decrypted $f but it does not look like a RouterOS export of neo"; exit 1
+    fi
+    # RouterOS skips a menu it cannot read in time and carries on, leaving a
+    # `#error exporting` line where it was. That is a partial config, and
+    # accepting it would let retention prune a whole one.
+    if grep -q '^#error' <<<"$plain"; then
+      red "decrypted $f but RouterOS left part of it out ($(grep -c '^#error' <<<"$plain") #error line(s))"; exit 1
+    fi
+    rules=$(sed -n '/^\/ip firewall filter/,/^\/[a-z]/p' <<<"$plain" | grep -c '^add ' || true)
+    green "verified $(basename "$f") — RouterOS ${ver}, ${rules} input filter rules"
+    return 0
+  fi
   grep -q '<pfsense>' <<<"$plain" \
     || { red "decrypted $f but it does not look like a pfSense config"; exit 1; }
-  local rules ver
   rules=$(grep -c '<rule>' <<<"$plain" || true)
   ver=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' <<<"$plain" | head -1)
   green "verified $(basename "$f") — config version ${ver:-unknown}, ${rules} firewall rules"
@@ -508,7 +566,7 @@ case "${1:-}" in
     L=age1lablablablablablablablablablablablablablablablablablablabl
     expect() {  # <name> <want> <policy text>
       printf '%s\n' "$3" > "$t/sops.yaml"
-      local got; got="$(recipients "$t/sops.yaml")"
+      local got; got="$(recipients "$t/sops.yaml" firewall)"
       if [[ $got == "$2" ]]; then printf '\033[0;32m  PASS\033[0m %s\n' "$1"
       else printf '\033[0;31m  FAIL\033[0m %s\n       got      %s\n       expected %s\n' "$1" "$got" "$2"; fail=1; fi
     }
@@ -630,13 +688,13 @@ info "pulling $FW_PATH from $FW_USER@$FW_HOST"
 # shellcheck disable=SC2094  # --filename-override never opens $DEST; it is a
 # string sops matches creation_rules against. The only reader here is
 # /dev/stdin and the only writer is the redirect.
-if ! "${SSH[@]}" "$FW_USER@$FW_HOST" "cat $FW_PATH" \
+if ! "${SSH[@]}" "${PULL_JUMP[@]}" "$FW_USER@$FW_HOST" "$PULL_CMD" \
      | sops --encrypt --age "$AGE_RECIPIENT" --input-type binary --output-type yaml \
             --filename-override "$DEST" /dev/stdin \
      > "$DEST"; then
   rm -f "$DEST"
   red "pull or encrypt failed — nothing written"
-  red "check: SSH enabled on pfSense, key authorised for $FW_USER, sops on PATH,"
+  red "check: SSH reaches $FW_HOST${PULL_JUMP[1]:+ through ${PULL_JUMP[1]}}, key authorised for $FW_USER, sops on PATH,"
   red "and a .sops.yaml creation rule matching $DEST"
   exit 1
 fi
@@ -663,7 +721,7 @@ if ((LOCAL_ONLY)); then
   printf '\n'
   info "--local-only: this is on the same host as everything else it protects."
   info "Retention was applied here; $OFFHOST_TARGET was not touched."
-  info "Run without the flag, or copy it yourself — see docs/runbooks/restore-the-firewall.md"
+  info "Run without the flag, or copy it yourself — see $RUNBOOK"
   exit 0
 fi
 
@@ -673,7 +731,7 @@ if ! copy_offhost; then
   printf '\n'
   red "wrote $DEST but the off-host copy FAILED — this backup is on the machine it protects"
   red "check: $OFFHOST_TARGET reachable, its host key in ~/.ssh/known_hosts, and this"
-  red "host's key authorised there — docs/runbooks/restore-the-firewall.md"
+  red "host's key authorised there — $RUNBOOK"
   exit 1
 fi
 

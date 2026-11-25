@@ -123,7 +123,8 @@ tests:
   # All 14 were killed. If you change a rule here, re-run them:
   #
   #   InstanceDown        up == 0 -> up == 1;  for: 5m -> 0m;
-  #                       job!= -> job=  (the speedtest-tracker case below)
+  #                       job!= -> job=  (the speedtest-tracker case below);
+  #                       role!= -> role=  (the display case below)
   #   HostDiskCritical    < 0.10 -> < 0.01;  drop fstype!~"tmpfs|overlay";
   #                       for: 15m -> 0m
   #   HostMemoryPressure  < 0.10 -> < 0.01;  for: 15m -> 0m
@@ -192,6 +193,156 @@ tests:
     alert_rule_test:
       - eval_time: 15m
         alertname: InstanceDown
+        exp_alerts: []
+
+  # --- InstanceDown: quiet for the wall display, which does not page --------
+  # `heimdall` (ADR-0119) does not page when down: a dead screen shows itself
+  # to anyone in the office, and DisplayDown below warns after two hours.
+  # Down for twenty minutes, well past `for: 5m`, and still quiet.
+  # The smaug case below, with no `role`, is the pair that proves the
+  # exclusion is that narrow.
+  - interval: 1m
+    input_series:
+      - series: 'up{instance="heimdall",job="node",role="display",vlan="50"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: InstanceDown
+        exp_alerts: []
+
+  # --- DisplayDown: the same Pi, down for two hours, does warn -------------
+  # The display's own down rule, at warning. Down for 2h10m it fires, and
+  # the pair inside `for: 2h` is quiet: the nightly reboot and a Wi-Fi gap
+  # are both far shorter.
+  - interval: 5m
+    input_series:
+      - series: 'up{instance="heimdall",job="node",role="display",vlan="50"}'
+        values: "0x30"
+    alert_rule_test:
+      - eval_time: 130m
+        alertname: DisplayDown
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "heimdall has not answered a scrape for two hours"
+              description: >-
+                The wall Pi is off, off Hicks, or its exporter stopped. Look at the
+                wall first, then `ssh` to it from Hicks (build-heimdall.md).
+      - eval_time: 110m
+        alertname: DisplayDown
+        exp_alerts: []
+
+  # --- DisplayUpdatesStalled: the same origin pending for three days --------
+  # The firing series stays above zero for 80 hours, except that each night's
+  # reboot fails one scrape and marks it stale, as on 2026-11-24. The bare
+  # series would restart `for` at every one; the 15-minute window must not.
+  # The quiet one is the normal day: pending from the morning run until the
+  # next one installs it, when the collector stops writing the series (it
+  # writes no 0), then pending again, never three days at a stretch. Samples
+  # every 5m, as scraped.
+  - interval: 5m
+    input_series:
+      - series: >-
+          apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",
+          origin="Raspberry Pi Foundation:trixie/stable",arch="arm64"}
+        values: "16x286 stale 16x286 stale 16x286 stale 16x100"
+      - series: 'apt_upgrades_pending{instance="heimdall",job="node",role="display",vlan="50",origin="Debian:trixie/stable",arch="arm64"}'
+        values: "2x252 _x36 3x252 _x36 1x252 _x144"
+    alert_rule_test:
+      - eval_time: 76h
+        alertname: DisplayUpdatesStalled
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              origin: "Raspberry Pi Foundation:trixie/stable"
+              arch: arm64
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "heimdall: 16 upgrade(s) from Raspberry Pi Foundation:trixie/stable pending three days"
+              description: >-
+                unattended-upgrades runs every morning and should have installed
+                these. On the Pi, read /var/log/unattended-upgrades/unattended-upgrades.log
+                and check `apt-config dump | grep Origins-Pattern` still names
+                the origin (build-heimdall.md §2).
+      - eval_time: 70h
+        alertname: DisplayUpdatesStalled
+        exp_alerts: []
+
+  # --- DisplayUnitFailed: a failed unit for longer than 15 minutes ----------
+  # openipmi.service failed at every boot on the first build (2026-11-17).
+  # The pair is the same unit inactive, the state it reports when fine.
+  - interval: 5m
+    input_series:
+      - series: 'node_systemd_unit_state{instance="heimdall",job="node",role="display",vlan="50",name="openipmi.service",state="failed",type="oneshot"}'
+        values: "1x6"
+      - series: 'node_systemd_unit_state{instance="heimdall",job="node",role="display",vlan="50",name="ssh.service",state="failed",type="notify"}'
+        values: "0x6"
+    alert_rule_test:
+      - eval_time: 20m
+        alertname: DisplayUnitFailed
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              job: node
+              role: display
+              vlan: "50"
+              name: openipmi.service
+              state: failed
+              type: oneshot
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "openipmi.service has failed on heimdall"
+              description: >-
+                `systemctl --failed` and `journalctl -b -u openipmi.service` on
+                the Pi. The journal is kept across reboots (build-heimdall.md §2),
+                so the cause survives the 04:30 reboot.
+      - eval_time: 10m
+        alertname: DisplayUnitFailed
+        exp_alerts: []
+
+  # --- DisplayHot: the SoC above 75 °C for 15 minutes -----------------------
+  # Two SoC sensors reading alike give one alert. The RP1 ADC, hotter but not
+  # what throttles, is left out: at 74 °C on the SoC and 79 °C on RP1, quiet.
+  - interval: 5m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="thermal_thermal_zone0",sensor="temp0"}'
+        values: "74x4 78x6"
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="thermal_thermal_zone0",sensor="temp1"}'
+        values: "74x4 78x6"
+      - series: 'node_hwmon_temp_celsius{instance="heimdall",job="node",role="display",vlan="50",chip="1000120000_pcie_1f000c8000_adc",sensor="temp1"}'
+        values: "79x10"
+    alert_rule_test:
+      - eval_time: 45m
+        alertname: DisplayHot
+        exp_alerts:
+          - exp_labels:
+              instance: heimdall
+              role: display
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "heimdall has been above 75 °C for 15 minutes"
+              description: >-
+                78.0 °C on the SoC. It throttles at 80 °C.
+                Check the fan and the space around the Pi, and
+                `vcgencmd get_throttled` on it.
+      - eval_time: 20m
+        alertname: DisplayHot
         exp_alerts: []
 
   # --- InstanceDown: fires for a SCRAPED HOST, naming it rather than its port -
@@ -700,13 +851,73 @@ tests:
             exp_annotations:
               summary: "oracle has stopped reporting patch state"
               description: >-
-                It reported within the last day and has not in six hours, so
-                SecurityUpdatesPending and RebootRequired are both blind to this
-                host until it comes back. Check homelab-patch-state.timer on the
-                host — `systemctl status homelab-patch-state.timer` — and that
+                Either its patch state reported within the last two weeks and
+                has not in six hours, or apt-patch-state.prom has not been
+                rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading no data or stale data for this host
+                until the collector runs again. Check homelab-patch-state.timer
+                on the host — `systemctl status homelab-patch-state.timer` —
+                and that
                 /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
                 being written and is world-readable. A 0600 file is invisible to
                 the collector and produces exactly this silence.
+
+  # --- PatchStateStopped: still firing days later, and gone after two weeks -
+  # The case review of #1580 found: with [1d] the alert cleared itself about
+  # 30h after the collector stopped, with nothing recovered. Twenty hours of
+  # reporting, then 15.5 days of gap (the [14d] window plus its 6h offset and
+  # a day to spare). Still firing at 3d and 10d; quiet at 16d, once the last
+  # sample has aged out of the window, which is the documented end.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "3x20 _x380"
+    alert_rule_test:
+      - eval_time: 3d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                Either its patch state reported within the last two weeks and
+                has not in six hours, or apt-patch-state.prom has not been
+                rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading no data or stale data for this host
+                until the collector runs again. Check homelab-patch-state.timer
+                on the host — `systemctl status homelab-patch-state.timer` —
+                and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+      - eval_time: 10d
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                Either its patch state reported within the last two weeks and
+                has not in six hours, or apt-patch-state.prom has not been
+                rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading no data or stale data for this host
+                until the collector runs again. Check homelab-patch-state.timer
+                on the host — `systemctl status homelab-patch-state.timer` —
+                and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+      - eval_time: 16d
+        alertname: PatchStateStopped
+        exp_alerts: []
 
   # --- PatchStateStopped: quiet for a host that reports zero -----------------
   # The whole point of the rule. A host with nothing to report and a host whose
@@ -719,6 +930,69 @@ tests:
         values: "0x400"
     alert_rule_test:
       - eval_time: 30h
+        alertname: PatchStateStopped
+        exp_alerts: []
+
+  # --- PatchStateStopped: fires when the file stops being rewritten ---------
+  # The case the first branch cannot see, raised in review on #1585: the timer
+  # stops and leaves apt-patch-state.prom in place, node_exporter re-serves it,
+  # and homelab_apt_upgrades_pending stays present throughout. Only the mtime
+  # stops moving. Written at t=0 and never again, it is two days old at 48h,
+  # and `for: 30m` makes it firing by 49h. Quiet at 47h, inside the window.
+  #
+  # The alert carries `host`, copied from the mtime series' `instance`, so it
+  # is the same label set the absence branch produces for the same host.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "3x600"
+      - series: 'node_textfile_mtime_seconds{instance="oracle",job="oracle-metrics",file="apt-patch-state.prom"}'
+        values: "0x600"
+    alert_rule_test:
+      - eval_time: 47h
+        alertname: PatchStateStopped
+        exp_alerts: []
+      - eval_time: 49h
+        alertname: PatchStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: security
+            exp_annotations:
+              summary: "oracle has stopped reporting patch state"
+              description: >-
+                Either its patch state reported within the last two weeks and
+                has not in six hours, or apt-patch-state.prom has not been
+                rewritten in two days, so SecurityUpdatesPending and
+                RebootRequired are reading no data or stale data for this host
+                until the collector runs again. Check homelab-patch-state.timer
+                on the host — `systemctl status homelab-patch-state.timer` —
+                and that
+                /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+                being written and is world-readable. A 0600 file is invisible to
+                the collector and produces exactly this silence.
+
+  # --- PatchStateStopped: quiet while the daily timer keeps rewriting it ----
+  # Rewritten once a day, as the 08:00 timer does, so the file is never more
+  # than a day old. guest-state.prom beside it on the same host is old and must
+  # not match: the regex is the whole scope of the branch, and a loosened
+  # `.*state\.prom` fails this case.
+  #
+  # Sampled every 5m although the file changes daily. At 1h each series is
+  # absent for most of every step (the lookback is 5m), `for` restarts each
+  # time, and the loosened regex survived this case still pending.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_apt_upgrades_pending{host="oracle"}'
+        values: "3x1000"
+      - series: 'node_textfile_mtime_seconds{instance="oracle",job="oracle-metrics",file="apt-patch-state.prom"}'
+        values: "0x287 86400x287 172800x287 259200x135"
+      - series: 'node_textfile_mtime_seconds{instance="oracle",job="oracle-metrics",file="guest-state.prom"}'
+        values: "0x1000"
+    alert_rule_test:
+      - eval_time: 79h
         alertname: PatchStateStopped
         exp_alerts: []
 
@@ -761,6 +1035,68 @@ tests:
     alert_rule_test:
       - eval_time: 30h
         alertname: DriftCheckStopped
+        exp_alerts: []
+
+  # --- DriftCheckFailing: fires when the checker could not start ------------
+  # 2026-11-15's shape: the wiki fetch failed, exit 128, and the timestamp kept
+  # moving, so DriftCheckStopped stayed quiet.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "0x12 128x24"
+    alert_rule_test:
+      - eval_time: 2h
+        alertname: DriftCheckFailing
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle's wiki drift check ran and could not finish (exit 128)"
+              description: >-
+                Exit 2 means a claim could not be read, so part of the wiki is
+                unchecked. A higher exit means the checker never started. Its last
+                run is in Loki under unit="homelab-drift-check.service". At 2,
+                the usual cause is a missing or expired ~/.ingest-reader-token for
+                atropos. Above 2, it is the wiki fetch or the gh login in
+                /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+                the next run, at 06:30 UTC.
+
+  # --- DriftCheckFailing: fires on an unreadable claim ------------------------
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "2x24"
+    alert_rule_test:
+      - eval_time: 1h
+        alertname: DriftCheckFailing
+        exp_alerts:
+          - exp_labels:
+              host: oracle
+              component: host
+              severity: warning
+              category: correctness
+            exp_annotations:
+              summary: "oracle's wiki drift check ran and could not finish (exit 2)"
+              description: >-
+                Exit 2 means a claim could not be read, so part of the wiki is
+                unchecked. A higher exit means the checker never started. Its last
+                run is in Loki under unit="homelab-drift-check.service". At 2,
+                the usual cause is a missing or expired ~/.ingest-reader-token for
+                atropos. Above 2, it is the wiki fetch or the gh login in
+                /home/atropos/code/Gerrrt/Lemmiwinks; a one-off clears itself at
+                the next run, at 06:30 UTC.
+
+  # --- DriftCheckFailing: quiet on drift, which files its own wiki issue -----
+  - interval: 5m
+    input_series:
+      - series: 'homelab_drift_check_last_exit_code{host="oracle"}'
+        values: "0x12 1x24"
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: DriftCheckFailing
         exp_alerts: []
 
   # --- PatchStateStopped: quiet for a host being onboarded -------------------
@@ -1713,11 +2049,46 @@ tests:
             exp_annotations:
               summary: "Saruman has stopped reporting its guests"
               description: >-
-                It reported within the last day and has not in six hours, so
-                HypervisorGuestStopped is blind to this hypervisor until it
-                comes back. Check homelab-guest-state.timer on the host and that
+                Either its guests reported within the last two weeks and have
+                not in six hours, or guest-state.prom has not been rewritten in
+                an hour, so HypervisorGuestStopped is reading no data or stale
+                data for this hypervisor until the collector runs again. Check
+                homelab-guest-state.timer on the host, its last run in the
+                journal (`journalctl -u homelab-guest-state`), and that
                 /var/lib/node_exporter/textfile_collector/guest-state.prom is
                 being written and is world-readable.
+
+  # --- GuestStateStopped: still firing days later, and gone after two weeks -
+  # PatchStateStopped's long-gap case: with [1d] this cleared itself about
+  # 30h after the series went. Still firing at 10d; quiet at 16d, so the
+  # lookback is bounded and a retired hypervisor stops alerting.
+  - interval: 1h
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "1x20 _x380"
+    alert_rule_test:
+      - eval_time: 10d
+        alertname: GuestStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its guests"
+              description: >-
+                Either its guests reported within the last two weeks and have
+                not in six hours, or guest-state.prom has not been rewritten in
+                an hour, so HypervisorGuestStopped is reading no data or stale
+                data for this hypervisor until the collector runs again. Check
+                homelab-guest-state.timer on the host, its last run in the
+                journal (`journalctl -u homelab-guest-state`), and that
+                /var/lib/node_exporter/textfile_collector/guest-state.prom is
+                being written and is world-readable.
+      - eval_time: 16d
+        alertname: GuestStateStopped
+        exp_alerts: []
 
   # --- GuestStateStopped: quiet for a hypervisor reporting zero guests ------
   # The case that makes this rule necessary AND the case it must not fire on.
@@ -1728,6 +2099,61 @@ tests:
         values: "0x400"
     alert_rule_test:
       - eval_time: 30h
+        alertname: GuestStateStopped
+        exp_alerts: []
+
+  # --- GuestStateStopped: fires when the file stops being rewritten ---------
+  # PatchStateStopped's second branch, at this timer's cadence. The collector
+  # stops, guest-state.prom stays, homelab_guests_total is re-served and never
+  # goes absent. Written at t=0 and never again, it is an hour old at 60m and
+  # firing by 95m; quiet at 55m.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "1x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 55m
+        alertname: GuestStateStopped
+        exp_alerts: []
+      - eval_time: 95m
+        alertname: GuestStateStopped
+        exp_alerts:
+          - exp_labels:
+              host: Saruman
+              component: host
+              severity: warning
+              category: availability
+            exp_annotations:
+              summary: "Saruman has stopped reporting its guests"
+              description: >-
+                Either its guests reported within the last two weeks and have
+                not in six hours, or guest-state.prom has not been rewritten in
+                an hour, so HypervisorGuestStopped is reading no data or stale
+                data for this hypervisor until the collector runs again. Check
+                homelab-guest-state.timer on the host, its last run in the
+                journal (`journalctl -u homelab-guest-state`), and that
+                /var/lib/node_exporter/textfile_collector/guest-state.prom is
+                being written and is world-readable.
+
+  # --- GuestStateStopped: quiet while the timer keeps rewriting it ----------
+  # Rewritten on every sample. guest-disk-state.prom beside it is old and must
+  # not match: `.*guest-state\.prom` does not reach it, and a regex loosened
+  # to `.*state\.prom` fails this case. Sampled every 5m for
+  # ThinPoolStateStale's reason: at 10m each sample is absent for half of
+  # every step and `for` restarts, so a loosened regex would pass still
+  # pending.
+  - interval: 5m
+    input_series:
+      - series: 'homelab_guests_total{host="Saruman"}'
+        values: "1x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-state.prom"}'
+        values: "0+300x40"
+      - series: 'node_textfile_mtime_seconds{instance="Saruman",job="Saruman-metrics",file="guest-disk-state.prom"}'
+        values: "0x40"
+    alert_rule_test:
+      - eval_time: 3h
         alertname: GuestStateStopped
         exp_alerts: []
 
@@ -3191,6 +3617,73 @@ tests:
     alert_rule_test:
       - eval_time: 20m
         alertname: HostBatteryNotReported
+        exp_alerts: []
+
+  # --- HostCpuHot: 96 °C against a 105 °C critical, held, fires ----------
+  # 96 is inside the rule's ten degrees on prometheus, held from the first
+  # sample. Quiet at 5m and firing at 10m pins the hold to `for: 10m`: removing
+  # it fails the first check, lengthening it fails the second. Labels other
+  # than instance and job are aggregated away, so one host gives one alert
+  # however many cores are hot.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "96x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "105x20"
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp3"}'
+        values: "97x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp3"}'
+        values: "105x20"
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HostCpuHot
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: HostCpuHot
+        exp_alerts:
+          - exp_labels:
+              instance: prometheus
+              job: prometheus-metrics
+              component: host
+              severity: warning
+              category: hardware
+            exp_annotations:
+              summary: "prometheus: CPU at 97 °C, within 10 °C of critical"
+              description: >-
+                A CPU core on prometheus has been within 10 °C of its own
+                critical temperature for ten minutes. Heavy work alone has not
+                done that on any host here. Check the fan and the vents first,
+                then whatever is using the CPU; at the critical point the
+                machine shuts itself down.
+
+  # --- HostCpuHot: the audit's 92 °C peak, for five minutes, does not -------
+  # The hottest the laptop ran in the audit's heavy work: 92 °C, briefly. It is
+  # 13 under critical, so outside the ten degrees, and a spike that short would
+  # not outlast the ten minutes anyway.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "70x5 92x5 70x10"
+      - series: 'node_hwmon_temp_crit_celsius{instance="prometheus",job="prometheus-metrics",chip="platform_coretemp_0",sensor="temp2"}'
+        values: "105x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostCpuHot
+        exp_alerts: []
+
+  # --- HostCpuHot: a chip whose critical point is not one does not ----------
+  # smaug's DIMM sensors report a critical point of 0 °C, so every sample is
+  # over it. They are not coretemp, so the rule never reads them.
+  - interval: 1m
+    input_series:
+      - series: 'node_hwmon_temp_celsius{instance="smaug",job="node",chip="i2c_0_0_0018",sensor="temp1"}'
+        values: "28x20"
+      - series: 'node_hwmon_temp_crit_celsius{instance="smaug",job="node",chip="i2c_0_0_0018",sensor="temp1"}'
+        values: "0x20"
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostCpuHot
         exp_alerts: []
 
   # --- HostBatteryHot: fires at 48 °C after five minutes --------------------

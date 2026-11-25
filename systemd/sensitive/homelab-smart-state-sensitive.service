@@ -1,0 +1,61 @@
+# SMART health for trinity's own disks: the boot NVMe that holds the tier.
+#
+# NOT THE PHOTO DISK. The USB disk at /srv/immich sits in a Seagate enclosure
+# (0bc2:ab18, on the uas driver) that answers no ATA pass-through: -d sat,
+# -d sat,12 and -T permissive all fail "Read Device Identity" (2026-11-21).
+# smartctl still returns a device, so homelab_smart_devices counts it, but it
+# carries no health series and no rule can page on it. Its protection is the
+# nightly copy to oracle and verify-backups-sensitive's re-read of it.
+#
+# The monitoring host's homelab-smart-state.service, run on the other host with
+# a checkout, and that unit explains every directive below; this one states
+# only what differs. Before it, trinity was the one Alloy host with a checkout
+# that read no SMART at all: a failing NVMe under the password vault would have
+# said so first as I/O errors.
+#
+# NOT `make smart-state`. That target also renders smart-baselines.prom, and
+# SmartDriveBadSectors joins it `on(host, slot)` from the one copy the
+# monitoring host serves (scripts/render-smart-baselines.sh). A second copy
+# from here would put two series on every key and break the join for the whole
+# estate. `make smart-state-sensitive` runs the collector alone.
+#
+# ROOT, for the estate unit's reason: smartctl's ATA and NVMe pass-through
+# ioctls need raw device access, and no group substitutes. Nothing here runs as
+# @RUN_USER@, so the unit reads that user's checkout and writes one directory.
+#
+# /run/lock IS NAMED IN ReadWritePaths because run-scheduled.sh opens its lock
+# there before it runs anything, and ProtectSystem=strict is documented to
+# leave everything outside /dev, /proc, /sys and ReadWritePaths read-only. The
+# directory is already world-writable (1777), so naming it grants this unit
+# nothing an unprivileged user lacks.
+[Unit]
+Description=HomeLab: collect SMART health for trinity's disks
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/schedule-maintenance.md
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=@DEPLOY_ROOT@
+EnvironmentFile=-/etc/default/homelab-timers
+ExecStart=@DEPLOY_ROOT@/scripts/run-scheduled.sh --job smart-state-sensitive -- /usr/bin/make -C @DEPLOY_ROOT@ smart-state-sensitive
+TimeoutStartSec=300
+Restart=no
+Nice=10
+NoNewPrivileges=true
+RestrictSUIDSGID=true
+LockPersonality=true
+RestrictRealtime=true
+PrivateTmp=true
+ProtectHome=read-only
+ProtectSystem=strict
+ReadWritePaths=/var/lib/node_exporter/textfile_collector /run/lock
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+PrivateNetwork=true
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-smart-state-sensitive
+
+# No [Install] section: the timer enables this.

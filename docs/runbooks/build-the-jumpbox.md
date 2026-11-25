@@ -144,6 +144,60 @@ hand. The agent grants nothing new: root on `Saruman` already holds this
 guest's console and disk. It is preferred to trusting `Saruman`'s key for SSH,
 which would open a network login into the host that holds the token.
 
+### No network in the initramfs
+
+Ubuntu 26.04's initramfs is dracut's. It carries systemd-networkd and a
+catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface,
+so `ens18` asks the lab's DHCP server for an address before netplan's static
+`10.0.30.70` applies. On `phoenix` that request is answered with `.70` itself, because §3's reservation maps its MAC there, so it has taken no pool address. It still asks, every boot, and it would take one the day the reservation drifts. The address is dropped at switch-root,
+seconds later, but the request has crossed the segment with the guest's MAC
+and, as `fenrir`'s capture showed for its own, its hostname. The root disk is
+local, so the initramfs needs no network at all. Leave it out, as `fenrir`
+does ([`build-the-sensor-guest.md`](build-the-sensor-guest.md) §3) and as
+dracut's own `no-network` profile does:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# phoenix: no networking in the initramfs (build-the-jumpbox.md §2).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs ens18 before netplan's static address applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and
+checked is the one the next boot uses. On 26.04, `update-initramfs` is
+dracut's wrapper, and every later kernel is built with the file in place.
+
+`update-initramfs` prints `dracut[E]: Module 'dyn-netconf' depends on module
+'systemd-networkd', which can't be installed`, here and at every later
+kernel. That is the omit working, not a failure. `dyn-netconf` comes with
+`cloud-initramfs-dyn-netconf`, which the ISO installs, and all it does is
+configure the network in the initramfs. The `lsinitrd` line is the check.
+
+The copy is the way back. If the new image does not boot, open VM 170's
+console in the Proxmox web UI (*Saruman → 170 → Console*). Reset the VM and
+hold Esc to show GRUB's menu, which Ubuntu hides by default. Press `e` on the
+first entry, add `.pre-no-network` to the end of the file name on the `initrd`
+line, and boot with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again.
+
+Reboot, and check that nothing before switch-root asked for an address:
+
+```bash
+sudo journalctl -b -o short-iso | awk '/Switching root/{exit} {print}' | grep -cE 'DHCPv4|zzzz-dracut-default'   # 0
+ip -4 -o addr show ens18 | awk '{print $4}'   # 10.0.30.70/24
+```
+
+Then delete the copy.
+
 ## 3. The reservation on `morpheus`
 
 Read the guest's MAC from the hypervisor:
@@ -383,6 +437,87 @@ The script's own arrival check queries `10.0.30.40` afterwards. If it warns
 to check the pass to `10.0.30.40:9443`, the answer is that there is no
 pass to place — go back to §5, because that message was written for hosts on
 another VLAN and this one is not.
+
+## 6a. Close the way in
+
+[ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
+`sshd` takes keys only, and inbound is default-deny. Nothing converges this
+host, so this section is how it gets there, on a rebuild as on the first
+build.
+
+**First, every workstation that logs in has a key.** This is the step that
+locks you out if it is skipped. From each Hicks machine that uses `phoenix`,
+add its public key to `~/.ssh/authorized_keys` on `phoenix`, then prove it
+with passwords refused on the client side:
+
+```bash
+ssh -o ControlMaster=no -o ControlPath=none \
+    -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+    <user>@10.0.30.70 true && echo key-ok
+```
+
+`ControlMaster=no` and `ControlPath=none` force a new connection. Without
+them, a client that multiplexes reuses an open session that logged in by
+password, and prints `key-ok` without testing a key. Every machine prints
+`key-ok` before you go on. Keep one session open on
+`phoenix` until the end of this section.
+
+**Then `sshd`.** On `phoenix`. The `10-` prefix sorts ahead of the installer's
+`50-cloud-init.conf`, and `sshd` keeps the first value it reads:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-phoenix.conf >/dev/null <<'EOF'
+# ADR-0117: phoenix owns the lab domain, so its own login is key-only.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four lines read `no`. A fresh login from a second terminal, with the
+first still open, is the check that the reload did not shut you out: the
+same command as above, with its `ControlMaster=no` and `ControlPath=none`.
+
+**Then the firewall.** `ufw` does not touch `net.ipv4.ip_forward`, and its
+forward policy is `DROP`, so the tunnel needs the one `route` line. On a
+first build the tunnel does not exist yet: leave out the three lines marked
+`tunnel`, and [`open-the-remote-path.md`](open-the-remote-path.md) §3 adds
+them.
+
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw default deny routed
+sudo ufw allow from 10.0.50.0/24 to any port 22 proto tcp comment 'Hicks'
+sudo ufw allow in on wg0 from 172.31.0.0/24 to any port 22 proto tcp comment 'tunnel peers'   # tunnel
+sudo ufw allow <LISTEN_PORT>/udp comment 'WireGuard'                                          # tunnel
+sudo ufw route allow in on wg0 out on ens18 comment 'ADR-0042: morpheus filters'              # tunnel
+sudo ufw enable
+sudo ufw status verbose
+```
+
+`<LISTEN_PORT>` is the one `open-the-remote-path.md` §0 chose. It stays out
+of this repository. `ens18` is the NIC `ip -br addr` shows with
+`10.0.30.70`. Port `8800` is not here: a Debian or Kali template build opens
+it for its own length
+([`build-the-lab-templates.md`](build-the-lab-templates.md) §5).
+
+**Check each rule from the side it applies to.**
+
+- From Hicks: `ssh -o ControlMaster=no -o ControlPath=none <user>@10.0.30.70 true`
+  succeeds.
+- From a VLAN 30 host, `alexander` for example:
+  `nc -zv -w 3 10.0.30.70 22` times out.
+- From a peer, with the tunnel up: the same `ssh` succeeds.
+  `ping -c 1 10.0.30.40` answers at `ttl=62`, which shows `phoenix` still
+  forwards. The reply comes back through `morpheus`'s route for the tunnel
+  subnet, so two routers decrement it. Then run [`open-the-remote-path.md`](open-the-remote-path.md) §8's
+  negative tests, which must still be blocked and logged on `morpheus`.
+- On `phoenix`: §4's `curl` still lists the guests, and §7's Alloy checks
+  still pass. Both are outbound, and `ufw` allows outbound.
 
 ## 7. Verify — including the thing that fails quietly
 

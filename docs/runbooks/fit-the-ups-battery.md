@@ -35,13 +35,11 @@ un-silenced by hand at the right moment.**
 > `scripts/snmp-walk.sh --device mjolnir 1.3.6.1.4.1.318.1.1.1.7.2` is still how
 > you read the card directly when one of those fires.
 >
-> **One reading that was not reset.** `upsBasicBatteryLastReplaceDate` is
-> `08/15/2026` — thirteen days before the pack went in, on a date when this
-> card's own self-test was still aborting over an empty bay. Step 2, item 5 asks
-> for that date to come back reset and it did not, so the card's battery-age
-> accounting, and the replacement date it projects from it, are keyed to
-> something that did not happen. Harmless today; wrong in four years, when it is
-> the only record of how old the pack is.
+> **The replacement date is right.** `upsBasicBatteryLastReplaceDate` reads
+> `08/15/2026`, which read as thirteen days before the pack went in. It isn't
+> wrong: the card's *Last Battery Replacement* field stores a month and year
+> only (read at the card on 2026-11-24), and SNMP and NUT add a filler day.
+> August 2026 is the fit month, so the field is the record of the pack's age.
 >
 > The shelf and the switch move (step 2, items 1–3) were not done that day;
 > they were done on 2026-09-08, which closed
@@ -86,7 +84,8 @@ is measured rather than assumed
 ([#454](https://github.com/Gerrrt/HomeLab/issues/454)). No collector was
 needed: Alloy's node collector already exports `node_power_supply_*` from both
 hosts, and `host.rules.yaml` reads it — `HostBatteryHealthLow` when a cell's
-`charge_full` falls below 80 % of `charge_full_design` (`oracle` reads 72 %;
+`charge_full` falls below 80 % of `charge_full_design` (`oracle` read 72 % until
+its cell was replaced on 2026-09-29, and now reads 100 %, its design figure;
 `prometheus` read 94 % after 108 cycles until its cell was replaced on
 2026-09-18, and now reads 101 % at one cycle), `HostOnBattery` when the mains
 adapter loses
@@ -110,8 +109,9 @@ above design, `cyclecount` 1. **The second half was proved on 2026-09-19**: the
 brick pulled on a full pack, `HostOnBattery` firing for `prometheus` alone
 inside three minutes with `UpsOnBattery` quiet, the host up throughout, and a
 measured draw of 2.72 Ah/h — about 2.5 hours from full at the stack's load, one
-measurement on one day. That closed #454. `oracle`'s half is untested and its
-cell is [#531](https://github.com/Gerrrt/HomeLab/issues/531).
+measurement on one day. That closed #454. `oracle`'s cell was replaced on
+2026-09-29 and measured the same day at 0.54 Ah/h, about 5.2 hours from full
+([#531](https://github.com/Gerrrt/HomeLab/issues/531)).
 
 ## Before you start
 
@@ -185,8 +185,10 @@ the cases that genuinely need the wire, and reads the credential from SOPS.
    powered off; [ADR-0034](../adr/0034-run-the-sensitive-tier-on-the-prodesk-and-make-it-the-spare-hardware.md)
    makes that box the sensitive tier's host instead, and
    [#404](https://github.com/Gerrrt/HomeLab/issues/404) decides where it lives.
-5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure, and
-   confirm the card comes back with the battery-replacement date reset.
+5. **Fit the APCRBC115 pack** last, per the Smart-UPS front-bezel procedure,
+   then set *Configuration → UPS → Last Battery Replacement* to the month and
+   year of the fit. The field takes no day. It is what `UpsBatteryPackAging`
+   counts three years from, so setting it is what clears that warning.
 
 ## 3. Delete the silence — immediately, not on expiry
 
@@ -403,20 +405,10 @@ unwatched*: the schedule is set, no rule can see it, and the proof is
 `upsAdvTestLastDiagnosticsDate` advancing on its own around 2026-09-11. #93
 moved into Done in the same pass, because its third step is now satisfied.
 
-**Still to do:**
-
-| File | What changes |
-| --- | --- |
-| `docs/images/ups-power.png` | Re-capture the set with `make screenshots`. The committed image is from 2026-08-22 and shows the original no-battery banner; it needs the decrypted Grafana password, so it is a human step |
-| The NMC | Reset `upsBasicBatteryLastReplaceDate`, which still reads `08/15/2026` for a pack fitted on the 28th. A human step at the card's web UI: every SNMP path in this repository reads and none of them writes |
-
-And when the shelf is racked, which is a separate visit and separate issue:
-
-| File | What changes |
-| --- | --- |
-| `docs/hardware.md` | The 1U shelf into the rack table at U4, and into Accessories |
-| `docs/network.md` | The TP-Link note — now racked and on UPS power |
-| `docs/roadmap.md` | The #110 entry leaves; the fit goes to `docs/changelog.md` under the date |
+**Since done:** `docs/images/ups-power.png` was re-captured on 2026-10-10
+(#1117) and no longer shows the no-battery banner. The shelf switch was racked
+and #110 closed, and the 32U move then replaced that layout
+([`hardware.md`](../hardware.md)). Nothing from this runbook is left to do.
 
 One coupling to know about before you start editing: **deleting the banner panel
 changes the dashboard's panel count**, and `scripts/check_docs.py` asserts every

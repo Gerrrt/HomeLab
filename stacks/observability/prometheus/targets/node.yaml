@@ -100,3 +100,27 @@
     instance: smaug
     role: nas
     vlan: "40"
+
+# --- heimdall ------------------------------------------------------------
+#
+# The office wall dashboard, a Raspberry Pi 5 on Hicks (ADR-0119). Scraped
+# over the one Winterfell pass `10.0.99.20 -> 10.0.50.15:9100/tcp`, which
+# build-heimdall.md section 4 created on 2026-11-17. The exporter is Debian's
+# `prometheus-node-exporter` package. The same day, from this host:
+#
+#   curl -s 10.0.50.15:9100/metrics | grep -m3 node_
+#
+# answered with node_arp_entries{device="wlan0"} 1.
+#
+# `role: display` is what keeps InstanceDown from paging for it
+# (rules/host.rules.yaml): a dead screen shows itself. The same label selects
+# the four Display* warnings there, on what the wall does not show: the SoC's
+# temperature, upgrades left pending, a failed unit, and two hours unscraped.
+# node_exporter does not report the throttle state. That is
+# `vcgencmd get_throttled`, read on the Pi.
+
+- targets: ["10.0.50.15:9100"]
+  labels:
+    instance: heimdall
+    role: display
+    vlan: "50"

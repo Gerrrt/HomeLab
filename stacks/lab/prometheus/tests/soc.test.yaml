@@ -117,17 +117,17 @@ tests:
         exp_alerts: []
 
   # --- WazuhIndexerHeapPressure ----------------------------------------------
-  # Max is 2 GiB, as compose.yaml sets it. The firing case holds at 90%; the
+  # Max is 3 GiB, as compose.yaml sets it. The firing case holds at 90%; the
   # quiet case sawtooths between 40% and 80%, which is a JVM collecting on
   # schedule and is the shape a healthy indexer shows.
   - interval: 1m
     input_series:
       - series: 'elasticsearch_jvm_memory_max_bytes{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",area="heap"}'
-        values: "2147483648+0x40"
+        values: "3221225472+0x40"
       - series: 'elasticsearch_jvm_memory_used_bytes{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster",area="heap"}'
         values: >-
-          858993459 1717986918 858993459 1717986918 858993459 1717986918
-          858993459 1717986918 858993459 1717986918 1932735283+0x30
+          1288490189 2576980378 1288490189 2576980378 1288490189 2576980378
+          1288490189 2576980378 1288490189 2576980378 2899102925+0x30
     alert_rule_test:
       - eval_time: 30m
         alertname: WazuhIndexerHeapPressure
@@ -156,7 +156,7 @@ tests:
   - interval: 1m
     input_series:
       - series: 'elasticsearch_cluster_health_active_shards{job="wazuh-indexer",instance="odin",cluster="wazuh-cluster"}'
-        values: "40+0x10 48+0x80"
+        values: "60+0x10 70+0x80"
     alert_rule_test:
       - eval_time: 80m
         alertname: WazuhIndexerShardBudgetNearlySpent
@@ -170,13 +170,12 @@ tests:
               severity: warning
               category: capacity
             exp_annotations:
-              summary: "The Wazuh indexer holds more than 45 shards"
+              summary: "The Wazuh indexer holds more than 68 shards"
               description: >-
-                The 2 GiB heap buys about 50. Check that the 30-day ISM policy in
-                stacks/soc/wazuh/indexer/ism-wazuh-alerts.json is attached and
-                deleting; if it is, the fix is rollover indices, not a larger
-                number in the policy.
-      # Forty shards is the steady state ADR-0030 sized for: quiet.
+                The 3 GiB heap buys about 75. Check that the 30-day ISM policies in
+                stacks/soc/wazuh/indexer/ are attached and deleting; if they are,
+                the fix is rollover indices, not a larger number in the policy.
+      # Sixty shards is the steady state ADR-0118 sized for: quiet.
       - eval_time: 9m
         alertname: WazuhIndexerShardBudgetNearlySpent
         exp_alerts: []

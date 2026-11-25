@@ -40,28 +40,16 @@ What this asserts
 3. Which rule each path resolves to is printed, so the separation ADR-0020
    decided is visible in CI output rather than inferred from two regexes.
 
-4. **The household's recipients stay out of every rule** (ADR-0073). The keys
-   that open the household's copy live in stacks/sensitive/household.recipients,
-   not in a sops rule, because a key in the sensitive rule would also open the
-   tier's passwords. Nothing would stop a later `make secrets-add-recipient`
-   with the holder's key from collapsing that, so this fails on it: a
-   `household` key in any rule is an error. And the `technical-second` key there
-   must be the one the catch-all rule actually carries, so the file cannot
-   advertise a fallback that ADR-0024's proof never touches. A key in the
-   combined role, `household-and-technical-second` (one person in both, which
-   ADR-0073 allows), IS the technical second: it is held to the catch-all like
-   one, and is not a plain household key.
-
-5. **A file's recipients are its rule's** (#835). .sops.yaml is policy and the
+4. **A file's recipients are its rule's** (#835). .sops.yaml is policy and the
    `sops:` block in each committed file is fact; they differ for as long as
    somebody added a key and forgot `sops updatekeys`, which is the window
    ADR-0024 calls a recovery path that does not exist.
 
-6. **A stack whose key guards data has two recipients** (#835, ADR-0024).
+5. **A stack whose key guards data has two recipients** (#835, ADR-0024).
    `secrets/sensitive.sops.yaml` was born with one on 2026-09-28, after #294
    had closed, and its volume backups were encrypted to the same one key for
-   days while the tier held the household's vault. Nothing noticed, because
-   SecretsKeyBackupUnproven checks the recipients that exist, not how many.
+   days while the tier held the household's vault. Nothing noticed: no alert
+   counts a file's recipients.
    Which stacks need two is a list, below, with the reason for each.
 
 The paths are derived, not listed: the stacks come from scripts/stacks.sh, the
@@ -194,7 +182,7 @@ def check_recipients(
     rule_for: dict[str, set[str]],
     rule_of: dict[str, str] | None = None,
 ) -> list[str]:
-    """Checks 5 and 6: each file matches its rule, and the data-guarding ones
+    """Checks 4 and 5: each file matches its rule, and the data-guarding ones
     have two recipients. Pure, so --self-test can hand it fixtures.
 
     `rule_of` maps each file to its rule's path_regex, so the repair advice can
@@ -397,40 +385,6 @@ def self_test() -> int:
     return 1 if failed else 0
 
 
-def check_household(rules: list[dict], matched_by: dict[str, str]) -> list[str]:
-    """ADR-0073: household keys in no rule; the technical second in the catch-all."""
-    listed = subprocess.run(
-        [str(REPO / "scripts/household-recipients.sh"), "--roles"],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    if listed.returncode != 0:
-        return [f"stacks/sensitive/household.recipients: {listed.stderr.strip()}"]
-
-    problems: list[str] = []
-    catch_all = matched_by.get("secrets/observability.sops.yaml")
-    catch_all_keys = next((rule_keys(r) for r in rules if r.get("path_regex") == catch_all), set())
-    for line in listed.stdout.splitlines():
-        role, key = line.split(" ", 1)
-        if role == "household":  # the combined role is the technical second, below
-            for rule in rules:
-                if key in rule_keys(rule):
-                    problems.append(
-                        f"household key {key} is a recipient of creation_rule "
-                        f"{rule.get('path_regex')!r} — it would open that rule's "
-                        f"secrets, which is what ADR-0073 keeps it out of. Take it "
-                        f"out of {POLICY.name} and run `sops updatekeys`"
-                    )
-        elif role in ("technical-second", "household-and-technical-second") and key not in catch_all_keys:
-            problems.append(
-                f"{role} key {key} in stacks/sensitive/household.recipients "
-                f"is not a recipient of the catch-all rule — ADR-0024's proof covers "
-                f"that rule's keys, so this one is a fallback nothing has proved"
-            )
-    return problems
-
-
 def main() -> int:
     if not POLICY.exists():
         print(f"no {POLICY.name}", file=sys.stderr)
@@ -455,10 +409,11 @@ def main() -> int:
             problems.append(f"path_regex {raw!r} does not compile — {exc}")
 
     # The paths sops is actually asked to encrypt. Stack secrets files, plus one
-    # firewall export: the stamp is arbitrary, so any well-formed name stands in
-    # for the whole class.
+    # firewall export and one switch export: the stamp is arbitrary, so any
+    # well-formed name stands in for the whole class.
     paths = [f"secrets/{stack}.sops.yaml" for stack in stacks()]
     paths.append("backups/firewall/config-20260101T000000Z.sops.yaml")
+    paths.append("backups/switch/config-20260101T000000Z.sops.yaml")
 
     matched_by: dict[str, str] = {}
     used: set[str] = set()
@@ -480,10 +435,9 @@ def main() -> int:
                 f"this rule was added for is not in effect (ADR-0020)"
             )
 
-    problems.extend(check_household(rules, matched_by))
     problems.extend(check_separation(rules, matched_by))
 
-    # Checks 5 and 6, over every committed secrets file, tofu's included.
+    # Checks 4 and 5, over every committed secrets file, tofu's included.
     files: dict[str, set[str]] = {}
     rule_for: dict[str, set[str]] = {}
     rule_of: dict[str, str] = {}

@@ -35,7 +35,7 @@ than carrying a second copy that drifts.
 | Kind | **VM, not LXC** | Same reason as `alexander`: `cgroup: host`, `cap_drop`, a Docker socket mount, and now `vm.max_map_count`, which an LXC cannot set for itself at all |
 | OS | **Ubuntu Server LTS** | Same reason as `alexander`, and check it the same way: `config.alloy` tails `/var/log/auth.log` and `/var/log/syslog`, and a journald-only install collects nothing from either while reporting healthy. §10 is the check |
 | vCPU | 4 | OpenSearch and fifteen Wazuh daemons are not single-threaded; the host has 48 threads and compute was never the constraint (ADR-0007) |
-| RAM | **16 GiB** | The services at rest fit in 8 GiB, and ADR-0030's heap arithmetic was written for it — the indexer's heap stays 2 GiB, its `mem_limit` 3.5, the manager's 2. But **vulnerability detection breaks that budget on a burst**: it downloads a ~400 MB CVE feed, unpacks it to an ~8.5 GB tar and bulk-indexes it into the indexer, and that import — repeated on the content manager's schedule, not just once — drove an 8 GiB guest into memory+IO thrash that wedged it for minutes at a time on the 2026-09-27 build. 16 GiB is the headroom that import needs; the host has it to give (48 threads, ~70 GiB free), and the extra 8 GiB is burst room and page cache, not heap. Revisit if vulnerability detection is ever turned off |
+| RAM | **16 GiB** | The services at rest fit in 8 GiB, and ADR-0030's heap arithmetic was written for it — the indexer's heap was 2 GiB then, its `mem_limit` 3.5, the manager's 2 ([ADR-0118](../adr/0118-give-the-wazuh-indexer-three-gib-of-heap.md) has since made them 3 and 4.5). But **vulnerability detection breaks that budget on a burst**: it downloads a ~400 MB CVE feed, unpacks it to an ~8.5 GB tar and bulk-indexes it into the indexer, and that import — repeated on the content manager's schedule, not just once — drove an 8 GiB guest into memory+IO thrash that wedged it for minutes at a time on the 2026-09-27 build. 16 GiB is the headroom that import needs; the host has it to give (48 threads, ~70 GiB free), and the extra 8 GiB is burst room and page cache, less the 1 GiB ADR-0118 gave the heap. Revisit if vulnerability detection is ever turned off |
 | Disk | **Two: 48 GB for the OS, 96 GB for data** | The OS disk holds Ubuntu, Docker and the images: about 8.4 GB live, and during a re-pin a second full set, because a pull needs the old images (still running) and the new ones at once. It was 32 GB until 2026-10-07, when a Wazuh re-pin took `/` to 99% and odin was grown online to 48 ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)); `make up` now removes the images a deploy superseded. The data disk, mounted at `/srv/soc-data`, holds the two stores that grow: the indexer's ~7 GB of alerts at 30 days plus the vulnerability feed and the inventory and states indices, and Velociraptor's datastore, whose collections get large fast. They are separate so a hunt that collects too much fills the data disk and not `/` ([#439](https://github.com/Gerrrt/HomeLab/issues/439)), and so ADR-0030's heap-not-disk sizing has a filesystem that can prove it wrong. Bounded, not measured. Both on **`large_data`**, the SSD mirror, not the spindles: the indexer is the heaviest writer in ADR-0007, and that pool measured 7,952 random write IOPS at queue depth 1 against the HDD mirror's 741 ([#527](https://github.com/Gerrrt/HomeLab/issues/527)). `ssd=1`, `balloon 0` and `iothread=1` for the same reasons `alexander` has them |
 | First user | **uid 1000** | The indexer image runs as uid 1000 and mounts the 0600 user database `make render` writes; `render-config.sh` refuses any other uid. The first user the installer creates is 1000 — do not create a second one to deploy from |
 
@@ -79,7 +79,7 @@ qm create 160 \
   --net0 virtio,bridge=vmbr0 \
   --agent enabled=1 \
   --onboot 1 \
-  --ide2 local:iso/ubuntu-24.04-live-server-amd64.iso,media=cdrom \
+  --ide2 local:iso/ubuntu-26.04.1-live-server-amd64.iso,media=cdrom \
   --boot order='scsi0;ide2'
 ```
 
@@ -130,6 +130,49 @@ and give `ubuntu-lv` the whole volume group as `alexander`'s §2 says. Leave
 the 96 GB disk untouched in the installer. It becomes the data disk next,
 outside LVM, so it can be read on any machine without reassembling a volume
 group.
+
+### SSH: keys only
+
+`alexander`'s §2 makes its `sshd` key-only, and this guest needs the same
+step for the same reasons. It is installed by hand from the ISO, so it does not
+inherit the template's `allow-pw: false`. Its `sshd` answers all of VLAN 30,
+where the weak domain lives and ARP spoofing is expected. And it holds the SOC
+certificate authority's key and its own age key (§5, §6). OpenSSH takes
+passwords unless told otherwise, and the installer also writes
+`/etc/ssh/sshd_config.d/50-cloud-init.conf`. The drop-in below sorts before
+that file, and `sshd` keeps the first value it reads, so the drop-in wins over
+whatever cloud-init wrote.
+
+Log in from Hicks with your key and keep that session open, so a mistake
+cannot lock you out. Then:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-homelab.conf > /dev/null <<'EOF'
+# Keys only (build-the-soc-guest.md §2). Read before sshd_config's own lines
+# and before cloud-init's 50-cloud-init.conf, and sshd keeps the first value
+# it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+```
+
+Then, from Hicks, in a new terminal, prove both halves. `ControlPath=none`
+makes each probe open a fresh connection instead of reusing the session you
+kept open:
+
+```bash
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password barnabas@10.0.30.60 true
+```
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no barnabas@10.0.30.60 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed.
 
 ### The data disk
 
@@ -182,10 +225,64 @@ The last two are vulnerability detection's two halves, both on the data disk
 persist. `df` must show about 94G on `/dev/sdb1`. A reboot now, and `df -h /srv/soc-data` after it, proves the
 `fstab` line before any data depends on it.
 
+### No network in the initramfs
+
+Ubuntu 26.04's initramfs is dracut's. It carries systemd-networkd and a
+catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface,
+so `ens18` asks the lab's DHCP server for an address before netplan's static
+`10.0.30.60` applies. On `odin`'s four boots before 2026-11-18 that was a lease from the pool, `.101`, `.101`, `.102` and `.115`, read from its own journal. The address is dropped at switch-root,
+seconds later, but the request has crossed the segment with the guest's MAC
+and, as `fenrir`'s capture showed for its own, its hostname. The root disk is
+local, so the initramfs needs no network at all. Leave it out, as `fenrir`
+does ([`build-the-sensor-guest.md`](build-the-sensor-guest.md) §3) and as
+dracut's own `no-network` profile does:
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# odin: no networking in the initramfs (build-the-soc-guest.md §2).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs ens18 before netplan's static address applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, the running kernel may not be the one the next boot
+uses. Reboot, then run the last four lines, so that the image rebuilt and
+checked is the one the next boot uses. On 26.04, `update-initramfs` is
+dracut's wrapper, and every later kernel is built with the file in place.
+
+`update-initramfs` prints `dracut[E]: Module 'dyn-netconf' depends on module
+'systemd-networkd', which can't be installed`, here and at every later
+kernel. That is the omit working, not a failure. `dyn-netconf` comes with
+`cloud-initramfs-dyn-netconf`, which the ISO installs, and all it does is
+configure the network in the initramfs. The `lsinitrd` line is the check.
+
+The copy is the way back. If the new image does not boot, open VM 160's
+console in the Proxmox web UI (*Saruman → 160 → Console*). Reset the VM and
+hold Esc to show GRUB's menu, which Ubuntu hides by default. Press `e` on the
+first entry, add `.pre-no-network` to the end of the file name on the `initrd`
+line, and boot with Ctrl-X. Then remove the dracut file and run
+`sudo update-initramfs -u -k "$(uname -r)"` again.
+
+Reboot, and check that nothing before switch-root asked for an address:
+
+```bash
+sudo journalctl -b -o short-iso | awk '/Switching root/{exit} {print}' | grep -cE 'DHCPv4|zzzz-dracut-default'   # 0
+ip -4 -o addr show ens18 | awk '{print $4}'   # 10.0.30.60/24
+```
+
+Then delete the copy.
+
 ## 3. Docker, sops, age, and the repository
 
 Identical to `alexander`'s §3 — the Docker repository, `git clone` into
-`~/HomeLab`, `age` from apt and `sops` from its release page at the version the
+`~/code/Gerrrt/HomeLab`, `age` from apt and `sops` from its release page at the version the
 monitoring host runs. Deploy from a checkout **on this host**: `make render`
 writes into the tree it runs from.
 
@@ -206,7 +303,7 @@ capability dropped (`compose.yaml`, DIFFERENCE 4), so — with no
 into a directory it owns, and the clone leaves this one owned by you:
 
 ```bash
-sudo chown root:root ~/HomeLab/stacks/soc/velociraptor/etc
+sudo chown root:root ~/code/Gerrrt/HomeLab/stacks/soc/velociraptor/etc
 ```
 
 The datastore (§2, `/srv/soc-data/velociraptor`) is already root's; this is the
@@ -240,7 +337,7 @@ which is why it is not `sysctl -w` alone.
 rule, and the same refusal means the same thing here.
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 make secrets-init STACK=soc
 ```
 
@@ -359,7 +456,7 @@ to know rather than discover.
 Back on `odin`:
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 git pull
 make render STACK=soc
 make up STACK=soc
@@ -402,41 +499,79 @@ docker logs soc-wazuh-indexer 2>&1 | grep -i max_map_count
 Four settings are not defaults, and ADR-0030 argues each of them: one shard,
 no replicas, a thirty-second refresh, and a delete at thirty days on
 `wazuh-alerts-*`. **Wazuh ships no retention policy**; without the last one,
-retention is forever and the shard budget is spent inside a month. Both files
-are under `stacks/soc/wazuh/indexer/`, and both are applied through the
-indexer's own `curl`, signed in with the admin certificate, because 9200 is
-not published:
+retention is forever and the shard budget is spent inside a month. A third
+file gives the weekly `wazuh-monitoring-*` and `wazuh-statistics-*` indices the
+same thirty days, since Wazuh ships nothing for those either. All three are
+under `stacks/soc/wazuh/indexer/`, and all are applied through the indexer's
+own `curl`, signed in with the admin certificate, because 9200 is not
+published:
 
 ```bash
-cd ~/HomeLab
-AUTH='--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem'
+cd ~/code/Gerrrt/HomeLab
+AUTH=(--cert /usr/share/wazuh-indexer/config/certs/admin.pem --key /usr/share/wazuh-indexer/config/certs/admin-key.pem)
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_template/wazuh-alerts-homelab \
   --data-binary @- < stacks/soc/wazuh/indexer/template-wazuh-alerts.json
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
   -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-alerts-30d \
   --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-alerts.json
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
+  -XPUT https://localhost:9200/_plugins/_ism/policies/wazuh-weekly-30d \
+  --data-binary @- < stacks/soc/wazuh/indexer/ism-wazuh-weekly.json
 ```
 
-Both answer with `"acknowledged":true` (the policy call also echoes the policy
-back). Creating the first ISM policy also creates `.opendistro-ism-config`, and
+`AUTH` is an array so that these commands run the same in `bash` and `zsh`:
+`zsh` does not split an unquoted string into words, and a plain string reached
+`curl` as one argument there. The template answers `"acknowledged":true` and
+each policy call echoes its policy back. A policy's `ism_template` reaches only the indices created after
+it, and the manager wrote its first alert, monitoring and statistics indices
+when it started, before this step. Attach the policies to those by hand, or
+they are kept for ever (the build's first alert index was, until 2026-11-14):
+
+```bash
+for p in 'wazuh-alerts-*:wazuh-alerts-30d' 'wazuh-monitoring-*,wazuh-statistics-*:wazuh-weekly-30d'; do
+  docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+    curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
+    -XPOST "https://localhost:9200/_plugins/_ism/add/${p%%:*}" \
+    --data-binary "{\"policy_id\":\"${p##*:}\"}"
+done
+```
+
+Each prints `updated_indices`; an index that already holds a policy is listed
+under `failed_indices` with that reason, which is harmless. Creating the first ISM policy also creates `.opendistro-ism-config`, and
 the plugin gives it one replica — which a single node cannot place, so the
 cluster goes **yellow** and `WazuhIndexerClusterYellow` fires the moment agents
-give it something to watch. Set that system index to zero replicas, as this
-node has no second to hold them:
+give it something to watch. The job scheduler does the same with
+`.opendistro-job-scheduler-lock` the first time ISM runs, within minutes. Wait
+until `_cat/indices/.opendistro-job-scheduler-lock` lists it, then set them to
+zero replicas, as this node has no second to hold them:
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH -H 'Content-Type: application/json' \
-  -XPUT 'https://localhost:9200/.opendistro-ism-config/_settings' \
+  curl -sk "${AUTH[@]}" -H 'Content-Type: application/json' \
+  -XPUT 'https://localhost:9200/.opendistro-ism-config,.opendistro-job-scheduler-lock,.opendistro-ism-managed-index-history-*/_settings' \
   --data-binary '{"index":{"number_of_replicas":0}}'
 ```
 
 `_cluster/health` returns to `green` with no unassigned shards. (The
-`wazuh-alerts-*` template already sets `rep 0`; this is the one index the
-plugin makes for itself, behind the pattern that template matches.)
+`wazuh-alerts-*` template already sets `rep 0`; these are the indices the
+plugins make for themselves, behind the pattern that template matches. ISM's
+daily history indices are the third kind, each with a replica. `opensearch.yml`
+turns them off, so on a fresh build the wildcard matches nothing, which is not
+an error.)
+
+On a node that ran before `opensearch.yml` turned history off, the old history
+indices stay after this, one shard each against ADR-0030's budget. With history
+off, ISM no longer rolls them over or deletes them, and `_plugins/_ism/explain`
+does not read them. Delete them:
+
+```bash
+docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
+  curl -sk "${AUTH[@]}" -XDELETE 'https://localhost:9200/.opendistro-ism-managed-index-history-*'
+```
 
 The settings template is a legacy template at `order: 1` so that it
 merges **over** Wazuh's own `wazuh` template, which is at order 0 and carries
@@ -447,13 +582,13 @@ manager):
 
 ```bash
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH 'https://localhost:9200/_cat/indices/wazuh-alerts-*?v&h=index,pri,rep,docs.count'
+  curl -sk "${AUTH[@]}" 'https://localhost:9200/_cat/indices/wazuh-alerts-*?v&h=index,pri,rep,docs.count'
 docker compose -f stacks/soc/compose.yaml exec -T wazuh.indexer \
-  curl -sk $AUTH 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*'
+  curl -sk "${AUTH[@]}" 'https://localhost:9200/_plugins/_ism/explain/wazuh-alerts-*,wazuh-monitoring-*,wazuh-statistics-*'
 ```
 
-`pri 1 rep 0` on every alert index, and every one of them holding the
-`wazuh-alerts-30d` policy. The explain output is also the retention
+`pri 1 rep 0` on every alert index, every one of them holding the
+`wazuh-alerts-30d` policy, and every weekly index holding `wazuh-weekly-30d`. The explain output is also the retention
 re-derivation ADR-0030 asks for after a fortnight: an index that never left
 the `hot` state means the delete has never fired.
 
@@ -562,6 +697,15 @@ which is how many alerts the manager wrote. Alerts written and none indexed is
 Its verification mode is `full`, so a certificate issued for a name other than
 `wazuh.indexer` fails exactly here. The node-wide number above stays healthy
 through it.
+
+**And that `sshd` still refuses passwords** (§2). The drop-in outranks any
+later edit of `sshd_config` or cloud-init's file, but only while it exists:
+
+```bash
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four must read `no`.
 
 ## 11. Agents, by GPO — the second evening, and after #414
 
@@ -733,7 +877,7 @@ exists dials nothing.
 ### 2. The server, on `odin`
 
 ```bash
-cd ~/HomeLab
+cd ~/code/Gerrrt/HomeLab
 docker compose -f stacks/soc/compose.yaml --env-file stacks/soc/.env rm -sf velociraptor
 docker volume rm soc_velociraptor-datastore
 ```

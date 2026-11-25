@@ -1,18 +1,23 @@
 ---
 # The lab stack watching itself.
 #
-# Nineteen rules, and the number is still the point. The estate has 48; ADR-0007
-# names giving up "Loki, the dashboards and 40 alert rules" as the price of
-# keeping lab telemetry out of the estate, and this file does not pretend to
-# replace them. Four cover this stack's own working — the things that would make
-# every other signal here silently wrong. Two cover the disks of the guests that
+# Twenty-five rules, and the number is still the point. The estate has 48;
+# ADR-0007 names giving up "Loki, the dashboards and 40 alert rules" as the
+# price of keeping lab telemetry out of the estate, and this file does not
+# pretend to replace them. Five cover this stack's own working, its agents'
+# log shipping included — the things that would make every other signal here
+# silently wrong. Two cover the disks of the guests that
 # push here, in the detail only their own node_exporter has; the estate pages on
 # the same disks, read another way (ADR-0070). Three cover the domain ADR-0029 sized,
 # and they are here rather than in a stack of their own because this Prometheus
 # is the only thing on the segment that scrapes it. Seven cover golem's backups
 # (ADR-0053), because a verify nobody watches is a green check with nothing
 # behind it, and this is where the lab looks. Three cover fenrir's Zeek archive
-# prune (#850), the one run-scheduled.sh job whose outcome lands here.
+# prune (#850), the one run-scheduled.sh job whose outcome lands here. Three
+# cover the guests' patch state, which their own patch-state timers write and
+# which no estate rule can see, because these guests push here and not there.
+# Two cover whether fenrir is still the appliance its runbook leaves (#1577),
+# which nothing else checks at all.
 #
 # NOTHING HERE PAGES. There is no Alertmanager in this stack (ADR-0020), so a
 # firing alert is visible in Prometheus's /alerts and in Grafana and nowhere
@@ -127,6 +132,36 @@ groups:
             those journal lines are skipped. Loki refuses any line older than
             168 hours.
 
+      # The estate's rule of the same name, carried here (#1552). Every guest's
+      # Alloy pushes its own internals here as job="<host>-alloy" (config.alloy's
+      # selfmetrics), so the expression needs no change. Until this rule, a
+      # lab guest losing log lines said so only in its own Alloy's log: fenrir
+      # dropped a re-sent Zeek line every ten minutes from 2026-11-16, when the
+      # line turned seven days old, with nothing firing anywhere.
+      # LokiIngestionStalled cannot see that, because the other lines kept
+      # arriving.
+      #
+      # `for: 1h` for the estate's reason: an Alloy restart replays history and
+      # Loki refuses the old part of it in one burst, which rate() over 15m
+      # carries for fifteen minutes and no longer. stack.rules.yaml has the
+      # measurements (#341). Loss that keeps happening outlasts the hour.
+      - alert: LogEntriesDropped
+        expr: |
+          sum by (job, reason) (rate(loki_write_dropped_entries_total[15m])) > 0
+        for: 1h
+        labels:
+          component: lab
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.job }} has been losing log lines to {{ $labels.reason }} for an hour"
+          description: >-
+            The lab's Loki has been rejecting these entries for an hour, so this
+            is not the burst an agent restart produces. Ask Loki which limit it
+            is applying with `sum by (reason) (loki_discarded_samples_total)`.
+            An entry older than 168 hours means an agent is re-sending old
+            lines: a Docker log follow that keeps reconnecting does that (#1552).
+
       # The guests' own disks: `alexander`, and `odin`, whose Alloy pushes here
       # (stacks/soc). The estate's HostDisk* rules cannot see either, because
       # neither pushes to VLAN 99 (ADR-0007). So until 2026-10-01 nothing
@@ -170,6 +205,126 @@ groups:
           category: capacity
         annotations:
           summary: "{{ $labels.instance }}:{{ $labels.mountpoint }} below 10% free"
+
+      # -----------------------------------------------------------------------
+      # The guests' patch state. homelab-patch-state writes
+      # apt-patch-state.prom daily on odin (and on any lab guest that installs
+      # it), and its Alloy ships the textfile directory here. The estate has
+      # these three rules in stacks/observability's host.rules.yaml, but they
+      # never see a lab guest: odin and alexander push to this Prometheus, not
+      # to that one. Until 2026-11-16 the series arrived and nothing read them,
+      # so odin carried a pending reboot from a libc6 upgrade with nothing
+      # saying so. The names, windows and reasoning are the estate's; read that
+      # file for the argument behind each `for`.
+      # -----------------------------------------------------------------------
+
+      # Unattended-upgrades applies security updates itself, so a week of
+      # them still pending means they did not apply: held, phased, or waiting
+      # on a reboot.
+      - alert: SecurityUpdatesPending
+        expr: homelab_apt_security_upgrades_pending > 0
+        for: 7d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has had {{ $value }} security update(s) pending for a week"
+          description: >-
+            Unattended-upgrades should have applied these. A week of them
+            sitting there means they are held, phased, or waiting on a reboot.
+            Check with `apt list --upgradable` and
+            `systemctl status unattended-upgrades.service`.
+
+      # A package asked for a reboot and nothing has done it. Nothing on these
+      # guests reboots by itself: unattended-upgrades installs, and
+      # Automatic-Reboot is left at its default of off. Three days, as the
+      # estate's, because a reboot of odin is a window without the SIEM.
+      - alert: RebootRequired
+        expr: homelab_reboot_required == 1
+        for: 3d
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has needed a reboot for three days"
+          description: >-
+            /var/run/reboot-required.pkgs names the packages that asked. Pick a
+            window: rebooting odin stops the SIEM for a few minutes, and the
+            agents queue meanwhile. Afterwards check the stack with
+            docs/runbooks/build-the-soc-guest.md §10.
+
+      # A guest that was reporting patch state and has stopped. Without it, a
+      # dead collector silences both rules above in the way that looks
+      # healthiest. Two ways to stop, so two branches:
+      #
+      # - The series vanished: Alloy or the textfile directory went. Stopped,
+      #   not missing, so a guest without the timer is not an alert. Fourteen
+      #   days of memory, not one, inside this Prometheus's 15d retention: with
+      #   [1d] the alert cleared itself about 30h after the last sample, with
+      #   nothing recovered (review of ApplianceStateStopped, #1580). A guest
+      #   retired on purpose fires for two weeks. This stack has no
+      #   Alertmanager (ADR-0020), so there is nothing to silence: it shows in
+      #   this Prometheus's /alerts and in Grafana until it ages out, and is
+      #   expected there.
+      # - The file stopped being rewritten. A collector that dies leaves
+      #   apt-patch-state.prom in place and Alloy re-serves its last values on
+      #   every scrape, so the series never goes absent and the first branch
+      #   cannot see it. Two days, the window schedule-maintenance.md gives the
+      #   daily timer, covers one missed run and its jitter. The mtime series
+      #   carries `instance`, not `host`, so label_replace copies one into the
+      #   other. Raised in review on #1544.
+      #
+      # ON-DEMAND GUESTS ARE LEFT OUT WHILE THEY ARE OFF, which is ADR-0079's
+      # decision for HypervisorGuestStopped brought to this rule. `eden` is off
+      # between sessions, and an off guest pushes nothing, so without this the
+      # first branch fires six hours after every session ends. The lab cannot
+      # read Saruman's `on-demand` tag, so the guests are named here, as
+      # `role="endpoint"` names the domain's in prometheus.yaml: add a Linux
+      # guest here when it gets the tag and the collector. "Off" is "none of
+      # its node metrics have arrived in an hour", read from
+      # node_boot_time_seconds, which every guest's Alloy pushes; a window, not
+      # an instant, so a late push does not count as a shutdown, and an hour
+      # is well inside the six hours the branch waits anyway. While the guest is up it is treated like any
+      # other, so a dead collector on a running `eden` still fires. Only the
+      # first branch needs this: an off guest's mtime series goes with it, and
+      # at boot Persistent=true collects within the timer's 15 minutes of jitter,
+      # inside `for: 30m`.
+      - alert: PatchStateStopped
+        expr: >-
+          (
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[14d] offset 6h))
+            unless
+            count by (host) (present_over_time(homelab_apt_upgrades_pending[6h]))
+            unless on (host)
+            (
+              count by (host) (present_over_time(homelab_apt_upgrades_pending{host=~"eden"}[14d] offset 6h))
+              unless
+              count by (host) (present_over_time(node_boot_time_seconds{host=~"eden"}[1h]))
+            )
+          )
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*apt-patch-state\\.prom"} > 2 * 86400,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
+        for: 30m
+        labels:
+          component: host
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting patch state"
+          description: >-
+            Its patch state has gone absent, or apt-patch-state.prom has not
+            been rewritten in two days, so SecurityUpdatesPending and
+            RebootRequired are reading stale or no data for it. Check
+            `systemctl status homelab-patch-state.timer` on the guest, and that
+            /var/lib/node_exporter/textfile_collector/apt-patch-state.prom is
+            being written and is world-readable.
 
       # -----------------------------------------------------------------------
       # The domain (ADR-0029). Scraped, never pushed — publishing a remote-write
@@ -460,3 +615,74 @@ groups:
             `make install-agent-collectors AGENT=atreus@10.0.30.90 ARGS='--only zeek-archive-prune'`
             (docs/runbooks/build-the-sensor-guest.md §4), and check that
             /var/lib/node_exporter/textfile_collector exists on fenrir.
+
+      # -----------------------------------------------------------------------
+      # Whether fenrir is still the appliance build-the-sensor-guest.md §0
+      # decides it is (#1577). homelab-appliance-state writes one 0-or-1 per
+      # check to appliance-state.prom hourly. The audit of 2026-11-13 found the
+      # guest had been a workstation for weeks with nothing saying so; these
+      # two are what says so now, to whoever looks here.
+      #
+      # What they do not cover, and the collector's header says it at length:
+      # whoever has root on fenrir can make every check read 1. These catch
+      # drift by accident, not a guest someone has taken.
+      # -----------------------------------------------------------------------
+
+      # A check has read 0 across two hourly runs. One bad run stays exported
+      # until the next replaces it: an hour, up to 5m more from each run's
+      # RandomizedDelaySec, and a scrape, so about 67m at most. Two bad runs
+      # read 0 for at least 110m. 75m sits between, so a run that failed once
+      # and was put right does not fire (review on #1580: 1h did). The label
+      # names the check, and `journalctl -u homelab-appliance-state` on fenrir
+      # names what failed; the value of what was found never leaves the guest.
+      - alert: ApplianceCheckFailed
+        expr: homelab_appliance_check == 0
+        for: 75m
+        labels:
+          component: sensor
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} is no longer the appliance its runbook leaves: {{ $labels.check }}"
+          description: >-
+            The `{{ $labels.check }}` check has failed on two hourly runs. Read
+            `journalctl -u homelab-appliance-state -n 20` on the guest, then
+            put it back as docs/runbooks/build-the-sensor-guest.md §3 and §4
+            leave it. If the change was meant, change the runbook and
+            scripts/collect-appliance-state.sh in one PR.
+
+      # The checks have stopped reporting, which reads exactly like a guest
+      # that passes them all. Two branches: the series is gone, or the file
+      # stopped being rewritten while Alloy keeps serving its last values.
+      # Three hours is two missed hourly runs and their jitter.
+      #
+      # The first branch names fenrir rather than asking "was it reporting a
+      # day ago", as PatchStateStopped does. That form clears itself about 27h
+      # after the series goes, once the last sample leaves its window, and if
+      # Alloy stopped too the mtime branch has nothing to read either (review
+      # on #1580). This collector belongs on fenrir and nowhere else, so its
+      # absence there is the condition, for as long as it lasts. A rebuilt
+      # fenrir that never had the installer run fires it too, which is right.
+      - alert: ApplianceStateStopped
+        expr: >-
+          absent_over_time(homelab_appliance_check{host="fenrir"}[3h])
+          or
+          count by (host) (
+            label_replace(
+              time() - node_textfile_mtime_seconds{file=~".*appliance-state\\.prom"} > 3 * 3600,
+              "host", "$1", "instance", "(.*)"
+            )
+          )
+        for: 30m
+        labels:
+          component: sensor
+          severity: warning
+          category: security
+        annotations:
+          summary: "{{ $labels.host }} has stopped reporting its appliance checks"
+          description: >-
+            Its appliance checks have gone absent, or appliance-state.prom has
+            not been rewritten in three hours, so ApplianceCheckFailed is
+            reading stale or no data for it. Check
+            `systemctl status homelab-appliance-state.timer` on the guest. A
+            stopped timer on a guest that was passing is itself worth a look.

@@ -337,6 +337,58 @@ groups:
             KernelOomKill also fired on this host, the whole machine ran out,
             not just the unit.
 
+      - alert: SystemdUnitFailed
+        # A system unit that keeps failing, on any host that ships its journal.
+        # Nothing else here saw one: only heimdall exports node_systemd_unit_state,
+        # and turning that collector on for the Alloy hosts would hand each
+        # Alloy container the system D-Bus socket. So logrotate failed every
+        # night on prometheus and oracle from 2026-10-16 to the 2026-11-23
+        # re-audit, 36 runs, with no alert (cloud-init and cloud-init-base both
+        # ship a rotation for the same log).
+        #
+        # The line is UnitOomKilled's, from the same source and for the same
+        # reasons: PID 1 writes "<unit>: Failed with result '<result>'." on the
+        # journal's native transport, so `logger` and a service's stdout cannot
+        # raise it. Unlike that rule, this one reads system units only, not a
+        # user's manager.
+        #
+        # TWICE IN 48 HOURS, NOT ONCE. Over the 14 days to 2026-11-23 most
+        # single failures were shutdown noise: snap mounts, apparmor,
+        # cryptsetup, finalrd and livepatch failing while a host went down.
+        # A log rule cannot tell a shutdown from normal running, and every
+        # real fault in that window repeated: logrotate daily, nut-monitor on
+        # trinity, suricata on oracle. So it fires when a unit fails at least
+        # twice in 48h. A daily job then fires within a day of its second
+        # failure. A service that dies once and stays down is missed; that is
+        # what EndpointUnreachable and the job alerts are for.
+        #
+        # LEFT TO OTHER RULES. 'oom-kill' is UnitOomKilled's. homelab-* units
+        # are the scheduled jobs, and ScheduledJobFailed already names them.
+        expr: |
+          sum by (host, failed_unit) (
+            count_over_time(
+              {log_type="journal", transport="journal", unit="init.scope"}
+              |= "Failed with result"
+              !~ "^homelab-"
+              !~ "'oom-kill'"
+              | regexp "^(?P<failed_unit>[^ :]+): Failed with result"
+              [48h]
+            )
+          ) >= 2
+        labels:
+          component: logs
+          severity: warning
+          category: correctness
+        annotations:
+          summary: "{{ $labels.host }}: {{ $labels.failed_unit }} failed {{ $value }} times in 48h"
+          description: >-
+            systemd reports that {{ $labels.failed_unit }} failed at least
+            twice in two days. `systemctl status {{ $labels.failed_unit }}` and
+            `journalctl -u {{ $labels.failed_unit }} -b` on {{ $labels.host }}
+            say why. If the unit comes from a package rather than this
+            repository, fix it on the host. If it is the repository's, fix it
+            through a PR. The alert clears 48h after the second-last failure.
+
       - alert: FilesystemRemountedReadOnly
         expr: |
           sum by (host) (
@@ -413,7 +465,7 @@ groups:
         expr: |
           sum by (interface) (
             count_over_time(
-              {app="filterlog", action="pass"}
+              {host="morpheus", app="filterlog", action="pass"}
               |~ `,10\.0\.(10|20|40)\.[0-9]+,(10\.0\.(30|50|99)|10\.7\.7)\.[0-9]+,` [5m]
             )
           ) > 0
@@ -459,7 +511,7 @@ groups:
         expr: |
           sum by (interface) (
             count_over_time(
-              {app="filterlog", action="pass"}
+              {host="morpheus", app="filterlog", action="pass"}
               |~ `,(10\.0\.30|172\.31\.0)\.[0-9]+,(10\.0\.(10|20|40|50|99)|10\.7\.7)\.[0-9]+,` [5m]
             )
           ) > 0
@@ -500,7 +552,7 @@ groups:
         expr: |
           sum by (interface, action) (
             count_over_time(
-              {app="filterlog"}
+              {host="morpheus", app="filterlog"}
               |~ `,172\.30\.30\.[0-9]+,[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+,` [5m]
             )
           ) > 0
@@ -528,7 +580,7 @@ groups:
         expr: |
           sum by (interface) (
             count_over_time(
-              {app="filterlog", action="block"}
+              {host="morpheus", app="filterlog", action="block"}
               |~ `,10\.0\.20\.[0-9]+,10\.0\.(30|50|99)\.[0-9]+,` [10m]
             )
           ) > 20
@@ -553,7 +605,7 @@ groups:
         # remote-logging setting was reset by an update, or Alloy stopped
         # accepting UDP — none of which any other alert here would catch.
         expr: |
-          absent_over_time({app="filterlog"}[30m])
+          absent_over_time({host="morpheus", app="filterlog"}[30m])
         for: 0s
         labels:
           component: logs
@@ -633,7 +685,7 @@ groups:
         expr: |
           sum by (mac) (
             count_over_time(
-              {app="kea-dhcp4"}
+              {host="morpheus", app="kea-dhcp4"}
               | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
               | vlan = "50"
               [10m]
@@ -642,7 +694,7 @@ groups:
           unless
           sum by (mac) (
             count_over_time(
-              {app="kea-dhcp4"}
+              {host="morpheus", app="kea-dhcp4"}
               | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
               | vlan = "50"
               [7d] offset 10m
@@ -660,7 +712,7 @@ groups:
             Wi-Fi is a pre-shared key that people are given. A device here is
             either one of yours, one that rotated its private MAC, or one that
             has the PSK and should not. Find the address with
-            {app="kea-dhcp4"} |= "{{ $labels.mac }}" and identify it against
+            {host="morpheus", app="kea-dhcp4"} |= "{{ $labels.mac }}" and identify it against
             docs/network.md before deciding which.
 
       - alert: UnknownDeviceOnManagementSegment
@@ -673,7 +725,7 @@ groups:
         expr: |
           sum by (mac) (
             count_over_time(
-              {app="kea-dhcp4"}
+              {host="morpheus", app="kea-dhcp4"}
               | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
               | vlan = "99"
               [10m]
@@ -682,7 +734,7 @@ groups:
           unless
           sum by (mac) (
             count_over_time(
-              {app="kea-dhcp4"}
+              {host="morpheus", app="kea-dhcp4"}
               | regexp `hwtype=1 (?P<mac>[0-9a-f:]{17}).*10\.0\.(?P<vlan>[0-9]{1,3})\.`
               | vlan = "99"
               [7d] offset 10m
@@ -716,7 +768,7 @@ groups:
         # class alone being unticked on morpheus, which leaves filterlog
         # arriving and this stream gone.
         expr: |
-          absent_over_time({app="kea-dhcp4"}[2h])
+          absent_over_time({host="morpheus", app="kea-dhcp4"}[2h])
         for: 0s
         labels:
           component: logs
@@ -801,7 +853,7 @@ groups:
         # this warrants looking at the same evening, not the same quarter.
         expr: |
           sum by (interface, classification) (
-            count_over_time({app="suricata", priority="1"} [10m])
+            count_over_time({host="morpheus", app="suricata", priority="1"} [10m])
           ) > 0
         for: 0s
         labels:
@@ -840,7 +892,7 @@ groups:
         # buys: the summary names the segment, which is the whole reason the
         # interfaces were enabled one at a time.
         expr: |
-          sum by (interface) (count_over_time({app="suricata"} [10m])) > 200
+          sum by (interface) (count_over_time({host="morpheus", app="suricata"} [10m])) > 200
         for: 5m
         labels:
           component: logs
@@ -870,7 +922,7 @@ groups:
         # the process is up and inspecting nothing, which is the case nothing
         # else in the stack can see (#441).
         expr: |
-          absent_over_time({app="suricata"}[9h])
+          absent_over_time({host="morpheus", app="suricata"}[9h])
         for: 0s
         labels:
           component: logs
@@ -886,3 +938,92 @@ groups:
             interfaces the processes are bound to on pfSense, that the last rule
             update left a non-empty set, and that syslog still leaves morpheus
             for UDP 1514 (FirewallLogsStopped would be firing too if it did not).
+
+  # ---------------------------------------------------------------------------
+  # The core switch. neo's log reaches Loki through morpheus's syslog-ng
+  # (ADR-0127) as host="neo". Before that it lived only in the switch's RAM,
+  # 1,000 lines deep, so who logged in to the device every VLAN crosses was
+  # known only to that device, and only for a few hours.
+  #
+  # RouterOS writes every login the same way, whatever the service:
+  #
+  #   user homeassistant logged in from 10.0.99.40 via api
+  #   user gerrrt logged in from 10.7.7.1 via ssh
+  #
+  # read off neo on 2026-11-23. app is always `routeros` on this stream, set
+  # by syslog.alloy whatever the line's tag says, so these select by host.
+  - name: switch
+    interval: 1m
+    rules:
+      - alert: SwitchLoginFromUnexpectedSource
+        # Three sources are expected, and each is in network.md's LAN notes:
+        #   - the switch LAN itself, 10.7.7.0/24: break-glass, and SSH jumped
+        #     through morpheus arrives as 10.7.7.1;
+        #   - desktop-02, 10.0.50.90, the one workstation in the switch's own
+        #     management list;
+        #   - Home Assistant's read-only user, from trinity, over the API
+        #     (ADR-0111). Only that user from that address: `gerrrt` from
+        #     10.0.99.40 would mean trinity holds an admin credential.
+        # Anything else is a login the firewall and the switch's own filter
+        # were both supposed to make impossible.
+        #
+        # The `|=` comes first because the label filters below are true for a
+        # line the regexp did not match: an absent label is "", which is
+        # neither the switch LAN nor `homeassistant`.
+        #
+        # The address is captured as `login_from`, not `source`: every line on
+        # this path already carries source="network" from the listener, and
+        # Loki renames a capture that collides with a stream label to
+        # `<name>_extracted`, so a filter on `source` would compare "network"
+        # and every login would fire.
+        expr: |
+          sum by (user, login_from, via) (
+            count_over_time(
+              {host="neo"}
+              |= " logged in from "
+              | regexp `user (?P<user>\S+) logged in from (?P<login_from>\S+) via (?P<via>\S+)`
+              | login_from !~ `10\.7\.7\.[0-9]+|10\.0\.50\.90`
+              | user != "homeassistant" or login_from != "10.0.99.40" or via != "api"
+              [10m]
+            )
+          ) > 0
+        for: 0s
+        labels:
+          component: logs
+          severity: critical
+          category: security
+        annotations:
+          runbook_url: "https://github.com/Gerrrt/HomeLab/blob/main/docs/runbooks/respond-to-a-security-alert.md#switchloginfromunexpectedsource"
+          summary: "neo: {{ $labels.user }} logged in from {{ $labels.login_from }} via {{ $labels.via }}"
+          description: >-
+            A login to the core switch from somewhere other than the switch
+            LAN, desktop-02, or Home Assistant's read-only API user. Either a
+            pass that should not exist reaches the switch, or a credential is
+            being used from where it should not be.
+
+      - alert: SwitchLogsStopped
+        # A heartbeat, not traffic, is what keeps this quiet. Measured on
+        # 2026-11-23, Home Assistant's API session logged in once in four
+        # hours, so its logins are no pulse, and the link changes that filled
+        # the buffer that day were a fault on ether4. So neo logs one line every
+        # five minutes from a scheduler entry, `log-heartbeat`
+        # (ship-firewall-logs.md §10), and thirty minutes is six of them missed.
+        #
+        # neo sends over UDP and holds nothing back, so what this catches is
+        # lost, not late: the relay on morpheus down, the pass removed, or the
+        # switch's remote action reset.
+        expr: |
+          absent_over_time({host="neo"}[30m])
+        for: 0s
+        labels:
+          component: logs
+          severity: warning
+          category: monitoring
+        annotations:
+          summary: "No log lines from neo for 30 minutes"
+          description: >-
+            The switch writes a heartbeat every five minutes, so its log has
+            stopped reaching Loki. If FirewallLogsStopped is also firing, the
+            fault is morpheus's syslog-ng or the TLS hop. If not, check the
+            switch-LAN pass on morpheus, the syslog-ng neo source, and neo's
+            `remote` logging action (ship-firewall-logs.md §10).

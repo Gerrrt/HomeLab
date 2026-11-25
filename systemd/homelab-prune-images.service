@@ -15,12 +15,18 @@
 # what was pulled this week". An image removed here that `make validate` wants
 # again is re-pulled only on a proof-cache miss, which a new digest is anyway.
 #
+# Since 2026-11-23 it also removes anonymous volumes no container references
+# (`docker volume prune` filtered to `com.docker.volume.anonymous`).
+# Validation and scratch runs leave them behind: 99 had built up by then.
+# Named volumes, which hold every stack's data, are never touched, even
+# while a stack is down. The Makefile target says why the filter is explicit.
+#
 # Under the `backups` lock that converge and the backups share, so a prune can
 # never land between a converge's pull and its `compose up`.
 #
 # See homelab-backup-volumes.service for why each directive below is set.
 [Unit]
-Description=HomeLab: remove Docker images no container uses
+Description=HomeLab: remove Docker images and anonymous volumes no container uses
 Documentation=file:///home/robo/code/Gerrrt/HomeLab/docs/runbooks/schedule-maintenance.md
 After=docker.service
 

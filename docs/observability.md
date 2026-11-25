@@ -72,7 +72,7 @@ equivalent size bound.
 ## Log level normalisation
 
 Logs arrive spelling severity about twenty different ways — `ERROR`, `err`,
-`eror`, `crit`, `fatal`, `panic`, `dbug`. `config.alloy` maps all of them onto
+`eror`, `crit`, `fatal`, `panic`, `dbug`. `logs.alloy` maps all of them onto
 five canonical values before they reach Loki:
 
 ```text
@@ -352,7 +352,7 @@ separates a quiet stream from a stopped one.
 
 ## Alerting
 
-184 rules in total: 163 metric-based in `prometheus/rules/`, and 21 log-based in
+215 rules in total: 187 metric-based in `prometheus/rules/`, and 28 log-based in
 `loki/rules/`.
 
 ### Log-based (Loki ruler)
@@ -362,6 +362,44 @@ log shows it rejecting forty passwords in five minutes. `loki/rules/security.rul
 covers SSH brute force, SSH accepted from outside VLAN 50/99, repeated sudo
 failures, user/group creation, kernel OOM kills, read-only remounts and disk I/O
 errors.
+
+**`SwitchLoginFromUnexpectedSource`** and **`SwitchLogsStopped`** read `neo`'s
+log, which morpheus relays to the same syslog listener as its own
+([ADR-0127](adr/0127-relay-neos-log-through-morpheus.md)). The first fires on a
+login to the core switch from anywhere but the switch LAN, desktop-02, or Home
+Assistant's read-only API user. The second fires when 30 minutes pass without a
+line, and the switch logs a heartbeat every five minutes so that silence means
+the path is broken.
+
+**`SystemdUnitFailed`** reads the same systemd verdict as `UnitOomKilled`
+below, for any result but `oom-kill`, from PID 1's own stream. It fires when a
+system unit fails at least twice in 48 hours. A single failure is not enough,
+because most single failures are shutdown noise, which a log rule cannot tell
+apart. `homelab-*` units are left to `ScheduledJobFailed`. It exists because
+only `heimdall` exports `node_systemd_unit_state`, and `heimdall` ships no
+journal, so its failed units are `DisplayUnitFailed`'s, in Prometheus. On the
+hosts that ship their journal, a failing unit was seen by nothing:
+`logrotate` failed nightly on `prometheus` and `oracle` from 2026-10-16 until
+the 2026-11-23 re-audit found it.
+
+`loki/rules/nut.rules.yaml` watches the UPS shutdown path, which the card's
+SNMP cannot see. Every `upsmon` but `smaug`'s is already in Loki: `morpheus`'s
+through pfSense's syslog, `Saruman`'s and `trinity`'s through the journal.
+`NutDriverNotConnected` (critical) fires when an `upsmon` has had "Driver not
+connected" ten times in three minutes, held for five, which is the driver on
+`morpheus` staying down and the shutdown disarmed, as it was until 2026-11-07.
+`NutCommunicationsLost` (critical) fires on upsmon's own "is unavailable",
+five minutes without UPS data on that host. `NutMonitorFailedToStart` catches
+an `upsmon` that refused its configuration and exited. The brief *data stale*
+spells are the UPS card going silent for a few seconds; since 2026-11-23 the
+driver on `morpheus` retries for 14 seconds to ride them out
+([`shut-down-on-the-ups.md`](runbooks/shut-down-on-the-ups.md#why-the-driver-retries-for-14-seconds)).
+The spells that remain are left alone, but `NutUpsDataStaleFrequent` warns when an hour has more than 24 of them, twice
+the worst hour measured to 2026-11-23. Silence is left alone too: an `upsmon`
+that is not running logs nothing. That case, and `upsd` itself down, is
+`NutUpsUnreadable`'s in `prometheus/rules/ups.rules.yaml`, which asks `upsc`
+on the firewall every 15 minutes (`scripts/collect-nut-state.sh`) and needs no
+log line.
 
 **OOM kills have four owners** ([#903](https://github.com/Gerrrt/HomeLab/issues/903), [#1095](https://github.com/Gerrrt/HomeLab/issues/1095)):
 
@@ -513,21 +551,22 @@ argument and for what to do when it exits 1.
 
 ### Metric-based (Prometheus)
 
-163 rules across twelve files in `prometheus/rules/`:
+187 rules across 13 files in `prometheus/rules/`:
 
 | File | Covers |
 | --- | --- |
-| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew and a clock with no time source at all — `HostClockUnsynchronised` reads `node_timex_sync_status`, because the offset reads zero once timesyncd has restored a clock that is wrong but stable, which is how a cleared RTC wrote fourteen minutes of samples three hours in the past and nothing noticed ([#519](https://github.com/Gerrrt/HomeLab/issues/519)) — reboots, and, for the two laptops, whether the shelf is on mains, whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454), and [`runbooks/replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) for the swap), how hot that cell is, whether its temperature is being measured at all — on 2026-09-19 it was not, on either host — and how many minutes the host has left once the cut arrives ([#532](https://github.com/Gerrrt/HomeLab/issues/532)); whether the wiki's drift check on `oracle` is still running ([#470](https://github.com/Gerrrt/HomeLab/issues/470)); and, for the NAS, whether every ZFS pool is online — `ZpoolNotOnline` reads `node_zfs_zpool_state`, added after `erebor` lost a disk on 2026-09-19 with the exporter hung ahead of it and `InstanceDown` the only page ([#558](https://github.com/Gerrrt/HomeLab/issues/558), [`runbooks/replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)); and whether any drive's unsafe-shutdown count has grown in a day — `SmartDriveUnsafeShutdownsGrowing`, whose page says when `smaug` recorded a clean power-off the same day, because mains removed after a clean shutdown ticks the S3520 and a clean shutdown alone does not ([#746](https://github.com/Gerrrt/HomeLab/issues/746)), the measure of a cut the shutdown sequence [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides did not catch, the rule [ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md) left to that issue when it carried `smaug`'s counter under the scrape ([#574](https://github.com/Gerrrt/HomeLab/issues/574)); and, for `Saruman`, how full its LVM-thin pools are — which `node_filesystem_*` cannot see — and whether its Proxmox firewall is still on with an inbound policy that drops, from two agent collectors ([#538](https://github.com/Gerrrt/HomeLab/issues/538), [#576](https://github.com/Gerrrt/HomeLab/issues/576)); and whether the `tc` mirror that feeds Zeek on `fenrir` is still delivering packets from every port of the lab bridge — `ZeekMirrorInactive`, Zeek's absence detection answered on the hypervisor because the lab's Loki has no ruler ([#437](https://github.com/Gerrrt/HomeLab/issues/437), [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)); and whether a guest the hypervisor tags `disposable` has outlived the fortnight it was built for — `DisposableGuestOutlived`, read from each guest's own `qm config` rather than from any list of which guests should exist, which is also why `HypervisorGuestStopped` stays quiet for such a guest, with `GuestConfigUnreadable` covering the read itself failing ([#438](https://github.com/Gerrrt/HomeLab/issues/438), [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)); and a guest tagged `backup` that no enabled backup job selects, as `GuestNotInBackupJob`, after the domain's six fell out of `golem-nightly` through purged tofu destroys (2026-10-10); and how many days the four management consoles' certificates have left — the pfSense GUI, the iLO, `Saruman`'s `:8006` and the TrueNAS UI, none of which the blackbox exporter can reach — `ManagementCertificateExpiringSoon` at 30 days and `ManagementCertificateExpiryImminent` at 7, read from a handshake made inside each console's own segment, with `ManagementCertificateUnchecked` for a console that would not answer and `CertExpiryStateStale` for a collector that stopped ([#857](https://github.com/Gerrrt/HomeLab/issues/857), [ADR-0084](adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)) |
+| `host.rules.yaml` | Instance down, predictive disk fill, memory, load, clock skew and a clock with no time source at all — `HostClockUnsynchronised` reads `node_timex_sync_status`, because the offset reads zero once timesyncd has restored a clock that is wrong but stable, which is how a cleared RTC wrote fourteen minutes of samples three hours in the past and nothing noticed ([#519](https://github.com/Gerrrt/HomeLab/issues/519)) — reboots, whether a CPU has held within ten degrees of its own critical temperature for ten minutes (`HostCpuHot`, after the audit of `prometheus` of 2026-11-13 found the laptop peaking at 92 °C with nothing watching it), and, for the two laptops, whether the shelf is on mains, whether the cell that carries them through a cut is still worth relying on ([#454](https://github.com/Gerrrt/HomeLab/issues/454), and [`runbooks/replace-the-laptop-cell.md`](runbooks/replace-the-laptop-cell.md) for the swap), how hot that cell is, whether its temperature is being measured at all — on 2026-09-19 it was not, on either host — and how many minutes the host has left once the cut arrives ([#532](https://github.com/Gerrrt/HomeLab/issues/532)); whether the wiki's drift check on `oracle` is still running, and still able to read its claims ([#470](https://github.com/Gerrrt/HomeLab/issues/470), [#1531](https://github.com/Gerrrt/HomeLab/issues/1531)); and, for the NAS, whether every ZFS pool is online — `ZpoolNotOnline` reads `node_zfs_zpool_state`, added after `erebor` lost a disk on 2026-09-19 with the exporter hung ahead of it and `InstanceDown` the only page ([#558](https://github.com/Gerrrt/HomeLab/issues/558), [`runbooks/replace-the-nas-disk.md`](runbooks/replace-the-nas-disk.md)); and whether any drive's unsafe-shutdown count has grown in a day — `SmartDriveUnsafeShutdownsGrowing`, whose page says when `smaug` recorded a clean power-off the same day, because mains removed after a clean shutdown ticks the S3520 and a clean shutdown alone does not ([#746](https://github.com/Gerrrt/HomeLab/issues/746)), the measure of a cut the shutdown sequence [ADR-0049](adr/0049-shut-down-on-the-ups-from-a-nut-server-on-the-firewall.md) decides did not catch, the rule [ADR-0047](adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md) left to that issue when it carried `smaug`'s counter under the scrape ([#574](https://github.com/Gerrrt/HomeLab/issues/574)); and, for `Saruman`, how full its LVM-thin pools are — which `node_filesystem_*` cannot see — and whether its Proxmox firewall is still on with an inbound policy that drops, from two agent collectors ([#538](https://github.com/Gerrrt/HomeLab/issues/538), [#576](https://github.com/Gerrrt/HomeLab/issues/576)); and whether the `tc` mirror that feeds Zeek on `fenrir` is still delivering packets from every port of the lab bridge — `ZeekMirrorInactive`, Zeek's absence detection answered on the hypervisor because the lab's Loki has no ruler ([#437](https://github.com/Gerrrt/HomeLab/issues/437), [ADR-0068](adr/0068-mirror-the-lab-bridge-to-zeek-with-tc-not-open-vswitch.md)); and whether a guest the hypervisor tags `disposable` has outlived the fortnight it was built for — `DisposableGuestOutlived`, read from each guest's own `qm config` rather than from any list of which guests should exist, which is also why `HypervisorGuestStopped` stays quiet for such a guest, with `GuestConfigUnreadable` covering the read itself failing ([#438](https://github.com/Gerrrt/HomeLab/issues/438), [ADR-0071](adr/0071-run-disposable-investigations-on-a-guest-that-is-destroyed.md)); and a guest tagged `backup` that no enabled backup job selects, as `GuestNotInBackupJob`, after the domain's six fell out of `golem-nightly` through purged tofu destroys (2026-10-10); and how many days the four management consoles' certificates have left — the pfSense GUI, the iLO, `Saruman`'s `:8006` and the TrueNAS UI, none of which the blackbox exporter can reach — `ManagementCertificateExpiringSoon` at 30 days and `ManagementCertificateExpiryImminent` at 7, read from a handshake made inside each console's own segment, with `ManagementCertificateUnchecked` for a console that would not answer and `CertExpiryStateStale` for a collector that stopped ([#857](https://github.com/Gerrrt/HomeLab/issues/857), [ADR-0084](adr/0084-read-management-certificate-expiry-from-inside-each-segment.md)); and, for the office wall display, which its `role: display` keeps out of `InstanceDown`, four warnings that never page: upgrades from one origin pending for three days, a failed unit, the SoC above 75 °C, and two hours unscraped (`DisplayUpdatesStalled`, `DisplayUnitFailed`, `DisplayHot`, `DisplayDown`, [ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)) |
 | `network.rules.yaml` | SNMP reachability, pf not running, state table, switch links, a switch port whose VLAN changed (`SwitchPortVlanChanged`, from `dot1qPvid`, [#1387](https://github.com/Gerrrt/HomeLab/issues/1387)), iLO hardware and Smart Array cache. `shiva`'s Smart Storage Battery read failed from 2026-08-18 until it was replaced on 2026-09-02, with the array in write-through as a result, so stored metrics before that date show the failed pack — `IloBatteryCondition` names the spare part to order, and the controller rollups are deliberately read at *failed* rather than *degraded* ([#76](https://github.com/Gerrrt/HomeLab/issues/76)). Also whether the remote path's dynamic DNS name still resolves to the WAN address — `DdnsRecordStale` and `DdnsRecordUnchecked`, from the comparison `scripts/collect-gateway-state.sh` makes on the firewall every fifteen minutes ([#604](https://github.com/Gerrrt/HomeLab/issues/604), [ADR-0044](adr/0044-answer-the-endpoint-with-dynamic-dns-from-morpheus.md)); see *What the dynamic DNS series disclose* below |
-| `ups.rules.yaml` | On battery, low battery, runtime, load, temperature, and whether the shutdown order has time to run: `UpsLowBatteryDurationShort` when the card's low-battery duration is under the 16 minutes [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md) needs, `UpsRideThroughShort` when a charged pack on mains would start the halt under 15 minutes into a cut. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
+| `ups.rules.yaml` | On battery, low battery, runtime, load, temperature, and whether the shutdown order has time to run: `UpsLowBatteryDurationShort` when the card's low-battery duration is under the 16 minutes [ADR-0107](adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md) needs, `UpsRideThroughShort` when a charged pack on mains would start the halt under 15 minutes into a cut. Five rules read the AP9335T rack-ambient probe on the card: `UpsTemperatureProbeMissing`, `UpsTemperatureProbeCommsLost`, `RackAmbientTemperatureAlarm` on the card's own limits, and the fixed ones, `RackAmbientTemperatureHigh` over 30 °C and `RackAmbientTemperatureCritical` over 35 °C. The card reports whole degrees, not the tenths PowerNet-MIB describes. A pack was fitted on 2026-08-28 and passed its self-test, so these read real hardware; stored metrics older than that date are the card's fabricated values — see [`runbooks/fit-the-ups-battery.md`](runbooks/fit-the-ups-battery.md) |
 | `containers.rules.yaml` | Restart loops, OOM kills, memory, throttling |
 | `stack.rules.yaml` | The stack watching itself: config reloads, rule evaluation, notification delivery, log ingestion, and the two cases `up == 0` structurally cannot see — a remote-writing agent that stops pushing, and a scraped target that stops being a target at all. The second is `ScrapeTargetDisappeared`, added with the first scraped host ([#256](https://github.com/Gerrrt/HomeLab/issues/256)): an emptied or unparseable `targets/node.yaml` makes the series vanish rather than fall to 0, so `InstanceDown` stays silent and `RemoteWriteJobStale` excludes scraped jobs by design. `AlloyDown` (2026-10-07) is the one alert per host for the agent itself stopping. It keys on the `<host>-alloy` self-scrape and fires five minutes before `RemoteWriteJobStale` would, and an inhibit rule in `alertmanager.yaml` then holds back that host's per-job alerts. The target for `smaug` was written into `targets/node.yaml` disabled on 2026-09-17 and enabled on 2026-09-19, once the exporter answered from the pool. Split off `containers.rules.yaml` onto `component: stack` in [#81](https://github.com/Gerrrt/HomeLab/issues/81) so a Prometheus that cannot reload its config stops being filed as a container fault. Since [#575](https://github.com/Gerrrt/HomeLab/issues/575) also whether an Alertmanager silence is about to lapse or names no owning issue, read from the per-silence series `scripts/collect_silences.py` writes every fifteen minutes — `alertmanager_silences` is a count per state and cannot say which alert, when, or whose |
 | `watchdog.rules.yaml` | One rule that always fires, so that its absence is detectable |
-| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana and the wiki verified against the lab CA ([#847](https://github.com/Gerrrt/HomeLab/issues/847)), the APC card's self-signed one read but not trusted, Prometheus, Loki and Alertmanager over plain http (the switch UI's probes were removed on 2026-09-06, `targets/blackbox.yaml`), each of the household sites behind `trinity`'s Caddy, verified against the tier's root, paging as `SiteDown` after ten minutes so a `make up` restart does not ([#855](https://github.com/Gerrrt/HomeLab/issues/855)), and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). `EeroUnreachable` is a warning for an eero unit that has not answered ping for five minutes, from the `blackbox-eero` job, through one Winterfell pass in force since 2026-11-11 ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228), [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)). Their certificates' expiry is watched without that pass, from `host.rules.yaml` ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
+| `blackbox.rules.yaml` | Whether an endpoint can actually be reached, from outside the service, and how many days its certificate has left — the sensitive tier's seven-day ACME leaves excepted, which an hours pair watches for a stalled renewal instead — `TlsAcmeRenewalLate` at 48h, `TlsAcmeRenewalStalled` at 36h ([#426](https://github.com/Gerrrt/HomeLab/issues/426)) — Grafana and the wiki verified against the lab CA ([#847](https://github.com/Gerrrt/HomeLab/issues/847)), the APC card's verified against the same CA since 2026-11-24, Prometheus, Loki and Alertmanager over plain http (the switch UI's probes were removed on 2026-09-06, `targets/blackbox.yaml`), each of the household sites behind `trinity`'s Caddy, verified against the tier's root, paging as `SiteDown` after ten minutes so a `make up` restart does not ([#855](https://github.com/Gerrrt/HomeLab/issues/855)), and — the other way round — that the ingest proxy on `10.0.99.20:9090` and `:3100` still refuses a request with no token (`IngestAuthNotEnforced`, [#182](https://github.com/Gerrrt/HomeLab/issues/182)). `EeroUnreachable` is a warning for an eero unit that has not answered ping for five minutes, from the `blackbox-eero` job, through one Winterfell pass in force since 2026-11-11 ([#1228](https://github.com/Gerrrt/HomeLab/issues/1228), [ADR-0112](adr/0112-probe-the-eeros-by-icmp-from-prometheus.md)). The iLO and pfSense UIs are written into `targets/blackbox.yaml` and left disabled: each needs a firewall pass from `10.0.99.20` that is a segmentation decision, not a monitoring one ([#91](https://github.com/Gerrrt/HomeLab/issues/91)). Their certificates' expiry is watched without that pass, from `host.rules.yaml` ([#857](https://github.com/Gerrrt/HomeLab/issues/857)) |
 | `dns.rules.yaml` | Whether the house is still filtering DNS, asked directly at AdGuard Home on port 53 rather than through pfSense. Since [ADR-0055](adr/0055-forward-to-adguard-alone.md) AdGuard is the only forwarder, so `AdGuardNotAnswering` is **critical** at five minutes: the house cannot resolve outside names. `AdGuardNotFiltering` stays a warning, because a filter that fails open is a convenience lost, not an outage. The targets in `targets/blackbox-dns.yaml` are live since 2026-09-28, against AdGuard on `trinity` ([#126](https://github.com/Gerrrt/HomeLab/issues/126), [#404](https://github.com/Gerrrt/HomeLab/issues/404)) |
-| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and the page: `ScheduledJobStaleCritical` at three of a job's own periods and never under a day, because the warning reaches only the in-house channel and a backup that stopped in week one was otherwise a notification repeating on the same network for as long as nobody acted (2026-10-14) — whether the age-key proof record exists to be held to its deadline, whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), whether the newest backup sets have been carried onto the second recipient's medium within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)), and whether the household's copy has been carried to the holder's drive within ninety days and proved by the holder within a year ([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)) |
+| `backup.rules.yaml` | Whether the scheduled maintenance jobs are still being run at all — staleness, failure, never-ran, and the page: `ScheduledJobStaleCritical` at three of a job's own periods and never under a day, because the warning reaches only the in-house channel and a backup that stopped in week one was otherwise a notification repeating on the same network for as long as nobody acted (2026-10-14) — whether the CA key's offline copy has been proved lately ([#496](https://github.com/Gerrrt/HomeLab/issues/496)), and whether the newest backup sets have been carried onto the offsite drive within ninety days ([ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md), [ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)) |
 | `deploy.rules.yaml` | Whether each host that pulls — `prometheus` and `trinity` ([#533](https://github.com/Gerrrt/HomeLab/issues/533)) — is running what the repository says: an uncommitted edit made on the host, a revision that did not verify, and how far behind `main` it is, and a host whose record stopped arriving. Reads the record `scripts/converge.sh` writes hourly ([#99](https://github.com/Gerrrt/HomeLab/issues/99), [ADR-0021](adr/0021-converge-on-a-timer-instead-of-deploying-over-ssh.md)). Also whether convergence had to start a stack service that something stopped — `DeployServiceRevived` — and whether one has been left stopped for two hours, held or under a backup — `DeployServicesStopped` ([ADR-0087](adr/0087-start-a-stopped-stack-service-from-the-converge-timer.md)) |
 | `internet.rules.yaml` | Why the internet is slow ([#914](https://github.com/Gerrrt/HomeLab/issues/914)): three scheduled speed tests in a row under 400 Mbit/s down or 100 up, the WAN held above 85% of what it can carry, frames arriving corrupted on the WAN port — `WanReceiveErrors`, the fault found the day these were written, when a cable between the XB7 and `morpheus` cut downloads to ~2 Mbit/s — and `speedtest-tracker` itself going quiet or unreachable. Also records `homelab_wan_bits_per_second` from pf's own em0 counters. Download thresholds are against the ~940 Mbit/s the 1000baseT WAN port can carry, not the plan's 2000. `speedtest-tracker` is left out of `InstanceDown`, so its outage is a warning and not a page |
+| `range.rules.yaml` | The range host `gandalf`'s own controls, now that it stays on ([ADR-0126](adr/0126-monitor-gandalf-now-that-it-stays-on.md), [#1651](https://github.com/Gerrrt/HomeLab/issues/1651)): the `vmbr1_host_in` ingress barrier, `vmbr0` forwarding and `sshd` forwarding being off (`build-the-playground.md` §2, §4), and the attack-VM stop timer (ADR-0125) — read by `scripts/collect-range-state.sh`. `PveFirewallZeroRules` is here too: the firewall collector exports the rule count but no other rule reads it |
 | `ids.rules.yaml` | Whether Suricata is running on each interface it is declared for, read from the firewall's process table over SNMP — the fast, per-interface half; `SuricataLogsStopped` in `loki/rules/security.rules.yaml` is the slow, aggregate half ([#90](https://github.com/Gerrrt/HomeLab/issues/90), [#441](https://github.com/Gerrrt/HomeLab/issues/441)) |
 
 **Every critical alert links to a runbook** ([#842](https://github.com/Gerrrt/HomeLab/issues/842)).
@@ -549,8 +588,8 @@ as loaded and healthy and could not fire for any input ([#63](https://github.com
 `prometheus/tests/*.test.yaml` holds `promtool test rules` unit tests, which
 feed a rule synthetic series and assert it fires — paired with a case asserting
 it stays quiet, because a test that only ever expects silence would have passed
-against the broken rule too. Coverage is 163 rules of 163 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
-in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
+against the broken rule too. Coverage is 187 rules of 187 so far ([#843](https://github.com/Gerrrt/HomeLab/issues/843)) — all twelve
+in `blackbox.rules.yaml`, all three in `dns.rules.yaml`, all seven in `range.rules.yaml`, `GatewayFilesystemCritical`, `ContainerHighMemory`,
 `ContainerNearMemoryLimit`, `ContainerRestartLoop`, `ContainerCpuThrottled`,
 the three container-state rules from
 [#838](https://github.com/Gerrrt/HomeLab/issues/838) and
@@ -562,7 +601,7 @@ rules from [#840](https://github.com/Gerrrt/HomeLab/issues/840), `RemoteWriteJob
 `ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), the two dynamic DNS rules from
-[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all forty-one in
+[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all sixty-one in
 `host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
@@ -570,6 +609,7 @@ SMART rules from [#351](https://github.com/Gerrrt/HomeLab/issues/351),
 `PatchStateStopped` from [#360](https://github.com/Gerrrt/HomeLab/issues/360),
 `SystemUpdateAvailable` from [#378](https://github.com/Gerrrt/HomeLab/issues/378),
 `DriftCheckStopped` from [#470](https://github.com/Gerrrt/HomeLab/issues/470),
+`DriftCheckFailing` from [#1531](https://github.com/Gerrrt/HomeLab/issues/1531),
 the two guest rules from [#257](https://github.com/Gerrrt/HomeLab/issues/257),
 the three laptop-battery rules from
 [#454](https://github.com/Gerrrt/HomeLab/issues/454),
@@ -751,7 +791,11 @@ separately, so either half can fail without taking the other with it. If the
 in-house ntfy is the thing that has failed, the page still goes out:
 `EndpointUnreachable` (from the `http_2xx_tier_ca` probe of
 `ntfy.matrix.elysium`) and `AlertmanagerNotificationsFailing` are both
-critical, so both reach `urgent` and its ntfy.sh copy. The runbook has the
+critical, so both reach `urgent` and its ntfy.sh copy. That holds while
+`trinity`, and the AdGuard on it, is down too: Alertmanager falls back to
+public resolvers when `morpheus` cannot answer
+([ADR-0130](adr/0130-give-alertmanager-its-own-dns-fallback.md)), so the
+ntfy.sh copy and the heartbeat still resolve. The runbook has the
 table and the cutover:
 [`verify-the-alert-path.md`](runbooks/verify-the-alert-path.md#where-the-real-alerts-go).
 
@@ -961,8 +1005,8 @@ The threshold each job is held to is a *fifth* series,
 `homelab_job_max_age_seconds`, written by `scripts/install-timers.sh` from the
 same table that decides the cadence. That is what lets the rules in
 `prometheus/rules/backup.rules.yaml` cover every job without naming any of them
-— the three that do name one concern the two human proofs, `verify-key-backup`
-and `verify-ca-key-backup`, below — and what makes `make check-timers` able to assert that a threshold is
+— the ones that do name one concern the human proofs, such as
+`verify-ca-key-backup`, below — and what makes `make check-timers` able to assert that a threshold is
 at least twice its timer's real period.
 
 Two things are deliberate and easy to undo by accident:
@@ -982,22 +1026,14 @@ checking, with the key that is on that machine, against the disk that is in it.
 `verify-backups` proves an archive still decrypts; it says nothing about a dead
 disk or a fire. The jobs that prove anything beyond this shelf are the ones
 that cannot be automated, because each needs a human to mount removable media:
-`secrets-verify-backup` for the key, and since
+`secrets-verify-backup` for the key, optional and with no deadline since
+[ADR-0120](adr/0120-drop-the-age-key-proof-deadline.md), and since
 [ADR-0048](adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md) `backup-offsite`
 for the sets themselves, which carries the newest of each kind onto the
-second recipient's medium and hashes it there. `SecretsKeyBackupUnproven` and
-`OffsiteCopyStale` nag at ninety days instead. On `trinity`, `household-copy`
-and `household-proof` are the household's equivalents
-([ADR-0073](adr/0073-carry-the-household-copy-on-a-drive-the-holder-keeps.md)),
-and `HouseholdCopyStale` nags at ninety days and at a year. `SecretsKeyBackupUnproven` is the one rule in `backup.rules.yaml` not keyed
-on `homelab_job`:
-[ADR-0024](adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)
-allows the secrets to be encrypted to more than one age recipient, so it fires
-per recipient off `homelab_key_recipient_last_proof_timestamp_seconds` rather
-than off the job. One timestamp for every copy would mean proving either one
-vouched for the other, which is backwards when the whole point of the second
-copy is that it fails independently. With a single recipient it behaves exactly
-as it always has. Three outputs leave: `backup-firewall` copies each export
+offsite drive and hashes it there ([ADR-0132](adr/0132-carry-the-offsite-copy-on-the-spare-drive.md)). `OffsiteCopyStale` nags at
+ninety days instead. `trinity` has no such job: its household copy and
+`HouseholdCopyStale` went with
+[ADR-0122](adr/0122-drop-the-household-copy.md). Three outputs leave: `backup-firewall` copies each export
 to `oracle` and fails if it cannot, so its failure alert doubles as "the config
 has stopped leaving this host"; since
 [#535](https://github.com/Gerrrt/HomeLab/issues/535) `backup-volumes` does the
@@ -1007,17 +1043,6 @@ job that first *fetches* from another host, the media tier's state off `smaug` �
 copies its set the same way. `verify-backups` hashes the far side of both
 set directories every morning. No rule names any of the three; the generic
 pair carries them all.
-
-That series has to exist for the nag to mean anything, and for four days it did
-not ([#400](https://github.com/Gerrrt/HomeLab/issues/400)): it was written only
-by a proof run or by adding a recipient, and this host had proved its key before
-the series was invented, so the rule went quiet the day it was deployed while
-the fallback it named — `ScheduledJobNeverRan` — was satisfied by the old proof.
-The `recipient-state` timer now writes the recipient list daily, carrying proofs
-forward and setting none, and `SecretsKeyRecipientsUnrecorded` fires when the
-deadline row exists and the recipient series does not — an `unless` against the
-declaration row, not an `absent()`, so it carries labels like every other rule
-in the file.
 
 Installing, tuning and troubleshooting all of it:
 [`runbooks/schedule-maintenance.md`](runbooks/schedule-maintenance.md).

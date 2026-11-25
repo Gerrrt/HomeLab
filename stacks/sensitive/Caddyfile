@@ -264,6 +264,320 @@ start.matrix.elysium {
 	}
 }
 
+# The office wall dashboard (ADR-0119): a static page and the Prometheus
+# answers it shows, served to `heimdall`'s kiosk and to anything else on a
+# segment that reaches 443 here. Two halves, one rule between them:
+#
+#   /           the page, from stacks/sensitive/wall/, mounted read-only.
+#   /api/q/NAME a FIXED question. Each handle below rewrites to one PromQL
+#               query written in this file, and the reader token is added
+#               here, server-side. The browser chooses which question, never
+#               the query: the client's own query string is replaced by the
+#               rewrite, so /api/q/cpu?query=anything still asks the CPU
+#               question. Nothing else under /api/ answers. The reader token
+#               can query and nothing more (ADR-0067); this narrows it again,
+#               to twelve answers. The page holds no credential, and neither
+#               does the Pi.
+#   /api/ha/NAME one Home Assistant entity's state, the same way: each handle
+#               rewrites to /api/states/<one entity> and ends in `?`, which
+#               drops the client's query string, and the `wall` user's token
+#               is added here (the wall_ha snippet).
+#
+# The token is the one Glance already holds, GLANCE_PROMETHEUS_TOKEN, given
+# to the caddy service in compose.yaml. It is the estate's READER, which
+# Glance and Home Assistant already share, so rotating it is still the three
+# edits secrets/sensitive.example.yaml lists. The upstream is the ingest proxy
+# on `prometheus`, whose leaf the estate CA issued, so that CA is trusted for
+# this one transport: the committed stacks/observability/alloy/ingest-ca.pem,
+# mounted read-only, the same file render-trust-bundles.sh feeds Glance.
+#
+# Read-only by method as well: anything but GET or HEAD is refused before a
+# handle runs. The CSP lets the page load only itself and fetch only itself,
+# so a change to the page that reached for a CDN or a third-party API would
+# fail in the browser rather than quietly leak a request.
+(wall_prometheus) {
+	reverse_proxy https://10.0.99.20:9090 {
+		header_up Authorization "Bearer {$GLANCE_PROMETHEUS_TOKEN}"
+		header_up -Cookie
+		header_down -Set-Cookie
+		transport http {
+			tls_trust_pool file /etc/caddy/tls/ingest-ca.pem
+		}
+	}
+}
+
+# The household half of the wall page: Home Assistant, on this network, with
+# the token of its non-admin `wall` user added here. HA has no read-only
+# role, so the narrowing below is what makes this read-only: one GET of one
+# entity's state per handle, and nothing else under /api/ha/.
+(wall_ha) {
+	reverse_proxy home-assistant:8123 {
+		header_up Authorization "Bearer {$WALL_HA_TOKEN}"
+		header_up -Cookie
+		header_down -Set-Cookie
+	}
+}
+
+wall.matrix.elysium {
+	header {
+		Content-Security-Policy "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		-Server
+	}
+
+	# `route` keeps the order written: the method gate must run before any
+	# handle, and Caddy would otherwise sort `respond` after `handle`. It
+	# matters because Prometheus reads a POST body's `query=` ahead of the
+	# URL's, so a POST through a rewrite could still ask its own question.
+	route {
+		@unsafe not method GET HEAD
+		respond @unsafe 405
+
+		# Every firing alert, Watchdog included: its absence means rule evaluation has stopped.
+		#   ALERTS{alertstate="firing"}
+		handle /api/q/alerts {
+			rewrite * /api/v1/query?query=ALERTS%7Balertstate%3D%22firing%22%7D
+			import wall_prometheus
+		}
+
+		# CPU busy per node_exporter host; a host that stops reporting drops out.
+		#   100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+		handle /api/q/cpu {
+			rewrite * /api/v1/query?query=100%20%2A%20%281%20-%20avg%20by%20%28instance%29%20%28rate%28node_cpu_seconds_total%7Bmode%3D%22idle%22%7D%5B5m%5D%29%29%29
+			import wall_prometheus
+		}
+
+		# Whether each SNMP device answered its last poll: morpheus, mjolnir, neo, shiva.
+		#   max by (device) (up{job="snmp"})
+		handle /api/q/snmp {
+			rewrite * /api/v1/query?query=max%20by%20%28device%29%20%28up%7Bjob%3D%22snmp%22%7D%29
+			import wall_prometheus
+		}
+
+		# WAN traffic now, both directions (rules/internet.rules.yaml).
+		#   homelab_wan_bits_per_second
+		handle /api/q/wan {
+			rewrite * /api/v1/query?query=homelab_wan_bits_per_second
+			import wall_prometheus
+		}
+
+		# The last hour of download, for the sparkline: a range vector, so a matrix.
+		#   homelab_wan_bits_per_second{direction="receive"}[1h:2m]
+		handle /api/q/wan_hour {
+			rewrite * /api/v1/query?query=homelab_wan_bits_per_second%7Bdirection%3D%22receive%22%7D%5B1h%3A2m%5D
+			import wall_prometheus
+		}
+
+		# speedtest-tracker's last result, scraped from its container on
+		# `prometheus` every 30 minutes: download and upload in bits per
+		# second, ping, and the result id. A failed test exports only the id,
+		# with status="failed" (rules/internet.rules.yaml, SpeedtestStale), so
+		# the id is asked too: without it a failure reads as no answer.
+		#   {__name__=~"speedtest_tracker_result_id|speedtest_tracker_download_bits|speedtest_tracker_upload_bits|speedtest_tracker_ping_ms",job="speedtest-tracker"}
+		handle /api/q/speedtest {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22speedtest_tracker_result_id%7Cspeedtest_tracker_download_bits%7Cspeedtest_tracker_upload_bits%7Cspeedtest_tracker_ping_ms%22%2Cjob%3D%22speedtest-tracker%22%7D
+			import wall_prometheus
+		}
+
+		# When that result landed, to within a few minutes: the last minute in
+		# three hours at which the result id changed. A first result has no
+		# change to find, so failing that, the minute the id first appeared,
+		# provided that was inside the window (more than five minutes after its
+		# start) rather than at its edge. Empty when neither holds, which means
+		# no new result in three hours, and the page shows it as stale.
+		#   max_over_time((timestamp(changes(max(speedtest_tracker_result_id{job="speedtest-tracker"})[3m:1m]) > 0))[3h:1m])
+		#   or (min_over_time(timestamp(max(speedtest_tracker_result_id{job="speedtest-tracker"}))[3h:1m]) > time() - 10500)
+		handle /api/q/speedtest_at {
+			rewrite * /api/v1/query?query=max_over_time%28%28timestamp%28changes%28max%28speedtest_tracker_result_id%7Bjob%3D%22speedtest-tracker%22%7D%29%5B3m%3A1m%5D%29%20%3E%200%29%29%5B3h%3A1m%5D%29%20or%20%28min_over_time%28timestamp%28max%28speedtest_tracker_result_id%7Bjob%3D%22speedtest-tracker%22%7D%29%29%5B3h%3A1m%5D%29%20%3E%20time%28%29%20-%2010500%29
+			import wall_prometheus
+		}
+
+		# The eero mesh's tile: each access point's probe, and `up` for every
+		# configured target, so a probe whose scrape failed (no probe_success
+		# at all) still counts against the mesh instead of leaving the total.
+		#   {__name__=~"up|probe_success",job="blackbox-eero"}
+		handle /api/q/eero {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22up%7Cprobe_success%22%2Cjob%3D%22blackbox-eero%22%7D
+			import wall_prometheus
+		}
+
+		# Mjolnir: charge, runtime, time on battery, load.
+		#   {__name__=~"upsEstimatedChargeRemaining|upsEstimatedMinutesRemaining|upsSecondsOnBattery|upsOutputPercentLoad",instance="10.0.99.10"}
+		handle /api/q/ups {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22upsEstimatedChargeRemaining%7CupsEstimatedMinutesRemaining%7CupsSecondsOnBattery%7CupsOutputPercentLoad%22%2Cinstance%3D%2210.0.99.10%22%7D
+			import wall_prometheus
+		}
+
+		# Heimdall's own SoC temperature, for the status bar.
+		#   max(node_thermal_zone_temp{instance="heimdall"})
+		handle /api/q/pi_temp {
+			rewrite * /api/v1/query?query=max%28node_thermal_zone_temp%7Binstance%3D%22heimdall%22%7D%29
+			import wall_prometheus
+		}
+
+		# The backups' proofs for the quiet Alerts card: when each backup, restore
+		# test and off-site copy last succeeded, its allowance and its last exit
+		# (scripts/run-scheduled.sh, scripts/install-timers.sh).
+		#   {__name__=~"homelab_job_last_success_timestamp_seconds|homelab_job_max_age_seconds|homelab_job_last_exit_code",homelab_job=~"backup-.*|verify-backups.*|offsite-copy"}
+		handle /api/q/backups {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22homelab_job_last_success_timestamp_seconds%7Chomelab_job_max_age_seconds%7Chomelab_job_last_exit_code%22%2Chomelab_job%3D~%22backup-.%2A%7Cverify-backups.%2A%7Coffsite-copy%22%7D
+			import wall_prometheus
+		}
+
+		# Security updates waiting and reboots needed, per host (rules/host.rules.yaml).
+		#   {__name__=~"homelab_apt_security_upgrades_pending|homelab_reboot_required"}
+		handle /api/q/patches {
+			rewrite * /api/v1/query?query=%7B__name__%3D~%22homelab_apt_security_upgrades_pending%7Chomelab_reboot_required%22%7D
+			import wall_prometheus
+		}
+
+		# The header's weather: condition, temperature, humidity, wind.
+		handle /api/ha/weather {
+			rewrite * /api/states/weather.forecast_home?
+			import wall_ha
+		}
+
+		# The Ring Alarm's mode, through a template entity in
+		# home-assistant/packages/wall_house.yaml: the alarm's own id names the city.
+		handle /api/ha/alarm {
+			rewrite * /api/states/sensor.wall_alarm?
+			import wall_ha
+		}
+
+		# Ring contact sensors: on is open.
+		handle /api/ha/front_door {
+			rewrite * /api/states/binary_sensor.front_door?
+			import wall_ha
+		}
+
+		handle /api/ha/garage_door {
+			rewrite * /api/states/binary_sensor.garage_door?
+			import wall_ha
+		}
+
+		handle /api/ha/garden_door {
+			rewrite * /api/states/binary_sensor.garden_door?
+			import wall_ha
+		}
+
+		handle /api/ha/patio_door {
+			rewrite * /api/states/binary_sensor.patio_door?
+			import wall_ha
+		}
+
+		handle /api/ha/window_left {
+			rewrite * /api/states/binary_sensor.window_left?
+			import wall_ha
+		}
+
+		handle /api/ha/window_right {
+			rewrite * /api/states/binary_sensor.window_right?
+			import wall_ha
+		}
+
+		# On once every tracked phone has left the house
+		# (home-assistant/packages/presence.yaml). One boolean: no person's
+		# name or location.
+		handle /api/ha/house_empty {
+			rewrite * /api/states/input_boolean.house_empty?
+			import wall_ha
+		}
+
+		# The hallway thermostat: temperature, humidity and whether it is
+		# heating or cooling (home-assistant/packages/thermostat.yaml says
+		# what it is). Its id names no room of anyone's.
+		handle /api/ha/thermostat {
+			rewrite * /api/states/climate.thermostat?
+			import wall_ha
+		}
+
+		# The Litter-Robot: ok, or attention and what, through a template
+		# entity in home-assistant/packages/wall_house.yaml.
+		handle /api/ha/litter {
+			rewrite * /api/states/sensor.wall_litter?
+			import wall_ha
+		}
+
+		# The context card's sources, each a template entity in its own
+		# home-assistant/packages/wall_*.yaml, each unavailable until its
+		# integration or helper is set up, which hides its card:
+		#   commute     the drive to the next event with an address (Waze)
+		#   shabbat     candles, havdalah, parsha (Jewish Calendar)
+		#   todo        the open items of the lists labelled wall_todo
+		#   trash       the next pickup, from three helpers
+		#   deliveries  packages to go and get (17TRACK)
+		#   media       what the players labelled wall_media are playing
+		handle /api/ha/commute {
+			rewrite * /api/states/sensor.wall_commute?
+			import wall_ha
+		}
+
+		handle /api/ha/shabbat {
+			rewrite * /api/states/sensor.wall_shabbat?
+			import wall_ha
+		}
+
+		handle /api/ha/todo {
+			rewrite * /api/states/sensor.wall_todo?
+			import wall_ha
+		}
+
+		handle /api/ha/trash {
+			rewrite * /api/states/sensor.wall_trash?
+			import wall_ha
+		}
+
+		handle /api/ha/deliveries {
+			rewrite * /api/states/sensor.wall_deliveries?
+			import wall_ha
+		}
+
+		handle /api/ha/media {
+			rewrite * /api/states/sensor.wall_media?
+			import wall_ha
+		}
+
+		# Today's high and low, the next rain and the next sunrise or sunset,
+		# asked of weather.get_forecasts by
+		# home-assistant/packages/wall_weather.yaml: since HA 2024.4 a forecast
+		# is an action's answer, not an attribute a fixed handle can read.
+		handle /api/ha/forecast {
+			rewrite * /api/states/sensor.wall_weather?
+			import wall_ha
+		}
+
+		# The next seven days' events, gathered from the calendars by
+		# home-assistant/packages/wall_calendar.yaml. A calendar's own API needs
+		# a moving start and end, which a fixed handle cannot give.
+		handle /api/ha/today {
+			rewrite * /api/states/sensor.wall_today?
+			import wall_ha
+		}
+
+		handle /api/* {
+			respond "no such question" 404
+		}
+
+		# The page, its script and its stylesheet. `no-cache` makes the
+		# browser ask before reusing its copy (a 304 when nothing changed).
+		# Without it Chromium guesses a freshness from Last-Modified, which
+		# for files weeks old is days: on 2026-11-24 heimdall's kiosk kept
+		# running the old wall.js through a restart, and only a cleared cache
+		# brought the new one. wall.js's six-hourly reload depends on this.
+		handle {
+			header Cache-Control no-cache
+			root * /srv/wall
+			file_server
+		}
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
+
 # The host's own name: nothing is served under it yet.
 trinity.matrix.elysium {
 	handle {

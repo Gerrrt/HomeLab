@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2400 1540" width="2400" height="1540" role="img" aria-labelledby="title desc">
 <title id="title">matrix.elysium home network</title>
-<desc id="desc">Physical and logical topology of the home network: ISP gateway in bridge mode, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
+<desc id="desc">Physical and logical topology of the home network: cable modem, the pfSense firewall morpheus, the core switch neo, the 32U rack, and the six VLANs with every addressed host. Drawn from docs/network.md and docs/hardware.md.</desc>
 <style>
   text { font-family: Inter, "Segoe UI", "Helvetica Neue", Helvetica, Arial, "DejaVu Sans", sans-serif; fill: #c9d1d9; }
   .mono, .ip { font-family: "JetBrains Mono", "SFMono-Regular", Consolas, "Liberation Mono", "DejaVu Sans Mono", monospace; }
@@ -30,7 +30,7 @@
 <rect width="2400" height="1540" fill="url(#grid)"/>
 <g id="title-block">
 <text x="40" y="62"><tspan class="h1">matrix</tspan><tspan class="h1d">.elysium</tspan></text>
-<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-06</text>
+<text x="40" y="90" class="lede">Home network · physical and logical topology · as of 2026-11-22</text>
 </g>
 <g id="legend">
 <rect x="40" y="120" width="640" height="400" rx="12" class="box"/>
@@ -101,8 +101,8 @@
 <path d="M1440 77 H1262" class="wire" stroke="#39c5cf" stroke-width="2.5" stroke-dasharray="8 5"/>
 <line x1="1180" y1="102" x2="1180" y2="146" stroke="#8b949e" stroke-width="3"/>
 <rect x="1030" y="146" width="300" height="46" rx="8" class="box"/>
-<text x="1180" y="166" class="hn" text-anchor="middle">ISP gateway · Xfinity XB7</text>
-<text x="1180" y="183" class="sub" text-anchor="middle">bridge mode · its Wi-Fi radio unused</text>
+<text x="1180" y="166" class="hn" text-anchor="middle">Cable modem · Hitron CODA56</text>
+<text x="1180" y="183" class="sub" text-anchor="middle">modem only · no router, no Wi-Fi</text>
 <line x1="1180" y1="192" x2="1180" y2="226" stroke="#8b949e" stroke-width="3"/>
 <text x="1190" y="214" class="lbl">Cat6 → em0</text>
 <g id="morpheus">
@@ -227,7 +227,7 @@
 <rect x="2010" y="313" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
 <rect x="2010" y="313" width="5" height="19" fill="#2ea043"/>
 <text x="2024" y="327" class="mono">U18</text>
-<text x="2086" y="327" class="role">ThinkCentre M80q · gandalf (off)</text>
+<text x="2086" y="327" class="role">ThinkCentre M80q · gandalf</text>
 <rect x="2010" y="334" width="330" height="19" rx="3" fill="#0d1117" stroke="#30363d"/>
 <rect x="2010" y="334" width="5" height="19" fill="#f85149"/>
 <text x="2024" y="348" class="mono">U16</text>
@@ -395,14 +395,14 @@
 <rect x="450" y="1108" width="322" height="50" rx="8" class="card"/>
 <rect x="450" y="1114" width="4" height="38" rx="2" fill="#db6d28"/>
 <text x="464" y="1130" class="hn">mobile-01</text>
-<text x="760" y="1130" class="ip" text-anchor="end" fill="#db6d28">.105</text>
+<text x="760" y="1130" class="ip" text-anchor="end" fill="#db6d28">pool</text>
 <text x="464" y="1148" class="sub">Apple iPhone</text>
 </g>
 <g class="host" data-host="mobile-02">
 <rect x="450" y="1164" width="322" height="50" rx="8" class="card"/>
 <rect x="450" y="1170" width="4" height="38" rx="2" fill="#db6d28"/>
 <text x="464" y="1186" class="hn">mobile-02</text>
-<text x="760" y="1186" class="ip" text-anchor="end" fill="#db6d28">.109</text>
+<text x="760" y="1186" class="ip" text-anchor="end" fill="#db6d28">.101</text>
 <text x="464" y="1204" class="sub">Google Pixel</text>
 </g>
 <g class="host" data-host="wearable-01">
@@ -412,17 +412,23 @@
 <text x="760" y="1242" class="ip" text-anchor="end" fill="#db6d28">.14</text>
 <text x="464" y="1260" class="sub">Apple Watch</text>
 </g>
-<g class="host" data-host="eero mesh · trusted">
-<rect x="450" y="1282" width="322" height="76" rx="8" class="card"/>
-<rect x="450" y="1288" width="4" height="64" rx="2" fill="#db6d28"/>
-<text x="464" y="1304" class="hn">eero mesh · trusted</text>
-<text x="760" y="1304" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
-<text x="464" y="1322" class="sub">3 × eero Pro 6E, bridged</text>
-<text x="464" y="1338" class="role">one wired backhaul, two meshed</text>
+<g class="host" data-host="heimdall">
+<rect x="450" y="1276" width="322" height="50" rx="8" class="card"/>
+<rect x="450" y="1282" width="4" height="38" rx="2" fill="#db6d28"/>
+<text x="464" y="1298" class="hn">heimdall</text>
+<text x="760" y="1298" class="ip" text-anchor="end" fill="#db6d28">.15</text>
+<text x="464" y="1316" class="sub">Raspberry Pi 5 · wall dashboard · Wi-Fi</text>
 </g>
-<rect x="450" y="1370" width="322" height="56" rx="8" fill="#0d1117" stroke="#30363d"/>
-<text x="464" y="1392" class="sub">Corporate laptops get the same rules</text>
-<text x="464" y="1410" class="sub">as everything else on this segment.</text>
+<g class="host" data-host="eero mesh · trusted">
+<rect x="450" y="1332" width="322" height="76" rx="8" class="card"/>
+<rect x="450" y="1338" width="4" height="64" rx="2" fill="#db6d28"/>
+<text x="464" y="1354" class="hn">eero mesh · trusted</text>
+<text x="760" y="1354" class="ip" text-anchor="end" fill="#db6d28">.11–.13</text>
+<text x="464" y="1372" class="sub">3 × eero Pro 6E, bridged</text>
+<text x="464" y="1388" class="role">one wired backhaul, two meshed</text>
+</g>
+<rect x="450" y="1414" width="322" height="34" rx="8" fill="#0d1117" stroke="#30363d"/>
+<text x="464" y="1436" class="sub">Corporate laptops get the same rules.</text>
 </g>
 <g id="vlan-40">
 <rect x="802" y="680" width="370" height="820" rx="14" fill="#e3b341" fill-opacity="0.07" stroke="#e3b341" stroke-width="2.5" stroke-dasharray="10 6"/>
@@ -487,8 +493,8 @@
 <text x="1694" y="709" class="mono" text-anchor="end">10.0.30.0/24</text>
 <text x="1204" y="740" class="purpose">Hypervisor and lab</text>
 <text x="1204" y="1460" class="foot">Reaches: internet. Host passes: Saruman → prometheus</text>
-<text x="1204" y="1476" class="foot">9090/3100; Saruman, golem → smaug NFS. Hicks: all of it.</text>
-<text x="1204" y="1492" class="foot">WireGuard peers land via phoenix and reach the lab only.</text>
+<text x="1204" y="1476" class="foot">9090/3100, gandalf → 9090; Saruman, golem → smaug NFS.</text>
+<text x="1204" y="1492" class="foot">Hicks: all of it. WireGuard peers via phoenix: lab only.</text>
 <rect x="1202" y="772" width="492" height="642" rx="10" fill="#0d1117" stroke="#2ea043" stroke-opacity="0.6"/>
 <text x="1216" y="796" class="sub">HPE ProLiant DL360 Gen9 · rack U3 · 2 × E5-2680 v3 · 128 GB</text>
 <g class="host" data-host="Saruman">

@@ -101,10 +101,12 @@ Three things have to be in place first:
      | grep ssh-ed25519
    ```
 
-**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), stop
-here and go to *Once: bring the hand-built `eden` into the pipeline* below.
-The commands next are for a first build only: an apply with 141 taken fails
-on the clone, after it has made the pool.
+**If `eden` exists already** (VMID 141 is in `qm list` on `Saruman`), it is
+in the state: the hand-built guest was imported and replaced on 2026-11-12
+under [#1443](https://github.com/Gerrrt/HomeLab/issues/1443), and the first
+untargeted plan after it, on 2026-11-16, said *No changes*. The commands
+below then only refresh it: the plan should say *No changes*, and anything
+else is a stop. To rebuild it on purpose, use *Rebuild: replace it* below.
 
 For a first build, on `phoenix`:
 
@@ -119,34 +121,21 @@ The plan should add the guest and the `bloodhound` pool, and nothing else.
 Proxmox warns that the sum of thin volumes exceeds the pool. That is the
 allocation ADR-0081 accepts, and the warning is expected.
 
-### Once: bring the hand-built `eden` into the pipeline
+### Rebuild: replace it
 
-`eden` was first built by hand, with `qm clone 901 141` and `qm set`
-(2026-10-07), so the state does not know it. Import it once, as the domain's
-six were ([`build-the-lab-domain.md`](build-the-lab-domain.md#rebuild-from-the-pipeline)):
-
-```bash
-tofu -chdir=tofu import 'module.guest["eden"].proxmox_virtual_environment_vm.this' Saruman/141
-tofu -chdir=tofu plan -target='module.guest["eden"]'
-```
-
-The plan should **replace** `eden` and **create** the `bloodhound` pool, and
-nothing else. A guest built by hand has no `clone` to read back, so this is the
-one plan where a replace is expected. Anything else is a stop.
-
-The replace destroys both disks, the graph and the guest's age key with them.
+A replace destroys both disks, the graph and the guest's age key with them.
 ADR-0081 accepts that: the graph is one collection run from rebuilt, and the
-key is replaced by issuing new values. So take it out of the stack first, then
-let the pipeline make it again:
+key is replaced by issuing new values.
 
 ```bash
-tofu -chdir=tofu destroy -target='module.guest["eden"]'
-tofu -chdir=tofu plan -target='module.guest["eden"]' -out=eden.tfplan
+tofu -chdir=tofu plan -replace='module.guest["eden"].proxmox_virtual_environment_vm.this' \
+  -target='module.guest["eden"]' -out=eden.tfplan
 tofu -chdir=tofu apply eden.tfplan && rm tofu/eden.tfplan
 ```
 
-Then continue from §2. At §3, the guest is new and so is its key: follow §11
-for the `.sops.yaml` rule and the secrets file.
+The plan should replace `eden` and nothing else. Then continue from §2. At
+§3, the guest is new and so is its key: follow §11 for the `.sops.yaml` rule
+and the secrets file.
 
 ## 2. First boot, and the data disk
 
@@ -194,6 +183,50 @@ sudo stat -c '%a %u %n' /srv/bloodhound-data/postgres/18/docker    # 700 999
 `qm guest cmd 141 get-fsinfo` on `Saruman` should list `/` and
 `/srv/bloodhound-data`.
 
+### No network in the initramfs
+
+Ubuntu 26.04's initramfs is dracut's. It carries systemd-networkd and a
+catch-all, `zzzz-dracut-default.network`, that runs DHCP on every interface,
+so the NIC asks the lab's DHCP server for an address before the static `.41`
+applies. `eden` leased `.106` from the pool on both of its boots on
+2026-11-16, and `.101` on 2026-11-18. Template `901` leaves networking out of
+the initramfs since `packer/ubuntu/no-initramfs-network.sh`, so a clone of a
+template built after that needs only the check below. A clone of an older
+`901`, `eden` as built, needs the drop-in the hand-installed guests carry
+([`build-the-lab-guest.md`](build-the-lab-guest.md) §2):
+
+```bash
+sudo tee /etc/dracut.conf.d/10-homelab-no-network.conf >/dev/null <<'CONF'
+# eden: no networking in the initramfs (build-the-bloodhound-guest.md §2).
+# The root disk is local. With systemd-networkd in the image, its catch-all
+# DHCPs the NIC before the static address applies.
+# Same line as dracut's own dracut.conf.d/no-network profile.
+omit_dracutmodules+=" net-lib systemd-networkd "
+CONF
+ls /var/run/reboot-required 2>/dev/null && echo 'reboot first'
+k="$(uname -r)"
+sudo cp -p "/boot/initrd.img-$k" "/boot/initrd.img-$k.pre-no-network"
+sudo update-initramfs -u -k "$k"
+sudo lsinitrd -m "/boot/initrd.img-$k" | grep -E 'net-lib|systemd-networkd'   # nothing
+```
+
+If `reboot first` prints, reboot, then run the last four lines. The
+`dracut[E]` line for `dyn-netconf` is the omit working, as `alexander`'s §2
+says. If the new image does not boot, open VM 141's console in the Proxmox web
+UI, hold Esc for GRUB's menu, press `e`, add `.pre-no-network` to the end of
+the `initrd` line's file name, and boot with Ctrl-X.
+
+Either way, reboot and check that nothing before switch-root asked for an
+address. The initramfs calls the NIC `ens18`; the running system calls it
+`eth0`:
+
+```bash
+sudo journalctl -b -o short-iso | awk '/Switching root/{exit} {print}' | grep -cE 'DHCPv4|zzzz-dracut-default'   # 0
+ip -4 -o addr show eth0 | awk '{print $4}'   # 10.0.30.41/24
+```
+
+Then delete the copy, if you made one.
+
 ## 3. Docker, the repository, and its own key
 
 Install Docker, `age`, `git` and `make` as `alexander`'s §3 describes, and add
@@ -209,11 +242,22 @@ V=3.9.4
 curl -fsSLO https://github.com/getsops/sops/releases/download/v$V/sops-v$V.linux.amd64
 curl -fsSL https://github.com/getsops/sops/releases/download/v$V/sops-v$V.checksums.txt \
   | grep " sops-v$V.linux.amd64$" | sha256sum -c -
-sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops
+sudo install -m 0755 sops-v$V.linux.amd64 /usr/local/bin/sops && rm sops-v$V.linux.amd64
 ```
 
-Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. Then, **on
-`eden`**:
+Clone the repository as `garnet` to `~/code/Gerrrt/HomeLab`. **Do not run
+`make validate` in this checkout.** It pulls every stack's images, about 38 GB,
+and on 2026-11-13 that filled `eden`'s OS disk to 100%:
+rsyslog lost its writes until the images were pruned. The checkout is here
+for `secrets-init`, `secrets-edit` and `make up`. CI runs the full suite.
+`make validate` on `phoenix` is partial: `phoenix` has no Docker by design,
+so the checks that run an image are skipped there and a green run does not
+prove them. If it has been run here, `docker image prune -a` takes the disk
+back, but it keeps only images a container still uses: after §6's `make up`,
+the stack's five; before it, or after a `make down`, none, and the next
+`make up` pulls them again.
+
+Then, **on `eden`**:
 
 ```bash
 cd ~/code/Gerrrt/HomeLab
@@ -361,6 +405,25 @@ Check each one now:
   there means the leaf lacks the `bloodhound` SAN. §7's `up{job="bloodhound"}`
   is the same answer from `alexander`.
 
+**Report patch state**, so a held security update or a pending reboot reaches
+someone while the guest runs. The lab's `SecurityUpdatesPending`,
+`RebootRequired` and `PatchStateStopped` read `apt-patch-state.prom`, and a
+guest without the timer is invisible to all three. Until 2026-11-19 this step
+was missing: the guest reported until its rebuild on 2026-11-13, from a timer
+put there by hand, and not after. `make up` has created the textfile
+directory. From the checkout on Hicks, logged in as `garnet`; the installer
+asks for its sudo password once:
+
+```bash
+make install-agent-collectors AGENT=garnet@10.0.30.41 ARGS='--only patch-state'
+```
+
+It must end with `apt-patch-state.prom written, mode 644`. The timer is
+`Persistent=true`, so a run missed while the guest was off happens at its next
+boot. `PatchStateStopped` names `eden` as on-demand and leaves it out while
+none of its node metrics arrive (ADR-0079's reasoning), so shutting it down is
+not an alert; a dead collector on a running `eden` still is.
+
 Then shut it down cleanly. That is what "off between sessions" means, and the
 first session should start from it:
 
@@ -376,18 +439,76 @@ containers to come back. They have `restart: unless-stopped`.
 1. **The UI, over TLS.** From the Mac, open `https://10.0.30.41:8443/`. The
    certificate must verify against the estate's CA, which Hicks already
    trusts for the two Grafanas. Log in as `admin` with
-   `BLOODHOUND_ADMIN_PASSWORD`.
+   `BLOODHOUND_ADMIN_PASSWORD`, then change the password in the UI at once
+   and keep the new one in your password manager, not in the repository.
+   `BLOODHOUND_ADMIN_PASSWORD` only creates `admin` on the first start
+   (`bhe_recreate_default_admin` is `false`), so it is a bootstrap value:
+   it sits in `.env` and in the container's environment, which anyone in
+   the `docker` group can read, and must not stay the live login.
 2. **A collection, ingested.** Download SharpHound from the UI, under
-   *Download Collectors*. That way its version is the one the server's schema
-   expects. Run it from a domain-joined host as an ordinary domain user, for
-   example from `carbuncle`:
+   *Download Collectors*, so its version is the one the server's schema
+   expects. The UI answers Hicks only (`403` from VLAN 30, §6), so download it
+   on a Hicks workstation and carry it to `carbuncle`: `scp` it through
+   `phoenix` to `Administrator@10.0.30.54` (phoenix's `~/.ssh/id_ed25519`
+   reaches every guest as the built-in Administrator; `carbuncle` is VMID 154).
+   Run it there as an ordinary domain user:
 
    ```powershell
    .\SharpHound.exe -c All --domain ad.matrix.elysium --zipfilename eden-first.zip
    ```
 
-   Then upload the zip under *Administration → File Ingest*. The job must
-   finish **Complete**, not *Partially Complete*.
+   The user is any of the population (#449), say `AD\acooper`. Its password is
+   printed on `phoenix`, never stored — but `population-credentials.yml` reads
+   `ansible.cfg` and the `LAB_POPULATION_SEED` it derives the password from
+   from the checkout's `ansible/` directory, so run it from there with the
+   proxmox env exported, as `ansible/README.md` sets up:
+
+   ```bash
+   set -a; . ~/.config/proxmox/phoenix.env; set +a
+   cd ansible
+   ansible-playbook population-credentials.yml -e population_only=acooper
+   ```
+
+   The earlier repo-root shell will not find the playbook. Sign in at
+   `carbuncle`'s console (Proxmox, VMID 154): RDP is off on all six guests, so
+   a domain user has no remote session to use.
+
+   Three things the first run (2026-11-16) hit, so a later one need not:
+
+   - **Defender quarantines SharpHound through AMSI**, as it loads, not on
+     disk — so a folder exclusion does not help; a process exclusion for
+     `SharpHound.exe`, or turning real-time protection off for the run in the
+     Windows Security UI, does. `AD\acooper` is an ordinary user and cannot
+     change Defender: make the change elevated as the endpoint's local
+     administrator `labadmin` (its password is `LAB_ENDPOINT_ADMIN_PASSWORD`),
+     then run SharpHound back in `acooper`'s own session. Tamper Protection
+     means this is a UI action, not a `Set-MpPreference` one. **Leave the
+     detection in place**: SharpHound caught on a workstation, logged against
+     the user, is the event the SOC side of the lab exists to raise (#266),
+     not something to clear. Afterwards undo exactly what you changed —
+     re-enable real-time protection, and if you added the process exclusion,
+     remove it, because re-enabling protection does not clear an exclusion.
+   - **The network collectors do not work here.** `bloodhound-ce-python` and
+     `netexec` authenticate, but both DCs enforce LDAP signing and have no
+     LDAPS certificate (the lab runs no AD CS), so neither can collect:
+     signing refuses plain LDAP, and `636` has no cert. SharpHound on a
+     domain host is the only path, because the Windows LDAP client signs and
+     seals over `389` natively. Do not re-walk the Linux route.
+   - **Getting the zip to the UI.** `carbuncle`'s own browser cannot upload
+     (Hicks only, above), and RDP is off, so pull the zip off `carbuncle` from
+     `phoenix` with `scp` as the built-in Administrator — `acooper` has no SSH
+     key, phoenix's `~/.ssh/id_ed25519` does — then carry it to a Hicks
+     workstation and upload it there. From the checkout root on `phoenix`:
+
+     ```bash
+     scp -i ~/.ssh/id_ed25519 -o UserKnownHostsFile=ansible/.known_hosts \
+       Administrator@10.0.30.54:'C:/Users/acooper/eden-first.zip' .
+     ```
+
+   Upload the zip under *Administration → File Ingest*. The job must finish
+   **Complete**, not *Partially Complete*. Then delete every copy of the zip:
+   it is a map of the domain's weaknesses, and the audit counts none outside
+   `/srv/bloodhound-data`.
 3. **A graph with edges in it.** In *Explore*, search
    `DOMAIN ADMINS@AD.MATRIX.ELYSIUM` and open *Members*. Then run the
    pre-built query *Shortest paths to Domain Admins*. Before #449's

@@ -434,8 +434,11 @@ TrueNAS ships SSH disabled, and on the day this ran §0.5's port-22 pass was
 inert. Enabling it here to save a walk to the machine would have widened this
 host's attack surface for the sake of five commands; §6.2's backup pull was
 the reason to turn it on, on 2026-09-19, and this was not it. The service
-now answers one key-only user, `frodo`, who can read a snapshot and nothing
-else — still not a way to administer the box.
+answered one key-only user, `frodo`, who can read a snapshot and nothing
+else. Since 2026-11-13 it also answers the administrator `gerrrt` from
+`desktop-02`, through the Hicks pass in [`network.md`](../network.md), and
+both are key-only since 2026-11-24. This section still runs at the console:
+it predates that account, and the console needs no pass.
 
 ```bash
 lsblk
@@ -2286,9 +2289,9 @@ measured.
   `smaug`, onto the monitoring host and onto `oracle`, and every one of those
   copies is on the same shelf under the same roof — the position the volume
   sets and the firewall export are in. [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md)
-  sends the newest of each beyond it, on the second age recipient's medium,
-  by [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md); what is left is
-  the first visit, which is [#573](https://github.com/Gerrrt/HomeLab/issues/573)'s last box.
+  sends the newest of each beyond it, on the offsite drive since
+  [ADR-0132](../adr/0132-carry-the-offsite-copy-on-the-spare-drive.md), by
+  [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md).
 - **SMART runs**, since §6.4 was done on 2026-09-21; and
   **patch state is decided and will not run**, by
   [ADR-0047](../adr/0047-collect-smaug-smart-through-a-root-cron-and-the-textfile-collector.md),

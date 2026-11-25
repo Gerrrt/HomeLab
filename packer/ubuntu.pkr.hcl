@@ -116,6 +116,13 @@ build {
   name    = "ubuntu"
   sources = ["source.proxmox-iso.ubuntu"]
 
+  # First, so the upgrade and autoremove below run without these and clear
+  # what they leave behind.
+  provisioner "shell" {
+    execute_command = "sudo -E sh -eu '{{ .Path }}'"
+    script          = "${abspath(path.root)}/ubuntu/prune.sh"
+  }
+
   provisioner "shell" {
     execute_command = "sudo -E sh -eu '{{ .Path }}'"
     inline = [
@@ -135,8 +142,21 @@ build {
       # display. sshd takes the first value it reads, and the drop-ins are
       # included before the main file's line, so this wins.
       "printf 'X11Forwarding no\\n' > /etc/ssh/sshd_config.d/10-no-x11.conf",
+      # cloud-init gives the clone's user Ubuntu's default groups, lxd among
+      # them, and LXD is not installed on any clone. After the upgrade, so
+      # the upgrade cannot put it back; cloud.cfg is a conffile, and
+      # unattended-upgrades keeps a changed one.
+      "sed -i '/^ *groups: \\[/s/, lxd//' /etc/cloud/cloud.cfg",
+      "if grep -qE '^ *groups: .*lxd' /etc/cloud/cloud.cfg; then echo 'lxd is still in cloud.cfg default groups' >&2; exit 1; fi",
       "cloud-init clean --logs --machine-id",
     ]
+  }
+
+  # After the upgrade, so every kernel a clone can boot has its image rebuilt
+  # without networking. The script fails the build if one still carries it.
+  provisioner "shell" {
+    execute_command = "sudo -E sh -eu '{{ .Path }}'"
+    script          = "${abspath(path.root)}/ubuntu/no-initramfs-network.sh"
   }
 
   # Last: remove the build user. -f because this session is that user's, and

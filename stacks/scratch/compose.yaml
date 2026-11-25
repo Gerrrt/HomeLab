@@ -71,7 +71,7 @@ x-service-defaults: &service-defaults
 services:
   wazuh.indexer:
     <<: *service-defaults
-    image: wazuh/wazuh-indexer:4.14.10@sha256:e56f85ed9e79f113c0f2d2a7965171cd8e063262ec88e110086acdb1f69f2240
+    image: wazuh/wazuh-indexer:4.14.10@sha256:1d2aeadb9de88c6d17ce12030606425deca5a210cdf5c87008843da38eb629ea
     container_name: scratch-wazuh-indexer
     hostname: wazuh.indexer
     pids_limit: 4096
@@ -89,8 +89,8 @@ services:
         soft: 65536
         hard: 65536
     environment:
-      # The same 2 GiB as odin, and the same shard ceiling with it — 25 per GiB
-      # of heap (ADR-0030). DIFFERENCE 2: nothing deletes on a schedule here.
+      # 2 GiB, the heap odin had until ADR-0118, and the shard ceiling that
+      # goes with it — 25 per GiB of heap (ADR-0030). DIFFERENCE 2: nothing deletes on a schedule here.
       # soc's ism-wazuh-alerts.json is not applied; an investigation that runs
       # into the shard ceiling has outlived the "weekend" this guest is for,
       # which is the same thing DisposableGuestOutlived says from outside.
@@ -123,7 +123,7 @@ services:
 
   wazuh.manager:
     <<: *service-defaults
-    image: wazuh/wazuh-manager:4.14.10@sha256:dcda4869e2f792e92f03bce93f85b4bdf103756ea61cfca8ba9f3eabeb05365b
+    image: wazuh/wazuh-manager:4.14.10@sha256:eabfa7ee4e63acb51c2130fa0583e30f843d030b091cf45a4fbd93d78fa21517
     container_name: scratch-wazuh-manager
     hostname: wazuh.manager
     init: false
@@ -199,7 +199,7 @@ services:
 
   wazuh.dashboard:
     <<: *service-defaults
-    image: wazuh/wazuh-dashboard:4.14.10@sha256:0eebab19802342b841a258f56d6fa0fb085cdae08ab5eb2e45f9455c906d719a
+    image: wazuh/wazuh-dashboard:4.14.10@sha256:4d48be7210a291c00a2bd148cbd8bd61a25876e947b81790fd03f7d2aabda95a
     container_name: scratch-wazuh-dashboard
     hostname: wazuh.dashboard
     mem_limit: 1024m
@@ -256,7 +256,7 @@ services:
 
   velociraptor:
     <<: *service-defaults
-    image: ghcr.io/velocidex/velociraptor-server:0.77.3@sha256:6ffb1bd412bad0e280715da19f48491e7ce57068a9840433aaeed8831c2c9ae1
+    image: ghcr.io/velocidex/velociraptor-server:0.77.4@sha256:cc6b012eadea16d21b9e3ab9cc13dad81396f66be4e344aad3fe8efd53b20756
     container_name: scratch-velociraptor
     pids_limit: 1024
     mem_limit: 1024m
@@ -297,7 +297,7 @@ services:
   # the scratch network; the Caddyfile has the reason (#1428).
   caddy:
     <<: *service-defaults
-    image: caddy:2.11.9@sha256:0c2243efcf437ab7f7a978f1027fcf0d4f9be8a75df27b1b3fbc5dbe0ffa8cf0
+    image: caddy:2.11.9@sha256:4851e54a46b206517c574821bb5cc67f170d2156041e9fbc4c9193b45e84a75b
     container_name: scratch-ui-proxy
     user: "1000:1000"
     pids_limit: 64

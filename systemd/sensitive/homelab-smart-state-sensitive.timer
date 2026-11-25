@@ -1,0 +1,18 @@
+[Unit]
+Description=HomeLab: daily SMART collection on trinity
+Documentation=file://@DEPLOY_ROOT@/docs/runbooks/schedule-maintenance.md
+
+[Timer]
+Unit=homelab-smart-state-sensitive.service
+# 08:30, the estate's SMART time, so "every host's SMART is from this morning"
+# stays true. Clear of the night's backups and their verification, which are
+# done by 06:30 and hold the `backups` lock this does not take.
+OnCalendar=*-*-* 08:30:00
+RandomizedDelaySec=900
+# True: a missed morning is collected at the next boot, so a gap in the series
+# means "stopped reporting" and not "was off at 08:30".
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

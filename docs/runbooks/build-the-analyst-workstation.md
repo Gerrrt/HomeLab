@@ -194,6 +194,13 @@ ssh -t analyst@10.0.30.62 'sudo -k && sudo -v && echo sudo-password-ok'
 ssh -t analyst@10.0.30.62 'sudo rm /etc/sudoers.d/90-cloud-init-users && sudo -k && sudo -n true 2>&1 | grep -q "password is required" && echo nopasswd-gone'
 ```
 
+cloud-init also puts `analyst` in `lxd`. LXD is not installed, but membership
+of `lxd` is root as soon as it is, so take it out now:
+
+```bash
+ssh -t analyst@10.0.30.62 'sudo gpasswd -d analyst lxd'
+```
+
 Every later step that uses `sudo` asks for the password, so an `ssh` that
 runs `sudo` takes `-t`.
 
@@ -256,6 +263,14 @@ systemctl list-unit-files | grep -Ei 'suricata|zeek|elastic|kibana|wazuh' || ech
 ```
 
 Every line printed must say `disabled`, or not exist. Record the output in §11.
+
+**Turn off what a guest has no use for.** Kali enables a modem manager, a
+SMART daemon for disks a VM does not have, CUPS's path trigger, `stunnel`'s
+target and PHP's session cleaner. Nothing here uses them:
+
+```bash
+sudo systemctl disable --now ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer
+```
 
 ## 6. Its token at the lab's ingest proxy, and its stack
 
@@ -384,7 +399,13 @@ exercise, and goes down after it with `siemdown`. Left up, it is the second
 SIEM ADR-0091 refuses.
 
 **Cases live in `~/cases/`,** outside every repository, by Defense's own
-rule. That directory is the reason this guest is backed up.
+rule. That directory is the reason this guest is backed up. Make it, readable
+by `analyst` alone. `chmod` is its own step because `mkdir -p -m` sets the
+mode only on a directory it creates, and an earlier one may already exist:
+
+```bash
+mkdir -p ~/cases && chmod 700 ~/cases
+```
 
 ## 8. Collectors and backup
 
@@ -423,7 +444,10 @@ Each line is a pass or a stop:
 - **No second SOC.** On `garuda`:
   - `docker ps --format '{{.Names}}'` prints exactly `analyst-alloy` and
     `analyst-docker-socket-proxy`;
-  - `ss -lntup` shows no Suricata, Zeek or Elastic listener.
+  - `ss -lntup` shows no Suricata, Zeek or Elastic listener;
+  - `systemctl is-enabled ModemManager smartmontools cups.path stunnel.target phpsessionclean.timer`
+    prints `disabled` five times.
+- **Cases.** `stat -c '%a %U' ~/cases` prints `700 analyst`.
 - **Access** (§4, §7). On `garuda`:
   - `sudo sshd -T | grep -iE '^(passwordauthentication|permitrootlogin|allowusers|disableforwarding) '`
     prints `passwordauthentication no`, `permitrootlogin no`,
@@ -431,6 +455,7 @@ Each line is a pass or a stop:
     `analyst@10.0.30.70`. `sshd -T` still lists the separate forwarding
     options as `yes`; `DisableForwarding` overrides them;
   - `sudo -k; sudo -n true` says a password is required;
+  - `id -nG` does not list `lxd`;
   - `gh auth status` says it is not logged in, or `gh` is absent;
   - no key in `~/.ssh` is on the GitHub account, and any private key there has
     a passphrase: `ssh-keygen -y -P '' -f <key>` fails.
@@ -785,3 +810,43 @@ the guest takes the new space with no reboot.
    ```
 
    Read the device from `lsblk` first if the layout has changed since §11.
+
+## 15. Keep it patched
+
+**Nothing patches `garuda` on its own, and no alert says it is behind.** Three
+facts make that so:
+
+- `dotfiles-Debian` enables `unattended-upgrades` (§11), but its allowed
+  origins are Debian's, and every package here comes from Kali's archive. Its
+  log says `No packages found that can be upgraded unattended` every day.
+- Kali Rolling has no security suite. `patch-state` (§8) counts a security
+  update by its origin's security pocket, so
+  `homelab_apt_security_upgrades_pending{host="garuda"}` is always 0.
+  `homelab_apt_upgrades_pending{host="garuda"}` does count what is behind.
+- Nothing alerts on either number, or on a pending reboot. `garuda`'s Alloy
+  writes only to the lab's Prometheus on `alexander`
+  (`stacks/analyst/compose.yaml`), which has no apt or reboot rules and no
+  Alertmanager (ADR-0020). `SecurityUpdatesPending` and `RebootRequired` live
+  in `stacks/observability` and never see `garuda`.
+
+So the upgrade is a person's job. **Monthly**, on `garuda`:
+
+```bash
+sudo apt-get update && sudo apt-get -y full-upgrade
+ls /run/reboot-required 2>/dev/null && echo reboot-needed
+```
+
+If it prints `reboot-needed`, run `qm reboot 162` on `Saruman` the same day,
+then §9's checks. Nothing alerts on a missed reboot or a missed upgrade, so
+running that check is part of the job.
+
+**Before the next scan after an upgrade,** run
+[`scan-the-lab-with-openvas.md`](scan-the-lab-with-openvas.md) §5: sync the
+feeds, run the setup check, migrate if it asks, and re-prove the fence. On
+2026-11-15 gvmd would not start until it was migrated, because an upgrade had
+moved its database revision.
+
+The rest arrives through the repository. When the Wazuh pin in
+`stacks/soc/linux-agents.yaml` moves, run §12's upgrade. When the Alloy pin
+moves, run `make up STACK=analyst` on `garuda`. A reboot restarts the old
+container; it does not apply a changed `compose.yaml`.

@@ -1,0 +1,19 @@
+[Unit]
+Description=HomeLab: hourly appliance check on fenrir
+Documentation=file:///home/atreus/code/Gerrrt/HomeLab/docs/runbooks/build-the-sensor-guest.md
+
+[Timer]
+Unit=homelab-appliance-state.service
+# Hourly, not daily like patch-state. A tool installed on fenrir starts reaching
+# out the moment it runs, and the audit's finding was weeks of nobody knowing.
+# The run reads a handful of files and two sockets, so the cost is nothing.
+# OnBootSec gives a reading soon after a reboot, which is when a changed
+# sshd_config or a newly enabled service would first show.
+OnCalendar=hourly
+OnBootSec=5min
+RandomizedDelaySec=300
+Persistent=true
+AccuracySec=1m
+
+[Install]
+WantedBy=timers.target

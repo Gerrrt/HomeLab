@@ -146,6 +146,64 @@ Expect:
 Anything else stops the build here. A disabled Secure Boot makes §4's seal
 meaningless, and a missing TPM makes it impossible.
 
+**SSH: keys only.** The installer's OpenSSH takes passwords, and cloud-init's
+`50-cloud-init.conf` drop-in can keep it that way. The audit of 2026-11-13
+found `trinity` answering `publickey,password`, with X11 forwarding on and 17
+keys imported from GitHub in `authorized_keys`. Your account here is in
+`sudo`, `docker` and `lxd`, so a guessed password is root on the host that
+holds the household's data. `trinity` has no host firewall by decision
+([`security.md`](../security.md)), so this drop-in is the control on `22`.
+
+Keep `~/.ssh/authorized_keys` to the machines you administer it from:
+`prometheus`'s key, put there by `ssh-copy-id` above, Hicks's, and the
+operator's laptop's, which was kept by decision on 2026-11-20. Install
+Hicks's now, from Hicks, while a password still works:
+
+```bash
+ssh-copy-id <you>@10.0.99.40
+```
+
+Delete every other line in the file, including any `gh:` import. Before
+going further, prove a fresh key login from each machine; run this on
+`prometheus`, on Hicks and on the laptop, and each must succeed with no
+password prompt:
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
+```
+
+If either fails, fix that machine's key first: the next step takes away the
+password it would otherwise fall back on. Then log in with a key and keep that
+session open while you do the rest, so a mistake cannot lock you out:
+
+```bash
+sudo tee /etc/ssh/sshd_config.d/10-trinity.conf > /dev/null <<'EOF'
+# Keys only (build-the-sensitive-tier-host.md §3). Sorts ahead of
+# 50-cloud-init.conf, and sshd keeps the first value it reads, so these win.
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitRootLogin no
+X11Forwarding no
+EOF
+sudo sshd -t && sudo systemctl reload ssh
+sudo sshd -T | grep -E '^(passwordauthentication|kbdinteractiveauthentication|permitrootlogin|x11forwarding) '
+```
+
+All four read `no`. Then, from `prometheus`, in a new terminal, prove both
+halves. `ControlPath=none` makes each probe open a fresh connection instead
+of riding on the session you kept open:
+
+```bash
+ssh -o ControlPath=none -o PubkeyAuthentication=no -o PreferredAuthentications=password <you>@10.0.99.40 true
+```
+
+```bash
+ssh -o ControlPath=none -o PreferredAuthentications=publickey -o PasswordAuthentication=no <you>@10.0.99.40 true
+```
+
+The first must fail with `Permission denied (publickey)`, and the second must
+succeed. Run the second from Hicks too.
+
 **Tell networkd to leave the other two interfaces alone.** 26.04's dracut
 leaves a catch-all, `zzzz-dracut-default.network`, that runs DHCP on every
 interface netplan does not name. That is the I226 (`enp1s0`) and the Wi-Fi
@@ -184,7 +242,7 @@ One block, pasted on `trinity`. It asks for your `sudo` password once:
 
 ```bash
 sudo apt-get update
-sudo apt-get install -y ca-certificates curl git make age tpm2-tools
+sudo apt-get install -y ca-certificates curl git make age tpm2-tools smartmontools
 sudo install -m 0755 -d /etc/apt/keyrings
 curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
   | sudo tee /etc/apt/keyrings/docker.asc > /dev/null
@@ -501,18 +559,25 @@ Then the stack README's list, on the host it was written for:
 - **Home Assistant keeps booting under its hardening.** It is healthy above;
   the `dhcp` integration's `CAP_NET_RAW` error is the one expected line.
 - **AdGuard answers the prober and nobody else.** That is §11, step 1.
-- **The limits.** Nothing to do today. The README says re-derive after a
-  month.
+- **The limits.** Nothing to do today. After a month, re-derive them from
+  `container_memory_rss` the way the stack README's 2026-11-21 pass did.
 
 The agent, from `prometheus`:
 
 ```bash
 ./scripts/deploy-agent.sh <you>@10.0.99.40
-make install-agent-collectors AGENT=<you>@10.0.99.40
+make install-agent-collectors AGENT=<you>@10.0.99.40 ARGS='--only patch-state'
+make install-agent-collectors AGENT=<you>@10.0.99.40 ARGS='--only prune-images'
 ```
 
-The first needs no privilege on `trinity`. The second asks for your `sudo`
-password there, which is why it is separate. Within a minute
+The first needs no privilege on `trinity`. The other two ask for your `sudo`
+password there, which is why they are separate. They are named one by one
+because the bare form also installs the agent `smart-state`, which writes the
+same `smart-state-trinity.prom` as the sensitive profile's
+`smart-state-sensitive` (§12): two timers would race on one file.
+`patch-state` is what lets `RebootRequired` and the pending-update alerts see
+`trinity`; the audit of 2026-11-13 found only `prune-images` installed, and
+`apt-patch-state.prom` missing. Within a minute
 `up{instance=~"trinity.*"}` is 1 in Prometheus.
 
 ## 10. Trust the root, then the first logins
@@ -635,13 +700,30 @@ both kinds here and checks `oracle`'s copies against their MANIFESTs
 the installer primes it too. `verify-backups-sensitive.prom` must read exit
 code `0`.
 
+And `smart-state-sensitive`, daily at 08:30, which reads SMART from the NVMe
+as root. It needs `smartmontools` from step 4. The
+installer primes it, so read what it found straight away:
+
+```bash
+cat /var/lib/node_exporter/textfile_collector/smart-state-sensitive.prom
+grep -E '^homelab_smart_(devices|healthy)' /var/lib/node_exporter/textfile_collector/smart-state-trinity.prom
+```
+
+The job's exit code must be `0`, and `homelab_smart_healthy` must carry a row
+for `nvme0n1`. The photo disk has none: its enclosure passes no SMART through
+(`docs/hardware.md`), so `homelab_smart_devices` counts it and nothing else
+is read from it. Any other disk plugged in, such as the spare WD Elements,
+gets a row of its own while it is attached.
+
 ## 13. Before the first real photo, document or vault item
 
-These five are the gate on the data, not on the containers, and each is
+These four are the gate on the data, not on the containers, and each is
 written in a document that already exists. The gate was passed with most of it
 open: Immich's first real photographs arrived on 2026-09-28, and the stack
-README's warning records it. Items 1 and 4 are done, and item 3 has an interim
-stand-in, ADR-0064's copy to `oracle`, which does not close it. ADR-0022's
+README's warning records it. All four are done, the last by 2026-11-21. There was a fifth, the
+off-estate copy, and
+[ADR-0122](../adr/0122-drop-the-household-copy.md) dropped it: ADR-0064's
+copy to `oracle` is the library's only copy off the host. ADR-0022's
 TOTP floor is met: Home Assistant's owner since 2026-09-28, Stirling-PDF's
 admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
 
@@ -653,17 +735,18 @@ admin since 2026-09-29, and Vaultwarden and Paperless-ngx by 2026-10-02.
    ([ADR-0024](../adr/0024-hold-a-second-age-recipient-and-prove-each-one-separately.md)).
    Run `make secrets-add-recipient STACK=sensitive PUBKEY=age1…`, then one
    more `make backup STACK=sensitive`, so a set exists that the second key
-   opens.
-3. **The off-estate copy**
-   ([ADR-0023](../adr/0023-keep-the-household-recovery-path-outside-the-estate.md),
-   [ADR-0048](../adr/0048-carry-the-estates-backup-sets-with-the-second-recipient.md),
-   [`copy-the-backups-offsite.md`](copy-the-backups-offsite.md)). This covers
-   the library disk as well as the volume sets.
-4. **ADR-0022's decision recorded.** Either an identity provider, or the
+   opens. Done on 2026-10-03
+   ([#866](https://github.com/Gerrrt/HomeLab/pull/866)); every nightly set
+   since is encrypted to both.
+3. **ADR-0022's decision recorded.** Either an identity provider, or the
    deferral re-accepted with reasons. Done on 2026-10-02: re-accepted, by
    [ADR-0075](../adr/0075-re-accept-the-sso-deferral-once-the-tier-holds-real-data.md).
-5. **ADR-0023's *Independent* test.** The household's own credentials open
-   from the other person's device, without the operator present.
+4. **ADR-0023's *Independent* test.** The household's own credentials open
+   from the other person's device, without the operator present. Done by
+   2026-11-21, by ADR-0023's recommended route: the household's credentials
+   live in hosted Bitwarden and this Vaultwarden keeps the operator's. The
+   other person opened them from their own device, signed in to their own
+   account, without the operator, and #404 closed.
 
 ## 14. Write it down
 

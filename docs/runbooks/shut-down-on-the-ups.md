@@ -50,12 +50,13 @@ follow the steps.**
 >   the console and the KVM.
 >   [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)
 >   makes `trinity` a third secondary. That is the new
->   [step 4b](#step-4b--subscribe-trinity), and **it is not built yet**.
+>   [step 4b](#step-4b--subscribe-trinity), **applied on 2026-11-20**.
 > - **`Saruman` runs thirteen guests, not two**, four of them in ordered
 >   stages. Step 3.6 now caps those four at `down=90`. 3.7 keeps its monitor
 >   logged in until they are down and raises `HOSTSYNC` to 600, and 3.8
->   raises the card to 16 minutes before the window. **None of this is
->   applied yet** either.
+>   raises the card to 16 minutes before the window. **`Saruman`'s half is
+>   applied** (2026-11-13): 3.6's `down=90` and 3.7's `SHUTDOWNEXIT no` and
+>   drop-in. `HOSTSYNC 600` on `morpheus` and 3.8 followed on 2026-11-20.
 > - **The UPS's outlet groups were read for the first time** (PDU on
 >   group 1). Their turn-off and load-shedding settings were not, and a
 >   group-1 setting that sheds the PDU early would cut every host
@@ -63,6 +64,12 @@ follow the steps.**
 >
 > §6.5 now keeps the low-battery duration at or above the worst case plus
 > half again, whatever the measured run says.
+>
+> **Steps 5 and 6 will not be run, 2026-11-21.**
+> [ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)
+> accepts the sequence as configured. Steps 0 to 4b are applied, and #574
+> closes on them. Steps 5 to 7 stay below as a procedure, and nothing lists
+> them as owed.
 
 ## What this does
 
@@ -172,17 +179,19 @@ Stop and fix that first — every later step depends on reaching this card.
 ### 0.2 Change it at the card
 
 1. Open `https://10.0.99.10` in a browser and log in.
-2. Go to **Configuration → UPS → General** (on AOS 2.x; on an older firmware
-   it is **UPS → Configuration**).
-3. Find the field for **low battery duration**. It is the setting whose value
-   is currently **2** and whose units are minutes.
-4. Change it to **8**.
-5. Apply or Save.
+2. Go to **Configuration → Shutdown**. The field is under *Start of
+   Shutdown* and is labelled **Low Battery Duration**, in minutes.
+3. Change it to **8**.
+4. Apply or Save.
 
-**The label wording varies by firmware.** It is the only setting on that page
-measured in minutes and currently reading 2. If two fields could match, come
-back and confirm with 0.3 rather than guessing — 0.3 reads the exact object
-you need to have changed.
+**Not *Basic Low Battery Duration*.** The same page has that field under
+*Basic Signaling Shutdown*. It is for a simple-signaling cable, and nothing
+here uses one; `snmp-ups` and 0.3 read the other field. This step used to
+send you to *Configuration → UPS → General*, where the field is not; the
+operator caught that on 2026-11-14. APC's NMC3 user guide for the AP9640,
+AP9641 and AP9643 puts it under *Configuration → Shutdown*. On the card's command line the same field is `cfgshutdn -lo <minutes>`, and
+`cfgshutdn -all` reads it back. 0.3 is still the check either way, because it
+reads the exact object you need to have changed.
 
 ### 0.3 Confirm it took
 
@@ -271,12 +280,17 @@ authPassword=<AUTHPASS>
 privPassword=<PRIVPASS>
 mibs=apcc
 pollfreq=15
+snmp_timeout = 2
+snmp_retries = 6
 ```
 
 `secName` is `prometheus` — the username in `generator.yaml`'s `auth_apc`
 block, which is the credential the exporter has already been using against
 this card since 2026-09-21. `mibs=apcc` names NUT's PowerNet MIB; `snmp-ups`
-autodetects it and the line only makes the choice visible.
+autodetects it and the line only makes the choice visible. The last two
+lines give each unanswered request about 14 seconds of retries before the
+driver gives up on it; [Why the driver retries for 14 seconds](#why-the-driver-retries-for-14-seconds)
+says why.
 
 ### 1.4 Reveal and fill in Advanced settings
 
@@ -338,6 +352,8 @@ secLevel=authPriv
 secName=prometheus
 mibs=apcc
 pollfreq=15
+snmp_timeout = 2
+snmp_retries = 6
 LISTEN 127.0.0.1
 LISTEN ::1
 LISTEN 10.0.30.1 3493
@@ -783,8 +799,8 @@ interface that day.
 
 Added 2026-11-08 by
 [ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md),
-after the rack move put `trinity` on the PDU. **Not built yet.** Do it
-before step 5, so step 5 proves three secondaries and not two.
+after the rack move put `trinity` on the PDU. **Applied on 2026-11-20.** It
+comes before step 5, so step 5 proves three secondaries and not two.
 
 `trinity` and the listener are both on Winterfell, so nothing here crosses a
 segment. The rules keep the rest of Winterfell — `prometheus`, `oracle` and
@@ -901,6 +917,10 @@ and `LISTEN 10.0.99.1` in place of `LISTEN 10.0.30.1`.
 ---
 
 ## Step 5 — Prove the shutdown order
+
+**Not run, by decision**
+([ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)).
+Kept as a procedure, not as a step owed.
 
 This halts everything. Your window must be open and you must be able to power
 the four hosts back on by hand.
@@ -1105,6 +1125,9 @@ investigate before step 6.
 
 ## Step 6 — Measure the pack
 
+**Not run, by decision**
+([ADR-0121](../adr/0121-accept-the-ups-shutdown-without-a-live-test.md)).
+
 Everything running, step 5 passed, every host back up.
 
 ### 6.1 Take a baseline
@@ -1210,6 +1233,33 @@ Then close [#574](https://github.com/Gerrrt/HomeLab/issues/574).
 
 ## If something goes wrong
 
+**`NutDriverNotConnected` or `NutCommunicationsLost` paged.** These read
+`upsmon`'s own logs in Loki (`loki/rules/nut.rules.yaml`), so they fire
+whether or not the card still answers SNMP. Until it clears, **the shutdown
+is disarmed** on the host it names. Which one paged says where to look:
+
+- `NutDriverNotConnected`, from any host, is the driver on `morpheus`. A
+  client that logs it has reached `upsd`, so its network is fine. On
+  `morpheus`, run `upsc mjolnir`: if it says `Driver not connected`, the
+  `snmp-ups` driver is down, so check that the card answers at
+  `https://10.0.99.10`, then *Services → UPS → Save* restarts the driver.
+- `NutCommunicationsLost` on `morpheus` is the driver or the card, as above.
+  On a client it is that client's path to `upsd` on 3493: `10.0.30.1` from
+  `Saruman` (3.3), `10.0.99.1` from `trinity` (4b.4). Run `upsc
+  mjolnir@<that address>` there, then re-run its verify step (3.5 or 4b.5).
+
+`smaug` ships no logs, so these alerts never name it.
+
+**`RackAmbientTemperatureCritical` paged.** The AP9335T on the card's
+universal I/O port has read over 35 °C for ten minutes at the bottom of the
+rack, past the DL360's rated inlet. Check the room first: a closed door, a
+heater, or something stacked against the frame's back, which needs its 30 cm
+from the wall. Read the DL360's inlet temperature on the iLO to confirm it is
+the room and not the probe. If it keeps climbing, shut `Saruman` down cleanly
+(it is most of the heat) before its own thermal trip does it hard; the rest
+can stay up. `RackAmbientTemperatureHigh` is the same reading over 30 °C, a
+warning with time to act.
+
 **`upsc` says `Connection refused`.** Either `upsd` is not listening on that
 address (check 1.6) or the pass rule is below the block or the catch-all
 (check 2.5). Both look identical from the client.
@@ -1243,9 +1293,22 @@ halt.** Run `journalctl -u nut-monitor -b -1` on `trinity`. A secondary that
 never logged in never saw the flag. Check 4b.5's `upsc -c` listing, and that
 4b.1's pass is above its block.
 
-**`UpsOnBattery` did not fire within a minute in 6.2.** The scrape is every 60
-seconds and the rule waits 30, so two minutes is the outside limit. Past that,
-the card is not reporting the transfer — plug back in and stop.
+**`UpsOnBattery` did not fire within a minute in 6.2.** It fires on the first
+scrape that reads more than 30 seconds on battery. That scrape starts at most
+90 seconds after the cut, because scrapes are 60 seconds apart. It can take up
+to 45 seconds to finish (the `snmp` job's `scrape_timeout`), and the next rule
+evaluation follows within 60 seconds. So the rule fires at most about three
+and a quarter minutes after the cut. Its route (`severity="critical"`,
+`category="power"`) has `group_wait: 0s`, so the page goes out straight away.
+Past that limit, tell the two failures apart before you blame the card:
+
+- **Prometheus at `/alerts` shows `UpsOnBattery` firing, but no page
+  arrived.** The fault is in delivery. Check Alertmanager's `/#/alerts` and
+  `alertmanager_notifications_failed_total`. The card is fine, so carry on.
+- **Prometheus never shows it firing.** Look at `upsSecondsOnBattery` in
+  Prometheus. If it stays 0 while the UPS beeps, the card is not reporting the
+  transfer — plug back in and stop. If `up{device="mjolnir"}` is 0, the
+  scrape is failing instead.
 
 **A real cut later ended with a host stopping uncleanly anyway.** The sequence
 outgrew the window. `SmartDriveUnsafeShutdownsGrowing` is what tells you.
@@ -1320,6 +1383,28 @@ for this one. Anything the driver needs beyond the address has to arrive
 through *Extra Arguments to driver*, which the package appends inside the
 `[mjolnir]` section. That is why the v3 credential goes there.
 
+### Why the driver retries for 14 seconds
+
+The card stops answering SNMP for a few seconds about twice a minute. A
+45-minute capture on `morpheus` on 2026-11-23 counted 93 such stalls, mostly
+3 to 5 seconds and up to 8; the card sends nothing during one, neither a reply
+nor an error. With the driver's defaults, one-second retries, NUT gives up at
+about 6 seconds, and `upsd` marks the data stale. In the capture only the two
+stalls longer than that, 7.1 and 8.2 seconds, became *data stale* spells, each
+logged the second its stall passed 6 seconds and cleared on the card's next
+answer. The exporter sees the same stalls as scrapes that take 5 seconds or
+more: one of its requests waited out the exporter's default 5-second request
+timeout and was retried. The scrape itself, with a 45-second
+`scrape_timeout`, still succeeds.
+
+`snmp_timeout = 2` with `snmp_retries = 6` gives one unanswered request about
+14 seconds, longer than any stall measured. That is a budget per request, not
+the time to flag an outage: `upsd`'s 15-second `MAXAGE` counts from the
+driver's last message, and how soon a card that is really gone is now marked
+stale was not measured. Why
+the card stalls at all is not known; it is the card's own behaviour, not the
+network's, since ICMP to it lost nothing during the capture.
+
 ### Why `smaug` is a subscriber at all
 
 Until 2026-11-06 it was in the media room, not the rack, and nothing
@@ -1336,8 +1421,10 @@ Both came onto the PDU in the move into the 32U rack, on 2026-11-07.
 or a disk that a hard stop can leave half-written, so it halts with the
 first group
 ([ADR-0107](../adr/0107-subscribe-trinity-to-the-ups-and-bound-saruman-s-guest-stop.md)).
-`gandalf` is the range: disposable by decision, off between sessions, and
-the only copy of nothing.
+`gandalf` is the range: disposable by decision, and the only copy of
+nothing. It is on outside sessions too
+([ADR-0125](../adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)),
+and a hard stop costs it nothing a rebuild does not restore.
 
 ### What this does not prove
 

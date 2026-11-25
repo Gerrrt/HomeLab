@@ -1,10 +1,17 @@
 # ADR-0073: Carry the household's copy on a drive the holder keeps
 
-**Status:** Accepted · 2026-10 · settles the first of
-[ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md)'s two
-conditions for [#455](https://github.com/Gerrrt/HomeLab/issues/455). The
-second, the proof from the other person's device, is a person's to run, and
-this record says how it is recorded, not that it has happened.
+**Status:** Superseded · 2026-11 · by
+[ADR-0122](0122-drop-the-household-copy.md) · accepted 2026-10
+
+> [!NOTE]
+> Wholly superseded: [ADR-0122](0122-drop-the-household-copy.md) drops the
+> household copy and the requirement for it. The scripts, the recipients
+> file, the jobs and `HouseholdCopyStale` described here are removed. The text
+> here is left as written, per ADR-0001 and ADR-0115.
+>
+> As accepted, this record settled the first of
+> [ADR-0023](0023-keep-the-household-recovery-path-outside-the-estate.md)'s two
+> conditions for [#455](https://github.com/Gerrrt/HomeLab/issues/455).
 
 ## Context
 

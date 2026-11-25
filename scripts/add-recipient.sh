@@ -240,27 +240,23 @@ fi
 trap - EXIT INT TERM
 rm -f "${BACKUP}"
 
-# The new recipient starts life unproven, and says so out loud rather than
-# waiting for the next verification of some OTHER key to notice it exists.
-# key-recipients.sh writes 0 for it, SecretsKeyBackupUnproven reads that as
-# "never", and the nagging starts now instead of in ninety days.
+# Record the new recipient now, as never proved (0). No alert reads that since
+# ADR-0120; it keeps key-recipients.prom's list current for remove-recipient.sh.
 "${REPO_ROOT}/scripts/key-recipients.sh" --record --stack "${STACK}" || true
 
 cat <<EOF
 
 $(printf '\033[0;32mok\033[0m') — secrets/${STACK}.sops.yaml is now encrypted to $((${#CURRENT[@]} + 1)) recipients.
 
-Not yet done, and the alert is already saying so:
+Not yet done:
 
   1. Put the private half somewhere this machine is not, and somewhere the
      existing backup is not. Two copies in one drawer is one copy.
          docs/runbooks/back-up-the-age-key.md
 
-  2. Prove it opens the file. Until this runs, the new recipient is recorded as
-     never verified and SecretsKeyBackupUnproven names it. STACK matters: left
-     out, it defaults to observability, which a key on the catch-all rule also
-     opens, so the run passes against the wrong file and records the proof
-     there:
+  2. Optionally, prove it opens the file. STACK matters: left out, it defaults
+     to observability, which a key on the catch-all rule also opens, so the run
+     passes against the wrong file and records the proof there:
          make secrets-verify-backup STACK=${STACK} KEY=/path/to/the/new/copy
 
   3. Commit both files together. .sops.yaml and the re-keyed secrets file are

@@ -23,7 +23,7 @@ Times are the host's local time. The full procedure, and what to do when a
 job goes stale, is
 [`docs/runbooks/schedule-maintenance.md`](../docs/runbooks/schedule-maintenance.md).
 
-## The four directories
+## The five directories
 
 | Directory | Host | Installed by | Runs through |
 | --- | --- | --- | --- |
@@ -31,6 +31,7 @@ job goes stale, is
 | [`sensitive/`](sensitive) | `trinity` | `make install-timers ARGS="--profile sensitive"` | the same, with `@DEPLOY_ROOT@` and `@RUN_USER@` filled in at install |
 | [`agent/`](agent) | each agent host, by what it can run | `make install-agent-collectors AGENT=user@host` | a collector copied to `/usr/local/bin`; an agent host has no checkout |
 | [`host/`](host) | `prometheus` | `make install-host-units` | nothing: boot ordering, not a schedule. Docker waits for `10.0.99.20` ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)) |
+| [`range/`](range) | `gandalf` | by hand, [`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §7 | `scripts/ragnarok-stop.sh`, copied to `/usr/local/sbin`. Stops the attack VM `ragnarok` at its deadline, checked every minute ([ADR-0125](../docs/adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)); it reports nothing until [#1651](https://github.com/Gerrrt/HomeLab/issues/1651) |
 
 The estate's units name the deployment checkout's absolute path, because the
 live stack runs from that checkout and nowhere else, and `install-timers.sh
@@ -43,6 +44,7 @@ editing units, not installing them.
 | --- | --- | --- |
 | `homelab-converge` | hourly, at :25 | Fetches `main`, checks its signature and CI, deploys it. Installs report-only; see [`converge-the-host.md`](../docs/runbooks/converge-the-host.md) |
 | `homelab-backup-firewall` | daily 04:30 | Exports and encrypts `morpheus`'s pfSense config |
+| `homelab-backup-switch` | daily 09:45 | Exports and encrypts `neo`'s RouterOS config |
 | `homelab-backup-wiki` | daily 04:45 | Pulls a dump of the wiki's database off `oracle` |
 | `homelab-verify-backups` | daily 05:30 | Proves every stored backup set still decrypts |
 | `homelab-backup-nas` | Saturday 03:30 | Pulls the media tier's state off `smaug`'s newest snapshot |
@@ -75,6 +77,7 @@ instead.
 | `homelab-backup-sensitive` | daily 04:30 | Quiesces the tier and archives its volumes |
 | `homelab-backup-library` | daily 05:15 | Archives Immich's library and copies it to `oracle` |
 | `homelab-verify-backups-sensitive` | daily 06:30 | Proves every volume and library set still decrypts, and `oracle`'s copies still hash to their MANIFESTs |
+| `homelab-smart-state-sensitive` | daily 08:30 | Reads SMART from `trinity`'s NVMe, as root (the photo disk's enclosure passes none) |
 
 ## On agent hosts
 
@@ -112,6 +115,7 @@ for it in `stacks/lab/prometheus/rules/lab.rules.yaml`.
 | `homelab-zeek-mirror` | 2 min after boot, then every minute | `Saruman` | Builds the `tc` mirror of the lab bridge to `fenrir`, and re-applies it every minute |
 | `homelab-zeek-mirror-state` | every 5 min | `Saruman` | Whether that mirror carries packets |
 | `homelab-zeek-archive-prune` | daily 03:17 | `fenrir` | Deletes Zeek archive files past their retention; `homelab_job_*` to the lab |
+| `homelab-appliance-state` | 5 min after boot, then hourly | `fenrir` | Whether the guest is still the appliance its runbook leaves: one 0-or-1 per check, to the lab ([#1577](https://github.com/Gerrrt/HomeLab/issues/1577)) |
 | `homelab-pbs-task-state` | hourly at :17 | `golem` | What PBS last did: each verify, prune and garbage-collection job's outcome, and the snapshots by verify state ([#485](https://github.com/Gerrrt/HomeLab/issues/485)) |
 
 ## Adding a timer

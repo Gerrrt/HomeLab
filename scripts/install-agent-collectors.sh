@@ -56,7 +56,8 @@
 # failed on the one host it was meant for),
 # pve-firewall-state (#576),
 # iso-store-state (#440), zeek-mirror-state (#437), pbs-task-state (#485) and
-# drift-check (#470), plus
+# drift-check (#470), appliance-state (#1577, fenrir only, for the same
+# reason as zeek-archive-prune below: its requirement is /srv/sensor-data), plus
 # two rows that collect nothing (below) and zeek-archive-prune (#850), a
 # scheduled job rather than a collector (above). Its requirement is the archive
 # directory, so like iso-store-state's it exists on exactly one host: fenrir.
@@ -126,6 +127,7 @@ COLLECTORS=(
   "guest-service-state scripts/collect-guest-service-state.sh guest-service-state.prom /usr/sbin/qm"
   "wazuh-manager-state scripts/collect-wazuh-manager-state.sh wazuh-manager-state.prom /srv/soc-data"
   "pve-firewall-state scripts/collect-pve-firewall-state.sh pve-firewall-state.prom /usr/sbin/pve-firewall"
+  "range-state scripts/collect-range-state.sh range-state.prom /usr/sbin/nft"
   "iso-store-state scripts/collect-iso-store-state.sh iso-store-state.prom /mnt/smaug-iso"
   "zeek-mirror scripts/zeek-mirror.sh           -                      /usr/sbin/qm"
   "zeek-mirror-state scripts/collect-zeek-mirror-state.sh zeek-mirror-state.prom /usr/sbin/qm"
@@ -133,6 +135,7 @@ COLLECTORS=(
   "drift-check scripts/collect-drift-check.sh   wiki-drift-check.prom  /home/atropos/code/Gerrrt/Lemmiwinks/.claude/tools/safe-post"
   "prune-images scripts/prune-images.sh         -                      /usr/bin/docker"
   "zeek-archive-prune scripts/run-scheduled.sh zeek-archive-prune.prom /srv/sensor-data/zeek/archive"
+  "appliance-state scripts/collect-appliance-state.sh appliance-state.prom /srv/sensor-data"
 )
 
 GREEN=$'\033[0;32m'; RED=$'\033[0;31m'; YELLOW=$'\033[0;33m'

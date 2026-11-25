@@ -17,7 +17,8 @@ is read rather than skimmed
 > **Status — 2026-09-22: the tunnel is up, and it reaches the lab and nothing
 > else.** §0's record was created 2026-09-21; the tunnel came up the next day.
 >
-> One peer, `laptop-01`, pinned to `172.31.0.2/32`. The endpoint is ADR-0044's
+> One peer, the MacBook (`laptop-02` in [`network.md`](../network.md); its
+> WireGuard profile is named `laptop-01`), pinned to `172.31.0.2/32`. The endpoint is ADR-0044's
 > dynamic DNS record, verified by resolving it against a public resolver from
 > `morpheus` itself and comparing to the live WAN address, which is stronger
 > than the typed check §0 used to ask for. #566 was closed first, on
@@ -269,6 +270,15 @@ sudo sysctl -w net.ipv4.ip_forward=0 \
 # expect 1, then 0, then 1
 ```
 
+Then the jumpbox's own firewall. `ufw` is default-deny on `phoenix`
+([ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md)),
+so add the three lines
+[`build-the-jumpbox.md`](build-the-jumpbox.md) §6a marks `tunnel`: the listen
+port, `22` from the peers on `wg0`, and the `route` rule from `wg0` to the
+lab. Without the `route` rule the handshake succeeds and nothing forwards,
+the same symptom as the CAUTION above. `sudo ufw status verbose` lists all
+three.
+
 ## 4. The client configuration
 
 On the **client device**, generate its own keypair and build this. Send the
@@ -445,9 +455,12 @@ netstat -rn -f inet | grep utun<N>
 # deny. The original version of this runbook told you to ping it, which always
 # failed, which is exactly what hid the forwarding bug in §3 for an afternoon.
 ping -c2 -t3 10.0.30.40        # alexander. macOS; use -W3 on Linux
-# expect a reply at ttl=63, one below its default. That decrement is the proof
-# that phoenix FORWARDED it rather than answering for itself, which is the only
-# thing that distinguishes a working jumpbox from one that only reaches itself.
+# expect a reply at ttl=62, two below its default. alexander answers through
+# its default gateway, and morpheus's §5 route hands the reply to phoenix, so
+# two routers decrement it (measured 2026-11-19; the 2026-09-22 build read 63).
+# Anything below 64 shows phoenix FORWARDED it rather than answering for
+# itself, which is the only thing that distinguishes a working jumpbox from one
+# that only reaches itself.
 ```
 
 ### The negative check, and why it needs the client widened
