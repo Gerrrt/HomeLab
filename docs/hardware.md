@@ -1086,8 +1086,9 @@ the runbook rather than backed up.
   new 32U frame at U21 on 2026-10-12, unpowered and uncabled, and **became
   `neo` on 2026-11-05**, in the window of the move into the 32U rack: the
   MokerLink came out and this took over every VLAN. Its SNMP scrape moved to
-  v3 the same week, and it reports `RouterOS CRS326-24G-2S+ 7.24.6
-  (long-term)`, one release past the bench's. **Checked on arrival, not assumed:** which
+  v3 the same week. It was upgraded to 7.24.7 long-term, RouterOS and
+  RouterBOARD firmware both, on 2026-11-25, and reports
+  `RouterOS CRS326-24G-2S+ 7.24.7 (long-term)`. **Checked on arrival, not assumed:** which
   OS it boots and the version on it (`/system resource`), the serial and the
   management MAC, that the rack ears and the power supply are in the box, and
   a netinstall or factory reset before it touches the network — a used

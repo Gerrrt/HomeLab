@@ -17,6 +17,21 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-25
+
+- **`neo` is on RouterOS 7.24.7 long-term.** Upgraded from 7.24.6 at
+  01:00 UTC under a one-hour silence on `component=~"internet|network"`,
+  after a verified `make backup-switch`. The download staged in RAM and left
+  flash at about 3 MiB free, so the space worry of 2026-11-13 did not bite;
+  the first attempt broke off at 9 MiB and a retry finished. RouterOS came
+  back after about four minutes, then the RouterBOARD firmware went to 7.24.7
+  with a second reboot of about a minute and a half. Afterwards the services,
+  users, `mgmt` list, input filter, IPv6 setting, device-mode features, SNMP
+  and remote logging read as before; the only change was device-mode's
+  `allowed-versions`, which the release notes said 7.24.7 updates. The SNMP
+  scrape, `make snmp-verify`, Home Assistant's api-ssl session, `routeros`
+  lines in Loki and a second `make backup-switch` all passed.
+
 ## 2026-11-24
 
 - **The wall page's files are served with `Cache-Control: no-cache`.** The
