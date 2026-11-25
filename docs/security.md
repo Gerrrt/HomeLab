@@ -505,8 +505,7 @@ unprivileged datagram socket, not a raw one.
 `10.0.50.15:9100/tcp`, for `node_exporter`. It carries the same residual as
 `smaug`'s below. The endpoint is unauthenticated, but the Pi's own
 `nftables` admits 9100 from `10.0.99.20` alone, and drops everything but SSH
-besides (`build-heimdall.md` §2), once that step is applied. Until then,
-anything on Hicks can read the Pi's own counters. The Pi itself holds no
+besides (`build-heimdall.md` §2), since 2026-11-25. The Pi itself holds no
 credentials: the pages it shows are served by `trinity`, and their tokens are
 added there.
 
