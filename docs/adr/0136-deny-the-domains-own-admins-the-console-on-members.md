@@ -5,6 +5,14 @@
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)
 and [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md)
 
+> [!NOTE]
+> Amended by [ADR-0140](0140-correct-why-adr-0136-leaves-domain-admins-network-logon.md),
+> which corrects the reason given below for leaving network logon. Ansible
+> reaches a member as that member's local Administrator, not
+> `AD\Administrator`, so the pipeline does not depend on it. The rights
+> decided here are unchanged. The text here is left as written, per ADR-0001
+> and ADR-0115.
+
 ## Context
 
 §5 builds three tiers so that "a violation is an event": the GPO *Deny Tier 0

@@ -13,9 +13,10 @@
 # ADR-0136: the domain's own admins are refused the console and RDP on members,
 # as Tier 0 Admins always were, because AD\Administrator is in neither Tier 0
 # Admins nor anything else this GPO named, and the 2026-11 titan audit found it
-# logged on interactively there. They keep NETWORK logon: phoenix's Ansible
-# connects as AD\Administrator over SSH, and sshd's key logon is a network
-# (S4U) logon (ADR-0077). The console on a member is the local Administrator's.
+# logged on interactively there. They keep NETWORK logon, which nothing here
+# needs (ADR-0140): on a member, Ansible's `Administrator` is the member's own
+# local account, not AD\Administrator. Closing it is still to be decided. The
+# console on a member is the local Administrator's.
 #
 # `cse` is gPCMachineExtensionNames, the client-side-extension GUIDs that tell a
 # member which engines to run for this GPO; without it the file in SYSVOL is
