@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **`build-heimdall.md` §2 masks `packagekit.service`.** A re-check of
+  `heimdall` after the 04:30 boot found Raspberry Pi OS's
+  `10-gui-pkinst.rules`, there since the build, which lets any `sudo` member
+  install or remove packages through PackageKit with no password, over SSH as
+  well. That undid part of 2026-11-25's "sudo asks for the password". The
+  same check found that the 06:04 unattended-upgrades run installed
+  `browser-choice` 0.4, a new dependency of `rpd-applications` 1.39: a
+  browser picker, harmless, but a reminder that the daily upgrades can add
+  packages as well as update them. Masked on the Pi the same day.
 - **Lab domain: the `bahamut` audit's last two findings.** The staging
   leftovers: `C:\ProgramData\lab` on every guest kept the Wazuh, Velociraptor
   and exporter MSIs, the Sysmon zip and its unpacked folder, all readable by
