@@ -1,0 +1,243 @@
+---
+name: Weekly docs audit
+
+# Claude audits one focus area a week and may edit only docs/** and README.md
+# files. It runs in a job that can read the repository and file `audit`
+# issues, and nothing else: no push, no PR, no token left in .git/config.
+# A second job with no AI in it applies Claude's patch, refuses anything
+# outside the doc paths, re-renders any changed diagram PNG, runs check_docs
+# and the close-keyword lint, and only then pushes audit/docs-<week> and opens
+# one PR. The PR goes through the same required checks as any other.
+#
+# check_docs runs in the second job, not only in Claude's: rule 13 (the
+# SVG/PNG pairing) always fails while the SVG is edited and the PNG is not,
+# and Claude is not allowed to touch PNGs. The render happens here instead.
+
+on:
+  schedule:
+    - cron: "37 6 * * 1"   # Mondays 06:37 UTC
+  workflow_dispatch:
+    inputs:
+      focus:
+        description: "Focus area 0-5 (blank = ISO week mod 6)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: weekly-audit
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    name: Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      issues: write
+    outputs:
+      changed: ${{ steps.patch.outputs.changed }}
+      week: ${{ steps.focus.outputs.week }}
+      focus: ${{ steps.focus.outputs.focus }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0            # git log dates, and check_docs' diagram rule
+          persist-credentials: false
+
+      - name: Pick focus area
+        id: focus
+        env:
+          INPUT_FOCUS: ${{ inputs.focus }}
+        run: |
+          week="$(date -u +%G-%V)"
+          if [[ "$INPUT_FOCUS" =~ ^[0-5]$ ]]; then
+            focus="$INPUT_FOCUS"
+          else
+            focus=$(( 10#$(date -u +%V) % 6 ))
+          fi
+          echo "week=$week" >> "$GITHUB_OUTPUT"
+          echo "focus=$focus" >> "$GITHUB_OUTPUT"
+
+      # Lemmiwinks is private, so this needs LEMMIWINKS_READ_TOKEN (a
+      # fine-grained PAT, Contents: Read on Lemmiwinks only). Without it the
+      # checkout fails, the audit still runs and Claude records one finding.
+      - name: Check out Lemmiwinks read-only (focus 5)
+        if: steps.focus.outputs.focus == '5'
+        continue-on-error: true
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: Gerrrt/Lemmiwinks
+          path: .lemmiwinks
+          token: ${{ secrets.LEMMIWINKS_READ_TOKEN }}
+          persist-credentials: false
+
+      - name: Keep Lemmiwinks out of the diff
+        if: steps.focus.outputs.focus == '5'
+        run: echo ".lemmiwinks/" >> .git/info/exclude
+
+      - name: Run audit
+        uses: anthropics/claude-code-action@4411a9e9b0283becf4b924f7bce360fd7756c78c # v1.0.290
+        env:
+          GH_TOKEN: ${{ github.token }}   # gh issue list/create only
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          prompt: |
+            Read .claude/commands/weekly-audit.md and follow it exactly.
+            FOCUS=${{ steps.focus.outputs.focus }}
+            WEEK=${{ steps.focus.outputs.week }}
+          claude_args: |
+            --model sonnet
+            --max-turns 80
+            --permission-mode dontAsk
+          settings: |
+            {
+              "permissions": {
+                "allow": [
+                  "Read", "Glob", "Grep",
+                  "Edit(docs/**)",
+                  "Edit(**/README.md)",
+                  "Bash(git log *)", "Bash(git diff *)", "Bash(git show *)",
+                  "Bash(git ls-files *)", "Bash(git status)",
+                  "Bash(date *)", "Bash(printf *)", "Bash(sha256sum)",
+                  "Bash(cut *)",
+                  "Bash(python3 scripts/check_docs.py)",
+                  "Bash(python3 scripts/check_close_keywords.py --text docs/audit/pr-body.md)",
+                  "Bash(gh issue list --label audit *)",
+                  "Bash(gh issue create *)",
+                  "Bash(gh issue edit *)",
+                  "Bash(gh issue comment *)"
+                ],
+                "deny": [
+                  "WebFetch", "WebSearch",
+                  "Edit(.github/**)", "Edit(secrets/**)", "Edit(.lemmiwinks/**)",
+                  "Edit(**/*.png)", "Edit(**/*.jpg)", "Edit(**/*.jpeg)",
+                  "Bash(sops *)", "Bash(git push *)", "Bash(git commit *)",
+                  "Bash(curl *)", "Bash(wget *)"
+                ]
+              }
+            }
+
+      - name: Package doc changes
+        id: patch
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
+          if [ -f docs/audit/pr-body.md ]; then
+            mv docs/audit/pr-body.md "$out/pr-body.md"
+          fi
+          git add -A
+          git diff --cached --binary > "$out/audit.patch"
+          if [ -s "$out/audit.patch" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: steps.patch.outputs.changed == 'true'
+        with:
+          name: audit-patch
+          path: ${{ runner.temp }}/out/
+          retention-days: 7
+
+  open-pr:
+    name: Open PR
+    needs: audit
+    if: needs.audit.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      BRANCH: audit/docs-${{ needs.audit.outputs.week }}
+      WEEK: ${{ needs.audit.outputs.week }}
+      FOCUS: ${{ needs.audit.outputs.focus }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0            # check_docs' diagram rule reads history
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: audit-patch
+          path: ${{ runner.temp }}/out
+
+      - name: Apply patch
+        run: git apply --index "$RUNNER_TEMP/out/audit.patch"
+
+      - name: Path guard (fail closed, no PR)
+        run: |
+          set -euo pipefail
+          files="$(git diff --cached --name-only)"
+          bad="$(printf '%s\n' "$files" \
+            | grep -Ev '^docs/|(^|/)README\.md$' || true)"
+          bad+="$(printf '%s\n' "$files" | grep -E '^\.github/' || true)"
+          if [ -n "$bad" ]; then
+            echo "::error::Audit touched files outside doc paths:"
+            printf '%s\n' "$bad"
+            exit 1
+          fi
+          if printf '%s\n' "$files" | grep -qiE '\.(png|jpe?g|gif|webp)$'; then
+            echo "::error::Patch contains raster images"; exit 1
+          fi
+          if printf '%s\n' "$files" | grep -q '^docs/diagrams/previous/'; then
+            echo "::error::Patch edits the diagram archive"; exit 1
+          fi
+          n="$(printf '%s\n' "$files" | grep -c . || true)"
+          if [ "$n" -gt 15 ]; then
+            echo "::error::$n files changed (limit 15)"; exit 1
+          fi
+
+      # The same command CLAUDE.md gives. Only SVGs that already have a PNG
+      # export are rendered.
+      - name: Re-render changed diagrams
+        run: |
+          set -euo pipefail
+          svgs="$(git diff --cached --name-only -- 'docs/diagrams/current/*.svg')"
+          [ -z "$svgs" ] && exit 0
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq librsvg2-bin fonts-inter fonts-jetbrains-mono
+          while IFS= read -r svg; do
+            png="${svg%.svg}.png"
+            [ -f "$png" ] || continue
+            rsvg-convert --zoom=1.5 -o "$png" "$svg"
+            git add "$png"
+          done <<< "$svgs"
+
+      - name: Verify the documents agree with the configs
+        run: python3 scripts/check_docs.py
+
+      - name: No close keyword in the PR body
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/out/pr-body.md"
+          [ -f "$body" ] || printf 'Weekly docs audit %s. See docs/audit/FINDINGS.md.\n' "$WEEK" > "$body"
+          python3 scripts/check_close_keywords.py --text "$body"
+
+      - name: Commit, push branch, open PR
+        env:
+          GH_TOKEN: ${{ secrets.AUDIT_PR_TOKEN || github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$BRANCH"
+          git commit -q -m "docs(audit): weekly doc fixes, $WEEK (focus $FOCUS)"
+          git push --force \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
+            "HEAD:refs/heads/${BRANCH}"
+          body="$RUNNER_TEMP/out/pr-body.md"
+          if gh pr view "$BRANCH" >/dev/null 2>&1; then
+            gh pr edit "$BRANCH" --body-file "$body"
+          else
+            gh pr create --base main --head "$BRANCH" \
+              --title "docs(audit): weekly doc fixes $WEEK" \
+              --body-file "$body" --label audit
+          fi
