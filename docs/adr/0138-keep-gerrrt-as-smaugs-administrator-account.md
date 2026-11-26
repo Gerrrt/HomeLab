@@ -1,4 +1,4 @@
-# ADR-0138: Keep `gerrrt` as `smaug`'s administrator account, with a checkout and no deploy path
+# ADR-0138: Keep `gerrrt` as `smaug`'s administrator account, with a checkout and no deploy path, and keep the MCP server's API key
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0045](0045-pull-jellyfins-state-from-a-snapshot-over-ssh.md),
@@ -66,6 +66,16 @@ textfile metrics. It changes the box only when the operator asks it to, and
 records what it changed through the repository the way a runbook step is
 recorded. It cannot use the Docker socket or sudo without the operator.
 
+**5. The API key `ClaudeCode2` stays.** It belongs to `truenas_admin`, was
+created on 2026-09-29, and has no expiry. It is how the TrueNAS MCP server on
+the operator's Windows desktop reaches `smaug`'s API. It is the second
+administrative path besides `gerrrt`, and it bypasses sudo: the key alone
+acts as `truenas_admin`, with `FULL_ADMIN`. What limits it is the source
+address. The API is served on the UI's port, and §6.13's allowlist admits
+Hicks alone. That the allowlist refuses the API as well as the UI has not
+been tested from another segment: the box admits its own address, so a test
+from `smaug` proves nothing. A host on CasaBonita is the test.
+
 ## Consequences
 
 - **`gerrrt` is root for anyone who has its key and its password.** Sudo for
@@ -73,11 +83,13 @@ recorded. It cannot use the Docker socket or sudo without the operator.
   `desktop-02`. That is the residual, and `security.md` carries it.
 - **The home is on `erebor/apps`, so it is in that dataset's snapshots.** A
   session's transcript under `~/.claude` holds what the session read, kept
-  for the snapshot task's two weeks after it is deleted. One read on
-  2026-11-13 printed the NUT monitor password into a transcript. Sessions
-  must read secrets by existence and permissions only, and a value that
-  reaches a transcript is rotated. The backup pull is not affected: it reads
-  only the subpaths its table names, and the home is not one of them.
+  for the snapshot task's two weeks after it is deleted. Sessions must read
+  secrets by existence and permissions only. One read on 2026-11-13 printed
+  the NUT monitor password into a transcript. The operator decided not to
+  rotate it: it logs a subscriber in as `secondary`, which reads the UPS's
+  state and cannot command a shutdown, and only the subscribing hosts reach
+  the server's `3493`. The backup pull is not affected: it reads only the
+  subpaths its table names, and the home is not one of them.
 - **The root-run scripts must stay owned by root.** On 2026-11-25 the
   redeploy block was first run as `gerrrt`, which left the stack directory's
   files owned by it until they were changed back. A `.sh` there that
@@ -87,6 +99,9 @@ recorded. It cannot use the Docker socket or sudo without the operator.
   change: clear its role and its sudo, remove its key, and delete the home.
   Nothing in the stack depends on it, and the pass on `morpheus` can go with
   it.
-- **The API key the audit found, `ClaudeCode2` on `truenas_admin`, is not
-  part of this decision.** No session in this account uses it. It is to be
-  revoked.
+- **Whoever holds `ClaudeCode2` holds `smaug`, from any Hicks address.** It
+  lives on the Windows desktop, in the MCP server's configuration. A
+  compromise of that desktop is a compromise of `smaug`, as it already was
+  through `gerrrt`'s key and the `desktop-02` pass. Revoking the key under
+  *Credentials → API Keys* ends the path at once. If the MCP server's use
+  ends, revoke the key with it.
