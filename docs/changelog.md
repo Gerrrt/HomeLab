@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`smaug`: three decided changes applied, from a session on the box.**
+  The rest of what the 2026-11-13 audit found is still the operator's: §6.12
+  (TrueNAS Connect), eno1's static address, the media redeploy, the
+  `gerrrt` account and the leftover images.
+  - **`bilbo` is read-only** on the `media` share (ADR-0134,
+    `build-the-nas.md` *Make `bilbo` read-only*). `builtin_users` Modify was
+    replaced by `samwise` Modify, recursively. From Hicks, `bilbo` read and
+    was refused a write, `samwise` wrote and deleted, and Jellyfin played on
+    a television.
+  - **§6.13**: the UI is allowlisted to `10.0.50.0/24` with an HTTPS
+    redirect; NetBIOS, mDNS and WS-Discovery are off; usage collection and
+    Docker's image-update check are off. No television used SMB.
+  - **`erebor/pbs` has its 4 TiB quota.** `golem`'s `df` showed `3.7T`, not
+    the `4.0T` `build-the-backup-guest.md` §3 promised: NFS reports the quota
+    less the dataset's 311 GiB of snapshots. The runbook now says so.
+  - **`erebor/apps@auto-2026-09-19_23-00` is deleted**: 1.2 MiB, no holds,
+    left by the 23:00 schedule the task no longer runs.
+
 - **The read-only audit of `titan` (2026-11-13, re-checked today) leaves
   four changes in the repository, and none yet on the guests.** What it found
   matching: the shares and their ACLs, the decoy, inbound SMB signing off, the
