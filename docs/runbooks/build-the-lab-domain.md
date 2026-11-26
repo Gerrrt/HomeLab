@@ -840,9 +840,12 @@ ordinary users, and one service account with an SPN on a real service on
 > that group lets it log on anywhere. Since
 > [ADR-0136](../adr/0136-deny-the-domains-own-admins-the-console-on-members.md)
 > the same GPO also refuses Domain and Enterprise Admins the console and RDP
-> on members. It does not refuse them network logon, because that is how
-> `phoenix` gets in: Ansible connects as `AD\Administrator` over SSH, and a key
-> logon is a network logon. At a member's console, log on as its local
+> on members. It does not refuse them network logon. Nothing in the pipeline
+> needs that: on a member, Ansible's `Administrator` is the member's own local
+> account, not `AD\Administrator`
+> ([ADR-0138](../adr/0138-correct-why-adr-0136-leaves-domain-admins-network-logon.md)).
+> Closing it is a decision still to take, because it would also refuse a
+> relayed Domain Admin on `titan`. At a member's console, log on as its local
 > `Administrator`.
 
 `titan` gets the shares — including one obviously-interesting decoy, because a

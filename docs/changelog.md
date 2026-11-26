@@ -17,6 +17,27 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-26
+
+- **Correction to the 2026-11-25 entry on the read-only audit of `titan`.**
+  That entry says ADR-0136 leaves Domain Admins network logon on members
+  because network logon "is how Ansible reaches the guests". It isn't. On a
+  member, Ansible's `Administrator` is the member's own local account:
+  `whoami` over `phoenix`'s SSH path printed `titan\administrator` today. Only
+  on the DCs is it the domain's. ADR-0138 records the corrected reason and
+  leaves the rights as they are. Nothing in the pipeline needs Domain Admins to
+  log on to a member over the network, so whether to deny it is a decision
+  still to take. The cost is that it would also refuse a relayed Domain Admin
+  on `titan`.
+- **`titan` read on 2026-11-26, after the audit.** The audit's session and
+  tooling are gone: no Git, no Claude Code, no `Administrator.AD` profile, no
+  saved credentials. The guest rebooted at 22:52 UTC on 2026-11-25. The
+  rights it applies still name only `Tier 0 Admins`, because ADR-0136 has not
+  been applied with `--tags gpos`. C: is still 59 GB of 80, as expected until
+  the rebuild. WinRM is disabled, no VSS errors have been logged since
+  2026-11-14, all six agent services are running, and 131 days of the
+  evaluation licence are left.
+
 ## 2026-11-25
 
 - **`smaug`: three decided changes applied, from a session on the box.**
