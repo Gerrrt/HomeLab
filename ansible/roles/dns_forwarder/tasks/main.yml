@@ -3,6 +3,12 @@
 # DNS recurses against the root servers whenever the forwarder is slow, and the
 # domain's resolution path quietly diverges from the rest of the house (§3).
 # No delegation is made on Unbound, ever: ADR-0029.
+#
+# Remove-DnsServerRootHint clears them from memory only. With the directory's
+# root-hint zone empty, the service reloads them from cache.dns at its next
+# start, so they came back after every restart (found 2026-11-26). The file is
+# left holding one comment: absent, the service logs 1000/1004/1501 errors at
+# every start; with a comment only, it starts clean with no hints.
 - name: Forward to the gateway, with no root hints
   ansible.windows.win_powershell:
     script: |
@@ -10,7 +16,7 @@
       # where $Ansible.CheckMode keeps it read-only. Without it --check reported a
       # change here on every run instead of looking (#448's first run).
       [CmdletBinding(SupportsShouldProcess)]
-      param([string]$Forwarder)
+      param([string]$Forwarder, [string]$CacheFile)
       $changed = $false
       $f = Get-DnsServerForwarder
       if ((@($f.IPAddress.IPAddressToString) -join ',') -ne $Forwarder -or $f.UseRootHint) {
@@ -25,6 +31,12 @@
         # -InputObject @() does not clear them; piping does (§3).
         if (-not $Ansible.CheckMode) { $hints | Remove-DnsServerRootHint -Force }
       }
+      $cache = Join-Path $env:windir 'System32\dns\cache.dns'
+      if (-not (Test-Path $cache) -or (Get-Content -Raw $cache).Trim() -ne $CacheFile) {
+        $changed = $true
+        if (-not $Ansible.CheckMode) { Set-Content -LiteralPath $cache -Value $CacheFile -Encoding Ascii }
+      }
       $Ansible.Changed = $changed
     parameters:
       Forwarder: "{{ lab_dns_forwarder }}"
+      CacheFile: "; No root hints: this DC forwards to the gateway only (ADR-0029)."

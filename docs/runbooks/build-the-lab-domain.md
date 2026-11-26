@@ -717,7 +717,13 @@ Then the forwarder and the root hints, on `bahamut`:
 ```powershell
 Set-DnsServerForwarder -IPAddress 10.0.30.1 -UseRootHint $false
 Get-DnsServerRootHint | Remove-DnsServerRootHint -Force   # -InputObject @() does not clear them
+Set-Content $env:windir\System32\dns\cache.dns '; No root hints: this DC forwards to the gateway only (ADR-0029).' -Encoding Ascii
 ```
+
+The last line is what makes it last. `Remove-DnsServerRootHint` clears the hints
+from memory only, and the service reloads them from `cache.dns` at its next
+start. Deleting the file instead works too, but the service then logs errors
+1000, 1004 and 1501 at every start; one comment line loads clean.
 
 > [!CAUTION]
 > **Disable root hints, and it is not housekeeping.** Left on, Windows DNS falls
@@ -800,8 +806,8 @@ Set-DnsClientServerAddress -InterfaceAlias Ethernet -ServerAddresses 10.0.30.50,
 This is the one place the §2 rule ("every guest points at .50 and .51") does
 not apply: a DC uses its partner then loopback, which is Microsoft's own
 guidance and what keeps either DC resolving with the other down. Also remove
-the root hints on `leviathan`, exactly as on `bahamut` above — the promotion
-command here only sets the forwarder.
+the root hints on `leviathan`, exactly as on `bahamut` above, `cache.dns`
+included — the promotion command here only sets the forwarder.
 
 Confirm replication before moving on, because a second DC that is not
 replicating is worse than no second DC:
@@ -870,7 +876,7 @@ The six weaknesses #449 asks for — `kerberoast`, `asreproast`, `dcsync`, `ucd`
 it ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
 Three more, `unsigned_ldap`, `maq` and `spooler`, switch shipped defaults on
 the DCs the same way
-([ADR-0140](../adr/0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md)).
+([ADR-0141](../adr/0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md)).
 A plain run leaves all nine absent.
 
 > [!IMPORTANT]

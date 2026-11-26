@@ -145,7 +145,7 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
 §11's agents. The nine from `kerberoast` to `spooler` are
 [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s deliberate weaknesses
-([ADR-0083], and [ADR-0140] for the last three), each off until asked for:
+([ADR-0083], and [ADR-0141] for the last three), each off until asked for:
 `weakness_<name>_state` is `absent` by default, so a plain run leaves none of
 them present. The last three are shipped defaults on the DCs, so for `maq` and
 `spooler` a plain run is the change: it sets the quota to 0 and disables
@@ -161,7 +161,7 @@ ansible-playbook verify.yml                                             # all ni
 ```
 
 A plain `ansible-playbook verify.yml` asserts every one of these nine weakness
-primitives is absent, and that `dsHeuristics` is still unset ([ADR-0140]) — the per-primitive negative test. It does not walk the
+primitives is absent, and that `dsHeuristics` is still unset ([ADR-0141]) — the per-primitive negative test. It does not walk the
 domain's authorization graph, so it does not by itself prove *no* path to
 Domain Admin exists; that graph-level check is a BloodHound collector run with
 the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)) — the "run
@@ -226,7 +226,7 @@ guest.
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [ADR-0080]: ../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md
 [ADR-0083]: ../docs/adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md
-[ADR-0140]: ../docs/adr/0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md
+[ADR-0141]: ../docs/adr/0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md
 [ADR-0085]: ../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix
