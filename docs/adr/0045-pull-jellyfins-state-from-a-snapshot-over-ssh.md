@@ -7,6 +7,14 @@ writes the first snapshot schedule decision 4 of
 asked for
 
 > [!NOTE]
+> **A second SSH user, 2026-11.** `gerrrt`, the operator's administrator
+> account, logs in by key from `desktop-02` and holds a checkout of this
+> repository. Decision 4's "for this and nothing else" and the context's "no
+> repository checkout" are amended by
+> [ADR-0138](0138-keep-gerrrt-as-smaugs-administrator-account.md). The
+> checkout is not a deploy path, and the host still holds no key that opens a
+> backup.
+>
 > **The pull reads a list, since 2026-09-22.** Audiobookshelf's state joins
 > Jellyfin's as a second archive in the same set, read from the same
 > snapshot, and `backup-nas.sh` now reads a table of archive → subpath where

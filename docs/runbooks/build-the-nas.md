@@ -924,7 +924,10 @@ checkout of `main`, [`scripts/smaug-fetch.sh`](../../scripts/smaug-fetch.sh)
 prints a block that fetches each file from that one commit and checks it
 against a sha256 computed from your checkout before it replaces anything
 ([#1424](https://github.com/Gerrrt/HomeLab/issues/1424)). Paste that block
-here. A file that does not match stops the block and is not installed; its
+here, as root: run as `gerrrt`, it leaves root's cron scripts owned by an
+account that can edit them
+([ADR-0138](../adr/0138-keep-gerrrt-as-smaugs-administrator-account.md)).
+A file that does not match stops the block and is not installed; its
 `.new` is left for you to look at. The `.env` is copied as-is, because every
 value in it is a plain host fact. The third file is the SMART collector §6.4
 runs from cron
