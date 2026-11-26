@@ -260,6 +260,30 @@ sudo systemctl mask --now systemd-rfkill.service systemd-rfkill.socket
 After §3's reboot, `ls /sys/class/bluetooth` prints nothing, and
 `systemctl --failed` lists nothing.
 
+### No package installs without the password
+
+Removing cloud-init's sudoers file (§1) is not the only route to root.
+Raspberry Pi OS ships a polkit rule,
+`/usr/share/polkit-1/rules.d/10-gui-pkinst.rules`, that lets any member of
+`sudo` install, remove and upgrade packages through PackageKit without
+authenticating. Its one condition is that the caller's command line reads
+`gui-pkinst`, which the caller chooses, and it does not require a local
+session, so it holds over SSH too. With it, the SSH key alone could remove
+`nftables`. The desktop's metapackages depend on `packagekit`, so mask it
+rather than purge it. Nothing on the kiosk uses it: `unattended-upgrades`
+calls apt directly.
+
+```bash
+sudo systemctl mask --now packagekit.service
+systemctl is-enabled packagekit.service    # masked
+gdbus call --system --dest org.freedesktop.PackageKit \
+  --object-path /org/freedesktop/PackageKit \
+  --method org.freedesktop.DBus.Peer.Ping    # fails: the unit is masked
+```
+
+`packagekit.service` is started by D-Bus on demand, so masking it is what
+stops it. The rule stays, with nothing left to answer it.
+
 ### Nothing at the console but a login
 
 The Imager's desktop autologin also logs the user into a text shell on
@@ -525,6 +549,8 @@ the roadmap's *Everything still to buy* and an ADR of its own.
 - **The console:** `sudo systemctl unmask --now serial-getty@ttyAMA10.service`.
   `sudo raspi-config nonint do_boot_behaviour B4` writes the `tty1`
   autologin back, along with the desktop's.
+- **PackageKit:** `sudo systemctl unmask packagekit.service`. The rule
+  above applies again.
 - **The radio and the apps:** restore `/boot/firmware/config.txt.bak`,
   `sudo systemctl unmask systemd-rfkill.service systemd-rfkill.socket`, and
   `sudo apt install firefox vlc`.
