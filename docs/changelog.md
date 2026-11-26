@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **`golem` runs the host firewall `build-the-backup-guest.md` §2 added
+  on 2026-11-25.** This completes that entry, which said the ruleset was
+  not yet applied, and closes the last finding of the audit of 2026-11-13.
+  The ruleset was loaded live first, with the Debian default kept beside it.
+  A fresh SSH login from the Mac worked under it. `Saruman` got `200` from
+  `8007`, and the same request from `alexander` timed out. Only then was
+  `nftables.service` enabled at boot. The NFS datastore stayed readable, and
+  Alloy logged no error. `22` and `8007` are still the only ports on an
+  address other than loopback.
 - **`build-heimdall.md` §2 masks `packagekit.service`.** A re-check of
   `heimdall` after the 04:30 boot found Raspberry Pi OS's
   `10-gui-pkinst.rules`, there since the build, which lets any `sudo` member
