@@ -1464,7 +1464,7 @@ services:
   # application's: shared_buffers defaults to 128 MB and this is four times it.
   paperless-db:
     <<: *service-defaults
-    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
+    image: postgres:18.7@sha256:c699303802144847d238196173655dbbecf7a96aeca1565f2b02eb671a1f0b6b
     container_name: sensitive-paperless-db
     # Not `sensitive`: DIFFERENCE 16 says why.
     networks: [paperless-backend]
@@ -1911,7 +1911,7 @@ services:
   # cleanup job archives after 60 days read and 180 unread.
   miniflux-db:
     <<: *service-defaults
-    image: postgres:18.7@sha256:eb63372c1e05c755f55fa30cbd07aecc443676fc6c0fa90b9002d01537841e1a
+    image: postgres:18.7@sha256:c699303802144847d238196173655dbbecf7a96aeca1565f2b02eb671a1f0b6b
     container_name: sensitive-miniflux-db
     user: "999:999"
     mem_limit: 512m
