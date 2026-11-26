@@ -4,5 +4,5 @@
 #   ansible-playbook lab-domain.yml --tags maq -e weakness_maq_state=present
 # and disable by applying the same tag with the default (or =absent). The two
 # values are in inventory/group_vars/all.yaml, shared with verify.yml
-# (ADR-0083, ADR-0140).
+# (ADR-0083, ADR-0141).
 weakness_maq_state: absent

@@ -19,6 +19,23 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **Correction to the entry below, "what the `bahamut` audit found,
+  decided (ADR-0140)".** That decision is
+  [ADR-0141](adr/0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md).
+  #1762 merged three minutes earlier with its own ADR-0140, so two ADRs held
+  the number and `check_docs.py` failed on `main`; the one that landed second
+  was renumbered. ADR-0140 is #1762's, on Domain Admins network logon.
+- **Lab domain: the DCs' root hints came back after every DNS restart.**
+  `verify.yml`'s "no root hints" check failed on both DCs during the `bahamut`
+  audit. `roles/dns_forwarder` removed the hints from memory only, and the
+  service reloads them from `cache.dns` at start. A restart on `leviathan` took
+  it from 0 hints to 13; with `cache.dns` set aside it came back with 0. The
+  role now leaves `cache.dns` holding one comment line (a missing file loads
+  no hints too, but logs errors 1000, 1004 and 1501 at every start), and
+  `verify.yml` checks the file. Tested on `leviathan`: applied, a second run
+  changed nothing, and a restart kept 0 hints with resolution working.
+  `bahamut` changes on the next run. What cleared both DCs' in-memory hints
+  between two reads that morning is not known.
 - **Lab domain: what the `bahamut` audit found, decided (ADR-0140).** The
   read-only audit of the PDC emulator (2026-11-13 to 2026-11-25, with
   `leviathan` read for the same points) found four things on the DCs that the

@@ -115,7 +115,7 @@ soc_agents_velociraptor_msi_url: >-
 # never this tree, and the dedicated accounts share it. A role refuses to
 # enable a weakness while it is unset. Nothing is enabled by default: a plain
 # run leaves all nine absent, which is #449's negative test. The last three
-# (ADR-0140) are shipped defaults on the DCs: a plain run turns MAQ and Spooler
+# (ADR-0141) are shipped defaults on the DCs: a plain run turns MAQ and Spooler
 # off, and leaves LDAP signing enforced.
 lab_weak_password: "{{ lookup('ansible.builtin.env', 'LAB_WEAK_PASSWORD') }}"
 # The dedicated accounts model Tier 1 service identities, so they live in the
@@ -150,12 +150,12 @@ lab_weakness_rbcd_account: svc-rbcd
 lab_weakness_rbcd_spn: "HOST/svc-rbcd.{{ lab_domain }}"
 lab_weakness_rbcd_resource: TITAN
 
-# unsigned_ldap (ADR-0140): Server 2025 enforces LDAP signing while this value
+# unsigned_ldap (ADR-0141): Server 2025 enforces LDAP signing while this value
 # is unset. present writes it as 0; absent removes it.
 lab_weakness_unsigned_ldap_key: HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\Parameters
 lab_weakness_unsigned_ldap_value: LdapServerEnforceIntegrity
 
-# maq (ADR-0140): ms-DS-MachineAccountQuota on the domain head. present is
+# maq (ADR-0141): ms-DS-MachineAccountQuota on the domain head. present is
 # Windows' shipped 10; absent is 0.
 lab_weakness_maq_present: 10
 lab_weakness_maq_absent: 0

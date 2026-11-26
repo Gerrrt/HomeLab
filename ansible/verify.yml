@@ -51,7 +51,7 @@
             rbcd_state: "{{ weakness_rbcd_state | default('absent') }}"
             rbcd_account: "{{ lab_weakness_rbcd_account }}"
             rbcd_resource: "{{ lab_weakness_rbcd_resource }}"
-            # ADR-0140's three, on the DCs.
+            # ADR-0141's three, on the DCs.
             unsigned_ldap_state: "{{ weakness_unsigned_ldap_state | default('absent') }}"
             unsigned_ldap_key: "{{ lab_weakness_unsigned_ldap_key }}"
             unsigned_ldap_value: "{{ lab_weakness_unsigned_ldap_value }}"
@@ -157,7 +157,10 @@
             $f = Get-DnsServerForwarder
             $r["forwards to $Gateway only"] = ((@($f.IPAddress.IPAddressToString) -join ',') -eq $Gateway)
             $r['no root hints'] = -not (Get-DnsServerRootHint)
-            # ADR-0140: dsHeuristics kept as Server 2025 ships it, unset. The
+            # cache.dns is where the service reloads them from at start.
+            $r['no root hints in cache.dns'] = -not (Get-Content (Join-Path $env:windir 'System32\dns\cache.dns') `
+              -ErrorAction SilentlyContinue | Where-Object { $_ -notmatch '^\s*(;|$)' })
+            # ADR-0141: dsHeuristics kept as Server 2025 ships it, unset. The
             # 3051/3054 events at boot are expected; a value here is a hardening.
             $dsh = Get-ADObject -Identity ("CN=Directory Service,CN=Windows NT,CN=Services," +
               (Get-ADRootDSE).configurationNamingContext) -Properties dsHeuristics
@@ -382,7 +385,7 @@
             }
             $r['rbcd matches its toggle'] = ($bHave -eq ($Weak.rbcd_state -eq 'present'))
 
-            # maq (ADR-0140): the quota on the domain head, 10 or 0, and
+            # maq (ADR-0141): the quota on the domain head, 10 or 0, and
             # nothing between.
             $q = (Get-ADObject -Identity $wbase -Properties 'ms-DS-MachineAccountQuota').'ms-DS-MachineAccountQuota'
             $qWant = if ($Weak.maq_state -eq 'present') { $Weak.maq_present } else { $Weak.maq_absent }
@@ -390,7 +393,7 @@
           }
 
           if ($onDc) {
-            # unsigned_ldap (ADR-0140): present is the enforcement value at 0
+            # unsigned_ldap (ADR-0141): present is the enforcement value at 0
             # over the shipped LDAPServerIntegrity of 1; absent is the value
             # unset, Server 2025's enforced default.
             $lp = Get-ItemProperty -Path $Weak.unsigned_ldap_key -ErrorAction SilentlyContinue
@@ -399,7 +402,7 @@
             $r['unsigned_ldap matches its toggle'] = if ($Weak.unsigned_ldap_state -eq 'present') {
               $lHave } else { ($null -eq $lv) }
 
-            # spooler (ADR-0140): running and Automatic, or stopped and Disabled.
+            # spooler (ADR-0141): running and Automatic, or stopped and Disabled.
             $spl = Get-Service Spooler -ErrorAction SilentlyContinue
             $r['spooler matches its toggle'] = if ($Weak.spooler_state -eq 'present') {
               [bool]($spl -and $spl.Status -eq 'Running' -and $spl.StartType -eq 'Automatic')

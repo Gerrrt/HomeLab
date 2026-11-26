@@ -7,7 +7,7 @@ secret in `phoenix.env`) and
 (the weaknesses it said would come)
 
 > [!NOTE]
-> [ADR-0140](0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md) adds three switches in this model, `unsigned_ldap`,
+> [ADR-0141](0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md) adds three switches in this model, `unsigned_ldap`,
 > `maq` and `spooler`, under the reopen clause below. For `maq` and `spooler`
 > `absent` is the hardened side, so applying them with the defaults changes
 > the DCs, where this ADR's six changed nothing on merge. The text here is
