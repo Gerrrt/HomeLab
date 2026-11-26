@@ -405,8 +405,9 @@ groups:
           summary: "{{ $labels.instance }}'s evaluation licence has under 30 days left"
           description: >-
             At expiry the machine stops being usable rather than degrading.
-            Rearm it, or rebuild it from the runbook — and record the remaining
-            rearm count, because no published figure agrees with another.
+            Rebuild it from a freshly built template (build-the-lab-domain.md
+            §7). Rearming is not an option: a clone of a generalised image has
+            no rearm left.
 
       # --- golem's backups (ADR-0053, #485) ------------------------------------
       #
