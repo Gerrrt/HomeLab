@@ -19,6 +19,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **Lab domain: what the `bahamut` audit found, decided (ADR-0140).** The
+  read-only audit of the PDC emulator (2026-11-13 to 2026-11-25, with
+  `leviathan` read for the same points) found four things on the DCs that the
+  repository contradicted or did not mention. Each is now decided in
+  `ansible/` and asserted by `verify.yml`:
+  - **LDAP signing was enforced on both DCs**, though ADR-0029 said it was
+    removed. Directory Service event 2888 recorded rejected unsigned binds,
+    last on 11-17. It is now the `unsigned_ldap` switch, absent by default,
+    which leaves the box as it is.
+  - **`ms-DS-MachineAccountQuota` was 10** and **Print Spooler ran on both
+    DCs**, and neither was declared. They are now the `maq` and `spooler`
+    switches. Their absent side is the hardened one, so the first plain run
+    sets the quota to 0 and disables Spooler on both DCs.
+  - **`dsHeuristics` is unset**, and events 3051 and 3054 fire at boot. It is
+    kept as Server 2025 ships it, and `verify.yml` asserts that.
+  - Not in this change: the pending 2026-11 updates. ADR-0137 already
+    decided those (not patched in place). The audit's staging-leftovers and
+    DFSR-noise findings follow separately. The tags have not yet been
+    applied to the live domain.
+
 - **The read-only audit of `ramuh` (2026-11-13, re-checked 2026-11-25, and
   checked from `phoenix` today) changes nothing on the guest.** It shares
   most of what the `titan` audit found. ADR-0136, ADR-0137 and the disk and

@@ -488,12 +488,17 @@ containers to come back. They have `restart: unless-stopped`.
      not something to clear. Afterwards undo exactly what you changed —
      re-enable real-time protection, and if you added the process exclusion,
      remove it, because re-enabling protection does not clear an exclusion.
-   - **The network collectors do not work here.** `bloodhound-ce-python` and
-     `netexec` authenticate, but both DCs enforce LDAP signing and have no
-     LDAPS certificate (the lab runs no AD CS), so neither can collect:
-     signing refuses plain LDAP, and `636` has no cert. SharpHound on a
-     domain host is the only path, because the Windows LDAP client signs and
-     seals over `389` natively. Do not re-walk the Linux route.
+   - **The network collectors do not work here by default.**
+     `bloodhound-ce-python` and `netexec` authenticate, but both DCs enforce
+     LDAP signing and have no LDAPS certificate (the lab runs no AD CS), so
+     neither can collect: signing refuses plain LDAP, and `636` has no cert.
+     SharpHound on a domain host is the path, because the Windows LDAP client
+     signs and seals over `389` natively. Signing is lifted only by the
+     `unsigned_ldap` switch
+     ([ADR-0140](../adr/0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md),
+     `build-the-lab-domain.md` §5a). While it is present the Linux collectors
+     work, but the graph that answers "no path with every switch off" is
+     SharpHound's, collected with it absent.
    - **Getting the zip to the UI.** `carbuncle`'s own browser cannot upload
      (Hicks only, above), and RDP is off, so pull the zip off `carbuncle` from
      `phoenix` with `scp` as the built-in Administrator — `acooper` has no SSH

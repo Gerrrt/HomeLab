@@ -100,7 +100,8 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
   sub-issue per weakness: #1475 kerberoast, #1476 AS-REP roast, #1477 DCSync,
   #1478 resource-based constrained delegation, #1479 unconstrained delegation
   and #1480 constrained delegation. It closes when all six are recorded, each
-  with a detection outcome. → [runbook](runbooks/build-the-lab-domain.md)
+  with a detection outcome. The three switches of ADR-0140 (`unsigned_ldap`,
+  `maq`, `spooler`) are off by default and are not among the six. → [runbook](runbooks/build-the-lab-domain.md)
 
 ## last
 

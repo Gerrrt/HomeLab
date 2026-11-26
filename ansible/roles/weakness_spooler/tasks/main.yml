@@ -1,0 +1,43 @@
+---
+# ADR-0140: Print Spooler on the domain controllers. A DC is trusted for
+# unconstrained delegation by default, so a running spooler lets any domain
+# user coerce the DC's machine account into authenticating to a host of their
+# choosing. present leaves it as Windows ships it; absent stops and disables
+# it. The DCs only: the members keep theirs, which is no path to Tier 0.
+#
+# PowerShell rather than win_service, which writes every property it
+# manages: its desktop_interact defaults to false, and Server 2025 ships
+# Spooler with it true, so win_service would change a third thing besides
+# start mode and state. This touches those two only, and compares first.
+
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_spooler_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_spooler_state is '{{ weakness_spooler_state }}', not 'present'
+      or 'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
+- name: Run or disable Print Spooler
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Want)
+      $Ansible.Changed = $false
+      $s = Get-Service -Name Spooler -ErrorAction Stop
+      $on = ($Want -eq 'present')
+      $mode = if ($on) { 'Automatic' } else { 'Disabled' }
+      $state = if ($on) { 'Running' } else { 'Stopped' }
+      if ($s.StartType -ne $mode) {
+        if (-not $Ansible.CheckMode) { Set-Service -Name Spooler -StartupType $mode }
+        $Ansible.Changed = $true
+      }
+      if ($s.Status -ne $state) {
+        if (-not $Ansible.CheckMode) {
+          if ($on) { Start-Service -Name Spooler } else { Stop-Service -Name Spooler -Force }
+        }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      Want: "{{ weakness_spooler_state }}"

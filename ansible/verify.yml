@@ -51,6 +51,14 @@
             rbcd_state: "{{ weakness_rbcd_state | default('absent') }}"
             rbcd_account: "{{ lab_weakness_rbcd_account }}"
             rbcd_resource: "{{ lab_weakness_rbcd_resource }}"
+            # ADR-0140's three, on the DCs.
+            unsigned_ldap_state: "{{ weakness_unsigned_ldap_state | default('absent') }}"
+            unsigned_ldap_key: "{{ lab_weakness_unsigned_ldap_key }}"
+            unsigned_ldap_value: "{{ lab_weakness_unsigned_ldap_value }}"
+            maq_state: "{{ weakness_maq_state | default('absent') }}"
+            maq_present: "{{ lab_weakness_maq_present }}"
+            maq_absent: "{{ lab_weakness_maq_absent }}"
+            spooler_state: "{{ weakness_spooler_state | default('absent') }}"
           SysmonVersion: "{{ sysmon_version }}"
           SysmonConfig: "{{ sysmon_config_sha256 }}"
         script: |
@@ -149,6 +157,11 @@
             $f = Get-DnsServerForwarder
             $r["forwards to $Gateway only"] = ((@($f.IPAddress.IPAddressToString) -join ',') -eq $Gateway)
             $r['no root hints'] = -not (Get-DnsServerRootHint)
+            # ADR-0140: dsHeuristics kept as Server 2025 ships it, unset. The
+            # 3051/3054 events at boot are expected; a value here is a hardening.
+            $dsh = Get-ADObject -Identity ("CN=Directory Service,CN=Windows NT,CN=Services," +
+              (Get-ADRootDSE).configurationNamingContext) -Properties dsHeuristics
+            $r['dsHeuristics unset, as shipped'] = [string]::IsNullOrEmpty($dsh.dsHeuristics)
             $src = (w32tm /query /source | Out-String).Trim()
             if ([bool]::Parse($IsPrimary)) {
               $r["clock from $Gateway"] = ($src -like "$Gateway*")
@@ -292,7 +305,7 @@
           }
 
           # --- #449: each deliberate weakness is in the state its toggle names -
-          # Default absent, so a plain run asserts every one of these six
+          # Default absent, so a plain run asserts every one of these nine
           # primitives is NOT there — the per-primitive negative test. It does
           # not walk the authorization graph, so it is not on its own a proof
           # that no path to Domain Admin exists; that graph-level check is the
@@ -368,6 +381,29 @@
               $bHave = ($trusted -contains $rp.SID.Value)
             }
             $r['rbcd matches its toggle'] = ($bHave -eq ($Weak.rbcd_state -eq 'present'))
+
+            # maq (ADR-0140): the quota on the domain head, 10 or 0, and
+            # nothing between.
+            $q = (Get-ADObject -Identity $wbase -Properties 'ms-DS-MachineAccountQuota').'ms-DS-MachineAccountQuota'
+            $qWant = if ($Weak.maq_state -eq 'present') { $Weak.maq_present } else { $Weak.maq_absent }
+            $r["machine account quota is $qWant, as maq names"] = ([int]$q -eq [int]$qWant)
+          }
+
+          if ($onDc) {
+            # unsigned_ldap (ADR-0140): present is the enforcement value at 0
+            # over the shipped LDAPServerIntegrity of 1; absent is the value
+            # unset, Server 2025's enforced default.
+            $lp = Get-ItemProperty -Path $Weak.unsigned_ldap_key -ErrorAction SilentlyContinue
+            $lv = $lp.($Weak.unsigned_ldap_value)
+            $lHave = ($null -ne $lv -and [int]$lv -eq 0 -and [int]$lp.LDAPServerIntegrity -eq 1)
+            $r['unsigned_ldap matches its toggle'] = if ($Weak.unsigned_ldap_state -eq 'present') {
+              $lHave } else { ($null -eq $lv) }
+
+            # spooler (ADR-0140): running and Automatic, or stopped and Disabled.
+            $spl = Get-Service Spooler -ErrorAction SilentlyContinue
+            $r['spooler matches its toggle'] = if ($Weak.spooler_state -eq 'present') {
+              [bool]($spl -and $spl.Status -eq 'Running' -and $spl.StartType -eq 'Automatic')
+            } else { [bool]($spl -and $spl.Status -eq 'Stopped' -and $spl.StartType -eq 'Disabled') }
           }
 
           if ($LabRole -eq 'endpoint') {
