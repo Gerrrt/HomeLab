@@ -104,6 +104,18 @@
           # deletes. roles/base removes both; neither may be on any guest.
           $r['no plaintext answer file in Panther'] = -not ((Test-Path C:\Windows\Panther\unattend-original.xml) -or
             (Test-Path C:\Windows\Panther\unattend-oobe.xml))
+          # The bahamut audit's staging leftovers (2026-11-25): roles/soc_agents,
+          # exporter and sysmon remove their installers once installed, and only
+          # SYSTEM and Administrators may write a metric into the textfile folder.
+          $staged = Get-ChildItem C:\ProgramData\lab -Force -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like '*.msi' -or $_.Name -like 'Sysmon-*' }
+          $r['no staged installer in C:\ProgramData\lab'] = (@($staged).Count -eq 0)
+          $tf = 'C:\ProgramData\windows_exporter\textfile'
+          $r['only SYSTEM and Administrators in the textfile folder'] = [bool]((Test-Path $tf) -and
+            (Get-Acl $tf).AreAccessRulesProtected -and -not (@(Get-Item $tf; Get-ChildItem $tf -Force) | Get-Acl |
+              ForEach-Object Access | Where-Object {
+                $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value -notin
+                  @('S-1-5-18', 'S-1-5-32-544') }))
           # --- #450: Sysmon, recording with the vendored config ----------------
           # The driver as well as the service: Sysmon64 running over an unloaded
           # SysmonDrv records nothing. ConfigHash is what the driver last loaded,
