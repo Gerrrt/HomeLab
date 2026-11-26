@@ -808,7 +808,7 @@ services:
     # grafana/grafana, not grafana/grafana-oss: Grafana stopped publishing
     # -oss after 13.0.2 (2026-06-02) and ships the same OSS edition here, so
     # the old repository's last tag went stale with no bump to follow (#988).
-    image: grafana/grafana:13.3.1@sha256:0615ec4fbd4072004b7d86b46ded63013a74b7d6eb1119273dd89e8fa25c13cf
+    image: grafana/grafana:13.3.2@sha256:81556409ba48b2b922e0adb69a2511337d8ba7578f11962eefa6149a2d815101
     container_name: grafana
     # 2.4x the 540 MiB peak. Grafana is the second-spikiest service here — 139
     # MiB median, and three excursions past 350 MiB RSS in fourteen days (540,
@@ -1347,7 +1347,7 @@ services:
     # reports its error to capture-screenshots.sh.
     labels:
       homelab.logs: "off"
-    image: grafana/grafana-image-renderer:v5.12.11@sha256:cfa6c8f63e6d626f90208f2880f15bd5facc279daec1b9bb642af07aa850d95e
+    image: grafana/grafana-image-renderer:v5.12.12@sha256:7ec15ea713a82d0cc16aaf1575b5416a6f8b178f475f4d1685e3322a5ce3fae3
     container_name: renderer
     environment:
       # The renderer loads the dashboard in a headless Chromium, and Chromium
@@ -1462,7 +1462,7 @@ services:
   # ---------------------------------------------------------------------------
   archiver:
     profiles: ["backup"]
-    image: debian:13-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+    image: debian:13-slim@sha256:8aa5a7bf5a1955bddbe7d74fcdd0b91ab30e74362a8b73af672b0481b35b44a0
     command: ["true"]
 
   # ---------------------------------------------------------------------------
