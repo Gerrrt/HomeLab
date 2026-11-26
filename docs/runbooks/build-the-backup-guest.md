@@ -435,6 +435,15 @@ is in, because its case notes are in no repository
 ([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).
 The job selects VMIDs, so a new guest stays out unless someone adds it.
 
+**The DCs log a DFSR 5014 and 5004 every night, and that is this job.** The
+guest agent freezes each guest's filesystems for its snapshot, one guest at a
+time, so each DC loses its replication partner for a few seconds and logs
+DFSR event 5014, then 5004 about 10 s later when it reconnects. It happens
+around 05:00 UTC (21:00 on `Saruman`, which keeps UTC−8) on both DCs. The
+`bahamut` audit matched it to vzdump's log on 2026-11-25. Replication is clean
+afterwards. A 5014 with no 5004 after it, or one at another hour, is a real
+fault.
+
 **Every guest in the job carries the Proxmox tag `backup`.** For the domain's
 six and `garuda` it comes from `tofu/guests.tf`. `odin` is hand-built, so
 `qm set 160 --tags` gives it the tag, keeping its existing ones.

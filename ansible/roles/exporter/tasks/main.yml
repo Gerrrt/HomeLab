@@ -7,6 +7,41 @@
     path: "{{ windows_exporter_textfile_dir }}"
     state: directory
 
+# The collector serves whatever .prom files are here as the guest's own metrics,
+# so whoever can write here can forge a gauge, the licence clock included.
+# ProgramData's inherited ACL gave BUILTIN\Users Write (the bahamut audit,
+# 2026-11-25). Only SYSTEM (the exporter, licence-clock's task) and
+# Administrators (Ansible, licence-clock's handler) write or read it now, with
+# inheritance cut so a file dropped in takes the same two. Compared by SID.
+- name: Only SYSTEM and Administrators may use the textfile directory
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Dir)
+      $Ansible.Changed = $false
+      $sids = @('S-1-5-18', 'S-1-5-32-544')
+      $acl = Get-Acl -LiteralPath $Dir
+      $have = @($acl.Access | ForEach-Object {
+        '{0}|{1}|{2}' -f $_.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value,
+          $_.FileSystemRights, $_.InheritanceFlags
+      } | Sort-Object) -join ';'
+      $want = @($sids | ForEach-Object { "$_|FullControl|ContainerInherit, ObjectInherit" } | Sort-Object) -join ';'
+      if (-not $acl.AreAccessRulesProtected -or $have -ne $want) {
+        $Ansible.Changed = $true
+        if (-not $Ansible.CheckMode) {
+          $new = New-Object System.Security.AccessControl.DirectorySecurity
+          $new.SetAccessRuleProtection($true, $false)
+          foreach ($sid in $sids) {
+            $new.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+              (New-Object System.Security.Principal.SecurityIdentifier($sid)), 'FullControl',
+              'ContainerInherit, ObjectInherit', 'None', 'Allow')))
+          }
+          Set-Acl -LiteralPath $Dir -AclObject $new
+        }
+      }
+    parameters:
+      Dir: "{{ windows_exporter_textfile_dir }}"
+
 # Whether the pinned release is installed is read from its MSI product code,
 # not inferred from a folder or a file. That lets a run where it is already
 # installed skip the download entirely, and lets check mode answer without the
@@ -85,3 +120,12 @@
     profiles: [domain]
     state: present
     enabled: true
+
+# Installed is decided by product code above, never by the MSI being here, so
+# it goes once the service runs: staged in C:\ProgramData\lab, BUILTIN\Users
+# could read it (the bahamut audit, 2026-11-25). A version bump fetches the new
+# one again.
+- name: Remove the staged MSI
+  ansible.windows.win_file:
+    path: "C:\\ProgramData\\lab\\{{ exporter_msi }}"
+    state: absent
