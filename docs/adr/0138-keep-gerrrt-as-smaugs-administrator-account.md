@@ -5,6 +5,14 @@
 whose fourth decision opened SSH on `smaug` for `frodo` "and nothing else",
 and whose context said the host has "no repository checkout"
 
+> [!NOTE]
+> **Two consequences below are amended, 2026-11-25.** `ClaudeCode2` has a
+> use, the TrueNAS MCP server on the operator's Windows desktop, and stays.
+> The NUT monitor password printed into a transcript on 2026-11-13 is not
+> rotated. Both are
+> [ADR-0139](0139-keep-the-mcp-servers-api-key-on-smaug.md)'s. The rest of
+> this decision is unchanged.
+
 ## Context
 
 ADR-0045 turned SSH on for one user, `frodo`, the backup pull's read-only
