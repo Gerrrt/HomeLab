@@ -1,4 +1,4 @@
-# ADR-0138: Correct why ADR-0136 leaves Domain Admins network logon
+# ADR-0140: Correct why ADR-0136 leaves Domain Admins network logon
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0136](0136-deny-the-domains-own-admins-the-console-on-members.md)

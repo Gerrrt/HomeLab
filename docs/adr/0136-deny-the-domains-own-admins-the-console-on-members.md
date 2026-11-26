@@ -6,7 +6,7 @@
 and [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md)
 
 > [!NOTE]
-> Amended by [ADR-0138](0138-correct-why-adr-0136-leaves-domain-admins-network-logon.md),
+> Amended by [ADR-0140](0140-correct-why-adr-0136-leaves-domain-admins-network-logon.md),
 > which corrects the reason given below for leaving network logon. Ansible
 > reaches a member as that member's local Administrator, not
 > `AD\Administrator`, so the pipeline does not depend on it. The rights

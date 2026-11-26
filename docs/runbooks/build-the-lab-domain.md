@@ -843,7 +843,7 @@ ordinary users, and one service account with an SPN on a real service on
 > on members. It does not refuse them network logon. Nothing in the pipeline
 > needs that: on a member, Ansible's `Administrator` is the member's own local
 > account, not `AD\Administrator`
-> ([ADR-0138](../adr/0138-correct-why-adr-0136-leaves-domain-admins-network-logon.md)).
+> ([ADR-0140](../adr/0140-correct-why-adr-0136-leaves-domain-admins-network-logon.md)).
 > Closing it is a decision still to take, because it would also refuse a
 > relayed Domain Admin on `titan`. At a member's console, log on as its local
 > `Administrator`.
