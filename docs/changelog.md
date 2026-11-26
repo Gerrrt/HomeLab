@@ -19,6 +19,17 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **`phoenix` runs ADR-0135.** `build-the-jumpbox.md` §6a, merged in
+  [#1756](https://github.com/Gerrrt/HomeLab/pull/1756), was applied on
+  `phoenix`. `10-phoenix.conf` gained `DisableForwarding yes`, and cloud-init's
+  `50-cloud-init.conf` was removed. `sshd -t` passed and the reload kept the
+  open Claude Code remote session. `sshd -T` reads `no` for password,
+  keyboard-interactive and root login and for X11 forwarding, and
+  `disableforwarding yes`. An `ssh -N -L` from a workstation logged in, and
+  the forwarded connection was refused as administratively prohibited.
+  `security.md` row 20 now says applied. Refs
+  [#1496](https://github.com/Gerrrt/HomeLab/issues/1496).
+
 - **Correction to the entry below, "what the `bahamut` audit found,
   decided (ADR-0140)".** That decision is
   [ADR-0141](adr/0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md).
