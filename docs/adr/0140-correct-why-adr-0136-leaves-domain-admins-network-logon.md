@@ -17,7 +17,9 @@ each guest's `administrators_authorized_keys`. On a DC that name is the
 domain's Administrator, because `Install-ADDSForest` makes `bahamut`'s
 local Administrator the domain's. On a member it is the member's own local
 Administrator. Read on `titan` on 2026-11-26: `whoami` over that SSH path
-printed `titan\administrator`.
+printed `titan\administrator`. The read-only audit of `ramuh` (#1763) found
+the same in `ramuh`'s Security log: `RAMUH\Administrator` for each of
+`phoenix`'s logons on 2026-11-16.
 
 Nothing else in the repository logs on to a member as a domain admin.
 `roles/member` passes the domain's Administrator to the domain join,

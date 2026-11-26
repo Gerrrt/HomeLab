@@ -2,9 +2,11 @@
 # --- How phoenix reaches a guest (ADR-0077 decision 2) ----------------------
 # OpenSSH, key only, as the built-in Administrator. The template installs
 # phoenix's public key into administrators_authorized_keys and SetupComplete.cmd
-# starts sshd on every clone (packer/windows/scripts/). After promotion the
-# same name logs in as AD\Administrator, which is a member of Administrators, so
-# the same key file still applies.
+# starts sshd on every clone (packer/windows/scripts/). On a DC, which has no
+# local accounts after promotion, the name resolves to AD\Administrator. On a
+# member it resolves to the member's own local Administrator, not the domain's
+# (ramuh's Security log, 2026-11-16). Both are in Administrators, so the same
+# key file applies on all six.
 ansible_connection: ssh
 ansible_shell_type: powershell
 ansible_user: Administrator

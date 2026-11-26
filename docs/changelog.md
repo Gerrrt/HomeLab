@@ -19,12 +19,51 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **The read-only audit of `ramuh` (2026-11-13, re-checked 2026-11-25, and
+  checked from `phoenix` today) changes nothing on the guest.** It shares
+  most of what the `titan` audit found. ADR-0136, ADR-0137 and the disk and
+  `5985` fixes in the entry for that audit cover `ramuh` too.
+  - **What matches:** `verify.yml` passes on `ramuh` (23 checks). All six
+    ADR-0083 weaknesses are absent. Wazuh, Velociraptor, Sysmon's config hash
+    and `windows_exporter` match their pins. `sshd` takes `phoenix`'s key
+    alone. A connect scan of every TCP port found only `22` open from
+    `phoenix` and only `9182` from `alexander`, which is what the firewall
+    admits. Prometheus reads `up` 1 for `ramuh`, and so does
+    `homelab_wazuh_agent_active`.
+  - **Corrected here:**
+    - `architecture.md` and `network.md` said the four servers were built by
+      hand on 2026-09-24 and 25. All four were installed on 2026-10-07, when
+      the six were rebuilt from the templates for #448.
+    - `group_vars/all.yaml` and `build-the-lab-domain.md` said Ansible logs on
+      to a member as `AD\Administrator`. `ramuh`'s Security log shows
+      `RAMUH\Administrator` for each of `phoenix`'s logons, so a member
+      resolves the name to its own local account. ADR-0136 keeps network logon
+      for Domain Admins for `phoenix`'s sake, and on members that reason does
+      not hold. The runbook now says so and leaves the decision open.
+    - `LabWindowsEvaluationExpiring` said "Rearm it". All four servers have
+      no rearm left (the entry of 2026-10-08), so the alert now says to
+      rebuild from a fresh template.
+  - **Open, each a decision for the repository:**
+    - ADR-0029, `architecture.md` and runbook §5 promise an SPN "on a real
+      service". `roles/weakness_kerberoast` creates the account and SPN only,
+      and nothing installs a service.
+    - The Print Spooler runs on `ramuh`, the host the `ucd` tag gives
+      unconstrained delegation. The repository never mentions it.
+    - There is no LAPS. `roles/base` sets every guest's local Administrator to
+      the same `LAB_ADMIN_PASSWORD`, so one cracked hash opens all six.
+      The password dates on 2026-10-07 belong to one run.
+  - **Found in passing, not `ramuh`'s:** `verify.yml` fails "no root hints" on
+    both DCs. `bahamut` also fails ADR-0136's Domain Admins deny, as expected
+    until the next `--tags gpos` run.
+  - `ramuh`'s nightly VSS flush timeouts (2026-11-07 and 08) have not
+    recurred. `sshd` crashed once on 2026-11-08 and has not since.
 - **Correction to the 2026-11-25 entry on the read-only audit of `titan`.**
   That entry says ADR-0136 leaves Domain Admins network logon on members
   because network logon "is how Ansible reaches the guests". It isn't. On a
   member, Ansible's `Administrator` is the member's own local account:
   `whoami` over `phoenix`'s SSH path printed `titan\administrator` today. Only
-  on the DCs is it the domain's. ADR-0140 records the corrected reason and
+  on the DCs is it the domain's. The `ramuh` entry above found the same from
+  `ramuh`'s Security log. ADR-0140 records the corrected reason and
   leaves the rights as they are. Nothing in the pipeline needs Domain Admins to
   log on to a member over the network, so whether to deny it is a decision
   still to take. The cost is that it would also refuse a relayed Domain Admin
