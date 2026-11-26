@@ -19,6 +19,30 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`smaug`: TrueNAS Connect off, the media stack redeployed, and `eno1`
+  static.** This completes three of the five items the entry "`smaug`:
+  three decided changes applied" left to the operator.
+  - **§6.12** (ADR-0133): the paging path was proved first and the
+    `Watchdog` had reached the phone. `tn_connect.config` reads
+    `False DISABLED`, the `truenas_connect` certificate is gone, and `smaug`
+    is off the vendor's portal.
+  - **The redeploy.** `smaug-fetch.sh` from `6445c6d3` installed the
+    compose file, `.env` and all six root-run scripts, every sha256
+    matching. Five had drifted: the compose file, `.env` (which lacked the
+    six `MAKEMKV_*` keys; every value it had matched), `mark-clean-shutdown.sh`,
+    and, since the audit, `collect-smart-state.sh` and
+    `collect-cert-expiry.sh`. The block was first run as `gerrrt`, which left
+    the files owned by it; they were given back to `root:root` before the
+    `up`. Jellyfin now runs `12.4.0` (was 12.2) and Audiobookshelf `2.38.0`
+    (was 2.36.1); Navidrome and node-exporter were current. All four answer
+    their health endpoints. `@pre-jellyfin-12.2` and the superseded images
+    stay until the upgrade has run a day.
+  - **`eno1` is static** (`build-the-nas.md` §0.3), with Nameserver 1 set to
+    `10.0.40.1`, which DHCP had been supplying. §0.3 now says to set it
+    first.
+  - Still the operator's: the `gerrrt` account and the leftover images and
+    snapshot.
+
 - **`smaug`: three decided changes applied, from a session on the box.**
   The rest of what the 2026-11-13 audit found is still the operator's: §6.12
   (TrueNAS Connect), eno1's static address, the media redeploy, the

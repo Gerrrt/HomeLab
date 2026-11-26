@@ -641,14 +641,13 @@ Televisions and consoles. Internet only.
   segment, so the *Reaches* column is unchanged. The pass narrows rather than
   opens: before it, *Allow internet* already passed the whole segment to that
   address, and the block is what keeps the televisions off the listener.
-  **Its internet egress also carries TrueNAS Connect**, the vendor's cloud
-  service, registered on `smaug` since its first boot and read as enabled on
-  2026-11-13. [ADR-0133](adr/0133-turn-truenas-connect-off-on-smaug.md)
-  turns it off; [`build-the-nas.md`](runbooks/build-the-nas.md) §6.12 is
-  the procedure, and until that is done the registration stands. **Two
-  smaller vendor contacts went the same way until 2026-11-25**, TrueNAS's
-  usage collection and Docker's image-update check, when §6.13 turned them
-  off.
+  **Its internet egress carried TrueNAS Connect until 2026-11-25**, the
+  vendor's cloud service, registered on `smaug` since its first boot.
+  [ADR-0133](adr/0133-turn-truenas-connect-off-on-smaug.md) turned it off,
+  by [`build-the-nas.md`](runbooks/build-the-nas.md) §6.12, and the
+  registration is gone. **Two smaller vendor contacts went the same way
+  until the same day**, TrueNAS's usage collection and Docker's image-update
+  check, when §6.13 turned them off.
 - **Three rules from `trinity` to `mediatv`, in force since 2026-10-19:**
   `10.0.99.40 → 10.0.40.40`, passing `3001/tcp` for Home Assistant's LG
   webOS integration and `9/udp` for the magic packet that wakes the TV, and
