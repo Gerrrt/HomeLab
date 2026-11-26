@@ -775,9 +775,11 @@ Where things get broken on purpose.
 - `carbuncle` and `siren` are [ADR-0029](adr/0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)'s
   two endpoints. They were built and activated, reported 2026-09-26, and are
   joined to `ad.matrix.elysium`, which `bahamut`, `leviathan`, `titan` and
-  `ramuh` were built by hand on 2026-09-24 and 2026-09-25 to serve
+  `ramuh` serve. Those four were built by hand on 2026-09-24 and 2026-09-25
+  ([#414](https://github.com/Gerrrt/HomeLab/issues/414)), and all six were
+  rebuilt from the templates on 2026-10-07
   ([`build-the-lab-domain.md`](runbooks/build-the-lab-domain.md),
-  [#414](https://github.com/Gerrrt/HomeLab/issues/414)). Their
+  [#448](https://github.com/Gerrrt/HomeLab/issues/448)). Their
   addresses are DHCP reservations, read from `morpheus`'s `config.xml` on
   2026-09-26, and not statics. They run per session, so an absence from the
   segment is normal.
