@@ -139,6 +139,18 @@
     state: started
   when: soc_agents_velociraptor_present or not ansible_check_mode
 
+# Installed is decided by product code, never by the MSI being here, so both
+# go once their services run. Staged in C:\ProgramData\lab, BUILTIN\Users
+# could read them, and the Velociraptor one carries its client config: the
+# server's URL, CA and enrolment nonce (the bahamut audit, 2026-11-25).
+- name: Remove the staged MSIs
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - C:\ProgramData\lab\wazuh-agent.msi
+    - C:\ProgramData\lab\velociraptor-client.msi
+
 # Retire the two GPOs that deployed these agents before this role did
 # (build-the-soc-guest.md §11). Remove-GPO takes the GPO and its own SYSVOL
 # folder, but the Wazuh startup script and the MSIs live in the domain scripts

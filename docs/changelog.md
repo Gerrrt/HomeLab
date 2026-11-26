@@ -28,6 +28,49 @@ docstring gives: it is a record, not a claim about now.
   `nftables.service` enabled at boot. The NFS datastore stayed readable, and
   Alloy logged no error. `22` and `8007` are still the only ports on an
   address other than loopback.
+- **`build-heimdall.md` §2 masks `packagekit.service`.** A re-check of
+  `heimdall` after the 04:30 boot found Raspberry Pi OS's
+  `10-gui-pkinst.rules`, there since the build, which lets any `sudo` member
+  install or remove packages through PackageKit with no password, over SSH as
+  well. That undid part of 2026-11-25's "sudo asks for the password". The
+  same check found that the 06:04 unattended-upgrades run installed
+  `browser-choice` 0.4, a new dependency of `rpd-applications` 1.39: a
+  browser picker, harmless, but a reminder that the daily upgrades can add
+  packages as well as update them. Masked on the Pi the same day.
+
+- **`phoenix` runs ADR-0135.** `build-the-jumpbox.md` §6a, merged in
+  [#1756](https://github.com/Gerrrt/HomeLab/pull/1756), was applied on
+  `phoenix`. `10-phoenix.conf` gained `DisableForwarding yes`, and cloud-init's
+  `50-cloud-init.conf` was removed. `sshd -t` passed and the reload kept the
+  open Claude Code remote session. `sshd -T` reads `no` for password,
+  keyboard-interactive and root login and for X11 forwarding, and
+  `disableforwarding yes`. An `ssh -N -L` from a workstation logged in, and
+  the forwarded connection was refused as administratively prohibited.
+  `security.md` row 20 now says applied. Refs
+  [#1496](https://github.com/Gerrrt/HomeLab/issues/1496).
+
+- **Lab domain: the `bahamut` audit's last two findings.** The staging
+  leftovers: `C:\ProgramData\lab` on every guest kept the Wazuh, Velociraptor
+  and exporter MSIs, the Sysmon zip and its unpacked folder, all readable by
+  `BUILTIN\Users`. The Velociraptor MSI carries its client config. `BUILTIN\Users`
+  could also write into the exporter's textfile directory, so any local user
+  could forge a gauge, the licence clock included. `roles/soc_agents`,
+  `exporter` and `sysmon` now delete their installers once installed (installed
+  is decided by product code or version, so nothing reinstalls). `roles/exporter`
+  limits the textfile directory to SYSTEM and Administrators with inheritance
+  cut, and `verify.yml` checks both. Applied and tested on `leviathan`: a second
+  run changed nothing, `licence-clock` still rewrote its gauge as SYSTEM, and
+  the exporter served it. The other five follow on the next run. The DFSR
+  5014/5004 pair both DCs log nightly around 05:00 UTC is the snapshot backup
+  freezing each guest in turn. `build-the-backup-guest.md` §8 now says so.
+- **Lab domain: the `bahamut` audit's decisions applied to the live domain.**
+  After #1765, #1769 and ADR-0136's GPO (#1757) merged, `lab-domain.yml
+  --tags forest,gpos,unsigned_ldap,maq,spooler` ran on the DCs and members
+  from `phoenix`. It set the machine account quota to 0, disabled Print Spooler
+  on both DCs, applied the Tier 0 logon denial, and cleared `bahamut`'s root
+  hints and `cache.dns`. `verify.yml` then held on all four: `bahamut` 66
+  checks, `leviathan` 33, `titan` 27, `ramuh` 23. The endpoints were off and
+  not checked.
 - **Correction to the entry below, "what the `bahamut` audit found,
   decided (ADR-0140)".** That decision is
   [ADR-0141](adr/0141-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md).

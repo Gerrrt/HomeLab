@@ -1085,6 +1085,22 @@ have to go looking for. It is not a control against someone who already owns
 `alexander`, and `security.md` records it as a residual rather than a
 mitigation.
 
+Then close the textfile directory to everyone but SYSTEM and Administrators,
+and delete the MSI. The collector serves whatever `.prom` file it finds there
+as the guest's own metrics. `ProgramData`'s inherited ACL lets
+`BUILTIN\Users` write there, so any local user could forge a gauge, the
+licence clock's included. The MSI is not needed once the service runs; the
+same goes for the Wazuh and Velociraptor MSIs and the Sysmon zip and its
+unpacked folder, and the Velociraptor MSI carries its client config.
+`roles/exporter`, `soc_agents` and `sysmon` do both, and `verify.yml` checks
+them:
+
+```powershell
+$tf = 'C:\ProgramData\windows_exporter\textfile'
+icacls $tf /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F'
+Remove-Item C:\ProgramData\lab\*.msi, C:\ProgramData\lab\Sysmon-* -Recurse
+```
+
 Finally the licence clock — a weekly scheduled task writing one gauge into the
 textfile directory. **On the four servers only:** the endpoints run activated
 Windows 11 Pro, where `GracePeriodRemaining` is `0`, so the gauge there would
