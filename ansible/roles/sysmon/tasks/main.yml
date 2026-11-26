@@ -105,6 +105,19 @@
     - not ansible_check_mode
   notify: Resubscribe the Wazuh agent to the Sysmon channel
 
+# Installed is decided by the binary's version, not by the zip, and the
+# upgrade above uninstalls with C:\Windows\Sysmon64.exe, so neither the zip
+# nor its unpacked copy is needed once Sysmon runs. Left staged, BUILTIN\Users
+# could read both (the bahamut audit, 2026-11-25). The config's own folder
+# stays: it is the record of what was applied.
+- name: Remove the staged zip and its unpacked copy
+  ansible.windows.win_file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ sysmon_zip }}"
+    - "{{ sysmon_unpacked }}"
+
 # Compare-first against what the driver last loaded, not against whether the
 # copy above changed: a config changed by hand on the guest (sysmon -c) is drift
 # too, and this puts the vendored one back. The file's own hash is read on the
