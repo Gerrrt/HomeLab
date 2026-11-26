@@ -242,15 +242,23 @@ off at boot. Firefox and VLC come with the desktop, and the kiosk uses
 neither. They are most of the Pi's updates: on 2026-11-24, 16 of its 18
 pending upgrades were VLC's. The desktop's `rpd-applications` only
 recommends them, so purging them removes nothing else the Pi uses.
-`--autoremove` takes their libraries with them, about 40 packages:
+`--autoremove` takes their libraries with them, about 40 packages.
+
+`systemd-rfkill` saves and restores whether each radio is switched off. With
+Bluetooth gone, Wi-Fi is the only radio left, and nothing on the Pi switches
+it. On the first boot after the overlay, on 2026-11-25, the service hung for
+its full 90 seconds and failed, which fired `DisplayUnitFailed`. It did not
+hang when run again, but nothing needs it, so mask it:
 
 ```bash
 sudo cp /boot/firmware/config.txt /boot/firmware/config.txt.bak
 printf '\ndtoverlay=disable-bt\n' | sudo tee -a /boot/firmware/config.txt    # last section is [all]
 sudo apt purge -y --autoremove firefox vlc
+sudo systemctl mask --now systemd-rfkill.service systemd-rfkill.socket
 ```
 
-After §3's reboot, `ls /sys/class/bluetooth` prints nothing.
+After §3's reboot, `ls /sys/class/bluetooth` prints nothing, and
+`systemctl --failed` lists nothing.
 
 ### Nothing at the console but a login
 
@@ -517,7 +525,8 @@ the roadmap's *Everything still to buy* and an ADR of its own.
 - **The console:** `sudo systemctl unmask --now serial-getty@ttyAMA10.service`.
   `sudo raspi-config nonint do_boot_behaviour B4` writes the `tty1`
   autologin back, along with the desktop's.
-- **The radio and the apps:** restore `/boot/firmware/config.txt.bak`, and
+- **The radio and the apps:** restore `/boot/firmware/config.txt.bak`,
+  `sudo systemctl unmask systemd-rfkill.service systemd-rfkill.socket`, and
   `sudo apt install firefox vlc`.
 - **sudo without a password, and the seed files:** neither comes back. A
   fresh card from the Imager has both.

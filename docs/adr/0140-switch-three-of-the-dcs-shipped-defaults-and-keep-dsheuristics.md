@@ -1,4 +1,4 @@
-# ADR-0139: Switch three of the DCs' shipped defaults, and keep dsHeuristics as shipped
+# ADR-0140: Switch three of the DCs' shipped defaults, and keep dsHeuristics as shipped
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

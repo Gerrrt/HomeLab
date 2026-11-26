@@ -840,10 +840,13 @@ ordinary users, and one service account with an SPN on a real service on
 > that group lets it log on anywhere. Since
 > [ADR-0136](../adr/0136-deny-the-domains-own-admins-the-console-on-members.md)
 > the same GPO also refuses Domain and Enterprise Admins the console and RDP
-> on members. It does not refuse them network logon, because that is how
-> `phoenix` gets in: Ansible connects as `AD\Administrator` over SSH, and a key
-> logon is a network logon. At a member's console, log on as its local
-> `Administrator`.
+> on members. It does not refuse them network logon. ADR-0136 gives
+> `phoenix`'s SSH as the reason, but on a member Ansible does not log on as a
+> Domain Admin: it connects as `Administrator`, which a member resolves to its
+> own local account and only a DC resolves to `AD\Administrator`. `ramuh`'s
+> Security log showed `RAMUH\Administrator` for each of `phoenix`'s logons on
+> 2026-11-16. Whether the network deny should change is not decided. At a
+> member's console, log on as its local `Administrator`.
 
 `titan` gets the shares — including one obviously-interesting decoy, because a
 share nobody would open is not a share anyone will be caught opening. And check
@@ -864,19 +867,8 @@ The six weaknesses #449 asks for — `kerberoast`, `asreproast`, `dcsync`, `ucd`
 it ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
 Three more, `unsigned_ldap`, `maq` and `spooler`, switch shipped defaults on
 the DCs the same way
-([ADR-0139](../adr/0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md)).
+([ADR-0140](../adr/0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md)).
 A plain run leaves all nine absent.
-
-> [!NOTE]
-> **For `maq` and `spooler`, absent is the change.** Windows ships the machine
-> account quota at 10 and Print Spooler running on a DC; a plain run sets the
-> quota to 0 and stops and disables Spooler on `bahamut` and `leviathan`.
-> `unsigned_ldap` absent leaves LDAP signing enforced, as Server 2025 ships
-> it. This is ADR-0029's "LDAP signing deliberately removed" made a switch:
-> enable it when the exercise is relay to LDAP, and the removal is recorded by
-> the run that enabled it. `dsHeuristics` is kept as shipped, unset, so
-> Directory Service events 3051 and 3054 at each DC boot are expected and
-> `verify.yml` fails if it is ever set.
 
 > [!IMPORTANT]
 > **The observation is the deliverable, not the compromise.** The point of each
@@ -895,6 +887,17 @@ Before the first one, two things:
   crack target for `kerberoast`/`asreproast`, and the login the `dcsync`, `cd`
   and `rbcd` exercises authenticate with. A role refuses to *enable* a weakness
   while it is unset. Set it to something a wordlist would find, on purpose.
+
+> [!NOTE]
+> **For `maq` and `spooler`, absent is the change.** Windows ships the machine
+> account quota at 10 and Print Spooler running on a DC; a plain run sets the
+> quota to 0 and stops and disables Spooler on `bahamut` and `leviathan`.
+> `unsigned_ldap` absent leaves LDAP signing enforced, as Server 2025 ships
+> it. This is ADR-0029's "LDAP signing deliberately removed" made a switch:
+> enable it when the exercise is relay to LDAP, and the removal is recorded by
+> the run that enabled it. `dsHeuristics` is kept as shipped, unset, so
+> Directory Service events 3051 and 3054 at each DC boot are expected and
+> `verify.yml` fails if it is ever set.
 
 The loop, one weakness (here `kerberoast`) at a time:
 

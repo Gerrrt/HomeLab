@@ -203,7 +203,7 @@
 # Enable one, watch the SOC see it, disable it, watch the signal go. ADR-0083,
 # and the identifiers are in group_vars/all.yaml. The first six are directory
 # writes, so they run on the PDC emulator like tiers and population. The last
-# three (ADR-0139) are shipped defaults on the DCs, where absent is the
+# three (ADR-0140) are shipped defaults on the DCs, where absent is the
 # hardened side: a plain run sets MAQ to 0 and disables Spooler on both DCs.
 - name: Kerberoast — an SPN on a crackable account
   hosts: dc_primary

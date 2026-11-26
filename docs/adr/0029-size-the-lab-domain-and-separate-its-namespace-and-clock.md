@@ -6,7 +6,7 @@
 > [ADR-0077](0077-configure-the-lab-domain-with-ansible-from-phoenix.md) amends the "join none of the estate's loops"
 > consequence. The text here is left as written, per ADR-0001 and ADR-0115.
 >
-> [ADR-0139](0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md) amends "LDAP signing on the two DCs" in the
+> [ADR-0140](0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md) amends "LDAP signing on the two DCs" in the
 > list of hardening deliberately removed: it is removed on demand, by the
 > `unsigned_ldap` switch, and stays enforced as shipped otherwise. The text
 > here is left as written, per ADR-0001 and ADR-0115.

@@ -263,7 +263,7 @@ services:
   # pg_dump` relies on.
   db:
     <<: *service-defaults
-    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    image: postgres:17.12@sha256:87c8b42f423b45d5247e6aa8fdb2e7762fec164c68a50fe3eb07e7bfcaf4dbcf
     container_name: wiki-db
     user: "999:999"
     mem_limit: 256m
@@ -310,7 +310,7 @@ services:
   # starts on an empty database, where refusing is right.
   # ---------------------------------------------------------------------------
   bootstrap-guard:
-    image: postgres:17.11@sha256:ff87138949ad9a46f32ff23bd6852b52ce024a13dffe9b4087be98292cdd3b4f
+    image: postgres:17.12@sha256:87c8b42f423b45d5247e6aa8fdb2e7762fec164c68a50fe3eb07e7bfcaf4dbcf
     container_name: wiki-bootstrap-guard
     restart: "no"
     logging: *default-logging

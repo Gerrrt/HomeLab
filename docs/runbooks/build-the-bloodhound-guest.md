@@ -495,7 +495,7 @@ containers to come back. They have `restart: unless-stopped`.
      SharpHound on a domain host is the path, because the Windows LDAP client
      signs and seals over `389` natively. Signing is lifted only by the
      `unsigned_ldap` switch
-     ([ADR-0139](../adr/0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md),
+     ([ADR-0140](../adr/0140-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md),
      `build-the-lab-domain.md` §5a). While it is present the Linux collectors
      work, but the graph that answers "no path with every switch off" is
      SharpHound's, collected with it absent.

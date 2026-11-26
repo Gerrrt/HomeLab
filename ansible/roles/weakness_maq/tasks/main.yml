@@ -1,5 +1,5 @@
 ---
-# ADR-0139: ms-DS-MachineAccountQuota on the domain head. At the shipped 10,
+# ADR-0140: ms-DS-MachineAccountQuota on the domain head. At the shipped 10,
 # any domain user can create computer accounts, the first step of RBCD and
 # shadow-credential chains that need no other switch. present restores 10;
 # absent sets 0. Nothing the build does needs it: every join runs as

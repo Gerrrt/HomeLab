@@ -1,5 +1,5 @@
 ---
-# ADR-0139: Print Spooler on the domain controllers. A DC is trusted for
+# ADR-0140: Print Spooler on the domain controllers. A DC is trusted for
 # unconstrained delegation by default, so a running spooler lets any domain
 # user coerce the DC's machine account into authenticating to a host of their
 # choosing. present leaves it as Windows ships it; absent stops and disables

@@ -1,5 +1,5 @@
 ---
-# ADR-0139: LDAP signing, off on demand. Server 2025 DCs enforce signing while
+# ADR-0140: LDAP signing, off on demand. Server 2025 DCs enforce signing while
 # LdapServerEnforceIntegrity is unset. present writes it as 0, so the DC takes
 # unsigned simple and SASL binds, which makes NTLM relay to LDAP possible. absent
 # removes the value, and the DC returns to the 2025 default.
@@ -28,7 +28,8 @@
       $p = Get-ItemProperty -Path $Path -ErrorAction Stop
       if ($Want -eq 'present') {
         if ([int]$p.LDAPServerIntegrity -ne 1) {
-          throw "LDAPServerIntegrity is '$($p.LDAPServerIntegrity)', not the shipped 1: signing would stay required. ADR-0139."
+          throw ("LDAPServerIntegrity is '$($p.LDAPServerIntegrity)', not the shipped 1: " +
+            'signing would stay required. ADR-0140.')
         }
         if ($null -eq $p.$Name -or [int]$p.$Name -ne 0) {
           if (-not $Ansible.CheckMode) {
