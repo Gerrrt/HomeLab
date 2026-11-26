@@ -1,0 +1,36 @@
+---
+# ADR-0139: ms-DS-MachineAccountQuota on the domain head. At the shipped 10,
+# any domain user can create computer accounts, the first step of RBCD and
+# shadow-credential chains that need no other switch. present restores 10;
+# absent sets 0. Nothing the build does needs it: every join runs as
+# AD\Administrator, and weakness_rbcd brings its own controlled principal.
+# Runs on the PDC emulator; compares before it writes.
+
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_maq_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_maq_state is '{{ weakness_maq_state }}', not 'present' or
+      'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
+- name: Set the domain's machine account quota
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([int]$Want)
+      $Ansible.Changed = $false
+      Import-Module ActiveDirectory
+      $dn = (Get-ADDomain).DistinguishedName
+      $have = (Get-ADObject -Identity $dn -Properties 'ms-DS-MachineAccountQuota').'ms-DS-MachineAccountQuota'
+      if ([int]$have -ne $Want) {
+        if (-not $Ansible.CheckMode) {
+          Set-ADObject -Identity $dn -Replace @{ 'ms-DS-MachineAccountQuota' = $Want }
+        }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      Want: >-
+        {{ lab_weakness_maq_present if weakness_maq_state == 'present'
+           else lab_weakness_maq_absent }}

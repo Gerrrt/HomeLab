@@ -137,24 +137,31 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `ucd` | Unconstrained delegation on `ramuh` | §5a |
 | `cd` | Constrained delegation, `svc-web` to `titan` CIFS | §5a |
 | `rbcd` | Resource-based constrained delegation on `titan` | §5a |
+| `unsigned_ldap` | LDAP signing enforcement lifted on both DCs | §5a |
+| `maq` | The shipped machine account quota of 10 | §5a |
+| `spooler` | Print Spooler running on both DCs, as shipped | §5a |
 | `sysmon` | Sysmon and its config, on every guest | §7 |
 
 The `tiers`, `shares` and `soc` tags (#448) apply the rest of §5's skeleton and
-§11's agents. The last six are
+§11's agents. The nine from `kerberoast` to `spooler` are
 [#449](https://github.com/Gerrrt/HomeLab/issues/449)'s deliberate weaknesses
-([ADR-0083]), each off until asked for: `weakness_<name>_state` is `absent` by
-default, so a plain run leaves none of them present. Enable one, watch the SOC
+([ADR-0083], and [ADR-0139] for the last three), each off until asked for:
+`weakness_<name>_state` is `absent` by default, so a plain run leaves none of
+them present. The last three are shipped defaults on the DCs, so for `maq` and
+`spooler` a plain run is the change: it sets the quota to 0 and disables
+Spooler on both DCs. `unsigned_ldap` absent leaves signing enforced, as Server
+2025 ships it. Enable one, watch the SOC
 see it, disable it, confirm the signal goes:
 
 ```bash
 ansible-playbook lab-domain.yml --tags kerberoast -e weakness_kerberoast_state=present
 ansible-playbook verify.yml      -e weakness_kerberoast_state=present   # it is on
 ansible-playbook lab-domain.yml --tags kerberoast                       # off again
-ansible-playbook verify.yml                                             # all six absent
+ansible-playbook verify.yml                                             # all nine absent
 ```
 
-A plain `ansible-playbook verify.yml` asserts every one of these six weakness
-primitives is absent — the per-primitive negative test. It does not walk the
+A plain `ansible-playbook verify.yml` asserts every one of these nine weakness
+primitives is absent, and that `dsHeuristics` is still unset ([ADR-0139]) — the per-primitive negative test. It does not walk the
 domain's authorization graph, so it does not by itself prove *no* path to
 Domain Admin exists; that graph-level check is a BloodHound collector run with
 the tags off ([#451](https://github.com/Gerrrt/HomeLab/issues/451)) — the "run
@@ -219,6 +226,7 @@ guest.
 [ADR-0077]: ../docs/adr/0077-configure-the-lab-domain-with-ansible-from-phoenix.md
 [ADR-0080]: ../docs/adr/0080-record-the-lab-domain-with-sysmon-and-capture-on-demand-with-pktmon.md
 [ADR-0083]: ../docs/adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md
+[ADR-0139]: ../docs/adr/0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md
 [ADR-0085]: ../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md
 [runbook]: ../docs/runbooks/build-the-lab-domain.md
 [run]: ../docs/runbooks/build-the-lab-domain.md#run-it-from-phoenix

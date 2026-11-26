@@ -6,6 +6,13 @@ secret in `phoenix.env`) and
 [ADR-0078](0078-populate-the-lab-domain-from-a-committed-file-and-a-seed.md)
 (the weaknesses it said would come)
 
+> [!NOTE]
+> [ADR-0139](0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md) adds three switches in this model, `unsigned_ldap`,
+> `maq` and `spooler`, under the reopen clause below. For `maq` and `spooler`
+> `absent` is the hardened side, so applying them with the defaults changes
+> the DCs, where this ADR's six changed nothing on merge. The text here is
+> left as written, per ADR-0001 and ADR-0115.
+
 ## Context
 
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

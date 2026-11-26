@@ -1,0 +1,21 @@
+---
+# ADR-0139: Print Spooler on the domain controllers. A DC is trusted for
+# unconstrained delegation by default, so a running spooler lets any domain
+# user coerce the DC's machine account into authenticating to a host of their
+# choosing. present leaves it as Windows ships it; absent stops and disables
+# it. The DCs only: the members keep theirs, which is no path to Tier 0.
+
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_spooler_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_spooler_state is '{{ weakness_spooler_state }}', not 'present'
+      or 'absent'. A typo must fail here, not take the teardown branch and
+      silently remove the weakness.
+    quiet: true
+
+- name: Run or disable Print Spooler
+  ansible.windows.win_service:
+    name: Spooler
+    start_mode: "{{ 'auto' if weakness_spooler_state == 'present' else 'disabled' }}"
+    state: "{{ 'started' if weakness_spooler_state == 'present' else 'stopped' }}"

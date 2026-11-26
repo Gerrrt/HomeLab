@@ -862,7 +862,21 @@ turn it off deliberately, and write down that you did.
 The six weaknesses #449 asks for — `kerberoast`, `asreproast`, `dcsync`, `ucd`,
 `cd`, `rbcd` — are each a tag on the same playbook, each off until you ask for
 it ([ADR-0083](../adr/0083-give-the-lab-domain-its-deliberate-weaknesses-as-switchable-tags.md)).
-A plain run leaves every one absent.
+Three more, `unsigned_ldap`, `maq` and `spooler`, switch shipped defaults on
+the DCs the same way
+([ADR-0139](../adr/0139-switch-three-of-the-dcs-shipped-defaults-and-keep-dsheuristics.md)).
+A plain run leaves all nine absent.
+
+> [!NOTE]
+> **For `maq` and `spooler`, absent is the change.** Windows ships the machine
+> account quota at 10 and Print Spooler running on a DC; a plain run sets the
+> quota to 0 and stops and disables Spooler on `bahamut` and `leviathan`.
+> `unsigned_ldap` absent leaves LDAP signing enforced, as Server 2025 ships
+> it. This is ADR-0029's "LDAP signing deliberately removed" made a switch:
+> enable it when the exercise is relay to LDAP, and the removal is recorded by
+> the run that enabled it. `dsHeuristics` is kept as shipped, unset, so
+> Directory Service events 3051 and 3054 at each DC boot are expected and
+> `verify.yml` fails if it is ever set.
 
 > [!IMPORTANT]
 > **The observation is the deliverable, not the compromise.** The point of each
@@ -892,7 +906,7 @@ ansible-playbook lab-domain.yml --tags kerberoast                       # defaul
 ansible-playbook verify.yml                                             # confirm it is gone
 ```
 
-A plain `ansible-playbook verify.yml`, with nothing enabled, asserts all six of
+A plain `ansible-playbook verify.yml`, with nothing enabled, asserts all nine of
 these primitives are absent — the **per-primitive negative test**. It does not
 collect the authorization graph, so the graph-level test #449 names — "run the
 collector with the tags off and confirm the path to Domain Admin is not there" —
@@ -907,6 +921,9 @@ not this. A lab that is always exploitable proves nothing about the tags.
 | `ucd` | `TRUSTED_FOR_DELEGATION` set on `ramuh` | clears the flag on `ramuh` |
 | `cd` | `svc-web` (its own SPN) allowed to delegate to `CIFS/titan…` | deletes `svc-web`; `titan` untouched |
 | `rbcd` | `titan` set to trust `svc-rbcd` to act on its behalf | clears the trust on `titan`, deletes `svc-rbcd` |
+| `unsigned_ldap` | `LdapServerEnforceIntegrity` 0 on both DCs: unsigned binds accepted, relay to LDAP possible (Directory Service event 2887 counts them, where 2888 counted rejections) | removes the value: signing enforced, as shipped |
+| `maq` | `ms-DS-MachineAccountQuota` 10: any domain user can create computer accounts | sets it to 0 |
+| `spooler` | Print Spooler Automatic and running on both DCs: any user can coerce a DC's authentication | stops and disables it on both DCs; members untouched |
 
 The fixed identifiers — account names, SPNs, the delegation target and resource
 — are in [`ansible/inventory/group_vars/all.yaml`](../../ansible/inventory/group_vars/all.yaml),

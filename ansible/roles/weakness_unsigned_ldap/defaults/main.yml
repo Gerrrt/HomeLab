@@ -1,0 +1,7 @@
+---
+# Off by default: signing stays enforced unless this is present. Enable with
+#   ansible-playbook lab-domain.yml --tags unsigned_ldap -e weakness_unsigned_ldap_state=present
+# and disable by applying the same tag with the default (or =absent). The
+# registry location is in inventory/group_vars/all.yaml, shared with verify.yml
+# (ADR-0083, ADR-0139).
+weakness_unsigned_ldap_state: absent

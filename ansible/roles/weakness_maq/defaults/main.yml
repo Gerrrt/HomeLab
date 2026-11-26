@@ -1,0 +1,8 @@
+---
+# Off by default: a plain run sets the quota to 0. Enable (back to Windows'
+# shipped 10) with
+#   ansible-playbook lab-domain.yml --tags maq -e weakness_maq_state=present
+# and disable by applying the same tag with the default (or =absent). The two
+# values are in inventory/group_vars/all.yaml, shared with verify.yml
+# (ADR-0083, ADR-0139).
+weakness_maq_state: absent

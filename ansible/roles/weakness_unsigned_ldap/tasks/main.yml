@@ -1,0 +1,48 @@
+---
+# ADR-0139: LDAP signing, off on demand. Server 2025 DCs enforce signing while
+# LdapServerEnforceIntegrity is unset. present writes it as 0, so the DC takes
+# unsigned simple and SASL binds, which makes NTLM relay to LDAP possible. absent
+# removes the value, and the DC returns to the 2025 default.
+#
+# LDAPServerIntegrity is not written here. It ships as 1, and at 2 the DC
+# requires signing whatever this value says. So present refuses to run on a DC
+# where it is not 1, rather than report the switch as on when it is not.
+# Runs on both DCs; compares before it writes, so a second run of either
+# direction reports nothing changed.
+
+- name: The toggle is a state this role understands
+  ansible.builtin.assert:
+    that: weakness_unsigned_ldap_state in ['present', 'absent']
+    fail_msg: >-
+      weakness_unsigned_ldap_state is '{{ weakness_unsigned_ldap_state }}', not
+      'present' or 'absent'. A typo must fail here, not take the teardown branch
+      and silently remove the weakness.
+    quiet: true
+
+- name: Set or remove the DC's LDAP signing enforcement
+  ansible.windows.win_powershell:
+    script: |
+      [CmdletBinding(SupportsShouldProcess)]
+      param([string]$Path, [string]$Name, [string]$Want)
+      $Ansible.Changed = $false
+      $p = Get-ItemProperty -Path $Path -ErrorAction Stop
+      if ($Want -eq 'present') {
+        if ([int]$p.LDAPServerIntegrity -ne 1) {
+          throw "LDAPServerIntegrity is '$($p.LDAPServerIntegrity)', not the shipped 1: signing would stay required. ADR-0139."
+        }
+        if ($null -eq $p.$Name -or [int]$p.$Name -ne 0) {
+          if (-not $Ansible.CheckMode) {
+            New-ItemProperty -Path $Path -Name $Name -PropertyType DWord -Value 0 -Force | Out-Null
+          }
+          $Ansible.Changed = $true
+        }
+      } elseif ($null -ne $p.$Name) {
+        if (-not $Ansible.CheckMode) {
+          Remove-ItemProperty -Path $Path -Name $Name
+        }
+        $Ansible.Changed = $true
+      }
+    parameters:
+      Path: "{{ lab_weakness_unsigned_ldap_key }}"
+      Name: "{{ lab_weakness_unsigned_ldap_value }}"
+      Want: "{{ weakness_unsigned_ldap_state }}"

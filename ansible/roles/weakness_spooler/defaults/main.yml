@@ -1,0 +1,7 @@
+---
+# Off by default: a plain run disables Print Spooler on both DCs. Enable (back
+# to Windows' shipped Automatic and running) with
+#   ansible-playbook lab-domain.yml --tags spooler -e weakness_spooler_state=present
+# and disable by applying the same tag with the default (or =absent)
+# (ADR-0083, ADR-0139).
+weakness_spooler_state: absent
