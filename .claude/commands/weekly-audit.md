@@ -85,7 +85,7 @@ body, the changelog. Refer to issues only as `Refs #N`.
    header:
 
    | id | status | severity | area | first-seen | last-seen | issue | summary |
-   |---|---|---|---|---|---|---|---|
+   | --- | --- | --- | --- | --- | --- | --- | --- |
 
 2. Run `gh issue list --label audit --state all --limit 300 --json number,title,state`.
    Use titles only.
