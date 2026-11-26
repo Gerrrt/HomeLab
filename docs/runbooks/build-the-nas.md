@@ -200,8 +200,11 @@ where they are checked rather than copying them somewhere nothing checks them.
 
 ### §0.3 — Give it the static address
 
-In the TrueNAS UI, **Network → Interfaces**, edit the onboard NIC: remove DHCP
-and set `10.0.40.30/24`, gateway `10.0.40.1`.
+In the TrueNAS UI, **Network → Global Configuration**, set Nameserver 1 to
+`10.0.40.1` and the gateway to `10.0.40.1` first: while DHCP is on, it is
+what supplies the name server, and an empty field loses it with DHCP. Then,
+in **Network → Interfaces**, edit the onboard NIC: remove DHCP and set
+`10.0.40.30/24`.
 
 `10.0.40.30` is below the DHCP range, which starts at `.100` — ADR-0016 chose
 it for exactly that reason.
@@ -209,6 +212,15 @@ it for exactly that reason.
 > TrueNAS applies network changes on a **test-and-confirm** timer: if you lose
 > contact after applying, it rolls back on its own. That is a feature here,
 > because you are changing the address you are connected on.
+>
+> **Done 2026-11-25**, late: the read-only audit of 2026-11-13 found `eno1`
+> still on DHCP with no alias, holding `10.0.40.30` through the Kea
+> reservation alone. The gateway was already static; Nameserver 1 was empty
+> and DHCP was supplying `10.0.40.1`. Both were set, then DHCP was cleared
+> from a Hicks workstation, and the change was tested and saved.
+> `interface.query` read `eno1`, DHCP `False`, alias `10.0.40.30/24`, with
+> no change pending; `resolv.conf` names `10.0.40.1`, and the host still
+> resolved and reached `raw.githubusercontent.com`.
 
 ### §0.4 — Reserve it in Kea
 
@@ -912,7 +924,10 @@ checkout of `main`, [`scripts/smaug-fetch.sh`](../../scripts/smaug-fetch.sh)
 prints a block that fetches each file from that one commit and checks it
 against a sha256 computed from your checkout before it replaces anything
 ([#1424](https://github.com/Gerrrt/HomeLab/issues/1424)). Paste that block
-here. A file that does not match stops the block and is not installed; its
+here, as root: run as `gerrrt`, it leaves root's cron scripts owned by an
+account that can edit them
+([ADR-0138](../adr/0138-keep-gerrrt-as-smaugs-administrator-account.md)).
+A file that does not match stops the block and is not installed; its
 `.new` is left for you to look at. The `.env` is copied as-is, because every
 value in it is a plain host fact. The third file is the SMART collector §6.4
 runs from cron
@@ -2301,7 +2316,11 @@ or tests it. Prometheus is this host's paging path: `ZpoolVdevNotOnline`,
    certificate, under System → General → GUI, is unchanged.
 5. **Record it here**: the date and the two readings.
 
-> **Not yet done.** Decided 2026-11-13.
+> **Done 2026-11-25.** Step 1 passed on the monitoring host, and the
+> `Watchdog`'s daily notification had reached the phone. The service was
+> disabled in the UI and `smaug` was removed from the vendor's portal.
+> Step 3 printed `False DISABLED`. Step 4: Certificates lists
+> `truenas_default` alone, valid to 2027-10-17, and the UI still uses it.
 
 ### §6.13 — Close the web UI, the announcements and the vendor checks
 
