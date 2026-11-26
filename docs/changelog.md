@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-25
 
+- **`build-heimdall.md` §2 masks `systemd-rfkill`.** The reboot that
+  confirmed the entry "`heimdall` runs the hardening `build-heimdall.md` §2
+  added today", at 15:53, was the first boot with Bluetooth off.
+  `systemd-rfkill.service` hung for its full 90 seconds on it and failed, and
+  `DisplayUnitFailed` fired. It had finished normally on the three boots
+  before. Run again by hand at 16:15, it found only the Wi-Fi switch and
+  exited at once, so the cause is not known. Nothing on the Pi switches a
+  radio, so §2 now masks the service and its socket, with the undo in §9.
+  Applied on `heimdall` the same day.
+
 - **`smaug`: TrueNAS Connect off, the media stack redeployed, and `eno1`
   static.** This completes three of the five items the entry "`smaug`:
   three decided changes applied" left to the operator.
