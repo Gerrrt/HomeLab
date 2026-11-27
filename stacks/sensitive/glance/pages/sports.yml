@@ -155,7 +155,9 @@
                 {{ if $soccer }}{{ $key = `stats.#(name=="rank").value` }}{{ end }}
                 {{ $rows := sortByFloat $key "asc" ($g.Array "standings.entries") }}
                 {{ $pos := 0 }}
-                {{ range $i, $e := $rows }}{{ if eq ($e.String "team.id") $mine }}{{ $pos = add $i 1 }}{{ end }}{{ end }}
+                {{ range $i, $e := $rows }}
+                  {{ if eq ($e.String "team.id") $mine }}{{ $pos = add $i 1 }}{{ end }}
+                {{ end }}
                 <details>
                   <summary style="cursor: pointer;">
                     <span class="color-highlight">{{ $t.name }}</span>
