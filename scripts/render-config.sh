@@ -598,6 +598,7 @@ COMPOSE_VARS=(
   GLANCE_BOOKMARKS
   GLANCE_VIDEO_TABS
   GLANCE_REDDIT_TABS
+  GLANCE_TEAMS
   NTFY_ALERTMANAGER_PASSWORD_HASH
   NTFY_PHONE_PASSWORD_HASH
   NTFY_ALERTMANAGER_TOKEN
@@ -704,7 +705,7 @@ chmod 600 "${ENV_FILE}"
   for var in "${COMPOSE_VARS[@]}"; do
     [[ -n "${!var:-}" ]] || continue
     case "${var}" in
-      GLANCE_MARKETS | GLANCE_BOOKMARKS | GLANCE_VIDEO_TABS | GLANCE_REDDIT_TABS)
+      GLANCE_MARKETS | GLANCE_BOOKMARKS | GLANCE_VIDEO_TABS | GLANCE_REDDIT_TABS | GLANCE_TEAMS)
         [[ "${!var}" != *"'"* ]] \
           || die "${var} contains a single quote, which its .env line cannot carry — remove it in SOPS"
         printf "%s='%s'\n" "${var}" "${!var}"

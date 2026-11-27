@@ -14,10 +14,10 @@
 # they merge in.
 #
 # WHAT IS NOT IN THESE FILES, ON PURPOSE. This repository is public, and the
-# operator's own lists — tickers, bookmarks, YouTube channels, subreddits —
-# say more about a person than about a homelab. They are one-line JSON values
-# in secrets/sensitive.sops.yaml (GLANCE_MARKETS, GLANCE_BOOKMARKS,
-# GLANCE_VIDEO_TABS, GLANCE_REDDIT_TABS), and Glance substitutes them as
+# operator's own lists — tickers, bookmarks, YouTube channels, subreddits,
+# teams — say more about a person than about a homelab. They are one-line JSON
+# values in secrets/sensitive.sops.yaml (GLANCE_MARKETS, GLANCE_BOOKMARKS,
+# GLANCE_VIDEO_TABS, GLANCE_REDDIT_TABS, GLANCE_TEAMS), and Glance substitutes them as
 # ${…}. Followed feeds live in Miniflux under its user `glance`. The stack
 # README says how to edit both.
 #
@@ -41,6 +41,11 @@ document:
   # page once it is five minutes old, but only while the tab is visible and
   # nothing is being typed into, and at once when a stale tab is shown again.
   # Inline, so the browser still fetches nothing but this page.
+  #
+  # The second script is for Sports & Markets' "My teams": the container has
+  # no time zones (Alpine, no tzdata), so a template can only write a kickoff
+  # in UTC. It writes the ISO time into data-kickoff, and this rewrites each
+  # one in the browser's own zone as widgets arrive. textContent, never HTML.
   head: |
     <meta name="robots" content="noindex, nofollow">
     <script>
@@ -55,6 +60,21 @@ document:
         };
         document.addEventListener("visibilitychange", reloadIfStale);
         setInterval(reloadIfStale, 30 * 1000);
+      })();
+    </script>
+    <script>
+      (() => {
+        const format = { weekday: "short", month: "short", day: "numeric",
+                         hour: "numeric", minute: "2-digit" };
+        const localise = () => {
+          for (const el of document.querySelectorAll("[data-kickoff]:not([data-local])")) {
+            const when = new Date(el.dataset.kickoff);
+            if (!isNaN(when)) el.textContent = when.toLocaleString([], format);
+            el.dataset.local = "";
+          }
+        };
+        new MutationObserver(localise)
+          .observe(document.documentElement, { childList: true, subtree: true });
       })();
     </script>
 

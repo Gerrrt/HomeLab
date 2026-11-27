@@ -624,8 +624,9 @@ everything:
 - **Read** (`read.yml`): Following, the Reddit tabs, Hacker News, Lobsters
   and trending repositories.
 - **Watch** (`watch.yml`): the YouTube tabs at full width, as a grid.
-- **Sports & Markets** (`sports.yml`): NBA, NFL, MLB and NHL scores from
-  ESPN, the full ticker list with charts, and the TSP L 2060 fund with a
+- **Sports & Markets** (`sports.yml`): the teams in `GLANCE_TEAMS`, each
+  with its record, last result and next game; NBA, NFL, MLB and NHL scores
+  from ESPN; the full ticker list with charts; and the TSP L 2060 fund with a
   year's sparkline.
 - **Homelab** (`homelab.yml`): a headline strip, the Estate panel, uptime
   badges, hosts, every console by category, the household monitor and
@@ -675,10 +676,10 @@ is a file under `pages/`, an `$include` line in `glance.yml` and a mount in
 
   A home timeline has no feed, and nor do Instagram, Facebook or X.
 - **Your own lists are in SOPS, not in these files.** Tickers, bookmarks,
-  YouTube tabs and subreddits are `GLANCE_MARKETS`, `GLANCE_BOOKMARKS`,
-  `GLANCE_VIDEO_TABS` and `GLANCE_REDDIT_TABS` in
-  `secrets/sensitive.sops.yaml`, each one line of JSON that Glance
-  substitutes into `pages/home.yml`. To change one:
+  YouTube tabs, subreddits and followed teams are `GLANCE_MARKETS`,
+  `GLANCE_BOOKMARKS`, `GLANCE_VIDEO_TABS`, `GLANCE_REDDIT_TABS` and
+  `GLANCE_TEAMS` in `secrets/sensitive.sops.yaml`, each one line of JSON that
+  Glance substitutes into the pages. To change one:
   `make secrets-edit STACK=sensitive`, edit the line, keep it on one line
   with no single quote inside, then `make up STACK=sensitive`.
   `secrets/sensitive.example.yaml` shows the shape of each.
