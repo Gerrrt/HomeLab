@@ -43,6 +43,11 @@ docstring gives: it is a record, not a claim about now.
   `LAB_ENDPOINT_ADMIN_PASSWORD` in the playbook and the runbook's tag table
   but not in the README's roles, tags or secrets list. Added all three. No
   code changed.
+- **Weekly docs audit 2026-48, focus 2: two rule counts corrected.**
+  `docs/observability.md`'s unit-test coverage paragraph said "all eight in
+  `deploy.test.yaml`" and "all sixty-one in `host.rules.yaml`"; the rule files
+  hold ten and sixty-seven. It now says ten and sixty-seven. The 187-of-187
+  total was already right.
 - **Lab domain: #1770 and #1778 applied to every guest but `siren`.**
   `lab-domain.yml --limit 'lab_domain:!siren' --tags base,sysmon,soc,exporter`
   ran from `phoenix` after a `--check --diff` run that predicted the same ten
