@@ -486,8 +486,17 @@ qmrestore golem:backup/vm/170/<timestamp> 979 --storage large_data --unique 1
 ```
 
 `--unique 1` gives the copy a new MAC, so it cannot collide with the real
-`phoenix`. Start it detached from the network if you want to check it boots,
-then remove both:
+`phoenix`. Start it detached from the network if you want to check it boots.
+Unlink its NIC and turn off autostart first. The guest agent answers over
+virtio-serial with no network, so it shows the copy booted:
+
+```bash
+qm set 979 --onboot 0 --net0 "$(qm config 979 | sed -n 's/^net0: //p'),link_down=1"
+qm start 979
+qm agent 979 ping && qm guest cmd 979 get-osinfo
+```
+
+Then remove both:
 
 ```bash
 qm destroy 979 --purge
@@ -502,6 +511,16 @@ it has stored.
 ```bash
 proxmox-backup-debug api delete /admin/datastore/erebor/snapshots --backup-type vm --backup-id 170 --backup-time <epoch>
 ```
+
+**Later restores run from a nightly.** Once §8 runs, repeat the restore
+without a test backup. Restore one guest's newest snapshot from the job,
+`golem:backup/vm/<vmid>/<timestamp>`, to 979 the same way, unlinked, then
+destroy it. There is nothing to delete on `golem` afterwards. A copy of a
+domain controller must never boot with its NIC linked.
+
+> **Done 2026-11-26** from `bahamut`'s (150) nightly: restored in 4 min 56 s,
+> booted unlinked, and the guest agent reported Windows Server 2025. The one
+> before it was §9's first run, 2026-10-03.
 
 ## 10. Make the verification visible
 
