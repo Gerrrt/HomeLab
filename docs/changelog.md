@@ -37,6 +37,13 @@ docstring gives: it is a record, not a claim about now.
   about 06:03 UTC, during the `leviathan` audit, which removed all 13 on each
   DC. The hints were back that morning because both DCs rebooted on
   2026-11-24 and reloaded them from `cache.dns`.
+- **Glance: its memory ceiling rises from 96m to 256m.** The deploy of
+  [#1779](https://github.com/Gerrrt/HomeLab/pull/1779) added Listen, which
+  parses whole podcast feeds. The OOM killer stopped `sensitive-glance` at
+  96 MiB on its first load, and Docker restarted it in a loop, so
+  `start.matrix.elysium` was down until this change was deployed. An
+  unlimited copy on trinity, with every page loaded at once from cold, peaked
+  at 157 MiB and settled at 85 MiB.
 - **Lab domain: Domain Admins keep network logon on members, for now.**
   [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
   takes the decision ADR-0140 left open. Read on `titan`: its only local
