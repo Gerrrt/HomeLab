@@ -73,6 +73,8 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
   - `dc_replica`: the second DC, left on NT5DS.
   - `dc_resolvers`: each DC resolves through its partner, then loopback.
   - `member`: joins.
+  - `endpoint_admin`: `labadmin`, the local administrator on the two
+    endpoints, created when missing and never reset.
   - `exporter`: `windows_exporter`, plus the 9182 rule admitting `alexander`.
   - `licence_clock`: the evaluation gauge, on the four servers.
   - `population`: the OUs, groups and users in `population/population.yaml`,
@@ -122,6 +124,7 @@ covered in the runbook's [*Run it from `phoenix`*][run] section.
 | `forest` | `bahamut`: forest, forwarder, clock | §3 |
 | `replica` | `leviathan`, then both DCs' resolvers | §4 |
 | `join` | The four members join | §5, first sentence |
+| `endpoint_admin` | `labadmin`, the endpoints' local administrator | §2 |
 | `exporter` | `windows_exporter` and its firewall rule | §7 |
 | `licence` | The evaluation gauge | §7 |
 | `population` | The people: OUs, groups, users | §5 |
@@ -204,8 +207,8 @@ guest.
   `ad.matrix.elysium` goes in the inventory. Compose stacks converge on their
   own timer (ADR-0021), and `phoenix` never pushes to them (ADR-0043).
 - **Secrets come from `phoenix.env`.** The variables are
-  `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`, `LAB_POPULATION_SEED`,
-  `LAB_TIER_ADMIN_PASSWORD`, `LAB_WAZUH_REGISTRATION_PASSWORD` and
+  `LAB_ADMIN_PASSWORD`, `LAB_DSRM_PASSWORD`, `LAB_ENDPOINT_ADMIN_PASSWORD`,
+  `LAB_POPULATION_SEED`, `LAB_TIER_ADMIN_PASSWORD`, `LAB_WAZUH_REGISTRATION_PASSWORD` and
   `LAB_WEAK_PASSWORD` (the deliberately crackable one the weakness accounts
   share, ADR-0083). Every task that uses one is `no_log`. The exception is
   `population-credentials.yml`, which exists to print passwords and is run
