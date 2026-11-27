@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **Lab domain: #1770 and #1778 applied to every guest but `siren`.**
+  `lab-domain.yml --limit 'lab_domain:!siren' --tags base,sysmon,soc,exporter`
+  ran from `phoenix` after a `--check --diff` run that predicted the same ten
+  changes. `roles/base` removed `Panther\unattend.xml` on `bahamut`,
+  `leviathan`, `titan` and `ramuh`. `carbuncle` had none. On `carbuncle`,
+  #1770's roles removed the Sysmon zip and its unpacked folder and the Wazuh,
+  Velociraptor and exporter MSIs, and cut the textfile directory to SYSTEM and
+  Administrators. The other four already had #1770, and nothing reinstalled.
+  `verify.yml` then held on all five: `bahamut` 69 checks, `leviathan` 36,
+  `titan` 30, `carbuncle` 28, `ramuh` 26. `siren` (`.55`) answered no route to
+  host and was not run or checked. It still needs both, at its next run.
+- **Correction to the 2026-11-26 entry "the DCs' root hints came back after
+  every DNS restart".** That entry says what cleared both DCs' in-memory hints
+  between two reads that morning is not known. It was the
+  `lab-domain.yml --limit dcs --tags forest,replica` run from `phoenix` at
+  about 06:03 UTC, during the `leviathan` audit, which removed all 13 on each
+  DC. The hints were back that morning because both DCs rebooted on
+  2026-11-24 and reloaded them from `cache.dns`.
 - **Lab domain: Domain Admins keep network logon on members, for now.**
   [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
   takes the decision ADR-0140 left open. Read on `titan`: its only local
