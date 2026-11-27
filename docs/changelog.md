@@ -36,6 +36,13 @@ docstring gives: it is a record, not a claim about now.
   `build-the-jumpbox.md` §6 gains the textfile-collector step whose absence
   left `SecurityUpdatesPending` and `RebootRequired` blind to `phoenix`.
   Neither ADR is applied yet.
+- **Glance: its memory ceiling rises from 96m to 256m.** The deploy of
+  [#1779](https://github.com/Gerrrt/HomeLab/pull/1779) added Listen, which
+  parses whole podcast feeds. The OOM killer stopped `sensitive-glance` at
+  96 MiB on its first load, and Docker restarted it in a loop, so
+  `start.matrix.elysium` was down until this change was deployed. An
+  unlimited copy on trinity, with every page loaded at once from cold, peaked
+  at 157 MiB and settled at 85 MiB.
 
 - **Lab domain: Domain Admins keep network logon on members, for now.**
   [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
@@ -69,6 +76,20 @@ docstring gives: it is a record, not a claim about now.
   (`.54`, `.55`) were not reachable to check. Not yet applied: the next
   `--tags base` run removes it, and until then `verify.yml` fails `no
   unattend.xml in Panther` on each guest that has it.
+
+- **The lab's four large services have memory limits, and the lab guest's
+  Docker cannot see its containers.** Sizing them from
+  `container_memory_rss`, as #114 did for the estate, found that
+  `alexander` has never exported per-container series. It runs Docker 29 on
+  the containerd image store, which cAdvisor cannot read, the same trap
+  `trinity` hit on 2026-09-28. The limits were therefore sized from each
+  service's own `process_resident_memory_bytes` over 2026-11-10 to 11-25,
+  checked against the cgroup's anonymous and mapped memory, and with
+  Grafana's fourteen plugin processes counted from the cgroup: Prometheus
+  1024M, Loki 768M, Grafana 1536M, Alloy 768M, each with no swap.
+  `build-the-lab-guest.md` §3 gains the `daemon.json` step it was missing,
+  and the switch-over for a guest already running the containerd store.
+  `alexander` has not been switched yet.
 
 ## 2026-11-26
 
