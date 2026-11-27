@@ -278,9 +278,10 @@
             {{ end }}
             </ul>
 
-        # New releases of the software this estate pins. Dependabot opens the
-        # PR; this is the heads-up. Unauthenticated GitHub API, once per six
-        # hours per repository.
+        # New releases of the software this estate pins: the services, not the
+        # lint and build tools. Dependabot opens the PR; this is the heads-up.
+        # Unauthenticated GitHub API, once per six hours per repository: 32
+        # requests against the anonymous 60 an hour.
         - type: releases
           cache: 6h
           show-source-icon: false
@@ -297,3 +298,24 @@
             - prometheus/prometheus
             - grafana/grafana
             - grafana/loki
+            - actualbudget/actual
+            - AdguardTeam/AdGuardHome
+            - advplyr/audiobookshelf
+            - alexjustesen/speedtest-tracker
+            - binwiederhier/ntfy
+            - grafana/alloy
+            - mealie-recipes/mealie
+            - navidrome/navidrome
+            - prometheus/alertmanager
+            - prometheus/blackbox_exporter
+            - requarks/wiki
+            - sissbruecker/linkding
+            - smallstep/certificates
+            - SpecterOps/BloodHound
+            - Stirling-Tools/Stirling-PDF
+            - tsightler/ring-mqtt
+            - usememos/memos
+            - valkey-io/valkey
+            - Velocidex/velociraptor
+            - wazuh/wazuh
+            - zeek/zeek
