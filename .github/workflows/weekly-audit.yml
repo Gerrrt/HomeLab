@@ -102,10 +102,15 @@ jobs:
                   "Edit(docs/**)",
                   "Edit(**/README.md)",
                   "Bash(git log *)", "Bash(git diff *)", "Bash(git show *)",
-                  "Bash(git ls-files *)", "Bash(git status)",
+                  "Bash(git ls-files *)", "Bash(git status)", "Bash(git status *)",
+                  "Bash(git -C .lemmiwinks log *)", "Bash(git -C .lemmiwinks show *)",
+                  "Bash(git -C .lemmiwinks ls-files *)",
+                  "Bash(ls)", "Bash(ls *)", "Bash(head *)", "Bash(tail *)",
+                  "Bash(wc *)", "Bash(sort *)", "Bash(uniq *)",
                   "Bash(date *)", "Bash(printf *)", "Bash(sha256sum)",
                   "Bash(cut *)",
                   "Bash(python3 scripts/check_docs.py)",
+                  "Bash(python3 scripts/check_docs.py *)",
                   "Bash(python3 scripts/check_close_keywords.py --text docs/audit/pr-body.md)",
                   "Bash(gh issue list --label audit *)",
                   "Bash(gh issue create *)",
@@ -117,6 +122,7 @@ jobs:
                   "Edit(.github/**)", "Edit(secrets/**)", "Edit(.lemmiwinks/**)",
                   "Edit(**/*.png)", "Edit(**/*.jpg)", "Edit(**/*.jpeg)",
                   "Bash(sops *)", "Bash(git push *)", "Bash(git commit *)",
+                  "Bash(git -C * push *)", "Bash(git -C * commit *)",
                   "Bash(curl *)", "Bash(wget *)"
                 ]
               }
