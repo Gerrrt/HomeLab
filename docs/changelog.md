@@ -19,6 +19,11 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **`smaug`'s orphaned `media_jellyfin-config` volume is gone.** The re-check
+  after the 2026-11-13 audit closed found that `build-the-nas.md` §6 still said
+  its removal was not yet done. `docker volume ls` lists only the declared
+  `media_jellyfin-cache`, so the line now records it as done. The day it was
+  removed was not recorded.
 - **`golem` runs the host firewall `build-the-backup-guest.md` §2 added
   on 2026-11-25.** This completes that entry, which said the ruleset was
   not yet applied, and closes the last finding of the audit of 2026-11-13.
