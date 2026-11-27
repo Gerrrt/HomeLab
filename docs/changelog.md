@@ -27,6 +27,25 @@ docstring gives: it is a record, not a claim about now.
   unlimited copy on trinity, with every page loaded at once from cold, peaked
   at 157 MiB and settled at 85 MiB.
 
+||||||| 0e3596f8
+
+- **Lab domain: Domain Admins keep network logon on members, for now.**
+  [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
+  takes the decision ADR-0140 left open. Read on `titan`: its only local
+  administrators are `AD\Domain Admins` and its own `Administrator`, and SMB
+  signing is still not required, so it is still the relay target. A deny now
+  would leave the three exercises that land on `titan` (#1478, #1480 and the
+  NTLM relay, #1781, opened today) nothing to land as. The GPO is unchanged.
+  The question is revisited when those three are recorded, and a deny then
+  needs a Tier 1 group that administers `Servers` first.
+- **`titan` read after its audit, 2026-11-27.** The audit's finding 1 is
+  closed on the box: the console and RDP denies name Tier 0, Domain and
+  Enterprise Admins, nobody is logged on, Git and Claude Code are gone, and the
+  only profiles are the local `administrator` and `Public`. The installers
+  #1770 removes are gone and the textfile directory is SYSTEM and Administrators
+  only. Still as the audit found, by decision: no update since 2026-01-14
+  (ADR-0137), and C: at 59 GB of 80 until the rebuild, which the evaluation
+  licence requires before about 2027-04-05.
 - **Lab domain: `roles/base` now removes `Panther\unattend.xml`, and
   `verify.yml` holds every guest to having none.** This corrects the
   2026-10-09 #1099 entry, which says `SetupComplete.cmd` deletes the file. It

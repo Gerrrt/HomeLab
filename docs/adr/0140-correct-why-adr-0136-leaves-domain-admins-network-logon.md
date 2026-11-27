@@ -3,6 +3,12 @@
 **Status:** Accepted · 2026-11 · amends
 [ADR-0136](0136-deny-the-domains-own-admins-the-console-on-members.md)
 
+> [!NOTE]
+> Amended by [ADR-0142](0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md),
+> which takes the decision left open below: Domain Admins keep network logon
+> on members until the exercises against `titan` are recorded. The text here
+> is left as written, per ADR-0001 and ADR-0115.
+
 ## Context
 
 [ADR-0136](0136-deny-the-domains-own-admins-the-console-on-members.md)
