@@ -15,8 +15,9 @@
 # Admins nor anything else this GPO named, and the 2026-11 titan audit found it
 # logged on interactively there. They keep NETWORK logon, which nothing here
 # needs (ADR-0140): on a member, Ansible's `Administrator` is the member's own
-# local account, not AD\Administrator. Closing it is still to be decided. The
-# console on a member is the local Administrator's.
+# local account, not AD\Administrator. ADR-0142 keeps it until the exercises
+# against titan are recorded. The console on a member is the local
+# Administrator's.
 #
 # `cse` is gPCMachineExtensionNames, the client-side-extension GUIDs that tell a
 # member which engines to run for this GPO; without it the file in SYSVOL is

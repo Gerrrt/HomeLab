@@ -102,6 +102,11 @@ Ansible, Sysmon and BloodHound each closed with its issue, and the record is in
   and #1480 constrained delegation. It closes when all six are recorded, each
   with a detection outcome. The three switches of ADR-0141 (`unsigned_ldap`,
   `maq`, `spooler`) are off by default and are not among the six. → [runbook](runbooks/build-the-lab-domain.md)
+- **[#1781](https://github.com/Gerrrt/HomeLab/issues/1781) NTLM relay into
+  `titan`.** The exercise ADR-0029 built `titan` for, with no weakness tag:
+  the relay works on shipped defaults. With #1478 and #1480 it is what
+  [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
+  waits on before deciding Domain Admins' network logon on members.
 
 ## last
 
