@@ -15,10 +15,10 @@
 #
 # WHAT IS NOT IN THESE FILES, ON PURPOSE. This repository is public, and the
 # operator's own lists — tickers, bookmarks, YouTube channels, subreddits,
-# teams — say more about a person than about a homelab. They are one-line JSON
-# values in secrets/sensitive.sops.yaml (GLANCE_MARKETS, GLANCE_BOOKMARKS,
-# GLANCE_VIDEO_TABS, GLANCE_REDDIT_TABS, GLANCE_TEAMS), and Glance substitutes them as
-# ${…}. Followed feeds live in Miniflux under its user `glance`. The stack
+# teams, podcasts — say more about a person than about a homelab. They are
+# one-line JSON values in secrets/sensitive.sops.yaml (GLANCE_MARKETS,
+# GLANCE_BOOKMARKS, GLANCE_VIDEO_TABS, GLANCE_REDDIT_TABS, GLANCE_TEAMS,
+# GLANCE_PODCASTS), and Glance substitutes them as ${…}. Followed feeds live in Miniflux under its user `glance`. The stack
 # README says how to edit both.
 #
 # Every fetch is SERVER-SIDE, from trinity over Winterfell's existing *Allow

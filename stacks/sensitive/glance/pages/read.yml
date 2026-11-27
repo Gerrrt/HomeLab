@@ -59,6 +59,20 @@
     # ---------------------------------------------------------------------
     - size: small
       widgets:
+        # The podcasts, read straight from their feeds rather than through
+        # Miniflux, so a daily show cannot push the weekly ones out: each
+        # feed gives at most its own `limit` episodes. GLANCE_PODCASTS is one
+        # {"url","title","limit"} per show. They are not also followed in
+        # Miniflux: Fever hands Following only the newest 50 items, and a
+        # newly added podcast's back catalogue would be all 50. This list
+        # style has no artwork, so the browser fetches nothing for it.
+        - type: rss
+          title: Listen
+          cache: 1h
+          limit: 30
+          collapse-after: 8
+          feeds: ${GLANCE_PODCASTS}
+
         - type: hacker-news
           limit: 20
           collapse-after: 8

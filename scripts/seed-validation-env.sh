@@ -88,7 +88,8 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "GLANCE_BOOKMARKS='[{\"title\":\"Example #1\",\"links\":[{\"title\":\"Example\",\"url\":\"https://example.com\"}]}]'"
   echo "GLANCE_VIDEO_TABS='[{\"type\":\"videos\",\"title\":\"Example\",\"channels\":[\"UCR-DXc1voovS8nhAvccRZhg\"]}]'"
   echo "GLANCE_REDDIT_TABS='[{\"type\":\"reddit\",\"subreddit\":\"homelab\"}]'"
-  echo "GLANCE_TEAMS='[{\"name\":\"Example\",\"path\":\"football/nfl\",\"id\":\"sea\"}]'"
+  echo "GLANCE_TEAMS='[{\"name\":\"Example\",\"path\":\"football/nfl\",\"id\":\"sea\",\"standings\":\"football/nfl\",\"level\":3}]'"
+  echo "GLANCE_PODCASTS='[{\"url\":\"https://example.com/feed.xml\",\"title\":\"Example\",\"limit\":3}]'"
   # ntfy validates these at start and exits on a malformed one, so a boot of
   # it (check_hardened_boot.sh) needs them well-formed: a real bcrypt hash —
   # of the string "validation-only", from the pinned image's `ntfy user

@@ -41,7 +41,8 @@
     - size: small
       widgets:
         # The estate in one line each, from the same reader-proxy queries the
-        # Homelab page uses; the detail is there.
+        # Homelab page uses; the detail is there. A site that is down is
+        # named under the figures, so the page says which without a click.
         - type: custom-api
           title: Estate
           title-url: /homelab
@@ -74,9 +75,14 @@
                 {{ if eq (.String "metric.alertname") "Watchdog" }}{{ $watchdog = true }}
                 {{ else if or (eq $sev "warning") (eq $sev "critical") }}{{ $faults = add $faults 1 }}{{ end }}
               {{ end }}
-              {{ $pAll := 0 }}{{ $pDown := 0 }}
-              {{ range $probes.JSON.Array "data.result" }}
-                {{ $pAll = add $pAll 1 }}{{ if eq (.String "value.1") "0" }}{{ $pDown = add $pDown 1 }}{{ end }}
+              {{ $pAll := 0 }}{{ $pDown := 0 }}{{ $down := "" }}
+              {{ range sortByString "metric.name" "asc" ($probes.JSON.Array "data.result") }}
+                {{ $pAll = add $pAll 1 }}
+                {{ if eq (.String "value.1") "0" }}
+                  {{ $pDown = add $pDown 1 }}
+                  {{ if $down }}{{ $down = concat $down ", " }}{{ end }}
+                  {{ $down = concat $down (.String "metric.name") }}
+                {{ end }}
               {{ end }}
               <div class="flex justify-between text-center">
                 {{/* A figure only with evidence: Watchdog firing for the alert
@@ -108,6 +114,8 @@
                   <div class="size-h6">CONTAINERS</div>
                 </div>
               </div>
+              {{ if $down }}
+              <p class="size-h6 color-negative margin-top-10">Down: {{ $down }}</p>{{ end }}
               {{ if not $watchdog }}
               <p class="color-negative margin-top-10">Watchdog silent: nothing here is current.</p>{{ end }}
             {{ end }}

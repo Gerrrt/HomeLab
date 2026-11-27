@@ -1781,6 +1781,7 @@ services:
       GLANCE_VIDEO_TABS: ${GLANCE_VIDEO_TABS:?set in secrets/sensitive.sops.yaml}
       GLANCE_REDDIT_TABS: ${GLANCE_REDDIT_TABS:?set in secrets/sensitive.sops.yaml}
       GLANCE_TEAMS: ${GLANCE_TEAMS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_PODCASTS: ${GLANCE_PODCASTS:?set in secrets/sensitive.sops.yaml}
     volumes:
       # Each config file on its own, not the directory: a single-file mount
       # is pinned by check_mounted_config.py, so `make up` recreates Glance

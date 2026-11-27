@@ -1,9 +1,10 @@
-# Sports & Markets. The tickers are GLANCE_MARKETS, shown here
-# in full with their charts. The teams the operator follows are GLANCE_TEAMS
-# and come first; under them, the league scoreboards. Both are ESPN's public
-# API, no key, one widget per league sharing the first one's template. Logos
-# are left out: they would be the browser fetching from ESPN's CDN. The TSP
-# fund is not on Yahoo, so it is its own widget, read from a Google Sheet.
+# Sports & Markets. The tickers are GLANCE_MARKETS, shown here in full with
+# their charts. The teams the operator follows are GLANCE_TEAMS and come
+# first, then the tables they sit in; under them, the league scoreboards, one
+# widget per league sharing the first one's template. The sports are ESPN's
+# public API, no key. Logos are left out: they would be the browser fetching
+# from ESPN's CDN. The TSP fund is not on Yahoo, so it is its own widget, read
+# from a Google Sheet.
 - name: Sports & Markets
   slug: sports
   width: wide
@@ -102,6 +103,80 @@
               </li>
             {{ end }}
             </ul>
+
+        # The table each followed team sits in, folded to one line until it is
+        # opened. A team gets one only if its GLANCE_TEAMS entry names
+        # "standings", ESPN's sport/league for the table; a club whose
+        # schedule path is soccer/all names its league here (soccer/eng.1).
+        # "level": 3 asks for divisions rather than conferences. The team is
+        # found by id or abbreviation in the deepest group that holds it, and
+        # rows are ordered by ESPN's rank (soccer) or playoff seed (the rest).
+        - type: custom-api
+          title: Standings
+          cache: 1h
+          options:
+            teams: ${GLANCE_TEAMS}
+          template: |
+            {{ $base := "https://site.api.espn.com/apis/v2/sports/" }}
+            {{ $any := false }}
+            <ul class="list list-gap-10">
+            {{ range $t := index .Options "teams" }}
+            {{ if $t.standings }}
+              {{ $any = true }}
+              {{ $req := newRequest (concat $base $t.standings "/standings") }}
+              {{ if $t.level }}{{ $req = $req | withParameter "level" (printf "%v" $t.level) }}{{ end }}
+              {{ $r := $req | getResponse }}
+              {{ $pat := concat "(?i)^(" $t.id ")$" }}
+              {{ $g := "" }}{{ $mine := "" }}
+              {{ range $r.JSON.Array "children" }}
+                {{ $c := . }}
+                {{ range .Array "standings.entries" }}
+                  {{ if or (eq (.String "team.id") $t.id) (findMatch $pat (.String "team.abbreviation")) }}
+                    {{ $g = $c }}{{ $mine = .String "team.id" }}{{ end }}
+                {{ end }}
+                {{ range .Array "children" }}
+                  {{ $d := . }}
+                  {{ range .Array "standings.entries" }}
+                    {{ if or (eq (.String "team.id") $t.id) (findMatch $pat (.String "team.abbreviation")) }}
+                      {{ $g = $d }}{{ $mine = .String "team.id" }}{{ end }}
+                  {{ end }}
+                {{ end }}
+              {{ end }}
+              <li>
+              {{ if ne $r.Response.StatusCode 200 }}
+                <span class="color-highlight">{{ $t.name }}</span>
+                <span class="size-h6 color-negative">· ESPN answered {{ $r.Response.StatusCode }}</span>
+              {{ else if not $g }}
+                <span class="color-highlight">{{ $t.name }}</span>
+                <span class="size-h6">· not in ESPN's table</span>
+              {{ else }}
+                {{ $soccer := $g.Exists `standings.entries.0.stats.#(name=="rank")` }}
+                {{ $key := `stats.#(name=="playoffSeed").value` }}
+                {{ if $soccer }}{{ $key = `stats.#(name=="rank").value` }}{{ end }}
+                {{ $rows := sortByFloat $key "asc" ($g.Array "standings.entries") }}
+                {{ $pos := 0 }}
+                {{ range $i, $e := $rows }}{{ if eq ($e.String "team.id") $mine }}{{ $pos = add $i 1 }}{{ end }}{{ end }}
+                <details>
+                  <summary style="cursor: pointer;">
+                    <span class="color-highlight">{{ $t.name }}</span>
+                    <span class="size-h6">· {{ $pos }} of {{ len $rows }} in {{ $g.String "name" }}</span>
+                  </summary>
+                  <ul class="list list-gap-2 size-h6 margin-top-5">
+                  {{ range $i, $e := $rows }}
+                    <li class="flex justify-between {{ if eq ($e.String "team.id") $mine }}color-highlight{{ end }}">
+                      <span>{{ add $i 1 }}. {{ $e.String "team.displayName" }}</span>
+                      <span>{{ $e.String `stats.#(name=="overall").displayValue` }}
+                      {{ if $soccer }}· {{ $e.String `stats.#(name=="points").displayValue` }} pts{{ end }}</span>
+                    </li>
+                  {{ end }}
+                  </ul>
+                </details>
+              {{ end }}
+              </li>
+            {{ end }}
+            {{ end }}
+            </ul>
+            {{ if not $any }}<p>No team in GLANCE_TEAMS names "standings".</p>{{ end }}
 
         - type: split-column
           max-columns: 2
