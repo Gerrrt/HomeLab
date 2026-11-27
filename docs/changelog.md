@@ -103,6 +103,42 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-26
 
+- **A nightly backup of the lab domain restores and boots, and `smaug`'s
+  snapshots of `erebor/pbs` are as `build-the-backup-guest.md` §3 sets
+  them.** These are the two backup checks the `golem` audit left open. Its
+  entry below records no test restore since 2026-10-03.
+  - **The restore.** The operator ran `build-the-backup-guest.md` §9 on
+    `Saruman`, against a real nightly rather than a fresh test backup. It
+    used `bahamut` (150), the domain's PDC, from that night's 21:00 PST run,
+    `vm/150/2026-11-26T05:00:07Z`. This snapshot was not yet verified, since
+    PBS verifies on Sundays. `qmrestore … 979 --storage large_data --unique 1`
+    decrypted with the key fingerprint `golem.enc` holds and wrote all three
+    images: EFI, the 60 GiB system disk and the TPM state. The system disk
+    took 218 s at 281 MB/s, 62% of it zeroes, and the whole restore 4 min
+    56 s. Before boot the copy was renamed, had `onboot 0`, and had its NIC
+    set `link_down=1`. That copy of a domain controller never reached the
+    network. It booted, and within a few minutes the guest agent answered
+    over virtio-serial with *Windows Server 2025 Standard Evaluation*. Then
+    `qm destroy 979 --purge` removed it and its three volumes. There was no
+    test snapshot to delete on `golem`, because the nightly stays as §8
+    keeps it.
+  - **`smaug`, read-only, at the console.** `zfs get atime erebor/pbs` is
+    `on`. The periodic snapshot task for `erebor/pbs` is enabled and not
+    recursive. It runs daily at 00:00, keeps 2 weeks (the 14 days §3
+    asks for), and names snapshots `auto-%Y-%m-%d_%H-%M`. Its last run,
+    2026-11-26 00:00 PST, is `FINISHED` and made
+    `erebor/pbs@auto-2026-11-26_00-00`. Seen from `golem`'s side, the
+    mount's `.zfs/snapshot` held exactly fourteen, `auto-2026-11-13_00-00`
+    to `auto-2026-11-26_00-00`, one a day with no gap.
+  - **Seen in passing.** LVM warned during the restore that the thin
+    volumes on `Saruman`'s `large_data` sum to under 2.00 TiB, against a
+    volume group of under 894.22 GiB. The pool was 55.85% used, and
+    autoextend is off. The restore's 64 GiB was temporary. Nothing was
+    changed.
+  - **The runbook.** §9 now gives the command that unlinks the copy's NIC
+    before it boots, the guest-agent check that the copy booted, and how
+    to run the same restore from a nightly.
+
 - **`smaug`'s orphaned `media_jellyfin-config` volume is gone.** The re-check
   after the 2026-11-13 audit closed found that `build-the-nas.md` §6 still said
   its removal was not yet done. `docker volume ls` lists only the declared
