@@ -430,7 +430,7 @@ backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
 when it was built, both did**, and the job took all seven from that night. `alexander`,
 `gandalf` and `golem` itself are rebuilt from this repository and stay out.
 `phoenix` is in since
-[ADR-0142](../adr/0142-back-up-phoenix-for-its-opentofu-state.md):
+[ADR-0143](../adr/0143-back-up-phoenix-for-its-opentofu-state.md):
 the rest of it is rebuilt from this repository, but its OpenTofu state is
 not. It is hand-built, like `odin`, so `qm set 170 --tags` gives it the
 tag, keeping its existing ones. So does `eden` (141), whose graph is one collection run from rebuilt

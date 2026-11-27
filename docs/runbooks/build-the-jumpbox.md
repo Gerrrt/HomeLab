@@ -557,7 +557,7 @@ it for its own length
 
 **Then the agent's MCP servers.** Agent sessions on `phoenix` are accepted,
 and MCP servers are not launched here
-([ADR-0143](../adr/0143-allow-agent-sessions-on-phoenix-and-launch-no-mcp-servers-there.md)).
+([ADR-0144](../adr/0144-allow-agent-sessions-on-phoenix-and-launch-no-mcp-servers-there.md)).
 A Claude Code managed-settings file refuses every one, whatever plugin or
 configuration names it:
 

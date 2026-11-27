@@ -310,7 +310,7 @@ replaces the guest, and replacing it re-clones it from scratch.
 ## Recovery: `phoenix` is gone
 
 The state is only recoverable if its file is. Take it from `phoenix`'s nightly
-backup on `golem` ([ADR-0142](../adr/0142-back-up-phoenix-for-its-opentofu-state.md)): restore VMID `170` as
+backup on `golem` ([ADR-0143](../adr/0143-back-up-phoenix-for-its-opentofu-state.md)): restore VMID `170` as
 [`build-the-backup-guest.md`](build-the-backup-guest.md) §9 does, or take the one
 file with PBS's file restore.
 The passphrase comes from escrow, on `prometheus`:

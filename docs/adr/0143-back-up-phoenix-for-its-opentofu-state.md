@@ -1,4 +1,4 @@
-# ADR-0142: Back up `phoenix` nightly, for its OpenTofu state
+# ADR-0143: Back up `phoenix` nightly, for its OpenTofu state
 
 **Status:** Accepted · 2026-11 · amends
 [ADR-0053](0053-run-pbs-on-saruman-with-its-datastore-on-smaug-over-nfs.md)

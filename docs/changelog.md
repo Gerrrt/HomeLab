@@ -19,7 +19,7 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
-- **`phoenix`'s audit closes out (ADR-0142, ADR-0143).** The 2026-11-27
+- **`phoenix`'s audit closes out (ADR-0143, ADR-0144).** The 2026-11-27
   recheck of `phoenix` found its `packer` and `tofu` at 1.16.1 and 1.13.1. The
   pins in `stacks/observability/compose.yaml` have been 1.16.2 and 1.13.9 since
   the bumps of 2026-11-08 ([#1313](https://github.com/Gerrrt/HomeLab/pull/1313),
@@ -30,8 +30,8 @@ docstring gives: it is a record, not a claim about now.
   validate` and `packer validate -syntax-only` passed. The two runbooks now
   read `V=` from `compose.yaml`. The same recheck found nothing had backed up
   `tofu/`'s state since `build-the-backup-guest.md` §9 deleted its proof, so
-  ADR-0142 adds `phoenix` to the nightly job. It also found the agent session
-  on `phoenix` still launching two `npx` MCP servers, so ADR-0143 accepts the
+  ADR-0143 adds `phoenix` to the nightly job. It also found the agent session
+  on `phoenix` still launching two `npx` MCP servers, so ADR-0144 accepts the
   sessions and refuses the servers with a managed-settings file.
   `build-the-jumpbox.md` §6 gains the textfile-collector step whose absence
   left `SecurityUpdatesPending` and `RebootRequired` blind to `phoenix`.

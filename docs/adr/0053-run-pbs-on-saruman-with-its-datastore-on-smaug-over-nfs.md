@@ -18,7 +18,7 @@ re-read [#485](https://github.com/Gerrrt/HomeLab/issues/485) asked for
 > which is what keeps #485 open. Nothing here is amended, per ADR-0001.
 >
 > [!NOTE]
-> Amended by [ADR-0142](0142-back-up-phoenix-for-its-opentofu-state.md):
+> Amended by [ADR-0143](0143-back-up-phoenix-for-its-opentofu-state.md):
 > `phoenix` joins the nightly job, for the OpenTofu state that is in no
 > repository. The sentence below that leaves it out is left as written.
 

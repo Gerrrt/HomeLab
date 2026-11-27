@@ -1,4 +1,4 @@
-# ADR-0143: Allow agent sessions on `phoenix`, and launch no MCP servers there
+# ADR-0144: Allow agent sessions on `phoenix`, and launch no MCP servers there
 
 **Status:** Accepted · 2026-11
 
