@@ -19,6 +19,16 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **Lab domain: ADR-0145 records that the domain runs no AD CS, and
+  `verify.yml` holds it to that.** The `leviathan` audit found no
+  certificate on either DC: `LocalMachine\My` is empty, `636` and `3269`
+  listen with nothing behind them, and KDC 19/29, CertEnroll 86 and Directory
+  Service 1220 are logged at boot. The repository never said whether this was
+  meant. It is now deliberate. An enterprise CA would bring the ESC paths
+  outside ADR-0083's switch model, and would complete the coercion relay path
+  that ADR-0141 says does not exist. The events are expected noise. Both DCs
+  read the same on 2026-11-27: no enrollment service, no AIA CA and an empty
+  `NTAuthCertificates`. An AD CS exercise is a later ADR, as switches.
 - **Lab domain: #1770 and #1778 applied to every guest but `siren`.**
   `lab-domain.yml --limit 'lab_domain:!siren' --tags base,sysmon,soc,exporter`
   ran from `phoenix` after a `--check --diff` run that predicted the same ten
