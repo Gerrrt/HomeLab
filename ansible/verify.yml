@@ -104,6 +104,9 @@
           # deletes. roles/base removes both; neither may be on any guest.
           $r['no plaintext answer file in Panther'] = -not ((Test-Path C:\Windows\Panther\unattend-original.xml) -or
             (Test-Path C:\Windows\Panther\unattend-oobe.xml))
+          # Setup's scrubbed unattend.xml: SetupComplete.cmd deletes it on a
+          # clone (#1103), and roles/base backs that up, as for the two above.
+          $r['no unattend.xml in Panther'] = -not (Test-Path C:\Windows\Panther\unattend.xml)
           # The bahamut audit's staging leftovers (2026-11-25): roles/soc_agents,
           # exporter and sysmon remove their installers once installed, and only
           # SYSTEM and Administrators may write a metric into the textfile folder.

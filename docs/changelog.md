@@ -17,6 +17,24 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-27
+
+- **Lab domain: `roles/base` now removes `Panther\unattend.xml`, and
+  `verify.yml` holds every guest to having none.** This corrects the
+  2026-10-09 #1099 entry, which says `SetupComplete.cmd` deletes the file. It
+  does, but only on clones of a template built after #1103. The leviathan audit
+  (2026-11-13 to 2026-11-26, read-only) found the file on `bahamut`,
+  `leviathan`, `titan` and `ramuh`, dated 2026-10-07, with no `PlainText=true`
+  element in it. All four carry a `SetupComplete.cmd` byte-identical to
+  `be31da31`, the version from the morning of 2026-10-07. It has no Panther
+  delete and no scrubfail guard. #1103 added both on 2026-10-09, and 912 has
+  not been rebuilt since, so the scrub never ran on them. `roles/base` had kept
+  the file on purpose ("Setup scrubbed its password"), so the repository said
+  both. It now removes the file, as `SetupComplete.cmd` does. The endpoints
+  (`.54`, `.55`) were not reachable to check. Not yet applied: the next
+  `--tags base` run removes it, and until then `verify.yml` fails `no
+  unattend.xml in Panther` on each guest that has it.
+
 ## 2026-11-26
 
 - **`golem` runs the host firewall `build-the-backup-guest.md` §2 added
