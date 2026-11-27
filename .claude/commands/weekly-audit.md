@@ -66,7 +66,8 @@ body, the changelog. Refer to issues only as `Refs #N`.
 - Max 15 files changed, counting the ledger and the changelog. CI fails the
   run above 15.
 - Every non-private finding quotes evidence: `path:line` plus the exact text
-  from both sides of the disagreement.
+  from both sides of the disagreement. Exception: a Lemmiwinks side is a
+  page path only (focus 5).
 
 ## Focus areas
 
@@ -88,7 +89,10 @@ body, the changelog. Refer to issues only as `Refs #N`.
 5. `.lemmiwinks/` (if checked out) and the cross-repo contract: what HomeLab
    docs say about the wiki mirror (ADR-0011) against what Lemmiwinks
    contains. Findings only. If `.lemmiwinks/` is missing, record one finding
-   saying so.
+   saying so. Lemmiwinks is private and carries detail HomeLab withholds
+   (full MACs, whose device is whose, firewall rule bodies). Cite it only by
+   page path, never by line: no quotes, no values, no paraphrase of either,
+   in issues, the ledger or the PR body. Quote the HomeLab side as usual.
 
 ## Procedure
 
