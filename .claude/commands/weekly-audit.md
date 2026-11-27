@@ -69,23 +69,69 @@ body, the changelog. Refer to issues only as `Refs #N`.
   from both sides of the disagreement. Exception: a Lemmiwinks side is a
   page path only (focus 5).
 
+## Coverage
+
+The audit is a sweep, not a sample. A run that finds nothing must be able to
+say what it checked and found clean.
+
+- Before checking anything, list the focus area's inventory with Glob (and
+  Grep for in-file lists) and write it down as your checklist.
+- Work through every item on the checklist. Prefer one Grep across many files
+  over reading them one by one, so the whole list fits in the turn budget.
+- Do not stop because you have found something. Stop at the end of the
+  checklist, at the 10-finding limit, or when you run short of turns. In the
+  last case, say in the PR body exactly which items you did not reach.
+- Step 9 (stale images) runs every week, whatever the focus.
+
 ## Focus areas
 
-0. `docs/adr/` against code and recorded state. Status lines and back-links
-   (ADR-0115), Superseded ADRs still cited as live, ADR claims that later
-   changelog entries contradict.
-1. `ansible/` (roles, inventory, group_vars) against `docs/architecture.md`,
-   `docs/network.md` guest rows and `ansible/README.md`.
-2. `stacks/` (compose.yaml, Caddyfiles, prometheus targets and rules,
-   alertmanager, loki, grafana) against `docs/runbooks/`,
-   `docs/observability.md`, stack READMEs and README counts.
-3. `scripts/`, `systemd/`, `.github/workflows/` against `scripts/README.md`,
-   `systemd/README.md` and runbooks. `.github/OVERVIEW.md` drift is a finding
-   only.
-4. `secrets/` and `.sops.yaml` hygiene (every secrets file has sops metadata,
-   creation_rules cover every path, example files match documented keys),
-   plus `tofu/` and `packer/` against their READMEs and runbooks. Most
-   findings here are security-sensitive: apply that section.
+Each area lists its checklist. Every item is checked in both directions:
+everything on disk is in the doc, and everything in the doc is on disk.
+
+0. `docs/adr/`.
+   - Every ADR: the H1 number matches the filename. The status line is one of
+     the forms ADR-0001 and ADR-0115 allow. A Superseded ADR names its
+     successor, and the successor links back.
+   - Every link to an ADR from a current-state document (`CLAUDE.md` lists
+     them): it does not cite a Superseded ADR as the current decision.
+   - Every ADR count in a README matches the number of files.
+   - The 15 newest ADRs: their Decision against the code and the changelog
+     entries dated after them.
+1. `ansible/`.
+   - Every role directory: listed in `ansible/README.md` (roles, tags, secret
+     variables) and used by a playbook.
+   - Every host and group in the inventory: present in `docs/network.md`
+     with the same address, and in `docs/architecture.md` where it names one.
+   - Every playbook: named in `ansible/README.md` or a runbook.
+2. `stacks/`.
+   - Every stack directory: has a README, is listed wherever the root README
+     and `docs/architecture.md` list stacks.
+   - Every service in each `compose.yaml`: named in that stack's README.
+   - Every Prometheus rule file: its alert count against every prose count
+     (`docs/observability.md`, READMEs). Every scrape job against the targets
+     the docs list. Alertmanager routes against the documented channels.
+   - Every Grafana dashboard: listed where dashboards are counted or listed.
+   - Every runbook under `docs/runbooks/` that names a stack, port or path in
+     `stacks/`: the name still exists.
+3. `scripts/`, `systemd/`, `.github/`.
+   - Every file in `scripts/`: has a row or mention in `scripts/README.md`,
+     and every script the README names exists.
+   - Every unit and timer under `systemd/` (including subdirectories): has a
+     row in `systemd/README.md`, and the documented schedule matches
+     `OnCalendar`.
+   - Every workflow in `.github/workflows/`: has a row in
+     `.github/OVERVIEW.md`, and its documented trigger matches `on:`.
+     `.github/` is never edited, so drift here is a FINDING.
+   - Every script a runbook tells the reader to run: exists, with the flags
+     the runbook uses.
+4. `secrets/`, `.sops.yaml`, `tofu/`, `packer/`.
+   - Every file under `secrets/`: has a `sops:` block (Grep for it; never
+     decrypt), and a `.sops.yaml` creation rule matches its path.
+   - Every creation rule: matches at least one file.
+   - Every `*.example*` file: its keys match the keys the docs tell the reader
+     to set.
+   - Every `tofu/` and `packer/` file against its README and runbook.
+   Most findings here are security-sensitive: apply that section.
 5. `.lemmiwinks/` (if checked out) and the cross-repo contract: what HomeLab
    docs say about the wiki mirror (ADR-0011) against what Lemmiwinks
    contains. Findings only. If `.lemmiwinks/` is missing, record one finding
@@ -170,6 +216,10 @@ Keep the four headings of `.github/pull_request_template.md`.
     ## What changed
 
     Weekly docs audit WEEK, focus FOCUS (<name>). Docs only: N files.
+
+    **Coverage**
+    - <checklist item>: N checked, N clean, N findings
+    - Not reached: <items>, or "none"
 
     **Doc fixes**
     - `path`: what was wrong → what it says now. Truth: `path:line` "quote"
