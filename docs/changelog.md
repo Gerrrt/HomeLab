@@ -27,8 +27,6 @@ docstring gives: it is a record, not a claim about now.
   unlimited copy on trinity, with every page loaded at once from cold, peaked
   at 157 MiB and settled at 85 MiB.
 
-||||||| 0e3596f8
-
 - **Lab domain: Domain Admins keep network logon on members, for now.**
   [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
   takes the decision ADR-0140 left open. Read on `titan`: its only local
