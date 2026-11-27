@@ -52,6 +52,20 @@ docstring gives: it is a record, not a claim about now.
   `--tags base` run removes it, and until then `verify.yml` fails `no
   unattend.xml in Panther` on each guest that has it.
 
+- **The lab's four large services have memory limits, and the lab guest's
+  Docker cannot see its containers.** Sizing them from
+  `container_memory_rss`, as #114 did for the estate, found that
+  `alexander` has never exported per-container series. It runs Docker 29 on
+  the containerd image store, which cAdvisor cannot read, the same trap
+  `trinity` hit on 2026-09-28. The limits were therefore sized from each
+  service's own `process_resident_memory_bytes` over 2026-11-10 to 11-25,
+  checked against the cgroup's anonymous and mapped memory, and with
+  Grafana's fourteen plugin processes counted from the cgroup: Prometheus
+  1024M, Loki 768M, Grafana 1536M, Alloy 768M, each with no swap.
+  `build-the-lab-guest.md` §3 gains the `daemon.json` step it was missing,
+  and the switch-over for a guest already running the containerd store.
+  `alexander` has not been switched yet.
+
 ## 2026-11-26
 
 - **`golem` runs the host firewall `build-the-backup-guest.md` §2 added

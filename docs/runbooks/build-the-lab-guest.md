@@ -303,9 +303,34 @@ sudo chmod a+r /etc/apt/keyrings/docker.asc
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
 https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
   | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo install -d -m 0755 /etc/docker
+echo '{ "features": { "containerd-snapshotter": false } }' | sudo tee /etc/docker/daemon.json
 sudo apt-get update
 sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 sudo usermod -aG docker "$USER"
+docker info --format '{{.Driver}}'   # overlay2
+```
+
+**`daemon.json` comes before Docker, on purpose**, for the reason
+[`build-the-sensitive-tier-host.md`](build-the-sensitive-tier-host.md) §4
+gives. A fresh Docker 29 stores images through containerd, and Alloy's
+cAdvisor cannot read that store: it logs `unable to create containerd client`
+and exports only the root cgroup, so there is no `container_memory_rss` or
+any other per-container series for this host. `alexander` was built without
+this step and ran that way until 2026-11-25, which is why the memory limits
+in `stacks/lab/compose.yaml` are sized from process RSS instead.
+
+On a guest already running the containerd store, switching costs a
+`make down`, a Docker restart and every image downloaded again. The named
+volumes survive it:
+
+```bash
+cd ~/code/Gerrrt/HomeLab && make down STACK=lab
+sudo install -d -m 0755 /etc/docker
+echo '{ "features": { "containerd-snapshotter": false } }' | sudo tee /etc/docker/daemon.json
+sudo systemctl restart docker
+docker info --format '{{.Driver}}'   # overlay2
+make up STACK=lab
 ```
 
 Log out and back in so the group takes effect, then clone the repository. The

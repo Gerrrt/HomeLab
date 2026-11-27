@@ -40,14 +40,55 @@ x-service-defaults: &service-defaults
   init: true
   pids_limit: 512
 
-# No mem_limit here, and that is a difference rather than an omission. #114 set
-# one per service on the sibling stack from fourteen days of that host's own
-# container_memory_rss. This stack runs on `alexander`, a guest with its own
-# memory, its own Prometheus and — being on ImaginationLAN — no series reaching
-# 10.0.99.20 to size from (ADR-0007, ADR-0020). Copying the sibling's numbers
-# would be a limit derived from a machine this one is not, which is the guess
-# the block above `services:` there exists to refuse. Its own numbers can be
-# read off its own Prometheus once it has run a fortnight.
+# ---------------------------------------------------------------------------
+# On the mem_limit / memswap_limit pairs below
+# ---------------------------------------------------------------------------
+# Sized from this host's own fortnight, by the sibling stack's rule (#114, the
+# block above `services:` in stacks/observability/compose.yaml): bound the
+# anonymous high-water mark, not page cache, with a multiplier chosen per
+# service, and memswap_limit equal to mem_limit so a container that runs out
+# is killed rather than spilling into /swap.img. That argument holds here
+# unchanged: alexander has a 4 GiB unencrypted swap file and no LUKS.
+#
+# NOT FROM container_memory_rss, because alexander has never had it. Docker 29
+# installed fresh stores images through containerd (`docker info` prints
+# `overlayfs`), cAdvisor's Docker factory cannot read that store and logs
+# "unable to create containerd client", and only the root cgroup is exported.
+# build-the-sensitive-tier-host.md §4 found the same on trinity; the lab-guest
+# runbook now carries its daemon.json step. Until alexander is moved to
+# overlay2, the sizes come from the services' own process_resident_memory_bytes,
+# scraped by this Prometheus. On 2026-11-25 that matched the cgroup's own
+# anon + file_mapped for each single-process service (prometheus 313 against
+# 183 + 130 MiB, loki 193 against 108 + 85, alloy 279 against 99 + 168), so it
+# is RSS in the sense #114 means, slightly generous.
+#
+# GRAFANA IS NOT ONE PROCESS. It runs fourteen bundled plugin binaries beside
+# grafana-server, and process_resident_memory_bytes sees only the server. On
+# 2026-11-25 the container held 775 MiB of process RSS (anon 241 + mapped 533
+# from the cgroup), with the server at 349 of it. The server's own fortnight
+# peaked 71 MiB above that, so the container's peak is taken as about 850.
+#
+# MEASURED 2026-11-10 -> 11-25, the whole of this Prometheus's retention. MiB:
+#
+#   service      median RSS   peak RSS   limit   limit/peak
+#   prometheus          306        372   1024M        2.8x
+#   loki                191        254    768M        3.0x
+#   grafana        (~775)        (~850)  1536M        1.8x
+#   alloy               288        300    768M        2.6x
+#   caddy                 -          -     64M     (set by #865)
+#   docker-socket-proxy   -          -     64M     (set by #867)
+#
+# prometheus rose from 332 to 372 across the fortnight as the head grew, so
+# it gets room to keep doing that. loki never spiked: the 354,000 old lines
+# rejected after alexander's restart on 2026-11-24 left it at 222. Together
+# the six ceilings are 4224 MiB of 7.75 GiB, and on the day the stack used
+# about 1.9 GiB. Like the sibling's, the sum is a ceiling, not a reservation.
+#
+# WHAT WOULD SEE A KILL. Nothing per container yet: ContainerNearMemoryLimit
+# and ContainerOomKilled read cAdvisor's series, which this host does not
+# have, and the lab has no copy of them. restart: unless-stopped recovers the
+# service, and InstanceDown fires if it stays down. Re-derive from
+# container_memory_rss once alexander is on overlay2 and has a fortnight of it.
 
 services:
   # ---------------------------------------------------------------------------
@@ -63,6 +104,8 @@ services:
     <<: *service-defaults
     image: prom/prometheus:v3.16.0@sha256:e04987641b57704f408e31f6373ba4138ecf27cb4a165d24aabb6c38fddd0f06
     container_name: lab-prometheus
+    mem_limit: 1024m
+    memswap_limit: 1024m
     user: "65534:65534"
     # The estate's block, copied as it stands (#845). The reasoning, and the
     # measurements behind "no tmpfs needed", are against prometheus in
@@ -195,6 +238,8 @@ services:
     <<: *service-defaults
     image: grafana/loki:3.7.10@sha256:b43c257ccfc925d4a50b8717cac61a3b51df8c48d01847936057e5c4075a24a7
     container_name: lab-loki
+    mem_limit: 768m
+    memswap_limit: 768m
     user: "10001:10001"
     # The estate's block, as on prometheus above (#845), including the /tmp
     # tmpfs its loki needs for retention: the compactor writes its deletion
@@ -311,6 +356,8 @@ services:
     # the old repository's last tag went stale with no bump to follow (#988).
     image: grafana/grafana:13.3.2@sha256:81556409ba48b2b922e0adb69a2511337d8ba7578f11962eefa6149a2d815101
     container_name: lab-grafana
+    mem_limit: 1536m
+    memswap_limit: 1536m
     # The estate's block, as on prometheus above (#845), including the one
     # tmpfs Grafana needs — it extracts plugins into /tmp — and the variable
     # that stops the plugin installer logging a read-only error on every
@@ -464,6 +511,8 @@ services:
     <<: *service-defaults
     image: grafana/alloy:v1.22.0@sha256:9acc2529bc1edb7f5b2bd801dd8334ebc80c158e3a9e5526ecd7c9a273d43189
     container_name: lab-alloy
+    mem_limit: 768m
+    memswap_limit: 768m
     pids_limit: 1024
     cap_drop: [ALL]
     security_opt:
