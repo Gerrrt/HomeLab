@@ -19,6 +19,24 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **`phoenix`'s audit closes out (ADR-0142, ADR-0143).** The 2026-11-27
+  recheck of `phoenix` found its `packer` and `tofu` at 1.16.1 and 1.13.1. The
+  pins in `stacks/observability/compose.yaml` have been 1.16.2 and 1.13.9 since
+  the bumps of 2026-11-08 ([#1313](https://github.com/Gerrrt/HomeLab/pull/1313),
+  [#1319](https://github.com/Gerrrt/HomeLab/pull/1319)), and both runbooks'
+  `V=` lines still named the old tags. The earlier audit had compared the
+  binaries with `required_version`, which both still met. Both were
+  reinstalled from their checksummed release zips the same day, and `tofu
+  validate` and `packer validate -syntax-only` passed. The two runbooks now
+  read `V=` from `compose.yaml`. The same recheck found nothing had backed up
+  `tofu/`'s state since `build-the-backup-guest.md` §9 deleted its proof, so
+  ADR-0142 adds `phoenix` to the nightly job. It also found the agent session
+  on `phoenix` still launching two `npx` MCP servers, so ADR-0143 accepts the
+  sessions and refuses the servers with a managed-settings file.
+  `build-the-jumpbox.md` §6 gains the textfile-collector step whose absence
+  left `SecurityUpdatesPending` and `RebootRequired` blind to `phoenix`.
+  Neither ADR is applied yet.
+
 - **Lab domain: `roles/base` now removes `Panther\unattend.xml`, and
   `verify.yml` holds every guest to having none.** This corrects the
   2026-10-09 #1099 entry, which says `SetupComplete.cmd` deletes the file. It

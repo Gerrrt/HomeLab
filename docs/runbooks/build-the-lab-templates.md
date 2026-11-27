@@ -65,8 +65,9 @@ the day (ADR-0074). Take the `linux_amd64` zip and check it against the
 
 ```bash
 sudo apt-get install -y curl jq unzip xorriso
-V=1.16.1   # the tag compose.yaml pins for packer
-cd /tmp \
+V=$(sed -nE 's|.*image: hashicorp/packer:([0-9.]+)@.*|\1|p' ~/code/Gerrrt/HomeLab/stacks/observability/compose.yaml)   # the tag compose.yaml pins
+[ -n "$V" ] \
+  && cd /tmp \
   && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_linux_amd64.zip" \
   && curl -fsSLO "https://releases.hashicorp.com/packer/${V}/packer_${V}_SHA256SUMS" \
   && grep " packer_${V}_linux_amd64.zip$" "packer_${V}_SHA256SUMS" | sha256sum -c - \
@@ -87,8 +88,12 @@ before anything is unpacked or installed.
   `sudo apt-get remove -y packer && sudo rm -f /etc/apt/sources.list.d/hashicorp.list /usr/share/keyrings/hashicorp.gpg`.
   Then `command -v packer` should print `/usr/local/bin/packer`.
 - **A bump** starts with Dependabot moving the `packer` image in
-  `stacks/observability/compose.yaml`. `required_version` and `V=` above move
-  in the same PR; a new minor release fails `packer init` until they do.
+  `stacks/observability/compose.yaml`. `V=` above reads that tag, so it never
+  lags; the bumps of 2026-11-08 left a literal `V=` two releases behind, and
+  `phoenix` with them. `required_version` moves in the same PR for a new
+  minor release, which fails `packer init` until it does. After the merge,
+  rerun this block on `phoenix`, and the same for `tofu` in
+  `provision-lab-guests.md` §1.
 
 Then fetch the plugin `packer/versions.pkr.hcl` pins:
 

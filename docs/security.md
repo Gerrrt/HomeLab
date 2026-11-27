@@ -763,6 +763,20 @@ assumption consistent with what they are.
   permissions and the token's scope: `PhoenixBuilder` on named paths, never at
   `/`. That scope is the sentence to argue with, because whoever holds the
   token can create and destroy guests.
+
+  [ADR-0142](adr/0142-back-up-phoenix-for-its-opentofu-state.md) adds
+  `phoenix` to the nightly backup for the state, so a copy of all of them
+  leaves the host every night, encrypted on `Saruman` with `golem.enc` before
+  it reaches `smaug`. That key's holders, `Saruman`'s `root` and the lab's
+  SOPS file, already reach everything `phoenix` holds. Decided, not yet
+  applied.
+- **Agent sessions on `phoenix` are accepted, and launch no MCP server**
+  ([ADR-0143](adr/0143-allow-agent-sessions-on-phoenix-and-launch-no-mcp-servers-there.md)).
+  A session runs as the operator, with all of the reach above. What it may
+  not do is run a package fetched at launch: a root-owned Claude Code
+  managed-settings file refuses every MCP server a plugin or a
+  configuration names. `phoenix` has no GitHub credential, so a session's
+  changes leave as a patch the operator pushes. Decided, not yet applied.
 - **The alert path's credentials are in SOPS on two hosts, and one of them
   crosses the CA boundary on purpose.** Since
   [#136](https://github.com/Gerrrt/HomeLab/issues/136) Alertmanager delivers to
