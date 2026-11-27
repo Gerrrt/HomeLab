@@ -6,7 +6,7 @@ name: Weekly docs audit
 # issues, and nothing else: no push, no PR, no token left in .git/config.
 # A second job with no AI in it applies Claude's patch, refuses anything
 # outside the doc paths, re-renders any changed diagram PNG, runs check_docs
-# and the close-keyword lint, and only then pushes audit/docs-<week> and opens
+# and the close-keyword lint, and only then pushes audit/docs-<week>-focus<N> and opens
 # one PR. The PR goes through the same required checks as any other.
 #
 # check_docs runs in the second job, not only in Claude's: rule 13 (the
@@ -161,7 +161,7 @@ jobs:
       contents: write
       pull-requests: write
     env:
-      BRANCH: audit/docs-${{ needs.audit.outputs.week }}
+      BRANCH: audit/docs-${{ needs.audit.outputs.week }}-focus${{ needs.audit.outputs.focus }}
       WEEK: ${{ needs.audit.outputs.week }}
       FOCUS: ${{ needs.audit.outputs.focus }}
     steps:
@@ -244,6 +244,6 @@ jobs:
             gh pr edit "$BRANCH" --body-file "$body"
           else
             gh pr create --base main --head "$BRANCH" \
-              --title "docs(audit): weekly doc fixes $WEEK" \
+              --title "docs(audit): weekly doc fixes $WEEK, focus $FOCUS" \
               --body-file "$body" --label audit
           fi
