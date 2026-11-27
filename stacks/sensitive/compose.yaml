@@ -1774,12 +1774,13 @@ services:
       GLANCE_GOOGLE_API_KEY: ${GLANCE_GOOGLE_API_KEY:?set in secrets/sensitive.sops.yaml}
       GLANCE_TSP_SHEET_ID: ${GLANCE_TSP_SHEET_ID:?set in secrets/sensitive.sops.yaml}
       # The operator's own lists, one-line JSON that Glance substitutes into
-      # pages/home.yml (ADR-0100). Not credentials: in SOPS because this
+      # the pages (ADR-0100). Not credentials: in SOPS because this
       # repository is public and they describe a person.
       GLANCE_MARKETS: ${GLANCE_MARKETS:?set in secrets/sensitive.sops.yaml}
       GLANCE_BOOKMARKS: ${GLANCE_BOOKMARKS:?set in secrets/sensitive.sops.yaml}
       GLANCE_VIDEO_TABS: ${GLANCE_VIDEO_TABS:?set in secrets/sensitive.sops.yaml}
       GLANCE_REDDIT_TABS: ${GLANCE_REDDIT_TABS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_TEAMS: ${GLANCE_TEAMS:?set in secrets/sensitive.sops.yaml}
     volumes:
       # Each config file on its own, not the directory: a single-file mount
       # is pinned by check_mounted_config.py, so `make up` recreates Glance

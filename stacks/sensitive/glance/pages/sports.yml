@@ -1,8 +1,9 @@
 # Sports & Markets. The tickers are GLANCE_MARKETS, shown here
-# in full with their charts. The scoreboards are ESPN's public API, no key,
-# one widget per league sharing the first one's template. Logos are left
-# out: they would be the browser fetching from ESPN's CDN. The TSP fund is
-# not on Yahoo, so it is its own widget, read from a Google Sheet.
+# in full with their charts. The teams the operator follows are GLANCE_TEAMS
+# and come first; under them, the league scoreboards. Both are ESPN's public
+# API, no key, one widget per league sharing the first one's template. Logos
+# are left out: they would be the browser fetching from ESPN's CDN. The TSP
+# fund is not on Yahoo, so it is its own widget, read from a Google Sheet.
 - name: Sports & Markets
   slug: sports
   width: wide
@@ -10,6 +11,98 @@
     # ---------------------------------------------------------------------
     - size: full
       widgets:
+        # One line per followed team: its record, the last result and the
+        # next game, or the score while one is on. GLANCE_TEAMS lists them as
+        # {"name","path","id"}, where path is ESPN's sport/league and id its
+        # team id or abbreviation (secrets/sensitive.example.yaml has the
+        # shape). A soccer team's path is soccer/all, which spans every
+        # competition, and ESPN gives its results and its fixtures as two
+        # schedules, so it asks twice; every other team's one schedule holds
+        # the whole season. Kickoff is UTC here: the page head's script
+        # writes it in the browser's own time zone.
+        - type: custom-api
+          title: My teams
+          cache: 5m
+          options:
+            teams: ${GLANCE_TEAMS}
+          template: |
+            {{ $base := "https://site.api.espn.com/apis/site/v2/sports/" }}
+            <ul class="list list-gap-14 collapsible-container" data-collapse-after="12">
+            {{ range index .Options "teams" }}
+              {{ $url := concat $base .path "/teams/" .id "/schedule" }}
+              {{ $s := newRequest $url | getResponse }}
+              {{ $f := $s }}
+              {{ if findMatch "^soccer/" .path }}
+                {{ $f = newRequest (concat $url "?fixture=true") | getResponse }}
+              {{ end }}
+              {{ $tid := $s.JSON.String "team.id" }}
+              {{ $last := "" }}{{ $next := "" }}
+              {{ range $s.JSON.Array "events" }}
+                {{ if eq (.String "competitions.0.status.type.state") "post" }}
+                  {{ if or (not $last) (gt (.String "date") ($last.String "date")) }}{{ $last = . }}{{ end }}
+                {{ end }}
+              {{ end }}
+              {{ range $f.JSON.Array "events" }}
+                {{ $st := .String "competitions.0.status.type.state" }}
+                {{ if eq $st "in" }}
+                  {{ $next = . }}
+                {{ else if eq $st "pre" }}
+                  {{ if not $next }}{{ $next = . }}
+                  {{ else if and (ne ($next.String "competitions.0.status.type.state") "in")
+                                 (lt (.String "date") ($next.String "date")) }}{{ $next = . }}{{ end }}
+                {{ end }}
+              {{ end }}
+              <li>
+                <div class="flex justify-between items-baseline">
+                  <span class="size-h4 color-highlight">{{ .name }}</span>
+                  <span class="size-h6">{{ $s.JSON.String "team.recordSummary" }}</span>
+                </div>
+                {{ if ne $s.Response.StatusCode 200 }}
+                  <p class="size-h6 color-negative">ESPN answered {{ $s.Response.StatusCode }}</p>
+                {{ else }}
+                <ul class="list-horizontal-text size-h6">
+                  {{ if $last }}
+                    {{ $me := "" }}{{ $them := "" }}
+                    {{ range $last.Array "competitions.0.competitors" }}
+                      {{ if eq (.String "id") $tid }}{{ $me = . }}{{ else }}{{ $them = . }}{{ end }}
+                    {{ end }}
+                    {{ if and $me $them }}
+                    <li>
+                      {{ if $me.Bool "winner" }}<span class="color-positive">W</span>
+                      {{ else if $them.Bool "winner" }}<span class="color-negative">L</span>
+                      {{ else }}D{{ end }}
+                      {{ $me.String "score.displayValue" }}–{{ $them.String "score.displayValue" }}
+                      {{ if eq ($me.String "homeAway") "home" }}vs{{ else }}at{{ end }}
+                      {{ $them.String "team.abbreviation" }}
+                    </li>
+                    {{ end }}
+                  {{ end }}
+                  {{ if $next }}
+                    {{ $me := "" }}{{ $them := "" }}
+                    {{ range $next.Array "competitions.0.competitors" }}
+                      {{ if eq (.String "id") $tid }}{{ $me = . }}{{ else }}{{ $them = . }}{{ end }}
+                    {{ end }}
+                    {{ if and $me $them }}
+                    <li>
+                      {{ if eq ($next.String "competitions.0.status.type.state") "in" }}
+                        <span class="color-primary">Live</span>
+                        {{ $me.String "score.displayValue" }}–{{ $them.String "score.displayValue" }}
+                        · {{ $next.String "competitions.0.status.type.shortDetail" }}
+                      {{ else }}
+                        Next {{ if eq ($me.String "homeAway") "home" }}vs{{ else }}at{{ end }}
+                        {{ $them.String "team.abbreviation" }}
+                        · <span data-kickoff="{{ $next.String "date" }}">{{ $next.String "date" }}</span>
+                      {{ end }}
+                    </li>
+                    {{ end }}
+                  {{ end }}
+                  {{ if not (or $last $next) }}<li>No games scheduled</li>{{ end }}
+                </ul>
+                {{ end }}
+              </li>
+            {{ end }}
+            </ul>
+
         - type: split-column
           max-columns: 2
           widgets:
