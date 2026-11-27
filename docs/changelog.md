@@ -19,6 +19,14 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **Glance: its memory ceiling rises from 96m to 256m.** The deploy of
+  [#1779](https://github.com/Gerrrt/HomeLab/pull/1779) added Listen, which
+  parses whole podcast feeds. The OOM killer stopped `sensitive-glance` at
+  96 MiB on its first load, and Docker restarted it in a loop, so
+  `start.matrix.elysium` was down until this change was deployed. An
+  unlimited copy on trinity, with every page loaded at once from cold, peaked
+  at 157 MiB and settled at 85 MiB.
+
 - **Lab domain: `roles/base` now removes `Panther\unattend.xml`, and
   `verify.yml` holds every guest to having none.** This corrects the
   2026-10-09 #1099 entry, which says `SetupComplete.cmd` deletes the file. It
