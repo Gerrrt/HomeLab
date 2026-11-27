@@ -180,6 +180,15 @@
             $dsh = Get-ADObject -Identity ("CN=Directory Service,CN=Windows NT,CN=Services," +
               (Get-ADRootDSE).configurationNamingContext) -Properties dsHeuristics
             $r['dsHeuristics unset, as shipped'] = [string]::IsNullOrEmpty($dsh.dsHeuristics)
+            # ADR-0144: no AD CS, so no enterprise CA in the forest. A CA would
+            # bring the ESC paths outside the switch model. NTAuthCertificates
+            # does not exist until a CA publishes to it, and @($null).Count is
+            # 1, hence the filter.
+            $pks = "CN=Public Key Services,CN=Services,$((Get-ADRootDSE).configurationNamingContext)"
+            $ntauth = try { Get-ADObject -Identity "CN=NTAuthCertificates,$pks" -Properties cACertificate -ErrorAction Stop } catch { $null }
+            $r['no AD CS: no enrollment service and no NTAuth CA'] = (-not (Get-ADObject -SearchBase "CN=Enrollment Services,$pks" `
+              -SearchScope OneLevel -Filter * -ErrorAction SilentlyContinue)) -and
+              (@($ntauth.cACertificate | Where-Object { $_ }).Count -eq 0)
             $src = (w32tm /query /source | Out-String).Trim()
             if ([bool]::Parse($IsPrimary)) {
               $r["clock from $Gateway"] = ($src -like "$Gateway*")

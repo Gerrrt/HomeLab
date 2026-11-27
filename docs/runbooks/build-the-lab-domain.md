@@ -906,7 +906,11 @@ Before the first one, two things:
 > enable it when the exercise is relay to LDAP, and the removal is recorded by
 > the run that enabled it. `dsHeuristics` is kept as shipped, unset, so
 > Directory Service events 3051 and 3054 at each DC boot are expected and
-> `verify.yml` fails if it is ever set.
+> `verify.yml` fails if it is ever set. The domain runs no AD CS
+> ([ADR-0144](../adr/0144-run-no-ad-cs-in-the-lab-domain-so-no-ldaps-or-pkinit.md)),
+> so the DCs have no LDAPS or PKINIT certificate. Directory Service 1220, KDC
+> 19 and 29, and CertEnroll 86 at boot are expected too, and `verify.yml` fails
+> if an enterprise CA appears.
 
 The loop, one weakness (here `kerberoast`) at a time:
 
