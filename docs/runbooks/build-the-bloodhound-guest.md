@@ -491,7 +491,7 @@ containers to come back. They have `restart: unless-stopped`.
    - **The network collectors do not work here by default.**
      `bloodhound-ce-python` and `netexec` authenticate, but both DCs enforce
      LDAP signing and have no LDAPS certificate (the lab runs no AD CS,
-     [ADR-0144](../adr/0144-run-no-ad-cs-in-the-lab-domain-so-no-ldaps-or-pkinit.md)), so
+     [ADR-0145](../adr/0145-run-no-ad-cs-in-the-lab-domain-so-no-ldaps-or-pkinit.md)), so
      neither can collect: signing refuses plain LDAP, and `636` has no cert.
      SharpHound on a domain host is the path, because the Windows LDAP client
      signs and seals over `389` natively. Signing is lifted only by the

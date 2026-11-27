@@ -19,7 +19,7 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
-- **Lab domain: ADR-0144 records that the domain runs no AD CS, and
+- **Lab domain: ADR-0145 records that the domain runs no AD CS, and
   `verify.yml` holds it to that.** The `leviathan` audit found no
   certificate on either DC: `LocalMachine\My` is empty, `636` and `3269`
   listen with nothing behind them, and KDC 19/29, CertEnroll 86 and Directory
@@ -29,7 +29,48 @@ docstring gives: it is a record, not a claim about now.
   that ADR-0141 says does not exist. The events are expected noise. Both DCs
   read the same on 2026-11-27: no enrollment service, no AIA CA and an empty
   `NTAuthCertificates`. An AD CS exercise is a later ADR, as switches.
-
+- **Lab domain: #1770 and #1778 applied to every guest but `siren`.**
+  `lab-domain.yml --limit 'lab_domain:!siren' --tags base,sysmon,soc,exporter`
+  ran from `phoenix` after a `--check --diff` run that predicted the same ten
+  changes. `roles/base` removed `Panther\unattend.xml` on `bahamut`,
+  `leviathan`, `titan` and `ramuh`. `carbuncle` had none. On `carbuncle`,
+  #1770's roles removed the Sysmon zip and its unpacked folder and the Wazuh,
+  Velociraptor and exporter MSIs, and cut the textfile directory to SYSTEM and
+  Administrators. The other four already had #1770, and nothing reinstalled.
+  `verify.yml` then held on all five: `bahamut` 69 checks, `leviathan` 36,
+  `titan` 30, `carbuncle` 28, `ramuh` 26. `siren` (`.55`) answered no route to
+  host and was not run or checked. It still needs both, at its next run.
+- **Correction to the 2026-11-26 entry "the DCs' root hints came back after
+  every DNS restart".** That entry says what cleared both DCs' in-memory hints
+  between two reads that morning is not known. It was the
+  `lab-domain.yml --limit dcs --tags forest,replica` run from `phoenix` at
+  about 06:03 UTC, during the `leviathan` audit, which removed all 13 on each
+  DC. The hints were back that morning because both DCs rebooted on
+  2026-11-24 and reloaded them from `cache.dns`.
+- **Glance: its memory ceiling rises from 96m to 256m.** The deploy of
+  [#1779](https://github.com/Gerrrt/HomeLab/pull/1779) added Listen, which
+  parses whole podcast feeds. The OOM killer stopped `sensitive-glance` at
+  96 MiB on its first load, and Docker restarted it in a loop, so
+  `start.matrix.elysium` was down until this change was deployed. An
+  unlimited copy on trinity, with every page loaded at once from cold, peaked
+  at 157 MiB and settled at 85 MiB.
+- **Lab domain: Domain Admins keep network logon on members, for now.**
+  [ADR-0142](adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)
+  takes the decision ADR-0140 left open. Read on `titan`: its only local
+  administrators are `AD\Domain Admins` and its own `Administrator`, and SMB
+  signing is still not required, so it is still the relay target. A deny now
+  would leave the three exercises that land on `titan` (#1478, #1480 and the
+  NTLM relay, #1781, opened today) nothing to land as. The GPO is unchanged.
+  The question is revisited when those three are recorded, and a deny then
+  needs a Tier 1 group that administers `Servers` first.
+- **`titan` read after its audit, 2026-11-27.** The audit's finding 1 is
+  closed on the box: the console and RDP denies name Tier 0, Domain and
+  Enterprise Admins, nobody is logged on, Git and Claude Code are gone, and the
+  only profiles are the local `administrator` and `Public`. The installers
+  #1770 removes are gone and the textfile directory is SYSTEM and Administrators
+  only. Still as the audit found, by decision: no update since 2026-01-14
+  (ADR-0137), and C: at 59 GB of 80 until the rebuild, which the evaluation
+  licence requires before about 2027-04-05.
 - **Lab domain: `roles/base` now removes `Panther\unattend.xml`, and
   `verify.yml` holds every guest to having none.** This corrects the
   2026-10-09 #1099 entry, which says `SetupComplete.cmd` deletes the file. It
@@ -46,8 +87,27 @@ docstring gives: it is a record, not a claim about now.
   `--tags base` run removes it, and until then `verify.yml` fails `no
   unattend.xml in Panther` on each guest that has it.
 
+- **The lab's four large services have memory limits, and the lab guest's
+  Docker cannot see its containers.** Sizing them from
+  `container_memory_rss`, as #114 did for the estate, found that
+  `alexander` has never exported per-container series. It runs Docker 29 on
+  the containerd image store, which cAdvisor cannot read, the same trap
+  `trinity` hit on 2026-09-28. The limits were therefore sized from each
+  service's own `process_resident_memory_bytes` over 2026-11-10 to 11-25,
+  checked against the cgroup's anonymous and mapped memory, and with
+  Grafana's fourteen plugin processes counted from the cgroup: Prometheus
+  1024M, Loki 768M, Grafana 1536M, Alloy 768M, each with no swap.
+  `build-the-lab-guest.md` §3 gains the `daemon.json` step it was missing,
+  and the switch-over for a guest already running the containerd store.
+  `alexander` has not been switched yet.
+
 ## 2026-11-26
 
+- **`smaug`'s orphaned `media_jellyfin-config` volume is gone.** The re-check
+  after the 2026-11-13 audit closed found that `build-the-nas.md` §6 still said
+  its removal was not yet done. `docker volume ls` lists only the declared
+  `media_jellyfin-cache`, so the line now records it as done. The day it was
+  removed was not recorded.
 - **`golem` runs the host firewall `build-the-backup-guest.md` §2 added
   on 2026-11-25.** This completes that entry, which said the ruleset was
   not yet applied, and closes the last finding of the audit of 2026-11-13.

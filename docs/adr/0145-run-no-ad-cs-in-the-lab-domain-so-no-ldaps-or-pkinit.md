@@ -1,4 +1,4 @@
-# ADR-0144: Run no AD CS in the lab domain, so no LDAPS or PKINIT
+# ADR-0145: Run no AD CS in the lab domain, so no LDAPS or PKINIT
 
 **Status:** Accepted · 2026-11 · within
 [ADR-0029](0029-size-the-lab-domain-and-separate-its-namespace-and-clock.md)

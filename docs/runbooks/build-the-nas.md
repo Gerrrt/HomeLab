@@ -997,7 +997,10 @@ mkdir -p /mnt/erebor/apps/navidrome/data /mnt/erebor/media/music \
 > docker volume rm media_jellyfin-config
 > ```
 >
-> **Not yet done** as of the day this block was written; the date goes here.
+> **Done by 2026-11-26.** The day it was done went unrecorded. On 2026-11-26
+> `docker volume ls` on smaug listed only `media_jellyfin-cache`, which is the
+> transcode cache the compose file declares. `media_jellyfin-config` was gone,
+> and `/mnt/erebor/apps/jellyfin/config` holds the state.
 
 Confirm `RENDER_GID` still matches what this host reports — it is hard-coded
 in `.env`, and `107 render` was re-read on 2026-09-19 — then bring it up:

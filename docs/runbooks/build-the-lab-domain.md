@@ -853,8 +853,11 @@ ordinary users, and one service account with an SPN on a real service on
 > ([ADR-0140](../adr/0140-correct-why-adr-0136-leaves-domain-admins-network-logon.md)).
 > `ramuh`'s Security log showed `RAMUH\Administrator` for each of `phoenix`'s
 > logons on 2026-11-16, and `whoami` on `titan` printed `titan\administrator`
-> on 2026-11-26. Whether the network deny should change is not decided:
-> closing it would also refuse a relayed Domain Admin on `titan`. At a
+> on 2026-11-26. The network logon stays until the exercises against `titan`
+> (#1478, #1480, #1781) are recorded
+> ([ADR-0142](../adr/0142-keep-domain-admins-network-logon-on-members-until-the-titan-exercises.md)):
+> `titan`'s only domain administrators are Domain Admins, so a deny would
+> leave those exercises nothing to land as. At a
 > member's console, log on as its local `Administrator`.
 
 `titan` gets the shares — including one obviously-interesting decoy, because a
@@ -907,7 +910,7 @@ Before the first one, two things:
 > the run that enabled it. `dsHeuristics` is kept as shipped, unset, so
 > Directory Service events 3051 and 3054 at each DC boot are expected and
 > `verify.yml` fails if it is ever set. The domain runs no AD CS
-> ([ADR-0144](../adr/0144-run-no-ad-cs-in-the-lab-domain-so-no-ldaps-or-pkinit.md)),
+> ([ADR-0145](../adr/0145-run-no-ad-cs-in-the-lab-domain-so-no-ldaps-or-pkinit.md)),
 > so the DCs have no LDAPS or PKINIT certificate. Directory Service 1220, KDC
 > 19 and 29, and CertEnroll 86 at boot are expected too, and `verify.yml` fails
 > if an enterprise CA appears.

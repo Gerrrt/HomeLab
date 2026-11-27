@@ -180,14 +180,17 @@
             $dsh = Get-ADObject -Identity ("CN=Directory Service,CN=Windows NT,CN=Services," +
               (Get-ADRootDSE).configurationNamingContext) -Properties dsHeuristics
             $r['dsHeuristics unset, as shipped'] = [string]::IsNullOrEmpty($dsh.dsHeuristics)
-            # ADR-0144: no AD CS, so no enterprise CA in the forest. A CA would
+            # ADR-0145: no AD CS, so no enterprise CA in the forest. A CA would
             # bring the ESC paths outside the switch model. NTAuthCertificates
             # does not exist until a CA publishes to it, and @($null).Count is
             # 1, hence the filter.
             $pks = "CN=Public Key Services,CN=Services,$((Get-ADRootDSE).configurationNamingContext)"
-            $ntauth = try { Get-ADObject -Identity "CN=NTAuthCertificates,$pks" -Properties cACertificate -ErrorAction Stop } catch { $null }
-            $r['no AD CS: no enrollment service and no NTAuth CA'] = (-not (Get-ADObject -SearchBase "CN=Enrollment Services,$pks" `
-              -SearchScope OneLevel -Filter * -ErrorAction SilentlyContinue)) -and
+            $ntauth = try {
+              Get-ADObject -Identity "CN=NTAuthCertificates,$pks" -Properties cACertificate -ErrorAction Stop
+            } catch { $null }
+            $enroll = Get-ADObject -SearchBase "CN=Enrollment Services,$pks" -SearchScope OneLevel `
+              -Filter * -ErrorAction SilentlyContinue
+            $r['no AD CS: no enrollment service and no NTAuth CA'] = (-not $enroll) -and
               (@($ntauth.cACertificate | Where-Object { $_ }).Count -eq 0)
             $src = (w32tm /query /source | Out-String).Trim()
             if ([bool]::Parse($IsPrimary)) {
@@ -269,7 +272,7 @@
               })
             }
             # ADR-0136: Deny Tier 0 refuses Domain Admins the console and RDP on
-            # members, and leaves them network logon (ADR-0136, ADR-0140).
+            # members, and leaves them network logon (ADR-0136, ADR-0140, ADR-0142).
             $deny = Get-GPO -Name 'Deny Tier 0 Logon on Members' -ErrorAction SilentlyContinue
             $inf = if ($deny) { Join-Path $env:SystemRoot `
               "SYSVOL\domain\Policies\{$($deny.Id)}\Machine\Microsoft\Windows NT\SecEdit\GptTmpl.inf" }

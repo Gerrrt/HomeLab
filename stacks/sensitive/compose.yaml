@@ -1725,9 +1725,11 @@ services:
   # trinity, 2026-10-19, with exactly these options and every widget loaded
   # three times: read-only root with no tmpfs at all — `docker diff` showed
   # only the two mount points — CapEff 0, 13–14 MiB and 9 tasks. Both pages
-  # of the second version (2026-10-21) loaded the same way held it at 14 MiB;
-  # 96m leaves room for a large Reddit or Fever answer in flight, and is a
-  # ceiling for a leak, not a size.
+  # of the second version (2026-10-21) loaded the same way held it at 14 MiB.
+  # Listen (2026-11-27) parses whole podcast feeds, each up to Glance's 10 MB
+  # response cap, and 96m was killed by the OOM killer on the first load: all
+  # eight pages loaded at once from cold peaked at 157 MiB and settled at 85.
+  # 256m is that peak with room, and still a ceiling for a leak, not a size.
   #
   # TRUST. A static Go binary, so Go's own rules: the image's
   # /etc/ssl/certs/ca-certificates.crt is still read for the public roots
@@ -1756,8 +1758,8 @@ services:
     image: glanceapp/glance:v0.8.8@sha256:4d7445bc7971836858ffddee5d7501f1efbabb6e694a45b1dde1a789bb1943bb
     container_name: sensitive-glance
     user: "${RENDER_UID:?run make render}:${RENDER_GID:?run make render}"
-    mem_limit: 96m
-    memswap_limit: 96m
+    mem_limit: 256m
+    memswap_limit: 256m
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true
@@ -1781,6 +1783,7 @@ services:
       GLANCE_VIDEO_TABS: ${GLANCE_VIDEO_TABS:?set in secrets/sensitive.sops.yaml}
       GLANCE_REDDIT_TABS: ${GLANCE_REDDIT_TABS:?set in secrets/sensitive.sops.yaml}
       GLANCE_TEAMS: ${GLANCE_TEAMS:?set in secrets/sensitive.sops.yaml}
+      GLANCE_PODCASTS: ${GLANCE_PODCASTS:?set in secrets/sensitive.sops.yaml}
     volumes:
       # Each config file on its own, not the directory: a single-file mount
       # is pinned by check_mounted_config.py, so `make up` recreates Glance
