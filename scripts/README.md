@@ -28,18 +28,19 @@ Two conventions hold across all of them:
 
 ## Validate: what CI runs
 
-`validate.sh` runs every row here except the last four. CI runs the first three
-of those as a job and workflows of their own. The fourth runs on `phoenix`,
+`validate.sh` runs every row here except the last six. CI runs the first five
+of those as a job and workflows of their own. The sixth runs on `phoenix`,
 and only its fixtures run in CI, through `self-tests.sh`.
 
 | Script | `make` | Checks |
 | --- | --- | --- |
 | `validate.sh` | `validate` | Everything in this table that does not need a live host, in CI's order |
-| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt`, and a check for merge-conflict markers in tracked files — the one list all three callers share |
+| `lint.sh` | `lint` | yamllint, markdownlint, shellcheck, ruff, actionlint, zizmor, editorconfig-checker, ansible-lint, `tofu fmt` and `packer fmt`, and a check for merge-conflict markers in tracked files — the one list all three callers share; `pipx` pins for yamllint and ruff are in `requirements-lint.txt` |
 | `check_docs.py` | `check-docs` | The prose against the configs: counted claims, inventories, ports, ADR numbering, the buy list ([ADR-0026](../docs/adr/0026-check-the-documents-where-the-truth-is.md)) |
 | `check_dashboards.py` | `check-dashboards` | Dashboard JSON, datasource references, every panel's PromQL |
 | `check_rule_tests.py` | `check-rules` | Every Prometheus alert has a promtool test that names it |
 | `check_loki_rules.sh` | `check-loki-rules` | The LogQL rules and dashboard queries, against a real Loki boot |
+| `test_loki_rules.py`, `loki_scratch_config.py` | `check-loki-rules` | Each Loki rule's own `expr` against fixture lines pushed to a pinned Loki, so a rule that matches nothing fails ([#843](https://github.com/Gerrrt/HomeLab/issues/843)); the second prints the scratch copy of the Loki config both scripts boot |
 | `check_syslog_senders.sh` | `check-syslog-senders` | The syslog listener stores only the senders `syslog.alloy` names, and a message cannot choose its own `host` (#844) |
 | `check_gosu_skip.sh` | `check-gosu-skip` | Every image whose gosu the CVE scan skips (`gosu-skip.txt`) never runs gosu when started as `999:999`, with a root control proving the stand-in is on its path (#995, #980) |
 | `check_socket_proxy.sh` | `check-socket-proxy` | The Docker socket proxies allow what Alloy reads and refuse `archive`, `export` and `top`, and upstream's template is unchanged under the committed config (Tecnativa/docker-socket-proxy#182) |
@@ -49,6 +50,8 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_detection_config.sh` | — | Wazuh's rules, `ossec.conf` and `agent.conf` parse, and the rule ids are unique and in range; the indexer JSON parses; and in their pinned images, `wazuh-analysisd -t` and `zeek --parse-only` accept the configs odin and fenrir run |
 | `check_image_pins.py` | `check-image-pins` | Every image the repository runs comes from a `compose.yaml`, and an image that mounts another stack's config runs that stack's exact pin |
 | `check_shared_blocks.py` | — | Every copy of a `# shared-block:` (code copied because a collector installs as one file) matches the others, so a fix cannot land in one copy only |
+| `check_ingest_bind.py` | — | `INGEST_BIND_ADDR` is one specific address in every stack that publishes on it, never a wildcard ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)) |
+| `check_ingest_ca.sh` | — | The one committed `.pem`, `stacks/observability/alloy/ingest-ca.pem`, is a single CA certificate and the estate's (#764) |
 | `check_compose_vars.py` | `check-compose-vars` | Every SOPS value a `compose.yaml` guards with `${VAR:?}` is in `render-config.sh`'s `COMPOSE_VARS` and has a stand-in in `seed-validation-env.sh`, and every `COMPOSE_VARS` entry is a SOPS key (#1570) |
 | `check_sops_rules.py`, `check-sops-encrypted.sh` | — | `.sops.yaml` matches its files, and every committed SOPS file is ciphertext, now and (`--history`) in every past revision |
 | `check-tracked-artefacts.sh` | — | Nothing rendered, decrypted or secret-bearing is tracked |
@@ -61,6 +64,8 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
 | `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
+| `scan-images.sh`, `cve_report.py` | `scan-images` | Every pinned image for fixable HIGH and CRITICAL CVEs, and the job summary and one issue per image repository from the reports — weekly in the *CVE scan* workflow (#852) |
+| `wiki_watch.py` | — | ADR-0089's three triggers for leaving Wiki.js 2.x, read off the project's advisories and releases — weekly in the *Wiki.js watch* workflow |
 | `check-tofu-state-encryption.sh` | — | `tofu/`'s state is encrypted, proved rather than assumed — run on `phoenix`; its fixtures run in `self-tests.sh` |
 
 ## Deploy and converge
@@ -83,6 +88,10 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `stacks.sh`, `compose-guards.sh`, `image-for.sh` | — | The list of stacks, a stack's required variables, and a service's pinned image — each defined once |
 | `pin-digests.sh` | `pin-digests`, `check-digests` | Re-resolves every image digest, or checks they still match the registry |
 | `prune-images.sh` | `prune-images` | Removes Docker images no container uses |
+| `prune_superseded_images.py` | via `up` | Removes the images a deploy just superseded, once the new ones pass their health checks ([#1027](https://github.com/Gerrrt/HomeLab/issues/1027)) |
+| `ensure-textfile-dir.sh` | via `up` | Makes sure the node exporter's textfile directory exists on a host whose Alloy reads it, before the stack starts |
+| `render-trust-bundles.sh` | via `render` | Writes the sensitive tier's trust bundles, the estate CA appended to what Glance and Home Assistant already trust; called by `render-config.sh` (#764, [ADR-0098](../docs/adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md)) |
+| `install-host-units.sh` | `install-host-units` | The monitoring host's boot ordering from [`systemd/host/`](../systemd/host): Docker waits for `10.0.99.20` ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)) |
 
 ## Secrets, keys and certificates
 
@@ -133,6 +142,7 @@ they describe. The rest are installed on the host they describe by
 | `collect-guest-state.sh`, `collect-guest-disk-state.sh`, `collect-thin-pool-state.sh` | `Saruman`'s guests: running, how full, and how full its thin pools are |
 | `collect-wazuh-manager-state.sh` | The Wazuh manager's agent counts, analysisd queues and dropped events, for the lab's Prometheus ([#1038](https://github.com/Gerrrt/HomeLab/issues/1038)) |
 | `collect-guest-service-state.sh` | Whether the lab Prometheus, Zeek, the Wazuh manager and Velociraptor are healthy, read through the guest agent ([ADR-0088](../docs/adr/0088-let-a-named-lab-services-health-cross-read-through-the-guest-agent.md)) |
+| `collect-port-state.py` | Whether each running container holds the ports and networks it was created with, so a container Docker started without them stops reading healthy ([ADR-0105](../docs/adr/0105-hold-docker-until-the-monitoring-hosts-address-exists.md)); `make port-state` |
 | `collect-pve-version.sh`, `collect-pve-firewall-state.sh` | The Proxmox version, and whether its firewall is on |
 | `collect-range-state.sh` | `gandalf`'s own range controls: the `vmbr1_host_in` ingress barrier, `vmbr0` and `sshd` forwarding, and the `ragnarok` stop timer and its deadline ([ADR-0126](../docs/adr/0126-monitor-gandalf-now-that-it-stays-on.md)) |
 | `collect-iso-store-state.sh` | Whether the ISOs on the NFS store are the ones the repository expects |
@@ -166,6 +176,7 @@ They need the running estate, so CI cannot run them. Timers do.
 | `finish-attack-vm.sh` | — | Finishes the range's attack VM, `ragnarok`, after `tofu/` makes it on `gandalf` from 902 ([ADR-0116](../docs/adr/0116-build-the-range-attack-vm-with-opentofu-and-prove-it-with-a-script.md)): writes `99-no-forward.conf` and ADR-0014's outbound scope as an nftables policy, at the IP stack and at `eth0`'s egress for raw Ethernet, and proves it neither forwards, NATs nor reaches past `10.0.30.0/24` and the range, over SSH checked against a host key read through the guest agent ([`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §5) |
 | `ragnarok-stop.sh` | — | Stops the attack VM `ragnarok` on `gandalf` at a deadline, six hours after it started or what the last `range-extend` set for that run (1 to 12 hours ahead), checked every minute under one lock, warning every shell on the host and in the VM at 30 and 5 minutes, and never while `dpkg` holds its lock inside the VM ([ADR-0125](../docs/adr/0125-keep-gandalf-on-and-stop-ragnarok-on-a-timer.md)). Installed with [`systemd/range/`](../systemd/range) by [`build-the-playground.md`](../docs/runbooks/build-the-playground.md) §7. Its `--self-test` is the only test of the deadline logic: a real run stops the attack VM |
 | `stage-agent-msis.sh` | — | Stages the Wazuh and Velociraptor MSIs the lab pipeline installs, and the two Debian packages `garuda` installs, into `${SOC_DATA_DIR}/agent-msi` on `odin`, which the SOC stack's Caddy serves. The vendor packages are checked against their pins; the Velociraptor `.deb` is built by the server and its hash printed ([#1068](https://github.com/Gerrrt/HomeLab/issues/1068), [ADR-0092](../docs/adr/0092-enrol-garuda-in-odins-soc-with-debian-packages-staged-on-odin.md)) |
+| `import-cloud-template.sh` | — | Imports Alpine's or Gentoo's own signed cloud image onto `Saruman` as a staging template, for Packer's `proxmox-clone` builder to finish ([ADR-0090](../docs/adr/0090-test-the-dotfiles-os-layers-on-on-demand-saruman-guests.md), [`build-the-lab-templates.md`](../docs/runbooks/build-the-lab-templates.md)) |
 | `lab-known-hosts.sh` | — | Reads the lab domain's SSH host keys through the guest agent into `ansible/.known_hosts`, after any rebuild ([ADR-0085](../docs/adr/0085-check-the-lab-domains-host-keys-against-keys-read-through-the-guest-agent.md)) |
 | `gen_population.py` | — | The lab domain's users, into `ansible/population/` |
 | `vendor-wazuh-certs-tool.sh` | — | Vendors Wazuh's cert tool at one sha256, `--check`s it offline (in `validate.sh`), or reports whether `--upstream` has moved ([ADR-0094](../docs/adr/0094-vendor-the-wazuh-cert-tool-and-mint-the-soc-ca-offline.md)) |

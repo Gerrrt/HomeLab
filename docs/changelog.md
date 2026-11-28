@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **Weekly audit, scripts and systemd: 14 scripts and one timer were
+  undocumented.** `scripts/README.md` had no row for `scan-images.sh`,
+  `cve_report.py`, `wiki_watch.py`, `test_loki_rules.py`,
+  `loki_scratch_config.py`, `check_ingest_bind.py`, `check_ingest_ca.sh`,
+  `prune_superseded_images.py`, `ensure-textfile-dir.sh`,
+  `render-trust-bundles.sh`, `install-host-units.sh`, `collect-port-state.py`,
+  `import-cloud-template.sh` or `requirements-lint.txt`, and
+  `systemd/README.md` none for `homelab-range-state`. Each has a row now. Every
+  other unit's schedule matches its `OnCalendar`.
 - **Lab domain: ADR-0145 records that the domain runs no AD CS, and
   `verify.yml` holds it to that.** The `leviathan` audit found no
   certificate on either DC: `LocalMachine\My` is empty, `636` and `3269`
