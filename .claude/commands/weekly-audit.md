@@ -19,7 +19,10 @@ right, record a FINDING. Do not edit.
 Bash runs under a fixed allow list; anything else is denied, not asked.
 Read files with Read, find them with Glob, search with Grep. In Bash, run one
 command per call: no `cd`, no `&&` or `;`, no redirects (`2>&1`, `>`).
-The id hash in step 3 is the one allowed pipe. Run git in Lemmiwinks as
+The id hash in step 3 is the one allowed pipe. Keep `|`, `;` and `&` out of
+arguments: `git log --format=%h|%cs|%s` is three piped commands, and is
+denied. Separate fields with spaces or `%x09` instead:
+`git log --format='%h %cs %s' -- <path>`. Run git in Lemmiwinks as
 `git -C .lemmiwinks log …`. Run the checks exactly as written in steps 11
 and 12.
 
