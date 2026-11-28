@@ -19,6 +19,35 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **The read-only audit of `leviathan` (2026-11-13, re-checked 2026-11-25,
+  and followed up from `phoenix` on 11-26 and 11-27).** AD is healthy:
+  `dcdiag` is clean, replication shows no failures either way, the five GPOs
+  and SYSVOL match `bahamut`, the agents run their pins, and all six ADR-0083
+  weaknesses were off. Each finding is now closed or decided:
+  - **Claude Code, Git and a repository checkout were on both DCs,** put
+    there by the owner for the audit, with a Domain Admin console session
+    running beside them. All three were removed from both DCs over SSH from
+    `phoenix` on 11-26, and the console sessions were signed out.
+    `LAB_ADMIN_PASSWORD` is not rotated, by the owner's decision.
+  - **13 DNS root hints on each DC.** Cleared by the 11-26 run of
+    `--tags forest,replica`, and kept cleared across a restart by #1769
+    (the correction below names that run).
+  - **One cumulative update behind:** not a finding under ADR-0137.
+  - **Print Spooler running on both DCs:** disabled by ADR-0141's `spooler`
+    switch, applied. The *File and Printer Sharing (Restrictive)* firewall
+    group is enabled for different profiles on the two DCs, but the plain
+    group is enabled on every profile on both, so that difference admits
+    nothing extra. No change.
+  - **`Panther\unattend.xml` survived on the four servers**, though
+    `SetupComplete.cmd` deletes it. They were cloned on 2026-10-07 from a
+    template built before #1103 added that delete, and the file held no
+    password. #1778's `roles/base` removes it, as the entry below records.
+  - **No certificate on either DC, so no LDAPS or PKINIT.** Deliberate
+    under ADR-0145, as its entry below records.
+  - **`dsHeuristics` unset:** kept as shipped by ADR-0141. **Runbook §10's
+    WinRM row** was already corrected on `main`.
+  - **Not checked:** the Wazuh and Velociraptor server side on `odin`. Both
+    DCs' agents report connected sessions to it.
 - **Weekly audit, scripts and systemd: 14 scripts and one timer were
   undocumented.** `scripts/README.md` had no row for `scan-images.sh`,
   `cve_report.py`, `wiki_watch.py`, `test_loki_rules.py`,
