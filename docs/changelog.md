@@ -17,6 +17,18 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-28
+
+- **Lab domain: #1770 applied to `siren`, the last guest without it.** The
+  2026-11-27 entry left `siren` out because it was stopped (`--onboot 0`). It
+  was started for the run and shut down again after it. `lab-domain.yml
+  --limit siren --tags base,sysmon,soc,exporter` ran from `phoenix` after a
+  `--check --diff` run that predicted the same changes. It removed the Sysmon
+  zip and its unpacked folder and the Wazuh, Velociraptor and exporter MSIs,
+  and cut the textfile directory to SYSTEM and Administrators. Nothing
+  reinstalled. `siren` had no `Panther\unattend.xml`, so #1778 changed nothing
+  there. `verify.yml` then held: 28 checks. Both PRs are now on all six guests.
+
 ## 2026-11-27
 
 - **Weekly audit, scripts and systemd: 14 scripts and one timer were
