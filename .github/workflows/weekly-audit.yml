@@ -34,7 +34,7 @@ jobs:
   audit:
     name: Audit
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 75
     permissions:
       contents: read
       issues: write
@@ -92,7 +92,7 @@ jobs:
             WEEK=${{ steps.focus.outputs.week }}
           claude_args: |
             --model sonnet
-            --max-turns 80
+            --max-turns 150
             --permission-mode dontAsk
           settings: |
             {
@@ -135,6 +135,9 @@ jobs:
           out="$RUNNER_TEMP/out"; mkdir -p "$out"
           if [ -f docs/audit/pr-body.md ]; then
             mv docs/audit/pr-body.md "$out/pr-body.md"
+            # The same text the PR shows, so a clean run still says what it
+            # checked.
+            cat "$out/pr-body.md" >> "$GITHUB_STEP_SUMMARY"
           fi
           git add -A
           git diff --cached --binary > "$out/audit.patch"
