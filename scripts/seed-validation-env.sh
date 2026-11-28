@@ -80,6 +80,7 @@ STACK="${REPO_ROOT}/stacks/${2:-observability}"
   echo "GLANCE_MINIFLUX_FEVER_KEY=validation-only"
   echo "GLANCE_GOOGLE_API_KEY=validation-only"
   echo "GLANCE_TSP_SHEET_ID=validation-only"
+  echo "GLANCE_GITHUB_TOKEN=validation-only"
   # Glance's own lists are substituted into YAML, so a placeholder string
   # would not parse: each is the smallest valid list of its kind (ADR-0100),
   # single-quoted as render-config.sh writes them. The bookmark title holds a

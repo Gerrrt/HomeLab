@@ -278,12 +278,44 @@
             {{ end }}
             </ul>
 
+        # Glance itself: the image trinity runs, as cAdvisor reports it, against
+        # GitHub's latest release. Dependabot opens the bump PR; this says
+        # whether one is due and whether the running container has it yet.
+        - type: custom-api
+          title: Glance
+          title-url: https://github.com/glanceapp/glance/releases
+          cache: 6h
+          <<: *prometheus
+          parameters:
+            query: max by (image) (container_last_seen{instance="trinity", name="sensitive-glance"})
+          subrequests:
+            latest:
+              url: https://api.github.com/repos/glanceapp/glance/releases/latest
+              headers:
+                Accept: application/vnd.github+json
+                Authorization: Bearer ${GLANCE_GITHUB_TOKEN}
+          template: |
+            {{ $gh := .Subrequest "latest" }}
+            {{ $running := findSubmatch ":(v[0-9][^@]*)" (.JSON.String "data.result.0.metric.image") }}
+            {{ $latest := $gh.JSON.String "tag_name" }}
+            {{ if or (ne .Response.StatusCode 200) (not $running) }}
+              <p class="color-negative">No running version: Prometheus answered {{ .Response.StatusCode }}.</p>
+            {{ else if ne $gh.Response.StatusCode 200 }}
+              <p class="color-negative">GitHub answered {{ $gh.Response.StatusCode }}.</p>
+            {{ else if eq $running $latest }}
+              <p class="color-positive">{{ $running }}, the latest release.</p>
+            {{ else }}
+              <p class="color-negative">{{ $latest }} is out; trinity runs {{ $running }}.</p>
+              <a class="size-h6 color-primary" href="{{ $gh.JSON.String "html_url" }}">Release notes</a>
+            {{ end }}
+
         # New releases of the software this estate pins: the services, not the
         # lint and build tools. Dependabot opens the PR; this is the heads-up.
-        # Unauthenticated GitHub API, once per six hours per repository: 32
-        # requests against the anonymous 60 an hour.
+        # Once per six hours per repository, with the no-permission token so
+        # the 32 requests do not spend the house's anonymous 60 an hour.
         - type: releases
           cache: 6h
+          token: ${GLANCE_GITHUB_TOKEN}
           show-source-icon: false
           collapse-after: 6
           repositories:

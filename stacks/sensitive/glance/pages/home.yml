@@ -43,6 +43,9 @@
         # The estate in one line each, from the same reader-proxy queries the
         # Homelab page uses; the detail is there. A site that is down is
         # named under the figures, so the page says which without a click.
+        # Under them, each host's fullest real disk: every one at 70% or more
+        # (where HostDiskFillingUp may fire), red from 90% (HostDiskCritical);
+        # below 70% only the fullest is named.
         - type: custom-api
           title: Estate
           title-url: /homelab
@@ -63,8 +66,16 @@
                   or vector(0))
                   + (sum(homelab_container_running)
                   or vector(0))
+            disks:
+              <<: *prometheus
+              parameters:
+                query: >-
+                  max by (instance) (100 * (1
+                  - node_filesystem_avail_bytes{fstype!~"tmpfs|overlay|squashfs|vfat|ramfs|fuse.*|nfs.*"}
+                  / node_filesystem_size_bytes))
           template: |
             {{ $probes := .Subrequest "probes" }}
+            {{ $dsk := .Subrequest "disks" }}
             {{ $ctr := .Subrequest "containers" }}
             {{ if or (ne .Response.StatusCode 200) (ne $probes.Response.StatusCode 200) }}
               <p class="color-negative">Prometheus answered {{ .Response.StatusCode }}</p>
@@ -116,6 +127,23 @@
               </div>
               {{ if $down }}
               <p class="size-h6 color-negative margin-top-10">Down: {{ $down }}</p>{{ end }}
+              {{ $disks := "" }}{{ $filling := false }}{{ $critical := false }}
+              {{ range sortByFloat "value.1" "desc" ($dsk.JSON.Array "data.result") }}
+                {{ $pct := .Float "value.1" }}
+                {{ $one := printf "%s %.0f%%" (.String "metric.instance") $pct }}
+                {{ if ge $pct 70.0 }}
+                  {{ $filling = true }}{{ if ge $pct 90.0 }}{{ $critical = true }}{{ end }}
+                  {{ if $disks }}{{ $disks = concat $disks ", " }}{{ end }}
+                  {{ $disks = concat $disks $one }}
+                {{ else if not $disks }}{{ $disks = $one }}{{ end }}
+              {{ end }}
+              {{ if ne $dsk.Response.StatusCode 200 }}
+              <p class="size-h6 color-negative margin-top-10">
+                Disks: Prometheus answered {{ $dsk.Response.StatusCode }}</p>
+              {{ else if $filling }}
+              <p class="size-h6 margin-top-10 {{ if $critical }}color-negative{{ end }}">Disks filling: {{ $disks }}</p>
+              {{ else if $disks }}
+              <p class="size-h6 margin-top-10">Fullest disk: {{ $disks }}</p>{{ end }}
               {{ if not $watchdog }}
               <p class="color-negative margin-top-10">Watchdog silent: nothing here is current.</p>{{ end }}
             {{ end }}

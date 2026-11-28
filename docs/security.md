@@ -1167,17 +1167,21 @@ from Home Assistant with *not enough permissions*.
 - **Glance fetches a fixed list from `trinity`**
   ([#1223](https://github.com/Gerrrt/HomeLab/issues/1223), [ADR-0098](adr/0098-add-glance-as-the-operators-start-page-beside-homepage.md),
   [ADR-0100](adr/0100-grow-glance-into-a-homelab-page-and-keep-the-operators-lists-in-sops.md)):
-  Reddit, Hacker News, Open-Meteo, Yahoo Finance, ESPN, GitHub, YouTube's
-  feeds and uselessfacts, on its cache schedule. Every URL it asks is written
+  Reddit, Hacker News, Open-Meteo, Yahoo Finance, ESPN, GitHub, Google
+  Sheets, YouTube's feeds, the podcasts' own feeds and uselessfacts, on its
+  cache schedule. Every URL it asks is written
   in `glance/` or in the operator's lists in SOPS, and nothing a visitor
   types becomes a fetch, so it has no inward-fetch flag to set. The one
   third-party request the browser makes is for YouTube thumbnails. The feeds people follow are
   fetched by Miniflux's fetcher, under the flag above, and Glance reads them
   from Miniflux. It has no login. It shows the names of
   firing alerts, which Grafana shows to the same networks behind a login, and
-  that difference is accepted. It holds two credentials: the reader token,
-  which can only query, and a Fever key that can only mark items read for a
-  Miniflux user that follows public feeds.
+  that difference is accepted. Every credential it holds reads one thing:
+  the reader token, which can only query; a Fever key that can only mark
+  items read for a Miniflux user that follows public feeds; an Immich key
+  with only `server.statistics`; the token of Paperless's view-only user; a
+  Google API key restricted to the Sheets API, which can read only sheets
+  already shared by link; and a GitHub token with no permissions.
 - **The wall page answers twelve fixed questions**
   ([ADR-0119](adr/0119-put-the-office-wall-dashboard-on-a-pi-5-on-hicks.md)):
   `wall.matrix.elysium` on `trinity`'s Caddy. Each `/api/q/NAME` is one PromQL
