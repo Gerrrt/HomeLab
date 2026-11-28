@@ -34,7 +34,11 @@ docstring gives: it is a record, not a claim about now.
   so each page's history shows them. An API key cannot save a page in this
   Wiki.js: saves need a user. The sweep also found
   `hardware.md`'s U18 row still saying `gandalf` is off between range
-  sessions, against ADR-0125; it says always on now.
+  sessions, against ADR-0125; it says always on now. The pages' HTML would not
+  re-render: the server renders through headless Chrome, and inside
+  `wiki-app`'s 512 MiB, beside the app's 417 MiB, Chrome lost its renderer on
+  every page and each render timed out. `wiki-app` gets 1 GiB now
+  (`stacks/wiki/compose.yaml`).
 - **The read-only audit of `leviathan` (2026-11-13, re-checked 2026-11-25,
   and followed up from `phoenix` on 11-26 and 11-27).** AD is healthy:
   `dcdiag` is clean, replication shows no failures either way, the five GPOs
@@ -64,7 +68,6 @@ docstring gives: it is a record, not a claim about now.
     WinRM row** was already corrected on `main`.
   - **Not checked:** the Wazuh and Velociraptor server side on `odin`. Both
     DCs' agents report connected sessions to it.
-||||||| parent of a88e4453 (docs: record the household wiki sweep, and gandalf is always on at U18)
 - **Weekly audit, scripts and systemd: 14 scripts and one timer were
   undocumented.** `scripts/README.md` had no row for `scan-images.sh`,
   `cve_report.py`, `wiki_watch.py`, `test_loki_rules.py`,
