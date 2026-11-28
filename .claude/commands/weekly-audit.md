@@ -79,9 +79,13 @@ say what it checked and found clean.
 - Work through every item on the checklist. Prefer one Grep across many files
   over reading them one by one, so the whole list fits in the turn budget.
 - Do not stop because you have found something. Stop at the end of the
-  checklist, at the 10-finding limit, or when you run short of turns. In the
-  last case, say in the PR body exactly which items you did not reach.
-- Step 9 (stale images) runs every week, whatever the focus.
+  checklist or at the 10-finding limit. The run allows 150 turns: keep a
+  rough count of your tool calls, and until about 120 there is no such thing
+  as running short. Only past that may you leave items unchecked, and the PR
+  body must name each one under *Not reached*. "Not reached" with fewer than
+  120 tool calls used is a failed run.
+- Step 9 (stale images) runs every week, whatever the focus. It is not part
+  of the checklist and cannot be "not reached": do it before step 10.
 
 ## Focus areas
 
@@ -191,12 +195,14 @@ everything on disk is in the doc, and everything in the doc is on disk.
    as-of date). Keep the font stack, the ADR-0009 cable colours and the
    layout. Do not touch PNGs; CI re-renders them. If a change needs new
    geometry you cannot place cleanly, record a FINDING instead.
-9. Stale images. For each image under `docs/images/` and each image linked
-   from a README, compare `git log -1 --format=%cs -- <image>` with the last
-   change to what it depicts (the dashboard JSON for screenshots, the
-   paragraph that references it otherwise). List suspects for the PR body.
-   Dashboard screenshots are refreshed by the operator with
-   `make screenshots`; photos need a retake.
+9. Stale images. Every run, every focus. Glob `docs/images/**` and Grep
+   every `README.md` for image links (`.png`, `.jpg`, `.jpeg`, `.webp`,
+   `.svg`). For each image, run `git log -1 --format=%cs -- <image>`, then
+   the same for what it depicts: the dashboard JSON for a screenshot, the
+   file that holds the referencing paragraph otherwise. The image is a
+   suspect if what it depicts changed after it. Report every image in the PR
+   body, suspect or not. Dashboard screenshots are refreshed by the operator
+   with `make screenshots`; photos need a retake.
 10. If you made doc fixes, add one entry for today at the top of
     `docs/changelog.md` in its existing format.
 11. Run `python3 scripts/check_docs.py`. Fix doc-side failures you caused,
@@ -220,6 +226,7 @@ Keep the four headings of `.github/pull_request_template.md`.
     **Coverage**
     - <checklist item>: N checked, N clean, N findings
     - Not reached: <items>, or "none"
+    - Tool calls used: about N of 150
 
     **Doc fixes**
     - `path`: what was wrong → what it says now. Truth: `path:line` "quote"
@@ -241,6 +248,8 @@ Keep the four headings of `.github/pull_request_template.md`.
     **Stale images: manual retake**
     - [ ] `docs/images/x.png`: image <date>, source changed <date>
           (`make screenshots` / photo)
+
+    Checked and current: N images (`path` image <date>, source <date>; …)
 
     ## Blast radius
 

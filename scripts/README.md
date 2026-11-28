@@ -63,7 +63,7 @@ and only its fixtures run in CI, through `self-tests.sh`.
 | `require-no-skip.sh` | — | CI's wrapper for the docker-backed checks above: runs one with a skips file and fails if it skipped, because a skip in CI is a check nobody runs |
 | `check_hardened_boot.sh` | `check-hardened-boot` | Boots a service under its real hardening and waits for healthy — CI's *Boot hardened services* job |
 | `check_close_keywords.py` | — | No close keyword sits in prose that says the issue stays open — the *Close keywords* workflow; `--text FILE` lints a draft |
-| `check_tool_versions.py` | — | The Packer plugin and Galaxy collection pins, against upstream's newest release — weekly in the *Digest drift* workflow |
+| `check_tool_versions.py` | — | The Packer plugin, Galaxy collection and Alpine and Gentoo cloud image pins, against upstream's newest release — weekly in the *Digest drift* workflow |
 | `scan-images.sh`, `cve_report.py` | `scan-images` | Every pinned image for fixable HIGH and CRITICAL CVEs, and the job summary and one issue per image repository from the reports — weekly in the *CVE scan* workflow (#852) |
 | `wiki_watch.py` | — | ADR-0089's three triggers for leaving Wiki.js 2.x, read off the project's advisories and releases — weekly in the *Wiki.js watch* workflow |
 | `check-tofu-state-encryption.sh` | — | `tofu/`'s state is encrypted, proved rather than assumed — run on `phoenix`; its fixtures run in `self-tests.sh` |
