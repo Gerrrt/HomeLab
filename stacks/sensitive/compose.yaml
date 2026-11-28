@@ -1775,6 +1775,11 @@ services:
       # reads. The id is in SOPS because the sheet is the operator's.
       GLANCE_GOOGLE_API_KEY: ${GLANCE_GOOGLE_API_KEY:?set in secrets/sensitive.sops.yaml}
       GLANCE_TSP_SHEET_ID: ${GLANCE_TSP_SHEET_ID:?set in secrets/sensitive.sops.yaml}
+      # A GitHub token with no permissions, for the Maintenance page's
+      # releases list and Glance card. It reads only what anyone can; it
+      # lifts GitHub's limit from the 60 an hour the house's address shares
+      # to 5,000 for the token.
+      GLANCE_GITHUB_TOKEN: ${GLANCE_GITHUB_TOKEN:?set in secrets/sensitive.sops.yaml}
       # The operator's own lists, one-line JSON that Glance substitutes into
       # the pages (ADR-0100). Not credentials: in SOPS because this
       # repository is public and they describe a person.

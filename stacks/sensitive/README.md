@@ -620,7 +620,8 @@ each a file under `glance/pages/` and a tab along the top, so none carries
 everything:
 
 - **Home** (`home.yml`): the ticker strip, search, bookmarks, the time and
-  weather, the estate in brief, the year and a random fact. Short on purpose.
+  weather, the estate in brief with the fullest disk, the year and a random
+  fact. Short on purpose.
 - **Read** (`read.yml`): Following, the Reddit tabs, Listen (the podcasts
   in `GLANCE_PODCASTS`, a few episodes per show), Hacker News, Lobsters and
   trending repositories.
@@ -638,7 +639,10 @@ everything:
 - **Maintenance** (`maintenance.yml`): every scheduled job against its
   allowed age (backups and the off-site copy among them), the open
   `security` issues, pending updates and reboots, certificates by days left,
-  and upstream releases.
+  whether Glance itself is behind its latest release, and upstream releases.
+  Both GitHub widgets send `GLANCE_GITHUB_TOKEN`, a token with no
+  permissions, so they are not limited to the 60 requests an hour GitHub
+  gives the house's address.
 
 `glance.yml` holds what they share: the server, the theme, and the
 `&prometheus`, `&fever` and `&hosts` anchors the pages merge in. A new page
