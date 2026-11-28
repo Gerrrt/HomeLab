@@ -105,7 +105,12 @@ services:
   #   5. Peak 246 MiB after importing the whole wiki and rendering its 108
   #      pages; 14 threads. The image carries headless Chrome, which 3.x
   #      launches only to render a page on the server (approving a suggested
-  #      edit), never on the markdown editor's path, so 512 MiB stands.
+  #      edit), never on the markdown editor's path, so 512 MiB stood.
+  #      MEASURED 2026-11-27 (#1457): it also launches Chrome for the API's
+  #      `POST …/render`, and with the app resident at 417 MiB, Chrome under
+  #      512 MiB lost its network service and renderer on every page (memory
+  #      `max` events, no kernel OOM kill), so each queued render timed out.
+  #      Under 1 GiB it renders. oracle has the room.
   #   6. DB_PASS_FILE still works. The cluster needs `ltree` and `pg_trgm`,
   #      which the postgres image below ships.
   app:
@@ -113,8 +118,8 @@ services:
     image: ghcr.io/requarks/wiki:3.6.0@sha256:85be143b4f550bc616c25137e5ceaf4070a2ce64cb4bb3c575e2c9eddeeb0d1d
     container_name: wiki-app
     user: "1000:1000"
-    mem_limit: 512m
-    memswap_limit: 512m
+    mem_limit: 1g
+    memswap_limit: 1g
     cap_drop: [ALL]
     security_opt:
       - no-new-privileges:true

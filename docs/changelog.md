@@ -30,6 +30,26 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-27
 
+- **Household wiki swept against the repository
+  ([#1457](https://github.com/Gerrrt/HomeLab/issues/1457)): 269 corrections
+  on 73 pages.** Every page was read against `network.md`, `hardware.md`,
+  `architecture.md` and the ADRs for the issue's fact groups D1–D11 and
+  anything else they contradicted. The largest groups were the `curl`
+  commands still aimed at `10.0.99.20:9090` and `:3100` (behind the ingest
+  proxy since 2026-09-30, so they now run against `localhost` on
+  `prometheus`), `trinity`, `smaug`, the offsite copy and the switch backup
+  still described as not built, the passes added to the firewall since
+  September, and SSH described as still taking passwords. Passages inside a
+  page's "kept as written" callouts were left as the record they are.
+  The edits went in through the wiki's REST API under a personal access token,
+  so each page's history shows them. An API key cannot save a page in this
+  Wiki.js: saves need a user. The sweep also found
+  `hardware.md`'s U18 row still saying `gandalf` is off between range
+  sessions, against ADR-0125; it says always on now. The pages' HTML would not
+  re-render: the server renders through headless Chrome, and inside
+  `wiki-app`'s 512 MiB, beside the app's 417 MiB, Chrome lost its renderer on
+  every page and each render timed out. `wiki-app` gets 1 GiB now
+  (`stacks/wiki/compose.yaml`).
 - **The read-only audit of `leviathan` (2026-11-13, re-checked 2026-11-25,
   and followed up from `phoenix` on 11-26 and 11-27).** AD is healthy:
   `dcdiag` is clean, replication shows no failures either way, the five GPOs
