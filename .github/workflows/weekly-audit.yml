@@ -244,8 +244,11 @@ jobs:
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" \
             "HEAD:refs/heads/${BRANCH}"
           body="$RUNNER_TEMP/out/pr-body.md"
-          if gh pr view "$BRANCH" >/dev/null 2>&1; then
-            gh pr edit "$BRANCH" --body-file "$body"
+          # Open PRs only: `gh pr view <branch>` also finds a merged one, and
+          # a second run in the same week would edit that instead.
+          open_pr="$(gh pr list --head "$BRANCH" --state open --json number --jq '.[0].number // empty')"
+          if [ -n "$open_pr" ]; then
+            gh pr edit "$open_pr" --body-file "$body"
           else
             gh pr create --base main --head "$BRANCH" \
               --title "docs(audit): weekly doc fixes $WEEK, focus $FOCUS" \
