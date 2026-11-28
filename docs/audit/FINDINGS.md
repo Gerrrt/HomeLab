@@ -4,3 +4,4 @@
 | 77fd409354 | fixed | low | scripts-systemd-github | 2026-11-27 | 2026-11-27 | — | 14 scripts had no row or mention in scripts/README.md |
 | fb041b8be3 | fixed | low | scripts-systemd-github | 2026-11-27 | 2026-11-27 | — | agent/homelab-range-state had no row in systemd/README.md |
 | 1a7bc73c1d | private | high | cross-repo wiki contract | 2026-11-26 | 2026-11-26 | — | security finding in cross-repo wiki contract; operator review |
+| 969fb57d63 | fixed | low | ansible readme | 2026-11-27 | 2026-11-27 | — | endpoint_admin role, tag and LAB_ENDPOINT_ADMIN_PASSWORD missing from ansible/README.md |

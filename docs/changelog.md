@@ -38,6 +38,11 @@ docstring gives: it is a record, not a claim about now.
   that ADR-0141 says does not exist. The events are expected noise. Both DCs
   read the same on 2026-11-27: no enrollment service, no AIA CA and an empty
   `NTAuthCertificates`. An AD CS exercise is a later ADR, as switches.
+- **Docs: `ansible/README.md` now lists `endpoint_admin`.** The weekly audit
+  (2026-48, focus: ansible) found the role, its tag and
+  `LAB_ENDPOINT_ADMIN_PASSWORD` in the playbook and the runbook's tag table
+  but not in the README's roles, tags or secrets list. Added all three. No
+  code changed.
 - **Lab domain: #1770 and #1778 applied to every guest but `siren`.**
   `lab-domain.yml --limit 'lab_domain:!siren' --tags base,sysmon,soc,exporter`
   ran from `phoenix` after a `--check --diff` run that predicted the same ten
