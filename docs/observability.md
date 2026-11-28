@@ -595,13 +595,13 @@ the three container-state rules from
 [#838](https://github.com/Gerrrt/HomeLab/issues/838) and
 `PrometheusSizeRetentionActive`, `Watchdog`, the three iLO rules from
 [#76](https://github.com/Gerrrt/HomeLab/issues/76), all seven in
-`backup.test.yaml`, all eight in `deploy.test.yaml`, the three Loki ruler
+`backup.test.yaml`, all ten in `deploy.test.yaml`, the three Loki ruler
 rules from [#837](https://github.com/Gerrrt/HomeLab/issues/837), the five self-monitoring
 rules from [#840](https://github.com/Gerrrt/HomeLab/issues/840), `RemoteWriteJobStale`,
 `ScrapeTargetDisappeared`,
 `SuricataStopped`, the two gateway rules from
 [#353](https://github.com/Gerrrt/HomeLab/issues/353), the two dynamic DNS rules from
-[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all sixty-one in
+[#604](https://github.com/Gerrrt/HomeLab/issues/604), and all sixty-seven in
 `host.rules.yaml` —
 `HostDiskWillFillIn24h` from [#189](https://github.com/Gerrrt/HomeLab/issues/189),
 six more from [#320](https://github.com/Gerrrt/HomeLab/issues/320), the four
