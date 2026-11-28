@@ -17,6 +17,17 @@ roadmap as it read that day, and the *Done* entries keep the shape they had
 there. `check_docs.py` does not check this file, for the reason its module
 docstring gives: it is a record, not a claim about now.
 
+## 2026-11-28
+
+- **Weekly audit, scripts, systemd and workflows: one row was short.**
+  `scripts/README.md` said `check_tool_versions.py` checks the Packer plugin
+  and Galaxy collection pins; it also checks the Alpine and Gentoo cloud image
+  pins, and the row says so now. Every script has a row and every named script
+  exists, every timer schedule matches its `OnCalendar`, and the runbooks' script
+  names and flags exist. `.github/OVERVIEW.md` has the same gap and is not
+  editable by the audit (Refs #1799), and still lacks rows for two workflows
+  (Refs #1795).
+
 ## 2026-11-27
 
 - **Weekly audit, scripts and systemd: 14 scripts and one timer were
