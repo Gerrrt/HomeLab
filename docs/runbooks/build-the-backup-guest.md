@@ -421,15 +421,19 @@ Print it, and keep it where the age key's own backup lives
 | --- | --- |
 | Storage | `golem` |
 | Schedule | `21:00` |
-| Selection | `odin` (160), `garuda` (162) and the domain's six, as each is built |
+| Selection | `odin` (160), `garuda` (162), `phoenix` (170) and the domain's six, as each is built |
 | Mode | Snapshot |
 | Retention | *Keep all backups* — PBS's prune job in §6 decides |
 
 On the day this is built, the selection may be empty. That is correct: ADR-0053
 backs up the domain and `odin`, and neither may exist yet. **On 2026-10-03,
 when it was built, both did**, and the job took all seven from that night. `alexander`,
-`phoenix`, `gandalf` and `golem` itself are rebuilt from this repository and
-stay out. So does `eden` (141), whose graph is one collection run from rebuilt
+`gandalf` and `golem` itself are rebuilt from this repository and stay out.
+`phoenix` is in since
+[ADR-0143](../adr/0143-back-up-phoenix-for-its-opentofu-state.md):
+the rest of it is rebuilt from this repository, but its OpenTofu state is
+not. It is hand-built, like `odin`, so `qm set 170 --tags` gives it the
+tag, keeping its existing ones. So does `eden` (141), whose graph is one collection run from rebuilt
 ([ADR-0081](../adr/0081-run-bloodhound-ce-on-a-saruman-guest.md)). `garuda`
 is in, because its case notes are in no repository
 ([ADR-0091](../adr/0091-put-a-kali-purple-analyst-workstation-on-saruman.md)).

@@ -438,6 +438,19 @@ to check the pass to `10.0.30.40:9443`, the answer is that there is no
 pass to place — go back to §5, because that message was written for hosts on
 another VLAN and this one is not.
 
+**Then the textfile collectors**, also from the Mac. `deploy-agent.sh` needs
+no privilege on the target and so installs none of them, and without them
+`SecurityUpdatesPending` and `RebootRequired` can never fire for `phoenix`.
+The audit of 2026-11-25 found `/var/lib/node_exporter/textfile_collector`
+empty for that reason:
+
+```bash
+make install-agent-collectors AGENT=<user>@10.0.30.70
+make install-agent-collectors AGENT=<user>@10.0.30.70 ARGS=--check
+```
+
+The second changes nothing and reports each collector installed.
+
 ## 6a. Close the way in
 
 [ADR-0117](../adr/0117-give-phoenix-a-key-only-sshd-and-a-default-deny-inbound-policy.md):
@@ -541,6 +554,34 @@ it for its own length
   negative tests, which must still be blocked and logged on `morpheus`.
 - On `phoenix`: §4's `curl` still lists the guests, and §7's Alloy checks
   still pass. Both are outbound, and `ufw` allows outbound.
+
+**Then the agent's MCP servers.** Agent sessions on `phoenix` are accepted,
+and MCP servers are not launched here
+([ADR-0144](../adr/0144-allow-agent-sessions-on-phoenix-and-launch-no-mcp-servers-there.md)).
+A Claude Code managed-settings file refuses every one, whatever plugin or
+configuration names it:
+
+```bash
+sudo install -d -m 755 /etc/claude-code
+sudo tee /etc/claude-code/managed-settings.json >/dev/null <<'EOF'
+{
+  "allowManagedMcpServersOnly": true,
+  "allowedMcpServers": []
+}
+EOF
+sudo chmod 644 /etc/claude-code/managed-settings.json
+```
+
+It binds sessions that start after it is written. Start a fresh remote
+session, then on `phoenix`:
+
+```bash
+pgrep -af 'mcp' || echo 'no MCP server running'
+```
+
+After every session that started before the file has closed, it prints
+`no MCP server running`. Connectors that the desktop app delivers from
+claude.ai run in-process and start no process here.
 
 ## 7. Verify — including the thing that fails quietly
 

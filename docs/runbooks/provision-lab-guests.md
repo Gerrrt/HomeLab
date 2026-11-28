@@ -53,7 +53,8 @@ OpenTofu's GitHub release and check it against the `SHA256SUMS` published
 beside it:
 
 ```bash
-V=1.13.1   # the tag compose.yaml pins for tofu
+V=$(sed -nE 's|.*image: ghcr.io/opentofu/opentofu:([0-9.]+)@.*|\1|p' ~/code/Gerrrt/HomeLab/stacks/observability/compose.yaml)   # the tag compose.yaml pins
+echo "$V"   # empty means the pattern no longer matches: stop
 cd /tmp
 curl -fsSLO "https://github.com/opentofu/opentofu/releases/download/v${V}/tofu_${V}_linux_amd64.zip"
 curl -fsSLO "https://github.com/opentofu/opentofu/releases/download/v${V}/tofu_${V}_SHA256SUMS"
@@ -308,7 +309,10 @@ replaces the guest, and replacing it re-clones it from scratch.
 
 ## Recovery: `phoenix` is gone
 
-The state is only recoverable if its file is. Take it from `phoenix`'s backup.
+The state is only recoverable if its file is. Take it from `phoenix`'s nightly
+backup on `golem` ([ADR-0143](../adr/0143-back-up-phoenix-for-its-opentofu-state.md)): restore VMID `170` as
+[`build-the-backup-guest.md`](build-the-backup-guest.md) §9 does, or take the one
+file with PBS's file restore.
 The passphrase comes from escrow, on `prometheus`:
 
 ```bash

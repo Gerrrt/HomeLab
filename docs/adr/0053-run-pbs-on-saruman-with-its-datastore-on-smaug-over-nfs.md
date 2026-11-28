@@ -16,6 +16,11 @@ re-read [#485](https://github.com/Gerrrt/HomeLab/issues/485) asked for
 > day; ADR-0027's sentence and `build-the-soc-guest.md`'s note become history
 > with it. The verify job's outcome does not yet reach the lab's alerting,
 > which is what keeps #485 open. Nothing here is amended, per ADR-0001.
+>
+> [!NOTE]
+> Amended by [ADR-0143](0143-back-up-phoenix-for-its-opentofu-state.md):
+> `phoenix` joins the nightly job, for the OpenTofu state that is in no
+> repository. The sentence below that leaves it out is left as written.
 
 ## Context
 
