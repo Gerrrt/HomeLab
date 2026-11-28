@@ -19,6 +19,15 @@ docstring gives: it is a record, not a claim about now.
 
 ## 2026-11-28
 
+- **Lab domain: #1770 applied to `siren`, the last guest without it.** The
+  2026-11-27 entry left `siren` out because it was stopped (`--onboot 0`). It
+  was started for the run and shut down again after it. `lab-domain.yml
+  --limit siren --tags base,sysmon,soc,exporter` ran from `phoenix` after a
+  `--check --diff` run that predicted the same changes. It removed the Sysmon
+  zip and its unpacked folder and the Wazuh, Velociraptor and exporter MSIs,
+  and cut the textfile directory to SYSTEM and Administrators. Nothing
+  reinstalled. `siren` had no `Panther\unattend.xml`, so #1778 changed nothing
+  there. `verify.yml` then held: 28 checks. Both PRs are now on all six guests.
 - **Weekly audit, scripts, systemd and workflows: one row was short.**
   `scripts/README.md` said `check_tool_versions.py` checks the Packer plugin
   and Galaxy collection pins; it also checks the Alpine and Gentoo cloud image
